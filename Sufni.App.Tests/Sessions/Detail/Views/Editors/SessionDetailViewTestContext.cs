@@ -175,8 +175,8 @@ internal sealed class SessionDetailViewTestContext
             new InMemoryRecordedSessionProcessingOptionCache(),
             new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,
-            Substitute.For<IRecordedSessionDerivationWindowCache>(),
-            () => Substitute.For<IEditorFactory>());
+            () => Substitute.For<IEditorFactory>(),
+            Substitute.For<ISessionEditingCoordinator>());
     }
 }
 

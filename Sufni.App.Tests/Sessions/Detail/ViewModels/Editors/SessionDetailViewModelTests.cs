@@ -601,6 +601,71 @@ public class SessionDetailViewModelTests
         Assert.True(FindSignalAction(editor, "video-mark-video-event").Command.CanExecute(context));
     }
 
+    [AvaloniaFact]
+    public async Task Split_CallsCoordinatorAtClick_AndNotifiesWhenApplied()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        harness.SessionEditingCoordinator.SplitAsync(editor.Id, 3).Returns(new SessionEditResult.Applied());
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-split-here").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
+
+        await harness.SessionEditingCoordinator.Received(1).SplitAsync(editor.Id, 3);
+        Assert.Contains("Session split.", editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task TrimUntilEnd_WhenEditFails_ShowsError()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        harness.SessionEditingCoordinator.TrimUntilEndAsync(editor.Id, 4)
+            .Returns(new SessionEditResult.Failed("Session changed while editing."));
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 4));
+
+        Assert.Contains("Session changed while editing.", editor.ErrorMessages);
+        Assert.Empty(editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task WindowEdits_KeepFiveSamplesInEveryRemainingPart()
+    {
+        var (_, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        var nearEnd = CreatePlotContext(clickSeconds: 9.998);
+
+        Assert.True(FindSignalAction(editor, "session-trim-until-end").Command.CanExecute(nearEnd));
+        Assert.False(FindSignalAction(editor, "session-split-here").Command.CanExecute(nearEnd));
+        Assert.False(FindSignalAction(editor, "session-trim-from-beginning").Command.CanExecute(nearEnd));
+    }
+
+    [AvaloniaFact]
+    public async Task UndoTrim_IsAvailableOnlyAfterTrim()
+    {
+        var trimmedSnapshot = TestSnapshots.Session(hasProcessedData: true);
+        trimmedSnapshot = trimmedSnapshot with
+        {
+            SourceSessionId = trimmedSnapshot.Id,
+            WindowEndSeconds = 8,
+            PreviousWindowStartSeconds = 0
+        };
+        var (_, untrimmed) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        var (_, trimmed) = await CreateLoadedEditorAsync(trimmedSnapshot);
+        var context = CreatePlotContext(clickSeconds: 3);
+
+        Assert.False(FindSignalAction(untrimmed, "session-undo-trim").Command.CanExecute(context));
+        Assert.True(FindSignalAction(trimmed, "session-undo-trim").Command.CanExecute(context));
+    }
+
+    private static async Task<(SessionDetailHarness Harness, SessionDetailViewModel Editor)> CreateLoadedEditorAsync(
+        SessionSnapshot snapshot)
+    {
+        var harness = new SessionDetailHarness();
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        await harness.LoadAsync(editor);
+        return (harness, editor);
+    }
+
     private static async Task<(SessionDetailViewModel Editor, SessionVideoClip Clip)> CreateEditorWithVideoAsync(
         VideoFixture videos)
     {
@@ -631,7 +696,6 @@ public class SessionDetailViewModelTests
         DerivedChangeKind changeKind = DerivedChangeKind.None,
         SessionStaleness? staleness = null) => new(
         snapshot,
-        null,
         null,
         null,
         null,

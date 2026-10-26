@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.Sessions.Services;
 
 namespace Sufni.App.Tests.Sessions.Services;
@@ -7,114 +6,33 @@ namespace Sufni.App.Tests.Sessions.Services;
 public class RecordedSessionSourceSyncQueryTests
 {
     [Fact]
-    public async Task GetSourceSyncTargetIdsAsync_ReplacesMissingDerivedSessionWithMissingSource()
+    public async Task GetSourceSyncTargetIdsAsync_ReturnsMissingRecordingSources()
     {
-        var derivedSessionId = Guid.NewGuid();
-        var sourceSessionId = Guid.NewGuid();
-        var existingSourceId = Guid.NewGuid();
-        var ordinaryMissingSessionId = Guid.NewGuid();
+        var missingSourceId = Guid.NewGuid();
         var repository = Substitute.For<IRecordedSessionSourceRepository>();
-        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
-        repository.GetSessionIdsMissingRecordedSourceAsync()
-            .Returns([derivedSessionId, ordinaryMissingSessionId]);
-        repository.GetSourceBackedSessionIdsAsync().Returns([existingSourceId]);
-        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
-        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
-        {
-            [derivedSessionId] = new(sourceSessionId, 1, null)
-        });
-        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([sourceSessionId, existingSourceId]);
-        var query = new RecordedSessionSourceSyncQuery(repository, provider);
-
-        var targetIds = await query.GetSourceSyncTargetIdsAsync();
-
-        Assert.Contains(ordinaryMissingSessionId, targetIds);
-        Assert.Contains(sourceSessionId, targetIds);
-        Assert.DoesNotContain(derivedSessionId, targetIds);
-        Assert.DoesNotContain(existingSourceId, targetIds);
-    }
-
-    [Fact]
-    public async Task GetSourceSyncTargetIdsAsync_RequestsDerivedSource_WhenExistingSourceRowIsStale()
-    {
-        var derivedSessionId = Guid.NewGuid();
-        var sourceSessionId = Guid.NewGuid();
-        var repository = Substitute.For<IRecordedSessionSourceRepository>();
-        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
-        repository.GetSessionIdsMissingRecordedSourceAsync()
-            .Returns([derivedSessionId]);
-        repository.GetSourceBackedSessionIdsAsync().Returns([sourceSessionId]);
-        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
-        {
-            [derivedSessionId] = new(sourceSessionId, 1, null)
-        });
-        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([sourceSessionId]);
-        var query = new RecordedSessionSourceSyncQuery(repository, provider);
-
-        var targetIds = await query.GetSourceSyncTargetIdsAsync();
-
-        Assert.Contains(sourceSessionId, targetIds);
-        Assert.DoesNotContain(derivedSessionId, targetIds);
-    }
-
-    [Fact]
-    public async Task GetSourceSyncTargetIdsAsync_KeepsMissingSession_WhenWindowIsSelfOrAbsent()
-    {
-        var selfWindowSessionId = Guid.NewGuid();
-        var absentWindowSessionId = Guid.NewGuid();
-        var repository = Substitute.For<IRecordedSessionSourceRepository>();
-        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
-        repository.GetSessionIdsMissingRecordedSourceAsync()
-            .Returns([selfWindowSessionId, absentWindowSessionId]);
+        repository.GetMissingRecordingSourceIdsAsync().Returns([missingSourceId]);
         repository.GetSourceBackedSessionIdsAsync().Returns([]);
-        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
-        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>
-        {
-            [selfWindowSessionId] = new(selfWindowSessionId, 2, null)
-        });
-        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([]);
-        var query = new RecordedSessionSourceSyncQuery(repository, provider);
+        repository.GetReferencedSourceSessionIdsAsync().Returns([]);
+        var query = new RecordedSessionSourceSyncQuery(repository);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();
 
-        Assert.Contains(selfWindowSessionId, targetIds);
-        Assert.Contains(absentWindowSessionId, targetIds);
+        Assert.Equal([missingSourceId], targetIds);
     }
 
     [Fact]
-    public async Task GetSourceSyncTargetIdsAsync_AddsPersistedFingerprintSource_WhenProviderIsBlind()
+    public async Task GetSourceSyncTargetIdsAsync_AddsReferencedSourcesThatAreNotHeld()
     {
-        var derivedSessionId = Guid.NewGuid();
-        var sourceSessionId = Guid.NewGuid();
+        var heldSourceId = Guid.NewGuid();
+        var absentSourceId = Guid.NewGuid();
         var repository = Substitute.For<IRecordedSessionSourceRepository>();
-        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
-        repository.GetSessionIdsMissingRecordedSourceAsync().Returns([derivedSessionId]);
-        repository.GetSourceBackedSessionIdsAsync().Returns([]);
-        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([sourceSessionId]);
-        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
-        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([]);
-        var query = new RecordedSessionSourceSyncQuery(repository, provider);
+        repository.GetMissingRecordingSourceIdsAsync().Returns([]);
+        repository.GetSourceBackedSessionIdsAsync().Returns([heldSourceId]);
+        repository.GetReferencedSourceSessionIdsAsync().Returns([heldSourceId, absentSourceId]);
+        var query = new RecordedSessionSourceSyncQuery(repository);
 
         var targetIds = await query.GetSourceSyncTargetIdsAsync();
 
-        Assert.Contains(sourceSessionId, targetIds);
-    }
-
-    [Fact]
-    public async Task GetSourceSyncTargetIdsAsync_UsesProviderSet_WhenPersistedFingerprintsAddNothing()
-    {
-        var sourceSessionId = Guid.NewGuid();
-        var repository = Substitute.For<IRecordedSessionSourceRepository>();
-        var provider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
-        repository.GetSessionIdsMissingRecordedSourceAsync().Returns([]);
-        repository.GetSourceBackedSessionIdsAsync().Returns([]);
-        repository.GetPersistedDerivationSourceSessionIdsAsync().Returns([]);
-        provider.GetWindowsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns(new Dictionary<Guid, RecordedSessionDerivationWindow>());
-        provider.GetReferencedSourceSessionIdsAsync(cancellationToken: Arg.Any<CancellationToken>()).Returns([sourceSessionId]);
-        var query = new RecordedSessionSourceSyncQuery(repository, provider);
-
-        var targetIds = await query.GetSourceSyncTargetIdsAsync();
-
-        Assert.Equal([sourceSessionId], targetIds);
+        Assert.Equal([absentSourceId], targetIds);
     }
 }

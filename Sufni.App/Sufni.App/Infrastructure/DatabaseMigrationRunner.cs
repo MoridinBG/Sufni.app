@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Serilog;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 
@@ -14,6 +15,7 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Video.Models;
 namespace Sufni.App.Infrastructure;
@@ -49,6 +51,7 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureSessionBlobSwapRequestIntegrityAsync();
             await CopyPrivateSessionVideosAsync();
             await EnsureSessionVideoIntegrityAsync();
+            await MigrateSessionDerivationWindowsAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
@@ -156,6 +159,96 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("DROP TABLE private_session_video_clip");
             transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
         });
+    }
+
+    // One-time move of trim/split windows onto the session row. Windows come from
+    // the former private session-editing table; sessions without a row there take
+    // the window from their processing fingerprint, because installs that received
+    // derived sessions through sync hold only that copy.
+    private async Task MigrateSessionDerivationWindowsAsync()
+    {
+        const string migrationId = "session-derivation-window";
+        if (await coreMigrations.IsAppliedAsync(migrationId))
+        {
+            return;
+        }
+
+        var hasRangeTable = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_source_range'") > 0;
+        await connection.RunInTransactionAsync(transaction =>
+        {
+            if (hasRangeTable)
+            {
+                transaction.Execute(
+                    """
+                    UPDATE session
+                    SET (source_session_id, window_start_seconds, window_end_seconds,
+                         previous_window_start_seconds, previous_window_end_seconds) = (
+                        SELECT range.source_session_id, range.range_start_seconds, range.range_end_seconds,
+                               range.prev_range_start_seconds, range.prev_range_end_seconds
+                        FROM private_session_source_range range
+                        WHERE range.session_id = session.id)
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM private_session_source_range range
+                        WHERE range.session_id = session.id
+                          AND range.deleted IS NULL
+                          AND NOT (range.source_session_id = range.session_id
+                                   AND range.range_start_seconds = 0
+                                   AND range.range_end_seconds IS NULL))
+                    """);
+            }
+
+            var fingerprintRows = transaction.Query<SessionFingerprintRow>(
+                hasRangeTable
+                    ? """
+                      SELECT id, session_processing_fingerprint
+                      FROM session
+                      WHERE source_session_id IS NULL
+                        AND session_processing_fingerprint IS NOT NULL
+                        AND id NOT IN (SELECT session_id FROM private_session_source_range)
+                      """
+                    : """
+                      SELECT id, session_processing_fingerprint
+                      FROM session
+                      WHERE source_session_id IS NULL
+                        AND session_processing_fingerprint IS NOT NULL
+                      """);
+            foreach (var row in fingerprintRows)
+            {
+                if (TryReadDerivationWindow(row.ProcessingFingerprintJson) is not { } window)
+                {
+                    continue;
+                }
+
+                transaction.Execute(
+                    "UPDATE session SET source_session_id = ?, window_start_seconds = ?, window_end_seconds = ? WHERE id = ?",
+                    window.SourceSessionId,
+                    window.StartSeconds,
+                    window.EndSeconds,
+                    row.Id);
+            }
+
+            if (hasRangeTable)
+            {
+                transaction.Execute("DROP TABLE private_session_source_range");
+                transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.session-editing'");
+            }
+        });
+        await coreMigrations.MarkAppliedAsync(migrationId);
+    }
+
+    private static RecordedSessionDerivationWindow? TryReadDerivationWindow(string? processingFingerprintJson)
+    {
+        try
+        {
+            var window = AppJson.Deserialize<ProcessingFingerprint>(processingFingerprintJson!)?.DerivationWindow;
+            return window is not null && window.SourceSessionId != Guid.Empty ? window : null;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private async Task EnsureSessionVideoIntegrityAsync()
@@ -632,6 +725,15 @@ internal sealed class DatabaseMigrationRunner(
     ];
 
     private static readonly string[] BikeDampingSpeedCutoffColumnNames = DampingSpeedCutoffColumnNames;
+
+    private sealed class SessionFingerprintRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
+    }
 
     private sealed class TableColumnInfo
     {

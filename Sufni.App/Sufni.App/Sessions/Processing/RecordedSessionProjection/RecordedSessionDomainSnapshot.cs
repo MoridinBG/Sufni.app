@@ -1,5 +1,4 @@
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -18,7 +17,6 @@ public sealed record RecordedSessionDomainSnapshot(
     ProcessingFingerprint? CurrentFingerprint,
     ProcessingFingerprint? PersistedFingerprint,
     RecordedSessionSourceSnapshot? Source,
-    RecordedSessionDerivationWindow? DerivationWindow,
     SessionStaleness Staleness,
     DerivedChangeKind ChangeKind,
     string? DependencyHash = null);

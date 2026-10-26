@@ -16,11 +16,11 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
         "analysis-range-set-start",
         "analysis-range-clear",
         "gps-mark-gps-event",
-        "private-video-mark-video-event",
-        "private-session-editing-trim-from-beginning",
-        "private-session-editing-trim-until-end",
-        "private-session-editing-split-from-here",
-        "private-session-editing-undo-trim",
+        "video-mark-video-event",
+        "session-trim-from-beginning",
+        "session-trim-until-end",
+        "session-split-here",
+        "session-undo-trim",
     ];
 
     private readonly IPlotMenu innerMenu;
@@ -153,13 +153,13 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
                 ]);
         }
 
-        if (actionsById.ContainsKey("private-video-mark-telemetry-event"))
+        if (actionsById.ContainsKey("video-mark-telemetry-event"))
         {
             return MaterializeKnownActions(
                 actionsById,
                 [
-                    ("private-video-mark-telemetry-event", "Sync > Mark telemetry event"),
-                    ("private-video-cancel-alignment", "Sync > Cancel"),
+                    ("video-mark-telemetry-event", "Sync > Mark telemetry event"),
+                    ("video-cancel-alignment", "Sync > Cancel"),
                 ]);
         }
 
@@ -209,11 +209,11 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
             "analysis-range-set-start" => "Analysis > Start here",
             "analysis-range-clear" => "Analysis > Clear",
             "gps-mark-gps-event" => "Sync > Mark GPS event",
-            "private-video-mark-video-event" => "Sync > Mark video event",
-            "private-session-editing-trim-from-beginning" => "Trim > Trim from beginning",
-            "private-session-editing-trim-until-end" => "Trim > Trim until end",
-            "private-session-editing-split-from-here" => "Trim > Split here",
-            "private-session-editing-undo-trim" => "Trim > Undo trim",
+            "video-mark-video-event" => "Sync > Mark video event",
+            "session-trim-from-beginning" => "Trim > Trim from beginning",
+            "session-trim-until-end" => "Trim > Trim until end",
+            "session-split-here" => "Trim > Split here",
+            "session-undo-trim" => "Trim > Undo trim",
             "zoom-selection" => "Zoom selection",
             _ => id,
         };
@@ -224,7 +224,7 @@ internal sealed class TelemetryPlotContextMenu : IPlotMenu
         return id is "analysis-range-set-end" or
             "gps-mark-telemetry-event" or
             "gps-cancel-alignment" or
-            "private-video-mark-telemetry-event" or
-            "private-video-cancel-alignment";
+            "video-mark-telemetry-event" or
+            "video-cancel-alignment";
     }
 }

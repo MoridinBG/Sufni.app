@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Store;
@@ -38,8 +39,21 @@ public sealed record SessionSnapshot(
     double? DescentMeters = null,
     double GpsOffsetSeconds = 0,
     long ProcessedTelemetryRevision = 0,
-    long TrackProjectionRevision = 0)
+    long TrackProjectionRevision = 0,
+    Guid? SourceSessionId = null,
+    double WindowStartSeconds = 0,
+    double? WindowEndSeconds = null,
+    double? PreviousWindowStartSeconds = null,
+    double? PreviousWindowEndSeconds = null)
 {
+    public RecordedSessionDerivationWindow? DerivationWindow => SourceSessionId is { } sourceSessionId
+        ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
+        : null;
+
+    public Guid RecordingSourceSessionId => SourceSessionId ?? Id;
+
+    public bool CanUndoTrim => PreviousWindowStartSeconds is not null;
+
     public static SessionSnapshot From(Session session) => new(
         session.Id,
         session.Name,
@@ -66,7 +80,12 @@ public sealed record SessionSnapshot(
         session.DescentMeters,
         session.GpsOffsetSeconds,
         session.ProcessedTelemetryRevision,
-        session.TrackProjectionRevision);
+        session.TrackProjectionRevision,
+        session.SourceSessionId,
+        session.WindowStartSeconds,
+        session.WindowEndSeconds,
+        session.PreviousWindowStartSeconds,
+        session.PreviousWindowEndSeconds);
 }
 
 public static class SessionSnapshotExtensions
@@ -92,6 +111,11 @@ public static class SessionSnapshotExtensions
             GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
             ProcessedTelemetryRevision = snapshot.ProcessedTelemetryRevision,
             TrackProjectionRevision = snapshot.TrackProjectionRevision,
+            SourceSessionId = snapshot.SourceSessionId,
+            WindowStartSeconds = snapshot.WindowStartSeconds,
+            WindowEndSeconds = snapshot.WindowEndSeconds,
+            PreviousWindowStartSeconds = snapshot.PreviousWindowStartSeconds,
+            PreviousWindowEndSeconds = snapshot.PreviousWindowEndSeconds,
             FrontSpringRate = snapshot.FrontSpringRate,
             FrontHighSpeedCompression = snapshot.FrontHighSpeedCompression,
             FrontLowSpeedCompression = snapshot.FrontLowSpeedCompression,

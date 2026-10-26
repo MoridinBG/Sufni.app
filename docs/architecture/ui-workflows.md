@@ -22,6 +22,7 @@ and are registered as singletons.
 | `BikeCoordinator`                                                         | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`), and route bike-editor analysis/import/export/image requests through `IBikeEditorService`. Both interfaces expose neutral result records; image loading returns encoded bytes and a file name, leaving Avalonia bitmap decoding to the editor presentation edge                                                                                                                                                                              |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete) and the "create setup for detected board" flow                                                                                                                                                                                                                                                                                                                             |
 | `SessionCoordinator`                                                      | shared       | Thin router over `SessionLoader` (reads) and `SessionCommandService` (writes): `OpenEditAsync` routes through `IEditorFactory`; telemetry-first detail loading and the later typed track-settling read both delegate to `SessionLoader`; save / delete / recompute requests delegate to `SessionCommandService`. It owns no event subscriptions and is not eagerly resolved                                                                                                                                                                                                                                                |
+| `ISessionEditingCoordinator` (`SessionEditingCoordinator`)                | shared       | Trim and split commands of recorded sessions: one transaction per command, then session and clip publication, recompute, and background open of a split's second part. See [Trim and split](#trim-and-split) |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
 | `ImportSessionsCoordinator`                                               | shared       | Opens the import view, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes changed session/source ids through store writer publish-only paths                                                                                                                                                                |
 | `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, then refreshes all core and extension state through `IAppStateRefreshOrchestrator`                                                                                                                                                                                                                                                                                    |
@@ -38,7 +39,7 @@ singletons):
 | Use case            | Owns                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SessionLoader`     | Local-only staged detail reads. It depends on read-only `ISessionStore` (never `ISessionStoreWriter`) and uses `Get(sessionId)` only to resolve the linked full-track id. `LoadDetailAsync` decodes and validates telemetry for first-content publication, while `LoadTrackAsync` resolves the optional map/track payload later. Missing local processed telemetry or recorded-source payloads return an incomplete-local-data result; track failures remain a typed failed settling result |
-| `SessionCommandService` | Session write workflows: `SaveAsync` delegates metadata commits to `ISessionStoreWriter`; `DeleteAsync` clears stored preferences, always uses `SessionPersistenceTransactionRunner` to delete the session/source/generated track and apply extension cascades atomically, then publishes session/source removals after commit; create-only `SaveLiveCaptureAsync` persists live captures as processed session + raw source + optional generated track and publishes affected stores post-commit; extension-host editing helpers use single-aggregate store commits for trim/split workflows (`CreateDerivedSessionAsync` commits a derived session, while `UpdateSessionOriginAsync` and `RenameSessionAsync` use `CommitSessionMetadataFieldAsync`); `RequestRecomputeAsync` / `RequestRecomputeAllAsync` delegate to `SessionRecomputeEngine` |
+| `SessionCommandService` | Session write workflows: `SaveAsync` delegates metadata commits to `ISessionStoreWriter`; `DeleteAsync` clears stored preferences, always uses `SessionPersistenceTransactionRunner` to delete the session, the generated track, and the recorded source when no other live session derives from it, and to apply extension cascades atomically, then publishes session removal (and source removal when the source was deleted) after commit; create-only `SaveLiveCaptureAsync` persists live captures as processed session + raw source + optional generated track and publishes affected stores post-commit; `RequestRecomputeAsync` / `RequestRecomputeAllAsync` delegate to `SessionRecomputeEngine` |
 | `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and the hydrated `IRecordedSessionProcessingOptionCache`; the reprocessor returns a `ProcessedTelemetryPayload` carrying the decoded telemetry, serialized bytes, and fingerprint JSON, and `SessionTelemetryWriter.UpdateProcessedDerivedDataAsync` commits that payload after the in-transaction DB-input fingerprint check. If that derived write replaces the session's previous full track, the engine deletes the previous track only after the active-session `full_track_id` projection shows it is no longer referenced. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` hydrates the processing-option cache, enumerates active ids through the session-id projection (`ISessionRepository.GetActiveSessionIdsAsync()`), and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
 | `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, publishing inbound session/source ids through writer publish-only paths after the server has persisted the payloads. The desktop sync server's PSST upload endpoint persists BLOB fills and swaps through `ISessionTelemetryWriter`; the resulting `SessionDataArrived` event is the only store-publication path for that upload |
 
@@ -48,6 +49,34 @@ singletons):
 `SyncCoordinator` are eagerly resolved in `App.axaml.cs` after
 `BuildServiceProvider()` so their constructor event subscriptions wire up
 before any sync, pairing, or telemetry arrival can happen.
+
+### Trim and split
+
+`ISessionEditingCoordinator` (`SessionEditingCoordinator`, singleton) runs the
+recorded-session window edits from the signal-row context menu of the session
+editor: "Trim from beginning", "Trim until end", "Split here", and "Undo trim".
+Each command is one `SessionPersistenceTransactionRunner` transaction:
+
+- **Trim until end** ends the window at the click.
+- **Trim from beginning** moves the window start and the session origin to the
+  click. The timestamp takes the whole seconds and the GPS offset the fraction,
+  and the session's video alignment shifts by the change of the fraction.
+- **Undo trim** restores the previous window and origin. A window equal to the
+  session's own full range is stored as no window.
+- **Split** ends the window at the click, renames the session "(1)", and
+  inserts a "(2)" session over the rest of the window with copies of the video
+  clips.
+
+The transaction rejects the edit when the stored window differs from the
+snapshot the command started from, so concurrent edits of one session do not
+need a lock. After the commit the coordinator publishes the changed sessions,
+requests their recompute with `RecomputeReason.SourceWindowChanged` before any
+other await (an open editor prompts for a recompute of a stale session unless
+one is already running), publishes the changed clips, opens a split's second
+part in the background, and waits for the recomputes. The editor shows the
+operation overlay while an edit runs, allows one edit at a time, and enables a
+command only when every remaining part keeps at least five samples and a trim
+removes at least one.
 
 ## Dependency Injection
 
@@ -103,21 +132,14 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   `IRecordedSessionReprocessor`, `IRecordedSessionAnalysisComputer`) are
   also singleton services. `IRecordedSessionAnalysisResultStateFactory` is
   transient because each open recorded-session editor owns its own result
-  cache and cancellation scope. The recorded-source factory is static and
-  stays in `RecordedSessionProjection/` beside the reprocessor.
-  `IRecordedSessionReprocessor`, `IRecordedSessionAnalysisComputer`,
-  `IRecordedSessionDerivationWindowCache`, and the public-build no-op
-  `IRecordedSessionDerivationWindowProvider`) are also singleton services.
-  `IRecordedSessionAnalysisResultStateFactory` is transient because each open
-  recorded-session editor owns its own result cache and cancellation scope.
-  `IRecordedSessionSourceSyncQuery` is the source-sync read helper that
-  combines repository missing-source state with derivation-window references.
-  The recorded-source factory is static and stays in
-  `RecordedSessionProjection/` beside the reprocessor.
+  cache and cancellation scope. `IRecordedSessionSourceSyncQuery` is the
+  source-sync read helper that combines the repository's missing recording
+  sources with the sources referenced by derived sessions. The recorded-source
+  factory is static and stays in `RecordedSessionProjection/` beside the
+  reprocessor.
 - **Refresh orchestration**: `AppDataRefresher` is registered behind
   `IAppStateRefreshOrchestrator` and the compatibility `IAppDataRefresher`
-  alias. Core refresh hydrates processing-option and derivation-window caches,
-  then refreshes bikes, setups, sessions, recorded-session sources, and paired
+  alias. Core refresh hydrates the processing-option cache, then refreshes bikes, setups, sessions, recorded-session sources, and paired
   devices in order. All-state refresh appends extension state refresh
   participants.
 - **Stores**: each concrete store registered as a singleton, then

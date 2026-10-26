@@ -116,6 +116,49 @@ public class RecordedSessionSourceRepositoryTests
     }
 
     [Fact]
+    public async Task GetMissingRecordingSourceIdsAsync_ReturnsSourceOfDerivedSession()
+    {
+        using var tempDatabase = new TempDatabase("source-missing-recording-source.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var sourceSessionId = Guid.NewGuid();
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "derived", "desc", null, 100)
+        {
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1
+        });
+
+        var missingIds = await database.GetMissingRecordingSourceIdsAsync();
+
+        Assert.Equal([sourceSessionId], missingIds);
+    }
+
+    [Fact]
+    public async Task GetReferencedSourceSessionIdsAsync_ReturnsSourcesOfLiveDerivedSessions()
+    {
+        using var tempDatabase = new TempDatabase("source-referenced-ids.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var liveSourceId = Guid.NewGuid();
+        var deletedSourceId = Guid.NewGuid();
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "plain", "desc", null, 100));
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "live", "desc", null, 101)
+        {
+            SourceSessionId = liveSourceId,
+            WindowStartSeconds = 1
+        });
+        var deleted = new Session(Guid.NewGuid(), "deleted", "desc", null, 102)
+        {
+            SourceSessionId = deletedSourceId,
+            WindowStartSeconds = 1
+        };
+        await database.PutSessionAsync(deleted);
+        await database.DeleteAsync(deleted);
+
+        var referencedIds = await database.GetReferencedSourceSessionIdsAsync();
+
+        Assert.Equal([liveSourceId], referencedIds);
+    }
+
+    [Fact]
     public async Task DeleteOrphanedRecordedSessionSourcesAsync_KeepsMoreThanSqliteParameterLimitRetainedSources()
     {
         using var tempDatabase = new TempDatabase("source-retained-over-parameter-limit.db");
@@ -203,13 +246,19 @@ public class RecordedSessionSourceRepositoryTests
             {
                 ProcessingFingerprintJson = CreateFingerprintJson(
                     matchingSource.SourceHash,
-                    new RecordedSessionDerivationWindow(matchingSourceSessionId, 1, 2))
+                    new RecordedSessionDerivationWindow(matchingSourceSessionId, 1, 2)),
+                SourceSessionId = matchingSourceSessionId,
+                WindowStartSeconds = 1,
+                WindowEndSeconds = 2
             });
             await database.PutSessionAsync(new Session(staleDerivedSessionId, "stale derived", "desc", null, 103)
             {
                 ProcessingFingerprintJson = CreateFingerprintJson(
                     expectedReplacementHash,
-                    new RecordedSessionDerivationWindow(staleSourceSessionId, 1, 2))
+                    new RecordedSessionDerivationWindow(staleSourceSessionId, 1, 2)),
+                SourceSessionId = staleSourceSessionId,
+                WindowStartSeconds = 1,
+                WindowEndSeconds = 2
             });
 
             return ([staleDerivedSessionId], [matchingDerivedSessionId]);

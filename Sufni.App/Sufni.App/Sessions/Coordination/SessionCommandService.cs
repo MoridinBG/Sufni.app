@@ -1,9 +1,9 @@
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
@@ -50,8 +50,6 @@ public sealed class SessionCommandService
     private readonly IAppEnvironment appEnvironment;
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly Func<IEditorFactory> editorFactory;
-    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
-    private readonly IRecordedSessionDerivationWindowProvider derivationWindowProvider;
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
 
     public SessionCommandService(
@@ -68,8 +66,6 @@ public sealed class SessionCommandService
         IAppEnvironment appEnvironment,
         ISessionRecomputeEngine recomputeEngine,
         Func<IEditorFactory> editorFactory,
-        IRecordedSessionDerivationWindowCache derivationWindowCache,
-        IRecordedSessionDerivationWindowProvider derivationWindowProvider,
         ISessionPersistenceTransactionRunner sessionPersistenceTransactions)
     {
         this.sessionStore = sessionStore;
@@ -85,8 +81,6 @@ public sealed class SessionCommandService
         this.appEnvironment = appEnvironment;
         this.recomputeEngine = recomputeEngine;
         this.editorFactory = editorFactory;
-        this.derivationWindowCache = derivationWindowCache;
-        this.derivationWindowProvider = derivationWindowProvider;
         this.sessionPersistenceTransactions = sessionPersistenceTransactions;
     }
 
@@ -99,126 +93,6 @@ public sealed class SessionCommandService
         recomputeEngine.RequestRecomputeAllAsync(reason, progress);
 
     public bool IsRecomputeActive(Guid sessionId) => recomputeEngine.IsActive(sessionId);
-
-    public async Task<Guid?> CreateDerivedSessionAsync(
-        Guid fromSessionId,
-        string name,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var from = sessionStore.Get(fromSessionId);
-        if (from is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            var origin = CalculateSourceAbsoluteOrigin(from, sourceAbsoluteStartSeconds);
-            var derived = new Session(Guid.NewGuid(), name, from.Description, from.SetupId, origin.Timestamp)
-            {
-                GpsOffsetSeconds = origin.GpsOffsetSeconds,
-                FrontSpringRate = from.FrontSpringRate,
-                FrontHighSpeedCompression = from.FrontHighSpeedCompression,
-                FrontLowSpeedCompression = from.FrontLowSpeedCompression,
-                FrontLowSpeedRebound = from.FrontLowSpeedRebound,
-                FrontHighSpeedRebound = from.FrontHighSpeedRebound,
-                RearSpringRate = from.RearSpringRate,
-                RearHighSpeedCompression = from.RearHighSpeedCompression,
-                RearLowSpeedCompression = from.RearLowSpeedCompression,
-                RearLowSpeedRebound = from.RearLowSpeedRebound,
-                RearHighSpeedRebound = from.RearHighSpeedRebound,
-            };
-
-            var result = await sessionStore.CommitDerivedSessionAsync(derived, cancellationToken);
-            return result is StoreMutationResult<SessionSnapshot>.Saved saved
-                ? saved.Snapshot.Id
-                : null;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Creating derived session from {SessionId} failed", fromSessionId);
-            return null;
-        }
-    }
-
-    public async Task<bool> UpdateSessionOriginAsync(
-        Guid sessionId,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var snapshot = sessionStore.Get(sessionId);
-        if (snapshot is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            var origin = CalculateSourceAbsoluteOrigin(snapshot, sourceAbsoluteStartSeconds);
-
-            var result = await sessionStore.CommitSessionMetadataFieldAsync(
-                sessionId,
-                session =>
-                {
-                    session.Timestamp = origin.Timestamp;
-                    session.GpsOffsetSeconds = origin.GpsOffsetSeconds;
-                    return session;
-                },
-                cancellationToken);
-            return result is StoreMutationResult<SessionSnapshot>.Saved;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Updating session origin failed for {SessionId}", sessionId);
-            return false;
-        }
-    }
-
-    public async Task<bool> RenameSessionAsync(
-        Guid sessionId,
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var snapshot = sessionStore.Get(sessionId);
-        if (snapshot is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            var result = await sessionStore.CommitSessionMetadataFieldAsync(
-                sessionId,
-                session =>
-                {
-                    session.Name = name;
-                    return session;
-                },
-                cancellationToken);
-            return result is StoreMutationResult<SessionSnapshot>.Saved;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Renaming session failed for {SessionId}", sessionId);
-            return false;
-        }
-    }
 
     public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
     {
@@ -306,7 +180,6 @@ public sealed class SessionCommandService
                 CurrentFingerprint: null,
                 PersistedFingerprint: null,
                 sourceSnapshot,
-                DerivationWindow: null,
                 new SessionStaleness.UnknownLegacyFingerprint(),
                 DerivedChangeKind.None);
 
@@ -376,30 +249,6 @@ public sealed class SessionCommandService
         }
     }
 
-    private (long? Timestamp, double GpsOffsetSeconds) CalculateSourceAbsoluteOrigin(
-        SessionSnapshot snapshot,
-        double sourceAbsoluteStartSeconds)
-    {
-        if (!double.IsFinite(sourceAbsoluteStartSeconds) || sourceAbsoluteStartSeconds < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sourceAbsoluteStartSeconds));
-        }
-
-        if (snapshot.Timestamp is not { } timestamp)
-        {
-            return (null, 0);
-        }
-
-        var currentStartSeconds = derivationWindowCache.Get(snapshot.Id)?.StartSeconds ?? 0;
-        var rawTimestamp = timestamp - (long)Math.Floor(currentStartSeconds);
-        var alignmentBase = snapshot.GpsOffsetSeconds - FractionalSeconds(currentStartSeconds);
-        return (
-            rawTimestamp + (long)Math.Floor(sourceAbsoluteStartSeconds),
-            alignmentBase + FractionalSeconds(sourceAbsoluteStartSeconds));
-    }
-
-    private static double FractionalSeconds(double seconds) => seconds - Math.Floor(seconds);
-
     public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {
         logger.Information("Starting session delete for {SessionId}", sessionId);
@@ -409,7 +258,6 @@ public sealed class SessionCommandService
             var session = await sessionRepository.GetSessionAsync(sessionId);
             var trackId = session?.FullTrack;
             var shouldDeleteTrack = false;
-            var shouldDeleteSource = !await derivationWindowProvider.IsRecordingSourceReferencedAsync(sessionId);
 
             if (trackId.HasValue)
             {
@@ -418,13 +266,12 @@ public sealed class SessionCommandService
                     sessionId);
             }
 
-            await sessionPersistenceTransactions.DeleteSessionAsync(
+            var sourceDeleted = await sessionPersistenceTransactions.DeleteSessionAsync(
                 sessionId,
                 trackId,
-                shouldDeleteTrack,
-                shouldDeleteSource);
+                shouldDeleteTrack);
 
-            if (shouldDeleteSource)
+            if (sourceDeleted)
             {
                 await sourceStore.PublishSourcesRemovedAsync([sessionId]);
             }

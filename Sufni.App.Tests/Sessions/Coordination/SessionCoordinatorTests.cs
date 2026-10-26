@@ -53,8 +53,6 @@ public class SessionCoordinatorTests
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
-    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
-    private readonly IRecordedSessionDerivationWindowProvider derivationWindowProvider = Substitute.For<IRecordedSessionDerivationWindowProvider>();
 
     public SessionCoordinatorTests()
     {
@@ -64,15 +62,12 @@ public class SessionCoordinatorTests
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
         editorFactory.CloseSessionDetail(Arg.Any<Guid>()).Returns(Task.CompletedTask);
-        derivationWindowProvider.IsRecordingSourceReferencedAsync(Arg.Any<Guid>())
-            .Returns(Task.FromResult(false));
         sessionPersistenceTransactions.DeleteSessionAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<Guid?>(),
                 Arg.Any<bool>(),
-                Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+            .Returns(true);
     }
 
     [Fact]
@@ -293,51 +288,6 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task CreateDerivedSessionAsync_CreatesMetadataOnlySession_WithSourceAbsoluteOrigin()
-    {
-        var sourceSessionId = Guid.NewGuid();
-        var from = TestSnapshots.Session(
-            id: Guid.NewGuid(),
-            name: "source",
-            description: "desc",
-            setupId: Guid.NewGuid(),
-            timestamp: 100) with
-        {
-            GpsOffsetSeconds = 0.25,
-            FrontSpringRate = "80 psi",
-            RearSpringRate = "450 lb"
-        };
-        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.5, 10);
-        sessionStore.Get(from.Id).Returns(from);
-        derivationWindowCache.Get(from.Id).Returns(window);
-        Session? saved = null;
-        sessionStore.CommitDerivedSessionAsync(Arg.Any<Session>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                saved = call.Arg<Session>();
-                return Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                    new StoreMutationResult<SessionSnapshot>.Saved(SessionSnapshot.From(saved)));
-            });
-
-        var createdId = await CreateCoordinator().CreateDerivedSessionAsync(from.Id, "source (2)", 3.75, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.NotNull(saved);
-        Assert.Equal(saved!.Id, createdId);
-        Assert.Equal("source (2)", saved.Name);
-        Assert.Equal(from.Description, saved.Description);
-        Assert.Equal(from.SetupId, saved.Setup);
-        Assert.Equal(102, saved.Timestamp);
-        Assert.Equal(0.5, saved.GpsOffsetSeconds, precision: 6);
-        Assert.Equal(from.FrontSpringRate, saved.FrontSpringRate);
-        Assert.Equal(from.RearSpringRate, saved.RearSpringRate);
-        Assert.Null(saved.ProcessedData);
-        Assert.Null(saved.FullTrack);
-        await sessionStore.Received(1).CommitDerivedSessionAsync(
-            Arg.Is<Session>(session => session.Id == saved.Id),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task DeleteAsync_DeletesOrphanedTrack_ClosesAndRemoves()
     {
         var id = Guid.NewGuid();
@@ -352,7 +302,6 @@ public class SessionCoordinatorTests
             id,
             trackId,
             deleteFullTrack: true,
-            deleteSource: true,
             Arg.Any<CancellationToken>());
         await sourceStore.Received(1).PublishSourcesRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
@@ -361,6 +310,22 @@ public class SessionCoordinatorTests
         await editorFactory.Received(1).CloseSessionDetail(id);
         await sessionStore.Received(1).PublishSessionsRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenSourceIsKept_DoesNotRemoveSource()
+    {
+        var id = Guid.NewGuid();
+        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null));
+        sessionPersistenceTransactions.DeleteSessionAsync(id, null, false, Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var result = await CreateCoordinator().DeleteAsync(id);
+
+        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        await sourceStore.DidNotReceive().PublishSourcesRemovedAsync(
+            Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -565,8 +530,6 @@ public class SessionCoordinatorTests
             CreateEnvironment(layoutProfile),
             recomputeEngine,
             () => editorFactory,
-            derivationWindowCache,
-            derivationWindowProvider,
             sessionPersistenceTransactions);
 
     private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>

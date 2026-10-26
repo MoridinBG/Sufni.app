@@ -87,6 +87,12 @@ Camera clocks drift, so a clip may need an offset. Alignment uses three built-in
 
 The editor keeps one pending `TimelineAlignmentMark` (`GpsTrack` or `VideoClip`), so only one alignment flow (GPS or video) can be active at a time.
 
+Trim and split move the session origin: the timestamp takes the whole seconds
+and the alignment offset of each clip takes the change of the fractional second,
+so the formula above keeps pointing at the same video frame. A split copies the
+clips to the second part with that shift applied. See
+[Trim and split](ui-workflows.md#trim-and-split).
+
 ## Session List Indicator
 
 `SessionListViewModel` joins `ISessionVideoStore` into the list projection with `LeftJoinMany`. The latest added clip of a session sets the row state: `HasPresentVideo` shows a video icon with the tooltip "video"; `HasMissingVideo` shows the same icon dimmed with the tooltip "video missing".

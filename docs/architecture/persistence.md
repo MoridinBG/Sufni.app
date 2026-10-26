@@ -30,6 +30,11 @@ erDiagram
         text full_track_id FK
         real gps_offset_seconds
         text session_processing_fingerprint
+        text source_session_id
+        real window_start_seconds
+        real window_end_seconds
+        real previous_window_start_seconds
+        real previous_window_end_seconds
         int processed_telemetry_revision
         int track_projection_revision
         text front_springrate
@@ -245,9 +250,11 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 
 - `GetRecordedSessionSourcesAsync()` / `GetRecordedSessionSourceAsync(id)` — load recorded-source rows or one full source payload
 - `GetRecordedSessionSourceSnapshotsAsync()` / `GetRecordedSessionSourceSnapshotAsync(id)` — metadata-only source projections for stores and refreshes
-- `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids that do not have a source row, or whose source row hash differs from the persisted processing fingerprint's `SourceHash`
+- `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids whose recording source (`source_session_id`, or the session's own id) has no source row, or whose source row hash differs from the persisted processing fingerprint's `SourceHash`
+- `GetMissingRecordingSourceIdsAsync()` — the same check, but returns the recording source ids instead of the session ids
+- `GetReferencedSourceSessionIdsAsync()` — returns the distinct `source_session_id` values of live sessions that derive from another session's source
 - `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs; startup normalization uses it to enumerate recomputable source-backed sessions
-- `DeleteOrphanedRecordedSessionSourcesAsync(retainedIds)` — removes source rows whose owner session no longer exists unless the id is retained by the derivation-window provider
+- `DeleteOrphanedRecordedSessionSourcesAsync(retainedIds)` — removes source rows whose owner session no longer exists unless the id is in `retainedIds`
 - `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
 
 `session_blob_swap_request` is local durable coordination state for the desktop
@@ -270,6 +277,17 @@ delete/soft-delete triggers that remove the rows with their session. Builds that
 ran the old video extension have their `private_session_video_clip` rows copied
 once into `session_video`; the copy drops the source table and its
 `extension_schema_version` row. See [video.md](video.md).
+
+The session derivation window lives on the session row. `source_session_id`,
+`window_start_seconds`, and `window_end_seconds` describe the window; a null
+`source_session_id` means the session uses its own source in full. The
+`previous_window_*` columns keep the window before the last trim for undo.
+These columns are synchronized with the session. Builds that ran the old
+session-editing extension get a one-time copy (`core_migration` id
+`session-derivation-window`): live rows of `private_session_source_range`
+that are not the session's own full range are copied, then sessions without a
+range row take the window stored in their processing fingerprint. The copy
+drops the range table and its `extension_schema_version` row.
 
 ## JSON Serialization
 
@@ -333,9 +351,8 @@ On database initialization, the `Cleanup()` pass permanently removes:
 
 Recorded-source orphan cleanup runs after initialization through
 `RecordedSessionSourceRetentionCleanup`, not inside the schema cleanup pass. It
-asks the single `IRecordedSessionDerivationWindowProvider` for referenced source
-ids and then deletes orphan `session_recording_source` rows except those retained
-ids. This lets a split/trimmed derived session keep using a source row whose
+reads the referenced source ids from the session rows and then deletes orphan
+`session_recording_source` rows except those ids. This lets a split/trimmed derived session keep using a source row whose
 original owner session has been purged.
 
 Extension-owned rows that reference core entities are cleaned through

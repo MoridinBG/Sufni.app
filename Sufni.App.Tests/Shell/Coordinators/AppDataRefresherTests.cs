@@ -22,7 +22,6 @@ public class AppDataRefresherTests
         var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
         var sessionVideoStore = Substitute.For<ISessionVideoStoreWriter>();
         var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
-        var derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
         var refresher = new AppDataRefresher(
             bikeStore,
             setupStore,
@@ -31,15 +30,13 @@ public class AppDataRefresherTests
             pairedDeviceStore,
             sessionVideoStore,
             processingOptionCache,
-            derivationWindowCache,
             []);
 
         await refresher.RefreshCoreStateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        // The option/window caches must hydrate before stores refresh so the
-        // projection's first sweep sees each session's real derivation inputs.
+        // The option cache must hydrate before stores refresh so the
+        // projection's first sweep sees each session's real processing options.
         await processingOptionCache.Received(1).HydrateAsync();
-        await derivationWindowCache.Received(1).HydrateAsync();
         await bikeStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         await setupStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
         await sessionStore.Received(1).RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -58,7 +55,6 @@ public class AppDataRefresherTests
         var pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
         var sessionVideoStore = Substitute.For<ISessionVideoStoreWriter>();
         var processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
-        var derivationWindowCache = Substitute.For<IRecordedSessionDerivationWindowCache>();
         var participant = Substitute.For<IExtensionStateRefreshParticipant>();
         var refresher = new AppDataRefresher(
             bikeStore,
@@ -68,7 +64,6 @@ public class AppDataRefresherTests
             pairedDeviceStore,
             sessionVideoStore,
             processingOptionCache,
-            derivationWindowCache,
             [participant]);
 
         await refresher.RefreshAllStateAsync(cancellationToken: TestContext.Current.CancellationToken);

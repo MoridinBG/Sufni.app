@@ -72,24 +72,6 @@ internal sealed class SessionStore(
         }
     }
 
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitDerivedSessionAsync(
-        Session session,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        try
-        {
-            await sessionRepository.PutSessionAsync(session);
-            cancellationToken.ThrowIfCancellationRequested();
-            return await PublishFreshSessionAsync(session.Id);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
-    }
-
     public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(
         Guid sessionId,
         Func<Session, Session> metadataUpdate,

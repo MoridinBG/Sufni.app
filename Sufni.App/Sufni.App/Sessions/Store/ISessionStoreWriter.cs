@@ -28,10 +28,6 @@ public interface ISessionStoreWriter : ISessionStore
         long? baselineUpdated = null,
         CancellationToken cancellationToken = default);
 
-    Task<StoreMutationResult<SessionSnapshot>> CommitDerivedSessionAsync(
-        Session session,
-        CancellationToken cancellationToken = default);
-
     Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(
         Guid sessionId,
         Func<Session, Session> metadataUpdate,

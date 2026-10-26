@@ -108,7 +108,8 @@ The layer roles are consistent across slices:
     `TabPageViewModelBase` live in `Shared/Base/` — look at them before adding
     new view models.
 - `<Slice>/Coordinators/` — feature workflow owners: `BikeCoordinator` (`Bikes/`),
-  `SetupCoordinator` (`Setups/`), `SessionCoordinator` (`Sessions/Coordination/`),
+  `SetupCoordinator` (`Setups/`), `SessionCoordinator` and the trim/split
+  `SessionEditingCoordinator` (`Sessions/Coordination/`),
   `LiveDaqCoordinator` (`LiveDaq/`), `ImportSessionsCoordinator` (`Acquisition/`),
   `PairedDeviceCoordinator` / `SyncCoordinator` plus the desktop-only
   `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the mobile-only
@@ -281,7 +282,7 @@ A desktop instance can host an embedded ASP.NET Core HTTP server
 advertised via mDNS. Mobile clients
 (`SyncAndPairing/Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
 with the server, then push and pull entity changes plus processed-session and
-recorded-source BLOBs through dedicated binary endpoints. Protocol version 2 is
+recorded-source BLOBs through dedicated binary endpoints. Protocol version 4 is
 carried by an HTTP header on every sync request. These two services are the
 source of truth for the endpoints and payloads.
 

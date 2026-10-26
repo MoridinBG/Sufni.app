@@ -50,7 +50,6 @@ internal sealed class EditorFactory(
     ISessionPreferences sessionPreferences,
     IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
     ISessionProcessedTelemetryReader processedTelemetryReader,
-    IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
     ILiveDaqCoordinator liveDaqCoordinator,
     IDaqManagementService daqManagementService,
     IFilesService filesService,
@@ -66,7 +65,8 @@ internal sealed class EditorFactory(
     IRecordedSessionDataReader recordedSessionDataReader,
     IBackgroundTaskRunner backgroundTaskRunner,
     Func<ImportSessionsViewModel> importSessionsResolver,
-    IVideoPaneFactory videoPaneFactory) : IEditorFactory
+    IVideoPaneFactory videoPaneFactory,
+    ISessionEditingCoordinator sessionEditingCoordinator) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -182,8 +182,8 @@ internal sealed class EditorFactory(
             recordedSessionProcessingOptionCache,
             processedTelemetryReader,
             analysisResultStateFactory,
-            recordedSessionDerivationWindowCache,
             () => this,
+            sessionEditingCoordinator,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),

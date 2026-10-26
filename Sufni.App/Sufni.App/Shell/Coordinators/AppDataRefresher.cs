@@ -30,19 +30,17 @@ internal sealed class AppDataRefresher(
     IPairedDeviceStoreWriter pairedDeviceStore,
     ISessionVideoStoreWriter sessionVideoStore,
     IRecordedSessionProcessingOptionCache processingOptionCache,
-    IRecordedSessionDerivationWindowCache derivationWindowCache,
     IEnumerable<IExtensionStateRefreshParticipant> extensionStateRefreshParticipants) : IAppDataRefresher, IAppStateRefreshOrchestrator
 {
     public Task RefreshAsync() => RefreshCoreStateAsync();
 
     public async Task RefreshCoreStateAsync(CancellationToken cancellationToken = default)
     {
-        // Hydrate the per-session processing-option/window caches before populating the
+        // Hydrate the per-session processing-option cache before populating the
         // stores so the recorded-session projection's first sweep (triggered by these
-        // store refreshes) evaluates staleness with each session's real option and
-        // derivation window instead of defaults (ordering gate).
+        // store refreshes) evaluates staleness with each session's real option
+        // instead of the default (ordering gate).
         await processingOptionCache.HydrateAsync();
-        await derivationWindowCache.HydrateAsync();
 
         await bikeStore.RefreshAsync(cancellationToken);
         await setupStore.RefreshAsync(cancellationToken);

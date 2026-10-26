@@ -1,8 +1,6 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
@@ -13,7 +11,6 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
     SqliteConnectionContext connectionContext,
     IRecordedSessionSourceRepository recordedSessionSourceRepository,
     IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
-    IRecordedSessionDerivationWindowProvider windowProvider,
     IBackgroundTaskRunner backgroundTaskRunner)
 {
     private static readonly ILogger logger = Log.ForContext<RecordedSessionSourceRetentionCleanup>();
@@ -25,8 +22,7 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
         try
         {
             _ = await connectionContext.GetInitializedConnectionAsync();
-            var retainedSourceIds = (await windowProvider.GetReferencedSourceSessionIdsAsync()).ToHashSet();
-            retainedSourceIds.UnionWith(await recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync());
+            var retainedSourceIds = await recordedSessionSourceRepository.GetReferencedSourceSessionIdsAsync();
             var deletedIds = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceIds);
 
             if (deletedIds.Count > 0)

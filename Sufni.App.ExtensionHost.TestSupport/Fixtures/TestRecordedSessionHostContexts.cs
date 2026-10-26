@@ -20,13 +20,7 @@ public static class TestRecordedSessionHostContexts
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         IUiThreadDispatcher? uiThreadDispatcher = null,
         Action<double, double, object>? setTimelineVisibleRange = null,
-        Func<string, IRecordedSessionOperationLease>? startOperation = null,
-        Func<Guid, string, double, CancellationToken, Task<Guid?>>? createDerivedSessionAsync = null,
-        Func<Guid, CancellationToken, Task<bool>>? deleteSessionAsync = null,
-        Func<Guid, double, CancellationToken, Task<bool>>? updateSessionOriginAsync = null,
-        Func<Guid, string, CancellationToken, Task<bool>>? renameSessionAsync = null,
-        Func<Guid, CancellationToken, Task<bool>>? requestRecomputeAsync = null,
-        Func<Guid, CancellationToken, Task>? openSessionInBackgroundAsync = null) => new(
+        Func<string, IRecordedSessionOperationLease>? startOperation = null) => new(
         sessionId,
         new RecordedSessionHostServices(
             new EmptyObservable<RecordedSessionHostState>(),
@@ -39,13 +33,7 @@ public static class TestRecordedSessionHostContexts
             setTimelineVisibleRange: setTimelineVisibleRange,
             addError: addError,
             addNotification: addNotification,
-            startOperation: startOperation,
-            createDerivedSessionAsync: createDerivedSessionAsync,
-            deleteSessionAsync: deleteSessionAsync,
-            updateSessionOriginAsync: updateSessionOriginAsync,
-            renameSessionAsync: renameSessionAsync,
-            requestRecomputeAsync: requestRecomputeAsync,
-            openSessionInBackgroundAsync: openSessionInBackgroundAsync));
+            startOperation: startOperation));
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {

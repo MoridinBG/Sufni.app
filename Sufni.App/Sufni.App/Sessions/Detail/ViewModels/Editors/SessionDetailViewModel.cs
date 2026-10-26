@@ -120,7 +120,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CompositeDisposable editorInputSubjects;
     private readonly RecordedSessionEditorStateController editorStateController;
     private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
-    private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
@@ -167,6 +166,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markVideoEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markVideoTelemetryEventCommand;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> cancelVideoAlignmentCommand;
+    private readonly ISessionEditingCoordinator sessionEditingCoordinator;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimFromBeginningCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimUntilEndCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> splitCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
@@ -576,7 +580,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand,
         IRelayCommand<TelemetryPlotContextMenuContext?> markVideoEventCommand,
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markVideoTelemetryEventCommand,
-        IRelayCommand<TelemetryPlotContextMenuContext?> cancelVideoAlignmentCommand)
+        IRelayCommand<TelemetryPlotContextMenuContext?> cancelVideoAlignmentCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimFromBeginningCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimUntilEndCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> splitCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand)
     {
         var setAnalysisRangeStart = new TelemetryPlotContextMenuAction(
             "analysis-range-set-start",
@@ -614,6 +622,22 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             "video-cancel-alignment",
             "Cancel video alignment",
             cancelVideoAlignmentCommand);
+        var trimFromBeginning = new TelemetryPlotContextMenuAction(
+            "session-trim-from-beginning",
+            "Trim from beginning",
+            trimFromBeginningCommand);
+        var trimUntilEnd = new TelemetryPlotContextMenuAction(
+            "session-trim-until-end",
+            "Trim until end",
+            trimUntilEndCommand);
+        var split = new TelemetryPlotContextMenuAction(
+            "session-split-here",
+            "Split here",
+            splitCommand);
+        var undoTrim = new TelemetryPlotContextMenuAction(
+            "session-undo-trim",
+            "Undo trim",
+            undoTrimCommand);
         TelemetryPlotContextMenuAction[] actions =
         [
             setAnalysisRangeStart,
@@ -625,6 +649,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             markVideoEvent,
             markVideoTelemetryEvent,
             cancelVideoAlignment,
+            trimFromBeginning,
+            trimUntilEnd,
+            split,
+            undoTrim,
         ];
 
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
@@ -1328,6 +1356,103 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SetPendingTimelineAlignmentMark(null);
     }
 
+    private bool IsSessionEditRunning =>
+        trimFromBeginningCommand.IsRunning ||
+        trimUntilEndCommand.IsRunning ||
+        splitCommand.IsRunning ||
+        undoTrimCommand.IsRunning;
+
+    // A trim removes at least one sample, and every remaining part keeps at least five.
+    private bool CanEditWindowAt(
+        TelemetryPlotContextMenuContext? context,
+        int samplesBefore,
+        int samplesAfter)
+    {
+        if (IsSessionEditRunning ||
+            !IsTelemetryPlotContext(context) ||
+            !double.IsFinite(context!.DurationSeconds) ||
+            telemetryData is not { Metadata.SampleRate: > 0 and var sampleRate })
+        {
+            return false;
+        }
+
+        return context.ClickSeconds * sampleRate >= samplesBefore &&
+               (context.DurationSeconds - context.ClickSeconds) * sampleRate >= samplesAfter;
+    }
+
+    private bool CanTrimFromBeginningFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanEditWindowAt(context, samplesBefore: 1, samplesAfter: 5);
+
+    private bool CanTrimUntilEndFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanEditWindowAt(context, samplesBefore: 5, samplesAfter: 1);
+
+    private bool CanSplitFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanEditWindowAt(context, samplesBefore: 5, samplesAfter: 5);
+
+    private bool CanUndoTrimFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        !IsSessionEditRunning &&
+        IsTelemetryPlotContext(context) &&
+        sessionSnapshot.CanUndoTrim;
+
+    private Task TrimFromBeginningFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanTrimFromBeginningFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Trimming session",
+                "Session trimmed.",
+                () => sessionEditingCoordinator.TrimFromBeginningAsync(Id, context!.ClickSeconds))
+            : Task.CompletedTask;
+
+    private Task TrimUntilEndFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanTrimUntilEndFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Trimming session",
+                "Session trimmed.",
+                () => sessionEditingCoordinator.TrimUntilEndAsync(Id, context!.ClickSeconds))
+            : Task.CompletedTask;
+
+    private Task SplitFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanSplitFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Splitting session",
+                "Session split.",
+                () => sessionEditingCoordinator.SplitAsync(Id, context!.ClickSeconds))
+            : Task.CompletedTask;
+
+    private Task UndoTrimFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanUndoTrimFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Restoring session trim",
+                "Session trim restored.",
+                () => sessionEditingCoordinator.UndoTrimAsync(Id))
+            : Task.CompletedTask;
+
+    private async Task RunSessionEditAsync(
+        string progressMessage,
+        string appliedMessage,
+        Func<Task<SessionEditResult>> edit)
+    {
+        SetSessionOperationState(SessionOperationPresentationState.Progress(progressMessage, 0));
+        try
+        {
+            switch (await edit())
+            {
+                case SessionEditResult.Applied { RecomputeError: { } recomputeError }:
+                    ErrorMessages.Add(recomputeError);
+                    break;
+                case SessionEditResult.Applied:
+                    Notifications.Add(appliedMessage);
+                    break;
+                case SessionEditResult.Failed failed:
+                    ErrorMessages.Add(failed.ErrorMessage);
+                    break;
+            }
+        }
+        finally
+        {
+            SetSessionOperationState(SessionOperationPresentationState.Hidden);
+        }
+    }
+
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
@@ -1345,64 +1470,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         (recordedSessionOperationCoordinator
             ?? throw new InvalidOperationException("Recorded-session extension hosting is not configured."))
         .StartOperation(description);
-
-    Task<Guid?> IRecordedSessionHostOperations.CreateDerivedSessionAsync(
-        Guid fromSessionId,
-        string name,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken) =>
-        sessionCoordinator.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
-
-    async Task<bool> IRecordedSessionHostOperations.DeleteSessionAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var result = await sessionCoordinator.DeleteAsync(sessionId);
-        return result.Outcome == SessionDeleteOutcome.Deleted;
-    }
-
-    Task<bool> IRecordedSessionHostOperations.UpdateSessionOriginAsync(
-        Guid sessionId,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken) =>
-        sessionCoordinator.UpdateSessionOriginAsync(sessionId, sourceAbsoluteStartSeconds, cancellationToken);
-
-    Task<bool> IRecordedSessionHostOperations.RenameSessionAsync(
-        Guid sessionId,
-        string name,
-        CancellationToken cancellationToken) =>
-        sessionCoordinator.RenameSessionAsync(sessionId, name, cancellationToken);
-
-    async Task<bool> IRecordedSessionHostOperations.RequestRecomputeAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await recordedSessionDerivationWindowCache.RefreshSessionAsync(sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var result = await sessionCoordinator.RequestRecomputeAsync(sessionId, RecomputeReason.SourceWindowChanged);
-        return result is SessionRecomputeResult.Recomputed or SessionRecomputeResult.Superseded;
-    }
-
-    async Task IRecordedSessionHostOperations.OpenSessionInBackgroundAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var snapshot = sessionStore.Get(sessionId);
-        if (snapshot is null)
-        {
-            return;
-        }
-
-        await UiThreadDispatcher.InvokeAsync(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            editorFactory().OpenSessionDetailInBackground(snapshot);
-        });
-    }
 
     Guid ISessionOperationGateway.SessionId => Id;
 
@@ -1436,8 +1503,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
-        IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
         Func<IEditorFactory> editorFactory,
+        ISessionEditingCoordinator sessionEditingCoordinator,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null,
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
@@ -1489,8 +1556,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 signalPlotContextMenuActionsInput,
                 domainInput));
         editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
-        this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
         this.editorFactory = editorFactory;
+        this.sessionEditingCoordinator = sessionEditingCoordinator;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
@@ -1550,6 +1617,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         cancelVideoAlignmentCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             CancelVideoAlignmentFromPlotContext,
             CanCancelVideoAlignmentFromPlotContext);
+        trimFromBeginningCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            TrimFromBeginningFromPlotContextAsync,
+            CanTrimFromBeginningFromPlotContext);
+        trimUntilEndCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            TrimUntilEndFromPlotContextAsync,
+            CanTrimUntilEndFromPlotContext);
+        splitCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            SplitFromPlotContextAsync,
+            CanSplitFromPlotContext);
+        undoTrimCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            UndoTrimFromPlotContextAsync,
+            CanUndoTrimFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             signalAutozoomController.ActionsBySignalRowId,
             setAnalysisRangeStartCommand,
@@ -1560,7 +1639,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             cancelGpsTimelineAlignmentCommand,
             markVideoEventCommand,
             markVideoTelemetryEventCommand,
-            cancelVideoAlignmentCommand);
+            cancelVideoAlignmentCommand,
+            trimFromBeginningCommand,
+            trimUntilEndCommand,
+            splitCommand,
+            undoTrimCommand);
         PublishEditorInput(signalPlotContextMenuActionsInput, SignalPlotContextMenuActionsBySignalRowId);
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;

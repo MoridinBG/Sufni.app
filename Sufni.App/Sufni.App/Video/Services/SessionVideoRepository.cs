@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
+using SQLite;
 using Sufni.App.Infrastructure;
 using Sufni.App.Video.Models;
 namespace Sufni.App.Video.Services;
@@ -90,5 +92,49 @@ internal sealed class SessionVideoRepository(SqliteConnectionContext connectionC
         clip.AlignmentOffsetSeconds = alignmentOffsetSeconds;
         await connection.UpdateAsync(clip);
         return clip;
+    }
+
+    internal static IReadOnlyList<SessionVideoClip> ShiftAlignmentInTransaction(
+        SQLiteConnection connection,
+        Guid sessionId,
+        double deltaSeconds)
+    {
+        var clips = connection.Table<SessionVideoClip>().Where(clip => clip.SessionId == sessionId).ToList();
+        foreach (var clip in clips)
+        {
+            clip.AlignmentOffsetSeconds += deltaSeconds;
+            connection.Update(clip);
+        }
+
+        return clips;
+    }
+
+    internal static IReadOnlyList<SessionVideoClip> CopyToSessionInTransaction(
+        SQLiteConnection connection,
+        Guid fromSessionId,
+        Guid toSessionId,
+        double alignmentDeltaSeconds,
+        long added)
+    {
+        var copies = connection.Table<SessionVideoClip>()
+            .Where(clip => clip.SessionId == fromSessionId)
+            .ToList()
+            .Select(clip => new SessionVideoClip
+            {
+                Id = Guid.NewGuid(),
+                SessionId = toSessionId,
+                Path = clip.Path,
+                StartTimestamp = clip.StartTimestamp,
+                DurationSeconds = clip.DurationSeconds,
+                AlignmentOffsetSeconds = clip.AlignmentOffsetSeconds + alignmentDeltaSeconds,
+                Added = added,
+            })
+            .ToList();
+        foreach (var copy in copies)
+        {
+            connection.Insert(copy);
+        }
+
+        return copies;
     }
 }

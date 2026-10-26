@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Store;
@@ -6,7 +7,8 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 public sealed record SessionProcessingInput(
     Guid Id,
-    Guid SetupId);
+    Guid SetupId,
+    RecordedSessionDerivationWindow? DerivationWindow = null);
 
 public sealed record SetupProcessingInput(
     Guid Id,

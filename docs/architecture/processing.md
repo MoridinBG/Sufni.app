@@ -112,11 +112,15 @@ Recorded sessions have two durable data layers:
 
 - **Recording source** — `RecordedSessionSource` in `session_recording_source`, keyed by `session_id`. Imported SST sessions store compressed original SST bytes (`SourceKind = ImportedSst`). Saved live captures keep source schema version 1 and store a JSON payload (`SourceKind = LiveCapture`) containing capture metadata, raw front/rear segments, segment-only IMU data, GPS data, temperature samples, and markers. Old schema-v1 payloads with flat travel or dense IMU records remain readable; missing or explicitly null temperature arrays are normalized to empty before processing. The live-capture source deliberately excludes `BikeData`; calibration is resolved again from the current setup and bike when the source is processed.
 - **Processed telemetry** — MessagePack `TelemetryData` in `session.data`, derived from the recording source plus the current setup/bike calibration and the current `TelemetryProcessingVersion`.
-- **Derivation window** — optional extension-owned state saying that a
-  session derives from `[StartSeconds, EndSeconds)` of `SourceSessionId`'s
-  recording source. Public builds use a no-op provider; an extended build can
-  supply the single durable provider. The window is source-absolute, not nested:
-  splits of splits still point back to the original source timeline.
+- **Derivation window** — optional columns on the session row
+  (`source_session_id`, `window_start_seconds`, `window_end_seconds`) saying
+  that the session derives from `[StartSeconds, EndSeconds)` of
+  `SourceSessionId`'s recording source. A null `source_session_id` means no
+  window: the session uses its own source in full. `SessionSnapshot.DerivationWindow`
+  exposes the window and `RecordingSourceSessionId` the effective source id.
+  The window is source-absolute, not nested: splits of splits still point
+  back to the original source timeline. Trim and split write these columns
+  (see [Trim and split](ui-workflows.md#trim-and-split)).
 
 `RecordedSessionSourceFactory` is the only app-layer factory for persisted recording sources: imports call `CreateImportedSst(...)`, while live saves call `CreateLiveCapture(...)`. `RecordedSessionReprocessor` is the single recorded-session derivation path for import, recompute, and live-save persistence. For imported SST sources it decompresses the stored source bytes, parses them with `RawTelemetryData.FromByteArray`, applies the derivation window with `RawTelemetryData.Slice(...)` when one is present, rebuilds `Metadata` from the effective raw file, and calls `TelemetryData.FromRecording(...)`. For live-capture sources it deserializes the saved live payload bytes through the generated `AppJsonContext`, rebuilds `LiveTelemetryCapture`, applies the window with `LiveTelemetryCapture.Slice(...)` when present, and calls `TelemetryData.FromLiveCapture(...)`. In both cases it also produces a generated full `Track` when GPS data is present.
 
@@ -129,7 +133,7 @@ Before calling telemetry processing, the reprocessor asks `ITelemetryBikeProcess
 Transaction-time commit checks do not trust the in-memory projection alone.
 `ISessionRepository.GetProcessingInputBundleAsync(sessionId)` projects the
 database-resident processing inputs — session id/setup id, setup sensor JSON,
-bike geometry/rear suspension, recorded-source metadata for the effective source session, and the normalized derivation window when present — without loading the processed BLOB or source payload. `ProcessingFingerprintService.CreateCurrentDatabaseInputs(SessionProcessingInputBundle, RecordedSessionDerivationWindow?)` builds the DB-input half of the fingerprint from that bundle inside `UpdateProcessedDerivedDataAsync`; if it no longer matches the reprocess result's expected fingerprint, the write rolls back and the recompute engine loops with freshly read inputs.
+bike geometry/rear suspension, recorded-source metadata for the effective source session, and the normalized derivation window when present — without loading the processed BLOB or source payload. `ProcessingFingerprintService.CreateCurrentDatabaseInputs(SessionProcessingInputBundle)` builds the DB-input half of the fingerprint from that bundle inside `UpdateProcessedDerivedDataAsync`; if it no longer matches the reprocess result's expected fingerprint, the write rolls back and the recompute engine loops with freshly read inputs.
 
 When the stored fingerprint is missing, uses an older processing version, references different processing inputs, has a different normalized derivation window (`SourceWindowChanged`), or the processed BLOB is absent while the raw source exists, the recorded session is recomputable. Missing setup/bike dependencies make it stale but not recomputable. A missing raw source is displayed separately as "No Raw"; the app can still load existing processed data, but it cannot regenerate it until the source is restored. If the source is missing and the persisted processed state is known to be stale, `SessionStaleness.MissingRawSource(ProcessedStateStale: true)` keeps the stale flag while still reporting the session as not recomputable. The source-less stale check compares the same database inputs as the source-backed path — **including the clamped velocity-filter option and normalized derivation window** — so changing either marks a source-less session stale too; it simply cannot be acted on until the source returns.
 

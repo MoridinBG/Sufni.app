@@ -54,7 +54,6 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -99,6 +98,12 @@ public class RecordedSessionReprocessorTests
             Payload = payload
         };
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
+        session = session with
+        {
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1.1,
+            WindowEndSeconds = 1.3
+        };
         var domain = new RecordedSessionDomainSnapshot(
             session,
             setup,
@@ -106,7 +111,6 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            window,
             new SessionStaleness.SourceWindowChanged(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -181,7 +185,6 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -240,7 +243,6 @@ public class RecordedSessionReprocessorTests
             currentFingerprint,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None,
             currentFingerprint.DependencyHash);
@@ -304,6 +306,12 @@ public class RecordedSessionReprocessorTests
             Markers: []);
         var source = RecordedSessionSourceFactory.CreateLiveCapture(sourceSessionId, capture);
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
+        session = session with
+        {
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1.1,
+            WindowEndSeconds = 1.3
+        };
         var domain = new RecordedSessionDomainSnapshot(
             session,
             setup,
@@ -311,7 +319,6 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            window,
             new SessionStaleness.SourceWindowChanged(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -554,7 +561,6 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
@@ -593,7 +599,6 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            null,
             new SessionStaleness.MissingProcessedData(),
             DerivedChangeKind.None);
     }

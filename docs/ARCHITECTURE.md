@@ -144,7 +144,7 @@ Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 ## Signal Processing & Suspension Kinematics
 
-`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window lets an extension derive a session from a source-absolute slice of another session's raw source.
+`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window on the session row lets a trimmed or split session derive from a source-absolute slice of another session's raw source.
 
 Topics in [architecture/processing.md](architecture/processing.md):
 
@@ -182,6 +182,7 @@ Presentation-layer topics:
 - [Recorded Session Projection](architecture/ui-state.md#recorded-session-projection) — `IRecordedSessionProjection`, summaries, domain snapshots, staleness, and recompute inputs
 - [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
 - [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
+- [Trim and split](architecture/ui-workflows.md#trim-and-split) — recorded-session window edits, their transactions, and the recompute that follows
 - [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
 - [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, shared workspace tabs, compact/workspace shell presentation
 - [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`

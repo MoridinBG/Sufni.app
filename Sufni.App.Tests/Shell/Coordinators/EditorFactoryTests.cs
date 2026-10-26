@@ -19,6 +19,7 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -349,7 +350,6 @@ public class EditorFactoryTests
             Substitute.For<ISessionPreferences>(),
             Substitute.For<IRecordedSessionProcessingOptionCache>(),
             new TestSessionProcessedTelemetryReader(),
-            Substitute.For<IRecordedSessionDerivationWindowCache>(),
             TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),
@@ -378,7 +378,8 @@ public class EditorFactoryTests
             Substitute.For<IRecordedSessionDataReader>(),
             backgroundTaskRunner,
             () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."),
-            Substitute.For<IVideoPaneFactory>());
+            Substitute.For<IVideoPaneFactory>(),
+            Substitute.For<ISessionEditingCoordinator>());
     }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator

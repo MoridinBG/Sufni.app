@@ -1133,6 +1133,83 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_CopiesSessionSourceRanges_AndDropsRangeTable()
+    {
+        using var tempDatabase = new TempDatabase("session-source-range-copy.db");
+        var derivedId = Guid.NewGuid();
+        var identityId = Guid.NewGuid();
+        var deletedRangeId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(derivedId, "derived", string.Empty, null) { Updated = 10 });
+            connection.Insert(new Session(identityId, "identity", string.Empty, null) { Updated = 10 });
+            connection.Insert(new Session(deletedRangeId, "deleted range", string.Empty, null) { Updated = 10 });
+            connection.Execute(
+                """
+                CREATE TABLE private_session_source_range (
+                    session_id TEXT PRIMARY KEY, source_session_id TEXT NOT NULL,
+                    range_start_seconds REAL NOT NULL, range_end_seconds REAL,
+                    prev_range_start_seconds REAL, prev_range_end_seconds REAL,
+                    updated INTEGER NOT NULL, client_updated INTEGER NOT NULL, deleted INTEGER)
+                """);
+            const string insertRange = "INSERT INTO private_session_source_range VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)";
+            connection.Execute(insertRange, derivedId, sourceId, 2.5, 8.0, 0.0, null, null);
+            connection.Execute(insertRange, identityId, identityId, 0.0, null, null, null, null);
+            connection.Execute(insertRange, deletedRangeId, sourceId, 1.0, null, null, null, 5);
+            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
+            connection.Execute("INSERT INTO extension_schema_version VALUES ('sufni.private.session-editing', 1)");
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var derived = SessionSnapshot.From((await database.GetSessionAsync(derivedId))!);
+
+        Assert.Equal(new RecordedSessionDerivationWindow(sourceId, 2.5, 8), derived.DerivationWindow);
+        Assert.Equal((0.0, (double?)null), (derived.PreviousWindowStartSeconds, derived.PreviousWindowEndSeconds));
+        Assert.Null((await database.GetSessionAsync(identityId))!.SourceSessionId);
+        Assert.Null((await database.GetSessionAsync(deletedRangeId))!.SourceSessionId);
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_source_range'"));
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM extension_schema_version WHERE extension_id = 'sufni.private.session-editing'"));
+    }
+
+    [Fact]
+    public async Task Initialization_SeedsDerivationWindowFromFingerprint_WhenRangeIsMissing()
+    {
+        using var tempDatabase = new TempDatabase("session-window-fingerprint-seed.db");
+        var sessionId = Guid.NewGuid();
+        var window = new RecordedSessionDerivationWindow(Guid.NewGuid(), 3, null);
+        var fingerprint = new ProcessingFingerprint(
+            SchemaVersion: 3,
+            ProcessingVersion: TelemetryProcessingVersion.Current,
+            SetupId: Guid.NewGuid(),
+            BikeId: Guid.NewGuid(),
+            TrackProjectionVersion: GpsTrackPointProjection.ProjectionVersion,
+            DependencyHash: "dependency",
+            SourceHash: "source",
+            DerivationWindow: window);
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(sessionId, "derived", string.Empty, null)
+            {
+                ProcessingFingerprintJson = AppJson.Serialize(fingerprint),
+                Updated = 10
+            });
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var session = SessionSnapshot.From((await database.GetSessionAsync(sessionId))!);
+
+        Assert.Equal(window, session.DerivationWindow);
+    }
+
+    [Fact]
     public async Task SessionDelete_RemovesLinkedVideos()
     {
         using var tempDatabase = new TempDatabase("session-video-ownership.db");

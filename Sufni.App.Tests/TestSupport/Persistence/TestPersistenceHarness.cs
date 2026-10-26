@@ -8,6 +8,7 @@ using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -60,6 +61,8 @@ internal sealed class TestPersistenceHarness
     public ISessionTelemetryWriter SessionTelemetryWriter => sessionTelemetryWriter;
 
     public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
+
+    public ISessionPersistenceTransactionRunner SessionTransactions => new SessionPersistenceTransactionRunner(context);
 
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
@@ -176,8 +179,11 @@ internal sealed class TestPersistenceHarness
     public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
 
-    public Task<List<Guid>> GetPersistedDerivationSourceSessionIdsAsync() =>
-        recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync();
+    public Task<List<Guid>> GetMissingRecordingSourceIdsAsync() =>
+        recordedSessionSourceRepository.GetMissingRecordingSourceIdsAsync();
+
+    public Task<List<Guid>> GetReferencedSourceSessionIdsAsync() =>
+        recordedSessionSourceRepository.GetReferencedSourceSessionIdsAsync();
 
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);

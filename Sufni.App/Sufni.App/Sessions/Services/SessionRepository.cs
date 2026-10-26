@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using static Sufni.App.Infrastructure.PersistenceGuards;
 
@@ -116,6 +117,11 @@ internal sealed class SessionRepository(
                                                                       descent_meters,
                                                                       full_track_id,
                                                                       gps_offset_seconds,
+                                                                      source_session_id,
+                                                                      window_start_seconds,
+                                                                      window_end_seconds,
+                                                                      previous_window_start_seconds,
+                                                                      previous_window_end_seconds,
                                                                       processed_telemetry_revision,
                                                                       track_projection_revision,
                                                                       {SessionSqlProjection.ProcessingFingerprintColumn},
@@ -206,6 +212,9 @@ internal sealed class SessionRepository(
                                                     SELECT
                                                         s.id AS session_id,
                                                         s.setup_id AS setup_id,
+                                                        s.source_session_id AS window_source_session_id,
+                                                        s.window_start_seconds AS window_start_seconds,
+                                                        s.window_end_seconds AS window_end_seconds,
                                                         setup.bike_id AS bike_id,
                                                         setup.front_sensor_configuration AS front_sensor_configuration,
                                                         setup.rear_sensor_configuration AS rear_sensor_configuration,
@@ -221,7 +230,7 @@ internal sealed class SessionRepository(
                                                     FROM session s
                                                     JOIN setup ON setup.id = s.setup_id AND setup.deleted IS NULL
                                                     JOIN bike ON bike.id = setup.bike_id AND bike.deleted IS NULL
-                                                    JOIN session_recording_source source ON source.session_id = ?
+                                                    JOIN session_recording_source source ON source.session_id = COALESCE(s.source_session_id, s.id)
                                                     WHERE s.deleted IS NULL AND s.id = ?
                                                     """;
 
@@ -294,7 +303,7 @@ internal sealed class SessionRepository(
     public async Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        var rows = await connection.QueryAsync<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId, sessionId);
+        var rows = await connection.QueryAsync<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId);
         return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
@@ -477,33 +486,14 @@ internal sealed class SessionRepository(
         Guid sessionId,
         ProcessingFingerprint expectedInputFingerprint)
     {
-        var input = GetProcessingInputBundle(connection, sessionId, expectedInputFingerprint);
-        if (input is null)
-        {
-            return false;
-        }
-
-        var current = fingerprintService.CreateCurrentDatabaseInputs(
-            input,
-            expectedInputFingerprint.DerivationWindow);
-        return expectedInputFingerprint.MatchesDatabaseInputs(current);
+        var input = GetProcessingInputBundle(connection, sessionId);
+        return input is not null &&
+               expectedInputFingerprint.MatchesDatabaseInputs(fingerprintService.CreateCurrentDatabaseInputs(input));
     }
 
     private static SessionProcessingInputBundle? GetProcessingInputBundle(SQLiteConnection connection, Guid sessionId)
     {
-        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId, sessionId);
-        return rows.Count == 1 ? rows[0].ToBundle() : null;
-    }
-
-    private static SessionProcessingInputBundle? GetProcessingInputBundle(
-        SQLiteConnection connection,
-        Guid sessionId,
-        ProcessingFingerprint expectedInputFingerprint)
-    {
-        var sourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
-            sessionId,
-            expectedInputFingerprint);
-        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sourceSessionId, sessionId);
+        var rows = connection.Query<ProcessingInputBundleRow>(ProcessingInputBundleSql, sessionId);
         return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
@@ -802,6 +792,15 @@ internal sealed class SessionRepository(
         [Column("setup_id")]
         public Guid SetupId { get; set; }
 
+        [Column("window_source_session_id")]
+        public Guid? WindowSourceSessionId { get; set; }
+
+        [Column("window_start_seconds")]
+        public double WindowStartSeconds { get; set; }
+
+        [Column("window_end_seconds")]
+        public double? WindowEndSeconds { get; set; }
+
         [Column("bike_id")]
         public Guid BikeId { get; set; }
 
@@ -860,7 +859,12 @@ internal sealed class SessionRepository(
             }
 
             return new SessionProcessingInputBundle(
-                new SessionProcessingInput(SessionId, SetupId),
+                new SessionProcessingInput(
+                    SessionId,
+                    SetupId,
+                    WindowSourceSessionId is { } sourceSessionId
+                        ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
+                        : null),
                 new SetupProcessingInput(
                     SetupId,
                     BikeId,

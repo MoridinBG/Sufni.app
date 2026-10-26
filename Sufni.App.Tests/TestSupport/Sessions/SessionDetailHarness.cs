@@ -63,7 +63,7 @@ internal sealed class SessionDetailHarness
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
     public ISessionPreferences SessionPreferences { get; } = Substitute.For<ISessionPreferences>();
     public TestSessionProcessedTelemetryReader ProcessedTelemetryReader { get; } = new();
-    public IRecordedSessionDerivationWindowCache DerivationWindowCache { get; } = Substitute.For<IRecordedSessionDerivationWindowCache>();
+    public ISessionEditingCoordinator SessionEditingCoordinator { get; } = Substitute.For<ISessionEditingCoordinator>();
     public IEditorFactory EditorFactory { get; } = Substitute.For<IEditorFactory>();
     public IVideoPaneFactory? VideoPaneFactory { get; set; }
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
@@ -193,8 +193,8 @@ internal sealed class SessionDetailHarness
             ProcessingOptionCache,
             ProcessedTelemetryReader,
             analysisResultStateFactory,
-            DerivationWindowCache,
             () => EditorFactory,
+            SessionEditingCoordinator,
             extensionHost: new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
                 Substitute.For<IExtensionDatabaseConnection>(),

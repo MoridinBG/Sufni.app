@@ -43,6 +43,5 @@ public sealed record ProcessingFingerprint(
         TrackProjectionVersion == other.TrackProjectionVersion &&
         StringComparer.Ordinal.Equals(DependencyHash, other.DependencyHash) &&
         StringComparer.Ordinal.Equals(SourceHash, other.SourceHash) &&
-        RecordedSessionDerivationResolver.NormalizeWindow(DerivationWindow) ==
-        RecordedSessionDerivationResolver.NormalizeWindow(other.DerivationWindow);
+        DerivationWindow == other.DerivationWindow;
 }

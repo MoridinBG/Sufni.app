@@ -258,7 +258,6 @@ public class SessionStalenessReconcilerTests
         currentFingerprint,
         null,
         null,
-        null,
         staleness,
         DerivedChangeKind.None);
 

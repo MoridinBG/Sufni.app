@@ -48,28 +48,6 @@ public interface IRecordedSessionHostOperations
     void AddError(string message);
     void AddNotification(string message);
     IRecordedSessionOperationLease StartOperation(string description);
-    Task<Guid?> CreateDerivedSessionAsync(
-        Guid fromSessionId,
-        string name,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default);
-    Task<bool> DeleteSessionAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default);
-    Task<bool> UpdateSessionOriginAsync(
-        Guid sessionId,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default);
-    Task<bool> RenameSessionAsync(
-        Guid sessionId,
-        string name,
-        CancellationToken cancellationToken = default);
-    Task<bool> RequestRecomputeAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default);
-    Task OpenSessionInBackgroundAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default);
 }
 
 public sealed class RecordedSessionHostContext
@@ -126,51 +104,5 @@ public sealed class RecordedSessionHostContext
     public IRecordedSessionOperationLease StartOperation(string message)
     {
         return Operations.StartOperation(message);
-    }
-
-    public Task<Guid?> CreateDerivedSessionAsync(
-        Guid fromSessionId,
-        string name,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default)
-    {
-        return Operations.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
-    }
-
-    public Task<bool> DeleteSessionAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        return Operations.DeleteSessionAsync(sessionId, cancellationToken);
-    }
-
-    public Task<bool> UpdateSessionOriginAsync(
-        Guid sessionId,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default)
-    {
-        return Operations.UpdateSessionOriginAsync(sessionId, sourceAbsoluteStartSeconds, cancellationToken);
-    }
-
-    public Task<bool> RenameSessionAsync(
-        Guid sessionId,
-        string name,
-        CancellationToken cancellationToken = default)
-    {
-        return Operations.RenameSessionAsync(sessionId, name, cancellationToken);
-    }
-
-    public Task<bool> RequestRecomputeAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        return Operations.RequestRecomputeAsync(sessionId, cancellationToken);
-    }
-
-    public Task OpenSessionInBackgroundAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        return Operations.OpenSessionInBackgroundAsync(sessionId, cancellationToken);
     }
 }
