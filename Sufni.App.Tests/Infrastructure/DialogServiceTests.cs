@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Views;
@@ -99,154 +98,6 @@ public class DialogServiceTests
 
             Assert.Equal(PromptResult.Ok, result);
             Assert.Null(FindContentDialogContent(overlayHost, viewModel));
-            Assert.Empty(owner.OwnedWindows);
-        }
-        finally
-        {
-            owner.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task ShowDialogAsync_DesktopMode_UsesOwnedWindowAndReturnsCompletionResult()
-    {
-        var service = CreateService(DialogPresentationMode.Window);
-        var owner = new Window();
-        var viewModel = new TestExtensionDialogResultSource<string>();
-        owner.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        service.SetOwner(owner);
-
-        try
-        {
-            var resultTask = service.ShowDialogAsync(CreateRequest("Extension Dialog", viewModel));
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            var dialog = Assert.Single(owner.OwnedWindows);
-            Assert.Equal("Extension Dialog", dialog.Title);
-            Assert.Equal(320, dialog.Width);
-            Assert.Equal(240, dialog.Height);
-            Assert.Equal(200, dialog.MinWidth);
-            Assert.Equal(160, dialog.MinHeight);
-            Assert.False(dialog.CanResize);
-
-            var content = Assert.IsType<ContentControl>(dialog.Content);
-            Assert.Same(viewModel, content.Content);
-
-            viewModel.Complete("done");
-
-            var result = await resultTask;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Equal("done", result);
-            Assert.Empty(owner.OwnedWindows);
-        }
-        finally
-        {
-            CloseOwnedWindows(owner);
-            owner.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task ShowDialogAsync_DesktopMode_ReturnsDefault_WhenWindowClosesWithoutCompletion()
-    {
-        var service = CreateService(DialogPresentationMode.Window);
-        var owner = new Window();
-        var viewModel = new TestExtensionDialogResultSource<string>();
-        owner.Show();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        service.SetOwner(owner);
-
-        try
-        {
-            var resultTask = service.ShowDialogAsync(CreateRequest("Extension Dialog", viewModel));
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Single(owner.OwnedWindows).Close();
-
-            var result = await resultTask;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Null(result);
-            Assert.Empty(owner.OwnedWindows);
-        }
-        finally
-        {
-            CloseOwnedWindows(owner);
-            owner.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task ShowDialogAsync_MobileMode_UsesOverlayAndReturnsCompletionResult()
-    {
-        var service = CreateService(DialogPresentationMode.Overlay);
-        var overlayHost = new Grid();
-        var owner = ViewTestHelpers.ShowView(overlayHost);
-        var viewModel = new TestExtensionDialogResultSource<string>();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        service.SetOwner(owner);
-        service.SetOverlayHost(overlayHost);
-
-        try
-        {
-            var resultTask = service.ShowDialogAsync(CreateRequest("Extension Dialog", viewModel));
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            var content = FindExtensionDialogContent(overlayHost, viewModel);
-            Assert.NotNull(content);
-            Assert.Empty(owner.OwnedWindows);
-
-            viewModel.Complete("done");
-
-            var result = await resultTask;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Equal("done", result);
-            Assert.Null(FindExtensionDialogContent(overlayHost, viewModel));
-            Assert.Empty(owner.OwnedWindows);
-        }
-        finally
-        {
-            owner.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task ShowDialogAsync_MobileMode_ReturnsDefault_WhenOverlayClosesWithoutCompletion()
-    {
-        var service = CreateService(DialogPresentationMode.Overlay);
-        var overlayHost = new Grid();
-        var owner = ViewTestHelpers.ShowView(overlayHost);
-        var viewModel = new TestExtensionDialogResultSource<string>();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        service.SetOwner(owner);
-        service.SetOverlayHost(overlayHost);
-
-        try
-        {
-            var resultTask = service.ShowDialogAsync(CreateRequest("Extension Dialog", viewModel));
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            var closeButton = overlayHost.GetVisualDescendants()
-                .OfType<Button>()
-                .Single(button => button.Name == "ExtensionDialogCloseButton");
-            closeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-
-            var result = await resultTask;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Null(result);
-            Assert.Null(FindExtensionDialogContent(overlayHost, viewModel));
             Assert.Empty(owner.OwnedWindows);
         }
         finally
@@ -525,28 +376,6 @@ public class DialogServiceTests
         }
     }
 
-    private static ExtensionDialogRequest<string> CreateRequest(
-        string title,
-        TestExtensionDialogResultSource<string> viewModel) =>
-        new(
-            title,
-            viewModel,
-            new ExtensionDialogLayout(
-                Width: 320,
-                Height: 240,
-                MinWidth: 200,
-                MinHeight: 160,
-                CanResize: false));
-
-    private static ContentControl? FindExtensionDialogContent(
-        Control root,
-        TestExtensionDialogResultSource<string> viewModel)
-    {
-        return root.GetVisualDescendants()
-            .OfType<ContentControl>()
-            .SingleOrDefault(control => ReferenceEquals(control.Content, viewModel));
-    }
-
     private static Control? FindContentDialogContent(
         Control root,
         TestContentDialogCompletionSource viewModel)
@@ -563,16 +392,6 @@ public class DialogServiceTests
         public void Complete()
         {
             Completed?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    private sealed class TestExtensionDialogResultSource<TResult> : IExtensionDialogResultSource<TResult>
-    {
-        public event EventHandler<TResult?>? Completed;
-
-        public void Complete(TResult? result)
-        {
-            Completed?.Invoke(this, result);
         }
     }
 }

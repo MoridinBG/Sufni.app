@@ -65,10 +65,6 @@ Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(ISer
 This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used. Extensions that use one control in both profiles register only the shared factory; a profile-specific factory is optional, not a migration requirement.
 
 
-## Host Services
-
-`IExtensionDialogService` is the neutral dialog-hosting seam for extension-owned view models. Extensions pass an `ExtensionDialogRequest<TResult>` with a title, layout, and an `IExtensionDialogResultSource<TResult>` view model. `DialogService` hosts the view model through a `ContentControl`, so extension view templates still resolve through `ViewLocator`; desktop uses an owned modal window and mobile/single-view uses the existing overlay host. Completing the result source returns the supplied result, while closing the host without completion returns `default`.
-
 ## Runtime Presentation Controls
 
 `Sufni.App.ExtensionHost.Runtime.Presentation` is public SDK surface. It

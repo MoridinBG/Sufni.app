@@ -128,10 +128,10 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   registered as singletons via factory delegates that resolve the
   same `IAppPreferences` instance. The concrete `DialogService`
   singleton is re-registered behind `IDialogService` (the `Show*`
-  prompt contract for view models and coordinators), `IDialogHost`
+  prompt contract for view models and coordinators) and `IDialogHost`
   (the owner-window/overlay-host/presentation-mode wiring contract
-  used only by `App`), and `IExtensionDialogService` via factory
-  delegates that resolve the same instance. Recorded-session derivation
+  used only by `App`) via factory delegates that resolve the same
+  instance. Recorded-session derivation
   services (`IProcessingFingerprintService`,
   `IRecordedSessionReprocessor`, `IRecordedSessionAnalysisComputer`) are
   also singleton services. `IRecordedSessionAnalysisResultStateFactory` is

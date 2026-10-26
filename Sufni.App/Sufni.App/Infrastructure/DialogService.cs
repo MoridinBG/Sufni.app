@@ -8,7 +8,6 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Views;
@@ -16,7 +15,7 @@ using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Infrastructure;
 
-public class DialogService : IDialogService, IDialogHost, IExtensionDialogService
+public class DialogService : IDialogService, IDialogHost
 {
     private readonly ViewLocator viewLocator;
     private Window? owner;
@@ -80,15 +79,6 @@ public class DialogService : IDialogService, IDialogHost, IExtensionDialogServic
         return presentationMode == DialogPresentationMode.Window
             ? ShowContentDialogWindowAsync(contentViewModel, options)
             : ShowContentDialogOverlayAsync(contentViewModel, options);
-    }
-
-    public Task<TResult?> ShowDialogAsync<TResult>(ExtensionDialogRequest<TResult> request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return presentationMode == DialogPresentationMode.Window
-            ? ShowExtensionDialogWindowAsync(request)
-            : ShowExtensionDialogOverlayAsync(request);
     }
 
     private Task<TileLayerConfig?> ShowAddTileLayerWindowAsync()
@@ -263,106 +253,6 @@ public class DialogService : IDialogService, IDialogHost, IExtensionDialogServic
         }
     }
 
-    private Task<TResult?> ShowExtensionDialogWindowAsync<TResult>(ExtensionDialogRequest<TResult> request)
-    {
-        Debug.Assert(owner != null, nameof(owner) + " != null");
-
-        var dialogOwner = owner ?? throw new InvalidOperationException("Dialog owner has not been set.");
-        var tcs = new TaskCompletionSource<TResult?>();
-        var window = new Window
-        {
-            Title = request.Title,
-            Width = request.Layout.Width,
-            Height = request.Layout.Height,
-            MinWidth = request.Layout.MinWidth,
-            MinHeight = request.Layout.MinHeight,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            CanResize = request.Layout.CanResize,
-            Content = new ContentControl
-            {
-                Content = request.ViewModel
-            }
-        };
-
-        request.ViewModel.Completed += ViewModelCompleted;
-        window.Closed += WindowClosed;
-        window.ShowDialog(dialogOwner);
-        return tcs.Task;
-
-        void ViewModelCompleted(object? sender, TResult? result)
-        {
-            request.ViewModel.Completed -= ViewModelCompleted;
-            tcs.TrySetResult(result);
-            window.Close();
-        }
-
-        void WindowClosed(object? sender, EventArgs args)
-        {
-            request.ViewModel.Completed -= ViewModelCompleted;
-            tcs.TrySetResult(default);
-        }
-    }
-
-    private Task<TResult?> ShowExtensionDialogOverlayAsync<TResult>(ExtensionDialogRequest<TResult> request)
-    {
-        var host = overlayHost ?? TryGetSingleViewOverlayHost();
-        Debug.Assert(host != null, nameof(overlayHost) + " != null");
-
-        if (host is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host has not been set.");
-        }
-
-        var panel = TryGetOverlayPanel(host);
-        if (panel is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
-        }
-
-        var tcs = new TaskCompletionSource<TResult?>();
-        var content = new ContentControl
-        {
-            Content = request.ViewModel
-        };
-        Control? overlay = null;
-        overlay = CreateExtensionDialogOverlay(request, content, CloseOverlay);
-
-        request.ViewModel.Completed += ViewModelCompleted;
-        overlay.DetachedFromVisualTree += OverlayDetached;
-        panel.Children.Add(overlay);
-        return tcs.Task;
-
-        void ViewModelCompleted(object? sender, TResult? result)
-        {
-            Complete(result);
-        }
-
-        void CloseOverlay()
-        {
-            Complete(default);
-        }
-
-        void OverlayDetached(object? sender, VisualTreeAttachmentEventArgs args)
-        {
-            request.ViewModel.Completed -= ViewModelCompleted;
-            overlay = null;
-            tcs.TrySetResult(default);
-        }
-
-        void Complete(TResult? result)
-        {
-            request.ViewModel.Completed -= ViewModelCompleted;
-            if (overlay is { } currentOverlay)
-            {
-                currentOverlay.DetachedFromVisualTree -= OverlayDetached;
-                panel.Children.Remove(currentOverlay);
-                overlay = null;
-            }
-
-            tcs.TrySetResult(result);
-        }
-    }
-
     private static Control? TryGetSingleViewOverlayHost()
     {
         return (Application.Current?.ApplicationLifetime as ISingleViewApplicationLifetime)?.MainView as Control;
@@ -431,79 +321,6 @@ public class DialogService : IDialogService, IDialogHost, IExtensionDialogServic
                     Background = SufniBrushes.DialogSurface(),
                     CornerRadius = new CornerRadius(6),
                     Child = content
-                }
-            }
-        };
-    }
-
-    private static Control CreateExtensionDialogOverlay<TResult>(
-        ExtensionDialogRequest<TResult> request,
-        Control content,
-        Action close)
-    {
-        var closeButton = new Button
-        {
-            Name = "ExtensionDialogCloseButton",
-            Content = "X",
-            Width = 32,
-            Height = 32,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        closeButton.Click += (_, _) => close();
-
-        var header = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-            Margin = new Thickness(16, 12, 12, 8),
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = request.Title,
-                    FontWeight = FontWeight.SemiBold,
-                    VerticalAlignment = VerticalAlignment.Center
-                },
-                closeButton
-            }
-        };
-        Grid.SetColumn(closeButton, 1);
-
-        var dialogContent = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*"),
-            Children =
-            {
-                header,
-                new ScrollViewer
-                {
-                    Margin = new Thickness(16, 0, 16, 16),
-                    Content = content
-                }
-            }
-        };
-        Grid.SetRow(dialogContent.Children[1], 1);
-
-        return new Grid
-        {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Children =
-            {
-                new Border
-                {
-                    Background = SufniBrushes.OverlayScrim()
-                },
-                new Border
-                {
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    MaxWidth = request.Layout.Width,
-                    MaxHeight = request.Layout.Height,
-                    Margin = new Thickness(12),
-                    Background = SufniBrushes.DialogSurface(),
-                    CornerRadius = new CornerRadius(6),
-                    Child = dialogContent
                 }
             }
         };

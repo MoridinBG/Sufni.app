@@ -193,7 +193,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<DialogService>();
         ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IDialogHost>(sp => sp.GetRequiredService<DialogService>());
-        ServiceCollection.AddSingleton<IExtensionDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IPlotZoomState, PlotZoomState>();
         ServiceCollection.AddSingleton<BikeStore>();
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());

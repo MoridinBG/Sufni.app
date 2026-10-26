@@ -205,7 +205,6 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Module Startup](architecture/extensions.md#module-startup) — module service and capability registration
 - [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
 - [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
-- [Host Services](architecture/extensions.md#host-services) — neutral DI services available to extensions
 - [Shared Caching](architecture/extensions.md#shared-caching) — dependency-lower single-flight production, independent waiter cancellation, bounded LRU retention, and clear-generation semantics
 - [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
