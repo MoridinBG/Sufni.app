@@ -71,6 +71,7 @@ internal sealed class SessionDetailHarness
     public IVideoPaneFactory? VideoPaneFactory { get; set; }
     public SessionSegmentStore SegmentStore { get; } = new(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher());
     public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
+    public SessionOperationRunner OperationRunner { get; } = new();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
     public IRecordedSessionProcessingOptionCache ProcessingOptionCache { get; set; } = new InMemoryRecordedSessionProcessingOptionCache();
     public IObservable<RecordedSessionDomainSnapshot> ProjectionChanges { get; private set; } = Observable.Empty<RecordedSessionDomainSnapshot>();
@@ -201,6 +202,7 @@ internal sealed class SessionDetailHarness
             () => EditorFactory,
             SessionEditingCoordinator,
             TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
+            OperationRunner,
             extensionHost: new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
                 Substitute.For<IExtensionDatabaseConnection>(),

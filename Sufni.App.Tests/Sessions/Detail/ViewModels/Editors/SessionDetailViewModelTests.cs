@@ -1,3 +1,4 @@
+using Avalonia.Threading;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Avalonia;
@@ -414,6 +415,7 @@ public class SessionDetailViewModelTests
         context.AddNotification("extension notification");
         var lease = context.StartOperation("Extension work");
         lease.Report("Extension still working", 50);
+        Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(selectedRange, editor.CurrentAnalysisRange);
         Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
@@ -425,6 +427,7 @@ public class SessionDetailViewModelTests
         Assert.Equal(50, editor.SessionOperationState.Percent);
 
         lease.Complete();
+        Dispatcher.UIThread.RunJobs();
 
         Assert.False(editor.SessionOperationState.IsVisible);
     }

@@ -24,7 +24,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly IRecordedSessionDataReader dataReader;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly RecordedSessionOperationCoordinator operationCoordinator;
     private readonly IRecordedSessionHostOperations operations;
     private readonly BehaviorSubject<RecordedSessionHostState> stateChanged;
     private readonly RecordedSessionExtensionSlotPublisher extensionSlotPublisher;
@@ -42,7 +41,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         IRecordedSessionDataReader dataReader,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
-        RecordedSessionOperationCoordinator operationCoordinator,
         IRecordedSessionHostOperations operations)
     {
         ArgumentNullException.ThrowIfNull(factories);
@@ -50,7 +48,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(dataReader);
         ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
         ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
-        ArgumentNullException.ThrowIfNull(operationCoordinator);
         ArgumentNullException.ThrowIfNull(operations);
 
         this.sessionId = sessionId;
@@ -60,7 +57,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.dataReader = dataReader;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
-        this.operationCoordinator = operationCoordinator;
         this.operations = operations;
         extensionSlotPublisher = new RecordedSessionExtensionSlotPublisher(ExtensionSlots, uiThreadDispatcher);
         CurrentState = new RecordedSessionHostState(
@@ -182,7 +178,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
 
     private async ValueTask DisposeScopesCoreAsync()
     {
-        operationCoordinator.CancelCurrent();
         IDisposable[] subscriptionSnapshot;
         RecordedSessionExtensionScopeRegistration[] scopeSnapshot;
         lock (scopesGate)
@@ -227,7 +222,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
             }
 
             await DisposeScopesCoreAsync();
-            await operationCoordinator.DisposeAsync();
             stateChanged.Dispose();
         }
         finally

@@ -177,7 +177,8 @@ internal sealed class SessionDetailViewTestContext
             analysisResultStateFactory,
             () => Substitute.For<IEditorFactory>(),
             Substitute.For<ISessionEditingCoordinator>(),
-            TestSegmentPickers.CreateFactory(dialogService: dialogService));
+            TestSegmentPickers.CreateFactory(dialogService: dialogService),
+            new SessionOperationRunner());
     }
 }
 

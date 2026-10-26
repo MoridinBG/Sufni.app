@@ -91,33 +91,6 @@ public class RecordedSessionExtensionManagerTests
     }
 
     [Fact]
-    public async Task HostContext_StartOperation_UsesOperationCoordinator()
-    {
-        var factory = new TestRecordedSessionExtensionFactory("test");
-        var reports = new List<(string Message, double Percent)>();
-        var completed = 0;
-        var manager = CreateManager(
-            [factory],
-            operationCoordinator: new RecordedSessionOperationCoordinator(
-                (message, percent) => reports.Add((message, percent)),
-                () => completed++));
-        await manager.InitializeAsync(CreateState(), cancellationToken: TestContext.Current.CancellationToken);
-
-        var first = factory.Context!.StartOperation("first");
-        var second = factory.Context.StartOperation("second");
-        first.Report("stale", 20);
-        second.Report("active", 40);
-        first.Complete();
-        second.Complete();
-
-        Assert.Equal([("first", 0), ("second", 0), ("active", 40)], reports);
-        Assert.True(first.CancellationToken.IsCancellationRequested);
-        Assert.False(first.IsCurrent);
-        Assert.False(second.IsCurrent);
-        Assert.Equal(1, completed);
-    }
-
-    [Fact]
     public async Task ScopeSlotChanges_AreMirroredToHostSlotsAndClearedOnDispose()
     {
         var factory = new TestRecordedSessionExtensionFactory("test");
@@ -363,7 +336,6 @@ public class RecordedSessionExtensionManagerTests
 
     private static RecordedSessionExtensionManager CreateManager(
         IReadOnlyList<IRecordedSessionExtensionFactory> factories,
-        RecordedSessionOperationCoordinator? operationCoordinator = null,
         Action<double, double>? setAnalysisRange = null,
         Action? clearAnalysisRange = null,
         Action<double, double, object>? setTimelineVisibleRange = null,
@@ -371,7 +343,6 @@ public class RecordedSessionExtensionManagerTests
         Action<string>? addNotification = null,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
-        var coordinator = operationCoordinator ?? new RecordedSessionOperationCoordinator((_, _) => { }, () => { });
         return new RecordedSessionExtensionManager(
             Guid.NewGuid(),
             factories,
@@ -379,14 +350,12 @@ public class RecordedSessionExtensionManagerTests
             Substitute.For<IRecordedSessionDataReader>(),
             new InlineBackgroundTaskRunner(),
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
-            coordinator,
             new DelegatingRecordedSessionHostOperations(
                 setAnalysisRange,
                 clearAnalysisRange,
                 setTimelineVisibleRange,
                 addError,
-                addNotification,
-                coordinator.StartOperation));
+                addNotification));
     }
 
     private static RecordedSessionHostState CreateState(

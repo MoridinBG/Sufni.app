@@ -68,7 +68,8 @@ internal sealed class EditorFactory(
     Func<ImportSessionsViewModel> importSessionsResolver,
     IVideoPaneFactory videoPaneFactory,
     ISessionEditingCoordinator sessionEditingCoordinator,
-    ISegmentPickerFactory segmentPickerFactory) : IEditorFactory
+    ISegmentPickerFactory segmentPickerFactory,
+    ISessionOperationRunner sessionOperationRunner) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -187,6 +188,7 @@ internal sealed class EditorFactory(
             () => this,
             sessionEditingCoordinator,
             segmentPickerFactory,
+            sessionOperationRunner,
             bikeCoordinator,
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),

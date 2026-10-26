@@ -41,6 +41,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
@@ -97,7 +98,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
-    private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
+    private readonly ISessionOperationRunner sessionOperationRunner;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
@@ -1145,16 +1146,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         processedTelemetryRetention = null;
     }
 
-    private void ReportRecordedSessionExtensionOperation(string message, double percent)
-    {
-        SetSessionOperationState(SessionOperationPresentationState.Progress(message, percent));
-    }
-
-    private void CompleteRecordedSessionExtensionOperation()
-    {
-        SetSessionOperationState(SessionOperationPresentationState.Hidden);
-    }
-
     private void SetRecordedSessionExtensionTimelineVisibleRange(
         double startNormalized,
         double endNormalized,
@@ -1471,9 +1462,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     void IRecordedSessionHostOperations.AddNotification(string message) => Notifications.Add(message);
 
     IRecordedSessionOperationLease IRecordedSessionHostOperations.StartOperation(string description) =>
-        (recordedSessionOperationCoordinator
-            ?? throw new InvalidOperationException("Recorded-session extension hosting is not configured."))
-        .StartOperation(description);
+        new SessionOperationLease(sessionOperationRunner.Start(Id, description));
 
     Guid ISessionOperationGateway.SessionId => Id;
 
@@ -1510,6 +1499,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Func<IEditorFactory> editorFactory,
         ISessionEditingCoordinator sessionEditingCoordinator,
         ISegmentPickerFactory segmentPickerFactory,
+        ISessionOperationRunner sessionOperationRunner,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null,
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
@@ -1520,6 +1510,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
+        this.sessionOperationRunner = sessionOperationRunner;
         this.trackCoordinator = trackCoordinator;
         this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
@@ -1727,9 +1718,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             this);
         if (extensionHost is not null)
         {
-            recordedSessionOperationCoordinator = new RecordedSessionOperationCoordinator(
-                ReportRecordedSessionExtensionOperation,
-                CompleteRecordedSessionExtensionOperation);
             recordedSessionExtensions = new RecordedSessionExtensionManager(
                 Id,
                 extensionHost.RecordedSessionExtensionFactories,
@@ -1737,7 +1725,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 extensionHost.RecordedSessionDataReader,
                 extensionHost.BackgroundTaskRunner,
                 uiThreadDispatcher,
-                recordedSessionOperationCoordinator,
                 this);
         }
 
@@ -2137,11 +2124,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
     {
         PublishEditorInput(plotDampingSpeedCutoffsInput, cutoffs);
-    }
-
-    internal void SetSessionOperationState(SessionOperationPresentationState state)
-    {
-        PublishEditorInput(sessionOperationStateInput, state);
     }
 
     internal void SetSessionInsights(SessionInsightsResult insights)
@@ -2657,14 +2639,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         // Subscribe before the awaited restore so a remote sync apply that
         // lands while restore is in flight is not missed.
         var watch = recordedSessionProjection.WatchSession(Id);
+        var operationWatch = sessionOperationRunner.Watch(Id);
         if (SynchronizationContext.Current is { } synchronizationContext)
         {
             watch = watch.ObserveOn(synchronizationContext);
+            operationWatch = operationWatch.ObserveOn(synchronizationContext);
         }
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
             s.Add(watch.Subscribe(snapshot => PublishEditorInput(domainInput, snapshot)));
+            s.Add(operationWatch.Subscribe(state => PublishEditorInput(sessionOperationStateInput, state)));
         });
         if (replayStalenessOnNextLoad)
         {
@@ -2755,6 +2740,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         deferredDomain = null;
         stalenessReconciler.ResetForUnload();
         PublishRecordedSessionHostRuntimeChange();
+        sessionOperationRunner.Cancel(Id);
         await DisposeRecordedSessionExtensionScopesAsync();
         DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();
@@ -2762,4 +2748,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     #endregion
 
+    private sealed class SessionOperationLease(SessionOperation operation) : IRecordedSessionOperationLease
+    {
+        public CancellationToken CancellationToken => operation.CancellationToken;
+        public bool IsCurrent => operation.IsCurrent;
+        public void Report(string message, double percent) => operation.Report(message, percent);
+        public void Complete() => operation.Dispose();
+
+        public ValueTask DisposeAsync()
+        {
+            operation.Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
 }

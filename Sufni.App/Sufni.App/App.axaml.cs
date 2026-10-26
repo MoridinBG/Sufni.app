@@ -179,6 +179,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
         ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
+        ServiceCollection.AddSingleton<ISessionContentReader, SessionContentReader>();
+        ServiceCollection.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
