@@ -21,7 +21,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
     private readonly Guid sessionId;
     private readonly IReadOnlyList<IRecordedSessionExtensionFactory> factories;
     private readonly IExtensionDatabaseConnection database;
-    private readonly IRecordedSessionDataReader dataReader;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IRecordedSessionHostOperations operations;
@@ -38,14 +37,12 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         Guid sessionId,
         IEnumerable<IRecordedSessionExtensionFactory> factories,
         IExtensionDatabaseConnection database,
-        IRecordedSessionDataReader dataReader,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
         IRecordedSessionHostOperations operations)
     {
         ArgumentNullException.ThrowIfNull(factories);
         ArgumentNullException.ThrowIfNull(database);
-        ArgumentNullException.ThrowIfNull(dataReader);
         ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
         ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
         ArgumentNullException.ThrowIfNull(operations);
@@ -54,7 +51,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
         this.factories = factories.ToArray();
         ExtensionContributionValidator.ValidateRecordedSessionExtensionFactories(this.factories);
         this.database = database;
-        this.dataReader = dataReader;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
         this.operations = operations;
@@ -237,7 +233,6 @@ internal sealed class RecordedSessionExtensionManager : IAsyncDisposable
             new RecordedSessionHostServices(
                 stateChanged.AsObservable(),
                 database,
-                dataReader,
                 backgroundTaskRunner,
                 uiThreadDispatcher),
             operations);

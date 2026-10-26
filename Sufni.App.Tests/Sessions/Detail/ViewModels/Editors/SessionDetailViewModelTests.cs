@@ -413,20 +413,33 @@ public class SessionDetailViewModelTests
         context.SetTimelineVisibleRange(0.2, 0.8, context);
         context.AddError("extension error");
         context.AddNotification("extension notification");
-        var lease = context.StartOperation("Extension work");
-        lease.Report("Extension still working", 50);
-        Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(selectedRange, editor.CurrentAnalysisRange);
         Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
         Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
         Assert.Contains("extension error", editor.ErrorMessages);
         Assert.Contains("extension notification", editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task SessionOperationState_FollowsTheSessionOperation()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession(hasProcessedData: true);
+        var editor = harness.CreateLoadedRecordedSession(
+            snapshot,
+            harness.CreateLoadedResult(TestTelemetryData.CreateProcessed()));
+        await harness.LoadAsync(editor);
+
+        var operation = harness.OperationRunner.Start(snapshot.Id, "Matching");
+        operation.Report("Matching session 5/10", 50);
+        Dispatcher.UIThread.RunJobs();
+
         Assert.True(editor.SessionOperationState.IsVisible);
-        Assert.Equal("Extension still working", editor.SessionOperationState.Message);
+        Assert.Equal("Matching session 5/10", editor.SessionOperationState.Message);
         Assert.Equal(50, editor.SessionOperationState.Percent);
 
-        lease.Complete();
+        operation.Dispose();
         Dispatcher.UIThread.RunJobs();
 
         Assert.False(editor.SessionOperationState.IsVisible);

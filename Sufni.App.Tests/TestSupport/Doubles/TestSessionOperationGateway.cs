@@ -72,7 +72,4 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public void AddError(string message) => Errors.Add(message);
 
     public void AddNotification(string message) => Notifications.Add(message);
-
-    public IRecordedSessionOperationLease StartOperation(string description) =>
-        Substitute.For<IRecordedSessionOperationLease>();
 }

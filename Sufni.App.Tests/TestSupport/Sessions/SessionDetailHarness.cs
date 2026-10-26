@@ -207,7 +207,6 @@ internal sealed class SessionDetailHarness
             extensionHost: new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],
                 Substitute.For<IExtensionDatabaseConnection>(),
-                Substitute.For<IRecordedSessionDataReader>(),
                 new InlineBackgroundTaskRunner()),
             videoPaneFactory: VideoPaneFactory);
     }

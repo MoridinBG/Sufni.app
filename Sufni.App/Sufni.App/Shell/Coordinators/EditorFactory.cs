@@ -63,7 +63,6 @@ internal sealed class EditorFactory(
     ILayoutProfileTransitionState layoutProfileTransitionState,
     IEnumerable<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories,
     IExtensionDatabaseConnection extensionDatabase,
-    IRecordedSessionDataReader recordedSessionDataReader,
     IBackgroundTaskRunner backgroundTaskRunner,
     Func<ImportSessionsViewModel> importSessionsResolver,
     IVideoPaneFactory videoPaneFactory,
@@ -195,7 +194,6 @@ internal sealed class EditorFactory(
             new ExtensionHostDependencies(
                 recordedSessionExtensionFactories.ToArray(),
                 extensionDatabase,
-                recordedSessionDataReader,
                 backgroundTaskRunner),
             layoutProfileTransitionState,
             videoPaneFactory);

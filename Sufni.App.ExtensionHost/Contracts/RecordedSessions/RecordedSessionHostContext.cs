@@ -1,6 +1,4 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
@@ -11,26 +9,22 @@ public sealed record RecordedSessionHostServices
     public RecordedSessionHostServices(
         IObservable<RecordedSessionHostState> stateChanged,
         IExtensionDatabaseConnection database,
-        IRecordedSessionDataReader dataReader,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(stateChanged);
         ArgumentNullException.ThrowIfNull(database);
-        ArgumentNullException.ThrowIfNull(dataReader);
         ArgumentNullException.ThrowIfNull(backgroundTaskRunner);
         ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
 
         StateChanged = stateChanged;
         Database = database;
-        DataReader = dataReader;
         BackgroundTaskRunner = backgroundTaskRunner;
         UiThreadDispatcher = uiThreadDispatcher;
     }
 
     public IObservable<RecordedSessionHostState> StateChanged { get; }
     public IExtensionDatabaseConnection Database { get; }
-    public IRecordedSessionDataReader DataReader { get; }
     public IBackgroundTaskRunner BackgroundTaskRunner { get; }
     public IUiThreadDispatcher UiThreadDispatcher { get; }
 }
@@ -47,7 +41,6 @@ public interface IRecordedSessionHostOperations
     void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source);
     void AddError(string message);
     void AddNotification(string message);
-    IRecordedSessionOperationLease StartOperation(string description);
 }
 
 public sealed class RecordedSessionHostContext
@@ -70,7 +63,6 @@ public sealed class RecordedSessionHostContext
     public IRecordedSessionHostOperations Operations { get; }
     public IObservable<RecordedSessionHostState> StateChanged => Services.StateChanged;
     public IExtensionDatabaseConnection Database => Services.Database;
-    public IRecordedSessionDataReader DataReader => Services.DataReader;
     public IBackgroundTaskRunner BackgroundTaskRunner => Services.BackgroundTaskRunner;
     public IUiThreadDispatcher UiThreadDispatcher => Services.UiThreadDispatcher;
 
@@ -99,10 +91,5 @@ public sealed class RecordedSessionHostContext
     public void AddNotification(string message)
     {
         Operations.AddNotification(message);
-    }
-
-    public IRecordedSessionOperationLease StartOperation(string message)
-    {
-        return Operations.StartOperation(message);
     }
 }

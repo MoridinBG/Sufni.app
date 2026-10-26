@@ -1462,9 +1462,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     void IRecordedSessionHostOperations.AddNotification(string message) => Notifications.Add(message);
 
-    IRecordedSessionOperationLease IRecordedSessionHostOperations.StartOperation(string description) =>
-        new SessionOperationLease(sessionOperationRunner.Start(Id, description));
-
     Guid ISessionOperationGateway.SessionId => Id;
 
     bool ISessionOperationGateway.IsDirty => IsDirty;
@@ -1732,7 +1729,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 Id,
                 extensionHost.RecordedSessionExtensionFactories,
                 extensionHost.ExtensionDatabase,
-                extensionHost.RecordedSessionDataReader,
                 extensionHost.BackgroundTaskRunner,
                 uiThreadDispatcher,
                 this);
@@ -2769,18 +2765,4 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     #endregion
-
-    private sealed class SessionOperationLease(SessionOperation operation) : IRecordedSessionOperationLease
-    {
-        public CancellationToken CancellationToken => operation.CancellationToken;
-        public bool IsCurrent => operation.IsCurrent;
-        public void Report(string message, double percent) => operation.Report(message, percent);
-        public void Complete() => operation.Dispose();
-
-        public ValueTask DisposeAsync()
-        {
-            operation.Dispose();
-            return ValueTask.CompletedTask;
-        }
-    }
 }

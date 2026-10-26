@@ -14,5 +14,4 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 internal sealed record ExtensionHostDependencies(
     IReadOnlyList<IRecordedSessionExtensionFactory> RecordedSessionExtensionFactories,
     IExtensionDatabaseConnection ExtensionDatabase,
-    IRecordedSessionDataReader RecordedSessionDataReader,
     IBackgroundTaskRunner BackgroundTaskRunner);

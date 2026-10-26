@@ -16,24 +16,20 @@ public static class TestRecordedSessionHostContexts
         Action<double, double>? setAnalysisRange = null,
         Action<string>? addError = null,
         Action<string>? addNotification = null,
-        IRecordedSessionDataReader? dataReader = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         IUiThreadDispatcher? uiThreadDispatcher = null,
-        Action<double, double, object>? setTimelineVisibleRange = null,
-        Func<string, IRecordedSessionOperationLease>? startOperation = null) => new(
+        Action<double, double, object>? setTimelineVisibleRange = null) => new(
         sessionId,
         new RecordedSessionHostServices(
             new EmptyObservable<RecordedSessionHostState>(),
             connection ?? Substitute.For<IExtensionDatabaseConnection>(),
-            dataReader ?? Substitute.For<IRecordedSessionDataReader>(),
             backgroundTaskRunner ?? Substitute.For<IBackgroundTaskRunner>(),
             uiThreadDispatcher ?? Substitute.For<IUiThreadDispatcher>()),
         new DelegatingRecordedSessionHostOperations(
             setAnalysisRange,
             setTimelineVisibleRange: setTimelineVisibleRange,
             addError: addError,
-            addNotification: addNotification,
-            startOperation: startOperation));
+            addNotification: addNotification));
 
     private sealed class EmptyObservable<T> : IObservable<T>
     {

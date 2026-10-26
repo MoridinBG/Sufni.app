@@ -375,7 +375,6 @@ public class EditorFactoryTests
             new LayoutProfileTransitionState(),
             Array.Empty<IRecordedSessionExtensionFactory>(),
             Substitute.For<IExtensionDatabaseConnection>(),
-            Substitute.For<IRecordedSessionDataReader>(),
             backgroundTaskRunner,
             () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."),
             Substitute.For<IVideoPaneFactory>(),

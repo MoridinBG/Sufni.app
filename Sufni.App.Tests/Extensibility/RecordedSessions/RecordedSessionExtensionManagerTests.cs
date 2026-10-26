@@ -347,7 +347,6 @@ public class RecordedSessionExtensionManagerTests
             Guid.NewGuid(),
             factories,
             Substitute.For<IExtensionDatabaseConnection>(),
-            Substitute.For<IRecordedSessionDataReader>(),
             new InlineBackgroundTaskRunner(),
             uiThreadDispatcher ?? new InlineUiThreadDispatcher(),
             new DelegatingRecordedSessionHostOperations(

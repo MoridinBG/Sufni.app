@@ -170,36 +170,6 @@ without a long positional constructor. It exposes constrained host operations:
 - set or clear the analysis range
 - set timeline visible range
 - post errors or notifications
-- run a cancellable operation through `RecordedSessionOperationCoordinator`
-- read processed telemetry and track points through `IRecordedSessionDataReader`
-
-`IRecordedSessionDataReader.GetProcessedTelemetryAsync` delegates to
-`ISessionProcessedTelemetryReader`. While the recorded-session editor is loaded,
-the session is retained so extension readers, plots, and mobile detail generation
-share one decoded `TelemetryData` instance for the current
-`(sessionId, ProcessedTelemetryRevision)` payload key. That instance is shared
-infrastructure state and must be treated as read-only by extensions.
-
-`IRecordedSessionDataReader.GetTrackAsync` returns the latest session-window track
-projection used by the recorded-session view: cached points when the cache is
-current, or a read-only projection from the linked full track when the cache is
-missing or aligned to an older GPS offset. Alignment and regeneration use the
-session row's own timestamp and duration — the values the processed-write path
-generates the cache from — so the read path never deserializes the processed
-telemetry blob per session. The read path does not persist regenerated points.
-
-Every `RecordedSessionCatalogItem` carries a neutral `RecordedSessionContentToken`
-containing the processed-telemetry revision, session-track projection revision,
-linked full-track id and points revision, timestamp, duration, and GPS offset.
-Catalog enumeration batches linked-track metadata and does not load telemetry or
-track payloads. `GetExactSnapshotAsync` accepts that token plus selected content
-families, constrains each selected payload read to the token's revisions, and
-revalidates all metadata after loading. Its result explicitly distinguishes
-`Available(snapshot)`, `Stale` metadata, and `Missing` sessions or payloads; it
-never substitutes newer content. The existing telemetry and track methods remain
-latest-content convenience reads.
-
-Operation leases reject stale progress and cancel superseded work, so extension tasks share the existing editor busy surface without controlling the editor lifecycle. Extension work reports percent values on a `0..100` scale. The recorded-session host projects those reports through `SessionOperationPresentationState` and renders the standard nonblocking busy overlay above the current session content. Extension operation progress does not set the session detail `ScreenState`; that state remains reserved for loading and error state of the session detail itself.
 
 ## Recorded-Session Slots
 
@@ -296,6 +266,6 @@ plot layer converts those descriptors to ScottPlot primitives at render time.
 
 ## Neutrality Rules
 
-Public code may name the host, slots, descriptors, migrations, cascades, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
+Public code may name the host, slots, descriptors, migrations, and cascades. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
 
 This is now maintained by convention and code review rather than an automated test. The previous `PublicNeutralityTests` repository-scanning enforcement has been removed.
