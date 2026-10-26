@@ -2,7 +2,6 @@ using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -16,7 +15,7 @@ public class SyncCoordinator : ISyncCoordinator
     private static readonly TimeSpan DefaultInboundActivityIdleGrace = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FinalInboundActivityIdleGrace = TimeSpan.FromSeconds(2);
 
-    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator;
+    private readonly IAppDataRefresher appDataRefresher;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -65,7 +64,7 @@ public class SyncCoordinator : ISyncCoordinator
     public event EventHandler<SyncFailedEventArgs>? SyncFailed;
 
     public SyncCoordinator(
-        IAppStateRefreshOrchestrator appStateRefreshOrchestrator,
+        IAppDataRefresher appDataRefresher,
         ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null,
         ISynchronizationServerService? synchronizationServerService = null,
@@ -75,7 +74,7 @@ public class SyncCoordinator : ISyncCoordinator
         IUiThreadDispatcher? uiThreadDispatcher = null,
         Func<TimeSpan, Task>? inboundActivityDelayAsync = null)
     {
-        this.appStateRefreshOrchestrator = appStateRefreshOrchestrator;
+        this.appDataRefresher = appDataRefresher;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
@@ -144,14 +143,6 @@ public class SyncCoordinator : ISyncCoordinator
                 CurrentStep: 8,
                 TotalSteps: 8,
                 IsDeterminate: true);
-
-            if (result is SynchronizationRunResult.PartialApply partialApply)
-            {
-                await RefreshCoreStateOnUiThreadAsync();
-                logger.Error("Synchronization partially applied: {ErrorMessage}", partialApply.ErrorMessage);
-                SyncFailed?.Invoke(this, new SyncFailedEventArgs($"Sync partially applied: {partialApply.ErrorMessage}"));
-                return;
-            }
 
             await RefreshStateOnUiThreadAsync();
             var completionMessage = GetCompletionMessage(result);
@@ -347,17 +338,6 @@ public class SyncCoordinator : ISyncCoordinator
             _ => "Sync completed"
         };
 
-    private async Task RefreshCoreStateOnUiThreadAsync()
-    {
-        if (uiThreadDispatcher.CheckAccess())
-        {
-            await appStateRefreshOrchestrator.RefreshCoreStateAsync();
-            return;
-        }
-
-        await uiThreadDispatcher.InvokeAsync(() => appStateRefreshOrchestrator.RefreshCoreStateAsync());
-    }
-
     private async Task RefreshStateOnUiThreadAsync()
     {
         if (uiThreadDispatcher.CheckAccess())
@@ -371,7 +351,7 @@ public class SyncCoordinator : ISyncCoordinator
 
     private Task RefreshStateAsync()
     {
-        return appStateRefreshOrchestrator.RefreshAllStateAsync();
+        return appDataRefresher.RefreshAsync();
     }
 
     private sealed class SyncProgressReporter(Action<SynchronizationProgressSnapshot> report)

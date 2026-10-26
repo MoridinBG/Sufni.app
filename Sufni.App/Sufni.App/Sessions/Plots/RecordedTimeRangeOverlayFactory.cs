@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Plots;
 
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Sessions.Plots;
 

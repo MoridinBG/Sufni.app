@@ -18,9 +18,11 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Serilog" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Sufni.App.Desktop\Sufni.App.Desktop.csproj" />
+    <ProjectReference Include="..\Sufni.App.Video.LibVlc\Sufni.App.Video.LibVlc.csproj" />
   </ItemGroup>
 </Project>

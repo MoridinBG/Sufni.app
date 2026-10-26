@@ -1,6 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 
 namespace Sufni.App.Shared.Views.Overlays;
 

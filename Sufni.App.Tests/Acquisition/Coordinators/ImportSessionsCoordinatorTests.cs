@@ -7,8 +7,6 @@ using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;

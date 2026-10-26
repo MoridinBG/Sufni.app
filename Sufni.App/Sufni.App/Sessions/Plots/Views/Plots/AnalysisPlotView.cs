@@ -1,14 +1,13 @@
 using System;
-using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Input;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Views.Plots;
@@ -24,11 +23,11 @@ public enum AnalysisPlotKind
     StrokeSpeedDistribution,
     DeepTravelDistribution,
     VibrationDistribution,
+    PositionVelocity,
 }
 
 public class AnalysisPlotView : SufniTelemetryPlotView
 {
-    private RecordedSessionExtensionSlots? subscribedSlots;
     private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
@@ -72,15 +71,25 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             nameof(DampingSpeedCutoffs),
             DampingSpeedCutoffs.Default);
 
+    public static readonly StyledProperty<PositionVelocitySideMode> PositionVelocitySideModeProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, PositionVelocitySideMode>(
+            nameof(PositionVelocitySideMode),
+            PositionVelocitySideMode.Both);
+
+    public static readonly StyledProperty<PositionVelocityDisplayMode> PositionVelocityDisplayModeProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, PositionVelocityDisplayMode>(
+            nameof(PositionVelocityDisplayMode),
+            PositionVelocityDisplayMode.Traces);
+
     public static readonly StyledProperty<string> AnalysisTitleProperty =
         AvaloniaProperty.Register<AnalysisPlotView, string>(nameof(AnalysisTitle), string.Empty);
 
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<AnalysisPlotView, object?>(nameof(HeaderContent));
 
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<AnalysisPlotView, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
+    public static readonly StyledProperty<IReadOnlyList<SegmentAnalysisOverlay>?> AnalysisOverlaysProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, IReadOnlyList<SegmentAnalysisOverlay>?>(
+            nameof(AnalysisOverlays));
 
     public static readonly StyledProperty<ICommand?> SelectAnalysisRangeCommandProperty =
         AvaloniaProperty.Register<AnalysisPlotView, ICommand?>(nameof(SelectAnalysisRangeCommand));
@@ -149,6 +158,18 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(DampingSpeedCutoffsProperty, value);
     }
 
+    public PositionVelocitySideMode PositionVelocitySideMode
+    {
+        get => GetValue(PositionVelocitySideModeProperty);
+        set => SetValue(PositionVelocitySideModeProperty, value);
+    }
+
+    public PositionVelocityDisplayMode PositionVelocityDisplayMode
+    {
+        get => GetValue(PositionVelocityDisplayModeProperty);
+        set => SetValue(PositionVelocityDisplayModeProperty, value);
+    }
+
     public string AnalysisTitle
     {
         get => GetValue(AnalysisTitleProperty);
@@ -161,10 +182,13 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(HeaderContentProperty, value);
     }
 
-    public RecordedSessionExtensionSlots? ExtensionSlots
+    /// <summary>
+    /// Overlays of a compared segment match; the plot shows those of its kind and side.
+    /// </summary>
+    public IReadOnlyList<SegmentAnalysisOverlay>? AnalysisOverlays
     {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
+        get => GetValue(AnalysisOverlaysProperty);
+        set => SetValue(AnalysisOverlaysProperty, value);
     }
 
     public ICommand? SelectAnalysisRangeCommand
@@ -222,7 +246,8 @@ public class AnalysisPlotView : SufniTelemetryPlotView
                 e.Property.Name is nameof(BalanceDisplacementMode) && AnalysisPlotKind == AnalysisPlotKind.Balance ||
                 e.Property.Name is nameof(BalanceSpeedMode) && AnalysisPlotKind == AnalysisPlotKind.Balance ||
                 e.Property.Name is nameof(DampingSpeedCutoffs) && AnalysisPlotKind is AnalysisPlotKind.Balance or AnalysisPlotKind.VelocityDistribution ||
-                e.Property.Name is nameof(VelocityAverageMode) && AnalysisPlotKind == AnalysisPlotKind.VelocityDistribution)
+                e.Property.Name is nameof(VelocityAverageMode) && AnalysisPlotKind == AnalysisPlotKind.VelocityDistribution ||
+                e.Property.Name is nameof(PositionVelocitySideMode) or nameof(PositionVelocityDisplayMode) && AnalysisPlotKind == AnalysisPlotKind.PositionVelocity)
             {
                 if (!HasPlotModel)
                 {
@@ -235,12 +260,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
             if (IsAnalysisOverlayProperty(e.Property.Name))
             {
-                if (e.Property == ExtensionSlotsProperty)
-                {
-                    SubscribeToSlots(ExtensionSlots);
-                }
-
-                ApplyAnalysisOverlayDescriptor(refresh: true);
+                ApplyAnalysisOverlay(refresh: true);
             }
 
             if (e.Property.Name is nameof(ActiveAnalysisSelection) && PlotModel is ISelectableAnalysisPlot selectablePlot)
@@ -254,15 +274,20 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        SubscribeToSlots(ExtensionSlots);
         SubscribeToAnalysisResultState(AnalysisResultState);
-        ApplyAnalysisOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlay(refresh: false);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        SubscribeToSlots(null);
         SubscribeToAnalysisResultState(null);
+        if (HasPlotModel && PlotModel is PositionVelocityPlot)
+        {
+            // Releases the native stroke paths while detached; the next attach reloads.
+            PlotModel.Clear();
+            RequestReload();
+        }
+
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -278,6 +303,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             AnalysisPlotKind.StrokeSpeedDistribution => new StrokeSpeedDistributionPlot(PlotControl.Plot, SuspensionType, BalanceType, CurrentTheme),
             AnalysisPlotKind.DeepTravelDistribution => new DeepTravelDistributionPlot(PlotControl.Plot, SuspensionType, CurrentTheme),
             AnalysisPlotKind.VibrationDistribution => new VibrationThirdsPlot(PlotControl.Plot, SuspensionType, ImuLocation, CurrentTheme),
+            AnalysisPlotKind.PositionVelocity => new PositionVelocityPlot(PlotControl.Plot, CurrentTheme),
             _ => throw new ArgumentOutOfRangeException()
         };
 
@@ -286,7 +312,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         SetPlotModel(plotModel);
         UpdateAnalysisTitle();
         ApplyActiveAnalysisSelectionToPlotModel(plotModel);
-        ApplyAnalysisOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlay(refresh: false);
         InitializeBarReadoutInteractions();
     }
 
@@ -294,7 +320,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         base.OnPlotDataLoaded();
         ApplyActiveAnalysisSelectionToPlotModel(PlotModel);
-        ApplyAnalysisOverlayDescriptor(refresh: false);
+        ApplyAnalysisOverlay(refresh: false);
     }
 
     protected override void LoadPlotData(TelemetryPlot plotModel)
@@ -343,11 +369,9 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             nameof(VelocityAverageMode);
 
     private static bool IsAnalysisOverlayProperty(string? propertyName) =>
-        propertyName is nameof(ExtensionSlots) or
+        propertyName is nameof(AnalysisOverlays) or
             nameof(AnalysisPlotKind) or
-            nameof(SuspensionType) or
-            nameof(BalanceType) or
-            nameof(ImuLocation);
+            nameof(SuspensionType);
 
     private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
     {
@@ -450,6 +474,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             AnalysisPlotKind.StrokeSpeedDistribution => RecordedSessionAnalysisFamily.StrokeSpeedDistribution,
             AnalysisPlotKind.DeepTravelDistribution => RecordedSessionAnalysisFamily.DeepTravelDistribution,
             AnalysisPlotKind.VibrationDistribution => RecordedSessionAnalysisFamily.VibrationDistribution,
+            AnalysisPlotKind.PositionVelocity => RecordedSessionAnalysisFamily.PositionVelocity,
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -482,87 +507,34 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             case (VibrationThirdsPlot plot, VibrationDistributionAnalysisResult data):
                 plot.LoadAnalysisData(data);
                 break;
+            case (PositionVelocityPlot plot, PositionVelocityAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
             default:
                 break;
         }
     }
 
-    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
-    {
-        if (ReferenceEquals(subscribedSlots, slots))
-        {
-            return;
-        }
-
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.AnalysisOverlays.CollectionChanged -= OnAnalysisOverlaysChanged;
-        }
-
-        subscribedSlots = slots;
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.AnalysisOverlays.CollectionChanged += OnAnalysisOverlaysChanged;
-        }
-    }
-
-    private void OnAnalysisOverlaysChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        ApplyAnalysisOverlayDescriptor(refresh: true);
-    }
-
-    private void ApplyAnalysisOverlayDescriptor(bool refresh)
+    private void ApplyAnalysisOverlay(bool refresh)
     {
         if (!HasPlotModel)
         {
             return;
         }
 
-        PlotModel.ApplyAnalysisOverlayDescriptor(CreateAnalysisOverlayDescriptor());
+        SegmentAnalysisPlot? plot = AnalysisPlotKind switch
+        {
+            AnalysisPlotKind.TravelDistribution => SegmentAnalysisPlot.TravelDistribution,
+            AnalysisPlotKind.VelocityDistribution => SegmentAnalysisPlot.VelocityDistribution,
+            _ => null,
+        };
+        PlotModel.ApplyAnalysisOverlay(AnalysisOverlays?
+            .FirstOrDefault(overlay => overlay.Plot == plot && overlay.Side == SuspensionType)?
+            .Overlay);
         if (refresh)
         {
             RefreshPlot(PlotInvalidation.Overlay);
         }
-    }
-
-    private RecordedSessionAnalysisPlotOverlayDescriptor? CreateAnalysisOverlayDescriptor()
-    {
-        if (ExtensionSlots is null || ResolveAnalysisOverlayTarget() is not { } target)
-        {
-            return null;
-        }
-
-        var overlays = ExtensionSlots.AnalysisOverlays
-            .Where(contribution => contribution.TargetPlot == target && contribution.Overlay is not null)
-            .OrderBy(contribution => contribution.Order)
-            .Select(contribution => contribution.Overlay!)
-            .ToArray();
-
-        if (overlays.Length == 0)
-        {
-            return null;
-        }
-
-        return new RecordedSessionAnalysisPlotOverlayDescriptor(
-            overlays.SelectMany(overlay => overlay.Lines).ToArray(),
-            overlays.SelectMany(overlay => overlay.Bands).ToArray(),
-            overlays.SelectMany(overlay => overlay.Labels).ToArray());
-    }
-
-    private RecordedSessionAnalysisPlotTarget? ResolveAnalysisOverlayTarget()
-    {
-        return AnalysisPlotKind switch
-        {
-            AnalysisPlotKind.TravelDistribution => RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType),
-            AnalysisPlotKind.TravelFrequencyDistribution => RecordedSessionAnalysisPlotTarget.TravelFrequencyDistribution(SuspensionType),
-            AnalysisPlotKind.VelocityDistribution => RecordedSessionAnalysisPlotTarget.VelocityDistribution(SuspensionType),
-            AnalysisPlotKind.Balance => RecordedSessionAnalysisPlotTarget.Balance(BalanceType),
-            AnalysisPlotKind.StrokeLengthDistribution => RecordedSessionAnalysisPlotTarget.StrokeLengthDistribution(SuspensionType, BalanceType),
-            AnalysisPlotKind.StrokeSpeedDistribution => RecordedSessionAnalysisPlotTarget.StrokeSpeedDistribution(SuspensionType, BalanceType),
-            AnalysisPlotKind.DeepTravelDistribution => RecordedSessionAnalysisPlotTarget.DeepTravelDistribution(SuspensionType),
-            AnalysisPlotKind.VibrationDistribution => RecordedSessionAnalysisPlotTarget.VibrationDistribution(SuspensionType, ImuLocation),
-            _ => null,
-        };
     }
 
     private void UpdateAnalysisTitle()
@@ -577,6 +549,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             AnalysisPlotKind.StrokeSpeedDistribution => AnalysisPlotTitles.StrokeSpeedDistribution(SuspensionType, BalanceType),
             AnalysisPlotKind.DeepTravelDistribution => AnalysisPlotTitles.DeepTravelDistribution(SuspensionType),
             AnalysisPlotKind.VibrationDistribution => AnalysisPlotTitles.VibrationDistribution(SuspensionType, ImuLocation),
+            AnalysisPlotKind.PositionVelocity => AnalysisPlotTitles.PositionVelocity(),
             _ => string.Empty
         };
     }
@@ -596,6 +569,10 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             case VelocityDistributionPlot velocityDistribution:
                 velocityDistribution.AverageMode = VelocityAverageMode;
                 velocityDistribution.DampingSpeedCutoffs = DampingSpeedCutoffs;
+                break;
+            case PositionVelocityPlot positionVelocity:
+                positionVelocity.SideMode = PositionVelocitySideMode;
+                positionVelocity.DisplayMode = PositionVelocityDisplayMode;
                 break;
         }
     }

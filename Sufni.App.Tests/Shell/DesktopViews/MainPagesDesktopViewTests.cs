@@ -1,20 +1,15 @@
 using System.Threading.Tasks;
-using System.Windows.Input;
 using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Svg.Skia;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Extensibility.Views;
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -83,7 +78,8 @@ public class MainPagesDesktopViewTests
                 CanHostSyncServer: false,
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true));
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false));
         var viewModel = MainPagesViewModelTestFactory.Create(
             appEnvironment: environment,
             pairingServerViewModel: pairingViewModel);
@@ -228,58 +224,26 @@ public class MainPagesDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task MainPagesDesktopView_RendersExtensionToolbarActions()
+    public async Task MainPagesDesktopView_HidesOpenVideoButton_WhenVideoPlaybackIsUnavailable()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
 
-        var command = Substitute.For<ICommand>();
-        var commandContribution = new AppToolbarCommandContribution(
-            "extension",
-            "toolbar-command",
-            Order: 0,
-            "Desktop command",
-            new ToolbarIconDescriptor("/Assets/fa-link.svg", Width: 17, Height: 19),
-            command);
-        var contributionViewModel = new TestContributionViewModel
-        {
-            Content = new TextBlock { Name = "DesktopExtensionToolbarAction", Text = "Desktop action" },
-        };
-        var contribution = new AppToolbarViewContribution(
-            "extension",
-            "toolbar-action",
-            Order: 1,
-            contributionViewModel);
+        var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(
+            capabilities: new AppCapabilities(
+                CanHostSyncServer: true,
+                CanPairAsClient: false,
+                SupportsMassStorageImport: true,
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false));
         var view = new MainPagesDesktopView
         {
-            DataContext = MainPagesViewModelTestFactory.Create(
-                appToolbarContributionProviders:
-                [
-                    new TestAppToolbarContributionProvider(
-                        [commandContribution],
-                        [contribution]),
-                ])
+            DataContext = MainPagesViewModelTestFactory.Create(appEnvironment: environment)
         };
 
         await using var mounted = await MountAsync(view);
 
-        var host = Assert.Single(mounted.View.GetVisualDescendants().OfType<AppToolbarContributionsView>());
-        var contributionsHost = host.FindControl<StackPanel>("ContributionsHost");
-        Assert.NotNull(contributionsHost);
-
-        // Command contributions render as icon-only embedded rail buttons with the label as a tooltip.
-        var button = Assert.Single(contributionsHost!.Children.OfType<Button>());
-        Assert.Contains("embedded", button.Classes);
-        Assert.Same(command, button.Command);
-        Assert.Equal("Desktop command", ToolTip.GetTip(button));
-        var icon = Assert.IsType<Image>(button.Content);
-        Assert.Equal(17, icon.Width);
-        Assert.Equal(19, icon.Height);
-        var svgImage = Assert.IsType<SvgImage>(icon.Source);
-        Assert.NotNull(svgImage.Source?.Picture);
-
-        // View contributions render directly in the host so their template resolves through ViewLocator.
-        Assert.Contains(contributionViewModel, contributionsHost.Children);
+        Assert.False(mounted.View.FindControl<Button>("OpenVideoButton")!.IsVisible);
     }
 
     private static async Task<MountedMainPagesDesktopView> MountAsync(MainPagesDesktopView view)
@@ -294,7 +258,8 @@ public class MainPagesDesktopViewTests
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true));
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false));
 
     private static PairingClientViewModel CreatePairingClientPage(bool isPaired)
     {
@@ -312,7 +277,7 @@ public class MainPagesDesktopViewTests
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
         new(
-            Substitute.For<IAppStateRefreshOrchestrator>(),
+            Substitute.For<IAppDataRefresher>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
             synchronizationServerService: server,

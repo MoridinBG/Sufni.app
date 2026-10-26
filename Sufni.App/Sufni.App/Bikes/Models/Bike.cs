@@ -7,8 +7,6 @@ using Serilog;
 using SQLite;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.SyncAndPairing.Models;

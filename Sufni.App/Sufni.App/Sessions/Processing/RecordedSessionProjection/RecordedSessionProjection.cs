@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,8 +6,6 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
@@ -29,7 +28,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private readonly IProcessingDependencyHashIndex dependencyHashIndex;
     private readonly IProcessingFingerprintService fingerprintService;
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
-    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache;
     private readonly IRecordedSessionProjectionScheduler scheduler;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, Guid?> sessionToSetup = [];
@@ -50,7 +48,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex,
         IRecordedSessionProcessingOptionCache processingOptionCache,
-        IRecordedSessionDerivationWindowCache derivationWindowCache,
         IUiThreadDispatcher uiThreadDispatcher)
         : this(
             sessionStore,
@@ -60,7 +57,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             fingerprintService,
             dependencyHashIndex,
             processingOptionCache,
-            derivationWindowCache,
             new UiThreadRecordedSessionProjectionScheduler(uiThreadDispatcher))
     {
     }
@@ -73,7 +69,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex,
         IRecordedSessionProcessingOptionCache processingOptionCache,
-        IRecordedSessionDerivationWindowCache derivationWindowCache,
         IRecordedSessionProjectionScheduler scheduler)
     {
         this.sessionStore = sessionStore;
@@ -83,7 +78,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         this.dependencyHashIndex = dependencyHashIndex;
         this.fingerprintService = fingerprintService;
         this.processingOptionCache = processingOptionCache;
-        this.derivationWindowCache = derivationWindowCache;
         this.scheduler = scheduler;
 
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
@@ -94,7 +88,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         // Preference->projection edge: a processing-option change re-evaluates the
         // affected session so EvaluateState re-runs with the new option.
         subscriptions.Add(processingOptionCache.OptionChanged.Subscribe(QueueRecompute));
-        subscriptions.Add(derivationWindowCache.WindowChanged.Subscribe(QueueRecompute));
     }
 
     public IObservable<IChangeSet<RecordedSessionSummary, Guid>> ConnectSessions() => summaries.Connect();
@@ -280,15 +273,12 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                         break;
                 }
             }
-        }
 
-        foreach (var sourceId in sourceIds)
-        {
-            affected.Add(sourceId);
-            foreach (var sessionId in derivationWindowCache.GetSessionIdsReferencingSource(sourceId))
-            {
-                affected.Add(sessionId);
-            }
+            affected.UnionWith(sourceIds);
+            affected.UnionWith(domains.Values
+                .Where(domain => domain.Session.SourceSessionId is { } sourceSessionId &&
+                                 sourceIds.Contains(sourceSessionId))
+                .Select(domain => domain.Session.Id));
         }
 
         QueueRecompute(affected);
@@ -469,9 +459,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                 var bike = setup is null
                     ? null
                     : bikeStore.Get(setup.BikeId);
-                var window = derivationWindowCache.Get(session.Id);
-                var source = sourceStore.Get(
-                    RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(session.Id, window));
+                var source = sourceStore.Get(session.RecordingSourceSessionId);
 
                 var previous = domains.GetValueOrDefault(session.Id);
                 var initial = previous is null;
@@ -484,8 +472,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                         setup,
                         bike,
                         source,
-                        dependencyHash,
-                        window);
+                        dependencyHash);
 
                 var domain = RecordedSessionDomainSnapshotFactory.Create(
                     session,
@@ -495,7 +482,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     fingerprintService,
                     dependencyHash,
                     processingOptionCache.Get(session.Id),
-                    window,
                     changeKind);
                 domains[session.Id] = domain;
                 summaries.AddOrUpdate(new RecordedSessionSummary(
@@ -550,8 +536,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        string? dependencyHash,
-        RecordedSessionDerivationWindow? window)
+        string? dependencyHash)
     {
         var changeKind = DerivedChangeKind.None;
 
@@ -585,7 +570,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             changeKind |= DerivedChangeKind.FingerprintChanged;
         }
 
-        if (previous.DerivationWindow != window)
+        if (previous.Session.DerivationWindow != session.DerivationWindow)
         {
             changeKind |= DerivedChangeKind.FingerprintChanged;
         }

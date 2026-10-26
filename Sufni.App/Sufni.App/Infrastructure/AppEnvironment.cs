@@ -16,7 +16,8 @@ public sealed record AppCapabilities(
     bool CanHostSyncServer,
     bool CanPairAsClient,
     bool SupportsMassStorageImport,
-    bool SupportsStorageProviderImport);
+    bool SupportsStorageProviderImport,
+    bool CanPlayVideo);
 
 public sealed record InputCapabilities(
     bool HasPointer,

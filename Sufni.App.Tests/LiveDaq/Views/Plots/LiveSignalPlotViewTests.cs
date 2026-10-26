@@ -8,9 +8,9 @@ using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using ScottPlot.Avalonia;
 using ScottPlot.Plottables;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Plots;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;

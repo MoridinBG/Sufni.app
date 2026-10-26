@@ -1,11 +1,5 @@
 using System;
-using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.ViewModels;
@@ -31,6 +25,8 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
+using Sufni.App.Segments.ViewModels;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Shell.Coordinators;
 
 internal sealed class EditorFactory(
@@ -49,7 +45,6 @@ internal sealed class EditorFactory(
     ISessionPreferences sessionPreferences,
     IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
     ISessionProcessedTelemetryReader processedTelemetryReader,
-    IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
     ILiveDaqCoordinator liveDaqCoordinator,
     IDaqManagementService daqManagementService,
     IFilesService filesService,
@@ -60,11 +55,13 @@ internal sealed class EditorFactory(
     IUiThreadDispatcher uiThreadDispatcher,
     IAppEnvironment appEnvironment,
     ILayoutProfileTransitionState layoutProfileTransitionState,
-    IEnumerable<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories,
-    IExtensionDatabaseConnection extensionDatabase,
-    IRecordedSessionDataReader recordedSessionDataReader,
     IBackgroundTaskRunner backgroundTaskRunner,
-    Func<ImportSessionsViewModel> importSessionsResolver) : IEditorFactory
+    Func<ImportSessionsViewModel> importSessionsResolver,
+    IVideoPaneFactory videoPaneFactory,
+    ISessionEditingCoordinator sessionEditingCoordinator,
+    ISegmentPickerFactory segmentPickerFactory,
+    ISegmentComparisonFactory segmentComparisonFactory,
+    ISessionOperationRunner sessionOperationRunner) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -180,15 +177,14 @@ internal sealed class EditorFactory(
             recordedSessionProcessingOptionCache,
             processedTelemetryReader,
             analysisResultStateFactory,
-            recordedSessionDerivationWindowCache,
             () => this,
+            sessionEditingCoordinator,
+            segmentPickerFactory,
+            segmentComparisonFactory,
+            sessionOperationRunner,
             bikeCoordinator,
-            new ExtensionHostDependencies(
-                recordedSessionExtensionFactories.ToArray(),
-                extensionDatabase,
-                recordedSessionDataReader,
-                backgroundTaskRunner),
-            layoutProfileTransitionState);
+            layoutProfileTransitionState,
+            videoPaneFactory);
 
     private ClosedTabRestoreEntry CreateBikeRestoreEntry(Guid bikeId) =>
         ClosedTabRestoreEntry.For<BikeEditorViewModel>(

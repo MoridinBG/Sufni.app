@@ -1,15 +1,14 @@
+using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
@@ -21,6 +20,8 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Shared.Base;
+using Sufni.App.Segments.ViewModels;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 public sealed record TravelDistributionModeOption(TravelDistributionMode Value, string DisplayName, string Description);
@@ -63,7 +64,8 @@ public interface IRecordedSessionSignalsWorkspace
     SignalLayoutPreferences SignalLayoutPreferences { get; set; }
     TelemetrySourceVisibilityStore SourceVisibility { get; }
     SessionTimelineLinkViewModel Timeline { get; }
-    RecordedSessionExtensionSlots ExtensionSlots { get; }
+    SegmentPickerViewModel SegmentPicker { get; }
+    SegmentComparisonViewModel SegmentComparison { get; }
     IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
@@ -95,11 +97,16 @@ public interface ISessionMediaWorkspace
     bool HasMediaContent { get; }
     MapViewModel? MapViewModel { get; }
     SurfacePresentationState MapState { get; }
-    SurfacePresentationState MediaPaneState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
-    RecordedSessionExtensionSlots ExtensionSlots { get; }
     double? MediaColumnWidth { get; }
-    string? MediaUrl { get; }
+
+    /// <summary>
+    /// The video pane while the session has a playable clip; otherwise null.
+    /// </summary>
+    VideoPaneViewModel? Video { get; }
+
+    /// <summary>The compared segment match while the analysis compares one; otherwise null.</summary>
+    MatchedTrackOverlay? MatchedTrack { get; }
 }
 
 public interface ISessionAnalysisWorkspace
@@ -111,7 +118,7 @@ public interface ISessionAnalysisWorkspace
     BalanceSpeedMode SelectedBalanceSpeedMode { get; set; }
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
     SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; }
-    RecordedSessionExtensionSlots ExtensionSlots { get; }
+    SegmentComparisonViewModel? SegmentComparison { get; }
     IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
     IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; }
@@ -132,6 +139,7 @@ public interface ISessionAnalysisWorkspace
     DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
     bool CanEditDampingSpeedCutoffs { get; }
     IRecordedSessionAnalysisResultState? AnalysisResultState => null;
+    PositionVelocityPageViewModel? PositionVelocity => null;
     SessionInsightsResult SessionInsights { get; }
     void RequestSessionInsights() { }
     IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }

@@ -3,8 +3,7 @@ using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Infrastructure;

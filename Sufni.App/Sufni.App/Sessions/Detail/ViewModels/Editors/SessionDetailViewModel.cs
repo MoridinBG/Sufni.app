@@ -1,14 +1,9 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -27,8 +22,6 @@ using System;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Extensibility.RecordedSessions;
-using Sufni.App.Extensibility.Views;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.ViewModels;
@@ -41,6 +34,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
@@ -52,6 +46,9 @@ using Sufni.App.Sessions.Media.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Video.Models;
+using Sufni.App.Video.ViewModels;
+using Sufni.App.Segments.ViewModels;
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 /// <summary>
@@ -90,10 +87,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly ObservableCollection<PageViewModelBase> pages = [];
     private readonly SessionTimelineLinkViewModel timeline = new();
+    private readonly VideoPaneViewModel? videoPane;
+    private readonly SegmentPickerViewModel segmentPicker;
+    private readonly SegmentComparisonViewModel segmentComparison;
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
-    private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
-    private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
-    private readonly RecordedSessionOperationCoordinator? recordedSessionOperationCoordinator;
+    private readonly ISessionOperationRunner sessionOperationRunner;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
@@ -105,14 +103,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionPreferences> preferenceReplayInput = new();
     private readonly Subject<RecordedSessionLoadPresentation> loadPresentationInput = new();
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
-    private readonly Subject<SurfacePresentationState> mediaPaneStateInput = new();
-    private readonly Subject<string?> mediaUrlInput = new();
     private readonly Subject<SessionDampingPercentages> dampingPercentagesInput = new();
     private readonly Subject<DampingSpeedCutoffs> plotDampingSpeedCutoffsInput = new();
     private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
-    private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
     private readonly Subject<Unit> stalenessReplayInput = new();
     private readonly Subject<Unit> dirtyBaselineInput = new();
@@ -120,7 +115,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CompositeDisposable editorInputSubjects;
     private readonly RecordedSessionEditorStateController editorStateController;
     private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
-    private readonly IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
@@ -128,7 +122,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly RecordedPagePresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
-    private readonly RecordedSessionExtensionPagesController? extensionPagesController;
     private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
     private Session session;
     private RecordedSignalsPageViewModel SignalsPage { get; }
@@ -136,12 +129,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SpringPageViewModel SpringPage { get; }
     private BalancePageViewModel BalancePage { get; }
     private VibrationPageViewModel VibrationPage { get; }
+    private PositionVelocityPageViewModel PositionVelocityPage { get; }
     private SessionInsightsPageViewModel AnalysisPage { get; }
 
     private readonly CancellableOperation loadOperation = new();
     private readonly CancellableOperation viewLoadOperation = new();
     private SessionPresentationDimensions? lastPresentationDimensions;
-    private RecordedSessionTimelineAlignmentMark? pendingTimelineAlignmentMark;
+    private TimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
     private readonly AnalysisRequestScheduler analysisRequestScheduler;
     private int telemetryGeneration;
@@ -164,6 +158,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand;
     private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> markVideoEventCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markVideoTelemetryEventCommand;
+    private readonly IRelayCommand<TelemetryPlotContextMenuContext?> cancelVideoAlignmentCommand;
+    private readonly ISessionEditingCoordinator sessionEditingCoordinator;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimFromBeginningCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimUntilEndCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> splitCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand;
+    private readonly IAsyncRelayCommand<TelemetryPlotContextMenuContext?> saveSelectionAsSegmentCommand;
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
@@ -216,7 +219,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public TelemetryRangeSelection? ActiveRearAnalysisSelection => currentEditorState.AnalysisSelection.ActiveRear;
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     public bool CanEditDampingSpeedCutoffs => currentEditorState.Presentation.CanEditDampingSpeedCutoffs;
-    public RecordedSessionExtensionSlots ExtensionSlots => recordedSessionExtensions?.ExtensionSlots ?? emptyExtensionSlots;
 
     #endregion Public fields
 
@@ -570,7 +572,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRelayCommand<TelemetryPlotContextMenuContext?> clearAnalysisRangeCommand,
         IRelayCommand<TelemetryPlotContextMenuContext?> markGpsEventCommand,
         IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markGpsTelemetryEventCommand,
-        IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand)
+        IRelayCommand<TelemetryPlotContextMenuContext?> cancelGpsTimelineAlignmentCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> markVideoEventCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> markVideoTelemetryEventCommand,
+        IRelayCommand<TelemetryPlotContextMenuContext?> cancelVideoAlignmentCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimFromBeginningCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> trimUntilEndCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> splitCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> undoTrimCommand,
+        IAsyncRelayCommand<TelemetryPlotContextMenuContext?> saveSelectionAsSegmentCommand)
     {
         var setAnalysisRangeStart = new TelemetryPlotContextMenuAction(
             "analysis-range-set-start",
@@ -596,34 +606,64 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             "gps-cancel-alignment",
             "Cancel GPS alignment",
             cancelGpsTimelineAlignmentCommand);
-
-        return CreateSignalPlotContextMenuActionsBySignalRowId(
-            baseActions,
+        var markVideoEvent = new TelemetryPlotContextMenuAction(
+            "video-mark-video-event",
+            "Mark video event here",
+            markVideoEventCommand);
+        var markVideoTelemetryEvent = new TelemetryPlotContextMenuAction(
+            "video-mark-telemetry-event",
+            "Mark telemetry event here",
+            markVideoTelemetryEventCommand);
+        var cancelVideoAlignment = new TelemetryPlotContextMenuAction(
+            "video-cancel-alignment",
+            "Cancel video alignment",
+            cancelVideoAlignmentCommand);
+        var trimFromBeginning = new TelemetryPlotContextMenuAction(
+            "session-trim-from-beginning",
+            "Trim from beginning",
+            trimFromBeginningCommand);
+        var trimUntilEnd = new TelemetryPlotContextMenuAction(
+            "session-trim-until-end",
+            "Trim until end",
+            trimUntilEndCommand);
+        var split = new TelemetryPlotContextMenuAction(
+            "session-split-here",
+            "Split here",
+            splitCommand);
+        var undoTrim = new TelemetryPlotContextMenuAction(
+            "session-undo-trim",
+            "Undo trim",
+            undoTrimCommand);
+        var saveSelectionAsSegment = new TelemetryPlotContextMenuAction(
+            "save-current-selection",
+            "Save current selection",
+            saveSelectionAsSegmentCommand);
+        TelemetryPlotContextMenuAction[] actions =
+        [
             setAnalysisRangeStart,
             setAnalysisRangeEnd,
             clearAnalysisRange,
             markGpsEvent,
             markGpsTelemetryEvent,
-            cancelGpsTimelineAlignment);
-    }
+            cancelGpsTimelineAlignment,
+            markVideoEvent,
+            markVideoTelemetryEvent,
+            cancelVideoAlignment,
+            trimFromBeginning,
+            trimUntilEnd,
+            split,
+            undoTrim,
+            saveSelectionAsSegment,
+        ];
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateSignalPlotContextMenuActionsBySignalRowId(
-        IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> baseActions,
-        TelemetryPlotContextMenuAction setAnalysisRangeStart,
-        TelemetryPlotContextMenuAction setAnalysisRangeEnd,
-        TelemetryPlotContextMenuAction clearAnalysisRange,
-        TelemetryPlotContextMenuAction markGpsEvent,
-        TelemetryPlotContextMenuAction markGpsTelemetryEvent,
-        TelemetryPlotContextMenuAction cancelGpsTimelineAlignment)
-    {
         return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
         {
-            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
-            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
-            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
-            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
-            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
-            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, setAnalysisRangeStart, setAnalysisRangeEnd, clearAnalysisRange, markGpsEvent, markGpsTelemetryEvent, cancelGpsTimelineAlignment),
+            [SignalRowIds.Travel] = AppendContextMenuActions(baseActions, SignalRowIds.Travel, actions),
+            [SignalRowIds.Velocity] = AppendContextMenuActions(baseActions, SignalRowIds.Velocity, actions),
+            [SignalRowIds.Imu] = AppendContextMenuActions(baseActions, SignalRowIds.Imu, actions),
+            [SignalRowIds.PitchRoll] = AppendContextMenuActions(baseActions, SignalRowIds.PitchRoll, actions),
+            [SignalRowIds.Speed] = AppendContextMenuActions(baseActions, SignalRowIds.Speed, actions),
+            [SignalRowIds.Elevation] = AppendContextMenuActions(baseActions, SignalRowIds.Elevation, actions),
         };
     }
 
@@ -1024,20 +1064,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return OnDomainChangedAsync(domain);
     }
 
-    private RecordedSessionHostRuntimeState CreateRecordedSessionHostRuntimeState()
-    {
-        return new RecordedSessionHostRuntimeState(
-            Id,
-            viewLoaded,
-            IsTabActive,
-            pendingTimelineAlignmentMark);
-    }
-
-    private void PublishRecordedSessionHostRuntimeChange()
-    {
-        PublishEditorInput(hostRuntimeInput, CreateRecordedSessionHostRuntimeState());
-    }
-
     private void PublishEditorInput<T>(Subject<T> input, T value)
     {
         if (!editorInputSubjectsDisposed)
@@ -1057,81 +1083,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorInputSubjects.Dispose();
     }
 
-    private async ValueTask InitializeRecordedSessionExtensionsAsync(CancellationToken cancellationToken = default)
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        await recordedSessionExtensions.InitializeAsync(
-            RecordedSessionHostStateProjection.Create(
-                currentEditorState,
-                CreateRecordedSessionHostRuntimeState(),
-                Timeline),
-            cancellationToken);
-    }
-
-    private async ValueTask DisposeRecordedSessionExtensionScopesAsync()
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        await recordedSessionExtensions.DisposeScopesAsync();
-    }
-
-    private async ValueTask DisposeRecordedSessionExtensionsAsync()
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        await recordedSessionExtensions.DisposeAsync();
-    }
-
     private void DisposeProcessedTelemetryRetention()
     {
         processedTelemetryRetention?.Dispose();
         processedTelemetryRetention = null;
     }
 
-    private void ReportRecordedSessionExtensionOperation(string message, double percent)
+    private void SetPendingTimelineAlignmentMark(TimelineAlignmentMark? mark)
     {
-        SetSessionOperationState(SessionOperationPresentationState.Progress(message, percent));
-    }
-
-    private void CompleteRecordedSessionExtensionOperation()
-    {
-        SetSessionOperationState(SessionOperationPresentationState.Hidden);
-    }
-
-    private void SetRecordedSessionExtensionTimelineVisibleRange(
-        double startNormalized,
-        double endNormalized,
-        object source)
-    {
-        Timeline.SetVisibleRange(startNormalized, endNormalized, source);
-    }
-
-    private static bool CanUseTimelineAlignmentMark(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds)
-    {
-        return target is not RecordedSessionTimelineAlignmentTarget.None &&
-               double.IsFinite(seconds) &&
-               seconds >= 0;
-    }
-
-    private bool IsPendingTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        string? subjectId)
-    {
-        return pendingTimelineAlignmentMark is { } pendingMark &&
-               pendingMark.Target == target &&
-               string.Equals(pendingMark.SubjectId, subjectId, StringComparison.Ordinal);
+        pendingTimelineAlignmentMark = mark;
+        NotifyTimelineAlignmentCommandsCanExecuteChanged();
     }
 
     private void NotifyTimelineAlignmentCommandsCanExecuteChanged()
@@ -1139,6 +1100,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         markGpsEventCommand.NotifyCanExecuteChanged();
         markGpsTelemetryEventCommand.NotifyCanExecuteChanged();
         cancelGpsTimelineAlignmentCommand.NotifyCanExecuteChanged();
+        markVideoEventCommand.NotifyCanExecuteChanged();
+        markVideoTelemetryEventCommand.NotifyCanExecuteChanged();
+        cancelVideoAlignmentCommand.NotifyCanExecuteChanged();
     }
 
     private static bool IsTelemetryPlotContext(TelemetryPlotContextMenuContext? context)
@@ -1168,9 +1132,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        _ = ((IRecordedSessionHostOperations)this).TryBeginTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.GpsTrack,
-            context!.ClickSeconds);
+        SetPendingTimelineAlignmentMark(new TimelineAlignmentMark.GpsTrack(context!.ClickSeconds));
     }
 
     private bool CanSetAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
@@ -1219,25 +1181,22 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool CanMarkGpsTelemetryEventFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
         return telemetryData is not null &&
-               IsPendingTimelineAlignment(RecordedSessionTimelineAlignmentTarget.GpsTrack, subjectId: null) &&
+               pendingTimelineAlignmentMark is TimelineAlignmentMark.GpsTrack &&
                IsTelemetryPlotContext(context);
     }
 
     private async Task MarkGpsTelemetryEventFromPlotContextAsync(TelemetryPlotContextMenuContext? context)
     {
         if (!CanMarkGpsTelemetryEventFromPlotContext(context) ||
-            !((IRecordedSessionHostOperations)this).TryResolveTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.GpsTrack,
-            context!.ClickSeconds,
-            subjectId: null,
-            out var resolution) ||
-            resolution is null ||
+            pendingTimelineAlignmentMark is not TimelineAlignmentMark.GpsTrack mark ||
             telemetryData is not { } telemetry)
         {
             return;
         }
 
-        var newOffsetSeconds = NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds + resolution.OffsetDeltaSeconds);
+        SetPendingTimelineAlignmentMark(null);
+        var offsetDeltaSeconds = mark.Seconds - context!.ClickSeconds;
+        var newOffsetSeconds = NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds + offsetDeltaSeconds);
         var applied = await trackCoordinator.UpdateSessionGpsOffsetAsync(
             Id,
             session.FullTrack,
@@ -1255,7 +1214,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanCancelGpsTimelineAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return IsPendingTimelineAlignment(RecordedSessionTimelineAlignmentTarget.GpsTrack, subjectId: null) &&
+        return pendingTimelineAlignmentMark is TimelineAlignmentMark.GpsTrack &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1266,147 +1225,168 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        _ = ((IRecordedSessionHostOperations)this).TryCancelTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.GpsTrack,
-            subjectId: null);
+        SetPendingTimelineAlignmentMark(null);
+    }
+
+    private bool CanMarkVideoEventFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return pendingTimelineAlignmentMark is null &&
+               IsTelemetryPlotContext(context) &&
+               videoPane?.ClipAt(context!.ClickSeconds) is not null;
+    }
+
+    private void MarkVideoEventFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanMarkVideoEventFromPlotContext(context) ||
+            videoPane?.ClipAt(context!.ClickSeconds) is not { } clip)
+        {
+            return;
+        }
+
+        SetPendingTimelineAlignmentMark(new TimelineAlignmentMark.VideoClip(clip.Id, context.ClickSeconds));
+    }
+
+    private bool CanMarkVideoTelemetryEventFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return pendingTimelineAlignmentMark is TimelineAlignmentMark.VideoClip mark &&
+               videoPane?.HasPresentClip(mark.ClipId) == true &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private async Task MarkVideoTelemetryEventFromPlotContextAsync(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanMarkVideoTelemetryEventFromPlotContext(context) ||
+            pendingTimelineAlignmentMark is not TimelineAlignmentMark.VideoClip mark)
+        {
+            return;
+        }
+
+        SetPendingTimelineAlignmentMark(null);
+        try
+        {
+            if (!await videoPane!.ShiftAlignmentAsync(mark.ClipId, mark.Seconds - context!.ClickSeconds))
+            {
+                ErrorMessages.Add("Session video alignment could not be saved because the video metadata is missing.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessages.Add($"Session video alignment could not be saved: {ex.Message}");
+        }
+    }
+
+    private bool CanCancelVideoAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        return pendingTimelineAlignmentMark is TimelineAlignmentMark.VideoClip &&
+               IsTelemetryPlotContext(context);
+    }
+
+    private void CancelVideoAlignmentFromPlotContext(TelemetryPlotContextMenuContext? context)
+    {
+        if (!CanCancelVideoAlignmentFromPlotContext(context))
+        {
+            return;
+        }
+
+        SetPendingTimelineAlignmentMark(null);
+    }
+
+    private bool IsSessionEditRunning =>
+        trimFromBeginningCommand.IsRunning ||
+        trimUntilEndCommand.IsRunning ||
+        splitCommand.IsRunning ||
+        undoTrimCommand.IsRunning;
+
+    // A trim removes at least one sample, and every remaining part keeps at least five.
+    private bool CanEditWindowAt(
+        TelemetryPlotContextMenuContext? context,
+        int samplesBefore,
+        int samplesAfter)
+    {
+        if (IsSessionEditRunning ||
+            !IsTelemetryPlotContext(context) ||
+            !double.IsFinite(context!.DurationSeconds) ||
+            telemetryData is not { Metadata.SampleRate: > 0 and var sampleRate })
+        {
+            return false;
+        }
+
+        return context.ClickSeconds * sampleRate >= samplesBefore &&
+               (context.DurationSeconds - context.ClickSeconds) * sampleRate >= samplesAfter;
+    }
+
+    private bool CanTrimFromBeginningFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanEditWindowAt(context, samplesBefore: 1, samplesAfter: 5);
+
+    private bool CanTrimUntilEndFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanEditWindowAt(context, samplesBefore: 5, samplesAfter: 1);
+
+    private bool CanSplitFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        CanEditWindowAt(context, samplesBefore: 5, samplesAfter: 5);
+
+    private bool CanUndoTrimFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        !IsSessionEditRunning &&
+        IsTelemetryPlotContext(context) &&
+        sessionSnapshot is { CanUndoTrim: true };
+
+    private Task TrimFromBeginningFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanTrimFromBeginningFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Session trimmed.",
+                () => sessionEditingCoordinator.TrimFromBeginningAsync(Id, context!.ClickSeconds))
+            : Task.CompletedTask;
+
+    private Task TrimUntilEndFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanTrimUntilEndFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Session trimmed.",
+                () => sessionEditingCoordinator.TrimUntilEndAsync(Id, context!.ClickSeconds))
+            : Task.CompletedTask;
+
+    private Task SplitFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanSplitFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Session split.",
+                () => sessionEditingCoordinator.SplitAsync(Id, context!.ClickSeconds))
+            : Task.CompletedTask;
+
+    private Task UndoTrimFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanUndoTrimFromPlotContext(context)
+            ? RunSessionEditAsync(
+                "Session trim restored.",
+                () => sessionEditingCoordinator.UndoTrimAsync(Id))
+            : Task.CompletedTask;
+
+    private bool CanSaveSelectionAsSegmentFromPlotContext(TelemetryPlotContextMenuContext? context) =>
+        telemetryData is not null &&
+        IsTelemetryPlotContext(context) &&
+        context!.IsClickInsideAnalysisRange;
+
+    private Task SaveSelectionAsSegmentFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
+        CanSaveSelectionAsSegmentFromPlotContext(context)
+            ? segmentPicker.SaveSelectionAsync(context!.AnalysisRange!.Value)
+            : Task.CompletedTask;
+
+    private async Task RunSessionEditAsync(string appliedMessage, Func<Task<SessionEditResult>> edit)
+    {
+        switch (await edit())
+        {
+            case SessionEditResult.Applied { RecomputeError: { } recomputeError }:
+                ErrorMessages.Add(recomputeError);
+                break;
+            case SessionEditResult.Applied:
+                Notifications.Add(appliedMessage);
+                break;
+            case SessionEditResult.Failed failed:
+                ErrorMessages.Add(failed.ErrorMessage);
+                break;
+        }
     }
 
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
-    void IRecordedSessionHostOperations.SetTimelineVisibleRange(
-        double startNormalized,
-        double endNormalized,
-        object source) =>
-        SetRecordedSessionExtensionTimelineVisibleRange(startNormalized, endNormalized, source);
-
-    bool IRecordedSessionHostOperations.TryBeginTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds,
-        string? subjectId)
-    {
-        if (!CanUseTimelineAlignmentMark(target, seconds) ||
-            pendingTimelineAlignmentMark is not null)
-        {
-            return false;
-        }
-
-        pendingTimelineAlignmentMark = new RecordedSessionTimelineAlignmentMark(target, subjectId, seconds);
-        PublishRecordedSessionHostRuntimeChange();
-        NotifyTimelineAlignmentCommandsCanExecuteChanged();
-        return true;
-    }
-
-    bool IRecordedSessionHostOperations.TryResolveTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds,
-        string? subjectId,
-        out RecordedSessionTimelineAlignmentResolution? resolution)
-    {
-        resolution = null;
-        if (!CanUseTimelineAlignmentMark(target, seconds) ||
-            !IsPendingTimelineAlignment(target, subjectId) ||
-            pendingTimelineAlignmentMark is not { } pendingMark)
-        {
-            return false;
-        }
-
-        resolution = new RecordedSessionTimelineAlignmentResolution(
-            target,
-            pendingMark.SubjectId,
-            pendingMark.Seconds,
-            seconds,
-            pendingMark.Seconds - seconds);
-        pendingTimelineAlignmentMark = null;
-        PublishRecordedSessionHostRuntimeChange();
-        NotifyTimelineAlignmentCommandsCanExecuteChanged();
-        return true;
-    }
-
-    bool IRecordedSessionHostOperations.TryCancelTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        string? subjectId)
-    {
-        if (!IsPendingTimelineAlignment(target, subjectId))
-        {
-            return false;
-        }
-
-        pendingTimelineAlignmentMark = null;
-        PublishRecordedSessionHostRuntimeChange();
-        NotifyTimelineAlignmentCommandsCanExecuteChanged();
-        return true;
-    }
-
-    void IRecordedSessionHostOperations.AddError(string message) => ErrorMessages.Add(message);
-
-    void IRecordedSessionHostOperations.AddNotification(string message) => Notifications.Add(message);
-
-    IRecordedSessionOperationLease IRecordedSessionHostOperations.StartOperation(string description) =>
-        (recordedSessionOperationCoordinator
-            ?? throw new InvalidOperationException("Recorded-session extension hosting is not configured."))
-        .StartOperation(description);
-
-    void IRecordedSessionHostOperations.RequestPageSelection(string contributionId) =>
-        extensionPagesController?.RequestRecordedSessionExtensionPageSelection(contributionId);
-
-    Task<Guid?> IRecordedSessionHostOperations.CreateDerivedSessionAsync(
-        Guid fromSessionId,
-        string name,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken) =>
-        sessionCoordinator.CreateDerivedSessionAsync(fromSessionId, name, sourceAbsoluteStartSeconds, cancellationToken);
-
-    async Task<bool> IRecordedSessionHostOperations.DeleteSessionAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var result = await sessionCoordinator.DeleteAsync(sessionId);
-        return result.Outcome == SessionDeleteOutcome.Deleted;
-    }
-
-    Task<bool> IRecordedSessionHostOperations.UpdateSessionOriginAsync(
-        Guid sessionId,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken) =>
-        sessionCoordinator.UpdateSessionOriginAsync(sessionId, sourceAbsoluteStartSeconds, cancellationToken);
-
-    Task<bool> IRecordedSessionHostOperations.RenameSessionAsync(
-        Guid sessionId,
-        string name,
-        CancellationToken cancellationToken) =>
-        sessionCoordinator.RenameSessionAsync(sessionId, name, cancellationToken);
-
-    async Task<bool> IRecordedSessionHostOperations.RequestRecomputeAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await recordedSessionDerivationWindowCache.RefreshSessionAsync(sessionId);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var result = await sessionCoordinator.RequestRecomputeAsync(sessionId, RecomputeReason.SourceWindowChanged);
-        return result is SessionRecomputeResult.Recomputed or SessionRecomputeResult.Superseded;
-    }
-
-    async Task IRecordedSessionHostOperations.OpenSessionInBackgroundAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var snapshot = sessionStore.Get(sessionId);
-        if (snapshot is null)
-        {
-            return;
-        }
-
-        await UiThreadDispatcher.InvokeAsync(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            editorFactory().OpenSessionDetailInBackground(snapshot);
-        });
-    }
+    void ISessionOperationGateway.AddError(string message) => ErrorMessages.Add(message);
 
     Guid ISessionOperationGateway.SessionId => Id;
 
@@ -1440,17 +1420,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
-        IRecordedSessionDerivationWindowCache recordedSessionDerivationWindowCache,
         Func<IEditorFactory> editorFactory,
+        ISessionEditingCoordinator sessionEditingCoordinator,
+        ISegmentPickerFactory segmentPickerFactory,
+        ISegmentComparisonFactory segmentComparisonFactory,
+        ISessionOperationRunner sessionOperationRunner,
         IBikeCoordinator? bikeCoordinator = null,
-        ExtensionHostDependencies? extensionHost = null,
-        ILayoutProfileTransitionState? layoutProfileTransitionState = null)
+        ILayoutProfileTransitionState? layoutProfileTransitionState = null,
+        IVideoPaneFactory? videoPaneFactory = null)
         : base(shell, dialogService, uiThreadDispatcher)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
+        this.sessionOperationRunner = sessionOperationRunner;
         this.trackCoordinator = trackCoordinator;
         this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
@@ -1467,8 +1451,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             preferenceReplayInput,
             loadPresentationInput,
             sessionOperationStateInput,
-            mediaPaneStateInput,
-            mediaUrlInput,
             dampingPercentagesInput,
             plotDampingSpeedCutoffsInput,
             canEditDampingSpeedCutoffsInput,
@@ -1476,7 +1458,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisSelectionInput,
             signalPlotContextMenuActionsInput,
             domainInput,
-            hostRuntimeInput,
             dirtyBaselineInput,
             stalenessReplayInput);
         editorStateController = new RecordedSessionEditorStateController(
@@ -1486,8 +1467,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 preferenceReplayInput,
                 loadPresentationInput,
                 sessionOperationStateInput,
-                mediaPaneStateInput,
-                mediaUrlInput,
                 dampingPercentagesInput,
                 plotDampingSpeedCutoffsInput,
                 canEditDampingSpeedCutoffsInput,
@@ -1496,8 +1475,21 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 signalPlotContextMenuActionsInput,
                 domainInput));
         editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
-        this.recordedSessionDerivationWindowCache = recordedSessionDerivationWindowCache;
+        segmentComparison = segmentComparisonFactory.Create(
+            snapshot.Id,
+            editorStateController.State.Select(state => new SegmentComparisonSessionState(
+                state.Intent.AnalysisRange,
+                state.TelemetryData,
+                state.TrackTimelineContext,
+                state.Intent.SelectedTravelDistributionMode,
+                state.Intent.SelectedVelocityAverageMode,
+                state.Intent.DampingSpeedCutoffs,
+                state.Presentation.DampingPercentages)),
+            (start, end) => Timeline.SetVisibleRange(start, end, this),
+            ErrorMessages.Add,
+            Notifications.Add);
         this.editorFactory = editorFactory;
+        this.sessionEditingCoordinator = sessionEditingCoordinator;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
@@ -1548,6 +1540,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         cancelGpsTimelineAlignmentCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             CancelGpsTimelineAlignmentFromPlotContext,
             CanCancelGpsTimelineAlignmentFromPlotContext);
+        markVideoEventCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            MarkVideoEventFromPlotContext,
+            CanMarkVideoEventFromPlotContext);
+        markVideoTelemetryEventCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            MarkVideoTelemetryEventFromPlotContextAsync,
+            CanMarkVideoTelemetryEventFromPlotContext);
+        cancelVideoAlignmentCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
+            CancelVideoAlignmentFromPlotContext,
+            CanCancelVideoAlignmentFromPlotContext);
+        trimFromBeginningCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            TrimFromBeginningFromPlotContextAsync,
+            CanTrimFromBeginningFromPlotContext);
+        trimUntilEndCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            TrimUntilEndFromPlotContextAsync,
+            CanTrimUntilEndFromPlotContext);
+        splitCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            SplitFromPlotContextAsync,
+            CanSplitFromPlotContext);
+        undoTrimCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            UndoTrimFromPlotContextAsync,
+            CanUndoTrimFromPlotContext);
+        saveSelectionAsSegmentCommand = new AsyncRelayCommand<TelemetryPlotContextMenuContext?>(
+            SaveSelectionAsSegmentFromPlotContextAsync,
+            CanSaveSelectionAsSegmentFromPlotContext);
         SignalPlotContextMenuActionsBySignalRowId = CreateSignalPlotContextMenuActionsBySignalRowId(
             signalAutozoomController.ActionsBySignalRowId,
             setAnalysisRangeStartCommand,
@@ -1555,12 +1571,38 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             clearAnalysisRangeFromContextCommand,
             markGpsEventCommand,
             markGpsTelemetryEventCommand,
-            cancelGpsTimelineAlignmentCommand);
+            cancelGpsTimelineAlignmentCommand,
+            markVideoEventCommand,
+            markVideoTelemetryEventCommand,
+            cancelVideoAlignmentCommand,
+            trimFromBeginningCommand,
+            trimUntilEndCommand,
+            splitCommand,
+            undoTrimCommand,
+            saveSelectionAsSegmentCommand);
         PublishEditorInput(signalPlotContextMenuActionsInput, SignalPlotContextMenuActionsBySignalRowId);
         session = snapshot.ToMetadataEntity();
         sessionSnapshot = snapshot;
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
+        segmentPicker = segmentPickerFactory.Create(
+            Id,
+            editorStateController.State.Select(state => new SegmentPickerSessionState(
+                state.Session?.Timestamp,
+                state.TelemetryData?.Metadata.Duration,
+                state.Intent.AnalysisRange)),
+            range =>
+            {
+                if (range is { } value)
+                {
+                    editorActions.SetAnalysisRange(value);
+                }
+                else
+                {
+                    editorActions.ClearAnalysisRange();
+                }
+            },
+            ErrorMessages.Add);
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(
             this,
             Pages,
@@ -1571,20 +1613,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisResultState,
             SourceVisibility,
             Timeline,
-            () => ExtensionSlots,
-            editorActions);
+            editorActions,
+            segmentPicker,
+            segmentComparison);
+        videoPane = videoPaneFactory?.Create(
+            Id,
+            Timeline,
+            editorStateController.State.Select(state => new VideoSessionTiming(
+                state.Session?.Timestamp,
+                state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds)));
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State,
             () => MapViewModel,
             Timeline,
-            () => ExtensionSlots);
-        AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
+            videoPane,
+            segmentComparison);
+        var analysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             editorStateController.State,
-            () => ExtensionSlots,
             this,
             editorActions,
             SelectAnalysisRangeCommand,
-            analysisResultState);
+            analysisResultState,
+            segmentComparison);
+        AnalysisWorkspace = analysisWorkspace;
+        PositionVelocityPage = analysisWorkspace.PositionVelocity;
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
             this,
             () => Name,
@@ -1609,23 +1661,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PreferencesPage,
             sessionCoordinator,
             this);
-        if (extensionHost is not null)
-        {
-            recordedSessionOperationCoordinator = new RecordedSessionOperationCoordinator(
-                ReportRecordedSessionExtensionOperation,
-                CompleteRecordedSessionExtensionOperation);
-            recordedSessionExtensions = new RecordedSessionExtensionManager(
-                Id,
-                extensionHost.RecordedSessionExtensionFactories,
-                extensionHost.ExtensionDatabase,
-                extensionHost.RecordedSessionDataReader,
-                extensionHost.BackgroundTaskRunner,
-                uiThreadDispatcher,
-                recordedSessionOperationCoordinator,
-                this);
-            extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, Pages, editorActions);
-        }
-
         SignalsPage = new RecordedSignalsPageViewModel(SignalsWorkspace, MediaWorkspace);
         SpringPage = new SpringPageViewModel(AnalysisWorkspace);
         StrokesPage = new StrokesPageViewModel(AnalysisWorkspace);
@@ -1645,6 +1680,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(SpringPage);
         Pages.Add(StrokesPage);
         Pages.Add(DampingPage);
+        Pages.Add(PositionVelocityPage);
         Pages.Add(BalancePage);
         Pages.Add(VibrationPage);
         Pages.Add(AnalysisPage);
@@ -1688,10 +1724,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     editorStateController.State,
                     stalenessReplayInput),
                 RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
-                RecordedSessionEditorEffects.ExtensionHostPublication(
-                    editorStateController.State,
-                    hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
-                    Timeline),
             ],
             ApplyRecordedSessionEditorEffect);
     }
@@ -1736,6 +1768,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             PreferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
+            signalRowActions.SetHasAirtimes(state.TelemetryData?.Airtimes.Length > 0);
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
         }
@@ -2006,23 +2039,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PublishEditorInput(plotDampingSpeedCutoffsInput, cutoffs);
     }
 
-    internal void SetSessionOperationState(SessionOperationPresentationState state)
-    {
-        PublishEditorInput(sessionOperationStateInput, state);
-    }
-
     internal void SetSessionInsights(SessionInsightsResult insights)
     {
         PublishEditorInput(sessionInsightsInput, insights);
-    }
-
-    internal void SetMediaUrl(string? url)
-    {
-        var nextPaneState = string.IsNullOrWhiteSpace(url)
-            ? SurfacePresentationState.Hidden
-            : SurfacePresentationState.Ready;
-        PublishEditorInput(mediaUrlInput, url);
-        PublishEditorInput(mediaPaneStateInput, nextPaneState);
     }
 
     private void EvaluateDirtinessFromPageChange()
@@ -2157,12 +2176,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.UpdateDirtyBaseline)
         {
             EvaluateDirtiness();
-            return;
-        }
-
-        if (effect is RecordedSessionEditorEffect.PublishExtensionHostState publish)
-        {
-            recordedSessionExtensions?.UpdateHostState(publish.State);
         }
     }
 
@@ -2395,26 +2408,28 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return Task.CompletedTask;
     }
 
-    protected override async Task CloseImplementation()
+    protected override Task CloseImplementation()
     {
-        await StopLoadedSessionAsync();
+        StopLoadedSession();
         UnsubscribeVmEventHandlers();
         DisposeWorkspace(MobileWorkspace);
         DisposeWorkspace(SignalsWorkspace);
         DisposeWorkspace(MediaWorkspace);
+        videoPane?.Dispose();
+        segmentPicker.Dispose();
+        segmentComparison.Dispose();
         DisposeWorkspace(AnalysisWorkspace);
-        extensionPagesController?.Dispose();
         editorEffects.Dispose();
         editorStateSubscription.Dispose();
         editorStateController.Dispose();
         editorActions.Dispose();
-        await DisposeRecordedSessionExtensionsAsync();
         viewLoadOperation.Dispose();
         loadOperation.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
         DisposeEditorInputSubjects();
+        return Task.CompletedTask;
     }
 
     private static void DisposeWorkspace(object workspace)
@@ -2523,23 +2538,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (wasLoaded)
         {
-            PublishRecordedSessionHostRuntimeChange();
             return;
         }
-
-        PublishRecordedSessionHostRuntimeChange();
 
         // Subscribe before the awaited restore so a remote sync apply that
         // lands while restore is in flight is not missed.
         var watch = recordedSessionProjection.WatchSession(Id);
+        var operationWatch = sessionOperationRunner.Watch(Id);
         if (SynchronizationContext.Current is { } synchronizationContext)
         {
             watch = watch.ObserveOn(synchronizationContext);
+            operationWatch = operationWatch.ObserveOn(synchronizationContext);
         }
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
             s.Add(watch.Subscribe(snapshot => PublishEditorInput(domainInput, snapshot)));
+            s.Add(operationWatch.Subscribe(state => PublishEditorInput(sessionOperationStateInput, state)));
         });
         if (replayStalenessOnNextLoad)
         {
@@ -2549,10 +2564,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            await InitializeRecordedSessionExtensionsAsync(loadLifecycleToken);
-            if (!viewLoaded || loadLifecycleToken.IsCancellationRequested)
+            if (videoPane is not null)
             {
-                return;
+                await videoPane.RefreshClipsAsync();
             }
 
             await RestoreRecordedPreferencesAsync(loadLifecycleToken);
@@ -2571,7 +2585,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override void OnActivated()
     {
         hasBeenActivated = true;
-        PublishRecordedSessionHostRuntimeChange();
 
         if (!viewLoaded)
         {
@@ -2579,11 +2592,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         _ = HandleDeferredDomainAsync();
-    }
-
-    protected override void OnDeactivated()
-    {
-        PublishRecordedSessionHostRuntimeChange();
     }
 
     private bool ShouldDeferDomainHandling() =>
@@ -2605,17 +2613,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     [RelayCommand]
-    private async Task Unloaded()
+    private void Unloaded()
     {
         if (layoutProfileTransitionState.IsTransitioning)
         {
             return;
         }
 
-        await StopLoadedSessionAsync();
+        StopLoadedSession();
     }
 
-    private async Task StopLoadedSessionAsync()
+    private void StopLoadedSession()
     {
         viewLoaded = false;
         viewLoadOperation.Cancel();
@@ -2624,12 +2632,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         replayStalenessOnNextLoad = true;
         deferredDomain = null;
         stalenessReconciler.ResetForUnload();
-        PublishRecordedSessionHostRuntimeChange();
-        await DisposeRecordedSessionExtensionScopesAsync();
+        sessionOperationRunner.Cancel(Id);
+        segmentComparison.Clear();
         DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();
     }
 
     #endregion
-
 }

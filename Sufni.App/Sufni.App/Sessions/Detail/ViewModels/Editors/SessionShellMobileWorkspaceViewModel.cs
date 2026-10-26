@@ -2,7 +2,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Shared.Base;

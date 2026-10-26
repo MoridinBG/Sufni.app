@@ -4,7 +4,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 namespace Sufni.App.Sessions.Media.Views;
 
-// Keeps a MapView's DataContext, extension slots, and timeline in sync with a
+// Keeps a MapView's DataContext, matched track, and timeline in sync with a
 // session media workspace, following the same subscribe/sync/unsubscribe pattern
 // used by SessionMediaDesktopView. Shared by the mobile signals page views so the
 // map wiring lives in one place rather than being copied into each view.
@@ -46,7 +46,7 @@ internal sealed class MediaWorkspaceMapBinder
     private void OnMediaWorkspacePropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(ISessionMediaWorkspace.MapViewModel)
-            or nameof(ISessionMediaWorkspace.ExtensionSlots))
+            or nameof(ISessionMediaWorkspace.MatchedTrack))
         {
             SyncMapView();
         }
@@ -55,7 +55,7 @@ internal sealed class MediaWorkspaceMapBinder
     private void SyncMapView()
     {
         mapView.DataContext = mediaWorkspace?.MapViewModel;
-        mapView.ExtensionSlots = mediaWorkspace?.ExtensionSlots;
+        mapView.MatchedTrack = mediaWorkspace?.MatchedTrack;
         mapView.Timeline = mediaWorkspace?.Timeline;
     }
 }

@@ -9,8 +9,6 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
@@ -435,7 +433,6 @@ public class ImportSessionsCoordinator(
             CurrentFingerprint: null,
             PersistedFingerprint: null,
             sourceSnapshot,
-            DerivationWindow: null,
             new SessionStaleness.UnknownLegacyFingerprint(),
             DerivedChangeKind.None);
     }

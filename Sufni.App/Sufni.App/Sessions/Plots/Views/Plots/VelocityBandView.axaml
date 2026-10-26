@@ -2,7 +2,7 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Sufni.App.Sessions.Plots.Views.Plots"
-    xmlns:recorded="clr-namespace:Sufni.App.ExtensionHost.Contracts.RecordedSessions;assembly=Sufni.App.ExtensionHost">
+    xmlns:segments="clr-namespace:Sufni.App.Segments.Models">
     <Design.PreviewWith>
         <controls:VelocityBandView />
     </Design.PreviewWith>
@@ -60,9 +60,6 @@
                                 <Style Selector="TextBlock.metricAnnotation.negative">
                                     <Setter Property="Foreground" Value="{DynamicResource SufniDangerColor}" />
                                 </Style>
-                                <Style Selector="TextBlock.metricAnnotation.accent">
-                                    <Setter Property="Foreground" Value="{DynamicResource SufniAccentColor}" />
-                                </Style>
                                 <Style Selector="Border.cutoff-handle">
                                     <Setter Property="Height" Value="8" />
                                     <Setter Property="Margin" Value="8,0" />
@@ -93,17 +90,15 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=HsrMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
+                                        <DataTemplate x:DataType="segments:SegmentDampingMetric">
                                             <StackPanel>
                                                 <TextBlock
-                                                Classes.accent="{Binding IsAccentTone}"
                                                 Classes.negative="{Binding IsNegativeTone}"
                                                 Classes.positive="{Binding IsPositiveTone}"
                                                 Classes="metricAnnotation"
                                                 Text="{Binding DisplayValue}"
                                                 TextAlignment="Center" />
                                                 <TextBlock
-                                                Classes.accent="{Binding IsAccentTone}"
                                                 Classes.negative="{Binding IsNegativeTone}"
                                                 Classes.positive="{Binding IsPositiveTone}"
                                                 Classes="metricAnnotation"
@@ -123,10 +118,10 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=LsrMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
+                                        <DataTemplate x:DataType="segments:SegmentDampingMetric">
                                             <StackPanel>
-                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
-                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -140,10 +135,10 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=LscMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
+                                        <DataTemplate x:DataType="segments:SegmentDampingMetric">
                                             <StackPanel>
-                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
-                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -157,10 +152,10 @@
                                 TextAlignment="Center" />
                                 <ItemsControl ItemsSource="{Binding Path=HscMetricAnnotations, RelativeSource={RelativeSource TemplatedParent}}">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="recorded:RecordedSessionAnalysisMetricContribution">
+                                        <DataTemplate x:DataType="segments:SegmentDampingMetric">
                                             <StackPanel>
-                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
-                                                <TextBlock Classes="metricAnnotation" Classes.accent="{Binding IsAccentTone}" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" Text="{Binding DisplayValue}" TextAlignment="Center" />
+                                                <TextBlock Classes="metricAnnotation" Classes.negative="{Binding IsNegativeTone}" Classes.positive="{Binding IsPositiveTone}" IsVisible="{Binding HasDeltaValue}" Text="{Binding DeltaValue}" TextAlignment="Center" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

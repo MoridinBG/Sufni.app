@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Sessions.Plots;
 

@@ -65,10 +65,7 @@ There are five kinds of view model in the presentation layer:
   its own. Compact and workspace shell views bind those mirrors differently,
   but both read the same view models. The triggering of the initial store
   refresh (`LoadDatabaseContent`) also lives here so the database load happens
-  exactly once after the shell is constructed. It also exposes app toolbar
-  command and view contributions from DI-created app toolbar contribution
-  providers; profile-specific shell chrome renders those neutral app-level
-  contributions without knowing extension workflow types.
+  exactly once after the shell is constructed.
 
 - **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For long-running screen actions they prefer the generated async-command `IsRunning` state over duplicate busy flags.
 
@@ -185,14 +182,17 @@ There are five kinds of view model in the presentation layer:
   analysis presentation. `SessionDetailViewModel` keeps one current state
   snapshot for legacy read properties and property notifications, while
   `RecordedSessionEditorEffects` drives named effects such as analysis
-  invalidation, command refresh, extension-host publication, map/media
+  invalidation, command refresh, map/media
   synchronization, preference persistence, and dirty/baseline tracking.
   `RecordedPagePresentationApplier` is limited to page-owned chart/string
   projection and balance-page insertion; core signal, analysis, map, media, and
   loaded-data availability come from `RecordedSessionEditorState`. Stable
   runtime objects such as the page collection, timeline link,
-  source-visibility store, map view model, and recorded-session extension slots
-  are owned directly by the editor or extension manager and passed to workspaces
+  source-visibility store, map view model, video pane (see
+  [video.md](video.md)), segments picker (see
+  [segments.md](segments.md#segments-picker)), and segment comparison (see
+  [segments.md](segments.md#matching-and-comparison)) are owned directly by the
+  editor and passed to workspaces
   by reference; state emissions update projected presentation without replacing
   those objects. The recorded signals, media, analysis, and mobile-shell
   workspaces own state subscriptions and are disposed on final editor close.
@@ -200,16 +200,6 @@ There are five kinds of view model in the presentation layer:
   flows off the editor itself: `SignalRowActionsController` builds the
   built-in signal-row header actions (airtime and analysis-selection toggles)
   through owner-supplied state accessors and actions;
-  `RecordedSessionExtensionPagesController` mirrors contributed extension
-  pages and contributed analysis tabs into the editor's stable `Pages`
-  collection and resolves contributed-page selection through the action
-  gateway. Its projected wrapper keys distinguish `page` from `analysis` and
-  use the ordinal `(ExtensionId, ContributionId)` pair within each family. A
-  slot rebuild with the same analysis-tab key reuses the existing wrapper and
-  any lazily materialized view model while recomputing placement; the wrapper
-  is removed, and owned materialized content is disposed, only when that key
-  disappears or the controller is disposed. Ordinary page view models are
-  borrowed, while analysis-tab factory results are host-owned by default.
   `ProcessingPreferenceWorkflow` owns the confirm-recompute-persist flow that
   runs when a processing preference change is committed. The editor constructs
   these collaborators and delegates; it no longer owns those flows. Session
@@ -263,12 +253,12 @@ the `Save` / `Reset` / `Close` surface.
 Each editor exposes an `ObservableCollection<PageViewModelBase>
 Pages`. `SessionShellMobileView` binds that collection to a
 `CarouselPage` and binds the shared selected index to both the
-`CarouselPage` and `PipsPager`, so swipes, pips, and contributed page
-selection all update the same workspace-owned index. The two editors
+`CarouselPage` and `PipsPager`, so swipes and pips update the same
+workspace-owned index. The two editors
 compose different page sets:
 
-- Recorded sessions: signals, spring, strokes, damping, balance,
-  vibration, insights, notes, preferences.
+- Recorded sessions: signals, spring, strokes, damping, position/velocity,
+  balance, vibration, insights, notes, preferences.
 - Live captures: signals, spring, damping, notes, preferences; balance is
   inserted when the current live analysis produces balance data.
 
@@ -281,14 +271,16 @@ the recorded editor, `LiveSignalsPageViewModel` for the live editor.
 Several analysis pages are also workspace-backed so their
 presentation states and SVG surfaces can be built from the editor's
 analysis service; notes and preferences remain the mostly local
-parameterless pages. Recorded-session extension scopes can contribute
-additional analysis tabs; mobile projects those tabs into the same
-`Pages` collection at the matching analysis-page position.
-`RecordedSessionExtensionPagesController` satisfies contributed-page
-selection requests by dispatching `SelectPageIndex` for the matching page. On
-desktop, the recorded-session analysis view composes built-in and
-contributed analysis tabs into one tab strip and places the selected
-analysis body plus extension banners inside one vertical scroll
+parameterless pages. `PositionVelocityPageViewModel` is owned by the
+recorded `SessionAnalysisWorkspaceViewModel`, which exposes it as
+`ISessionAnalysisWorkspace.PositionVelocity` (null for live captures). The
+same instance is the mobile page and the desktop tab content. It holds the
+selected side and display mode as view state and derives the shown side,
+the side-selector visibility, and its presentation state from the
+workspace's front and rear analysis states. On desktop, the analysis view
+builds one tab strip from the built-in tabs, adding Position/velocity after
+Damping only when the workspace offers it, and places the selected
+analysis body plus the segment comparison banner inside one vertical scroll
 region; analysis plot hosts use natural fixed plot heights instead
 of stretching to the current analysis pane height.
 
@@ -326,7 +318,7 @@ Two pages diverge from that pattern:
   on the workspace
   (recorded: projected from
   `RecordedSessionEditorState.Presentation.Signals`; live: directly on
-  `LiveSessionSignalsWorkspaceViewModel`). Hosted row titles
+  `LiveSessionSignalsWorkspaceViewModel`). Child row titles
   are progressively inset by hierarchy depth. Expanded parent rows draw
   short connector branches in the child-row band, starting at each
   direct child row's top edge and stopping before that child row's
@@ -334,7 +326,7 @@ Two pages diverge from that pattern:
   content. The guides stay in the left title/glyph gutter, avoid the
   glyph text itself, and do not enter plot chrome or shift plot
   content, so signal data remains vertically aligned across parent and
-  hosted rows.
+  child rows.
   The row hierarchy, each row's expanded/collapsed state, and manually
   resized root-row height ratios are stored in
   `SessionPreferences.SignalLayout` as stable row IDs plus normalized ratios.
@@ -355,21 +347,6 @@ Two pages diverge from that pattern:
   duplicated in the signal hierarchy preference: plot visibility remains
   the existing `SessionPlotPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
-- **Recorded-session extension scopes** are owned by
-  `SessionDetailViewModel` for each open recorded session. On
-  `Loaded`, the editor initializes `RecordedSessionExtensionManager`
-  with the current domain snapshot and constrained host context; on
-  `Unloaded` / final close it disposes all scopes. The manager mirrors
-  each scope's `RecordedSessionExtensionSlots` into one host slot
-  collection. Recorded signals, media, and analysis workspaces expose
-  that same slot object so views can render contributed pages, toolbar
-  content, media panes, map overlays, analysis banners/overlays,
-  session-list indicators/actions, signal-row actions, hosted signal rows,
-  and time-range overlays without adding workflow-specific properties
-  to public workspace contracts. Extension scopes can request analysis
-  range changes, timeline range changes, notifications, page selection,
-  and cancellable host operations through `RecordedSessionHostContext`;
-  they do not write editor state directly.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and
   `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
   exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /

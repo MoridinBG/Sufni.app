@@ -1,8 +1,7 @@
 using System;
 using System.ComponentModel;
 using Avalonia;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 using Sufni.App.Shared.Plots;
 namespace Sufni.App.Shared.Views.Plots;

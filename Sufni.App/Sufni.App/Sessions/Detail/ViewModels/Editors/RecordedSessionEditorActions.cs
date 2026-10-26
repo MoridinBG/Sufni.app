@@ -1,7 +1,7 @@
 using System;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;

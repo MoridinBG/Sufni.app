@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
-using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure.Theming;
 
 internal static class SufniBrushes

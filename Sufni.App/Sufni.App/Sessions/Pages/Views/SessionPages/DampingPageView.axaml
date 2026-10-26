@@ -2,8 +2,8 @@
 x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.DampingPageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
     xmlns:controls2="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
-xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
@@ -23,7 +23,7 @@ mc:Ignorable="d">
         ClipToBounds="True"
         Orientation="Vertical"
         Spacing="8">
-            <controls:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}" />
+            <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding AnalysisWorkspace.SegmentComparison}" />
 
             <StackPanel
             Name="MobileVelocityAverageModeRadioButtons"
@@ -49,7 +49,7 @@ mc:Ignorable="d">
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
             AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
-            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
+            AnalysisComparison="{Binding AnalysisWorkspace.SegmentComparison.AnalysisComparison}"
             HasAnalysisData="{Binding HasAnalysisData}"
             HscPercentage="{Binding FrontHscPercentage}"
             HsrPercentage="{Binding FrontHsrPercentage}"
@@ -75,7 +75,7 @@ mc:Ignorable="d">
             AnalysisRange="{Binding AnalysisWorkspace.AnalysisRange}"
             AnalysisResultState="{Binding AnalysisWorkspace.AnalysisResultState}"
             DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
-            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
+            AnalysisComparison="{Binding AnalysisWorkspace.SegmentComparison.AnalysisComparison}"
             HasAnalysisData="{Binding HasAnalysisData}"
             HscPercentage="{Binding RearHscPercentage}"
             HsrPercentage="{Binding RearHsrPercentage}"

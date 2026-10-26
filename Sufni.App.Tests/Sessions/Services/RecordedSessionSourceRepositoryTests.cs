@@ -1,8 +1,4 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 
@@ -116,33 +112,80 @@ public class RecordedSessionSourceRepositoryTests
     }
 
     [Fact]
-    public async Task DeleteOrphanedRecordedSessionSourcesAsync_KeepsMoreThanSqliteParameterLimitRetainedSources()
+    public async Task GetMissingRecordingSourceIdsAsync_ReturnsSourceOfDerivedSession()
     {
-        using var tempDatabase = new TempDatabase("source-retained-over-parameter-limit.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var liveSessionId = Guid.NewGuid();
-        var retainedSessionIds = Enumerable.Range(0, 1_005).Select(_ => Guid.NewGuid()).ToArray();
-        var unretainedOrphanSessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        await database.PutSessionAsync(new Session(liveSessionId, "live", "desc", null, 100));
-        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(liveSessionId));
-        foreach (var retainedSessionId in retainedSessionIds)
+        using var tempDatabase = new TempDatabase("source-missing-recording-source.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var sourceSessionId = Guid.NewGuid();
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "derived", "desc", null, 100)
         {
-            await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(retainedSessionId));
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1
+        });
+
+        var missingIds = await database.GetMissingRecordingSourceIdsAsync();
+
+        Assert.Equal([sourceSessionId], missingIds);
+    }
+
+    [Fact]
+    public async Task GetReferencedSourceSessionIdsAsync_ReturnsSourcesOfLiveDerivedSessions()
+    {
+        using var tempDatabase = new TempDatabase("source-referenced-ids.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var liveSourceId = Guid.NewGuid();
+        var deletedSourceId = Guid.NewGuid();
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "plain", "desc", null, 100));
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "live", "desc", null, 101)
+        {
+            SourceSessionId = liveSourceId,
+            WindowStartSeconds = 1
+        });
+        var deleted = new Session(Guid.NewGuid(), "deleted", "desc", null, 102)
+        {
+            SourceSessionId = deletedSourceId,
+            WindowStartSeconds = 1
+        };
+        await database.PutSessionAsync(deleted);
+        await database.DeleteAsync(deleted);
+
+        var referencedIds = await database.GetReferencedSourceSessionIdsAsync();
+
+        Assert.Equal([liveSourceId], referencedIds);
+    }
+
+    [Fact]
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_DeletesOnlySourcesNoLiveSessionNeeds()
+    {
+        using var tempDatabase = new TempDatabase("source-orphans.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var ownedSourceId = Guid.NewGuid();
+        var derivedFromSourceId = Guid.NewGuid();
+        var deletedDerivationSourceId = Guid.NewGuid();
+        var orphanSourceId = Guid.NewGuid();
+        await database.PutSessionAsync(new Session(ownedSourceId, "owner", "desc", null, 100));
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "derived", "desc", null, 101)
+        {
+            SourceSessionId = derivedFromSourceId,
+            WindowStartSeconds = 1
+        });
+        var deletedDerived = new Session(Guid.NewGuid(), "deleted derived", "desc", null, 102)
+        {
+            SourceSessionId = deletedDerivationSourceId,
+            WindowStartSeconds = 1
+        };
+        await database.PutSessionAsync(deletedDerived);
+        await database.DeleteAsync(deletedDerived);
+        foreach (var sourceId in new[] { ownedSourceId, derivedFromSourceId, deletedDerivationSourceId, orphanSourceId })
+        {
+            await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(sourceId));
         }
 
-        await database.PutRecordedSessionSourceAsync(
-            PersistenceTestData.CreateRecordedSessionSource(unretainedOrphanSessionId));
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync();
 
-        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync(retainedSessionIds);
-
-        Assert.Equal([unretainedOrphanSessionId], deleted);
-        Assert.NotNull(await database.GetRecordedSessionSourceAsync(liveSessionId));
-        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[0]));
-        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[^1]));
-        Assert.Null(await database.GetRecordedSessionSourceAsync(unretainedOrphanSessionId));
-        Assert.Equal(retainedSessionIds.Length + 1, (await database.GetRecordedSessionSourcesAsync()).Count);
+        Assert.Equal(new[] { deletedDerivationSourceId, orphanSourceId }.Order(), deleted.Order());
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(ownedSourceId));
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(derivedFromSourceId));
     }
 
     [Fact]
@@ -203,13 +246,19 @@ public class RecordedSessionSourceRepositoryTests
             {
                 ProcessingFingerprintJson = CreateFingerprintJson(
                     matchingSource.SourceHash,
-                    new RecordedSessionDerivationWindow(matchingSourceSessionId, 1, 2))
+                    new RecordedSessionDerivationWindow(matchingSourceSessionId, 1, 2)),
+                SourceSessionId = matchingSourceSessionId,
+                WindowStartSeconds = 1,
+                WindowEndSeconds = 2
             });
             await database.PutSessionAsync(new Session(staleDerivedSessionId, "stale derived", "desc", null, 103)
             {
                 ProcessingFingerprintJson = CreateFingerprintJson(
                     expectedReplacementHash,
-                    new RecordedSessionDerivationWindow(staleSourceSessionId, 1, 2))
+                    new RecordedSessionDerivationWindow(staleSourceSessionId, 1, 2)),
+                SourceSessionId = staleSourceSessionId,
+                WindowStartSeconds = 1,
+                WindowEndSeconds = 2
             });
 
             return ([staleDerivedSessionId], [matchingDerivedSessionId]);

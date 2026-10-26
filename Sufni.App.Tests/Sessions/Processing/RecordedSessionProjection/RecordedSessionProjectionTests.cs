@@ -1,8 +1,6 @@
 using System.Linq;
 using System.Reactive.Linq;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
@@ -116,10 +114,7 @@ public class RecordedSessionProjectionTests
         var scheduler = new QueuedRecordedSessionProjectionScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        var initialWindow = new RecordedSessionDerivationWindow(Guid.NewGuid(), 1, 5);
-        var context = CreateWindowedContext(fingerprintService, initialWindow);
-        var changedWindow = initialWindow with { StartSeconds = 2 };
-        stores.Windows.Set(context.Session.Id, initialWindow);
+        var context = CreateWindowedContext(fingerprintService);
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
@@ -128,11 +123,11 @@ public class RecordedSessionProjectionTests
         Assert.Single(emissions);
         emissions.Clear();
 
-        stores.Windows.Set(context.Session.Id, changedWindow);
+        stores.Sessions.Add(context.Session with { WindowStartSeconds = 2 });
         scheduler.Flush();
 
         var latest = Assert.Single(emissions);
-        Assert.Equal(changedWindow, latest.DerivationWindow);
+        Assert.Equal(2, latest.Session.DerivationWindow!.StartSeconds);
         Assert.Equal(DerivedChangeKind.FingerprintChanged, latest.ChangeKind);
         Assert.IsType<SessionStaleness.SourceWindowChanged>(latest.Staleness);
     }
@@ -143,9 +138,7 @@ public class RecordedSessionProjectionTests
         var scheduler = new QueuedRecordedSessionProjectionScheduler();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
-        var initialWindow = new RecordedSessionDerivationWindow(Guid.NewGuid(), 1, 5);
-        var context = CreateWindowedContext(fingerprintService, initialWindow);
-        stores.Windows.Set(context.Session.Id, initialWindow);
+        var context = CreateWindowedContext(fingerprintService);
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
@@ -333,9 +326,7 @@ public class RecordedSessionProjectionTests
         return new TestContext(session, setup, bike, source);
     }
 
-    private static TestContext CreateWindowedContext(
-        ProcessingFingerprintService fingerprintService,
-        RecordedSessionDerivationWindow window)
+    private static TestContext CreateWindowedContext(ProcessingFingerprintService fingerprintService)
     {
         var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "projection bike");
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "projection setup", bikeId: bike.Id);
@@ -343,9 +334,14 @@ public class RecordedSessionProjectionTests
             id: Guid.NewGuid(),
             name: "projection derived session",
             setupId: setup.Id,
-            hasProcessedData: true);
-        var source = CreateSource(window.SourceSessionId);
-        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source, window: window);
+            hasProcessedData: true) with
+        {
+            SourceSessionId = Guid.NewGuid(),
+            WindowStartSeconds = 1,
+            WindowEndSeconds = 5
+        };
+        var source = CreateSource(session.SourceSessionId!.Value);
+        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source);
         session = session with { ProcessingFingerprintJson = AppJson.Serialize(fingerprint) };
         return new TestContext(session, setup, bike, source);
     }
@@ -379,7 +375,6 @@ public class RecordedSessionProjectionTests
         public InMemoryBikeStore Bikes { get; } = new();
         public InMemoryRecordedSourceStore Sources { get; } = new();
         public ProcessingDependencyHashIndex DependencyHashIndex { get; }
-        public InMemoryRecordedSessionDerivationWindowCache Windows { get; } = new();
 
         public StoreFixtures()
         {
@@ -389,8 +384,7 @@ public class RecordedSessionProjectionTests
         public RecordedSessionProjectionModel CreateProjection(
             IProcessingFingerprintService fingerprintService,
             IRecordedSessionProjectionScheduler scheduler,
-            IRecordedSessionProcessingOptionCache? optionCache = null,
-            IRecordedSessionDerivationWindowCache? windowCache = null) => new(
+            IRecordedSessionProcessingOptionCache? optionCache = null) => new(
             Sessions,
             Setups,
             Bikes,
@@ -398,7 +392,6 @@ public class RecordedSessionProjectionTests
             fingerprintService,
             DependencyHashIndex,
             optionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
-            windowCache ?? Windows,
             scheduler);
 
         public void Add(TestContext context)

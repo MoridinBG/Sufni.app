@@ -1,7 +1,6 @@
 using Avalonia.Platform.Storage;
 using System.Net;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestStorageItems;
 
 using Sufni.App.Acquisition.Models;
@@ -12,6 +11,7 @@ using Sufni.App.Shared.Common;
 using Sufni.App.Tests.TestSupport.Async;
 namespace Sufni.App.Tests.Acquisition.Services;
 
+[Collection("Ui")]
 public class TelemetryDataStoreServiceTests
 {
     [Fact]
@@ -258,7 +258,8 @@ public class TelemetryDataStoreServiceTests
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: supportsMassStorageImport,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,

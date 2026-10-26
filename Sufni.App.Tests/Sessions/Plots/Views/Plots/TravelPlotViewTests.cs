@@ -9,24 +9,25 @@ using Avalonia.Input;
 using NSubstitute;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Shared.Views.Input;
+using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 
@@ -666,7 +667,8 @@ public class TravelPlotViewTests
         public SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SignalLayoutPreferences.Default;
         public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
         public SessionTimelineLinkViewModel Timeline { get; } = new();
-        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+        public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
+        public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
         public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; } =
             plotContextMenuActionsBySignalRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
         public int ClearAnalysisRangeCallCount { get; private set; }

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services;

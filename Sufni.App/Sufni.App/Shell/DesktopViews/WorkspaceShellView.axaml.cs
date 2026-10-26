@@ -15,7 +15,7 @@ using Avalonia.VisualTree;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Views.Input;
 using Sufni.App.Shell.ViewModels;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 
 namespace Sufni.App.Shell.DesktopViews;
 

@@ -1,8 +1,6 @@
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.Theming;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Plots;
 
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Infrastructure;

@@ -5,7 +5,7 @@ using ScottPlot.Plottables;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.LiveDaq.Plots;
 
 public abstract class LiveStreamingPlotBase : TelemetryPlot

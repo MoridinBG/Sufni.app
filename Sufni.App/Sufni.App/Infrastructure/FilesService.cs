@@ -7,13 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
-using DynamicData.Kernel;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Infrastructure;
 
-public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesService, IFilePickerService
+public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesService
 {
     private TopLevel? target;
     private readonly FilePickerFileType jsonType = new("JSON files")
@@ -130,12 +128,39 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
 
     public async Task<List<IStorageFile>> OpenGpxFilesAsync()
     {
-        var files = await OpenFilesAsync(new FilePickerRequest(
-            "Open GPX file",
-            AllowMultiple: true,
-            [new FilePickerFilter("GPX files", ["*.gpx"], ["application/gpx+xml"], [])]));
+        Debug.Assert(target != null, nameof(target) + " != null");
 
-        return files.AsList();
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open GPX file",
+            FileTypeFilter = [new FilePickerFileType("GPX files")
+            {
+                Patterns = ["*.gpx"],
+                MimeTypes = ["application/gpx+xml"],
+            }],
+            AllowMultiple = true
+        });
+
+        return [.. files];
+    }
+
+    public async Task<IStorageFile?> OpenVideoFileAsync()
+    {
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open video",
+            FileTypeFilter = [new FilePickerFileType("Video files")
+            {
+                Patterns = ["*.mp4", "*.m4v", "*.mov"],
+                MimeTypes = ["video/mp4", "video/quicktime"],
+                AppleUniformTypeIdentifiers = ["public.mpeg-4", "com.apple.quicktime-movie", "public.movie"]
+            }],
+            AllowMultiple = false
+        });
+
+        return files.Count == 1 ? files[0] : null;
     }
 
     private static string SanitizeFileName(string name)
@@ -147,11 +172,15 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
 
     public async Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default)
     {
-        var files = await OpenFilesAsync(new FilePickerRequest(
-            "Open device CONFIG",
-            AllowMultiple: false,
-            [FilePickerFilter.AllFiles]),
-            cancellationToken);
+        Debug.Assert(target != null, nameof(target) + " != null");
+
+        var files = await target.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions()
+        {
+            Title = "Open device CONFIG",
+            FileTypeFilter = [FilePickerFileTypes.All],
+            AllowMultiple = false
+        });
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (files.Count != 1)
         {
@@ -166,18 +195,5 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
             await stream.CopyToAsync(memoryStream, cancellationToken);
             return new SelectedDeviceConfigFile(file.Name, memoryStream.ToArray());
         }, cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<IStorageFile>> OpenFilesAsync(
-        FilePickerRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        Debug.Assert(target != null, nameof(target) + " != null");
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var files = await target.StorageProvider.OpenFilePickerAsync(request.ToOpenOptions());
-
-        cancellationToken.ThrowIfCancellationRequested();
-        return files;
     }
 }

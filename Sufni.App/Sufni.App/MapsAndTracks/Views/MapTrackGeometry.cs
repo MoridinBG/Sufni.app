@@ -1,20 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Mapsui.Projections;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.MapsAndTracks.Models;
 
 namespace Sufni.App.MapsAndTracks.Views;
 
 internal static class MapTrackGeometry
 {
-    internal static (double X, double Y) ProjectMapCoordinate(RecordedSessionMapCoordinate coordinate)
-    {
-        var (x, y) = SphericalMercator.FromLonLat(coordinate.Longitude, coordinate.Latitude);
-        return (x, y);
-    }
-
     internal static bool TryGetVisibleTrackRange(
         IReadOnlyList<TrackPoint> sessionTrackPoints,
         TrackTimeRange context,

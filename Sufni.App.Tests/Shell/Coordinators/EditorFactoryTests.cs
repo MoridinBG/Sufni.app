@@ -1,8 +1,5 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.LiveDaq.Queries;
@@ -19,6 +16,7 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -30,7 +28,7 @@ using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Extensions;
-
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.Shell.Coordinators;
 
 public class EditorFactoryTests
@@ -349,7 +347,6 @@ public class EditorFactoryTests
             Substitute.For<ISessionPreferences>(),
             Substitute.For<IRecordedSessionProcessingOptionCache>(),
             new TestSessionProcessedTelemetryReader(),
-            Substitute.For<IRecordedSessionDerivationWindowCache>(),
             TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),
@@ -365,18 +362,21 @@ public class EditorFactoryTests
                     CanHostSyncServer: true,
                     CanPairAsClient: false,
                     SupportsMassStorageImport: true,
-                    SupportsStorageProviderImport: true),
+                    SupportsStorageProviderImport: true,
+                    CanPlayVideo: false),
                 new InputCapabilities(
                     HasPointer: true,
                     HasTouch: false,
                     HasKeyboard: true,
                     SupportsLongPressContextMenu: false)),
             new LayoutProfileTransitionState(),
-            Array.Empty<IRecordedSessionExtensionFactory>(),
-            Substitute.For<IExtensionDatabaseConnection>(),
-            Substitute.For<IRecordedSessionDataReader>(),
             backgroundTaskRunner,
-            () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."));
+            () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."),
+            Substitute.For<IVideoPaneFactory>(),
+            Substitute.For<ISessionEditingCoordinator>(),
+            TestSegmentPickers.CreateFactory(),
+            TestSegmentComparisons.CreateFactory(),
+            new SessionOperationRunner());
     }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator

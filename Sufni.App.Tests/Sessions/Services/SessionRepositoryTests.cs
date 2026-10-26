@@ -1,8 +1,4 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
@@ -211,11 +207,13 @@ public class SessionRepositoryTests
         };
         var session = new Session(sessionId, "derived", "desc", setup.Id, 100)
         {
-            ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(60),
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1,
+            WindowEndSeconds = 2
         };
         var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
-        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, 2);
-        var fingerprint = CreateCurrentFingerprint(fingerprintService, session, setup, bike, source, window);
+        var fingerprint = CreateCurrentFingerprint(fingerprintService, session, setup, bike, source);
         session.ProcessingFingerprintJson = AppJson.Serialize(fingerprint);
 
         await database.PutAsync(bike);
@@ -227,7 +225,10 @@ public class SessionRepositoryTests
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(66),
             ProcessingFingerprintJson = AppJson.Serialize(fingerprint),
-            DurationSeconds = 66
+            DurationSeconds = 66,
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1,
+            WindowEndSeconds = 2
         };
 
         var result = await database.UpdateProcessedDerivedDataAsync(
@@ -817,12 +818,10 @@ public class SessionRepositoryTests
         Session session,
         Setup setup,
         Bike bike,
-        RecordedSessionSource source,
-        RecordedSessionDerivationWindow? window = null) =>
+        RecordedSessionSource source) =>
         fingerprintService.CreateCurrentDatabaseInputs(
             SessionSnapshot.From(session),
             SetupSnapshot.From(setup, boardId: null),
             BikeSnapshot.From(bike),
-            RecordedSessionSourceSnapshot.From(source),
-            window);
+            RecordedSessionSourceSnapshot.From(source));
 }

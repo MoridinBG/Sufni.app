@@ -1,8 +1,7 @@
 using System.Threading;
 using ScottPlot;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Models;

@@ -6,12 +6,10 @@ using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Formatting;
 using Sufni.App.Infrastructure.Theming;

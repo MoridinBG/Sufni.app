@@ -3,7 +3,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 
 namespace Sufni.App.Shared.Views.Converters;
 

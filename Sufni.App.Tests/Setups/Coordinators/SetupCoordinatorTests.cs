@@ -1,6 +1,5 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
@@ -376,7 +375,8 @@ public class SetupCoordinatorTests
                 CanHostSyncServer: true,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: true,

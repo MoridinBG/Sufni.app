@@ -1,0 +1,48 @@
+<UserControl
+    x:Class="Sufni.App.Segments.Views.SegmentAnalysisComparisonBannerView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Segments.ViewModels"
+    d:DesignHeight="34"
+    d:DesignWidth="500"
+    x:DataType="vm:SegmentComparisonViewModel"
+    IsVisible="{Binding HasAnalysisComparison, FallbackValue=False}"
+    mc:Ignorable="d">
+
+    <Border
+        Padding="8,5"
+        Background="#1873C7F0"
+        BorderBrush="#6073C7F0"
+        BorderThickness="1"
+        CornerRadius="4">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
+            <TextBlock
+                Name="ComparisonText"
+                FontSize="12"
+                Text="{Binding AnalysisComparisonText}"
+                TextTrimming="CharacterEllipsis"
+                ToolTip.Tip="{x:Static vm:SegmentComparisonRowViewModel.MatchErrorToolTip}"
+                VerticalAlignment="Center" />
+            <StackPanel
+                Grid.Column="1"
+                Margin="12,0"
+                Orientation="Horizontal"
+                Spacing="10"
+                VerticalAlignment="Center">
+                <TextBlock FontSize="12" Text="Current" />
+                <TextBlock FontSize="12" Foreground="#73C7F0" Text="Match" />
+            </StackPanel>
+            <Button
+                Name="ClearButton"
+                Grid.Column="2"
+                Height="22"
+                Padding="8,0"
+                Command="{Binding ClearAnalysisComparisonCommand}"
+                Content="X"
+                ToolTip.Tip="Clear comparison"
+                VerticalAlignment="Center" />
+        </Grid>
+    </Border>
+</UserControl>

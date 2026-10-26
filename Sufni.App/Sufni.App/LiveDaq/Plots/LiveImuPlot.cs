@@ -4,7 +4,7 @@ using ScottPlot;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Plots;
 namespace Sufni.App.LiveDaq.Plots;

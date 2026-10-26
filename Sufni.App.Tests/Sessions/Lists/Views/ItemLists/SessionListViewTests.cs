@@ -2,12 +2,9 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Labs.Controls;
-using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.DesktopViews.Controls;
@@ -22,6 +19,7 @@ using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Video;
 namespace Sufni.App.Tests.Sessions.Lists.Views.ItemLists;
 
 [Collection("Ui")]
@@ -47,7 +45,7 @@ public class SessionListViewTests
         var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SessionListViewModel(projection, coordinator, new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -72,7 +70,7 @@ public class SessionListViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionListView_RendersExtensionIndicators()
+    public async Task SessionListView_ShowsMissingVideoIndicator_WhenLinkedFileIsGone()
     {
         ViewTestHelpers.EnsureViewTestResources();
 
@@ -88,11 +86,14 @@ public class SessionListViewTests
             new SessionStaleness.Current()));
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
+        using var videos = new VideoFixture();
+        var videoStore = await videos.CreateStoreAsync(
+            videos.CreateClip(snapshot.Id, startTimestamp: 0, durationSeconds: 60, fileExists: false));
         var viewModel = new SessionListViewModel(
             projection,
             TestCoordinatorSubstitutes.Session(),
-            new InlineUiThreadDispatcher(),
-            new TestRecordedSessionListExtensionService());
+            videoStore,
+            new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -100,7 +101,9 @@ public class SessionListViewTests
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
 
-        AssertContributionText(mounted.Control, "SessionListIndicator", "Indicator");
+        var row = Assert.Single(mounted.Control.FindAllVisual<SessionSwipeActionButton>());
+        Assert.True(row.FindControl<Image>("MissingVideoIndicator")!.IsVisible);
+        Assert.False(row.FindControl<Image>("PresentVideoIndicator")!.IsVisible);
     }
 
     [AvaloniaFact]
@@ -124,7 +127,7 @@ public class SessionListViewTests
         coordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList)
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
-        var viewModel = new SessionListViewModel(projection, coordinator, new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -169,7 +172,7 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -188,7 +191,7 @@ public class SessionListViewTests
     }
 
     [AvaloniaFact]
-    public async Task SessionListDesktopView_RendersExtensionIndicatorsAndActions()
+    public async Task SessionListDesktopView_ShowsVideoIndicator_WhenSessionHasLinkedVideo()
     {
         ViewTestHelpers.EnsureViewTestResources();
 
@@ -204,11 +207,14 @@ public class SessionListViewTests
             new SessionStaleness.Current()));
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
+        using var videos = new VideoFixture();
+        var videoStore = await videos.CreateStoreAsync(
+            videos.CreateClip(snapshot.Id, startTimestamp: 0, durationSeconds: 60, fileExists: true));
         var viewModel = new SessionListViewModel(
             projection,
             TestCoordinatorSubstitutes.Session(),
-            new InlineUiThreadDispatcher(),
-            new TestRecordedSessionListExtensionService());
+            videoStore,
+            new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -217,9 +223,8 @@ public class SessionListViewTests
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
 
         var row = Assert.Single(mounted.Control.FindAllVisual<SessionListItemButton>());
-
-        AssertContributionText(mounted.Control, "SessionListIndicator", "Indicator");
-        AssertLogicalContributionText(row, "SessionListAction", "Action");
+        Assert.True(row.FindControl<Image>("PresentVideoIndicator")!.IsVisible);
+        Assert.False(row.FindControl<Image>("MissingVideoIndicator")!.IsVisible);
     }
 
     [AvaloniaFact]
@@ -249,7 +254,7 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -286,29 +291,4 @@ public class SessionListViewTests
         var local = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Local);
         return new DateTimeOffset(local).ToUnixTimeSeconds();
     }
-
-    private static void AssertContributionText(Control root, string name, string text)
-    {
-        var textBlocks = root.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .ToArray();
-        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
-        Assert.True(
-            textBlock is not null,
-            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
-        Assert.Equal(text, textBlock!.Text);
-    }
-
-    private static void AssertLogicalContributionText(Control root, string name, string text)
-    {
-        var textBlocks = root.GetLogicalDescendants()
-            .OfType<TextBlock>()
-            .ToArray();
-        var textBlock = textBlocks.SingleOrDefault(textBlock => textBlock.Name == name);
-        Assert.True(
-            textBlock is not null,
-            $"Expected contribution text '{name}'. Actual text blocks: {string.Join(", ", textBlocks.Select(block => $"{block.Name}:{block.Text}"))}");
-        Assert.Equal(text, textBlock!.Text);
-    }
-
 }

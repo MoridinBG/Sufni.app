@@ -5,7 +5,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Plots;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.LiveDaq.Plots;
 
 public sealed class FramePitchRollPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)

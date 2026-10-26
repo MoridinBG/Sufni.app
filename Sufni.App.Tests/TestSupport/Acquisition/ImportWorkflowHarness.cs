@@ -7,7 +7,6 @@ using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.Models;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;

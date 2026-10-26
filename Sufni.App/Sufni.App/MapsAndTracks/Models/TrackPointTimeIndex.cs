@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.MapsAndTracks.Models;
 

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Queries;

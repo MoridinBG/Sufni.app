@@ -16,6 +16,7 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
@@ -65,6 +66,11 @@ internal sealed class SynchronizationMergeEngine(
                                                                        descent_meters,
                                                                        full_track_id,
                                                                        gps_offset_seconds,
+                                                                       source_session_id,
+                                                                       window_start_seconds,
+                                                                       window_end_seconds,
+                                                                       previous_window_start_seconds,
+                                                                       previous_window_end_seconds,
                                                                        {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                       track,
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
@@ -88,6 +94,11 @@ internal sealed class SynchronizationMergeEngine(
                                                                    gps_offset_seconds=?,
                                                                    session_processing_fingerprint=?,
                                                                   track=?,
+                                                                  source_session_id=?,
+                                                                  window_start_seconds=?,
+                                                                  window_end_seconds=?,
+                                                                  previous_window_start_seconds=?,
+                                                                  previous_window_end_seconds=?,
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                   updated=?,
@@ -108,6 +119,11 @@ internal sealed class SynchronizationMergeEngine(
                                                                   setup_id=?,
                                                                   description=?,
                                                                   timestamp=?,
+                                                                  source_session_id=?,
+                                                                  window_start_seconds=?,
+                                                                  window_end_seconds=?,
+                                                                  previous_window_start_seconds=?,
+                                                                  previous_window_end_seconds=?,
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                   updated=?,
@@ -134,6 +150,7 @@ internal sealed class SynchronizationMergeEngine(
         var setups = await GetChangedAsync<Setup>(connection, sinceExclusive, upperInclusive);
         var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
         var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
+        var segments = await GetChangedAsync<SessionSegment>(connection, sinceExclusive, upperInclusive);
 
         var changedTrackIds = tracks.Select(track => track.Id).ToHashSet();
         var relatedTrackIds = sessions
@@ -157,7 +174,8 @@ internal sealed class SynchronizationMergeEngine(
             Bikes = bikes,
             Setups = setups,
             Sessions = sessions,
-            Tracks = tracks
+            Tracks = tracks,
+            Segments = segments
         };
     }
 
@@ -179,6 +197,8 @@ internal sealed class SynchronizationMergeEngine(
                     swaps.Add(swap);
                 }
             }
+
+            foreach (var segment in data.Segments) ApplyRemoteEntity(connection, segment);
 
             return swaps;
         });
@@ -242,6 +262,7 @@ internal sealed class SynchronizationMergeEngine(
             foreach (var board in data.Boards) Merge(connection, board, MergeGenericAcceptedContent);
             foreach (var session in data.Sessions) Merge(connection, session, MergeSessionAcceptedContent);
             foreach (var track in data.Tracks) Merge(connection, track, MergeGenericAcceptedContent);
+            foreach (var segment in data.Segments) Merge(connection, segment, MergeGenericAcceptedContent);
         });
     }
 
@@ -535,7 +556,7 @@ internal sealed class SynchronizationMergeEngine(
         }
 
         if (currentDatabaseInputs is null &&
-            !SessionHasRecordedSource(connection, GetSourceSessionId(incoming.Id, incomingFingerprint)))
+            !SessionHasRecordedSource(connection, incoming.RecordingSourceSessionId))
         {
             // The source payload travels after metadata sync. Preserve the accepted
             // target so the hub can request the matching BLOB once the source phase
@@ -570,7 +591,7 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        var sourceSessionId = GetSourceSessionId(session.Id, fingerprint);
+        var sourceSessionId = session.RecordingSourceSessionId;
         var sources = connection.Query<RecordedSessionSource>(
             "SELECT session_id, source_kind, source_name, schema_version, source_hash FROM session_recording_source WHERE session_id = ?",
             sourceSessionId);
@@ -585,8 +606,7 @@ internal sealed class SynchronizationMergeEngine(
                 SessionSnapshot.From(session),
                 SetupSnapshot.From(setup, null),
                 BikeSnapshot.From(bike),
-                RecordedSessionSourceSnapshot.From(sources[0]),
-                fingerprint.DerivationWindow);
+                RecordedSessionSourceSnapshot.From(sources[0]));
         }
         catch (InvalidOperationException)
         {
@@ -630,6 +650,11 @@ internal sealed class SynchronizationMergeEngine(
         NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
+        session.SourceSessionId,
+        session.WindowStartSeconds,
+        session.WindowEndSeconds,
+        session.PreviousWindowStartSeconds,
+        session.PreviousWindowEndSeconds,
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
         session.FrontLowSpeedCompression,
@@ -655,6 +680,11 @@ internal sealed class SynchronizationMergeEngine(
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.SourceSessionId,
+        session.WindowStartSeconds,
+        session.WindowEndSeconds,
+        session.PreviousWindowStartSeconds,
+        session.PreviousWindowEndSeconds,
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
         session.FrontLowSpeedCompression,
@@ -700,7 +730,7 @@ internal sealed class SynchronizationMergeEngine(
             return null;
         }
 
-        if (!SessionHasRecordedSource(connection, GetSourceSessionId(remoteSession.Id, remote)))
+        if (!SessionHasRecordedSource(connection, remoteSession.RecordingSourceSessionId))
         {
             return null;
         }
@@ -710,9 +740,6 @@ internal sealed class SynchronizationMergeEngine(
             remoteFingerprintJson!,
             SessionProcessedGeneration.From(remoteSession));
     }
-
-    private static Guid GetSourceSessionId(Guid sessionId, ProcessingFingerprint fingerprint) =>
-        RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(sessionId, fingerprint);
 
     private static bool SessionHasRecordedSource(SQLiteConnection connection, Guid sessionId)
     {

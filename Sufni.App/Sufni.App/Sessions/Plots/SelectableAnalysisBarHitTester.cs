@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using ScottPlot;
 using Sufni.Telemetry;
 
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Sessions.Plots;
 

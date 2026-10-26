@@ -1,3 +1,5 @@
+using Sufni.App.Video.Models;
+using System.Reactive.Linq;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Reactive.Subjects;
@@ -5,13 +7,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
 using Sufni.App.Acquisition.Models;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -24,6 +23,8 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class SessionWorkspaceViewModelTests
@@ -36,7 +37,6 @@ public class SessionWorkspaceViewModelTests
     {
         var sourceVisibility = new TelemetrySourceVisibilityStore();
         var timeline = new SessionTimelineLinkViewModel();
-        var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         var intents = Subscribe(actions);
         using var state = new Subject<RecordedSessionEditorState>();
@@ -46,8 +46,9 @@ public class SessionWorkspaceViewModelTests
             analysisResultState,
             sourceVisibility,
             timeline,
-            () => extensionSlots,
-            actions);
+            actions,
+            TestSegmentPickers.Create(),
+            TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
@@ -190,32 +191,30 @@ public class SessionWorkspaceViewModelTests
 
     private static (Subject<RecordedSessionEditorState> State, TestSessionOperationGateway Gateway, RecordedSessionEditorActions Actions, SessionAnalysisWorkspaceViewModel Workspace) CreateAnalysisWorkspace()
     {
-        var extensionSlots = new RecordedSessionExtensionSlots();
         var gateway = new TestSessionOperationGateway();
         var actions = new RecordedSessionEditorActions();
         var state = new Subject<RecordedSessionEditorState>();
         var workspace = new SessionAnalysisWorkspaceViewModel(
             state,
-            () => extensionSlots,
             gateway,
             actions,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
-            Substitute.For<IRecordedSessionAnalysisResultState>());
+            Substitute.For<IRecordedSessionAnalysisResultState>(),
+            TestSegmentComparisons.Create());
         state.OnNext(CreateState());
         return (state, gateway, actions, workspace);
     }
 
     [Fact]
-    public void SessionMediaWorkspace_TracksSurfaceStateAndExtensionMediaPanes()
+    public void SessionMediaWorkspace_TracksMapState()
     {
-        var timeline = new SessionTimelineLinkViewModel();
-        var extensionSlots = new RecordedSessionExtensionSlots();
         using var state = new Subject<RecordedSessionEditorState>();
-        var workspace = new SessionMediaWorkspaceViewModel(
+        using var workspace = new SessionMediaWorkspaceViewModel(
             state,
             () => null,
-            timeline,
-            () => extensionSlots);
+            new SessionTimelineLinkViewModel(),
+            videoPane: null,
+            TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
@@ -226,17 +225,58 @@ public class SessionWorkspaceViewModelTests
         Assert.True(workspace.HasMediaContent);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.MapState), changes);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.HasMediaContent), changes);
+    }
 
-        changes.Clear();
-        state.OnNext(CreateState(mapState: SurfacePresentationState.Hidden));
-        extensionSlots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
-            "extension",
-            "media",
-            Order: 0,
-            Substitute.For<IRecordedSessionMediaPaneContributionViewModel>()));
+    [Fact]
+    public async Task SessionMediaWorkspace_ShowsTheComparedMatchOnTheMap()
+    {
+        using var segmentComparison = await TestSegmentComparisons.CreateWithMatchAsync();
+        using var state = new Subject<RecordedSessionEditorState>();
+        using var workspace = new SessionMediaWorkspaceViewModel(
+            state,
+            () => null,
+            new SessionTimelineLinkViewModel(),
+            videoPane: null,
+            segmentComparison);
+        var changes = TrackPropertyChanges(workspace);
+        Assert.Null(workspace.MatchedTrack);
 
+        segmentComparison.TravelRows[0].HeaderActions.Single(action => action.Id == "compare-analysis").Command!.Execute(null);
+
+        Assert.Equal(2, workspace.MatchedTrack?.SessionTrack.Count);
+        Assert.Contains(nameof(SessionMediaWorkspaceViewModel.MatchedTrack), changes);
+    }
+
+    [Fact]
+    public async Task SessionMediaWorkspace_ExposesVideoPane_OnceSessionHasPlayableClip()
+    {
+        using var videoFixture = new VideoFixture();
+        var sessionId = Guid.NewGuid();
+        var store = await videoFixture.CreateStoreAsync();
+        using var videoPane = new VideoPaneViewModel(
+            sessionId,
+            new TestRecordedSessionTimeline(),
+            Observable.Never<VideoSessionTiming>(),
+            store,
+            videoFixture.Coordinator,
+            videoFixture.PlayerFactory);
+        using var state = new Subject<RecordedSessionEditorState>();
+        using var workspace = new SessionMediaWorkspaceViewModel(
+            state,
+            () => null,
+            new SessionTimelineLinkViewModel(),
+            videoPane,
+            TestSegmentComparisons.Create());
+        state.OnNext(CreateState());
+        var videoBeforeLink = workspace.Video;
+        var changes = TrackPropertyChanges(workspace);
+
+        await store.PublishClipsAsync([videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60)]);
+
+        Assert.Null(videoBeforeLink);
+        Assert.Same(videoPane, workspace.Video);
         Assert.True(workspace.HasMediaContent);
-        Assert.Contains(nameof(SessionMediaWorkspaceViewModel.HasMediaContent), changes);
+        Assert.Contains(nameof(SessionMediaWorkspaceViewModel.Video), changes);
     }
 
     [Fact]
@@ -326,7 +366,6 @@ public class SessionWorkspaceViewModelTests
     {
         var sourceVisibility = new TelemetrySourceVisibilityStore();
         var timeline = new SessionTimelineLinkViewModel();
-        var extensionSlots = new RecordedSessionExtensionSlots();
         using var actions = new RecordedSessionEditorActions();
         using var state = new Subject<RecordedSessionEditorState>();
         var analysisResultState = Substitute.For<IRecordedSessionAnalysisResultState>();
@@ -335,8 +374,9 @@ public class SessionWorkspaceViewModelTests
             analysisResultState,
             sourceVisibility,
             timeline,
-            () => extensionSlots,
-            actions);
+            actions,
+            TestSegmentPickers.Create(),
+            TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
         changes.Clear();
@@ -393,9 +433,7 @@ public class SessionWorkspaceViewModelTests
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: mapState ?? SurfacePresentationState.Hidden,
-                MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
-                MediaUrl: null,
                 SignalAvailability: new RecordedSignalAvailabilityState(
                     Travel: false,
                     Velocity: false,

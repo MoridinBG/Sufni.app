@@ -110,7 +110,8 @@ public class MainViewTests
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,
                 HasTouch: true,
@@ -127,7 +128,7 @@ public class MainViewTests
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
         new(
-            Substitute.For<IAppStateRefreshOrchestrator>(),
+            Substitute.For<IAppDataRefresher>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
             synchronizationServerService: server,

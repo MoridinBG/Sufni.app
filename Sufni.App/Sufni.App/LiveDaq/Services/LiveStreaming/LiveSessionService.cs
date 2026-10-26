@@ -8,14 +8,13 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Models;
 
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.Imu;
 #if SUFNI_PROFILING_DIAGNOSTICS
-using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services;
 using Sufni.Profiling;
 #endif

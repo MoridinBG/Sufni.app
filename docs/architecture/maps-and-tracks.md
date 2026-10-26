@@ -101,14 +101,13 @@ The code-behind builds a fixed layer stack on construction: a tile layer (replac
 
 `MapView` also exposes a `Timeline` styled property (`SessionTimelineLinkViewModel`) that the recorded and live session shells bind to. The two-way coupling lets timeline cursor and visible-range changes in one place (the signal rows, the media pane, or the map viewport) drive the others without view models depending on each other. Pointer interaction with the map computes a normalized session range from the visible viewport and pushes it back through `Timeline.SetVisibleRange`. External timeline range changes zoom the map to the matching track-point time window; if a track refresh arrives after the range was already changed, `MapView` applies the current timeline range instead of re-fitting the whole session. Cursor lookup and timeline-window extraction use `TrackPointTimeIndex`, which sorts finite point times once and performs binary-search closest-point/range queries while preserving boundary neighbors. Viewport-to-range scanning still walks visible geometry because it depends on screen-space intersection. Straight-line or point-like selected track windows are expanded to a non-zero map extent before calling Mapsui's viewport fit so they still zoom visibly. The view's own pointer-tracking flag (`mapPointerInteractionActive`) is the gate that keeps Mapsui's own viewport-changed events from echoing back as user-driven. Desktop media XAML binds this through the shared `ISessionMediaWorkspace` contract so recorded and live desktop media surfaces use the same compiled-binding view.
 
-For recorded-session extension overlays, `MapView` also accepts
-`RecordedSessionExtensionSlots` through an `ExtensionSlots` styled
-property. It renders `MapOverlays` into a dedicated Mapsui memory
-layer using neutral line and point descriptors. Coordinates are
-latitude/longitude in the descriptor and are projected with the same
-spherical-mercator projection used for GPS tracks. The map view owns
-the Mapsui feature/style translation; media workspaces only forward
-the slot collection.
+`MapView` also accepts a `MatchedTrack` styled property
+(`MatchedTrackOverlay`: the session's points of a compared segment match and
+the match's points). It draws both as lines on a "Matched Track" memory layer
+above the session track, in the comparison color: the session part thinner and
+faint, the match thicker. The recorded media workspace forwards the analysis
+comparison of the segment comparison state (see
+[segments.md](segments.md#matching-and-comparison)); live sessions have none.
 
 ## Map Preferences
 
@@ -127,8 +126,8 @@ Map preferences also participate in app-preference sync. `IAppPreferences.GetSyn
 
 The `MapView` control is hosted from three places:
 
-- **Recorded session detail (desktop)** — `Sufni.App/Sufni.App/Sessions/Media/DesktopViews/Items/SessionMediaDesktopView.axaml` puts the map under a `PlaceholderOverlayContainer` whose grid row is star-sized from `SessionDetailViewModel.MapState`, so a track-only media column lets the map fill the available height while extension media panes remain auto-sized below it.
-- **Recorded session detail (mobile)** — `Sufni.App/Sufni.App/Sessions/Signals/Views/SessionPages/RecordedSignalsPageView.axaml` includes the same control inside the recorded Signals page's media stack.
+- **Recorded session detail (desktop)** — `Sufni.App/Sufni.App/Sessions/Media/DesktopViews/Items/SessionMediaDesktopView.axaml` puts the map under a `PlaceholderOverlayContainer` (bound to `MapState`) in the first pane of the vertical `MediaSplit`; the video pane fills the second pane when the session has a playable clip (see [video.md](video.md)), and otherwise the map takes the full height.
+- **Recorded session detail (mobile)** — `Sufni.App/Sufni.App/Sessions/Signals/Views/SessionPages/RecordedSignalsPageView.axaml` includes the same control inside the recorded Signals page's media stack, above the video pane host.
 - **Live session detail** — `Sufni.App/Sufni.App/LiveDaq/Views/SessionPages/LiveSignalsPageView.axaml` hosts the map for the mobile/shared live capture screen, while `Sufni.App/Sufni.App/LiveDaq/DesktopViews/Editors/LiveSessionDetailDesktopView.axaml` reaches the same map through `SessionMediaDesktopView`. In both cases `LiveSessionMediaWorkspaceViewModel.MapViewModel` is the data context. The workspace gates `MapState` on `LiveSessionHeader.AcceptedGpsFixHz > 0` and shows a placeholder until the live session service produces the first projected `TrackPoint`. Each incoming `GpsBatch` frame in `LiveSessionService` projects through `GpsTrackPointProjection.TryProject` and appends to the live session's accumulated `TrackPoint[]`; the workspace re-publishes that array into `MapViewModel.SessionTrackPoints`. There is no full-track polyline during a live capture — only the session-window line is meaningful before save. On save, `SessionCoordinator.SaveLiveCaptureAsync` delegates to the recorded-session reprocessor; the reprocessor projects the captured `GpsRecord[]` through `Track.FromGpsRecords` and passes the candidate track to `PutProcessedSessionAsync`, which persists it and links it from the saved session's `full_track_id`.
 
 The live preview's `GpsPreviewState` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/GpsPreviewState.cs`) is independent of the map subsystem: it interprets fix-mode bytes for the diagnostics tab's status text, while `LiveSessionMediaWorkspaceViewModel` is what feeds projected points into `MapViewModel`. See [GPS Preview State](live-session.md#gps-preview-state).

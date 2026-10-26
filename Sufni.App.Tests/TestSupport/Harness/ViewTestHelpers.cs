@@ -9,7 +9,6 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sufni.App;
 using Sufni.App.Infrastructure;
-using Sufni.App.Theming;
 
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Tests.TestSupport.Harness;
@@ -152,7 +151,8 @@ public static class ViewTestHelpers
                 CanHostSyncServer: true,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: true,

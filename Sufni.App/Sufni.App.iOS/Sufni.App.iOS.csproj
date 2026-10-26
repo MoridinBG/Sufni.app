@@ -33,6 +33,8 @@
       Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
     <Compile Include="..\AppleShared\AppleSecureStorageBase.cs"
       Link="AppleShared/AppleSecureStorageBase.cs" />
+    <Compile Include="..\AppleShared\AppleAvPlaybackBackend.cs"
+      Link="AppleShared/AppleAvPlaybackBackend.cs" />
   </ItemGroup>
 
   <ItemGroup>

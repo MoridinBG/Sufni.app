@@ -2,7 +2,7 @@
 x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.BalancePageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:views="clr-namespace:Sufni.App.Extensibility.Views"
+    xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
 xmlns:controls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -23,7 +23,7 @@ mc:Ignorable="d">
         ClipToBounds="True"
         Orientation="Vertical"
         Spacing="8">
-            <views:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}" />
+            <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding AnalysisWorkspace.SegmentComparison}" />
 
             <StackPanel
             Name="MobileBalanceModeRadioButtons"
@@ -86,7 +86,6 @@ mc:Ignorable="d">
             BalanceSpeedMode="{Binding AnalysisWorkspace.SelectedBalanceSpeedMode}"
             BalanceType="Compression"
             DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
-            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
             HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
             PlaceholderMargin="0,0,0,12"
@@ -106,7 +105,6 @@ mc:Ignorable="d">
             BalanceSpeedMode="{Binding AnalysisWorkspace.SelectedBalanceSpeedMode}"
             BalanceType="Rebound"
             DampingSpeedCutoffs="{Binding AnalysisWorkspace.DampingSpeedCutoffs}"
-            ExtensionSlots="{Binding AnalysisWorkspace.ExtensionSlots}"
             HasAnalysisData="{Binding HasAnalysisData}"
             MinCardHeight="220"
             PlotName="ReboundBalancePlot"

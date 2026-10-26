@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
@@ -45,10 +44,7 @@ internal sealed class RecordedSessionReprocessor(
             throw new InvalidOperationException("Recorded session cannot be reprocessed without setup, bike, and source metadata.");
         }
 
-        var expectedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
-            domain.Session.Id,
-            domain.DerivationWindow);
-        if (source.SessionId != expectedSourceSessionId || domain.Source.SessionId != source.SessionId)
+        if (source.SessionId != domain.Session.RecordingSourceSessionId || domain.Source.SessionId != source.SessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the domain session.");
         }
@@ -58,15 +54,15 @@ internal sealed class RecordedSessionReprocessor(
 
         var telemetryData = source.SourceKind switch
         {
-            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.DerivationWindow),
-            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.DerivationWindow),
+            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.Session.DerivationWindow),
+            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.Session.DerivationWindow),
             _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
         };
 
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
-        var fingerprint = CanReuseCurrentFingerprint(domain.CurrentFingerprint, processingOptions, domain.DerivationWindow)
+        var fingerprint = CanReuseCurrentFingerprint(domain.CurrentFingerprint, processingOptions, domain.Session.DerivationWindow)
             ? domain.CurrentFingerprint!
             : domain.DependencyHash is { } dependencyHash
                 ? fingerprintService.CreateCurrent(
@@ -75,15 +71,13 @@ internal sealed class RecordedSessionReprocessor(
                     domain.Bike,
                     domain.Source,
                     dependencyHash,
-                    processingOptions,
-                    domain.DerivationWindow)
+                    processingOptions)
                 : fingerprintService.CreateCurrent(
                     domain.Session,
                     domain.Setup,
                     domain.Bike,
                     domain.Source,
-                    processingOptions,
-                    domain.DerivationWindow);
+                    processingOptions);
         var fingerprintJson = AppJson.Serialize(fingerprint);
         var processedTelemetry = new ProcessedTelemetryPayload(
             telemetryData,

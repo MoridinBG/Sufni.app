@@ -6,7 +6,6 @@ using Sufni.Telemetry;
 
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;

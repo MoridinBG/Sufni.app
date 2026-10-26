@@ -1,7 +1,6 @@
 using System;
 using System.Text.Json;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
@@ -26,16 +25,14 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null) =>
+        TelemetryProcessingOptions? options = null) =>
         CreateCurrent(
             session,
             setup,
             bike,
             source,
             ProcessingDependencyHash.Compute(setup, bike),
-            options,
-            window);
+            options);
 
     public ProcessingFingerprint CreateCurrent(
         SessionSnapshot session,
@@ -43,9 +40,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
         string dependencyHash,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null) =>
-        CreateCurrentDatabaseInputs(session, setup, bike, source, dependencyHash, window) with
+        TelemetryProcessingOptions? options = null) =>
+        CreateCurrentDatabaseInputs(session, setup, bike, source, dependencyHash) with
         {
             VelocityFilterWindowMilliseconds =
                 (options ?? TelemetryProcessingOptions.Default).ClampedVelocityFilterWindowMilliseconds,
@@ -55,21 +51,17 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source,
-        RecordedSessionDerivationWindow? window = null)
+        RecordedSessionSourceSnapshot source)
     {
         return CreateCurrentDatabaseInputs(
             session,
             setup,
             bike,
             source,
-            ProcessingDependencyHash.Compute(setup, bike),
-            window);
+            ProcessingDependencyHash.Compute(setup, bike));
     }
 
-    public ProcessingFingerprint CreateCurrentDatabaseInputs(
-        SessionProcessingInputBundle input,
-        RecordedSessionDerivationWindow? window = null)
+    public ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input)
     {
         if (input.Session.SetupId != input.Setup.Id)
         {
@@ -81,11 +73,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             throw new InvalidOperationException("Setup bike does not match the processing bike.");
         }
 
-        var normalizedWindow = RecordedSessionDerivationResolver.NormalizeWindow(window);
-        var expectedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
-            input.Session.Id,
-            normalizedWindow);
-        if (input.Source.SessionId != expectedSourceSessionId)
+        var window = input.Session.DerivationWindow;
+        if (input.Source.SessionId != (window?.SourceSessionId ?? input.Session.Id))
         {
             throw new InvalidOperationException("Recorded source does not match the processing session.");
         }
@@ -98,7 +87,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             GpsTrackPointProjection.ProjectionVersion,
             ProcessingDependencyHash.Compute(input.Setup, input.Bike),
             input.Source.SourceHash,
-            DerivationWindow: normalizedWindow);
+            DerivationWindow: window);
     }
 
     private static ProcessingFingerprint CreateCurrentDatabaseInputs(
@@ -106,8 +95,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
-        string dependencyHash,
-        RecordedSessionDerivationWindow? window)
+        string dependencyHash)
     {
         if (session.SetupId != setup.Id)
         {
@@ -119,11 +107,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             throw new InvalidOperationException("Setup bike does not match the processing bike.");
         }
 
-        var normalizedWindow = RecordedSessionDerivationResolver.NormalizeWindow(window);
-        var expectedSourceSessionId = RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(
-            session.Id,
-            normalizedWindow);
-        if (source.SessionId != expectedSourceSessionId)
+        if (source.SessionId != session.RecordingSourceSessionId)
         {
             throw new InvalidOperationException("Recorded source does not match the processing session.");
         }
@@ -136,7 +120,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             GpsTrackPointProjection.ProjectionVersion,
             dependencyHash,
             source.SourceHash,
-            DerivationWindow: normalizedWindow);
+            DerivationWindow: session.DerivationWindow);
     }
 
     public ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>
@@ -164,12 +148,11 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null)
+        TelemetryProcessingOptions? options = null)
     {
         options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
-        return Evaluate(session, setup, bike, source, persisted, current: null, options, dependencyHash: null, window);
+        return Evaluate(session, setup, bike, source, persisted, current: null, options, dependencyHash: null);
     }
 
     public ProcessingFingerprintEvaluation EvaluateState(
@@ -177,13 +160,12 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null)
+        TelemetryProcessingOptions? options = null)
     {
         var dependencyHash = setup is not null && bike is not null
             ? ProcessingDependencyHash.Compute(setup, bike)
             : null;
-        return EvaluateState(session, setup, bike, source, dependencyHash, options, window);
+        return EvaluateState(session, setup, bike, source, dependencyHash, options);
     }
 
     public ProcessingFingerprintEvaluation EvaluateState(
@@ -192,8 +174,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         string? dependencyHash,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null)
+        TelemetryProcessingOptions? options = null)
     {
         options ??= TelemetryProcessingOptions.Default;
         var persisted = ParsePersisted(session);
@@ -204,10 +185,9 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                 bike,
                 source,
                 dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike),
-                options,
-                window)
+                options)
             : null;
-        var staleness = Evaluate(session, setup, bike, source, persisted, current, options, dependencyHash, window);
+        var staleness = Evaluate(session, setup, bike, source, persisted, current, options, dependencyHash);
 
         return new ProcessingFingerprintEvaluation(current, persisted, staleness);
     }
@@ -220,13 +200,12 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         ProcessingFingerprint? persisted,
         ProcessingFingerprint? current,
         TelemetryProcessingOptions options,
-        string? dependencyHash,
-        RecordedSessionDerivationWindow? window)
+        string? dependencyHash)
     {
         if (source is null)
         {
             return new SessionStaleness.MissingRawSource(
-                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options, dependencyHash, window));
+                IsProcessedStateStaleWithoutRawSource(session, setup, bike, persisted, options, dependencyHash));
         }
 
         if (setup is null || bike is null)
@@ -257,8 +236,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             bike,
             source,
             dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike),
-            options,
-            window);
+            options);
         if (persisted.SetupId != current.SetupId ||
             persisted.BikeId != current.BikeId ||
             persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
@@ -280,8 +258,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         BikeSnapshot? bike,
         ProcessingFingerprint? persisted,
         TelemetryProcessingOptions options,
-        string? dependencyHash,
-        RecordedSessionDerivationWindow? window)
+        string? dependencyHash)
     {
         if (setup is null || bike is null)
         {
@@ -311,7 +288,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                persisted.BikeId != bike.Id ||
                persisted.TrackProjectionVersion != GpsTrackPointProjection.ProjectionVersion ||
                persisted.VelocityFilterWindowMilliseconds != options.ClampedVelocityFilterWindowMilliseconds ||
-               persisted.DerivationWindow != window ||
+               persisted.DerivationWindow != session.DerivationWindow ||
                !StringComparer.Ordinal.Equals(persisted.DependencyHash, currentDependencyHash);
     }
 }

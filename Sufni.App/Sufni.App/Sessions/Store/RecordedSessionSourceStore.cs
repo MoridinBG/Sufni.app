@@ -4,8 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Runtime.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Base;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 namespace Sufni.App.Sessions.Store;

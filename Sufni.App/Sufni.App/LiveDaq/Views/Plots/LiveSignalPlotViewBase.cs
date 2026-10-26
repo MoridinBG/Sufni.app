@@ -13,7 +13,6 @@ using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Shared.Views;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Shared.Views.Input;
-using Sufni.App.Theming;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Infrastructure.Theming;

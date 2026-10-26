@@ -1,7 +1,6 @@
 using System.Windows.Input;
 using ScottPlot;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
@@ -77,6 +76,51 @@ public class TelemetryPlotContextMenuTests
     }
 
     [Fact]
+    public void ShowContextMenu_WithPendingVideoMark_ShowsOnlyVideoSyncActions()
+    {
+        var command = new TrackingCommand(canExecute: true);
+        var fakeMenu = new FakePlotMenu();
+        var menu = CreateMenu(
+            fakeMenu,
+            _ => CreateContext(),
+            _ =>
+            [
+                new TelemetryPlotContextMenuAction("analysis-range-set-start", "Set analysis start here", command),
+                new TelemetryPlotContextMenuAction("video-cancel-alignment", "Cancel video alignment", command),
+                new TelemetryPlotContextMenuAction("video-mark-telemetry-event", "Mark telemetry event here", command),
+            ]);
+
+        menu.ShowContextMenu(new Pixel(10, 20));
+
+        Assert.Equal(
+            ["Default", "Sync > Mark telemetry event", "Sync > Cancel"],
+            fakeMenu.ContextMenuItems.Where(item => !item.IsSeparator).Select(item => item.Label));
+    }
+
+    [Fact]
+    public void ShowContextMenu_GroupsSessionEditActionsUnderTrim()
+    {
+        var command = new TrackingCommand(canExecute: true);
+        var fakeMenu = new FakePlotMenu();
+        var menu = CreateMenu(
+            fakeMenu,
+            _ => CreateContext(),
+            _ =>
+            [
+                new TelemetryPlotContextMenuAction("session-undo-trim", "Undo trim", command),
+                new TelemetryPlotContextMenuAction("session-split-here", "Split here", command),
+                new TelemetryPlotContextMenuAction("session-trim-until-end", "Trim until end", command),
+                new TelemetryPlotContextMenuAction("session-trim-from-beginning", "Trim from beginning", command),
+            ]);
+
+        menu.ShowContextMenu(new Pixel(10, 20));
+
+        Assert.Equal(
+            ["Default", "Trim > Trim from beginning", "Trim > Trim until end", "Trim > Split here", "Trim > Undo trim"],
+            fakeMenu.ContextMenuItems.Where(item => !item.IsSeparator).Select(item => item.Label));
+    }
+
+    [Fact]
     public void Reset_RestoresDefaultItemsAfterCustomItemsWereAdded()
     {
         var fakeMenu = new FakePlotMenu();
@@ -102,6 +146,9 @@ public class TelemetryPlotContextMenuTests
             createContext,
             getActions);
     }
+
+    private static TelemetryPlotContextMenuContext CreateContext() =>
+        new(SignalRowIds.Travel, ClickSeconds: 2, DurationSeconds: 10, AnalysisRange: null);
 
     private sealed class FakePlotMenu : IPlotMenu
     {

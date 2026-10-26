@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Reactive.Subjects;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;

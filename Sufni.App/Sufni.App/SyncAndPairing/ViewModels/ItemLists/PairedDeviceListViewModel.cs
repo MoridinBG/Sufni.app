@@ -6,7 +6,7 @@ using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using DynamicData;
 using DynamicData.Binding;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Shared.Base;
 using Sufni.App.SyncAndPairing.Coordinators;

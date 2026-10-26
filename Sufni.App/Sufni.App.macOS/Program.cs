@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Avalonia;
 using Avalonia.Native;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +8,7 @@ using Sufni.Profiling;
 #endif
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Video.Models;
 namespace Sufni.App.macOS
 {
     internal partial class Program
@@ -51,7 +51,8 @@ namespace Sufni.App.macOS
                     CanHostSyncServer: true,
                     CanPairAsClient: false,
                     SupportsMassStorageImport: true,
-                    SupportsStorageProviderImport: true),
+                    SupportsStorageProviderImport: true,
+                    CanPlayVideo: true),
                 new InputCapabilities(
                     HasPointer: true,
                     HasTouch: false,
@@ -60,12 +61,10 @@ namespace Sufni.App.macOS
             App.ServiceCollection.AddSingleton<ISecureStorage, MacOsSecureStorage>();
             App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
             DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
-            RegisterPlatformExtensions(App.ServiceCollection);
+            App.ServiceCollection.AddSingleton<IVideoPlayerFactory, MacOsVideoPlayerFactory>();
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(
                 AppBuilder.Configure<App>().UseSkia().UseAvaloniaNative(),
                 "macOS");
         }
-
-        static partial void RegisterPlatformExtensions(IServiceCollection services);
     }
 }

@@ -1,18 +1,16 @@
+using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Shared.Common;
 
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.LiveDaq.ViewModels.Editors;
 
 public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
@@ -20,18 +18,17 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
     private bool isInitialized;
     private bool mapExpected;
 
-    public bool HasMediaContent => MapState.ReservesLayout || MediaPaneState.ReservesLayout;
+    public bool HasMediaContent => MapState.ReservesLayout;
     public MapViewModel? MapViewModel { get; }
     public SurfacePresentationState MapState => !mapExpected
         ? SurfacePresentationState.Hidden
         : MapViewModel?.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
-    public SurfacePresentationState MediaPaneState => SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; }
-    public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+    public MatchedTrackOverlay? MatchedTrack => null;
     public double? MediaColumnWidth { get; } = 400;
-    public string? MediaUrl => null;
+    public VideoPaneViewModel? Video => null;
 
     public LiveSessionMediaWorkspaceViewModel()
     {

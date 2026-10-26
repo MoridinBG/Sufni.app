@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
@@ -256,7 +255,6 @@ public class SessionStalenessReconcilerTests
         null,
         null,
         currentFingerprint,
-        null,
         null,
         null,
         staleness,

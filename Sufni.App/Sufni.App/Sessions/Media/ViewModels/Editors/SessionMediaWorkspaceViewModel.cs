@@ -1,63 +1,65 @@
 using System;
-using System.Collections.Specialized;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Shared.Common;
 
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Sessions.Media.ViewModels.Editors;
 
 internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
 {
     private readonly Func<MapViewModel?> mapViewModel;
-    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
+    private readonly VideoPaneViewModel? videoPane;
+    private readonly SegmentComparisonViewModel segmentComparison;
     private readonly IDisposable stateSubscription;
     private MapViewModel? currentMapViewModel;
-    private RecordedSessionExtensionSlots? currentExtensionSlots;
-    private INotifyCollectionChanged? mediaPanes;
     private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState mediaPaneState = SurfacePresentationState.Hidden;
     private double? mediaColumnWidth;
-    private string? mediaUrl;
 
     public SessionMediaWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
         Func<MapViewModel?> mapViewModel,
         SessionTimelineLinkViewModel timeline,
-        Func<RecordedSessionExtensionSlots> extensionSlots)
+        VideoPaneViewModel? videoPane,
+        SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(mapViewModel);
         ArgumentNullException.ThrowIfNull(timeline);
-        ArgumentNullException.ThrowIfNull(extensionSlots);
 
         this.mapViewModel = mapViewModel;
         Timeline = timeline;
-        this.extensionSlots = extensionSlots;
+        this.videoPane = videoPane;
+        if (videoPane is not null)
+        {
+            videoPane.PropertyChanged += OnVideoPanePropertyChanged;
+        }
+
+        this.segmentComparison = segmentComparison;
+        segmentComparison.PropertyChanged += OnSegmentComparisonPropertyChanged;
         stateSubscription = state.Subscribe(ApplyState);
     }
 
-    public bool HasMediaContent =>
-        MapState.ReservesLayout ||
-        MediaPaneState.ReservesLayout ||
-        ExtensionSlots.MediaPanes.Count > 0;
+    public bool HasMediaContent => MapState.ReservesLayout || Video is not null;
 
     public MapViewModel? MapViewModel => currentMapViewModel;
 
     public SurfacePresentationState MapState => mapState;
 
-    public SurfacePresentationState MediaPaneState => mediaPaneState;
-
     public SessionTimelineLinkViewModel Timeline { get; }
-
-    public RecordedSessionExtensionSlots ExtensionSlots => currentExtensionSlots ?? extensionSlots();
 
     public double? MediaColumnWidth => mediaColumnWidth;
 
-    public string? MediaUrl => mediaUrl;
+    public VideoPaneViewModel? Video => videoPane is { HasVideo: true } ? videoPane : null;
+
+    public MatchedTrackOverlay? MatchedTrack => segmentComparison.AnalysisComparison is { } analysis
+        ? new MatchedTrackOverlay(analysis.Detail.MatchedSessionTrackPoints, analysis.Comparison.MatchedSegmentTrackPoints)
+        : null;
 
     private void ApplyState(RecordedSessionEditorState state)
     {
@@ -68,57 +70,38 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
             OnPropertyChanged(nameof(MapViewModel));
         }
 
-        var nextExtensionSlots = extensionSlots();
-        if (!ReferenceEquals(currentExtensionSlots, nextExtensionSlots))
-        {
-            currentExtensionSlots = nextExtensionSlots;
-            SubscribeToMediaPanes(nextExtensionSlots);
-            OnPropertyChanged(nameof(ExtensionSlots));
-            OnPropertyChanged(nameof(HasMediaContent));
-        }
-
         if (SetProperty(ref mapState, state.Presentation.MapState, nameof(MapState)))
         {
             OnPropertyChanged(nameof(HasMediaContent));
         }
 
-        if (SetProperty(ref mediaPaneState, state.Presentation.MediaPaneState, nameof(MediaPaneState)))
+        SetProperty(ref mediaColumnWidth, state.Presentation.MediaColumnWidth, nameof(MediaColumnWidth));
+    }
+
+    private void OnVideoPanePropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(VideoPaneViewModel.HasVideo))
         {
+            OnPropertyChanged(nameof(Video));
             OnPropertyChanged(nameof(HasMediaContent));
         }
-
-        SetProperty(ref mediaColumnWidth, state.Presentation.MediaColumnWidth, nameof(MediaColumnWidth));
-        SetProperty(ref mediaUrl, state.Presentation.MediaUrl, nameof(MediaUrl));
     }
 
-    private void SubscribeToMediaPanes(RecordedSessionExtensionSlots slots)
+    private void OnSegmentComparisonPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (ReferenceEquals(mediaPanes, slots.MediaPanes))
+        if (args.PropertyName == nameof(SegmentComparisonViewModel.AnalysisComparison))
         {
-            return;
+            OnPropertyChanged(nameof(MatchedTrack));
         }
-
-        if (mediaPanes is not null)
-        {
-            mediaPanes.CollectionChanged -= OnMediaPanesChanged;
-        }
-
-        mediaPanes = slots.MediaPanes;
-        mediaPanes.CollectionChanged += OnMediaPanesChanged;
-    }
-
-    private void OnMediaPanesChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        OnPropertyChanged(nameof(HasMediaContent));
     }
 
     public void Dispose()
     {
         stateSubscription.Dispose();
-        if (mediaPanes is not null)
+        segmentComparison.PropertyChanged -= OnSegmentComparisonPropertyChanged;
+        if (videoPane is not null)
         {
-            mediaPanes.CollectionChanged -= OnMediaPanesChanged;
-            mediaPanes = null;
+            videoPane.PropertyChanged -= OnVideoPanePropertyChanged;
         }
     }
 }

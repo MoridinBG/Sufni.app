@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 ﻿using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;

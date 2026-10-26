@@ -2,9 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Coordinators;

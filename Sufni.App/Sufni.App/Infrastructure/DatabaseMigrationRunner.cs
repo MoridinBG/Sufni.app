@@ -5,26 +5,25 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Video.Models;
 namespace Sufni.App.Infrastructure;
 
 internal sealed class DatabaseMigrationRunner(
     string databasePath,
-    SQLiteAsyncConnection connection,
-    ExtensionDatabaseMigratorRunner extensionMigratorRunner,
-    ExtensionCascadeService extensionCascadeService)
+    SQLiteAsyncConnection connection)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
-    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track"];
+    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment"];
     private readonly CoreMigrationStore coreMigrations = new(connection);
 
     internal async Task RunAsync()
@@ -46,14 +45,17 @@ internal sealed class DatabaseMigrationRunner(
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();
-            await extensionMigratorRunner.RunAsync(connection);
+            await MigrateSessionVideosAsync();
+            await MigrateSessionDerivationWindowsAsync();
+            await MigrateSessionSegmentsAsync();
+            await DropSchemaVersionTableAsync();
 
             var cleanupSummary = await Cleanup();
-            await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
             logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
             logger.Verbose(
-                "SQLite startup cleanup removed {SessionCount} sessions, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+                "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
                 cleanupSummary.Sessions,
+                cleanupSummary.Segments,
                 cleanupSummary.Tracks,
                 cleanupSummary.Boards,
                 cleanupSummary.Setups,
@@ -78,7 +80,9 @@ internal sealed class DatabaseMigrationRunner(
             typeof(RecordedSessionSource),
             typeof(Synchronization),
             typeof(PairedDevice),
-            typeof(Track)
+            typeof(Track),
+            typeof(SessionVideoClip),
+            typeof(SessionSegment)
         ]);
     }
 
@@ -127,6 +131,163 @@ internal sealed class DatabaseMigrationRunner(
                 WHERE session_id = NEW.id;
             END
             """);
+    }
+
+    // One-time copy of the video clips stored by older builds. The source table
+    // exists only on databases that ran those builds. The older
+    // `private_session_video` table holds nothing to keep, so it is dropped as is.
+    private async Task MigrateSessionVideosAsync()
+    {
+        const string migrationId = "session-video";
+        if (await coreMigrations.IsAppliedAsync(migrationId))
+        {
+            return;
+        }
+
+        var hasSourceTable = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_video_clip'") > 0;
+        await connection.RunInTransactionAsync(transaction =>
+        {
+            if (hasSourceTable)
+            {
+                transaction.Execute(
+                    """
+                    INSERT OR IGNORE INTO session_video
+                        (id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added)
+                    SELECT id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added
+                    FROM private_session_video_clip
+                    """);
+                transaction.Execute("DROP TABLE private_session_video_clip");
+            }
+
+            transaction.Execute("DROP TABLE IF EXISTS private_session_video");
+        });
+
+        await coreMigrations.MarkAppliedAsync(migrationId);
+    }
+
+    // One-time copy of the saved segments stored by older builds, tombstones
+    // included so that peers' deletions stay deleted.
+    private async Task MigrateSessionSegmentsAsync()
+    {
+        const string migrationId = "session-segment";
+        if (await coreMigrations.IsAppliedAsync(migrationId))
+        {
+            return;
+        }
+
+        var hasSourceTable = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_saved_session_segment'") > 0;
+        if (hasSourceTable)
+        {
+            await connection.RunInTransactionAsync(transaction =>
+            {
+                transaction.Execute(
+                    """
+                    INSERT OR IGNORE INTO session_segment
+                        (id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted)
+                    SELECT id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted
+                    FROM private_saved_session_segment
+                    """);
+                transaction.Execute("DROP TABLE private_saved_session_segment");
+            });
+        }
+
+        await coreMigrations.MarkAppliedAsync(migrationId);
+    }
+
+    // One-time move of trim/split windows onto the session row. Windows come from
+    // the table of older builds; sessions without a row there take
+    // the window from their processing fingerprint, because installs that received
+    // derived sessions through sync hold only that copy.
+    private async Task MigrateSessionDerivationWindowsAsync()
+    {
+        const string migrationId = "session-derivation-window";
+        if (await coreMigrations.IsAppliedAsync(migrationId))
+        {
+            return;
+        }
+
+        var hasRangeTable = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_source_range'") > 0;
+        await connection.RunInTransactionAsync(transaction =>
+        {
+            if (hasRangeTable)
+            {
+                transaction.Execute(
+                    """
+                    UPDATE session
+                    SET (source_session_id, window_start_seconds, window_end_seconds,
+                         previous_window_start_seconds, previous_window_end_seconds) = (
+                        SELECT range.source_session_id, range.range_start_seconds, range.range_end_seconds,
+                               range.prev_range_start_seconds, range.prev_range_end_seconds
+                        FROM private_session_source_range range
+                        WHERE range.session_id = session.id)
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM private_session_source_range range
+                        WHERE range.session_id = session.id
+                          AND range.deleted IS NULL
+                          AND NOT (range.source_session_id = range.session_id
+                                   AND range.range_start_seconds = 0
+                                   AND range.range_end_seconds IS NULL))
+                    """);
+            }
+
+            var fingerprintRows = transaction.Query<SessionFingerprintRow>(
+                hasRangeTable
+                    ? """
+                      SELECT id, session_processing_fingerprint
+                      FROM session
+                      WHERE source_session_id IS NULL
+                        AND session_processing_fingerprint IS NOT NULL
+                        AND id NOT IN (SELECT session_id FROM private_session_source_range)
+                      """
+                    : """
+                      SELECT id, session_processing_fingerprint
+                      FROM session
+                      WHERE source_session_id IS NULL
+                        AND session_processing_fingerprint IS NOT NULL
+                      """);
+            foreach (var row in fingerprintRows)
+            {
+                if (TryReadDerivationWindow(row.ProcessingFingerprintJson) is not { } window)
+                {
+                    continue;
+                }
+
+                transaction.Execute(
+                    "UPDATE session SET source_session_id = ?, window_start_seconds = ?, window_end_seconds = ? WHERE id = ?",
+                    window.SourceSessionId,
+                    window.StartSeconds,
+                    window.EndSeconds,
+                    row.Id);
+            }
+
+            if (hasRangeTable)
+            {
+                transaction.Execute("DROP TABLE private_session_source_range");
+            }
+        });
+        await coreMigrations.MarkAppliedAsync(migrationId);
+    }
+
+    // The schema versions of the older tables that the copy migrations above
+    // replaced.
+    private Task DropSchemaVersionTableAsync() =>
+        connection.ExecuteAsync("DROP TABLE IF EXISTS extension_schema_version");
+
+    private static RecordedSessionDerivationWindow? TryReadDerivationWindow(string? processingFingerprintJson)
+    {
+        try
+        {
+            var window = AppJson.Deserialize<ProcessingFingerprint>(processingFingerprintJson!)?.DerivationWindow;
+            return window is not null && window.SourceSessionId != Guid.Empty ? window : null;
+        }
+        catch (Exception ex) when (ex is JsonException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private async Task EnsureSyncIndexesAsync()
@@ -470,6 +631,10 @@ internal sealed class DatabaseMigrationRunner(
         var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
 
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
+        var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
+        deletedSegments += await connection.ExecuteAsync(
+            "DELETE FROM session_segment WHERE session_id NOT IN (SELECT id FROM session)");
+        await connection.ExecuteAsync("DELETE FROM session_video WHERE session_id NOT IN (SELECT id FROM session)");
         var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
@@ -479,6 +644,7 @@ internal sealed class DatabaseMigrationRunner(
 
         return new CleanupSummary(
             deletedSessions,
+            deletedSegments,
             deletedTracks + duplicateTracks,
             deletedBoards,
             deletedSetups,
@@ -568,6 +734,15 @@ internal sealed class DatabaseMigrationRunner(
 
     private static readonly string[] BikeDampingSpeedCutoffColumnNames = DampingSpeedCutoffColumnNames;
 
+    private sealed class SessionFingerprintRow
+    {
+        [Column("id")]
+        public Guid Id { get; set; }
+
+        [Column("session_processing_fingerprint")]
+        public string? ProcessingFingerprintJson { get; set; }
+    }
+
     private sealed class TableColumnInfo
     {
         [Column("name")]
@@ -618,6 +793,7 @@ internal sealed class DatabaseMigrationRunner(
 
     private sealed record CleanupSummary(
         int Sessions,
+        int Segments,
         int Tracks,
         int Boards,
         int Setups,

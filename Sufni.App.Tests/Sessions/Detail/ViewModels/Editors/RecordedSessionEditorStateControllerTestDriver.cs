@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using System.Reactive.Subjects;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -27,8 +25,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 PreferenceReplays,
                 LoadPresentations,
                 OperationStates,
-                MediaPaneStates,
-                MediaUrls,
                 DampingPercentages,
                 PlotDampingSpeedCutoffs,
                 CanEditDampingSpeedCutoffs,
@@ -43,8 +39,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<SessionPreferences> PreferenceReplays { get; } = new();
     public Subject<RecordedSessionLoadPresentation> LoadPresentations { get; } = new();
     public Subject<SessionOperationPresentationState> OperationStates { get; } = new();
-    public Subject<SurfacePresentationState> MediaPaneStates { get; } = new();
-    public Subject<string?> MediaUrls { get; } = new();
     public Subject<SessionDampingPercentages> DampingPercentages { get; } = new();
     public Subject<DampingSpeedCutoffs> PlotDampingSpeedCutoffs { get; } = new();
     public Subject<bool> CanEditDampingSpeedCutoffs { get; } = new();
@@ -91,8 +85,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         PreferenceReplays.Dispose();
         LoadPresentations.Dispose();
         OperationStates.Dispose();
-        MediaPaneStates.Dispose();
-        MediaUrls.Dispose();
         DampingPercentages.Dispose();
         PlotDampingSpeedCutoffs.Dispose();
         CanEditDampingSpeedCutoffs.Dispose();

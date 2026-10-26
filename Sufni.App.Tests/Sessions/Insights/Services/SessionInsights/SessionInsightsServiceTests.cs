@@ -1,6 +1,5 @@
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 using static Sufni.App.Tests.TestSupport.Fixtures.AnalysisTelemetryFixture;
 
 using Sufni.App.Sessions.Insights.Services.SessionInsights;

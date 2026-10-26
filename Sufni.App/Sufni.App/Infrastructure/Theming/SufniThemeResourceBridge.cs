@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
-using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure.Theming;
 
 // Converts typed theme tokens into Avalonia resource keys used by XAML.

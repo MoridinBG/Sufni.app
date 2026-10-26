@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;

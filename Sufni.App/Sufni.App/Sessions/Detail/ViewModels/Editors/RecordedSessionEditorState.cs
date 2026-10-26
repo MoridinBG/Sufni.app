@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
@@ -55,9 +55,7 @@ internal sealed record RecordedSessionEditorState(
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: SurfacePresentationState.Hidden,
-                MediaPaneState: SurfacePresentationState.Hidden,
                 MediaColumnWidth: null,
-                MediaUrl: null,
                 SignalAvailability: RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState(),
                 Signals: RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(),
                 Analysis: RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState(),
@@ -123,9 +121,7 @@ internal sealed record RecordedSessionEditorIntentState(
 
 internal sealed record RecordedSessionEditorPresentationState(
     SurfacePresentationState MapState,
-    SurfacePresentationState MediaPaneState,
     double? MediaColumnWidth,
-    string? MediaUrl,
     RecordedSignalAvailabilityState SignalAvailability,
     RecordedSignalPresentationState Signals,
     RecordedAnalysisPresentationState Analysis,

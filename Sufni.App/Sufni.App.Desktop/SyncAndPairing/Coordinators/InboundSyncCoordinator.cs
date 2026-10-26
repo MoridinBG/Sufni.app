@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
@@ -13,7 +13,7 @@ using Sufni.App.Infrastructure;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>
-/// Desktop-only singleton owning the bike+setup branch of the
+/// Desktop-only singleton owning the bike, setup, and segment branch of the
 /// synchronization server's <c>SynchronizationDataArrived</c> event.
 /// Sessions are owned by <see cref="SessionCoordinator"/>; paired
 /// devices by <see cref="PairedDeviceCoordinator"/>. Each entity
@@ -27,6 +27,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
+    private readonly ISessionSegmentStoreWriter segmentStoreWriter;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public InboundSyncCoordinator(
@@ -34,6 +35,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         ISynchronizableRepository<Setup> setupRepository,
         IBikeStoreWriter bikeStoreWriter,
         ISetupStoreWriter setupStoreWriter,
+        ISessionSegmentStoreWriter segmentStoreWriter,
         ISynchronizationServerService synchronizationServer,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
@@ -41,6 +43,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         this.setupRepository = setupRepository;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
+        this.segmentStoreWriter = segmentStoreWriter;
         this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
 
         synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
@@ -108,6 +111,11 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 if (changedSetupIds.Count > 0)
                 {
                     await setupStoreWriter.PublishSetupsChangedAsync(changedSetupIds);
+                }
+
+                if (e.Data.Segments.Count > 0)
+                {
+                    await segmentStoreWriter.RefreshAsync();
                 }
 
                 logger.Verbose(

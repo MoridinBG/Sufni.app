@@ -1,28 +1,25 @@
+using Sufni.App.Segments.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Common;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 namespace Sufni.App.Sessions.Analysis.ViewModels.Editors;
 
 internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISessionAnalysisWorkspace, IDisposable
 {
     private readonly ISessionOperationGateway gateway;
     private readonly RecordedSessionEditorActions actions;
-    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly IDisposable stateSubscription;
     private TelemetryData? telemetryData;
     private TelemetryTimeRange? analysisRange;
@@ -49,22 +46,22 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     public SessionAnalysisWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
-        Func<RecordedSessionExtensionSlots> extensionSlots,
         ISessionOperationGateway gateway,
         RecordedSessionEditorActions actions,
         IRelayCommand<TelemetryRangeSelection?> selectAnalysisRangeCommand,
-        IRecordedSessionAnalysisResultState analysisResultState)
+        IRecordedSessionAnalysisResultState analysisResultState,
+        SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(extensionSlots);
         ArgumentNullException.ThrowIfNull(gateway);
         ArgumentNullException.ThrowIfNull(actions);
 
-        this.extensionSlots = extensionSlots;
         this.gateway = gateway;
         this.actions = actions;
         SelectAnalysisRangeCommand = selectAnalysisRangeCommand;
         AnalysisResultState = analysisResultState;
+        SegmentComparison = segmentComparison;
+        PositionVelocity = new PositionVelocityPageViewModel(this);
         stateSubscription = state.Subscribe(ApplyState);
     }
 
@@ -102,7 +99,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         set => actions.SetSessionInsightsTargetProfile(value);
     }
 
-    public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
+    public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } =
         SessionInsightsPresentation.TravelDistributionModeOptions;
@@ -155,6 +152,8 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
 
+    public PositionVelocityPageViewModel PositionVelocity { get; }
+
     public SessionInsightsResult SessionInsights => sessionInsights;
 
     public void RequestSessionInsights() => gateway.RequestSessionInsights();
@@ -200,7 +199,6 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         nameof(SelectedBalanceSpeedMode),
         nameof(SelectedVelocityAverageMode),
         nameof(SelectedSessionInsightsTargetProfile),
-        nameof(ExtensionSlots),
         nameof(FrontAnalysisState),
         nameof(RearAnalysisState),
         nameof(CompressionBalanceState),

@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Shared.Views.Controls;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -37,6 +37,17 @@ public class SignalRowActionsControllerTests
         // Statistics-selection toggles start disabled until a selection exists.
         Assert.False(controller.TravelHeaderActions[1].IsEnabled);
         Assert.False(controller.SpeedHeaderActions[1].IsEnabled);
+    }
+
+    [Fact]
+    public void AirtimeActions_AreHidden_UntilTheSessionHasAirtimes()
+    {
+        var airtimeActions = AirtimeActions().ToArray();
+        Assert.All(airtimeActions, action => Assert.False(action.IsVisible));
+
+        controller.SetHasAirtimes(true);
+
+        Assert.All(airtimeActions, action => Assert.True(action.IsVisible));
     }
 
     [Fact]
@@ -125,6 +136,16 @@ public class SignalRowActionsControllerTests
             controller.ElevationHeaderActions[1],
         ];
     }
+
+    private IEnumerable<SignalRowAction> AirtimeActions() =>
+    [
+        controller.TravelHeaderActions[0],
+        controller.VelocityHeaderActions[0],
+        controller.ImuHeaderActions[0],
+        controller.PitchRollHeaderActions[0],
+        controller.SpeedHeaderActions[0],
+        controller.ElevationHeaderActions[0],
+    ];
 
     private static SignalRowActionsController CreateController(SignalRowActionState state)
     {

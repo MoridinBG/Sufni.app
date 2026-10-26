@@ -8,9 +8,6 @@ using Mapsui.Layers;
 using Mapsui.UI.Avalonia;
 using Mapsui.Widgets.InfoWidgets;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.ViewModels;
@@ -444,16 +441,11 @@ public class MapViewTests
     }
 
     [AvaloniaFact]
-    public async Task MapView_RendersExtensionMapOverlays_WhenContributionCollectionChanges()
+    public async Task MapView_RendersMatchedTrack_WhileOneIsSet()
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        var slots = new RecordedSessionExtensionSlots();
-        var view = new MapView
-        {
-            DataContext = CreateViewModelWithTrack(),
-            ExtensionSlots = slots,
-        };
+        var view = new MapView { DataContext = CreateViewModelWithTrack() };
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
 
@@ -461,45 +453,21 @@ public class MapViewTests
         {
             var mapControl = view.FindControl<MapControl>("MapControl");
             Assert.NotNull(mapControl);
-            var overlayLayer = Assert.Single(
-                mapControl!.Map.Layers.FindLayer("Extension Overlays").OfType<MemoryLayer>());
-            Assert.Empty(overlayLayer.Features);
+            var matchedTrackLayer = Assert.Single(
+                mapControl!.Map.Layers.FindLayer("Matched Track").OfType<MemoryLayer>());
+            Assert.Empty(matchedTrackLayer.Features);
 
-            slots.MapOverlays.Add(new RecordedSessionMapOverlayContribution(
-                "extension",
-                "map-overlay",
-                Order: 0,
-                Lines:
-                [
-                    new RecordedSessionMapLineOverlay(
-                        [
-                            new RecordedSessionMapCoordinate(42.0, 23.0),
-                            new RecordedSessionMapCoordinate(42.001, 23.001),
-                        ],
-                        new RecordedSessionMapLineStyle(
-                            new RecordedSessionMapColor(255, 17, 34, 51),
-                            Width: 4,
-                            Opacity: 0.7))
-                ],
-                Points:
-                [
-                    new RecordedSessionMapPointOverlay(
-                        new RecordedSessionMapCoordinate(42.002, 23.002),
-                        new RecordedSessionMapPointStyle(
-                            Fill: new RecordedSessionMapColor(255, 51, 68, 85),
-                            Stroke: new RecordedSessionMapColor(255, 17, 34, 51),
-                            Radius: 0.8,
-                            StrokeWidth: 2,
-                            Opacity: 0.6))
-                ]));
+            view.MatchedTrack = new MatchedTrackOverlay(
+                [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 10, 10, null), new TrackPoint(2, 20, 20, null)],
+                [new TrackPoint(1, 10, 10, null), new TrackPoint(2, 20, 20, null)]);
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            Assert.Equal(2, overlayLayer.Features.Count());
+            Assert.Equal(2, matchedTrackLayer.Features.Count());
 
-            slots.MapOverlays.Clear();
+            view.MatchedTrack = null;
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            Assert.Empty(overlayLayer.Features);
+            Assert.Empty(matchedTrackLayer.Features);
         }
         finally
         {

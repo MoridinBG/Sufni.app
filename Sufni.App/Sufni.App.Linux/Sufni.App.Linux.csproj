@@ -18,5 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sufni.App.Desktop\Sufni.App.Desktop.csproj" />
+    <ProjectReference Include="..\Sufni.App.Video.LibVlc\Sufni.App.Video.LibVlc.csproj" />
   </ItemGroup>
 </Project>

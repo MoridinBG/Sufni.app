@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.MapsAndTracks.Models;
 
 namespace Sufni.App.Tests.MapsAndTracks.Models;

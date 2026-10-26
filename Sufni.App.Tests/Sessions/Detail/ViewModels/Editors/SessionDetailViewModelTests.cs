@@ -1,15 +1,16 @@
+using Avalonia.Threading;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Avalonia;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Sessions.Presentation;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
+using Sufni.App.Segments.Coordinators;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.Services;
@@ -21,6 +22,10 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Sessions;
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.Models;
+using Sufni.App.Video.ViewModels;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
@@ -102,7 +107,7 @@ public class SessionDetailViewModelTests
         var loadTask = harness.LoadAsync(editor);
         await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, telemetry));
 
-        await harness.UnloadAsync(editor);
+        harness.Unload(editor);
         pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
             new SessionTrackPresentationData(
                 Guid.NewGuid(),
@@ -209,7 +214,7 @@ public class SessionDetailViewModelTests
         var loadTask = harness.LoadAsync(editor);
         await Task.Yield();
 
-        await harness.UnloadAsync(editor);
+        harness.Unload(editor);
         pending.SetResult(harness.CreateLoadedResult(TestTelemetryData.CreateProcessed()));
         await loadTask;
 
@@ -347,29 +352,6 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_InitializesRecordedSessionExtensionScope_AndUnloadedDisposesIt()
-    {
-        var harness = new SessionDetailHarness();
-        var snapshot = harness.CreateRecordedSession(hasProcessedData: false);
-        var factory = new TestRecordedSessionExtensionFactory("test");
-        var editor = harness.CreateLoadedRecordedSession(
-            snapshot,
-            IncompleteResult(snapshot.Id),
-            recordedSessionExtensionFactories: [factory]);
-
-        await harness.LoadAsync(editor);
-
-        Assert.NotNull(factory.Scope);
-        Assert.True(factory.Scope.Initialized);
-        Assert.Contains(factory.Scope.UpdatedStates, state => state.Identity.IsLoaded);
-
-        await harness.UnloadAsync(editor);
-
-        Assert.True(factory.Scope.Disposed);
-        Assert.False(factory.Scope.UpdatedStates.Last().Identity.IsLoaded);
-    }
-
-    [AvaloniaFact]
     public async Task Loaded_RetainsProcessedTelemetry_AndUnloadedReleasesIt()
     {
         var harness = new SessionDetailHarness();
@@ -381,66 +363,31 @@ public class SessionDetailViewModelTests
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.RetainedSessionIds);
         Assert.Empty(harness.ProcessedTelemetryReader.ReleasedSessionIds);
 
-        await harness.UnloadAsync(editor);
+        harness.Unload(editor);
 
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.ReleasedSessionIds);
     }
 
     [AvaloniaFact]
-    public async Task RecordedSessionHostContext_RoutesHostCommands()
+    public async Task SessionOperationState_FollowsTheSessionOperation()
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(hasProcessedData: true);
-        var factory = new TestRecordedSessionExtensionFactory("test");
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var selectedRange = new TelemetryTimeRange(0.05, 0.2);
         var editor = harness.CreateLoadedRecordedSession(
             snapshot,
-            harness.CreateLoadedResult(telemetry),
-            recordedSessionExtensionFactories: [factory]);
-
+            harness.CreateLoadedResult(TestTelemetryData.CreateProcessed()));
         await harness.LoadAsync(editor);
-        var context = factory.Context!;
 
-        context.SetAnalysisRange(selectedRange.StartSeconds, selectedRange.EndSeconds);
-        context.SetTimelineVisibleRange(0.2, 0.8, context);
-        context.AddError("extension error");
-        context.AddNotification("extension notification");
-        var lease = context.StartOperation("Extension work");
-        lease.Report("Extension still working", 50);
-        var beganExternalAlignment = context.TryBeginTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.ExternalMedia,
-            12.0,
-            subjectId: "media-a");
-        var beganGpsAlignment = context.TryBeginTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.GpsTrack,
-            4.0);
-        var pendingAlignment = factory.Scope!.UpdatedStates.Last().Timeline.Alignment.PendingMark;
-        var resolvedExternalAlignment = context.TryResolveTimelineAlignment(
-            RecordedSessionTimelineAlignmentTarget.ExternalMedia,
-            7.0,
-            out var alignmentResolution,
-            subjectId: "media-a");
+        var operation = harness.OperationRunner.Start(snapshot.Id, "Matching");
+        operation.Report("Matching session 5/10", 50);
+        Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(selectedRange, editor.CurrentAnalysisRange);
-        Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
-        Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
-        Assert.Contains("extension error", editor.ErrorMessages);
-        Assert.Contains("extension notification", editor.Notifications);
         Assert.True(editor.SessionOperationState.IsVisible);
-        Assert.Equal("Extension still working", editor.SessionOperationState.Message);
+        Assert.Equal("Matching session 5/10", editor.SessionOperationState.Message);
         Assert.Equal(50, editor.SessionOperationState.Percent);
-        Assert.True(beganExternalAlignment);
-        Assert.False(beganGpsAlignment);
-        Assert.NotNull(pendingAlignment);
-        Assert.Equal(RecordedSessionTimelineAlignmentTarget.ExternalMedia, pendingAlignment.Target);
-        Assert.Equal("media-a", pendingAlignment.SubjectId);
-        Assert.True(resolvedExternalAlignment);
-        Assert.NotNull(alignmentResolution);
-        Assert.Equal(5.0, alignmentResolution.OffsetDeltaSeconds);
-        Assert.Null(factory.Scope.UpdatedStates.Last().Timeline.Alignment.PendingMark);
 
-        lease.Complete();
+        operation.Dispose();
+        Dispatcher.UIThread.RunJobs();
 
         Assert.False(editor.SessionOperationState.IsVisible);
     }
@@ -590,12 +537,172 @@ public class SessionDetailViewModelTests
         Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
     }
 
+    [AvaloniaFact]
+    public async Task VideoAlignment_ShiftsClipByDistanceBetweenMarks()
+    {
+        using var videos = new VideoFixture();
+        var (editor, clip) = await CreateEditorWithVideoAsync(videos);
+        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(true);
+
+        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
+
+        await videos.Coordinator.Received(1).ShiftAlignmentAsync(clip.Id, 2);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task VideoAlignment_Cancel_DropsPendingVideoMark()
+    {
+        using var videos = new VideoFixture();
+        var (editor, _) = await CreateEditorWithVideoAsync(videos);
+
+        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
+        ExecuteSignalAction(editor, "video-cancel-alignment", clickSeconds: 5);
+
+        var context = CreatePlotContext(clickSeconds: 3);
+        Assert.False(FindSignalAction(editor, "video-mark-telemetry-event").Command.CanExecute(context));
+        Assert.True(FindSignalAction(editor, "video-mark-video-event").Command.CanExecute(context));
+    }
+
+    [AvaloniaFact]
+    public async Task Split_CallsCoordinatorAtClick_AndNotifiesWhenApplied()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        harness.SessionEditingCoordinator.SplitAsync(editor.Id, 3).Returns(new SessionEditResult.Applied());
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-split-here").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
+
+        await harness.SessionEditingCoordinator.Received(1).SplitAsync(editor.Id, 3);
+        Assert.Contains("Session split.", editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task TrimUntilEnd_WhenEditFails_ShowsError()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        harness.SessionEditingCoordinator.TrimUntilEndAsync(editor.Id, 4)
+            .Returns(new SessionEditResult.Failed("Session changed while editing."));
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 4));
+
+        Assert.Contains("Session changed while editing.", editor.ErrorMessages);
+        Assert.Empty(editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task WindowEdits_KeepFiveSamplesInEveryRemainingPart()
+    {
+        var (_, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        var nearEnd = CreatePlotContext(clickSeconds: 9.998);
+
+        Assert.True(FindSignalAction(editor, "session-trim-until-end").Command.CanExecute(nearEnd));
+        Assert.False(FindSignalAction(editor, "session-split-here").Command.CanExecute(nearEnd));
+        Assert.False(FindSignalAction(editor, "session-trim-from-beginning").Command.CanExecute(nearEnd));
+    }
+
+    [AvaloniaFact]
+    public async Task UndoTrim_IsAvailableOnlyAfterTrim()
+    {
+        var trimmedSnapshot = TestSnapshots.Session(hasProcessedData: true);
+        trimmedSnapshot = trimmedSnapshot with
+        {
+            SourceSessionId = trimmedSnapshot.Id,
+            WindowEndSeconds = 8,
+            PreviousWindowStartSeconds = 0
+        };
+        var (_, untrimmed) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        var (_, trimmed) = await CreateLoadedEditorAsync(trimmedSnapshot);
+        var context = CreatePlotContext(clickSeconds: 3);
+
+        Assert.False(FindSignalAction(untrimmed, "session-undo-trim").Command.CanExecute(context));
+        Assert.True(FindSignalAction(trimmed, "session-undo-trim").Command.CanExecute(context));
+    }
+
+    [AvaloniaFact]
+    public async Task SaveCurrentSelection_SavesTheAnalysisRangeAsSegment()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        harness.SegmentCoordinator.NextName(editor.Id).Returns("Segment 1");
+        harness.SegmentCoordinator.ValidateName(editor.Id, "Segment 1", null).Returns((string?)null);
+        harness.SegmentCoordinator.CreateAsync(editor.Id, "Segment 1", 2, 4).Returns(new SegmentChangeResult.Applied());
+        harness.DialogService.ShowContentDialogAsync(Arg.Any<SegmentNamePromptViewModel>(), Arg.Any<DialogOptions>())
+            .Returns(call =>
+            {
+                call.ArgAt<SegmentNamePromptViewModel>(0).ConfirmCommand.Execute(null);
+                return PromptResult.Ok;
+            });
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "save-current-selection").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3) with { AnalysisRange = new TelemetryTimeRange(2, 4) });
+
+        await harness.SegmentCoordinator.Received(1).CreateAsync(editor.Id, "Segment 1", 2, 4);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveCurrentSelection_IsUnavailableOutsideTheAnalysisRange()
+    {
+        var (_, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        var outside = CreatePlotContext(clickSeconds: 6) with { AnalysisRange = new TelemetryTimeRange(2, 4) };
+
+        Assert.False(FindSignalAction(editor, "save-current-selection").Command.CanExecute(outside));
+    }
+
+    [AvaloniaFact]
+    public async Task SegmentPicker_CanOpen_OnceTheTelemetryIsLoaded()
+    {
+        var harness = new SessionDetailHarness();
+        var editor = harness.CreateLoadedRecordedSession(TestSnapshots.Session(hasProcessedData: true));
+        var canOpenBeforeLoad = editor.SignalsWorkspace.SegmentPicker.CanOpen;
+
+        await harness.LoadAsync(editor);
+
+        Assert.False(canOpenBeforeLoad);
+        Assert.True(editor.SignalsWorkspace.SegmentPicker.CanOpen);
+    }
+
+    private static async Task<(SessionDetailHarness Harness, SessionDetailViewModel Editor)> CreateLoadedEditorAsync(
+        SessionSnapshot snapshot)
+    {
+        var harness = new SessionDetailHarness();
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        await harness.LoadAsync(editor);
+        return (harness, editor);
+    }
+
+    private static async Task<(SessionDetailViewModel Editor, SessionVideoClip Clip)> CreateEditorWithVideoAsync(
+        VideoFixture videos)
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = TestSnapshots.Session(timestamp: 1_000, hasProcessedData: true);
+        var clip = videos.CreateClip(snapshot.Id, startTimestamp: 1_000, durationSeconds: 60);
+        harness.VideoPaneFactory = new VideoPaneFactory(
+            await videos.CreateStoreAsync(clip),
+            videos.Coordinator,
+            videos.PlayerFactory);
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        await harness.LoadAsync(editor);
+        return (editor, clip);
+    }
+
+    private static TelemetryPlotContextMenuAction FindSignalAction(SessionDetailViewModel editor, string actionId) =>
+        editor.SignalsWorkspace.SignalPlotContextMenuActionsBySignalRowId[SignalRowIds.Travel]
+            .Single(action => action.Id == actionId);
+
+    private static void ExecuteSignalAction(SessionDetailViewModel editor, string actionId, double clickSeconds) =>
+        FindSignalAction(editor, actionId).Command.Execute(CreatePlotContext(clickSeconds));
+
+    private static TelemetryPlotContextMenuContext CreatePlotContext(double clickSeconds) =>
+        new(SignalRowIds.Travel, clickSeconds, DurationSeconds: 10, AnalysisRange: null);
+
     private static RecordedSessionDomainSnapshot DomainFromSnapshot(
         SessionSnapshot snapshot,
         DerivedChangeKind changeKind = DerivedChangeKind.None,
         SessionStaleness? staleness = null) => new(
         snapshot,
-        null,
         null,
         null,
         null,

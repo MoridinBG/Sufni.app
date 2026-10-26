@@ -11,9 +11,9 @@ using Avalonia.Markup.Xaml.Styling;
 using Avalonia.VisualTree;
 using NSubstitute;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.Common;
 
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Plots.Views.Plots;

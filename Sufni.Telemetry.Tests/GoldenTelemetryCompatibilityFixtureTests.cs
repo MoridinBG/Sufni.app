@@ -1,6 +1,5 @@
 using System.Text;
 using MessagePack;
-using Sufni.App.ExtensionHost.TestSupport.Fixtures;
 
 namespace Sufni.Telemetry.Tests;
 

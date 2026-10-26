@@ -7,17 +7,16 @@ using System.Threading.Tasks;
 using Avalonia.Headless.XUnit;
 using ScottPlot;
 using ScottPlot.Plottables;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Sessions.Plots;
+using Sufni.App.Shared.Plots;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
@@ -327,62 +326,46 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task AnalysisPlotView_AppliesExtensionOverlayDescriptors_WhenContributionsChangeAndTelemetryReloads()
+    public async Task AnalysisPlotView_AppliesComparisonOverlaysOfItsKindAndSide()
     {
-        var slots = new RecordedSessionExtensionSlots();
         var view = new TestableAnalysisPlotView
         {
             AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
             SuspensionType = SuspensionType.Front,
-            ExtensionSlots = slots,
             Telemetry = CreateProcessed(),
         };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Empty(plot.Plot.PlottableList.OfType<Scatter>());
+        var otherOverlay = new AnalysisPlotOverlay([1, 3], [2, 4], [new AnalysisPlotMarker(4, "other", LabelAbove: true)]);
 
-        slots.AnalysisOverlays.Add(new RecordedSessionAnalysisOverlayContribution(
-            "extension",
-            "rear-overlay",
-            Order: 0,
-            RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType.Rear),
-            ViewModel: null,
-            new RecordedSessionAnalysisPlotOverlayDescriptor(
-                [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
-                [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())],
-                Labels: [])));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Empty(plot.Plot.PlottableList.OfType<Scatter>());
-
-        slots.AnalysisOverlays.Add(new RecordedSessionAnalysisOverlayContribution(
-            "extension",
-            "front-overlay",
-            Order: 1,
-            RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType.Front),
-            ViewModel: null,
-            new RecordedSessionAnalysisPlotOverlayDescriptor(
-                [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],
-                [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))],
-                Labels:
-                [
-                    new RecordedSessionPlotLabelOverlay(
-                        X: 0,
-                        Y: 18,
-                        "match avg: 18.0 mm",
-                        new RecordedSessionPlotLabelStyle(
-                            new RecordedSessionMapColor(255, 17, 34, 51),
-                            BackgroundColor: null,
-                            FontSize: 11,
-                            RecordedSessionPlotLabelAnchor.Top),
-                        RecordedSessionPlotLabelPlacement.PlotRightEdge)
-                ])));
+        view.AnalysisOverlays =
+        [
+            new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Rear, otherOverlay),
+            new SegmentAnalysisOverlay(SegmentAnalysisPlot.VelocityDistribution, SuspensionType.Front, otherOverlay),
+            new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Front, CreateFrontOverlay()),
+        ];
         await ViewTestHelpers.FlushDispatcherAsync();
 
         AssertAnalysisOverlay(plot);
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_KeepsComparisonOverlays_WhenTelemetryReloads()
+    {
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = CreateProcessed(),
+            AnalysisOverlays =
+            [
+                new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Front, CreateFrontOverlay()),
+            ],
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
 
         view.Telemetry = CreateProcessed();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -411,28 +394,18 @@ public class AnalysisPlotViewTests
         Assert.Contains(GetBars(plot.Plot), bar => bar.LineWidth == 3.0f);
     }
 
-    private static RecordedSessionPlotOverlayStyle CreateOverlayStyle(double width = 2, double opacity = 0.75)
-    {
-        return new RecordedSessionPlotOverlayStyle(
-            new RecordedSessionMapColor(255, 17, 34, 51),
-            width,
-            opacity);
-    }
+    private static AnalysisPlotOverlay CreateFrontOverlay() =>
+        new([2, 8], [12, 18], [new AnalysisPlotMarker(18, "match avg: 18.0 mm", LabelAbove: true)]);
 
     private static void AssertAnalysisOverlay(ScottPlot.Avalonia.AvaPlot plot)
     {
-        var span = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Equal(20, span.X1, 3);
-        Assert.Equal(30, span.X2, 3);
-        Assert.True(span.IsVisible);
-        Assert.False(span.EnableAutoscale);
-
-        var line = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
-        Assert.False(line.MarkerStyle.IsVisible);
-        Assert.Equal(3, line.LineStyle.Width, 3);
-        Assert.Contains(
-            "match avg: 18.0 mm",
-            plot.Plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels));
+        var trace = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
+        Assert.False(trace.MarkerStyle.IsVisible);
+        Assert.Equal([2.0, 8.0], trace.Data.GetScatterPoints().Select(point => point.X));
+        Assert.Contains(plot.Plot.PlottableList.OfType<FixedHorizontalLine>(), line => line.Y == 18);
+        var labels = plot.Plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels).ToArray();
+        Assert.Contains("match avg: 18.0 mm", labels);
+        Assert.DoesNotContain("other", labels);
     }
 
     private static DampingRangeSelection CreateFrontDampingSelection(TelemetryData telemetry)
@@ -457,6 +430,95 @@ public class AnalysisPlotViewTests
 
         Assert.Fail("Expected a non-empty front damping histogram bin.");
         return default!;
+    }
+
+    [AvaloniaTheory]
+    [InlineData(PositionVelocitySideMode.Both, 2)]
+    [InlineData(PositionVelocitySideMode.Front, 1)]
+    [InlineData(PositionVelocitySideMode.Rear, 1)]
+    public async Task AnalysisPlotView_PositionVelocity_RendersStrokeTracesForShownSides(
+        PositionVelocitySideMode sideMode,
+        int expectedTraceCount)
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        view.PositionVelocitySideMode = sideMode;
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
+        Assert.Equal(expectedTraceCount, plot.PlottableList.OfType<ViewportReducedScatter>().Count());
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_PositionVelocity_HeatmapModeRendersHeatmapsInsteadOfTraces()
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        view.PositionVelocityDisplayMode = PositionVelocityDisplayMode.Heatmap;
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
+        Assert.Equal(2, plot.PlottableList.OfType<Heatmap>().Count());
+        Assert.Empty(plot.PlottableList.OfType<ViewportReducedScatter>());
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_PositionVelocity_RequestsNewResult_WhenTelemetryRecomputesWithSameRange()
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        state.Invalidate(state.CurrentInputs! with { TelemetryGeneration = 2 });
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(2, state.Requests.Last().TelemetryGeneration);
+        Assert.Empty(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot.PlottableList.OfType<ViewportReducedScatter>());
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_PositionVelocity_DisposesStrokeTraces_WhenDetached()
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        var mounted = await PlotViewTestSupport.MountAsync(view);
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var traces = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot.PlottableList
+            .OfType<ViewportReducedScatter>()
+            .ToArray();
+
+        await mounted.DisposeAsync();
+
+        Assert.NotEmpty(traces);
+        Assert.All(traces, trace => Assert.True(trace.IsDisposed));
+    }
+
+    private static (TestableAnalysisPlotView View, TestAnalysisResultState State, RecordedSessionAnalysisKey Key)
+        CreatePositionVelocityView()
+    {
+        var inputs = CreateAnalysisInputs();
+        var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.PositionVelocity,
+            AnalysisResultState = state,
+            Telemetry = CreateProcessed(),
+        };
+        return (view, state, inputs.CreateKey(RecordedSessionAnalysisFamily.PositionVelocity));
+    }
+
+    private static PositionVelocityAnalysisResult CreatePositionVelocityResult()
+    {
+        static PositionVelocitySideTrace Side() => new(
+            [new PositionVelocityStrokeTrace([0, 50, 100], [0, 500, -500])],
+            new double[PositionVelocityTraceBuilder.HeatmapVelocityBinCount, PositionVelocityTraceBuilder.HeatmapPositionBinCount]);
+
+        return new PositionVelocityAnalysisResult(new PositionVelocityTraceSet(Side(), Side(), 1000));
     }
 
     private static Bar[] GetBars(Plot plot)

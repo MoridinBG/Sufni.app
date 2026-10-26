@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 namespace Sufni.App.Infrastructure;
 

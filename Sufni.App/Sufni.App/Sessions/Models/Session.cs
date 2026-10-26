@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Infrastructure;
@@ -66,6 +66,33 @@ public class Session : Synchronizable
     [JsonPropertyName("gps_offset_seconds")]
     [Column("gps_offset_seconds")]
     public double GpsOffsetSeconds { get; set; }
+
+    // Derivation window: the session derives from [start, end) of the source
+    // session's recording source. Null source means its own source, full range.
+    [JsonPropertyName("source_session_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("source_session_id")]
+    public Guid? SourceSessionId { get; set; }
+
+    [JsonPropertyName("window_start_seconds")]
+    [Column("window_start_seconds")]
+    public double WindowStartSeconds { get; set; }
+
+    [JsonPropertyName("window_end_seconds"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("window_end_seconds")]
+    public double? WindowEndSeconds { get; set; }
+
+    // The window before the last trim, kept for one-level undo.
+    [JsonPropertyName("previous_window_start_seconds"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("previous_window_start_seconds")]
+    public double? PreviousWindowStartSeconds { get; set; }
+
+    [JsonPropertyName("previous_window_end_seconds"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("previous_window_end_seconds")]
+    public double? PreviousWindowEndSeconds { get; set; }
+
+    [JsonIgnore]
+    [Ignore]
+    public Guid RecordingSourceSessionId => SourceSessionId ?? Id;
 
     [JsonPropertyName("processing_fingerprint")]
     [Column("session_processing_fingerprint")]

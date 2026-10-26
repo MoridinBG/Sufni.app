@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Services;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Shell.ViewModels;

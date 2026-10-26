@@ -22,22 +22,18 @@ implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
-Persisted stores share the SDK-visible
-`SourceCacheStoreBase<TSnapshot, TKey>` from
-`Sufni.App.ExtensionHost.Runtime.Stores`
-(`Sufni.App.ExtensionHost/Runtime/Stores/SourceCacheStoreBase.cs`) for the
+Persisted stores share
+`SourceCacheStoreBase<TSnapshot, TKey>`
+(`Sufni.App/Sufni.App/Shared/Base/SourceCacheStoreBase.cs`) for the
 repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`,
 `Get(key)`, watch helpers, and UI-thread-dispatched protected publication
 methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
-`PublishRemovalsAsync`, and `ReplaceWithAsync`). Public app stores and private
-extension stores inherit the same base while keeping their own public read/write
-interfaces, persistence semantics, and domain-specific lookups. Raw cache
+`PublishRemovalsAsync`, and `ReplaceWithAsync`). Each store keeps its own
+read/write interfaces, persistence semantics, and domain-specific lookups. Raw cache
 mutation stays inside the store; writer interfaces expose semantic commit
 methods for local writes and publish-only methods for already-persisted external
 changes.
-Startup and post-sync refresh are coordinated by
-`IAppStateRefreshOrchestrator`, with `IAppDataRefresher` retained only as a
-compatibility alias for core refresh callers. `LiveDaqStore` remains separate
+Startup and post-sync refresh are coordinated by `IAppDataRefresher`. `LiveDaqStore` remains separate
 because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather
 than database refresh.
 
@@ -51,9 +47,9 @@ Each persisted writer interface additionally exposes:
 
 - `RefreshAsync()` — load (or reload) all rows from the database via the
   store's repository interface and replace the cache contents. Core refresh
-  hydrates processing-option and derivation-window state first, then refreshes
-  bikes, setups, sessions, recorded-session sources, and paired devices;
-  all-state refresh then invokes extension state refresh participants.
+  `IAppDataRefresher` hydrates processing-option state first, then refreshes
+  bikes, setups, sessions, recorded-session sources, paired devices, session
+  videos, and session segments.
 - Semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
   `CommitSessionMetadataFieldAsync`, `CommitTrackPatchAsync`, and
@@ -119,9 +115,8 @@ session screens. It subscribes to `ISessionStore`, `ISetupStore`,
 `IRecordedSessionSourceStore`, `IProcessingDependencyHashIndex`, and
 `IRecordedSessionProcessingOptionCache`; the dependency hash index owns
 the processing-relevant setup/bike store edge. The projection joins
-current session/setup/bike/source snapshots from stores with the
-synchronous derivation-window cache,
-evaluates processing staleness, and publishes two reactive surfaces:
+current session/setup/bike/source snapshots from stores (the derivation
+window is part of the session snapshot), evaluates processing staleness, and publishes two reactive surfaces:
 
 - `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`
   records for the session list. `SessionListViewModel` filters and
@@ -134,8 +129,8 @@ evaluates processing staleness, and publishes two reactive surfaces:
 - `WatchSession(sessionId)` — a replaying observable of
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
-  persisted fingerprint, source metadata, optional derivation window,
-  staleness result, and a `DerivedChangeKind` flags value describing what
+  persisted fingerprint, source metadata (of the session's recording
+  source), staleness result, and a `DerivedChangeKind` flags value describing what
   changed since the previous domain snapshot.
 
 The recorded detail editor consumes this stream through a single
@@ -185,7 +180,8 @@ Projection recomputes are coalesced through an injected
 `UiThreadRecordedSessionProjectionScheduler` posts to
 `Dispatcher.UIThread` at background priority rather than using the
 ambient synchronization context of the thread that queued the change.
-This lets a batch of session/setup/bike/source/window updates produce
+A source change also queues every session whose `source_session_id` points
+at that source. This lets a batch of session/setup/bike/source updates produce
 coherent summaries and domain snapshots instead of a cascade of
 partial UI states. Setup or bike changes first update
 `IProcessingDependencyHashIndex`; only setup hashes whose processing-relevant
@@ -197,7 +193,7 @@ the projection. It parses the persisted fingerprint JSON from
 setup, bike, recorded-source snapshots, a cached setup/bike dependency hash
 from `IProcessingDependencyHashIndex`, and the session's clamped
 velocity-filter processing option (read from an app-wide cache that re-hydrates
-after each sync apply), and the optional derivation-window snapshot, then
+after each sync apply), and the session's optional derivation window, then
 classifies staleness as:
 
 - `Current` — processed data matches the recorded source and current
@@ -218,7 +214,7 @@ Once the processing fingerprint began recording the velocity-filter option, ever
 
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
 the current session/setup/bike/source snapshots synchronously from
-stores, resolves the source row through `window?.SourceSessionId ?? sessionId`,
+stores, resolves the source row through the session's `RecordingSourceSessionId`,
 and returns one `RecordedSessionDomainSnapshot` for workflows such as the
 recompute engine. Coordinators use the
 query for current-state decisions; they do not subscribe to the projection

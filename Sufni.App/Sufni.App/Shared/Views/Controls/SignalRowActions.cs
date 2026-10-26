@@ -9,9 +9,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
 
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Controls;
 
@@ -137,10 +135,13 @@ internal sealed class SignalRowActionsPresenter : UserControl
         toggleGroup.Children.Clear();
         executeGroup.Children.Clear();
 
-        var actions = GetVisibleActions().ToArray();
-        foreach (var action in actions)
+        foreach (var action in Actions ?? [])
         {
             SubscribeToAction(action);
+        }
+
+        foreach (var action in GetVisibleActions())
+        {
             var button = CreateActionButton(action);
             switch (action.Kind)
             {

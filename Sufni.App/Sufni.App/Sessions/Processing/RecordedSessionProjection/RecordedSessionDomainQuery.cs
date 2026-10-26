@@ -1,5 +1,4 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
@@ -19,8 +18,7 @@ public sealed class RecordedSessionDomainQuery(
     IRecordedSessionSourceStore sourceStore,
     IProcessingFingerprintService fingerprintService,
     IProcessingDependencyHashIndex dependencyHashIndex,
-    IRecordedSessionProcessingOptionCache processingOptionCache,
-    IRecordedSessionDerivationWindowCache derivationWindowCache) : IRecordedSessionDomainQuery
+    IRecordedSessionProcessingOptionCache processingOptionCache) : IRecordedSessionDomainQuery
 {
     public RecordedSessionDomainSnapshot? Get(Guid sessionId)
     {
@@ -28,20 +26,16 @@ public sealed class RecordedSessionDomainQuery(
         var setup = session?.SetupId is { } setupId
             ? setupStore.Get(setupId)
             : null;
-        var window = session is null
-            ? null
-            : derivationWindowCache.Get(session.Id);
         return session is null
             ? null
             : RecordedSessionDomainSnapshotFactory.Create(
                 session,
                 setup,
                 bikeStore,
-                sourceStore.Get(RecordedSessionDerivationResolver.GetEffectiveSourceSessionId(session.Id, window)),
+                sourceStore.Get(session.RecordingSourceSessionId),
                 fingerprintService,
                 setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
                 processingOptionCache.Get(session.Id),
-                window,
                 DerivedChangeKind.None);
     }
 }
@@ -56,11 +50,10 @@ internal static class RecordedSessionDomainSnapshotFactory
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
         TelemetryProcessingOptions options,
-        RecordedSessionDerivationWindow? window,
         DerivedChangeKind changeKind)
     {
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
-        return Create(session, setup, bike, source, fingerprintService, dependencyHash, options, window, changeKind);
+        return Create(session, setup, bike, source, fingerprintService, dependencyHash, options, changeKind);
     }
 
     public static RecordedSessionDomainSnapshot Create(
@@ -71,13 +64,12 @@ internal static class RecordedSessionDomainSnapshotFactory
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
         TelemetryProcessingOptions options,
-        RecordedSessionDerivationWindow? window,
         DerivedChangeKind changeKind)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
             : dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike);
-        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, effectiveDependencyHash, options, window);
+        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, effectiveDependencyHash, options);
 
         return new RecordedSessionDomainSnapshot(
             session,
@@ -86,7 +78,6 @@ internal static class RecordedSessionDomainSnapshotFactory
             evaluation.Current,
             evaluation.Persisted,
             source,
-            window,
             evaluation.Staleness,
             changeKind,
             effectiveDependencyHash);

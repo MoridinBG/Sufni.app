@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.LiveDaq.Queries;

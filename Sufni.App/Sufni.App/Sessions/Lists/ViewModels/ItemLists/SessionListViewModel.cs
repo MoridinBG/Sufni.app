@@ -11,21 +11,20 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.ViewModels.Rows;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Shared.Base;
+using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 
 /// <summary>
 /// List state for recorded sessions.
 /// It maintains the searchable and date-filtered row collection, tracks
-/// pending delete undo windows, and reflects stale/no-raw session status in
-/// the rows.
+/// pending delete undo windows, and reflects stale/no-raw session status and
+/// the linked video in the rows.
 /// </summary>
 public partial class SessionListViewModel : ItemListViewModelBase
 {
@@ -33,7 +32,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionCoordinator sessionCoordinator;
-    private readonly IRecordedSessionListExtensionService? listExtensionService;
+    private readonly ISessionVideoStore videoStore;
     private readonly ObservableCollectionExtended<SessionRowViewModel> sessionRowsSource = [];
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
@@ -57,14 +56,14 @@ public partial class SessionListViewModel : ItemListViewModelBase
     public SessionListViewModel(
         IRecordedSessionProjection recordedSessionProjection,
         ISessionCoordinator sessionCoordinator,
+        ISessionVideoStore videoStore,
         IUiThreadDispatcher uiThreadDispatcher,
-        IRecordedSessionListExtensionService? listExtensionService = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null)
         : base(uiThreadDispatcher, backgroundTaskRunner)
     {
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;
-        this.listExtensionService = listExtensionService;
+        this.videoStore = videoStore;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
     }
 
@@ -80,14 +79,18 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
         subscriptions.Add(recordedSessionProjection.ConnectSessions()
             .Filter(filterSubject)
+            .LeftJoinMany(
+                videoStore.Connect(),
+                video => video.SessionId,
+                (summary, videos) => new SessionListEntry(summary, videos.Items.MaxBy(video => video.Added)))
             .TransformWithInlineUpdate(
-                summary => new SessionRowViewModel(
-                    summary,
+                entry => new SessionRowViewModel(
+                    entry.Summary,
+                    entry.LatestVideo,
                     sessionCoordinator,
                     RequestRowDelete,
-                    RecalculateSessionAsync,
-                    listExtensionService),
-                (row, summary) => row.Update(summary))
+                    RecalculateSessionAsync),
+                (row, entry) => row.Update(entry.Summary, entry.LatestVideo))
             .SortAndBind(
                 sessionRowsSource,
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
@@ -99,13 +102,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
         PropertyChanged += OnListPropertyChanged;
         subscriptions.Add(Disposable.Create(() => PropertyChanged -= OnListPropertyChanged));
-
-        if (listExtensionService is not null)
-        {
-            listExtensionService.ContributionsChanged += OnListExtensionContributionsChanged;
-            subscriptions.Add(Disposable.Create(() =>
-                listExtensionService.ContributionsChanged -= OnListExtensionContributionsChanged));
-        }
 
         SynchronizeDateGroups();
     }
@@ -224,26 +220,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
         });
     }
 
-    private void OnListExtensionContributionsChanged(object? sender, EventArgs e)
-    {
-        if (UiThreadDispatcher.CheckAccess())
-        {
-            RefreshSessionRowExtensionContributions();
-        }
-        else
-        {
-            UiThreadDispatcher.Post(RefreshSessionRowExtensionContributions);
-        }
-    }
-
-    private void RefreshSessionRowExtensionContributions()
-    {
-        foreach (var row in sessionRows)
-        {
-            row.RefreshExtensionContributions();
-        }
-    }
-
     private void SynchronizeDateGroups()
     {
         foreach (var group in DateGroups)
@@ -316,4 +292,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
     }
 
     #endregion Commands
+
+    private sealed record SessionListEntry(RecordedSessionSummary Summary, SessionVideoSnapshot? LatestVideo);
 }

@@ -3,7 +3,6 @@ using System.IO;
 using System.Text.Json;
 using Avalonia;
 
-using Sufni.App.Theming;
 namespace Sufni.App.Infrastructure.Theming;
 
 // One-shot synchronous read of the persisted theme mode, run from

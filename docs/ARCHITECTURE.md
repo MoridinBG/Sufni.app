@@ -15,9 +15,10 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 - [DAQ Management](#daq-management)
 - [Signal Processing & Suspension Kinematics](#signal-processing--suspension-kinematics)
 - [UI Architecture](#ui-architecture)
-- [Extension Host](#extension-host)
 - [Plot Rendering](#plot-rendering)
 - [Maps & GPS Tracks](#maps--gps-tracks)
+- [Session Video](#session-video)
+- [Saved Segments](#saved-segments)
 - [Live DAQ Streaming](#live-daq-streaming)
 - [Live Session Recording](#live-session-recording)
 - [Persistence & Serialization](#persistence--serialization)
@@ -34,6 +35,7 @@ This document is the catalog. Each subsystem is summarized here and the deep det
 | **Sufni.Kinematics**      | `Sufni.Kinematics/`            | Suspension linkage simulation, leverage ratio calculation                                                    |
 | **Sufni.App**             | `Sufni.App/Sufni.App/`         | Neutral shared application layer, organized **domain-slice-first** (see below): each slice keeps its own views, view models, coordinators, stores, queries, services, models, and plots |
 | **Sufni.App.Desktop**     | `Sufni.App/Sufni.App.Desktop/` | Desktop-only layer: sync server, ASP.NET Core hosting, inbound desktop sync infrastructure                   |
+| **Sufni.App.Video.LibVlc** | `Sufni.App/Sufni.App.Video.LibVlc/` | LibVLC video player for the Windows and Linux heads |
 | **Sufni.App.Windows**     | `Sufni.App/Sufni.App.Windows/` | Windows entry point (`Program.cs`)                                                                           |
 | **Sufni.App.macOS**       | `Sufni.App/Sufni.App.macOS/`   | macOS entry point (`Program.cs`)                                                                             |
 | **Sufni.App.Linux**       | `Sufni.App/Sufni.App.Linux/`   | Linux entry point (`Program.cs`)                                                                             |
@@ -63,10 +65,11 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
+| **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
+| **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
 | **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
-| **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theming bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`) |
-| **Extensibility** | `Extensibility/` | App-side extension host wiring: capability/view registries, database hooks, sync, recorded-session contributions, notifications (renamed from the old `ExtensionHosting/`) |
+| **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theme model and bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `ISecureStorage`, `IHapticFeedback`, `IFriendlyNameProvider`) |
 
 `App.axaml(.cs)`, `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
 
@@ -77,9 +80,10 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | Interface               | File                                                    | Purpose                                                                 | Implementations                                                                                                |
 | ----------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `IServiceDiscovery`     | `Sufni.App/Sufni.App/Infrastructure/IServiceDiscovery.cs`     | mDNS browse for `_sufni._tcp` DAQ announcements and `_sstsync._tcp` sync | `SocketServiceDiscovery` (shared / Win / Linux), `AndroidServiceDiscovery` (Android), `BonjourServiceDiscovery` (macOS / iOS) |
-| `ISecureStorage`        | `Sufni.App.ExtensionHost/Contracts/Services/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
+| `ISecureStorage`        | `Sufni.App/Sufni.App/Infrastructure/ISecureStorage.cs`        | Encrypted key-value store for JWT secrets, certificates, refresh tokens | `WindowsSecureStorage`, `LinuxSecureStorage`, `MacOsSecureStorage`, `AndroidSecureStorage`, `IosSecureStorage` |
 | `IHapticFeedback`       | `Sufni.App/Sufni.App/Infrastructure/IHapticFeedback.cs`       | Tactile feedback: `Click()`, `LongPress()`                              | `AndroidHapticFeedback`, `IosHapticFeedback`                                                                   |
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
+| `IVideoPlayerFactory`   | `Sufni.App/Sufni.App/Video/Models/VideoPlayback.cs`           | Native video player for the session video pane                          | `LibVlcVideoPlayerFactory` (Win / Linux), `MacOsVideoPlayerFactory`, `IosVideoPlayerFactory`                     |
 
 Each platform entry point registers its implementations before the shared `App.axaml.cs` initialization runs.
 
@@ -140,7 +144,7 @@ Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 ## Signal Processing & Suspension Kinematics
 
-`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window lets an extension derive a session from a source-absolute slice of another session's raw source.
+`TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window on the session row lets a trimmed or split session derive from a source-absolute slice of another session's raw source.
 
 Topics in [architecture/processing.md](architecture/processing.md):
 
@@ -153,6 +157,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
   - [Processing Parameters](architecture/processing.md#processing-parameters) — all tunables in `Parameters.cs`
   - [Serialized Structure](architecture/processing.md#serialized-structure) — MessagePack `TelemetryData` shape
   - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, optional derivation window, processed BLOB, processing fingerprint, and staleness rules
+  - [Shared Caching](architecture/processing.md#shared-caching) — `SingleFlightLruCache` for bounded reusable computations
 - [Suspension Kinematics](architecture/processing.md#suspension-kinematics)
   - [Linkage Model](architecture/processing.md#linkage-model) — immutable specs, resolver validation, runtime linkage state
   - [Kinematic Solver](architecture/processing.md#kinematic-solver) — Gauss-Seidel constraint relaxation across shock travel
@@ -178,6 +183,7 @@ Presentation-layer topics:
 - [Recorded Session Projection](architecture/ui-state.md#recorded-session-projection) — `IRecordedSessionProjection`, summaries, domain snapshots, staleness, and recompute inputs
 - [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
 - [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
+- [Trim and split](architecture/ui-workflows.md#trim-and-split) — recorded-session window edits, their transactions, and the recompute that follows
 - [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
 - [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, shared workspace tabs, compact/workspace shell presentation
 - [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
@@ -188,31 +194,9 @@ Presentation-layer topics:
 
 ---
 
-## Extension Host
-
-The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Recorded-session contracts require revision-backed content tokens and classify exact multi-family reads as `Available`, `Stale`, or `Missing`. Neutral signal rows may publish separate consecutive runs so unavailable gaps are not connected. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
-
-Topics in [architecture/extensions.md](architecture/extensions.md):
-
-- [Overview](architecture/extensions.md#overview) — neutral public host boundaries
-- [Module Startup](architecture/extensions.md#module-startup) — module service and capability registration
-- [Build Imports](architecture/extensions.md#build-imports) — conditional private import flow
-- [View Resolution](architecture/extensions.md#view-resolution) — extension view registry before built-in fallback
-- [Host Services](architecture/extensions.md#host-services) — neutral DI services available to extensions
-- [Shared Caching](architecture/extensions.md#shared-caching) — dependency-lower single-flight production, independent waiter cancellation, bounded LRU retention, and clear-generation semantics
-- [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
-- [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
-- [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
-- [App Toolbar Actions](architecture/extensions.md#app-toolbar-actions) — app-level action contribution slot
-- [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
-- [Recorded-Session Slots](architecture/extensions.md#recorded-session-slots) — generic contribution slots and descriptors
-- [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries
-
----
-
 ## Plot Rendering
 
-ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. Neutral extension signal series can carry segmented runs for real data gaps; every run contributes to value limits, and unsupported future value forms fail loudly. Extension-owned custom plot controls retain deterministic disposal ownership for their ScottPlot plottables and native drawing resources when rerendered or detached. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and base/hosted row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
+ScottPlot-based plot classes (shared bases in `Shared/Plots/`, concrete plots in each slice's `Plots/` folder), wrapped by Avalonia plot views in the slices' `Views/Plots/` folders (e.g. `Shared/Views/Plots/`, `Sessions/Plots/Views/Plots/`). Recorded telemetry plots inherit from `TelemetryPlot`, recorded time-series rows add `RecordedTimeSeriesPlot`, live plots derive through `LiveStreamingPlotBase` and apply incremental batches via ScottPlot's `DataStreamer`, and GPS speed/elevation rows use `TrackSignalPlot` over `TrackPoint` data. Segment comparison series can carry segmented runs for real data gaps; every run contributes to value limits, and unsupported value forms fail loudly. The position/velocity analysis plot owns deterministic disposal of its native stroke paths when reloaded or detached. `TelemetryDisplaySmoothing` and `TelemetryDisplayDownsampling` shape the displayed signal at load time. Signal row titles, drag/drop hierarchy changes, and root/child row plot backgrounds are owned by the Avalonia row controls, while ScottPlot keeps axes, legends, data rendering, readouts, and overlays.
 
 Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
@@ -239,6 +223,39 @@ Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 - [Mapsui Integration](architecture/maps-and-tracks.md#mapsui-integration) — view-side glue
 - [Map Preferences](architecture/maps-and-tracks.md#map-preferences) — `IMapPreferences` facet
 - [Where Maps Are Displayed](architecture/maps-and-tracks.md#where-maps-are-displayed) — recorded session and live-session media workspace
+
+---
+
+## Session Video
+
+A local video file is linked to every recorded session whose recording window overlaps it. The recorded-session editor plays the clip in a video pane beside the map, in sync with the telemetry cursor, and a context-menu flow aligns the clip to the telemetry. Heads with `AppCapabilities.CanPlayVideo` register a native player.
+
+Topics in [architecture/video.md](architecture/video.md):
+
+- [Persistence](architecture/video.md#persistence) — `session_video` table, clip liveness, one-time copy migration
+- [Store And Coordinator](architecture/video.md#store-and-coordinator) — `SessionVideoStore`, `VideoCoordinator`
+- [Import](architecture/video.md#import) — "Open video" action and overlap matching
+- [Clip Selection](architecture/video.md#clip-selection) — which clip shows at a telemetry time
+- [Video Pane](architecture/video.md#video-pane) — editor-lifetime pane, view-owned native player
+- [Playback And Timeline](architecture/video.md#playback-and-timeline) — sync and timeline playback
+- [Alignment](architecture/video.md#alignment) — mark video event, mark telemetry event
+- [Session List Indicator](architecture/video.md#session-list-indicator) — present/missing row icon
+- [Platform Players](architecture/video.md#platform-players) — LibVLC and AVFoundation players
+
+---
+
+## Saved Segments
+
+A saved segment is a named time range on one recorded session. Segments are synchronized, move with trim and split, and are live only while their session is live. The segments picker of the signals page lists, selects, renames, and deletes them, and shows Strava segment efforts when the user connected their own Strava API app.
+
+Topics in [architecture/segments.md](architecture/segments.md):
+
+- [Persistence](architecture/segments.md#persistence) — `session_segment` table, startup cleanup, one-time copy migration
+- [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
+- [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
+- [Trim And Split](architecture/segments.md#trim-and-split) — how edits move segments
+- [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", name prompt
+- [Strava](architecture/segments.md#strava) — `IStravaSegmentService` behind `ISegmentCoordinator`, connect dialog, cancellation on close
 
 ---
 

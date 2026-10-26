@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;

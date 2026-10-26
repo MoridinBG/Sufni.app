@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;

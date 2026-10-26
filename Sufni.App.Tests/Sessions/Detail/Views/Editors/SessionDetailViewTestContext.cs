@@ -5,8 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using NSubstitute;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -175,8 +174,11 @@ internal sealed class SessionDetailViewTestContext
             new InMemoryRecordedSessionProcessingOptionCache(),
             new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,
-            Substitute.For<IRecordedSessionDerivationWindowCache>(),
-            () => Substitute.For<IEditorFactory>());
+            () => Substitute.For<IEditorFactory>(),
+            Substitute.For<ISessionEditingCoordinator>(),
+            TestSegmentPickers.CreateFactory(dialogService: dialogService),
+            TestSegmentComparisons.CreateFactory(),
+            new SessionOperationRunner());
     }
 }
 

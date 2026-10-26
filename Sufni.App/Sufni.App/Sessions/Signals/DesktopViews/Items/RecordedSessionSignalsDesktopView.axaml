@@ -3,9 +3,10 @@ x:Class="Sufni.App.Sessions.Signals.DesktopViews.Items.RecordedSessionSignalsDes
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls2="clr-namespace:Sufni.App.Sessions.Signals.Views.Controls"
-xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:segmentViews="clr-namespace:Sufni.App.Segments.DesktopViews"
+xmlns:segmentMobileViews="clr-namespace:Sufni.App.Segments.Views"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
@@ -13,9 +14,15 @@ x:DataType="vm:IRecordedSessionSignalsWorkspace"
 mc:Ignorable="d">
 
     <Grid RowDefinitions="Auto,*" RowSpacing="8">
-        <controls:RecordedSessionToolbarContributionsView
-            Grid.Row="0"
-            ExtensionSlots="{Binding ExtensionSlots}" />
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+            <segmentMobileViews:SegmentMatchToolbarView
+                Grid.Column="0"
+                DataContext="{Binding SegmentComparison}" />
+            <segmentViews:SegmentPickerFlyoutButtonView
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                DataContext="{Binding SegmentPicker}" />
+        </Grid>
 
         <controls2:RecordedSignalRowsView Grid.Row="1" />
     </Grid>

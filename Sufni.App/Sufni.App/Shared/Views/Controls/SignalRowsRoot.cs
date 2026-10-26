@@ -14,7 +14,6 @@ using Avalonia.VisualTree;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Controls;
 
@@ -479,7 +478,7 @@ public sealed class SignalRowsRoot : UserControl
     {
         if (string.IsNullOrWhiteSpace(row.RowId))
         {
-            return true;
+            return false;
         }
 
         var current = CaptureSignalLayoutPreferences();
@@ -492,7 +491,7 @@ public sealed class SignalRowsRoot : UserControl
         if (string.IsNullOrWhiteSpace(row.RowId) ||
             string.IsNullOrWhiteSpace(targetParent.RowId))
         {
-            return true;
+            return false;
         }
 
         var current = CaptureSignalLayoutPreferences();
@@ -503,7 +502,7 @@ public sealed class SignalRowsRoot : UserControl
     internal SignalLayoutPreferences CaptureSignalLayoutPreferences()
     {
         return SignalLayoutPreferenceTree.Capture(Rows
-            .Where(row => !SignalRowExtensionHost.GetIsHostedSignalRow(row))
+            .Where(IsPreferenceManaged)
             .Select(CreateRowState));
     }
 
@@ -514,7 +513,7 @@ public sealed class SignalRowsRoot : UserControl
             row.IsExpanded,
             row.IsExpanded ? row.ManualGroupHeightRatio : null,
             row.ChildRows
-                .Where(childRow => !SignalRowExtensionHost.GetIsHostedSignalRow(childRow))
+                .Where(IsPreferenceManaged)
                 .Select(CreateRowState)
                 .ToArray());
     }
@@ -532,11 +531,8 @@ public sealed class SignalRowsRoot : UserControl
             return;
         }
 
-        var preferenceManagedRows = allRows
-            .Where(row =>
-                !SignalRowExtensionHost.GetIsHostedSignalRow(row) &&
-                !string.IsNullOrWhiteSpace(row.RowId))
-            .ToArray();
+        var preferenceManagedRows = allRows.Where(IsPreferenceManaged).ToArray();
+        var unmanagedRootRows = Rows.Where(row => !IsPreferenceManaged(row)).ToArray();
         var normalized = SignalLayoutPreferenceTree.Normalize(
             preferences,
             preferenceManagedRows.Select(row => row.RowId!));
@@ -551,9 +547,7 @@ public sealed class SignalRowsRoot : UserControl
         {
             foreach (var row in allRows)
             {
-                foreach (var childRow in row.ChildRows
-                             .Where(childRow => !SignalRowExtensionHost.GetIsHostedSignalRow(childRow))
-                             .ToArray())
+                foreach (var childRow in row.ChildRows.Where(IsPreferenceManaged).ToArray())
                 {
                     row.ChildRows.Remove(childRow);
                 }
@@ -561,9 +555,8 @@ public sealed class SignalRowsRoot : UserControl
 
             Rows.Clear();
             rootRows.AddRange(MaterializeRows(normalized.Rows, rowsById, usedIds));
-            rootRows.AddRange(allRows.Where(row =>
-                !SignalRowExtensionHost.GetIsHostedSignalRow(row) &&
-                (string.IsNullOrWhiteSpace(row.RowId) || !usedIds.Contains(row.RowId))));
+            rootRows.AddRange(preferenceManagedRows.Where(row => !usedIds.Contains(row.RowId!)));
+            rootRows.AddRange(unmanagedRootRows);
 
             foreach (var row in rootRows)
             {
@@ -579,6 +572,10 @@ public sealed class SignalRowsRoot : UserControl
             AttachRowListeners();
         }
     }
+
+    // Rows without a row id keep their place and are not stored.
+    private static bool IsPreferenceManaged(SignalRow row) =>
+        !string.IsNullOrWhiteSpace(row.RowId);
 
     private static IEnumerable<SignalRow> MaterializeRows(
         IEnumerable<SignalLayoutRowPreferences> preferences,

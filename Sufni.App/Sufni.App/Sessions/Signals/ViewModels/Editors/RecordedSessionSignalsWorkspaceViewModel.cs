@@ -1,22 +1,21 @@
 using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObject, IRecordedSessionSignalsWorkspace, IDisposable
 {
-    private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly RecordedSessionEditorActions actions;
     private readonly IDisposable stateSubscription;
     private TelemetryData? telemetryData;
@@ -58,21 +57,22 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         IRecordedSessionAnalysisResultState analysisResultState,
         TelemetrySourceVisibilityStore sourceVisibility,
         SessionTimelineLinkViewModel timeline,
-        Func<RecordedSessionExtensionSlots> extensionSlots,
-        RecordedSessionEditorActions actions)
+        RecordedSessionEditorActions actions,
+        SegmentPickerViewModel segmentPicker,
+        SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(analysisResultState);
         ArgumentNullException.ThrowIfNull(sourceVisibility);
         ArgumentNullException.ThrowIfNull(timeline);
-        ArgumentNullException.ThrowIfNull(extensionSlots);
         ArgumentNullException.ThrowIfNull(actions);
 
         AnalysisResultState = analysisResultState;
         SourceVisibility = sourceVisibility;
         Timeline = timeline;
-        this.extensionSlots = extensionSlots;
         this.actions = actions;
+        SegmentPicker = segmentPicker;
+        SegmentComparison = segmentComparison;
         stateSubscription = state.Subscribe(ApplyState);
     }
 
@@ -110,7 +110,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
 
     public SessionTimelineLinkViewModel Timeline { get; }
 
-    public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
+    public SegmentPickerViewModel SegmentPicker { get; }
+    public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId =>
         signalPlotContextMenuActionsBySignalRowId;
@@ -196,7 +197,6 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         nameof(SignalLayoutPreferences),
         nameof(SourceVisibility),
         nameof(Timeline),
-        nameof(ExtensionSlots),
         nameof(SignalPlotContextMenuActionsBySignalRowId),
         nameof(ShowAirtime),
         nameof(ShowVelocityAirtime),

@@ -1,30 +1,28 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Shared.Base;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 using Sufni.App.Shared.Formatting;
+using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Lists.ViewModels.Rows;
 
 /// <summary>
 /// Binding state for one recorded-session summary row.
 /// It translates summary metadata and staleness into display text, completion
-/// state, timestamp state, and no-raw/stale indicators.
+/// state, timestamp state, no-raw/stale indicators, and the state of the
+/// latest linked video.
 /// </summary>
 public sealed class SessionRowViewModel : ListItemRowViewModelBase
 {
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly Action<SessionRowViewModel> requestDelete;
     private readonly Func<SessionRowViewModel, Task> requestRecalculate;
-    private readonly IRecordedSessionListExtensionService? listExtensionService;
-    private RecordedSessionSummary? summary;
 
     public Guid Id { get; private set; }
     public long Updated { get; private set; }
@@ -95,28 +93,36 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         }
     }
 
+    public bool HasPresentVideo
+    {
+        get => field;
+        private set => SetProperty(ref field, value);
+    }
+
+    public bool HasMissingVideo
+    {
+        get => field;
+        private set => SetProperty(ref field, value);
+    }
+
     public IAsyncRelayCommand RecalculateCommand { get; }
-    public ObservableCollection<RecordedSessionListIndicatorContribution> Indicators { get; } = [];
-    public ObservableCollection<RecordedSessionListActionContribution> Actions { get; } = [];
 
     public SessionRowViewModel(
         RecordedSessionSummary summary,
+        SessionVideoSnapshot? latestVideo,
         ISessionCoordinator sessionCoordinator,
         Action<SessionRowViewModel> requestDelete,
-        Func<SessionRowViewModel, Task> requestRecalculate,
-        IRecordedSessionListExtensionService? listExtensionService = null)
+        Func<SessionRowViewModel, Task> requestRecalculate)
     {
         this.sessionCoordinator = sessionCoordinator;
         this.requestDelete = requestDelete;
         this.requestRecalculate = requestRecalculate;
-        this.listExtensionService = listExtensionService;
         RecalculateCommand = new AsyncRelayCommand(RecalculateAsync, () => CanRecalculate);
-        Update(summary);
+        Update(summary, latestVideo);
     }
 
-    public void Update(RecordedSessionSummary summary)
+    public void Update(RecordedSessionSummary summary, SessionVideoSnapshot? latestVideo)
     {
-        this.summary = summary;
         Id = summary.Id;
         Updated = summary.Updated;
         BaseName = summary.Name;
@@ -145,15 +151,8 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
             summary.AscentMeters,
             summary.DescentMeters);
         IsComplete = summary.HasProcessedData;
-        RefreshExtensionContributions(summary);
-    }
-
-    public void RefreshExtensionContributions()
-    {
-        if (summary is not null)
-        {
-            RefreshExtensionContributions(summary);
-        }
+        HasPresentVideo = latestVideo is { FileExists: true };
+        HasMissingVideo = latestVideo is { FileExists: false };
     }
 
     protected override async Task OpenPageAsync()
@@ -169,26 +168,6 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     private Task RecalculateAsync()
     {
         return requestRecalculate(this);
-    }
-
-    private void RefreshExtensionContributions(RecordedSessionSummary summary)
-    {
-        Indicators.Clear();
-        Actions.Clear();
-        if (listExtensionService is null)
-        {
-            return;
-        }
-
-        foreach (var contribution in listExtensionService.CreateIndicators(summary))
-        {
-            Indicators.Add(contribution);
-        }
-
-        foreach (var contribution in listExtensionService.CreateActions(summary))
-        {
-            Actions.Add(contribution);
-        }
     }
 
     private static string FormatTimestamp(DateTime? timestamp)

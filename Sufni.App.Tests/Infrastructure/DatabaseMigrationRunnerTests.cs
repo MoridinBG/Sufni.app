@@ -1,36 +1,26 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Setups.Models;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Video.Models;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
-    public enum ExtensionMigratorValidationCase
-    {
-        DuplicateIds,
-        DuplicateTableOwnership,
-        ReservedCoreTableName,
-    }
-
     public enum ProcessedSessionFingerprintCase
     {
         MissingLegacyFingerprint,
@@ -691,19 +681,20 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task Initialization_CreatesExtensionSchemaVersionTable()
+    public async Task Initialization_DropsSchemaVersionTable()
     {
-        using var tempDatabase = new TempDatabase("extension-schema-version.db");
-        var databasePath = tempDatabase.DatabasePath;
+        using var tempDatabase = new TempDatabase("schema-version.db");
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
+        }
 
-        var database = new TestPersistenceHarness(databasePath);
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetAllAsync<Board>();
 
-        using var connection = new SQLiteConnection(databasePath);
-        var tables = connection.Query<SqliteMasterRow>(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'extension_schema_version'");
-
-        Assert.Single(tables);
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'extension_schema_version'"));
     }
 
     [Fact]
@@ -749,126 +740,6 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(
             expected.OrderBy(name => name, StringComparer.Ordinal),
             indexNames.OrderBy(name => name, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public async Task Initialization_CreatesExtensionMigratorTables()
-    {
-        using var tempDatabase = new TempDatabase("extension-table.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var migrator = new TestExtensionMigrator(
-            "test",
-            targetVersion: 0,
-            [typeof(TestExtensionRow)],
-            []);
-        var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-
-        _ = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        using var connection = new SQLiteConnection(databasePath);
-        var tables = connection.Query<SqliteMasterRow>(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'test_extension_row'");
-
-        Assert.Single(tables);
-    }
-
-    [Theory]
-    [InlineData(ExtensionMigratorValidationCase.DuplicateIds)]
-    [InlineData(ExtensionMigratorValidationCase.DuplicateTableOwnership)]
-    [InlineData(ExtensionMigratorValidationCase.ReservedCoreTableName)]
-    public void Constructor_RejectsInvalidExtensionMigratorDefinitions(
-        ExtensionMigratorValidationCase validationCase)
-    {
-        using var tempDatabase = new TempDatabase("invalid-extension-migrator.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var (migrators, expectedMessages) = CreateInvalidExtensionMigratorCase(validationCase);
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            new TestPersistenceHarness(databasePath, migrators));
-
-        foreach (var expectedMessage in expectedMessages)
-        {
-            Assert.Contains(expectedMessage, exception.Message);
-        }
-    }
-
-    [Fact]
-    public async Task Initialization_RunsExtensionMigrationStepsOnceAndAdvancesVersion()
-    {
-        using var tempDatabase = new TempDatabase("extension-migrations.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var appliedSteps = new List<int>();
-        var migrator = new TestExtensionMigrator(
-            "test",
-            targetVersion: 2,
-            [typeof(TestExtensionRow)],
-            [
-                new ExtensionDatabaseMigrationStep(1, context =>
-                {
-                    appliedSteps.Add(1);
-                    context.Transaction.Insert(new TestExtensionRow
-                    {
-                        Id = "step-1",
-                        Value = 1,
-                    });
-                }),
-                new ExtensionDatabaseMigrationStep(2, context =>
-                {
-                    appliedSteps.Add(2);
-                    context.Transaction.Insert(new TestExtensionRow
-                    {
-                        Id = "step-2",
-                        Value = 2,
-                    });
-                }),
-            ]);
-
-        var firstRun = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-        _ = await firstRun.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var secondRun = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-        _ = await secondRun.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        using var connection = new SQLiteConnection(databasePath);
-        var version = Assert.Single(connection.Table<ExtensionSchemaVersion>().ToList());
-        var rows = connection.Table<TestExtensionRow>().OrderBy(row => row.Value).ToList();
-
-        Assert.Equal([1, 2], appliedSteps);
-        Assert.Equal("test", version.ExtensionId);
-        Assert.Equal(2, version.Version);
-        Assert.Equal(["step-1", "step-2"], rows.Select(row => row.Id).ToList());
-
-    }
-
-    [Fact]
-    public async Task Initialization_RollsBackExtensionStepAndVersion_WhenStepThrows()
-    {
-        using var tempDatabase = new TempDatabase("extension-migration-rollback.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var migrator = new TestExtensionMigrator(
-            "test",
-            targetVersion: 1,
-            [typeof(TestExtensionRow)],
-            [
-                new ExtensionDatabaseMigrationStep(1, context =>
-                {
-                    context.Transaction.Insert(new TestExtensionRow
-                    {
-                        Id = "rolled-back",
-                        Value = 1,
-                    });
-                    throw new InvalidOperationException("fail extension migration");
-                }),
-            ]);
-        var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken));
-
-        using var connection = new SQLiteConnection(databasePath);
-        Assert.Empty(connection.Table<TestExtensionRow>().ToList());
-        Assert.Null(connection.Find<ExtensionSchemaVersion>("test"));
     }
 
     [Fact]
@@ -1096,6 +967,215 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
+    public async Task Initialization_CopiesPrivateVideoLinks_AndDropsSourceTable()
+    {
+        using var tempDatabase = new TempDatabase("private-video-copy.db");
+        var sessionId = Guid.NewGuid();
+        var clipId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(sessionId, "ride", string.Empty, null) { Updated = 10 });
+            connection.Execute(
+                """
+                CREATE TABLE private_session_video_clip (
+                    id TEXT PRIMARY KEY, session_id TEXT, path TEXT NOT NULL, file_name TEXT NOT NULL,
+                    start_timestamp INTEGER NOT NULL, duration_seconds REAL NOT NULL,
+                    alignment_offset_seconds REAL NOT NULL, added INTEGER NOT NULL, updated INTEGER NOT NULL)
+                """);
+            connection.Execute(
+                "INSERT INTO private_session_video_clip VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                clipId, sessionId, "/videos/ride.mp4", "ride.mp4", 1_000, 60.0, 2.5, 7, 8);
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var clip = Assert.Single(await database.SessionVideoRepository.GetLiveAsync());
+
+        Assert.Equal((clipId, sessionId, "/videos/ride.mp4", 1_000L, 60.0, 2.5, 7L),
+            (clip.Id, clip.SessionId, clip.Path, clip.StartTimestamp, clip.DurationSeconds, clip.AlignmentOffsetSeconds, clip.Added));
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video_clip'"));
+    }
+
+    [Fact]
+    public async Task Initialization_DropsTheAbandonedVideoTable()
+    {
+        using var tempDatabase = new TempDatabase("abandoned-video-table.db");
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Execute("CREATE TABLE private_session_video (session_id TEXT PRIMARY KEY, path TEXT NOT NULL)");
+            connection.Execute("INSERT INTO private_session_video VALUES (?, ?)", Guid.NewGuid(), "/videos/ride.mp4");
+        }
+
+        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video'"));
+    }
+
+    [Fact]
+    public async Task Initialization_CopiesSessionSourceRanges_AndDropsRangeTable()
+    {
+        using var tempDatabase = new TempDatabase("session-source-range-copy.db");
+        var derivedId = Guid.NewGuid();
+        var identityId = Guid.NewGuid();
+        var deletedRangeId = Guid.NewGuid();
+        var sourceId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(derivedId, "derived", string.Empty, null) { Updated = 10 });
+            connection.Insert(new Session(identityId, "identity", string.Empty, null) { Updated = 10 });
+            connection.Insert(new Session(deletedRangeId, "deleted range", string.Empty, null) { Updated = 10 });
+            connection.Execute(
+                """
+                CREATE TABLE private_session_source_range (
+                    session_id TEXT PRIMARY KEY, source_session_id TEXT NOT NULL,
+                    range_start_seconds REAL NOT NULL, range_end_seconds REAL,
+                    prev_range_start_seconds REAL, prev_range_end_seconds REAL,
+                    updated INTEGER NOT NULL, client_updated INTEGER NOT NULL, deleted INTEGER)
+                """);
+            const string insertRange = "INSERT INTO private_session_source_range VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?)";
+            connection.Execute(insertRange, derivedId, sourceId, 2.5, 8.0, 0.0, null, null);
+            connection.Execute(insertRange, identityId, identityId, 0.0, null, null, null, null);
+            connection.Execute(insertRange, deletedRangeId, sourceId, 1.0, null, null, null, 5);
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var derived = SessionSnapshot.From((await database.GetSessionAsync(derivedId))!);
+
+        Assert.Equal(new RecordedSessionDerivationWindow(sourceId, 2.5, 8), derived.DerivationWindow);
+        Assert.Equal((0.0, (double?)null), (derived.PreviousWindowStartSeconds, derived.PreviousWindowEndSeconds));
+        Assert.Null((await database.GetSessionAsync(identityId))!.SourceSessionId);
+        Assert.Null((await database.GetSessionAsync(deletedRangeId))!.SourceSessionId);
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_source_range'"));
+    }
+
+    [Fact]
+    public async Task Initialization_SeedsDerivationWindowFromFingerprint_WhenRangeIsMissing()
+    {
+        using var tempDatabase = new TempDatabase("session-window-fingerprint-seed.db");
+        var sessionId = Guid.NewGuid();
+        var window = new RecordedSessionDerivationWindow(Guid.NewGuid(), 3, null);
+        var fingerprint = new ProcessingFingerprint(
+            SchemaVersion: 3,
+            ProcessingVersion: TelemetryProcessingVersion.Current,
+            SetupId: Guid.NewGuid(),
+            BikeId: Guid.NewGuid(),
+            TrackProjectionVersion: GpsTrackPointProjection.ProjectionVersion,
+            DependencyHash: "dependency",
+            SourceHash: "source",
+            DerivationWindow: window);
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(sessionId, "derived", string.Empty, null)
+            {
+                ProcessingFingerprintJson = AppJson.Serialize(fingerprint),
+                Updated = 10
+            });
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var session = SessionSnapshot.From((await database.GetSessionAsync(sessionId))!);
+
+        Assert.Equal(window, session.DerivationWindow);
+    }
+
+    [Fact]
+    public async Task Initialization_CopiesPrivateSegmentsWithTombstones_AndDropsSourceTable()
+    {
+        using var tempDatabase = new TempDatabase("private-segment-copy.db");
+        var sessionId = Guid.NewGuid();
+        var liveId = Guid.NewGuid();
+        var deletedId = Guid.NewGuid();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.Insert(new Session(sessionId, "ride", string.Empty, null) { Updated = 10 });
+            connection.Execute(
+                """
+                CREATE TABLE private_saved_session_segment (
+                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL, name TEXT NOT NULL,
+                    start_seconds REAL NOT NULL, end_seconds REAL NOT NULL,
+                    updated INTEGER NOT NULL, client_updated INTEGER NOT NULL, deleted INTEGER)
+                """);
+            const string insertSegment = "INSERT INTO private_saved_session_segment VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            connection.Execute(insertSegment, liveId, sessionId, "climb", 1.5, 4.0, now, now, null);
+            connection.Execute(insertSegment, deletedId, sessionId, "descent", 5.0, 9.0, now, now, now);
+        }
+
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var live = Assert.Single(await database.SessionSegmentRepository.GetLiveAsync());
+
+        Assert.Equal((liveId, sessionId, "climb", 1.5, 4.0), (live.Id, live.SessionId, live.Name, live.StartSeconds, live.EndSeconds));
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.NotNull(verificationConnection.Find<SessionSegment>(deletedId)?.Deleted);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_saved_session_segment'"));
+    }
+
+    [Fact]
+    public async Task StartupCleanup_PurgesSegmentsOfPurgedSessions()
+    {
+        using var tempDatabase = new TempDatabase("segment-purge.db");
+        var purgedSessionId = Guid.NewGuid();
+        var keptSessionId = Guid.NewGuid();
+        var keptSegmentId = Guid.NewGuid();
+        var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.CreateTable<SessionSegment>();
+            connection.Insert(new Session(purgedSessionId, "purged", string.Empty, null) { Updated = 10, Deleted = twoDaysAgo });
+            connection.Insert(new Session(keptSessionId, "kept", string.Empty, null) { Updated = 10 });
+            connection.Insert(new SessionSegment { SessionId = purgedSessionId, Name = "orphan", StartSeconds = 0, EndSeconds = 1 });
+            connection.Insert(new SessionSegment { SessionId = keptSessionId, Name = "old tombstone", StartSeconds = 0, EndSeconds = 1, Deleted = twoDaysAgo });
+            connection.Insert(new SessionSegment { Id = keptSegmentId, SessionId = keptSessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 });
+        }
+
+        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(keptSegmentId, Assert.Single(verificationConnection.Table<SessionSegment>().ToList()).Id);
+    }
+
+    [Fact]
+    public async Task StartupCleanup_PurgesVideosOfPurgedSessions()
+    {
+        using var tempDatabase = new TempDatabase("video-purge.db");
+        var purgedSessionId = Guid.NewGuid();
+        var keptSessionId = Guid.NewGuid();
+        var keptClipId = Guid.NewGuid();
+        var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds();
+
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.CreateTable<Session>();
+            connection.CreateTable<SessionVideoClip>();
+            connection.Insert(new Session(purgedSessionId, "purged", string.Empty, null) { Updated = 10, Deleted = twoDaysAgo });
+            connection.Insert(new Session(keptSessionId, "kept", string.Empty, null) { Updated = 10 });
+            connection.Insert(new SessionVideoClip { Id = Guid.NewGuid(), SessionId = purgedSessionId, Path = "/videos/orphan.mp4" });
+            connection.Insert(new SessionVideoClip { Id = keptClipId, SessionId = keptSessionId, Path = "/videos/kept.mp4" });
+        }
+
+        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(keptClipId, Assert.Single(verificationConnection.Table<SessionVideoClip>().ToList()).Id);
+    }
+
+    [Fact]
     public async Task StartupCleanup_SoftDeletesDuplicateTrackTimeRanges_AndRepointsSessions()
     {
         using var tempDatabase = new TempDatabase("duplicate-track-cleanup.db");
@@ -1289,33 +1369,6 @@ public class DatabaseMigrationRunnerTests
             SetupSnapshot.From(seed.Setup, boardId: null),
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
-    }
-
-    private static (IReadOnlyList<TestExtensionMigrator> Migrators, string[] ExpectedMessages)
-        CreateInvalidExtensionMigratorCase(ExtensionMigratorValidationCase validationCase)
-    {
-        return validationCase switch
-        {
-            ExtensionMigratorValidationCase.DuplicateIds => (
-                [
-                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], []),
-                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
-                ],
-                ["test"]),
-
-            ExtensionMigratorValidationCase.DuplicateTableOwnership => (
-                [
-                    new TestExtensionMigrator("first", targetVersion: 0, [typeof(TestExtensionRow)], []),
-                    new TestExtensionMigrator("second", targetVersion: 0, [typeof(DuplicateNamedExtensionRow)], []),
-                ],
-                ["test_extension_row", "first", "second"]),
-
-            ExtensionMigratorValidationCase.ReservedCoreTableName => (
-                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(CoreNamedExtensionRow)], [])],
-                ["session", "reserved"]),
-
-            _ => throw new ArgumentOutOfRangeException(nameof(validationCase), validationCase, null),
-        };
     }
 
     private static ProcessedSessionFingerprintSeedOptions CreateProcessedSessionFingerprintSeedOptions(

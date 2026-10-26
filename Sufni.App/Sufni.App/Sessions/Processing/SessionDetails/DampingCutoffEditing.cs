@@ -1,5 +1,5 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 
 namespace Sufni.App.Sessions.Processing.SessionDetails;
 

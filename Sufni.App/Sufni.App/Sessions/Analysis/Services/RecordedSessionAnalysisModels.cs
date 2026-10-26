@@ -1,10 +1,9 @@
 using System;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
-using DampingSpeedCutoffSet = Sufni.App.ExtensionHost.Contracts.SessionDetails.DampingSpeedCutoffs;
+using DampingSpeedCutoffSet = Sufni.App.Bikes.Models.DampingSpeedCutoffs;
 
 namespace Sufni.App.Sessions.Analysis.Services;
 
@@ -21,6 +20,7 @@ public enum RecordedSessionAnalysisFamily
     DeepTravelDistribution,
     VibrationDistribution,
     ImuDisplayProjection,
+    PositionVelocity,
 }
 
 public sealed record RecordedSessionAnalysisInputs(
@@ -201,6 +201,20 @@ public sealed record RecordedSessionAnalysisInputs(
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
                 DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
+            RecordedSessionAnalysisFamily.PositionVelocity => new RecordedSessionAnalysisKey(
+                family,
+                TelemetryGeneration,
+                AnalysisRange,
+                SuspensionType: null,
+                BalanceType: null,
+                ImuLocation: null,
+                TravelDistributionMode: null,
+                VelocityAverageMode: null,
+                BalanceDisplacementMode: null,
+                BalanceSpeedMode: null,
+                DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
+                DampingPercentages: null,
+                SessionInsightsTargetProfile: null),
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, null),
         };
 }
@@ -268,6 +282,9 @@ public sealed record VibrationDistributionAnalysisResult(
 
 public sealed record ImuDisplayProjectionAnalysisResult(
     RecordedImuDisplaySeries Projection) : RecordedSessionAnalysisResult;
+
+public sealed record PositionVelocityAnalysisResult(
+    PositionVelocityTraceSet Traces) : RecordedSessionAnalysisResult;
 
 public sealed record RecordedSessionAnalysisResultChanged(
     RecordedSessionAnalysisKey Key,

@@ -4,7 +4,6 @@ using NSubstitute;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.App.ExtensionHost.TestSupport.Async;
 namespace Sufni.App.Tests.Sessions.Store;
 
 public class RecordedSessionSourceStoreTests

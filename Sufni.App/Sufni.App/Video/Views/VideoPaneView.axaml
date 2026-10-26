@@ -1,0 +1,104 @@
+<UserControl
+    x:Class="Sufni.App.Video.Views.VideoPaneView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Video.ViewModels"
+    d:DesignHeight="240"
+    d:DesignWidth="400"
+    x:Name="Root"
+    x:DataType="vm:VideoPaneViewModel"
+    mc:Ignorable="d">
+
+    <Grid
+        x:Name="PlayerSurfaceGrid"
+        Background="Black"
+        ClipToBounds="True">
+        <Border
+            x:Name="VideoFrame"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="Black"
+            ClipToBounds="True">
+            <ContentControl
+                x:Name="VideoHost"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                ClipToBounds="True"
+                IsHitTestVisible="False" />
+        </Border>
+
+        <TextBlock
+            x:Name="PlayerUnavailableText"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Foreground="White"
+            IsVisible="False"
+            Text="Video playback is unavailable on this device." />
+
+        <Popup
+            x:Name="ControlsPopup"
+            IsLightDismissEnabled="False"
+            Placement="AnchorAndGravity"
+            PlacementAnchor="Bottom"
+            PlacementGravity="Top"
+            PlacementTarget="{Binding #Root}"
+            VerticalOffset="-10"
+            WindowManagerAddShadowHint="False">
+            <Border
+                x:Name="ControlsOverlay"
+                Padding="8,6"
+                Background="#AA000000"
+                CornerRadius="8"
+                PointerEntered="ControlsOverlay_OnPointerEntered"
+                PointerExited="ControlsOverlay_OnPointerExited">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        Name="PlayPauseButton"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        Classes="embedded"
+                        Command="{Binding Playback.PlayPauseCommand}"
+                        Svg.Css="{DynamicResource SufniIconSecondarySvgCss}"
+                        ToolTip.Tip="Play/Pause">
+                        <Panel>
+                            <Image
+                                Width="14"
+                                Height="14"
+                                IsVisible="{Binding Playback.IsPaused}"
+                                Source="{SvgImage /Assets/fa-play.svg}" />
+                            <Image
+                                Width="14"
+                                Height="14"
+                                IsVisible="{Binding Playback.IsPlaying}"
+                                Source="{SvgImage /Assets/fa-pause.svg}" />
+                        </Panel>
+                    </Button>
+
+                    <ToggleButton
+                        Name="SyncToggleButton"
+                        Width="32"
+                        Height="32"
+                        Padding="0"
+                        Classes="embedded"
+                        IsChecked="{Binding Playback.IsSyncEnabled}"
+                        IsEnabled="{Binding Playback.CanSync}"
+                        Svg.Css="{DynamicResource SufniIconSecondarySvgCss}"
+                        ToolTip.Tip="Sync with telemetry">
+                        <Image
+                            Width="14"
+                            Height="14"
+                            Source="{SvgImage /Assets/fa-link.svg}" />
+                    </ToggleButton>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

@@ -7,8 +7,8 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
-using Sufni.App.Theming;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Infrastructure.Theming;
+using Sufni.App.Shared.Common;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
 
 using Sufni.App.Shared.Views.Controls;
@@ -245,10 +245,10 @@ public class SignalRowsRootTests
     [AvaloniaFact]
     public async Task SignalRowsRoot_DropHostedRowBetweenRootRows_MakesItRoot()
     {
-        var velocity = CreateRow("Velocity");
-        var travel = CreateRow("Travel");
+        var velocity = CreateRow("Velocity", SignalRowIds.Velocity);
+        var travel = CreateRow("Travel", SignalRowIds.Travel);
         travel.ChildRows.Add(velocity);
-        var imu = CreateRow("IMU");
+        var imu = CreateRow("IMU", SignalRowIds.Imu);
         var root = CreateRoot(travel, imu);
 
         await using var mounted = await MountAsync(root);
@@ -273,11 +273,11 @@ public class SignalRowsRootTests
     [AvaloniaFact]
     public async Task SignalRowsRoot_DropHostedRowOnHostedHeader_NestsItUnderHostedRow()
     {
-        var velocity = CreateRow("Velocity");
-        var travel = CreateRow("Travel");
+        var velocity = CreateRow("Velocity", SignalRowIds.Velocity);
+        var travel = CreateRow("Travel", SignalRowIds.Travel);
         travel.ChildRows.Add(velocity);
-        var elevation = CreateRow("Elevation");
-        var gps = CreateRow("GPS");
+        var elevation = CreateRow("Elevation", SignalRowIds.Elevation);
+        var gps = CreateRow("GPS", SignalRowIds.Speed);
         gps.ChildRows.Add(elevation);
         var root = CreateRoot(travel, gps);
 
@@ -296,6 +296,20 @@ public class SignalRowsRootTests
         Assert.Same(elevation, Assert.Single(velocity.ChildRows));
         Assert.Equal(32, elevation.TitleLeftInset);
         Assert.NotNull(elevation.RowBackground);
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_RowWithoutId_IsNotMoved()
+    {
+        var comparison = CreateRow("Comparison");
+        var travel = CreateRow("Travel", SignalRowIds.Travel);
+        travel.ChildRows.Add(comparison);
+        var root = CreateRoot(travel, CreateRow("IMU", SignalRowIds.Imu));
+
+        await using var mounted = await MountAsync(root);
+
+        Assert.False(root.MoveRowToRoot(comparison, 1));
+        Assert.Same(comparison, Assert.Single(travel.ChildRows));
     }
 
     [AvaloniaFact]
@@ -503,6 +517,42 @@ public class SignalRowsRootTests
 
         Assert.Same(travel, Assert.Single(root.Rows));
         Assert.Same(imu, Assert.Single(travel.ChildRows));
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_SignalLayoutPreferences_KeepsRowWithoutIdInPlace()
+    {
+        var comparison = CreateRow("Comparison");
+        var travel = CreateRow("Travel", SignalRowIds.Travel);
+        travel.ChildRows.Add(comparison);
+        var imu = CreateRow("IMU", SignalRowIds.Imu);
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+
+        root.SignalLayoutPreferences = new SignalLayoutPreferences(
+        [
+            new SignalLayoutRowPreferences(SignalRowIds.Imu),
+            new SignalLayoutRowPreferences(SignalRowIds.Travel),
+        ]);
+
+        Assert.Equal([imu, travel], root.Rows.ToArray());
+        Assert.Same(comparison, Assert.Single(travel.ChildRows));
+    }
+
+    [AvaloniaFact]
+    public async Task SignalRowsRoot_SignalLayoutPreferences_DoNotStoreRowWithoutId()
+    {
+        var travel = CreateRow("Travel", SignalRowIds.Travel);
+        travel.ChildRows.Add(CreateRow("Comparison"));
+        var imu = CreateRow("IMU", SignalRowIds.Imu);
+        var root = CreateRoot(travel, imu);
+
+        await using var mounted = await MountAsync(root);
+
+        imu.IsExpanded = false;
+
+        Assert.Empty(root.SignalLayoutPreferences.Rows[0].Children);
     }
 
     private static SignalRowsRoot CreateRoot(params SignalRow[] rows)

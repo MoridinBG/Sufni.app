@@ -8,15 +8,12 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
-using Sufni.App.ExtensionHost.Contracts.Plots;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Views;
@@ -42,7 +39,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     private Point playbackStopClickStartPoint;
     private double selectionStartSeconds;
     private double selectionEndSeconds;
-    private readonly HashSet<string> appliedTimeRangeOverlayIds = new(StringComparer.Ordinal);
     private IDisposable? touchContextMenuLongPress;
     private IDisposable? pendingPlotClickEffects;
     private Point touchContextMenuLongPressStartPoint;
@@ -96,16 +92,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
     {
         get => GetValue(AnalysisRangeProperty);
         set => SetValue(AnalysisRangeProperty, value);
-    }
-
-    public static readonly StyledProperty<IReadOnlyList<RecordedTimeRangeOverlaySetRegistration>?> TimeRangeOverlaysProperty =
-        AvaloniaProperty.Register<SufniTimeSeriesPlotView, IReadOnlyList<RecordedTimeRangeOverlaySetRegistration>?>(
-            nameof(TimeRangeOverlays));
-
-    public IReadOnlyList<RecordedTimeRangeOverlaySetRegistration>? TimeRangeOverlays
-    {
-        get => GetValue(TimeRangeOverlaysProperty);
-        set => SetValue(TimeRangeOverlaysProperty, value);
     }
 
     public static readonly StyledProperty<IReadOnlyList<TelemetryHighlightRange>?> AnalysisSelectionHighlightRangesProperty =
@@ -198,11 +184,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
                 case nameof(AnalysisRange):
                     OnAnalysisRangeChanged();
                     break;
-
-                case nameof(TimeRangeOverlays):
-                    ApplyTimeRangeOverlays(refresh: true);
-                    break;
-
             }
         };
     }
@@ -1047,12 +1028,20 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             return;
         }
 
-        var plotModel = plot!;
+        // ScottPlot renders on the render thread under Plot.Sync; rebuilding
+        // the plottables without it races a frame in progress.
+        lock (PlotControl.Plot.Sync)
+        {
+            RefreshPlot(RebuildPlot(plot!));
+        }
+    }
+
+    private PlotInvalidation RebuildPlot(TelemetryPlot plotModel)
+    {
         if (!CanLoadPlotData)
         {
             plotModel.Clear();
-            RefreshPlot(PlotInvalidation.Data);
-            return;
+            return PlotInvalidation.Data;
         }
 
         ApplyPlotOptions(plotModel);
@@ -1061,11 +1050,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         ApplyTimelineCursor();
         ApplyTimelineRange();
         OnPlotDataLoaded();
-        RefreshPlot(
-            PlotInvalidation.Data |
+        return PlotInvalidation.Data |
             PlotInvalidation.Cursor |
             PlotInvalidation.Overlay |
-            PlotInvalidation.Viewport);
+            PlotInvalidation.Viewport;
     }
 
     protected virtual void OnPlotDataLoaded()
@@ -1075,7 +1063,6 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
             ApplyAnalysisRange(recordedPlot);
         }
 
-        ApplyTimeRangeOverlays(refresh: false);
         ApplyAnalysisSelectionRanges(refresh: false);
         ApplyAnalysisSelectionVisibility(refresh: false);
         ApplyAirtimeVisibility(refresh: false);
@@ -1092,36 +1079,5 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         var registration = RecordedTimeRangeOverlayFactory.CreateAnalysisRangeRegistration(range, CurrentTheme.Plot);
         recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
         recordedPlot.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
-    }
-
-    private void ApplyTimeRangeOverlays(bool refresh)
-    {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
-        {
-            return;
-        }
-
-        var registrations = TimeRangeOverlays ?? [];
-        var activeIds = registrations
-            .Select(registration => registration.Id)
-            .ToHashSet(StringComparer.Ordinal);
-
-        foreach (var staleId in appliedTimeRangeOverlayIds.Where(id => !activeIds.Contains(id)).ToArray())
-        {
-            recordedPlot.ClearRangeOverlaySet(staleId);
-            appliedTimeRangeOverlayIds.Remove(staleId);
-        }
-
-        foreach (var registration in registrations)
-        {
-            recordedPlot.SetRangeOverlaySet(registration.Id, registration.Set);
-            recordedPlot.SetRangeOverlayVisibility(registration.Id, registration.IsVisible);
-            appliedTimeRangeOverlayIds.Add(registration.Id);
-        }
-
-        if (refresh)
-        {
-            RefreshPlot(PlotInvalidation.Overlay);
-        }
     }
 }

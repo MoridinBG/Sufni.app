@@ -1,4 +1,3 @@
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
@@ -18,8 +17,7 @@ public interface IProcessingFingerprintService
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null);
+        TelemetryProcessingOptions? options = null);
 
     ProcessingFingerprint CreateCurrent(
         SessionSnapshot session,
@@ -27,8 +25,7 @@ public interface IProcessingFingerprintService
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
         string dependencyHash,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null);
+        TelemetryProcessingOptions? options = null);
 
     /// <summary>
     /// Builds a fingerprint from the DB-resident processing inputs only (setup,
@@ -41,12 +38,9 @@ public interface IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source,
-        RecordedSessionDerivationWindow? window = null);
+        RecordedSessionSourceSnapshot source);
 
-    ProcessingFingerprint CreateCurrentDatabaseInputs(
-        SessionProcessingInputBundle input,
-        RecordedSessionDerivationWindow? window = null);
+    ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input);
 
     ProcessingFingerprint? ParsePersisted(SessionSnapshot session);
 
@@ -69,16 +63,14 @@ public interface IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null);
+        TelemetryProcessingOptions? options = null);
 
     ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null);
+        TelemetryProcessingOptions? options = null);
 
     ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,
@@ -86,8 +78,7 @@ public interface IProcessingFingerprintService
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         string? dependencyHash,
-        TelemetryProcessingOptions? options = null,
-        RecordedSessionDerivationWindow? window = null);
+        TelemetryProcessingOptions? options = null);
 }
 
 /// <summary>

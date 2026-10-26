@@ -1,16 +1,14 @@
 using System.Reactive.Linq;
 using Avalonia;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
-using Sufni.App.ExtensionHost.TestSupport.Async;
+using Sufni.App.Bikes.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Segments.Coordinators;
+using Sufni.App.Segments.Services;
+using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -27,6 +25,7 @@ using Sufni.App.Tests.TestSupport.Extensions;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Persistence;
+using Sufni.App.Video.ViewModels;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.TestSupport.Sessions;
@@ -62,8 +61,12 @@ internal sealed class SessionDetailHarness
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
     public ISessionPreferences SessionPreferences { get; } = Substitute.For<ISessionPreferences>();
     public TestSessionProcessedTelemetryReader ProcessedTelemetryReader { get; } = new();
-    public IRecordedSessionDerivationWindowCache DerivationWindowCache { get; } = Substitute.For<IRecordedSessionDerivationWindowCache>();
+    public ISessionEditingCoordinator SessionEditingCoordinator { get; } = Substitute.For<ISessionEditingCoordinator>();
     public IEditorFactory EditorFactory { get; } = Substitute.For<IEditorFactory>();
+    public IVideoPaneFactory? VideoPaneFactory { get; set; }
+    public SessionSegmentStore SegmentStore { get; } = new(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher());
+    public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
+    public SessionOperationRunner OperationRunner { get; } = new();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
     public IRecordedSessionProcessingOptionCache ProcessingOptionCache { get; set; } = new InMemoryRecordedSessionProcessingOptionCache();
     public IObservable<RecordedSessionDomainSnapshot> ProjectionChanges { get; private set; } = Observable.Empty<RecordedSessionDomainSnapshot>();
@@ -79,13 +82,12 @@ internal sealed class SessionDetailHarness
         SessionSnapshot? snapshot = null,
         SessionDetailLoadResult? loadResult = null,
         IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null,
-        bool isDesktop = true,
-        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null)
+        bool isDesktop = true)
     {
         snapshot ??= CreateRecordedSession();
         ConfigureSnapshot(snapshot, projectionChanges);
         ConfigureLoad(snapshot, loadResult ?? CreateLoadedResult());
-        return CreateEditor(snapshot, isDesktop, recordedSessionExtensionFactories);
+        return CreateEditor(snapshot, isDesktop);
     }
 
     public Task LoadAsync(SessionDetailViewModel editor, Rect? bounds = null) =>
@@ -97,8 +99,8 @@ internal sealed class SessionDetailHarness
     public Task DeleteAsync(SessionDetailViewModel editor, bool navigateBack = true) =>
         editor.DeleteCommand.ExecuteAsync(navigateBack);
 
-    public Task UnloadAsync(SessionDetailViewModel editor) =>
-        editor.UnloadedCommand.ExecuteAsync(null);
+    public void Unload(SessionDetailViewModel editor) =>
+        editor.UnloadedCommand.Execute(null);
 
     public void PublishProjectionChange(IObserver<RecordedSessionDomainSnapshot> publisher, RecordedSessionDomainSnapshot snapshot) =>
         publisher.OnNext(snapshot);
@@ -168,8 +170,7 @@ internal sealed class SessionDetailHarness
 
     private SessionDetailViewModel CreateEditor(
         SessionSnapshot snapshot,
-        bool isDesktop,
-        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories)
+        bool isDesktop)
     {
         TestApp.SetIsDesktop(isDesktop);
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
@@ -191,12 +192,11 @@ internal sealed class SessionDetailHarness
             ProcessingOptionCache,
             ProcessedTelemetryReader,
             analysisResultStateFactory,
-            DerivationWindowCache,
             () => EditorFactory,
-            extensionHost: new ExtensionHostDependencies(
-                recordedSessionExtensionFactories ?? [],
-                Substitute.For<IExtensionDatabaseConnection>(),
-                Substitute.For<IRecordedSessionDataReader>(),
-                new InlineBackgroundTaskRunner()));
+            SessionEditingCoordinator,
+            TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
+            TestSegmentComparisons.CreateFactory(SegmentCoordinator),
+            OperationRunner,
+            videoPaneFactory: VideoPaneFactory);
     }
 }

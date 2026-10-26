@@ -1,7 +1,5 @@
 using System.Threading;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.TestSupport;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -65,7 +63,6 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            null,
             new SessionStaleness.DependencyHashChanged(),
             DerivedChangeKind.None);
 
@@ -244,6 +241,12 @@ public class SessionRecomputeEngineTests
         var bike = TestSnapshots.Bike(id: bikeId);
         var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, 2);
+        session = session with
+        {
+            SourceSessionId = sourceSessionId,
+            WindowStartSeconds = 1,
+            WindowEndSeconds = 2
+        };
         var domain = new RecordedSessionDomainSnapshot(
             session,
             setup,
@@ -251,7 +254,6 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            window,
             new SessionStaleness.SourceWindowChanged(),
             DerivedChangeKind.None);
         domainQuery.Get(sessionId).Returns(domain);
@@ -281,7 +283,7 @@ public class SessionRecomputeEngineTests
         await sourceStore.Received(1).LoadAsync(sourceSessionId, Arg.Any<CancellationToken>());
         await sourceStore.DidNotReceive().LoadAsync(sessionId, Arg.Any<CancellationToken>());
         await reprocessor.Received(1).ReprocessAsync(
-            Arg.Is<RecordedSessionDomainSnapshot>(value => value.DerivationWindow == window),
+            Arg.Is<RecordedSessionDomainSnapshot>(value => value.Session.DerivationWindow == window),
             Arg.Is<RecordedSessionSource>(value => value.SessionId == sourceSessionId),
             Arg.Any<TelemetryProcessingOptions>(),
             Arg.Any<CancellationToken>());
@@ -294,7 +296,6 @@ public class SessionRecomputeEngineTests
         var session = TestSnapshots.Session(id: sessionId, hasProcessedData: true);
         domainQuery.Get(sessionId).Returns(new RecordedSessionDomainSnapshot(
             session,
-            null,
             null,
             null,
             null,
@@ -331,7 +332,6 @@ public class SessionRecomputeEngineTests
         var skipped = TestSnapshots.Session(id: skippedId, hasProcessedData: true);
         domainQuery.Get(skippedId).Returns(new RecordedSessionDomainSnapshot(
             skipped,
-            null,
             null,
             null,
             null,

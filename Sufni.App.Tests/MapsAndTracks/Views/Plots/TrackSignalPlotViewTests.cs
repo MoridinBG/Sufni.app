@@ -2,7 +2,7 @@ using Avalonia.Headless.XUnit;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.MapsAndTracks.Views.Plots;
 using Sufni.App.MapsAndTracks.Plots;

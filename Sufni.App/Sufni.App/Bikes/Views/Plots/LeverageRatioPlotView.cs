@@ -4,7 +4,7 @@ using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Plots;
 using Sufni.App.Shared.Views.Plots;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Bikes.Views.Plots;
 
 public class LeverageRatioPlotView : SufniPlotView

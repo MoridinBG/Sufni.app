@@ -76,6 +76,10 @@ dotnet build Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj -c Debug
 dotnet run --project Sufni.App/Sufni.App.Linux/Sufni.App.Linux.csproj -c Debug
 ```
 
+Session video playback loads the LibVLC library installed on the system. Without
+it, the video pane shows "Video playback is unavailable on this device." The
+Windows head bundles LibVLC through the `VideoLAN.LibVLC.Windows` package.
+
 ### Cross-publish from macOS
 
 To produce a self-contained Linux x64 executable from a macOS host:

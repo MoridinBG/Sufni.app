@@ -13,7 +13,6 @@ using BikeModel = Sufni.App.Bikes.Models.Bike;
 using BikeImageCanvasViewModel = Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts.BikeImageCanvasViewModel;
 using BikeWheelGeometryViewModel = Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts.BikeWheelGeometryViewModel;
 using LeverageRatioBikeEditorViewModel = Sufni.App.Bikes.ViewModels.Editors.Bike.LeverageRatioEditorViewModel;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;

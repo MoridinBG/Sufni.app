@@ -1,0 +1,42 @@
+<UserControl
+    x:Class="Sufni.App.Segments.Views.SegmentPickerSheetButtonView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:views="clr-namespace:Sufni.App.Segments.Views"
+    xmlns:vm="clr-namespace:Sufni.App.Segments.ViewModels"
+    d:DesignHeight="40"
+    d:DesignWidth="96"
+    x:DataType="vm:SegmentPickerViewModel"
+    mc:Ignorable="d">
+
+    <Grid>
+        <Button
+            x:Name="SegmentsButton"
+            MinWidth="72"
+            Command="{Binding ToggleCommand}"
+            Content="Segments"
+            IsEnabled="{Binding CanOpen}"
+            ToolTip.Tip="Open saved segments" />
+
+        <Popup
+            x:Name="SegmentsSheetPopup"
+            Closed="SegmentsSheetPopup_OnClosed"
+            IsLightDismissEnabled="True"
+            Opened="SegmentsSheetPopup_OnOpened"
+            Placement="AnchorAndGravity"
+            PlacementAnchor="Bottom"
+            PlacementGravity="Bottom"
+            WindowManagerAddShadowHint="False">
+            <Border
+                x:Name="SheetFrame"
+                Background="{DynamicResource SufniBackgroundDisabled}"
+                BorderBrush="{DynamicResource SufniBorderBrush}"
+                BorderThickness="1,1,1,0"
+                CornerRadius="12,12,0,0">
+                <views:SegmentPickerPanelView />
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

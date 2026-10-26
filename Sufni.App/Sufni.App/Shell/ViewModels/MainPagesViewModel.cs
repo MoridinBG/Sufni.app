@@ -6,13 +6,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.ItemLists;
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 #if SUFNI_PROFILING_DIAGNOSTICS
@@ -27,15 +24,15 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
-using Sufni.App.Theming;
-using Sufni.App.Extensibility.Capabilities;
+using Sufni.App.Video.Coordinators;
 namespace Sufni.App.Shell.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator;
+    private readonly IAppDataRefresher appDataRefresher;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
+    private readonly IVideoCoordinator videoCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
@@ -73,14 +70,13 @@ public partial class MainPagesViewModel : ViewModelBase
     public PairingClientViewModel? PairingClientPage { get; init; }
     public PairingServerViewModel? PairingServerViewModel { get; init; }
     public ObservableCollection<MainPrimaryPageViewModel> PrimaryPages { get; } = [];
-    public IReadOnlyList<AppToolbarCommandContribution> ExtensionToolbarCommands { get; }
-    public IReadOnlyList<AppToolbarViewContribution> ExtensionToolbarViews { get; }
     public ViewModelBase SelectedPrimaryPageContent => GetSelectedPrimaryPage();
     public bool CanChooseLayoutProfile => true;
     public bool CanImportSessions =>
         appEnvironment.Capabilities.SupportsMassStorageImport ||
         appEnvironment.Capabilities.SupportsStorageProviderImport;
     public bool CanImportGpsTracks => appEnvironment.Capabilities.SupportsStorageProviderImport;
+    public bool CanOpenVideos => appEnvironment.Capabilities.CanPlayVideo;
     public bool CanHostSyncServer => appEnvironment.Capabilities.CanHostSyncServer;
     public bool CanShowPairingClientActions =>
         appEnvironment.Capabilities.CanPairAsClient && PairingClientPage is not null;
@@ -97,7 +93,7 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Constructors
 
     public MainPagesViewModel(
-        IAppStateRefreshOrchestrator appStateRefreshOrchestrator,
+        IAppDataRefresher appDataRefresher,
         IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
@@ -114,14 +110,15 @@ public partial class MainPagesViewModel : ViewModelBase
         ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
         IUiThreadDispatcher uiThreadDispatcher,
-        IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
+        IVideoCoordinator videoCoordinator,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
         : base(uiThreadDispatcher)
     {
-        this.appStateRefreshOrchestrator = appStateRefreshOrchestrator;
+        this.appDataRefresher = appDataRefresher;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
+        this.videoCoordinator = videoCoordinator;
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
         this.workspace = workspace;
@@ -142,9 +139,6 @@ public partial class MainPagesViewModel : ViewModelBase
             PairingServerViewModel.PropertyChanged += OnPairingServerPropertyChanged;
         }
 
-        var toolbarContributions = BuildExtensionToolbarContributions(appToolbarContributionProviders);
-        ExtensionToolbarCommands = toolbarContributions.Commands;
-        ExtensionToolbarViews = toolbarContributions.Views;
         PrimaryPages.Add(new MainPrimaryPageViewModel(
             MainPrimaryPageRole.Sessions,
             "Sessions",
@@ -196,56 +190,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
         _ = LoadDatabaseContent();
     }
-
-    private static AppToolbarContributionSet BuildExtensionToolbarContributions(
-        IEnumerable<IAppToolbarContributionProvider>? providers)
-    {
-        if (providers is null)
-        {
-            return new AppToolbarContributionSet([], []);
-        }
-
-        var contributions = new List<IExtensionContribution>();
-        var contributionIds = new ExtensionContributionValidator.ContributionIdTracker("app toolbar contributions");
-        foreach (var provider in providers)
-        {
-            ArgumentNullException.ThrowIfNull(provider);
-            ExtensionContributionValidator.ValidateRequiredId(
-                provider.ExtensionId,
-                "App toolbar contribution provider");
-            foreach (var contribution in provider.CreateCommandContributions())
-            {
-                ExtensionContributionValidator.ValidateAppToolbarContribution(
-                    contribution,
-                    provider.ExtensionId,
-                    contributionIds);
-                contributions.Add(contribution);
-            }
-
-            foreach (var contribution in provider.CreateViewContributions())
-            {
-                ExtensionContributionValidator.ValidateAppToolbarContribution(
-                    contribution,
-                    provider.ExtensionId,
-                    contributionIds);
-                contributions.Add(contribution);
-            }
-        }
-
-        var orderedContributions = contributions
-            .OrderBy(contribution => contribution.Order)
-            .ThenBy(contribution => contribution.ExtensionId, StringComparer.Ordinal)
-            .ThenBy(contribution => contribution.ContributionId, StringComparer.Ordinal)
-            .ToArray();
-
-        return new AppToolbarContributionSet(
-            orderedContributions.OfType<AppToolbarCommandContribution>().ToArray(),
-            orderedContributions.OfType<AppToolbarViewContribution>().ToArray());
-    }
-
-    private sealed record AppToolbarContributionSet(
-        IReadOnlyList<AppToolbarCommandContribution> Commands,
-        IReadOnlyList<AppToolbarViewContribution> Views);
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)
     {
@@ -307,7 +251,7 @@ public partial class MainPagesViewModel : ViewModelBase
             await ProfilingLiveDaqReplay.SeedIfRequestedAsync(services);
         }
 #endif
-        await appStateRefreshOrchestrator.RefreshAllStateAsync();
+        await appDataRefresher.RefreshAsync();
 
         DatabaseLoaded = true;
     }
@@ -406,6 +350,27 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         var result = await trackCoordinator.ImportGpxAsync();
         PublishGpxImportResult(result);
+    }
+
+    private bool CanOpenVideo() => CanOpenVideos;
+
+    [RelayCommand(CanExecute = nameof(CanOpenVideo))]
+    private async Task OpenVideo()
+    {
+        var result = await videoCoordinator.ImportAsync();
+        var currentPage = GetSelectedPrimaryPage();
+        switch (result)
+        {
+            case VideoImportResult.Linked { SessionCount: 1 }:
+                currentPage.Notifications.Add("Linked video to 1 recorded session.");
+                break;
+            case VideoImportResult.Linked linked:
+                currentPage.Notifications.Add($"Linked video to {linked.SessionCount} recorded sessions.");
+                break;
+            case VideoImportResult.Failed failed:
+                currentPage.ErrorMessages.Add(failed.ErrorMessage);
+                break;
+        }
     }
 
     [RelayCommand]

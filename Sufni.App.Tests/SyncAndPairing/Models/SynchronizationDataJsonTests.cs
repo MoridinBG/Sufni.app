@@ -241,8 +241,7 @@ public class SynchronizationDataJsonTests
                    "setup": [],
                    "session": [],
                    "track": [],
-                   "app_preferences": null,
-                   "extension": []
+                   "app_preferences": null
                  }
                  """;
     }

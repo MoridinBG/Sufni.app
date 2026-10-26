@@ -5,10 +5,9 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Base;
 
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Runtime.Stores;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Models;
@@ -59,24 +58,6 @@ internal sealed class SessionStore(
                 return new StoreMutationResult<SessionSnapshot>.Conflict(current);
             }
         }
-
-        try
-        {
-            await sessionRepository.PutSessionAsync(session);
-            cancellationToken.ThrowIfCancellationRequested();
-            return await PublishFreshSessionAsync(session.Id);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
-    }
-
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitDerivedSessionAsync(
-        Session session,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
 
         try
         {

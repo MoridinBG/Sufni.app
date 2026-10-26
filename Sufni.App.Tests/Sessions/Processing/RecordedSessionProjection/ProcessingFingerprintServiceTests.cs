@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -111,7 +110,7 @@ public class ProcessingFingerprintServiceTests
         var source = CreateSource(sourceSessionId);
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.25, 3.5);
 
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, source, window: window);
+        var current = service.CreateCurrent(WithWindow(context.Session, window), context.Setup, context.Bike, source);
 
         Assert.Equal(window, current.DerivationWindow);
     }
@@ -124,7 +123,7 @@ public class ProcessingFingerprintServiceTests
         var window = new RecordedSessionDerivationWindow(Guid.NewGuid(), 1.25, 3.5);
 
         Assert.Throws<InvalidOperationException>(() =>
-            service.CreateCurrent(context.Session, context.Setup, context.Bike, source, window: window));
+            service.CreateCurrent(WithWindow(context.Session, window), context.Setup, context.Bike, source));
     }
 
     [Fact]
@@ -161,11 +160,10 @@ public class ProcessingFingerprintServiceTests
         var context = CreateContext();
         var withoutWindow = service.CreateCurrentDatabaseInputs(context.Session, context.Setup, context.Bike, context.Source);
         var withWindow = service.CreateCurrentDatabaseInputs(
-            context.Session,
+            WithWindow(context.Session, new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2)),
             context.Setup,
             context.Bike,
-            context.Source,
-            new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2));
+            context.Source);
 
         Assert.False(withoutWindow.MatchesDatabaseInputs(withWindow));
         Assert.False(withWindow.MatchesDatabaseInputs(withoutWindow));
@@ -187,14 +185,15 @@ public class ProcessingFingerprintServiceTests
     {
         var context = CreateContext();
         var window = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2);
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, window: window);
-        var session = context.Session with
+        var session = WithWindow(context.Session, window);
+        var current = service.CreateCurrent(session, context.Setup, context.Bike, context.Source);
+        session = session with
         {
             HasProcessedData = true,
             ProcessingFingerprintJson = AppJson.Serialize(current)
         };
 
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source, window: window);
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
 
         Assert.IsType<SessionStaleness.Current>(staleness);
     }
@@ -205,14 +204,18 @@ public class ProcessingFingerprintServiceTests
         var context = CreateContext();
         var persistedWindow = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 5);
         var currentWindow = persistedWindow with { EndSeconds = 4 };
-        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, window: persistedWindow);
-        var session = context.Session with
+        var persisted = service.CreateCurrent(
+            WithWindow(context.Session, persistedWindow),
+            context.Setup,
+            context.Bike,
+            context.Source);
+        var session = WithWindow(context.Session, currentWindow) with
         {
             HasProcessedData = true,
             ProcessingFingerprintJson = AppJson.Serialize(persisted)
         };
 
-        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source, window: currentWindow);
+        var staleness = service.Evaluate(session, context.Setup, context.Bike, context.Source);
 
         Assert.IsType<SessionStaleness.SourceWindowChanged>(staleness);
         Assert.True(staleness.IsStale);
@@ -225,15 +228,19 @@ public class ProcessingFingerprintServiceTests
         var context = CreateContext();
         var persistedWindow = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 5);
         var currentWindow = persistedWindow with { EndSeconds = 4 };
-        var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, window: persistedWindow);
-        var session = context.Session with
+        var persisted = service.CreateCurrent(
+            WithWindow(context.Session, persistedWindow),
+            context.Setup,
+            context.Bike,
+            context.Source);
+        var session = WithWindow(context.Session, currentWindow) with
         {
             HasProcessedData = true,
             ProcessingFingerprintJson = AppJson.Serialize(persisted)
         };
         var changedBike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
 
-        var staleness = service.Evaluate(session, context.Setup, changedBike, context.Source, window: currentWindow);
+        var staleness = service.Evaluate(session, context.Setup, changedBike, context.Source);
 
         Assert.IsType<SessionStaleness.DependencyHashChanged>(staleness);
     }
@@ -304,7 +311,12 @@ public class ProcessingFingerprintServiceTests
                 throw new ArgumentOutOfRangeException(nameof(testCase), testCase, null);
         }
 
-        var staleness = service.Evaluate(session, setup, bike, null, window: window);
+        if (window is not null)
+        {
+            session = WithWindow(session, window);
+        }
+
+        var staleness = service.Evaluate(session, setup, bike, null);
 
         Assert.IsType<SessionStaleness.MissingRawSource>(staleness);
         Assert.Equal(expectedStale, staleness.IsStale);
@@ -560,6 +572,14 @@ public class ProcessingFingerprintServiceTests
         var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
         return context.Session with { ProcessingFingerprintJson = AppJson.Serialize(current) };
     }
+
+    private static SessionSnapshot WithWindow(SessionSnapshot session, RecordedSessionDerivationWindow window) =>
+        session with
+        {
+            SourceSessionId = window.SourceSessionId,
+            WindowStartSeconds = window.StartSeconds,
+            WindowEndSeconds = window.EndSeconds
+        };
 
     private static TestContext CreateContext()
     {

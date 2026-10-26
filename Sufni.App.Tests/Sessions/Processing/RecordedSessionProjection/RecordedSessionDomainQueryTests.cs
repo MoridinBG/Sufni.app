@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Stores;
@@ -21,8 +20,6 @@ public class RecordedSessionDomainQueryTests
     private readonly ProcessingFingerprintService fingerprintService = new();
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
         Substitute.For<IRecordedSessionProcessingOptionCache>();
-    private readonly IRecordedSessionDerivationWindowCache derivationWindowCache =
-        Substitute.For<IRecordedSessionDerivationWindowCache>();
 
     public RecordedSessionDomainQueryTests()
     {
@@ -75,13 +72,17 @@ public class RecordedSessionDomainQueryTests
             setupId: setup.Id,
             hasProcessedData: true);
         var source = CreateSource(Guid.NewGuid());
-        var window = new RecordedSessionDerivationWindow(source.SessionId, 1.25, 3.5);
-        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source, window: window);
+        session = session with
+        {
+            SourceSessionId = source.SessionId,
+            WindowStartSeconds = 1.25,
+            WindowEndSeconds = 3.5
+        };
+        var fingerprint = fingerprintService.CreateCurrent(session, setup, bike, source);
         session = session with { ProcessingFingerprintJson = AppJson.Serialize(fingerprint) };
         sessionStore.Get(session.Id).Returns(session);
         setupStore.Get(setup.Id).Returns(setup);
         bikeStore.Get(bike.Id).Returns(bike);
-        derivationWindowCache.Get(session.Id).Returns(window);
         sourceStore.Get(source.SessionId).Returns(source);
         dependencyHashIndex.GetForSetup(setup.Id).Returns(ProcessingDependencyHash.Compute(setup, bike));
         var query = CreateQuery();
@@ -90,7 +91,6 @@ public class RecordedSessionDomainQueryTests
 
         Assert.NotNull(domain);
         Assert.Equal(source, domain!.Source);
-        Assert.Equal(window, domain.DerivationWindow);
         Assert.IsType<SessionStaleness.Current>(domain.Staleness);
         sourceStore.Received(1).Get(source.SessionId);
         sourceStore.DidNotReceive().Get(session.Id);
@@ -117,8 +117,7 @@ public class RecordedSessionDomainQueryTests
                 context.Bike,
                 context.Source,
                 "dependency",
-                Arg.Any<TelemetryProcessingOptions?>(),
-                Arg.Any<RecordedSessionDerivationWindow?>())
+                Arg.Any<TelemetryProcessingOptions?>())
             .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
         sessionStore.Get(context.Session.Id).Returns(context.Session);
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
@@ -132,8 +131,7 @@ public class RecordedSessionDomainQueryTests
             sourceStore,
             fingerprintService,
             dependencyHashIndex,
-            processingOptionCache,
-            derivationWindowCache);
+            processingOptionCache);
 
         var domain = query.Get(context.Session.Id);
 
@@ -147,8 +145,7 @@ public class RecordedSessionDomainQueryTests
             context.Bike,
             context.Source,
             "dependency",
-            Arg.Any<TelemetryProcessingOptions?>(),
-            Arg.Any<RecordedSessionDerivationWindow?>());
+            Arg.Any<TelemetryProcessingOptions?>());
         fingerprintService.DidNotReceive().CreateCurrent(
             Arg.Any<SessionSnapshot>(),
             Arg.Any<SetupSnapshot>(),
@@ -233,8 +230,7 @@ public class RecordedSessionDomainQueryTests
         sourceStore,
         fingerprintService,
         dependencyHashIndex,
-        processingOptionCache,
-        derivationWindowCache);
+        processingOptionCache);
 
     private TestContext CreateCurrentContext()
     {

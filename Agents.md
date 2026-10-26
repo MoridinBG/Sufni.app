@@ -53,8 +53,9 @@ The projects that matter most:
 - `Sufni.App/Sufni.App/` — main Avalonia application. Most UI and business
   logic lives here, organized **domain-slice-first** (top-level folders are
   slices — `Bikes/`, `Setups/`, `Sessions/`, `LiveDaq/`, `Acquisition/`,
-  `SyncAndPairing/`, `MapsAndTracks/`, `Shell/`, `Shared/`, `Infrastructure/`,
-  `Extensibility/` — with the technical layers nested inside each slice).
+  `SyncAndPairing/`, `MapsAndTracks/`, `Video/`, `Segments/`, `Shell/`,
+  `Shared/`, `Infrastructure/` — with the technical layers nested inside each
+  slice).
 - `Sufni.App/Sufni.App.Desktop/` — desktop-only layer for sync server,
   ASP.NET Core hosting, and other desktop-only infrastructure.
 - `Sufni.App/Sufni.App.{Windows,macOS,Linux}/` — desktop heads that reference
@@ -62,9 +63,8 @@ The projects that matter most:
 - `Sufni.App/Sufni.App.{Android,iOS}/` — mobile heads that reference
   `Sufni.App` directly and bootstrap Avalonia.
 - Platform-service abstractions live in `Sufni.App/Sufni.App/Infrastructure/`
-  (`IServiceDiscovery`, `IHapticFeedback`, `IFriendlyNameProvider`), except
-  `ISecureStorage`, which is an extension-host contract in
-  `Sufni.App.ExtensionHost/Contracts/Services/`. Their implementations
+  (`IServiceDiscovery`, `ISecureStorage`, `IHapticFeedback`,
+  `IFriendlyNameProvider`). Their implementations
   live in the owning platform heads, with socket-based service discovery in shared
   code and Bonjour implementations in the Apple heads.
 
@@ -108,7 +108,8 @@ The layer roles are consistent across slices:
     `TabPageViewModelBase` live in `Shared/Base/` — look at them before adding
     new view models.
 - `<Slice>/Coordinators/` — feature workflow owners: `BikeCoordinator` (`Bikes/`),
-  `SetupCoordinator` (`Setups/`), `SessionCoordinator` (`Sessions/Coordination/`),
+  `SetupCoordinator` (`Setups/`), `SessionCoordinator` and the trim/split
+  `SessionEditingCoordinator` (`Sessions/Coordination/`),
   `LiveDaqCoordinator` (`LiveDaq/`), `ImportSessionsCoordinator` (`Acquisition/`),
   `PairedDeviceCoordinator` / `SyncCoordinator` plus the desktop-only
   `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the mobile-only
@@ -129,8 +130,7 @@ The layer roles are consistent across slices:
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
   and the composition root. Snapshots are immutable records carrying
   an `Updated` field for optimistic conflict detection. The shared
-  `SourceCacheStoreBase` lives in
-  `Sufni.App.ExtensionHost/Runtime/Stores/`.
+  `SourceCacheStoreBase` lives in `Shared/Base/`.
 - `<Slice>/Queries/` — cross-entity reads (`IBikeDependencyQuery` in `Bikes/`,
   `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
   stores, never by view models.
@@ -281,7 +281,7 @@ A desktop instance can host an embedded ASP.NET Core HTTP server
 advertised via mDNS. Mobile clients
 (`SyncAndPairing/Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
 with the server, then push and pull entity changes plus processed-session and
-recorded-source BLOBs through dedicated binary endpoints. Protocol version 2 is
+recorded-source BLOBs through dedicated binary endpoints. Protocol version 5 is
 carried by an HTTP header on every sync request. These two services are the
 source of truth for the endpoints and payloads.
 
@@ -365,7 +365,7 @@ When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading b
 
 - Test one unit through its public interface.
 - Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.
-- Reuse helpers from `Sufni.App.Tests/TestSupport/` and `Sufni.App.ExtensionHost.TestSupport/` (fixtures shared with extension test projects) before adding local duplicates.
+- Reuse helpers from `Sufni.App.Tests/TestSupport/` before adding local duplicates.
 - Cover desktop/mobile branches when behavior differs; use `TestApp.SetIsDesktop(true/false)` only for `ViewLocator` or plot-gesture branches (see `docs/TESTING.md`) — other shell-specific behavior is driven by explicit service configuration. Cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
 - Prefer deterministic async control such as `TaskCompletionSource<T>` and `TestSynchronizationContextScope` over timing-based waits.
 

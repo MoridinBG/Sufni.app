@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;

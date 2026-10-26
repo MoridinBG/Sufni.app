@@ -4,15 +4,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.Theming;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.ItemLists;
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -33,6 +28,8 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Video;
+using Sufni.App.Video.Coordinators;
 namespace Sufni.App.Tests.Shell.ViewModels;
 
 internal static class MainPagesViewModelTestFactory
@@ -42,7 +39,7 @@ internal static class MainPagesViewModelTestFactory
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
         ITrackCoordinator? trackCoordinator = null,
-        IAppStateRefreshOrchestrator? appStateRefreshOrchestrator = null,
+        IAppDataRefresher? appDataRefresher = null,
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
@@ -50,18 +47,18 @@ internal static class MainPagesViewModelTestFactory
         IAppEnvironment? appEnvironment = null,
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
         IUiPreferences? uiPreferences = null,
-        IEnumerable<IAppToolbarContributionProvider>? appToolbarContributionProviders = null,
+        IVideoCoordinator? videoCoordinator = null,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
-        appStateRefreshOrchestrator ??= Substitute.For<IAppStateRefreshOrchestrator>();
+        appDataRefresher ??= Substitute.For<IAppDataRefresher>();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
         workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher);
 
-        appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         if (themeService is null)
         {
             themeService = Substitute.For<IThemeService>();
@@ -77,7 +74,7 @@ internal static class MainPagesViewModelTestFactory
         }
 
         return new MainPagesViewModel(
-            appStateRefreshOrchestrator,
+            appDataRefresher,
             importSessionsCoordinator,
             trackCoordinator,
             syncCoordinator,
@@ -94,7 +91,7 @@ internal static class MainPagesViewModelTestFactory
             CreateImportSessionsPage(shell, importSessionsCoordinator),
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
-            appToolbarContributionProviders,
+            videoCoordinator ?? Substitute.For<IVideoCoordinator>(),
             pairingClientPage: pairingClientPage,
             pairingServerViewModel: pairingServerViewModel);
     }
@@ -110,7 +107,8 @@ internal static class MainPagesViewModelTestFactory
                 CanHostSyncServer: true,
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true),
+                SupportsStorageProviderImport: true,
+                CanPlayVideo: true),
             Input: input ?? new InputCapabilities(
                 HasPointer: true,
                 HasTouch: false,
@@ -125,7 +123,11 @@ internal static class MainPagesViewModelTestFactory
             UiThreadDispatcher);
 
     private static SessionListViewModel CreateSessionListPage() =>
-        new(CreateRecordedSessionProjection(), TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
+        new(
+            CreateRecordedSessionProjection(),
+            TestCoordinatorSubstitutes.Session(),
+            VideoFixture.CreateEmptyStore(),
+            UiThreadDispatcher);
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
@@ -164,32 +166,4 @@ internal static class MainPagesViewModelTestFactory
             Substitute.For<ISetupStore>(),
             UiThreadDispatcher);
     }
-}
-
-internal sealed class TestAppToolbarContributionProvider : IAppToolbarContributionProvider
-{
-    private readonly IReadOnlyList<AppToolbarCommandContribution> commandContributions;
-    private readonly IReadOnlyList<AppToolbarViewContribution> viewContributions;
-
-    public TestAppToolbarContributionProvider(params AppToolbarViewContribution[] viewContributions)
-        : this([], viewContributions)
-    {
-    }
-
-    public TestAppToolbarContributionProvider(
-        IReadOnlyList<AppToolbarCommandContribution> commandContributions,
-        IReadOnlyList<AppToolbarViewContribution> viewContributions)
-    {
-        this.commandContributions = commandContributions;
-        this.viewContributions = viewContributions;
-    }
-
-    public string ExtensionId =>
-        commandContributions.FirstOrDefault()?.ExtensionId ??
-        viewContributions.FirstOrDefault()?.ExtensionId ??
-        "test";
-
-    public IReadOnlyList<AppToolbarCommandContribution> CreateCommandContributions() => commandContributions;
-
-    public IReadOnlyList<AppToolbarViewContribution> CreateViewContributions() => viewContributions;
 }

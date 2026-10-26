@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Mapsui.Projections;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 namespace Sufni.App.MapsAndTracks.Models;
 

@@ -1,22 +1,18 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Segments.Models;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Analysis.Views.Controls;
 
 public partial class DampingAnalysisHost : AnalysisHostBase
 {
-    private RecordedSessionExtensionSlots? subscribedSlots;
     private INotifyPropertyChanged? subscribedAnalysisWorkspace;
     private bool canEditDampingSpeedCutoffs;
 
@@ -47,25 +43,25 @@ public partial class DampingAnalysisHost : AnalysisHostBase
     public static readonly StyledProperty<double?> LsrPercentageProperty =
         AvaloniaProperty.Register<DampingAnalysisHost, double?>(nameof(LsrPercentage));
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> HsrMetricAnnotationsProperty =
-        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> HsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<SegmentDampingMetric>>(
             nameof(HsrMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> LsrMetricAnnotationsProperty =
-        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> LsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<SegmentDampingMetric>>(
             nameof(LsrMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> LscMetricAnnotationsProperty =
-        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> LscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<SegmentDampingMetric>>(
             nameof(LscMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> HscMetricAnnotationsProperty =
-        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> HscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<DampingAnalysisHost, IReadOnlyList<SegmentDampingMetric>>(
             nameof(HscMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
     public VelocityAverageMode VelocityAverageMode
     {
@@ -115,25 +111,25 @@ public partial class DampingAnalysisHost : AnalysisHostBase
         set => SetValue(LsrPercentageProperty, value);
     }
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> HsrMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> HsrMetricAnnotations
     {
         get => GetValue(HsrMetricAnnotationsProperty);
         set => SetValue(HsrMetricAnnotationsProperty, value);
     }
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> LsrMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> LsrMetricAnnotations
     {
         get => GetValue(LsrMetricAnnotationsProperty);
         set => SetValue(LsrMetricAnnotationsProperty, value);
     }
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> LscMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> LscMetricAnnotations
     {
         get => GetValue(LscMetricAnnotationsProperty);
         set => SetValue(LscMetricAnnotationsProperty, value);
     }
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> HscMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> HscMetricAnnotations
     {
         get => GetValue(HscMetricAnnotationsProperty);
         set => SetValue(HscMetricAnnotationsProperty, value);
@@ -144,14 +140,8 @@ public partial class DampingAnalysisHost : AnalysisHostBase
         InitializeComponent();
         PropertyChanged += (_, e) =>
         {
-            if (e.Property.Name is nameof(SuspensionType))
+            if (e.Property == SuspensionTypeProperty || e.Property == AnalysisComparisonProperty)
             {
-                RefreshMetricAnnotations();
-            }
-
-            if (e.Property == ExtensionSlotsProperty)
-            {
-                SubscribeToSlots(ExtensionSlots);
                 RefreshMetricAnnotations();
             }
 
@@ -168,41 +158,14 @@ public partial class DampingAnalysisHost : AnalysisHostBase
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        SubscribeToSlots(ExtensionSlots);
         SubscribeToAnalysisWorkspace(AnalysisWorkspace);
-        RefreshMetricAnnotations();
         RefreshCanEditDampingSpeedCutoffs();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        SubscribeToSlots(null);
         SubscribeToAnalysisWorkspace(null);
         base.OnDetachedFromVisualTree(e);
-    }
-
-    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
-    {
-        if (ReferenceEquals(subscribedSlots, slots))
-        {
-            return;
-        }
-
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.AnalysisMetrics.CollectionChanged -= OnAnalysisMetricsChanged;
-        }
-
-        subscribedSlots = slots;
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.AnalysisMetrics.CollectionChanged += OnAnalysisMetricsChanged;
-        }
-    }
-
-    private void OnAnalysisMetricsChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        RefreshMetricAnnotations();
     }
 
     private void SubscribeToAnalysisWorkspace(ISessionAnalysisWorkspace? value)
@@ -239,28 +202,14 @@ public partial class DampingAnalysisHost : AnalysisHostBase
 
     private void RefreshMetricAnnotations()
     {
-        HsrMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionAnalysisMetricTarget.FrontHsrPercentage
-            : RecordedSessionAnalysisMetricTarget.RearHsrPercentage);
-        LsrMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionAnalysisMetricTarget.FrontLsrPercentage
-            : RecordedSessionAnalysisMetricTarget.RearLsrPercentage);
-        LscMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionAnalysisMetricTarget.FrontLscPercentage
-            : RecordedSessionAnalysisMetricTarget.RearLscPercentage);
-        HscMetricAnnotations = GetMetricAnnotations(SuspensionType == SuspensionType.Front
-            ? RecordedSessionAnalysisMetricTarget.FrontHscPercentage
-            : RecordedSessionAnalysisMetricTarget.RearHscPercentage);
+        HsrMetricAnnotations = GetMetricAnnotations(DampingBand.Hsr);
+        LsrMetricAnnotations = GetMetricAnnotations(DampingBand.Lsr);
+        LscMetricAnnotations = GetMetricAnnotations(DampingBand.Lsc);
+        HscMetricAnnotations = GetMetricAnnotations(DampingBand.Hsc);
     }
 
-    private IReadOnlyList<RecordedSessionAnalysisMetricContribution> GetMetricAnnotations(
-        RecordedSessionAnalysisMetricTarget metric)
-    {
-        return ExtensionSlots?.AnalysisMetrics
-            .Where(contribution => contribution.TargetMetric == metric)
-            .OrderBy(contribution => contribution.Order)
-            .ThenBy(contribution => contribution.ExtensionId)
-            .ThenBy(contribution => contribution.ContributionId)
-            .ToArray() ?? Array.Empty<RecordedSessionAnalysisMetricContribution>();
-    }
+    private SegmentDampingMetric[] GetMetricAnnotations(DampingBand band) =>
+        AnalysisComparison?.Metrics
+            .Where(metric => metric.Side == SuspensionType && metric.Band == band)
+            .ToArray() ?? [];
 }

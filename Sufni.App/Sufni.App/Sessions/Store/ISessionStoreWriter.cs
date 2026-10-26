@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Stores;
@@ -26,10 +25,6 @@ public interface ISessionStoreWriter : ISessionStore
     Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
         Session session,
         long? baselineUpdated = null,
-        CancellationToken cancellationToken = default);
-
-    Task<StoreMutationResult<SessionSnapshot>> CommitDerivedSessionAsync(
-        Session session,
         CancellationToken cancellationToken = default);
 
     Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(

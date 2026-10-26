@@ -1,9 +1,8 @@
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Common;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -86,76 +85,6 @@ public class RecordedSessionEditorActionsTests
             effects,
             effect => Assert.IsType<RecordedSessionEditorEffect.UpdateDirtyBaseline>(effect),
             effect => Assert.IsType<RecordedSessionEditorEffect.UpdateDirtyBaseline>(effect));
-    }
-
-    [Fact]
-    public void ExtensionHostPublication_PublishesProjectedState_OnEditorAndRuntimeChanges()
-    {
-        using var states = new Subject<RecordedSessionEditorState>();
-        using var runtimes = new Subject<RecordedSessionHostRuntimeState>();
-        var timeline = new SessionTimelineLinkViewModel();
-        var effects = new List<RecordedSessionEditorEffect.PublishExtensionHostState>();
-        using var subscription = RecordedSessionEditorEffects.ExtensionHostPublication(states, runtimes, timeline)
-            .OfType<RecordedSessionEditorEffect.PublishExtensionHostState>()
-            .Subscribe(effects.Add);
-        var session = TestSnapshots.Session(
-            name: "trail run",
-            hasProcessedData: true) with
-        {
-            DurationSeconds = 42,
-        };
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var analysisRange = new TelemetryTimeRange(1, 2);
-        var nextAnalysisRange = new TelemetryTimeRange(3, 4);
-        var trackTimeline = new TrackTimeRange(10, 20);
-        var percentages = new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8);
-        var cutoffs = DampingSpeedCutoffs.FromValues(110, 220, 330, 440);
-        var initial = RecordedSessionEditorState.CreateInitial();
-        var state = initial with
-        {
-            Session = session,
-            TelemetryData = telemetry,
-            TrackTimelineContext = trackTimeline,
-            Intent = initial.Intent with
-            {
-                AnalysisRange = analysisRange,
-                DampingSpeedCutoffs = cutoffs,
-                SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged,
-                SelectedTravelDistributionMode = TravelDistributionMode.DynamicSag,
-            },
-            Presentation = initial.Presentation with
-            {
-                DampingPercentages = percentages,
-            },
-        };
-        var runtime = new RecordedSessionHostRuntimeState(
-            session.Id,
-            ViewLoaded: true,
-            IsActive: false,
-            PendingTimelineAlignmentMark: null);
-
-        states.OnNext(state);
-        runtimes.OnNext(runtime);
-
-        var published = Assert.Single(effects).State;
-        Assert.Equal(session.Id, published.Identity.SessionId);
-        Assert.Equal(session.Name, published.Identity.Name);
-        Assert.True(published.Identity.IsLoaded);
-        Assert.False(published.Identity.IsActive);
-        Assert.Equal(analysisRange, published.Selection.AnalysisRange);
-        Assert.Equal(trackTimeline, published.Timeline.TrackTimelineContext);
-        Assert.Equal(telemetry.Metadata.Duration, published.Timeline.TelemetryDurationSeconds);
-        Assert.Same(timeline, published.Timeline.Timeline);
-        Assert.Equal(percentages, published.Analysis.DampingPercentages);
-        Assert.Equal(cutoffs, published.Analysis.DampingSpeedCutoffs);
-        Assert.Equal(VelocityAverageMode.StrokePeakAveraged, published.Analysis.VelocityAverageMode);
-        Assert.Equal(TravelDistributionMode.DynamicSag, published.Analysis.TravelDistributionMode);
-
-        runtimes.OnNext(runtime with { IsActive = true });
-        states.OnNext(state with { Intent = state.Intent with { AnalysisRange = nextAnalysisRange } });
-
-        Assert.True(effects[1].State.Identity.IsActive);
-        Assert.Equal(nextAnalysisRange, effects[^1].State.Selection.AnalysisRange);
     }
 
     [Fact]

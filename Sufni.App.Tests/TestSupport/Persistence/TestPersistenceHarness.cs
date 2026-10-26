@@ -1,13 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.Segments.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -15,7 +14,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Extensibility.Database;
+using Sufni.App.Video.Services;
 namespace Sufni.App.Tests.TestSupport.Persistence;
 
 internal sealed class TestPersistenceHarness
@@ -27,23 +26,10 @@ internal sealed class TestPersistenceHarness
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISyncDataStore syncDataStore;
-    private readonly IExtensionDatabaseConnection extensionDatabaseConnection;
 
     public TestPersistenceHarness(string databasePath)
-        : this(CreateConnectionContext(databasePath, []))
     {
-    }
-
-    public TestPersistenceHarness(
-        string databasePath,
-        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
-        : this(CreateConnectionContext(databasePath, extensionMigrators))
-    {
-    }
-
-    private TestPersistenceHarness(SqliteConnectionContext context)
-    {
-        this.context = context;
+        context = PersistenceTestData.CreateConnectionContext(databasePath);
         var fingerprintService = new ProcessingFingerprintService();
         trackRepository = new TrackRepository(context);
         sessionRepository = new SessionRepository(context, fingerprintService);
@@ -51,18 +37,20 @@ internal sealed class TestPersistenceHarness
         sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService);
-        extensionDatabaseConnection = new ExtensionDatabaseConnection(context);
     }
 
     public ISessionRepository SessionRepository => sessionRepository;
 
     public ISessionTelemetryWriter SessionTelemetryWriter => sessionTelemetryWriter;
 
+    public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
+
+    public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context);
+
+    public ISessionPersistenceTransactionRunner SessionTransactions => new SessionPersistenceTransactionRunner(context);
+
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
-
-    public Task<IExtensionDatabaseSession> OpenSessionAsync(string extensionId) =>
-        extensionDatabaseConnection.OpenSessionAsync(extensionId);
 
     public Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>()
         where T : Synchronizable, new() =>
@@ -173,8 +161,11 @@ internal sealed class TestPersistenceHarness
     public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();
 
-    public Task<List<Guid>> GetPersistedDerivationSourceSessionIdsAsync() =>
-        recordedSessionSourceRepository.GetPersistedDerivationSourceSessionIdsAsync();
+    public Task<List<Guid>> GetMissingRecordingSourceIdsAsync() =>
+        recordedSessionSourceRepository.GetMissingRecordingSourceIdsAsync();
+
+    public Task<List<Guid>> GetReferencedSourceSessionIdsAsync() =>
+        recordedSessionSourceRepository.GetReferencedSourceSessionIdsAsync();
 
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
@@ -182,8 +173,8 @@ internal sealed class TestPersistenceHarness
     public Task DeleteRecordedSessionSourceAsync(Guid sessionId) =>
         recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
 
-    public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync(IReadOnlyCollection<Guid> retainedSourceSessionIds) =>
-        recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceSessionIds);
+    public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
+        recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync();
 
     public Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime) =>
         trackRepository.FindTrackByTimeRangeAsync(startTime, endTime);
@@ -237,14 +228,4 @@ internal sealed class TestPersistenceHarness
             data,
             session.ProcessingFingerprintJson);
     }
-
-    private static SqliteConnectionContext CreateConnectionContext(
-        string databasePath,
-        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators) =>
-        new(
-            databasePath,
-            createAppDirectories: false,
-            extensionMigrators,
-            extensionCascadeRuleProviders: [],
-            extensionStateRefreshParticipantsProvider: () => []);
 }

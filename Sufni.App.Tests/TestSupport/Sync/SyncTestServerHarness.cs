@@ -5,8 +5,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
@@ -14,6 +12,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Tests.TestSupport.Doubles;
 
 namespace Sufni.App.Tests.TestSupport.Sync;
 
@@ -48,7 +47,7 @@ internal sealed class SyncTestServerHarness
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
         new(SecureStorage, new HttpClient(new StubHttpMessageHandler(sendAsync)));
 
-    public SynchronizationClientService CreateSynchronizationClientService(IExtensionSyncService? extensionSync = null) =>
+    public SynchronizationClientService CreateSynchronizationClientService() =>
         new(
             SyncDataStore,
             SessionRepository,
@@ -57,8 +56,7 @@ internal sealed class SyncTestServerHarness
             SourceStore,
             RecordedSessionSourceSyncQuery,
             HttpApiService,
-            AppPreferences,
-            extensionSync);
+            AppPreferences);
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)
     {
@@ -116,12 +114,5 @@ internal sealed class SyncTestServerHarness
     {
         var json = await request.Content!.ReadAsStringAsync();
         return JsonSerializer.Deserialize<T>(json);
-    }
-
-    private sealed class StubHttpMessageHandler(
-        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            sendAsync(request, cancellationToken);
     }
 }

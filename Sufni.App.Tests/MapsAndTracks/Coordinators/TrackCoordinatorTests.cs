@@ -2,8 +2,6 @@ using System.IO;
 using Avalonia.Platform.Storage;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;

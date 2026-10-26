@@ -1,12 +1,9 @@
+using Sufni.App.Segments.ViewModels;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.Telemetry;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -106,7 +103,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public PageViewModelBase? SelectedPage => Pages.Count == 0 ? null : Pages[SelectedPageIndex];
     public int PageCount => Pages.Count;
     public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
-    public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+    public SegmentComparisonViewModel? SegmentComparison => null;
 
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;

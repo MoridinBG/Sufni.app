@@ -7,13 +7,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Sync;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
-using Sufni.App.Extensibility.Capabilities;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
@@ -24,12 +18,6 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.ItemLists;
-using Sufni.App.Extensibility.Database;
-using Sufni.App.Extensibility.Notifications;
-using Sufni.App.Extensibility.RecordedSessions;
-using Sufni.App.Extensibility.Sync;
-using Sufni.App.Extensibility.Views;
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.Coordinators;
@@ -68,12 +56,20 @@ using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
+using Sufni.App.Segments.Coordinators;
+using Sufni.App.Segments.Services;
+using Sufni.App.Segments.Stores;
+using Sufni.App.Segments.Services.Matching;
+using Sufni.App.Segments.ViewModels;
+using Sufni.App.Video.Coordinators;
+using Sufni.App.Video.Services;
+using Sufni.App.Video.Stores;
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App;
 
 public partial class App : Application
 {
     internal static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
-    internal static AppExtensionCollection Extensions { get; } = new();
 
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
@@ -119,24 +115,11 @@ public partial class App : Application
 
         var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
 
-        RegisterBuildTimeExtensions(Extensions, isDesktop);
-
-        var extensionViewRegistry = new ExtensionViewRegistry();
-        ServiceCollection.AddSingleton<IExtensionViewRegistry>(extensionViewRegistry);
-
-        var extensionServiceContext = new AppExtensionServiceRegistrationContext(isDesktop);
-        Extensions.RegisterServices(ServiceCollection, extensionServiceContext);
-
-        var extensionCapabilityRegistry = new AppExtensionCapabilityRegistry(extensionViewRegistry);
-        ServiceCollection.AddSingleton(extensionCapabilityRegistry);
-        ServiceCollection.AddSingleton<IAppExtensionCapabilityRegistry>(extensionCapabilityRegistry);
-
         ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
-            sp.GetRequiredService<IExtensionViewRegistry>(),
-            sp));
+            sp.GetRequiredService<IAppEnvironment>()));
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
         ServiceCollection.AddSingleton<ILayoutProfileTransitionState, LayoutProfileTransitionState>();
@@ -156,10 +139,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
                 AppPaths.DatabasePath,
-                createAppDirectories: true,
-                sp.GetServices<IExtensionDatabaseMigrator>().ToArray(),
-                sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
-                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
+                createAppDirectories: true));
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
@@ -170,13 +150,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
         ServiceCollection.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
-        ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
-        ServiceCollection.AddSingleton<IRecordedSessionDataReader, RecordedSessionDataReader>();
-        ServiceCollection.AddSingleton<IExtensionNotificationService, ExtensionNotificationService>();
-        ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
-        ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
-        ServiceCollection.TryAddSingleton<IRecordedSessionListExtensionService, RecordedSessionListExtensionService>();
-        ServiceCollection.TryAddSingleton<IRecordedSessionDerivationWindowProvider, NullRecordedSessionDerivationWindowProvider>();
+        ServiceCollection.AddSingleton<ISessionContentReader, SessionContentReader>();
+        ServiceCollection.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
@@ -186,11 +161,9 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         ServiceCollection.AddSingleton<FilesService>();
         ServiceCollection.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
-        ServiceCollection.AddSingleton<IFilePickerService>(sp => sp.GetRequiredService<FilesService>());
         ServiceCollection.AddSingleton<DialogService>();
         ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IDialogHost>(sp => sp.GetRequiredService<DialogService>());
-        ServiceCollection.AddSingleton<IExtensionDialogService>(sp => sp.GetRequiredService<DialogService>());
         ServiceCollection.AddSingleton<IPlotZoomState, PlotZoomState>();
         ServiceCollection.AddSingleton<BikeStore>();
         ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
@@ -215,13 +188,26 @@ public partial class App : Application
         ServiceCollection.AddSingleton<RecordedSessionSourceStore>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
-        ServiceCollection.AddSingleton<AppDataRefresher>();
-        ServiceCollection.AddSingleton<IAppStateRefreshOrchestrator>(sp => sp.GetRequiredService<AppDataRefresher>());
-        ServiceCollection.AddSingleton<IAppDataRefresher>(sp => sp.GetRequiredService<AppDataRefresher>());
+        ServiceCollection.AddSingleton<ISessionVideoRepository, SessionVideoRepository>();
+        ServiceCollection.AddSingleton<IVideoMetadataReader, Mp4VideoMetadataReader>();
+        ServiceCollection.AddSingleton<SessionVideoStore>();
+        ServiceCollection.AddSingleton<ISessionVideoStore>(sp => sp.GetRequiredService<SessionVideoStore>());
+        ServiceCollection.AddSingleton<ISessionVideoStoreWriter>(sp => sp.GetRequiredService<SessionVideoStore>());
+        ServiceCollection.AddSingleton<IVideoCoordinator, VideoCoordinator>();
+        ServiceCollection.AddSingleton<IVideoPaneFactory, VideoPaneFactory>();
+        ServiceCollection.AddSingleton<ISessionSegmentRepository, SessionSegmentRepository>();
+        ServiceCollection.AddSingleton<SessionSegmentStore>();
+        ServiceCollection.AddSingleton<ISessionSegmentStore>(sp => sp.GetRequiredService<SessionSegmentStore>());
+        ServiceCollection.AddSingleton<ISessionSegmentStoreWriter>(sp => sp.GetRequiredService<SessionSegmentStore>());
+        ServiceCollection.AddSingleton<ISegmentMatcher, SegmentMatcher>();
+        ServiceCollection.AddSingleton<ISegmentCoordinator, SegmentCoordinator>();
+        ServiceCollection.AddSingleton<IStravaSegmentService, StravaSegmentService>();
+        ServiceCollection.AddSingleton<ISegmentPickerFactory, SegmentPickerFactory>();
+        ServiceCollection.AddSingleton<ISegmentComparisonFactory, SegmentComparisonFactory>();
+        ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
         ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
         ServiceCollection.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
-        ServiceCollection.AddSingleton<IRecordedSessionDerivationWindowCache, RecordedSessionDerivationWindowCache>();
         ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         ServiceCollection.AddSingleton<IRecordedSessionProjection, RecordedSessionProjection>();
         ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
@@ -244,6 +230,7 @@ public partial class App : Application
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>()));
         ServiceCollection.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
+        ServiceCollection.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
         ServiceCollection.AddSingleton<SessionCommandService>(sp => new SessionCommandService(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
@@ -258,8 +245,6 @@ public partial class App : Application
             sp.GetRequiredService<IAppEnvironment>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
             sp.GetRequiredService<Func<IEditorFactory>>(),
-            sp.GetRequiredService<IRecordedSessionDerivationWindowCache>(),
-            sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>(),
             sp.GetRequiredService<ISessionPersistenceTransactionRunner>()));
         ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
             sp.GetRequiredService<ISessionStoreWriter>(),
@@ -278,7 +263,6 @@ public partial class App : Application
             sp.GetRequiredService<SqliteConnectionContext>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IRecordedSessionDerivationWindowProvider>(),
             sp.GetRequiredService<IBackgroundTaskRunner>()));
         ServiceCollection.AddSingleton<LiveDaqStore>();
         ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
@@ -330,8 +314,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
         ServiceCollection.AddSingleton<ShellRootViewModel>();
 
-        Extensions.RegisterCapabilities(extensionCapabilityRegistry);
-
         IsDesktop = isDesktop;
         Services = ServiceCollection.BuildServiceProvider();
 
@@ -359,11 +341,6 @@ public partial class App : Application
         ResolveCapabilityEagerServices(
             Services,
             Services.GetRequiredService<IAppEnvironment>().Capabilities);
-
-        foreach (var eagerServiceType in extensionCapabilityRegistry.EagerServiceTypes)
-        {
-            _ = Services.GetRequiredService(eagerServiceType);
-        }
 
         // One-time, per-device normalization: reset every source-backed session's
         // processing option to 25 ms and recompute it so its fingerprint records the
@@ -467,6 +444,4 @@ public partial class App : Application
             _ = services.GetService<IInboundSyncCoordinator>();
         }
     }
-
-    static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions, bool isDesktop);
 }

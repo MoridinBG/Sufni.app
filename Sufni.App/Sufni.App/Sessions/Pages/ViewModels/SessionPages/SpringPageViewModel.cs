@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.Telemetry;

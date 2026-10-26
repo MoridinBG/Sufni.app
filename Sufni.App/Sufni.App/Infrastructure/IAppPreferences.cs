@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 
 using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Infrastructure;
 
 public enum PreferenceChangeOrigin

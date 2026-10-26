@@ -4,11 +4,10 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Infrastructure.Theming;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
 
 public class DeepTravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme), ISelectableAnalysisPlot

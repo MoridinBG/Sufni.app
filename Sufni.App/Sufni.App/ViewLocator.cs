@@ -4,7 +4,6 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 
-using Sufni.App.Extensibility.Views;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Bikes.ViewModels.Editors.Bike;
@@ -13,6 +12,7 @@ using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.LiveDaq.ViewModels.SessionPages;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
@@ -26,13 +26,10 @@ using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
-using Sufni.App.Shared.Common;
 namespace Sufni.App;
 
 public class ViewLocator : IDataTemplate
 {
-    private readonly IExtensionViewRegistry extensionViewRegistry;
-    private readonly IServiceProvider serviceProvider;
     private readonly IAppEnvironment? appEnvironment;
 
     private static readonly FrozenDictionary<Type, Func<Control>> CommonViewFactories = new Dictionary<Type, Func<Control>>
@@ -40,6 +37,8 @@ public class ViewLocator : IDataTemplate
         [typeof(PairingClientViewModel)] = static () => new global::Sufni.App.SyncAndPairing.Views.PairingClientView(),
         [typeof(LeverageRatioEditorViewModel)] = static () => new global::Sufni.App.Bikes.Views.Editors.LeverageRatioEditorView(),
         [typeof(LiveDaqConfigEditorViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.Editors.LiveDaqConfigEditorView(),
+        [typeof(SegmentNamePromptViewModel)] = static () => new global::Sufni.App.Segments.Views.SegmentNamePromptView(),
+        [typeof(StravaConnectDialogViewModel)] = static () => new global::Sufni.App.Segments.Views.StravaConnectDialogView(),
         [typeof(JointViewModel)] = static () => new global::Sufni.App.Bikes.Views.LinkageParts.JointView(),
         [typeof(LinearForkSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearForkSensorConfigurationView(),
         [typeof(LinearShockSensorConfigurationViewModel)] = static () => new global::Sufni.App.Setups.Views.SensorConfigurations.LinearShockSensorConfigurationView(),
@@ -50,6 +49,7 @@ public class ViewLocator : IDataTemplate
         [typeof(LiveSignalsPageViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.SessionPages.LiveSignalsPageView(),
         [typeof(RecordedSignalsPageViewModel)] = static () => new global::Sufni.App.Sessions.Signals.Views.SessionPages.RecordedSignalsPageView(),
         [typeof(NotesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.NotesPageView(),
+        [typeof(PositionVelocityPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.PositionVelocityPageView(),
         [typeof(PreferencesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.PreferencesPageView(),
         [typeof(SessionInsightsPageViewModel)] = static () => new global::Sufni.App.Sessions.Insights.Views.SessionPages.SessionInsightsPageView(),
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.SpringPageView(),
@@ -89,35 +89,11 @@ public class ViewLocator : IDataTemplate
     }.ToFrozenDictionary();
 
     public ViewLocator()
-        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance, appEnvironment: null)
-    {
-    }
-
-    internal ViewLocator(IExtensionViewRegistry extensionViewRegistry)
-        : this(extensionViewRegistry, EmptyServiceProvider.Instance, appEnvironment: null)
     {
     }
 
     internal ViewLocator(IAppEnvironment appEnvironment)
-        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance, appEnvironment)
     {
-    }
-
-    internal ViewLocator(IExtensionViewRegistry extensionViewRegistry, IServiceProvider serviceProvider)
-        : this(
-            extensionViewRegistry,
-            serviceProvider,
-            serviceProvider.GetService(typeof(IAppEnvironment)) as IAppEnvironment)
-    {
-    }
-
-    private ViewLocator(
-        IExtensionViewRegistry extensionViewRegistry,
-        IServiceProvider serviceProvider,
-        IAppEnvironment? appEnvironment)
-    {
-        this.extensionViewRegistry = extensionViewRegistry;
-        this.serviceProvider = serviceProvider;
         this.appEnvironment = appEnvironment;
     }
 
@@ -127,18 +103,6 @@ public class ViewLocator : IDataTemplate
             return null;
 
         var viewModelType = data.GetType();
-
-        if (data is RecordedSessionExtensionPageViewModel extensionPage)
-        {
-            // Host the inner view model in a ContentControl instead of resolving its view
-            // directly. The content presenter assigns the built view's DataContext to its
-            // Content, which for a carousel page is this wrapper - so a directly resolved
-            // view would bind against the wrapper (wrong type) rather than the inner view
-            // model. Re-rooting through a ContentControl whose Content is the inner view
-            // model gives the resolved view the correct DataContext, matching how the
-            // desktop analysis view hosts extension content.
-            return new ContentControl { Content = extensionPage.ViewModel };
-        }
 
         if (data is ShellRootPresentation shellPresentation)
         {
@@ -160,11 +124,6 @@ public class ViewLocator : IDataTemplate
         }
 
         var layoutProfile = ResolveLayoutProfile();
-        if (extensionViewRegistry.TryBuild(data, layoutProfile, serviceProvider, out var extensionView))
-        {
-            return extensionView;
-        }
-
         if (TryBuildProfileView(viewModelType, layoutProfile, out var profileView))
         {
             return profileView;
@@ -178,16 +137,9 @@ public class ViewLocator : IDataTemplate
     {
         if (data is null) return false;
 
-        if (data is RecordedSessionExtensionPageViewModel extensionPage)
-        {
-            return Match(extensionPage.ViewModel);
-        }
-
-        var layoutProfile = ResolveLayoutProfile();
         var viewModelType = data.GetType();
         return data is ShellRootPresentation ||
                data is ViewModelBase ||
-               extensionViewRegistry.Matches(viewModelType, layoutProfile) ||
                CommonViewFactories.ContainsKey(viewModelType) ||
                CompactViewFactories.ContainsKey(viewModelType) ||
                WorkspaceViewFactories.ContainsKey(viewModelType);

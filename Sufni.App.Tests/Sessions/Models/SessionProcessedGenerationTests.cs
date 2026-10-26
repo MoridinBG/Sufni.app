@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 

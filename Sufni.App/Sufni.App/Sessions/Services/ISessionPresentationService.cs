@@ -1,7 +1,7 @@
 using System.Threading;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Models;
 
 using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Sessions.Services;

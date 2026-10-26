@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.TestSupport;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
@@ -109,7 +108,7 @@ public class ProcessingOptionsResetMigrationTests
     public async Task RunAsync_ResetsNonDefaultSourceBackedSessions_RecomputesAll_AndMarksApplied()
     {
         using var tempDatabase = new TempDatabase("processing-option-reset.db");
-        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
 
         var nonDefault = Guid.NewGuid();     // source-backed, 100 ms -> reset to 25
         var alreadyDefault = Guid.NewGuid(); // source-backed, 25 ms -> recompute only
@@ -151,7 +150,7 @@ public class ProcessingOptionsResetMigrationTests
     public async Task RunAsync_LeavesMarkerUnwritten_WhenRecomputeFails(RecomputeFailureCase failureCase)
     {
         using var tempDatabase = new TempDatabase($"processing-option-reset-{failureCase}.db");
-        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var sessionId = Guid.NewGuid();
 
         sessionRepository.GetSessionsAsync().Returns(new List<Session> { SessionWithId(sessionId) });
@@ -177,7 +176,7 @@ public class ProcessingOptionsResetMigrationTests
     public async Task RunAsync_NoOps_WhenMarkerAlreadyApplied()
     {
         using var tempDatabase = new TempDatabase("processing-option-reset-applied.db");
-        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         await new CoreMigrationStore(connection).MarkAppliedAsync(MigrationId);
 
@@ -197,7 +196,7 @@ public class ProcessingOptionsResetMigrationTests
     public async Task RunAsync_HandlesMarkerCases(MarkerCase markerCase, bool expectedApplied)
     {
         using var tempDatabase = new TempDatabase($"processing-option-reset-{markerCase}.db");
-        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var sessionId = Guid.NewGuid();
 
         ConfigureMarkerCase(markerCase, sessionId);

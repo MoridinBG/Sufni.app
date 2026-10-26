@@ -8,10 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Shared.Common;
 
 using Sufni.App.LiveDaq.ViewModels.SessionPages;
 using Sufni.App.LiveDaq.Views.SessionPages;
@@ -27,7 +24,7 @@ using Sufni.App.MapsAndTracks.Views;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Extensions;
-
+using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.LiveDaq.Views.SessionPages;
 
 [Collection("Ui")]
@@ -109,11 +106,10 @@ public class LiveSignalsPageViewTests
         public SurfacePresentationState MapState => mapViewModel.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
-        public SurfacePresentationState MediaPaneState => SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
-        public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public double? MediaColumnWidth => 400;
-        public string? MediaUrl => null;
+        public VideoPaneViewModel? Video => null;
+        public MatchedTrackOverlay? MatchedTrack => null;
     }
 }
 

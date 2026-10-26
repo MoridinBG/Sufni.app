@@ -1,6 +1,5 @@
 using Sufni.Kinematics;
 
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;

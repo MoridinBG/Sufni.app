@@ -1,7 +1,5 @@
-using System.Threading;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.SessionDetails;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -18,10 +16,8 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public bool DeferDomainHandling { get; set; }
     public List<SessionSnapshot> AppliedSnapshots { get; } = [];
     public List<string> Errors { get; } = [];
-    public List<string> Notifications { get; } = [];
     public int LoadRequestCount { get; private set; }
     public int SessionInsightsRequestCount { get; private set; }
-    public RecordedSessionTimelineAlignmentMark? PendingTimelineAlignmentMark { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffPreviews { get; } = [];
     public int CutoffPreviewCancellations { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffCommits { get; } = [];
@@ -51,15 +47,8 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
         return Task.CompletedTask;
     }
 
-    public List<(double StartSeconds, double EndSeconds)> AnalysisRanges { get; } = [];
-    public int AnalysisRangeClearCount { get; private set; }
     public List<double> AnalysisRangeBoundaries { get; } = [];
     public List<SignalLayoutPreferences> SignalLayoutPreferences { get; } = [];
-
-    public void SetAnalysisRange(double startSeconds, double endSeconds) =>
-        AnalysisRanges.Add((startSeconds, endSeconds));
-
-    public void ClearAnalysisRange() => AnalysisRangeClearCount++;
 
     public void SetSignalLayoutPreferences(SignalLayoutPreferences preferences) => SignalLayoutPreferences.Add(preferences);
 
@@ -67,111 +56,5 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
 
     public void RequestSessionInsights() => SessionInsightsRequestCount++;
 
-    public void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source)
-    {
-    }
-
-    public bool TryBeginTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds,
-        string? subjectId = null)
-    {
-        if (target == RecordedSessionTimelineAlignmentTarget.None ||
-            !double.IsFinite(seconds) ||
-            seconds < 0 ||
-            PendingTimelineAlignmentMark is not null)
-        {
-            return false;
-        }
-
-        PendingTimelineAlignmentMark = new RecordedSessionTimelineAlignmentMark(target, subjectId, seconds);
-        return true;
-    }
-
-    public bool TryResolveTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        double seconds,
-        string? subjectId,
-        out RecordedSessionTimelineAlignmentResolution? resolution)
-    {
-        resolution = null;
-        if (target == RecordedSessionTimelineAlignmentTarget.None ||
-            !double.IsFinite(seconds) ||
-            seconds < 0 ||
-            PendingTimelineAlignmentMark is not { } mark ||
-            mark.Target != target ||
-            !string.Equals(mark.SubjectId, subjectId, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        resolution = new RecordedSessionTimelineAlignmentResolution(
-            target,
-            mark.SubjectId,
-            mark.Seconds,
-            seconds,
-            mark.Seconds - seconds);
-        PendingTimelineAlignmentMark = null;
-        return true;
-    }
-
-    public bool TryCancelTimelineAlignment(
-        RecordedSessionTimelineAlignmentTarget target,
-        string? subjectId = null)
-    {
-        if (PendingTimelineAlignmentMark is not { } mark ||
-            mark.Target != target ||
-            !string.Equals(mark.SubjectId, subjectId, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        PendingTimelineAlignmentMark = null;
-        return true;
-    }
-
     public void AddError(string message) => Errors.Add(message);
-
-    public void AddNotification(string message) => Notifications.Add(message);
-
-    public IRecordedSessionOperationLease StartOperation(string description) =>
-        Substitute.For<IRecordedSessionOperationLease>();
-
-    public void RequestPageSelection(string contributionId)
-    {
-    }
-
-    public Task<Guid?> CreateDerivedSessionAsync(
-        Guid fromSessionId,
-        string name,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult<Guid?>(null);
-
-    public Task<bool> DeleteSessionAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(false);
-
-    public Task<bool> UpdateSessionOriginAsync(
-        Guid sessionId,
-        double sourceAbsoluteStartSeconds,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(false);
-
-    public Task<bool> RenameSessionAsync(
-        Guid sessionId,
-        string name,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(false);
-
-    public Task<bool> RequestRecomputeAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default) =>
-        Task.FromResult(false);
-
-    public Task OpenSessionInBackgroundAsync(
-        Guid sessionId,
-        CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
 }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Contracts.Models;
 
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Insights.Services.SessionInsights;

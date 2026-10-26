@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 

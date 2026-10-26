@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Presentation;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.Common;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;

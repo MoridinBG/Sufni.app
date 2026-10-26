@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
@@ -32,7 +31,6 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
-    private readonly IExtensionSyncService? extensionSyncService;
 
     public SynchronizationClientService(
         ISyncDataStore syncDataStore,
@@ -43,20 +41,6 @@ public class SynchronizationClientService : ISynchronizationClientService
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences)
-        : this(syncDataStore, sessionRepository, sessionStore, recordedSessionSourceRepository, sourceStore, recordedSessionSourceSyncQuery, httpApiService, appPreferences, null)
-    {
-    }
-
-    internal SynchronizationClientService(
-        ISyncDataStore syncDataStore,
-        ISessionRepository sessionRepository,
-        ISessionStoreWriter sessionStore,
-        IRecordedSessionSourceRepository recordedSessionSourceRepository,
-        IRecordedSessionSourceStoreWriter sourceStore,
-        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
-        IHttpApiService httpApiService,
-        IAppPreferences appPreferences,
-        IExtensionSyncService? extensionSyncService)
     {
         this.syncDataStore = syncDataStore;
         this.sessionRepository = sessionRepository;
@@ -66,7 +50,6 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
-        this.extensionSyncService = extensionSyncService;
     }
 
     private async Task PushLocalChanges(long sinceExclusive)
@@ -79,15 +62,9 @@ public class SynchronizationClientService : ISynchronizationClientService
         changes.AppPreferences = await appPreferences.GetSyncDataAsync(
             sinceExclusive,
             upperInclusive);
-        if (extensionSyncService is not null)
-        {
-            changes.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(
-                sinceExclusive,
-                upperInclusive));
-        }
 
         logger.Verbose(
-            "Pushing local changes in ({SinceExclusive}, {UpperInclusive}] with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
+            "Pushing local changes in ({SinceExclusive}, {UpperInclusive}] with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
             sinceExclusive,
             upperInclusive,
             changes.Boards.Count,
@@ -95,7 +72,6 @@ public class SynchronizationClientService : ISynchronizationClientService
             changes.Setups.Count,
             changes.Sessions.Count,
             changes.Tracks.Count,
-            changes.ExtensionBatches.Count,
             changes.AppPreferences is not null);
 
         await httpApiService.PushSyncAsync(changes);
@@ -125,43 +101,13 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteSessions.Count);
     }
 
-    private async Task<(IReadOnlyList<SessionBlobSwap> Swaps, long UpperBound, string? PartialApplyError)> PullRemoteChanges(
-        long sinceExclusive,
-        IProgress<SynchronizationProgressSnapshot>? progress)
+    private async Task<(IReadOnlyList<SessionBlobSwap> Swaps, long UpperBound)> PullRemoteChanges(long sinceExclusive)
     {
         var syncData = await httpApiService.PullSyncAsync(sinceExclusive);
-        var extensionPlan = extensionSyncService is null
-            ? null
-            : await extensionSyncService.PrepareBatchesAsync(syncData.ExtensionBatches);
         var swaps = await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
         await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
-        if (extensionSyncService is not null && extensionPlan is not null)
-        {
-            try
-            {
-                var extensionProgress = await extensionSyncService.ApplyPreparedBatchesAsync(
-                    extensionPlan,
-                    SynchronizationPhase.PullingRemoteChanges,
-                    currentStep: 2,
-                    totalSteps: 6);
-                foreach (var snapshot in extensionProgress)
-                {
-                    progress?.Report(snapshot);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                logger.Error(exception, "Extension synchronization failed after pulled core data was persisted");
-                return (swaps, syncData.UpperBound, exception.Message);
-            }
-        }
-
         logger.Verbose(
-            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
+            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted, and app preferences present {HasAppPreferences}",
             syncData.Boards.Count(board => board.Deleted.HasValue),
             syncData.Boards.Count(board => !board.Deleted.HasValue),
             syncData.Bikes.Count(bike => bike.Deleted.HasValue),
@@ -172,10 +118,9 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.Tracks.Count(track => !track.Deleted.HasValue),
             syncData.Sessions.Count(session => session.Deleted.HasValue),
             syncData.Sessions.Count(session => !session.Deleted.HasValue),
-            syncData.ExtensionBatches.Count,
             syncData.AppPreferences is not null);
 
-        return (swaps, syncData.UpperBound, null);
+        return (swaps, syncData.UpperBound);
     }
 
     private async Task<int> PullIncompleteSessions(IReadOnlyList<SessionBlobSwap> swaps)
@@ -364,17 +309,12 @@ public class SynchronizationClientService : ISynchronizationClientService
             IReadOnlyList<SessionBlobSwap> swaps = [];
             var pullUpperBound = lastPullTime;
             var unresolvedSwaps = 0;
-            string? partialApplyError = null;
 
             await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(pushSinceExclusive));
             await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, async () =>
             {
-                (swaps, pullUpperBound, partialApplyError) = await PullRemoteChanges(pullSinceExclusive, progress);
+                (swaps, pullUpperBound) = await PullRemoteChanges(pullSinceExclusive);
             });
-            if (partialApplyError is not null)
-            {
-                return new SynchronizationRunResult.PartialApply(partialApplyError);
-            }
 
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, PushIncompleteSessions);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(swaps));

@@ -3,11 +3,10 @@ using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Infrastructure.Theming;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
 
 public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)

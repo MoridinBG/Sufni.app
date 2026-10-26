@@ -1,0 +1,32 @@
+<UserControl
+    x:Class="Sufni.App.Segments.Views.SegmentMatchToolbarView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:Sufni.App.Segments.ViewModels"
+    d:DesignHeight="48"
+    d:DesignWidth="300"
+    x:DataType="vm:SegmentComparisonViewModel"
+    mc:Ignorable="d">
+
+    <CommandBar Background="Transparent">
+        <CommandBar.PrimaryCommands>
+            <CommandBarButton Name="MatchButton" Label="Match" Command="{Binding MatchCommand}">
+                <CommandBarButton.Icon>
+                    <Image Width="18" Height="18" Source="{SvgImage /Assets/fa-magnifying-glass-chart.svg}" />
+                </CommandBarButton.Icon>
+            </CommandBarButton>
+            <CommandBarButton
+                Name="PreviousMatchesButton"
+                Label="Previous matches"
+                Command="{Binding PreviousPageCommand}"
+                IsVisible="{Binding HasMultiplePages}" />
+            <CommandBarButton
+                Name="NextMatchesButton"
+                Label="Next matches"
+                Command="{Binding NextPageCommand}"
+                IsVisible="{Binding HasMultiplePages}" />
+        </CommandBar.PrimaryCommands>
+    </CommandBar>
+</UserControl>

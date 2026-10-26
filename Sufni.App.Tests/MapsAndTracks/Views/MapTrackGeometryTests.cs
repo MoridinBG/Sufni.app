@@ -1,5 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.MapsAndTracks.Views;
 namespace Sufni.App.Tests.MapsAndTracks.Views;
@@ -75,15 +74,6 @@ public class MapTrackGeometryTests
             maxY: 10);
 
         Assert.True(intersects);
-    }
-
-    [Fact]
-    public void ProjectMapCoordinate_ProjectsEquatorOriginToMercatorOrigin()
-    {
-        var projected = MapTrackGeometry.ProjectMapCoordinate(new RecordedSessionMapCoordinate(0, 0));
-
-        Assert.Equal(0, projected.X, precision: 6);
-        Assert.Equal(0, projected.Y, precision: 6);
     }
 
     private static TrackPoint Point(double time, double x, double y) => new(time, x, y, elevation: null);

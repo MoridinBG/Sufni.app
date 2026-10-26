@@ -1,11 +1,10 @@
 using System.Collections.Generic;
 using ScottPlot;
 using Sufni.Telemetry;
-using Sufni.App.ExtensionHost.Runtime.Presentation;
+using Sufni.App.Infrastructure.Theming;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Theming;
 namespace Sufni.App.Sessions.Plots;
 
 public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation location, SufniTheme? theme = null) : TelemetryPlot(plot, theme)

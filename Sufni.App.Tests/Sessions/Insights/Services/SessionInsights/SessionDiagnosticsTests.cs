@@ -1,4 +1,4 @@
-using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.AnalysisTelemetryFixture;
 

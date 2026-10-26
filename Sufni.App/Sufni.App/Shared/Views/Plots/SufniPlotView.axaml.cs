@@ -9,7 +9,7 @@ using Avalonia.Threading;
 using ScottPlot;
 using AvaloniaColor = Avalonia.Media.Color;
 
-using Sufni.App.Theming;
+using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Views.Plots;
 
 public abstract class SufniPlotView : TemplatedControl
