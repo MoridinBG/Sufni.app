@@ -30,6 +30,7 @@ public abstract record StravaSegmentFetchResult
 
     public sealed record Loaded(IReadOnlyList<StravaSegmentOption> Segments) : StravaSegmentFetchResult;
     public sealed record NotConnected : StravaSegmentFetchResult;
+    public sealed record MissingSessionTiming : StravaSegmentFetchResult;
     public sealed record ReconnectRequired : StravaSegmentFetchResult;
     public sealed record NoMatchingActivity : StravaSegmentFetchResult;
     public sealed record NoUsableSegments : StravaSegmentFetchResult;

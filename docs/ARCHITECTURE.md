@@ -275,7 +275,7 @@ Topics in [architecture/segments.md](architecture/segments.md):
 - [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
 - [Trim And Split](architecture/segments.md#trim-and-split) — how edits move segments
 - [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", name prompt
-- [Strava](architecture/segments.md#strava) — `IStravaSegmentService`, connect dialog, cancellation on close
+- [Strava](architecture/segments.md#strava) — `IStravaSegmentService` behind `ISegmentCoordinator`, connect dialog, cancellation on close
 
 ---
 

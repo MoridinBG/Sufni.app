@@ -11,7 +11,6 @@ using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 namespace Sufni.App.Segments.ViewModels;
 
@@ -29,7 +28,6 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     private readonly Guid sessionId;
     private readonly ISegmentCoordinator segmentCoordinator;
-    private readonly IStravaSegmentService stravaService;
     private readonly IDialogService dialogService;
     private readonly Action<TelemetryTimeRange?> setAnalysisRange;
     private readonly Action<string> reportError;
@@ -61,14 +59,12 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         Guid sessionId,
         ISessionSegmentStore segmentStore,
         ISegmentCoordinator segmentCoordinator,
-        IStravaSegmentService stravaService,
         IDialogService dialogService,
         Action<TelemetryTimeRange?> setAnalysisRange,
         Action<string> reportError)
     {
         this.sessionId = sessionId;
         this.segmentCoordinator = segmentCoordinator;
-        this.stravaService = stravaService;
         this.dialogService = dialogService;
         this.setAnalysisRange = setAnalysisRange;
         this.reportError = reportError;
@@ -185,7 +181,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [RelayCommand]
     private async Task ConnectWithStrava()
     {
-        var dialog = new StravaConnectDialogViewModel(stravaService, await stravaService.GetConnectionSnapshotAsync());
+        var dialog = new StravaConnectDialogViewModel(segmentCoordinator, await segmentCoordinator.GetStravaConnectionAsync());
         await dialogService.ShowContentDialogAsync(
             dialog,
             new DialogOptions(
@@ -202,7 +198,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private async Task ResetStravaCredentials()
     {
         CancelStravaLoad();
-        await stravaService.ResetCredentialsAsync();
+        await segmentCoordinator.ResetStravaAsync();
         ShowStravaDisconnected(ConnectFirstMessage);
     }
 
@@ -215,32 +211,14 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         StravaMessage = null;
         try
         {
-            var connection = await stravaService.GetConnectionSnapshotAsync(load.Token);
-            IsStravaConnected = connection.IsConnected;
-            if (!connection.IsConnected)
-            {
-                StravaMessage = ConnectFirstMessage;
-                return;
-            }
-
-            if (sessionTimestamp is not { } timestamp || telemetryDurationSeconds is not { } duration)
-            {
-                StravaMessage = "Session timing is not available for Strava segments.";
-                return;
-            }
-
             IsStravaSegmentsLoading = true;
-            ApplyStravaResult(await stravaService.FindSegmentsAsync(
-                DateTimeOffset.FromUnixTimeSeconds(timestamp),
-                duration,
+            ApplyStravaResult(await segmentCoordinator.FindStravaSegmentsAsync(
+                sessionTimestamp,
+                telemetryDurationSeconds,
                 load.Token));
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
-        }
-        catch (Exception ex)
-        {
-            StravaMessage = $"Could not load Strava segments: {ex.Message}";
         }
         finally
         {
@@ -256,6 +234,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     private void ApplyStravaResult(StravaSegmentFetchResult result)
     {
+        IsStravaConnected = result is not (StravaSegmentFetchResult.NotConnected or StravaSegmentFetchResult.ReconnectRequired);
         switch (result)
         {
             case StravaSegmentFetchResult.Loaded loaded:
@@ -264,6 +243,9 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
                 break;
             case StravaSegmentFetchResult.NotConnected:
                 ShowStravaDisconnected(ConnectFirstMessage);
+                break;
+            case StravaSegmentFetchResult.MissingSessionTiming:
+                StravaMessage = "Session timing is not available for Strava segments.";
                 break;
             case StravaSegmentFetchResult.ReconnectRequired:
                 ShowStravaDisconnected("Strava authorization expired. Connect with Strava again.");

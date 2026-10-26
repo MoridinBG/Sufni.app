@@ -37,7 +37,7 @@ Startup cleanup removes segment tombstones older than one day and segments whose
 
 `SessionSegmentStore` holds the live segments of live sessions. `GetForSession` returns the segments of one session. `PublishSegmentsAsync` publishes written rows; a deleted row leaves the store. `AppDataRefresher` refreshes the store with the other core stores.
 
-`SegmentCoordinator` owns create, rename, and delete. It is the only place of the name rule: a name is required, and it is unique among the live segments of the session. `ValidateName` exposes the rule to prompts, and `NextName` returns the first free "Segment N" name. Create also rejects a missing session and a range that is not finite or not ordered. Each workflow returns `SegmentChangeResult.Applied` or `Failed` with a message.
+`SegmentCoordinator` owns create, rename, and delete, matching (see [Matching And Comparison](#matching-and-comparison)), and the Strava workflows (see [Strava](#strava)). It is the only place of the name rule: a name is required, and it is unique among the live segments of the session. `ValidateName` exposes the rule to prompts, and `NextName` returns the first free "Segment N" name. Create also rejects a missing session and a range that is not finite or not ordered. Each workflow returns `SegmentChangeResult.Applied` or `Failed` with a message.
 
 ## Synchronization
 
@@ -67,7 +67,8 @@ Each recorded-session editor creates one `SegmentPickerViewModel` through `ISegm
 The picker lists the segment efforts of the Strava activity that overlaps the session when the user has connected their own Strava API app.
 
 - `IStravaSegmentService` (singleton) keeps the client credentials and OAuth tokens in `ISecureStorage` under the `SegmentAnalysis.Strava.*` keys, which predate the fold and keep existing connections. It refreshes the access token when needed, finds the activity with the most overlap, and returns the efforts as ranges of the session's telemetry, clamped to its duration. Results are cached per session start and duration until the connection changes; the cache keeps negative results.
-- The picker loads the efforts each time it opens and passes a cancellation token; closing the picker or the editor cancels the load. Selecting an effort sets the analysis range only.
+- `ISegmentCoordinator` owns the Strava workflows: `GetStravaConnectionAsync`, `CreateStravaAuthorizationUrl`, `ConnectStravaAsync`, `FindStravaSegmentsAsync`, and `ResetStravaAsync`. The picker and the connect dialog call only the coordinator. A failed request becomes `StravaConnectResult.Failed` or `StravaSegmentFetchResult.Failed` and is logged there; cancellation throws. `FindStravaSegmentsAsync` returns `NotConnected` before any request when no usable connection is stored, and `MissingSessionTiming` when the session has no timestamp or telemetry duration.
+- The picker loads the efforts each time it opens and passes a cancellation token; closing the picker or the editor cancels the load. Selecting an effort sets the analysis range only. The picker shows the connected actions unless the result is `NotConnected` or `ReconnectRequired`.
 - "Connect with Strava" opens `StravaConnectDialogViewModel` on the content-dialog path. The user enters the client id and secret, opens the authorization URL in the browser, and pastes the redirect URL back; the service exchanges the code for tokens. "Reset credentials" removes every stored key and the cache.
 
 ## Matching And Comparison

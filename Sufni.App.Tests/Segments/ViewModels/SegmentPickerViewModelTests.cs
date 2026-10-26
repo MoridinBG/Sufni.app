@@ -3,7 +3,6 @@ using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Segments.ViewModels;
 using Sufni.Telemetry;
@@ -18,7 +17,6 @@ public class SegmentPickerViewModelTests
     private readonly SourceCache<SessionSegmentSnapshot, Guid> segments = new(segment => segment.Id);
     private readonly ISessionSegmentStore segmentStore = Substitute.For<ISessionSegmentStore>();
     private readonly ISegmentCoordinator segmentCoordinator = Substitute.For<ISegmentCoordinator>();
-    private readonly IStravaSegmentService stravaService = Substitute.For<IStravaSegmentService>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly List<TelemetryTimeRange?> analysisRanges = [];
     private readonly List<string> errors = [];
@@ -27,8 +25,8 @@ public class SegmentPickerViewModelTests
     {
         segmentStore.Connect().Returns(segments.Connect());
         segmentCoordinator.ValidateName(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>()).Returns((string?)null);
-        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
-            .Returns(new StravaConnectionSnapshot(null, null, IsConnected: false));
+        segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
+            .Returns(new StravaSegmentFetchResult.NotConnected());
     }
 
     [Fact]
@@ -136,10 +134,8 @@ public class SegmentPickerViewModelTests
     [Fact]
     public async Task Open_WhenStravaIsConnected_ListsTheSessionEfforts()
     {
-        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
-            .Returns(new StravaConnectionSnapshot("client", "secret", IsConnected: true));
         var effort = new StravaSegmentOption("Rock Garden", 320, new TelemetryTimeRange(3, 5));
-        stravaService.FindSegmentsAsync(DateTimeOffset.FromUnixTimeSeconds(SessionTimestamp), 10, Arg.Any<CancellationToken>())
+        segmentCoordinator.FindStravaSegmentsAsync(SessionTimestamp, 10, Arg.Any<CancellationToken>())
             .Returns(new StravaSegmentFetchResult.Loaded([effort]));
         using var picker = CreateLoadedPicker(durationSeconds: 10);
 
@@ -153,11 +149,9 @@ public class SegmentPickerViewModelTests
     [Fact]
     public async Task Close_CancelsTheStravaLoad()
     {
-        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
-            .Returns(new StravaConnectionSnapshot("client", "secret", IsConnected: true));
         var fetchToken = new TaskCompletionSource<CancellationToken>();
         var fetch = new TaskCompletionSource<StravaSegmentFetchResult>();
-        stravaService.FindSegmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<double>(), Arg.Any<CancellationToken>())
+        segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
                 fetchToken.SetResult(call.ArgAt<CancellationToken>(2));
@@ -179,16 +173,14 @@ public class SegmentPickerViewModelTests
     [Fact]
     public async Task ResetStravaCredentials_DisconnectsAndDropsTheEfforts()
     {
-        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
-            .Returns(new StravaConnectionSnapshot("client", "secret", IsConnected: true));
-        stravaService.FindSegmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<double>(), Arg.Any<CancellationToken>())
+        segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
             .Returns(new StravaSegmentFetchResult.Loaded([new StravaSegmentOption("Rock Garden", 320, new TelemetryTimeRange(3, 5))]));
         using var picker = CreateLoadedPicker();
         await picker.OpenCommand.ExecuteAsync(null);
 
         await picker.ResetStravaCredentialsCommand.ExecuteAsync(null);
 
-        await stravaService.Received(1).ResetCredentialsAsync(Arg.Any<CancellationToken>());
+        await segmentCoordinator.Received(1).ResetStravaAsync();
         Assert.False(picker.IsStravaConnected);
         Assert.Empty(picker.StravaSegments);
     }
@@ -211,7 +203,6 @@ public class SegmentPickerViewModelTests
             sessionId,
             segmentStore,
             segmentCoordinator,
-            stravaService,
             dialogService,
             analysisRanges.Add,
             errors.Add);

@@ -17,7 +17,6 @@ internal static class TestSegmentPickers
         new SegmentPickerFactory(
             segmentStore ?? new SessionSegmentStore(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher()),
             segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(),
-            Substitute.For<IStravaSegmentService>(),
             dialogService ?? Substitute.For<IDialogService>());
 
     public static SegmentPickerViewModel Create() =>

@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
+using Sufni.App.Segments.Coordinators;
 namespace Sufni.App.Segments.ViewModels;
 
 /// <summary>
@@ -16,7 +16,7 @@ namespace Sufni.App.Segments.ViewModels;
 /// </summary>
 public sealed partial class StravaConnectDialogViewModel : ObservableObject, IContentDialogCompletionSource
 {
-    private readonly IStravaSegmentService stravaService;
+    private readonly ISegmentCoordinator segmentCoordinator;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AuthorizationUrl))]
@@ -49,15 +49,15 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     public partial bool HasOpenedAuthorizationUrl { get; private set; }
 
-    public StravaConnectDialogViewModel(IStravaSegmentService stravaService, StravaConnectionSnapshot connection)
+    public StravaConnectDialogViewModel(ISegmentCoordinator segmentCoordinator, StravaConnectionSnapshot connection)
     {
-        this.stravaService = stravaService;
+        this.segmentCoordinator = segmentCoordinator;
         ClientId = connection.ClientId;
         ClientSecret = connection.ClientSecret;
     }
 
     public string AuthorizationUrl => HasClientCredentials
-        ? stravaService.CreateAuthorizationUrl(ClientId!.Trim())
+        ? segmentCoordinator.CreateStravaAuthorizationUrl(ClientId!.Trim())
         : string.Empty;
 
     public bool HasClientCredentials =>
@@ -91,7 +91,7 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
         IsConnecting = true;
         try
         {
-            var result = await stravaService.ConnectAsync(
+            var result = await segmentCoordinator.ConnectStravaAsync(
                 new StravaConnectRequest(ClientId, ClientSecret, RedirectUrl),
                 cancellationToken);
             ErrorMessage = result switch
@@ -109,10 +109,6 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
         }
         finally
         {

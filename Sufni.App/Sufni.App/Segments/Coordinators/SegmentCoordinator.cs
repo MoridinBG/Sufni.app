@@ -58,9 +58,9 @@ public sealed record SegmentComparisonPage(
 }
 
 /// <summary>
-/// Owns the saved-segment workflows: create, rename, and delete, and matching a
-/// selected range against every session. Segment names are unique among the live
-/// segments of one session.
+/// Owns the saved-segment workflows: create, rename, and delete, matching a
+/// selected range against every session, and the Strava connection and segment
+/// fetch. Segment names are unique among the live segments of one session.
 /// </summary>
 public interface ISegmentCoordinator
 {
@@ -100,6 +100,30 @@ public interface ISegmentCoordinator
     Task<SegmentComparisonDetail?> LoadComparisonDetailAsync(
         SegmentComparison comparison,
         CancellationToken cancellationToken);
+
+    Task<StravaConnectionSnapshot> GetStravaConnectionAsync();
+
+    string CreateStravaAuthorizationUrl(string clientId);
+
+    /// <summary>
+    /// Exchanges the code in the redirect URL the user pasted for tokens and
+    /// stores the credentials. A failed request is an outcome.
+    /// </summary>
+    Task<StravaConnectResult> ConnectStravaAsync(StravaConnectRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns the Strava segment efforts inside the session. A failed request
+    /// is an outcome; cancellation throws.
+    /// </summary>
+    Task<StravaSegmentFetchResult> FindStravaSegmentsAsync(
+        long? sessionTimestamp,
+        double? sessionDurationSeconds,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Removes the stored Strava credentials and tokens.
+    /// </summary>
+    Task ResetStravaAsync();
 }
 
 internal sealed class SegmentCoordinator(
@@ -109,7 +133,8 @@ internal sealed class SegmentCoordinator(
     ISegmentMatcher matcher,
     ISessionContentReader contentReader,
     ISessionOperationRunner operationRunner,
-    IBackgroundTaskRunner backgroundTaskRunner) : ISegmentCoordinator
+    IBackgroundTaskRunner backgroundTaskRunner,
+    IStravaSegmentService stravaService) : ISegmentCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SegmentCoordinator>();
     private static readonly SegmentChangeResult MissingSegment =
@@ -297,6 +322,55 @@ internal sealed class SegmentCoordinator(
             ? SegmentComparisonBuilder.BuildDetail(telemetry, available.Snapshot.Track)
             : null;
     }
+
+    public Task<StravaConnectionSnapshot> GetStravaConnectionAsync() => stravaService.GetConnectionSnapshotAsync();
+
+    public string CreateStravaAuthorizationUrl(string clientId) => stravaService.CreateAuthorizationUrl(clientId);
+
+    public async Task<StravaConnectResult> ConnectStravaAsync(StravaConnectRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await stravaService.ConnectAsync(request, cancellationToken);
+        }
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.Error(e, "Strava connection failed");
+            return new StravaConnectResult.Failed(e.Message);
+        }
+    }
+
+    public async Task<StravaSegmentFetchResult> FindStravaSegmentsAsync(
+        long? sessionTimestamp,
+        double? sessionDurationSeconds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var connection = await stravaService.GetConnectionSnapshotAsync(cancellationToken);
+            if (!connection.IsConnected)
+            {
+                return new StravaSegmentFetchResult.NotConnected();
+            }
+
+            if (sessionTimestamp is not { } timestamp || sessionDurationSeconds is not { } duration)
+            {
+                return new StravaSegmentFetchResult.MissingSessionTiming();
+            }
+
+            return await stravaService.FindSegmentsAsync(
+                DateTimeOffset.FromUnixTimeSeconds(timestamp),
+                duration,
+                cancellationToken);
+        }
+        catch (Exception e) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.Error(e, "Strava segments could not be loaded");
+            return new StravaSegmentFetchResult.Failed(e.Message);
+        }
+    }
+
+    public Task ResetStravaAsync() => stravaService.ResetCredentialsAsync();
 
     private async Task<(IReadOnlyList<TrackPoint> Points, SessionContentToken Token)?> LoadSourceAsync(
         SegmentMatchSource source,

@@ -23,6 +23,7 @@ public class SegmentCoordinatorTests
     private readonly ISegmentMatcher matcher = Substitute.For<ISegmentMatcher>();
     private readonly TestSessionContentReader contentReader = new();
     private readonly SessionOperationRunner operationRunner = new();
+    private readonly IStravaSegmentService stravaService = Substitute.For<IStravaSegmentService>();
     private readonly Guid sourceId = Guid.NewGuid();
     private readonly SessionSnapshot session = TestSnapshots.Session(id: Guid.NewGuid());
 
@@ -178,11 +179,60 @@ public class SegmentCoordinatorTests
         matcher.FindMatchesAsync(Arg.Any<SegmentMatchRequest>(), Arg.Any<CancellationToken>(), Arg.Any<IProgress<SegmentMatchProgress>?>())
             .Returns(matches);
 
+    [Fact]
+    public async Task FindStravaSegmentsAsync_WhenNotConnected_DoesNotFetch()
+    {
+        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
+            .Returns(new StravaConnectionSnapshot(null, null, IsConnected: false));
+
+        var result = await CreateCoordinator().FindStravaSegmentsAsync(1_000, 10, CancellationToken.None);
+
+        Assert.IsType<StravaSegmentFetchResult.NotConnected>(result);
+        await stravaService.DidNotReceiveWithAnyArgs().FindSegmentsAsync(default, default, default);
+    }
+
+    [Fact]
+    public async Task FindStravaSegmentsAsync_WithoutSessionTimestamp_ReturnsMissingSessionTiming()
+    {
+        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
+            .Returns(new StravaConnectionSnapshot("client", "secret", IsConnected: true));
+
+        var result = await CreateCoordinator().FindStravaSegmentsAsync(null, 10, CancellationToken.None);
+
+        Assert.IsType<StravaSegmentFetchResult.MissingSessionTiming>(result);
+    }
+
+    [Fact]
+    public async Task FindStravaSegmentsAsync_WhenTheRequestThrows_ReturnsFailed()
+    {
+        stravaService.GetConnectionSnapshotAsync(Arg.Any<CancellationToken>())
+            .Returns(new StravaConnectionSnapshot("client", "secret", IsConnected: true));
+        stravaService.FindSegmentsAsync(Arg.Any<DateTimeOffset>(), Arg.Any<double>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<StravaSegmentFetchResult>(new HttpRequestException("offline")));
+
+        var result = await CreateCoordinator().FindStravaSegmentsAsync(1_000, 10, CancellationToken.None);
+
+        Assert.Equal("offline", Assert.IsType<StravaSegmentFetchResult.Failed>(result).Message);
+    }
+
+    [Fact]
+    public async Task ConnectStravaAsync_WhenTheRequestThrows_ReturnsFailed()
+    {
+        stravaService.ConnectAsync(Arg.Any<StravaConnectRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<StravaConnectResult>(new HttpRequestException("offline")));
+
+        var result = await CreateCoordinator().ConnectStravaAsync(
+            new StravaConnectRequest("client", "secret", "http://localhost/exchange_token?code=abc"),
+            CancellationToken.None);
+
+        Assert.Equal("offline", Assert.IsType<StravaConnectResult.Failed>(result).Message);
+    }
+
     private static async Task<IReadOnlyList<SegmentMatch>> WaitForCancellationAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(Timeout.Infinite, cancellationToken);
         return [];
     }
 
-    private SegmentCoordinator CreateCoordinator() => new(repository, segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner());
+    private SegmentCoordinator CreateCoordinator() => new(repository, segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner(), stravaService);
 }
