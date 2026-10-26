@@ -266,7 +266,7 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 - `GetMissingRecordingSourceIdsAsync()` — the same check, but returns the recording source ids instead of the session ids
 - `GetReferencedSourceSessionIdsAsync()` — returns the distinct `source_session_id` values of live sessions that derive from another session's source
 - `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs; startup normalization uses it to enumerate recomputable source-backed sessions
-- `DeleteOrphanedRecordedSessionSourcesAsync(retainedIds)` — removes source rows whose owner session no longer exists unless the id is in `retainedIds`
+- `DeleteOrphanedRecordedSessionSourcesAsync()` — in one transaction, removes source rows whose owner session no longer exists and that no live session references through `source_session_id`, and returns their ids
 - `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
 
 `session_blob_swap_request` is local durable coordination state for the desktop
@@ -375,8 +375,9 @@ On database initialization, the `Cleanup()` pass permanently removes:
 
 Recorded-source orphan cleanup runs after initialization through
 `RecordedSessionSourceRetentionCleanup`, not inside the schema cleanup pass. It
-reads the referenced source ids from the session rows and then deletes orphan
-`session_recording_source` rows except those ids. This lets a split/trimmed derived session keep using a source row whose
+calls `DeleteOrphanedRecordedSessionSourcesAsync()`, which keeps every source
+row that a live session references, and publishes the removed ids to the
+recorded-source store. This lets a split/trimmed derived session keep using a source row whose
 original owner session has been purged.
 
 Extension-owned rows that reference core entities are cleaned through

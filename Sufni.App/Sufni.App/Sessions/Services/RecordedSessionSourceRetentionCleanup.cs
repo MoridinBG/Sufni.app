@@ -22,8 +22,7 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
         try
         {
             _ = await connectionContext.GetInitializedConnectionAsync();
-            var retainedSourceIds = await recordedSessionSourceRepository.GetReferencedSourceSessionIdsAsync();
-            var deletedIds = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync(retainedSourceIds);
+            var deletedIds = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync();
 
             if (deletedIds.Count > 0)
             {

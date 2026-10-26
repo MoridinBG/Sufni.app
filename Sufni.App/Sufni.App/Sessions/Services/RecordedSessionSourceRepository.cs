@@ -44,16 +44,17 @@ public interface IRecordedSessionSourceRepository
 
     Task DeleteRecordedSessionSourceAsync(Guid sessionId);
 
-    Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync(
-        IReadOnlyCollection<Guid> retainedSourceSessionIds);
+    /// <summary>
+    /// Deletes, in one transaction, the source rows whose session row is gone and
+    /// that no live session derives from, and returns their ids.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync();
 }
 
 internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext connectionContext)
     : IRecordedSessionSourceRepository
 {
     private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
-    private const int RetainedSourceInsertChunkSize = 500;
-    private const string RetainedSourceTempTable = "retained_recorded_session_source_ids";
     private const string ReferencedSourceSessionIdsSql = """
                                                          SELECT DISTINCT source_session_id AS session_id
                                                          FROM session
@@ -166,51 +167,21 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         await DeleteRecordedSessionSourceAsync(connection, sessionId);
     }
 
-    public async Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync(
-        IReadOnlyCollection<Guid> retainedSourceSessionIds)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        if (retainedSourceSessionIds.Count == 0)
+    public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
+        connectionContext.RunInTransactionAsync<IReadOnlyList<Guid>>(connection =>
         {
-            return await connectionContext.RunInTransactionAsync(connection =>
-            {
-                var rows = connection.Query<SourceSessionIdRow>(
-                    "SELECT session_id FROM session_recording_source WHERE session_id NOT IN (SELECT id FROM session)");
-                var deletedIds = rows.Select(row => row.SessionId).ToArray();
-                DeleteRecordedSessionSourcesById(connection, deletedIds);
-                return deletedIds;
-            });
-        }
-
-        return await connectionContext.RunInTransactionAsync(connection =>
-        {
-            connection.Execute($"DROP TABLE IF EXISTS {RetainedSourceTempTable}");
-            connection.Execute($"CREATE TEMP TABLE {RetainedSourceTempTable}(id TEXT PRIMARY KEY)");
-            try
-            {
-                InsertRetainedSourceIds(connection, retainedSourceSessionIds);
-                var rows = connection.Query<SourceSessionIdRow>(
+            var deletedIds = connection.Query<SourceSessionIdRow>(
                     $"""
                      SELECT session_id
                      FROM session_recording_source
                      WHERE session_id NOT IN (SELECT id FROM session)
-                       AND NOT EXISTS (
-                           SELECT 1
-                           FROM {RetainedSourceTempTable} retained
-                           WHERE retained.id = session_recording_source.session_id
-                       )
-                     """);
-                var deletedIds = rows.Select(row => row.SessionId).ToArray();
-                DeleteRecordedSessionSourcesById(connection, deletedIds);
-
-                return deletedIds;
-            }
-            finally
-            {
-                connection.Execute($"DROP TABLE IF EXISTS {RetainedSourceTempTable}");
-            }
+                       AND session_id NOT IN ({ReferencedSourceSessionIdsSql})
+                     """)
+                .Select(row => row.SessionId)
+                .ToArray();
+            DeleteRecordedSessionSourcesById(connection, deletedIds);
+            return deletedIds;
         });
-    }
 
     internal static int PutRecordedSessionSourceInTransaction(
         SQLiteConnection connection,
@@ -270,20 +241,6 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         source.SourceHash,
         source.Payload
     ];
-
-    private static void InsertRetainedSourceIds(
-        SQLiteConnection connection,
-        IReadOnlyCollection<Guid> retainedSourceSessionIds)
-    {
-        foreach (var chunk in retainedSourceSessionIds.Distinct().Chunk(RetainedSourceInsertChunkSize))
-        {
-            var placeholders = string.Join(", ", chunk.Select(_ => "(?)"));
-            var values = chunk.Select(id => (object)id.ToString("D")).ToArray();
-            connection.Execute(
-                $"INSERT OR IGNORE INTO {RetainedSourceTempTable}(id) VALUES {placeholders}",
-                values);
-        }
-    }
 
     private static void ValidateRecordedSessionSource(RecordedSessionSource source)
     {

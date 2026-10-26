@@ -19,35 +19,6 @@ namespace Sufni.App.Tests.Sessions.Services;
 public class RecordedSessionSourceRetentionCleanupTests
 {
     [Fact]
-    public async Task RunAsync_DeletesOrphanedSourcesExceptReferencedIds()
-    {
-        using var tempDatabase = new TempDatabase("recorded-source-retention-cleanup.db");
-        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
-        var repository = Substitute.For<IRecordedSessionSourceRepository>();
-        var store = Substitute.For<IRecordedSessionSourceStoreWriter>();
-        var retainedId = Guid.NewGuid();
-        var retainedIds = new[] { retainedId };
-        repository.GetReferencedSourceSessionIdsAsync().Returns(Task.FromResult(retainedIds.ToList()));
-        var deletedId = Guid.NewGuid();
-        repository.DeleteOrphanedRecordedSessionSourcesAsync(Arg.Any<IReadOnlyCollection<Guid>>())
-            .Returns(Task.FromResult<IReadOnlyList<Guid>>([deletedId]));
-        var cleanup = new RecordedSessionSourceRetentionCleanup(
-            context,
-            repository,
-            store,
-            new InlineBackgroundTaskRunner());
-
-        await cleanup.RunAsync();
-
-        await repository.Received(1).DeleteOrphanedRecordedSessionSourcesAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(retainedIds)));
-        await store.Received(1).PublishSourcesRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { deletedId })),
-            Arg.Any<CancellationToken>());
-        await store.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task RunAsync_RetainsSourcesReferencedByDerivedSessions()
     {
         using var tempDatabase = new TempDatabase("recorded-source-retention-persisted-window.db");

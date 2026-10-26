@@ -159,33 +159,37 @@ public class RecordedSessionSourceRepositoryTests
     }
 
     [Fact]
-    public async Task DeleteOrphanedRecordedSessionSourcesAsync_KeepsMoreThanSqliteParameterLimitRetainedSources()
+    public async Task DeleteOrphanedRecordedSessionSourcesAsync_DeletesOnlySourcesNoLiveSessionNeeds()
     {
-        using var tempDatabase = new TempDatabase("source-retained-over-parameter-limit.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var liveSessionId = Guid.NewGuid();
-        var retainedSessionIds = Enumerable.Range(0, 1_005).Select(_ => Guid.NewGuid()).ToArray();
-        var unretainedOrphanSessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        await database.PutSessionAsync(new Session(liveSessionId, "live", "desc", null, 100));
-        await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(liveSessionId));
-        foreach (var retainedSessionId in retainedSessionIds)
+        using var tempDatabase = new TempDatabase("source-orphans.db");
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var ownedSourceId = Guid.NewGuid();
+        var derivedFromSourceId = Guid.NewGuid();
+        var deletedDerivationSourceId = Guid.NewGuid();
+        var orphanSourceId = Guid.NewGuid();
+        await database.PutSessionAsync(new Session(ownedSourceId, "owner", "desc", null, 100));
+        await database.PutSessionAsync(new Session(Guid.NewGuid(), "derived", "desc", null, 101)
         {
-            await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(retainedSessionId));
+            SourceSessionId = derivedFromSourceId,
+            WindowStartSeconds = 1
+        });
+        var deletedDerived = new Session(Guid.NewGuid(), "deleted derived", "desc", null, 102)
+        {
+            SourceSessionId = deletedDerivationSourceId,
+            WindowStartSeconds = 1
+        };
+        await database.PutSessionAsync(deletedDerived);
+        await database.DeleteAsync(deletedDerived);
+        foreach (var sourceId in new[] { ownedSourceId, derivedFromSourceId, deletedDerivationSourceId, orphanSourceId })
+        {
+            await database.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(sourceId));
         }
 
-        await database.PutRecordedSessionSourceAsync(
-            PersistenceTestData.CreateRecordedSessionSource(unretainedOrphanSessionId));
+        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync();
 
-        var deleted = await database.DeleteOrphanedRecordedSessionSourcesAsync(retainedSessionIds);
-
-        Assert.Equal([unretainedOrphanSessionId], deleted);
-        Assert.NotNull(await database.GetRecordedSessionSourceAsync(liveSessionId));
-        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[0]));
-        Assert.NotNull(await database.GetRecordedSessionSourceAsync(retainedSessionIds[^1]));
-        Assert.Null(await database.GetRecordedSessionSourceAsync(unretainedOrphanSessionId));
-        Assert.Equal(retainedSessionIds.Length + 1, (await database.GetRecordedSessionSourcesAsync()).Count);
+        Assert.Equal(new[] { deletedDerivationSourceId, orphanSourceId }.Order(), deleted.Order());
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(ownedSourceId));
+        Assert.NotNull(await database.GetRecordedSessionSourceAsync(derivedFromSourceId));
     }
 
     [Fact]
