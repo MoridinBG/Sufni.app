@@ -19,7 +19,7 @@ public class SessionEditTransactionTests : IDisposable
 
     public SessionEditTransactionTests()
     {
-        context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         runner = new SessionPersistenceTransactionRunner(context);
     }
 

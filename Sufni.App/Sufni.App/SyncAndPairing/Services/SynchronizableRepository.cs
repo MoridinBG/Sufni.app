@@ -4,16 +4,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Threading.Tasks;
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
 
 using static Sufni.App.Infrastructure.PersistenceGuards;
 
-using Sufni.App.Bikes.Models;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.SyncAndPairing.Services;
 
@@ -36,8 +30,7 @@ public interface ISynchronizableRepository<
 
 internal sealed class SynchronizableRepository<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-    SqliteConnectionContext connectionContext,
-    IExtensionCascadeService? extensionCascadeService = null)
+    SqliteConnectionContext connectionContext)
     : ISynchronizableRepository<T>
     where T : Synchronizable, new()
 {
@@ -75,29 +68,10 @@ internal sealed class SynchronizableRepository<
         return await PutCoreAsync(connection, item);
     }
 
-    public async Task DeleteAsync(Guid id)
-    {
-        await DeleteCoreAsync(id);
-    }
+    public Task DeleteAsync(Guid id) =>
+        connectionContext.RunInTransactionAsync(connection => DeleteInTransaction(connection, id));
 
-    public async Task DeleteAsync(T item)
-    {
-        await DeleteCoreAsync(item.Id);
-    }
-
-    private async Task DeleteCoreAsync(Guid id)
-    {
-        var rulesApplied = false;
-        await connectionContext.RunInTransactionAsync(connection =>
-        {
-            rulesApplied = DeleteInTransaction(connection, id, extensionCascadeService);
-        });
-
-        if (rulesApplied && extensionCascadeService is not null)
-        {
-            await extensionCascadeService.RefreshExtensionStateAsync();
-        }
-    }
+    public Task DeleteAsync(T item) => DeleteAsync(item.Id);
 
     internal static Guid PutInTransaction(SQLiteConnection connection, T item)
     {
@@ -116,10 +90,7 @@ internal sealed class SynchronizableRepository<
         return item.Id;
     }
 
-    internal static bool DeleteInTransaction(
-        SQLiteConnection connection,
-        Guid id,
-        IExtensionCascadeService? extensionCascadeService = null)
+    internal static void DeleteInTransaction(SQLiteConnection connection, Guid id)
     {
         var itemFromDatabase = connection.Find<T>(id);
         if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
@@ -127,11 +98,6 @@ internal sealed class SynchronizableRepository<
             itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             UpdateEntity(connection, itemFromDatabase);
         }
-
-        return extensionCascadeService?.ApplyRulesForDeletedCoreEntityInTransaction(
-            connection,
-            GetCoreEntityKind(),
-            id) ?? false;
     }
 
     private static async Task<Guid> PutCoreAsync(SQLiteAsyncConnection connection, T item)
@@ -149,36 +115,5 @@ internal sealed class SynchronizableRepository<
         }
 
         return item.Id;
-    }
-
-    private static ExtensionCoreEntityKind GetCoreEntityKind()
-    {
-        var entityType = typeof(T);
-        if (entityType == typeof(Board))
-        {
-            return ExtensionCoreEntityKind.Board;
-        }
-
-        if (entityType == typeof(Bike))
-        {
-            return ExtensionCoreEntityKind.Bike;
-        }
-
-        if (entityType == typeof(Setup))
-        {
-            return ExtensionCoreEntityKind.Setup;
-        }
-
-        if (entityType == typeof(Session))
-        {
-            return ExtensionCoreEntityKind.Session;
-        }
-
-        if (entityType == typeof(Track))
-        {
-            return ExtensionCoreEntityKind.Track;
-        }
-
-        throw new InvalidOperationException($"Unsupported synchronizable entity type '{entityType.FullName}'.");
     }
 }

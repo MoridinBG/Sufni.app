@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
 
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Services;
@@ -15,8 +14,7 @@ using Sufni.App.Video.Services;
 namespace Sufni.App.Sessions.Coordination;
 
 internal sealed class SessionPersistenceTransactionRunner(
-    SqliteConnectionContext connectionContext,
-    IExtensionCascadeService? extensionCascadeService = null)
+    SqliteConnectionContext connectionContext)
     : ISessionPersistenceTransactionRunner
 {
     private const string EditableSessionProjection = """
@@ -51,14 +49,10 @@ internal sealed class SessionPersistenceTransactionRunner(
         bool deleteFullTrack,
         CancellationToken cancellationToken = default)
     {
-        var rulesApplied = false;
         var sourceDeleted = false;
         await connectionContext.RunInTransactionAsync(connection =>
         {
-            rulesApplied |= SynchronizableRepository<Session>.DeleteInTransaction(
-                connection,
-                sessionId,
-                extensionCascadeService);
+            SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId);
 
             if (!RecordedSessionSourceRepository.IsSourceReferencedInTransaction(connection, sessionId))
             {
@@ -68,17 +62,9 @@ internal sealed class SessionPersistenceTransactionRunner(
 
             if (deleteFullTrack && fullTrackId.HasValue)
             {
-                rulesApplied |= SynchronizableRepository<Track>.DeleteInTransaction(
-                    connection,
-                    fullTrackId.Value,
-                    extensionCascadeService);
+                SynchronizableRepository<Track>.DeleteInTransaction(connection, fullTrackId.Value);
             }
         }, cancellationToken);
-
-        if (rulesApplied && extensionCascadeService is not null)
-        {
-            await extensionCascadeService.RefreshExtensionStateAsync(cancellationToken);
-        }
 
         return sourceDeleted;
     }

@@ -4,7 +4,6 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 
-using Sufni.App.Extensibility.Views;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Bikes.ViewModels.Editors.Bike;
@@ -27,13 +26,10 @@ using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
-using Sufni.App.Shared.Common;
 namespace Sufni.App;
 
 public class ViewLocator : IDataTemplate
 {
-    private readonly IExtensionViewRegistry extensionViewRegistry;
-    private readonly IServiceProvider serviceProvider;
     private readonly IAppEnvironment? appEnvironment;
 
     private static readonly FrozenDictionary<Type, Func<Control>> CommonViewFactories = new Dictionary<Type, Func<Control>>
@@ -93,35 +89,11 @@ public class ViewLocator : IDataTemplate
     }.ToFrozenDictionary();
 
     public ViewLocator()
-        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance, appEnvironment: null)
-    {
-    }
-
-    internal ViewLocator(IExtensionViewRegistry extensionViewRegistry)
-        : this(extensionViewRegistry, EmptyServiceProvider.Instance, appEnvironment: null)
     {
     }
 
     internal ViewLocator(IAppEnvironment appEnvironment)
-        : this(new ExtensionViewRegistry(), EmptyServiceProvider.Instance, appEnvironment)
     {
-    }
-
-    internal ViewLocator(IExtensionViewRegistry extensionViewRegistry, IServiceProvider serviceProvider)
-        : this(
-            extensionViewRegistry,
-            serviceProvider,
-            serviceProvider.GetService(typeof(IAppEnvironment)) as IAppEnvironment)
-    {
-    }
-
-    private ViewLocator(
-        IExtensionViewRegistry extensionViewRegistry,
-        IServiceProvider serviceProvider,
-        IAppEnvironment? appEnvironment)
-    {
-        this.extensionViewRegistry = extensionViewRegistry;
-        this.serviceProvider = serviceProvider;
         this.appEnvironment = appEnvironment;
     }
 
@@ -152,11 +124,6 @@ public class ViewLocator : IDataTemplate
         }
 
         var layoutProfile = ResolveLayoutProfile();
-        if (extensionViewRegistry.TryBuild(data, layoutProfile, serviceProvider, out var extensionView))
-        {
-            return extensionView;
-        }
-
         if (TryBuildProfileView(viewModelType, layoutProfile, out var profileView))
         {
             return profileView;
@@ -170,11 +137,9 @@ public class ViewLocator : IDataTemplate
     {
         if (data is null) return false;
 
-        var layoutProfile = ResolveLayoutProfile();
         var viewModelType = data.GetType();
         return data is ShellRootPresentation ||
                data is ViewModelBase ||
-               extensionViewRegistry.Matches(viewModelType, layoutProfile) ||
                CommonViewFactories.ContainsKey(viewModelType) ||
                CompactViewFactories.ContainsKey(viewModelType) ||
                WorkspaceViewFactories.ContainsKey(viewModelType);

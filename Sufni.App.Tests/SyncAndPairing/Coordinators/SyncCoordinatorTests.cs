@@ -15,7 +15,7 @@ namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 [Collection("Ui")]
 public class SyncCoordinatorTests
 {
-    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator = Substitute.For<IAppStateRefreshOrchestrator>();
+    private readonly IAppDataRefresher appDataRefresher = Substitute.For<IAppDataRefresher>();
     private readonly ISynchronizationClientService syncClient = Substitute.For<ISynchronizationClientService>();
     private readonly IPairingClientCoordinator pairing = Substitute.For<IPairingClientCoordinator>();
     private readonly Subject<bool> pairedState = new();
@@ -27,9 +27,7 @@ public class SyncCoordinatorTests
             .Returns(Task.FromResult<string?>("https://sync.test"));
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>())
             .Returns(CompletedSync());
-        appStateRefreshOrchestrator.RefreshCoreStateAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
-        appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>())
+        appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
     }
 
@@ -39,7 +37,7 @@ public class SyncCoordinatorTests
         ISynchronizationServerService? serverOverride = null,
         IUiThreadDispatcher? uiThreadDispatcherOverride = null) =>
         new(
-            appStateRefreshOrchestrator,
+            appDataRefresher,
             syncClientOverride ?? syncClient,
             pairingOverride ?? pairing,
             serverOverride,
@@ -99,7 +97,7 @@ public class SyncCoordinatorTests
         await coordinator.SyncAllAsync();
 
         await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
-        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -109,7 +107,7 @@ public class SyncCoordinatorTests
         // Bypass the helper — it uses `??` to fall back to the class-level
         // substitute, so a null override there wouldn't actually inject null.
         var coordinator = new SyncCoordinator(
-            appStateRefreshOrchestrator,
+            appDataRefresher,
             synchronizationClientService: null,
             pairingClientCoordinator: pairing,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
@@ -117,7 +115,7 @@ public class SyncCoordinatorTests
 
         await coordinator.SyncAllAsync();
 
-        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     // ----- SyncAllAsync happy path -----
@@ -132,7 +130,7 @@ public class SyncCoordinatorTests
         await coordinator.SyncAllAsync();
 
         await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
-        await appStateRefreshOrchestrator.Received(1).RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -190,7 +188,7 @@ public class SyncCoordinatorTests
         Assert.NotNull(completed);
         Assert.Equal("Sync incomplete: 2 session blob(s) and 1 recorded source(s) still missing", completed.Message);
         Assert.Equal(0, failed);
-        await appStateRefreshOrchestrator.Received(1).RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -245,7 +243,7 @@ public class SyncCoordinatorTests
         Assert.Null(coordinator.Progress);
         Assert.False(coordinator.IsRunning);
         await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
-        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     // ----- SyncAllAsync failure -----
@@ -268,7 +266,7 @@ public class SyncCoordinatorTests
         Assert.Equal(0, completed);
         Assert.False(coordinator.IsRunning);
         // Stores should not have been refreshed on failure.
-        await appStateRefreshOrchestrator.DidNotReceive().RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     // ----- Pairing state forwarding -----
@@ -307,7 +305,7 @@ public class SyncCoordinatorTests
         await syncCompleted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
-        await appStateRefreshOrchestrator.Received(1).RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -328,8 +326,8 @@ public class SyncCoordinatorTests
         SetPairingState(true);
 
         var refreshedOnUiThread = false;
-        appStateRefreshOrchestrator
-            .RefreshAllStateAsync(Arg.Any<CancellationToken>())
+        appDataRefresher
+            .RefreshAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 refreshedOnUiThread = Dispatcher.UIThread.CheckAccess();
@@ -360,7 +358,7 @@ public class SyncCoordinatorTests
         syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>()).Returns(CompletedSync());
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
         var coordinator = new SyncCoordinator(
-            appStateRefreshOrchestrator,
+            appDataRefresher,
             syncClient,
             pairing,
             backgroundTaskRunner: backgroundTaskRunner,
@@ -420,7 +418,7 @@ public class SyncCoordinatorTests
         var server = new TestSynchronizationServerService();
         var idleDelay = new ManualDelay();
         var coordinator = new SyncCoordinator(
-            appStateRefreshOrchestrator,
+            appDataRefresher,
             synchronizationServerService: server,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
             inboundActivityIdleGrace: TimeSpan.FromMilliseconds(100),

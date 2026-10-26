@@ -278,7 +278,7 @@ public class MainPagesDesktopViewTests
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
         new(
-            Substitute.For<IAppStateRefreshOrchestrator>(),
+            Substitute.For<IAppDataRefresher>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
             synchronizationServerService: server,

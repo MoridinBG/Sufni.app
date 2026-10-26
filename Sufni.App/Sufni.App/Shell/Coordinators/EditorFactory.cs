@@ -1,9 +1,5 @@
 using System;
-using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
@@ -61,8 +57,6 @@ internal sealed class EditorFactory(
     IUiThreadDispatcher uiThreadDispatcher,
     IAppEnvironment appEnvironment,
     ILayoutProfileTransitionState layoutProfileTransitionState,
-    IEnumerable<IRecordedSessionExtensionFactory> recordedSessionExtensionFactories,
-    IExtensionDatabaseConnection extensionDatabase,
     IBackgroundTaskRunner backgroundTaskRunner,
     Func<ImportSessionsViewModel> importSessionsResolver,
     IVideoPaneFactory videoPaneFactory,
@@ -191,10 +185,6 @@ internal sealed class EditorFactory(
             segmentComparisonFactory,
             sessionOperationRunner,
             bikeCoordinator,
-            new ExtensionHostDependencies(
-                recordedSessionExtensionFactories.ToArray(),
-                extensionDatabase,
-                backgroundTaskRunner),
             layoutProfileTransitionState,
             videoPaneFactory);
 

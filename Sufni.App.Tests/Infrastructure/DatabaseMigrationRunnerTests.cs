@@ -1,5 +1,4 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -13,7 +12,6 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Setups.Models;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Store;
@@ -26,13 +24,6 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
-    public enum ExtensionMigratorValidationCase
-    {
-        DuplicateIds,
-        DuplicateTableOwnership,
-        ReservedCoreTableName,
-    }
-
     public enum ProcessedSessionFingerprintCase
     {
         MissingLegacyFingerprint,
@@ -693,19 +684,20 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task Initialization_CreatesExtensionSchemaVersionTable()
+    public async Task Initialization_DropsSchemaVersionTable()
     {
-        using var tempDatabase = new TempDatabase("extension-schema-version.db");
-        var databasePath = tempDatabase.DatabasePath;
+        using var tempDatabase = new TempDatabase("schema-version.db");
+        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        {
+            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
+        }
 
-        var database = new TestPersistenceHarness(databasePath);
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetAllAsync<Board>();
 
-        using var connection = new SQLiteConnection(databasePath);
-        var tables = connection.Query<SqliteMasterRow>(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'extension_schema_version'");
-
-        Assert.Single(tables);
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
+        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'extension_schema_version'"));
     }
 
     [Fact]
@@ -751,126 +743,6 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(
             expected.OrderBy(name => name, StringComparer.Ordinal),
             indexNames.OrderBy(name => name, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public async Task Initialization_CreatesExtensionMigratorTables()
-    {
-        using var tempDatabase = new TempDatabase("extension-table.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var migrator = new TestExtensionMigrator(
-            "test",
-            targetVersion: 0,
-            [typeof(TestExtensionRow)],
-            []);
-        var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-
-        _ = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        using var connection = new SQLiteConnection(databasePath);
-        var tables = connection.Query<SqliteMasterRow>(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'test_extension_row'");
-
-        Assert.Single(tables);
-    }
-
-    [Theory]
-    [InlineData(ExtensionMigratorValidationCase.DuplicateIds)]
-    [InlineData(ExtensionMigratorValidationCase.DuplicateTableOwnership)]
-    [InlineData(ExtensionMigratorValidationCase.ReservedCoreTableName)]
-    public void Constructor_RejectsInvalidExtensionMigratorDefinitions(
-        ExtensionMigratorValidationCase validationCase)
-    {
-        using var tempDatabase = new TempDatabase("invalid-extension-migrator.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var (migrators, expectedMessages) = CreateInvalidExtensionMigratorCase(validationCase);
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            new TestPersistenceHarness(databasePath, migrators));
-
-        foreach (var expectedMessage in expectedMessages)
-        {
-            Assert.Contains(expectedMessage, exception.Message);
-        }
-    }
-
-    [Fact]
-    public async Task Initialization_RunsExtensionMigrationStepsOnceAndAdvancesVersion()
-    {
-        using var tempDatabase = new TempDatabase("extension-migrations.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var appliedSteps = new List<int>();
-        var migrator = new TestExtensionMigrator(
-            "test",
-            targetVersion: 2,
-            [typeof(TestExtensionRow)],
-            [
-                new ExtensionDatabaseMigrationStep(1, context =>
-                {
-                    appliedSteps.Add(1);
-                    context.Transaction.Insert(new TestExtensionRow
-                    {
-                        Id = "step-1",
-                        Value = 1,
-                    });
-                }),
-                new ExtensionDatabaseMigrationStep(2, context =>
-                {
-                    appliedSteps.Add(2);
-                    context.Transaction.Insert(new TestExtensionRow
-                    {
-                        Id = "step-2",
-                        Value = 2,
-                    });
-                }),
-            ]);
-
-        var firstRun = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-        _ = await firstRun.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        var secondRun = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-        _ = await secondRun.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        using var connection = new SQLiteConnection(databasePath);
-        var version = Assert.Single(connection.Table<ExtensionSchemaVersion>().ToList());
-        var rows = connection.Table<TestExtensionRow>().OrderBy(row => row.Value).ToList();
-
-        Assert.Equal([1, 2], appliedSteps);
-        Assert.Equal("test", version.ExtensionId);
-        Assert.Equal(2, version.Version);
-        Assert.Equal(["step-1", "step-2"], rows.Select(row => row.Id).ToList());
-
-    }
-
-    [Fact]
-    public async Task Initialization_RollsBackExtensionStepAndVersion_WhenStepThrows()
-    {
-        using var tempDatabase = new TempDatabase("extension-migration-rollback.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var migrator = new TestExtensionMigrator(
-            "test",
-            targetVersion: 1,
-            [typeof(TestExtensionRow)],
-            [
-                new ExtensionDatabaseMigrationStep(1, context =>
-                {
-                    context.Transaction.Insert(new TestExtensionRow
-                    {
-                        Id = "rolled-back",
-                        Value = 1,
-                    });
-                    throw new InvalidOperationException("fail extension migration");
-                }),
-            ]);
-        var context = PersistenceTestData.CreateConnectionContext(databasePath, [migrator]);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken));
-
-        using var connection = new SQLiteConnection(databasePath);
-        Assert.Empty(connection.Table<TestExtensionRow>().ToList());
-        Assert.Null(connection.Find<ExtensionSchemaVersion>("test"));
     }
 
     [Fact]
@@ -1118,8 +990,6 @@ public class DatabaseMigrationRunnerTests
             connection.Execute(
                 "INSERT INTO private_session_video_clip VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 clipId, sessionId, "/videos/ride.mp4", "ride.mp4", 1_000, 60.0, 2.5, 7, 8);
-            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
-            connection.Execute("INSERT INTO extension_schema_version VALUES ('sufni.private.video', 1)");
         }
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -1130,8 +1000,6 @@ public class DatabaseMigrationRunnerTests
         using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
         Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video_clip'"));
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM extension_schema_version WHERE extension_id = 'sufni.private.video'"));
     }
 
     [Fact]
@@ -1178,8 +1046,6 @@ public class DatabaseMigrationRunnerTests
             connection.Execute(insertRange, derivedId, sourceId, 2.5, 8.0, 0.0, null, null);
             connection.Execute(insertRange, identityId, identityId, 0.0, null, null, null, null);
             connection.Execute(insertRange, deletedRangeId, sourceId, 1.0, null, null, null, 5);
-            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
-            connection.Execute("INSERT INTO extension_schema_version VALUES ('sufni.private.session-editing', 1)");
         }
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -1192,8 +1058,6 @@ public class DatabaseMigrationRunnerTests
         using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
         Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_source_range'"));
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM extension_schema_version WHERE extension_id = 'sufni.private.session-editing'"));
     }
 
     [Fact]
@@ -1251,8 +1115,6 @@ public class DatabaseMigrationRunnerTests
             var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             connection.Execute(insertSegment, liveId, sessionId, "climb", 1.5, 4.0, now, now, null);
             connection.Execute(insertSegment, deletedId, sessionId, "descent", 5.0, 9.0, now, now, now);
-            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
-            connection.Execute("INSERT INTO extension_schema_version VALUES ('sufni.private.segment-analysis', 1)");
         }
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -1263,8 +1125,6 @@ public class DatabaseMigrationRunnerTests
         Assert.NotNull(verificationConnection.Find<SessionSegment>(deletedId)?.Deleted);
         Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_saved_session_segment'"));
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM extension_schema_version WHERE extension_id = 'sufni.private.segment-analysis'"));
     }
 
     [Fact]
@@ -1512,33 +1372,6 @@ public class DatabaseMigrationRunnerTests
             SetupSnapshot.From(seed.Setup, boardId: null),
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
-    }
-
-    private static (IReadOnlyList<TestExtensionMigrator> Migrators, string[] ExpectedMessages)
-        CreateInvalidExtensionMigratorCase(ExtensionMigratorValidationCase validationCase)
-    {
-        return validationCase switch
-        {
-            ExtensionMigratorValidationCase.DuplicateIds => (
-                [
-                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(TestExtensionRow)], []),
-                    new TestExtensionMigrator("test", targetVersion: 0, [typeof(SecondTestExtensionRow)], []),
-                ],
-                ["test"]),
-
-            ExtensionMigratorValidationCase.DuplicateTableOwnership => (
-                [
-                    new TestExtensionMigrator("first", targetVersion: 0, [typeof(TestExtensionRow)], []),
-                    new TestExtensionMigrator("second", targetVersion: 0, [typeof(DuplicateNamedExtensionRow)], []),
-                ],
-                ["test_extension_row", "first", "second"]),
-
-            ExtensionMigratorValidationCase.ReservedCoreTableName => (
-                [new TestExtensionMigrator("test", targetVersion: 0, [typeof(CoreNamedExtensionRow)], [])],
-                ["session", "reserved"]),
-
-            _ => throw new ArgumentOutOfRangeException(nameof(validationCase), validationCase, null),
-        };
     }
 
     private static ProcessedSessionFingerprintSeedOptions CreateProcessedSessionFingerprintSeedOptions(

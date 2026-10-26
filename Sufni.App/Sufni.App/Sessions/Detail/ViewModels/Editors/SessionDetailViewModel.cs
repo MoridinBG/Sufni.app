@@ -1,7 +1,6 @@
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
@@ -26,8 +25,6 @@ using System;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Extensibility.RecordedSessions;
-using Sufni.App.Extensibility.Views;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.ViewModels;
@@ -97,7 +94,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly SegmentPickerViewModel segmentPicker;
     private readonly SegmentComparisonViewModel segmentComparison;
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
-    private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
     private readonly ISessionOperationRunner sessionOperationRunner;
     private readonly SessionStalenessReconciler stalenessReconciler;
     private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
@@ -115,7 +111,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
-    private readonly Subject<RecordedSessionHostRuntimeState> hostRuntimeInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
     private readonly Subject<Unit> stalenessReplayInput = new();
     private readonly Subject<Unit> dirtyBaselineInput = new();
@@ -1072,19 +1067,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return OnDomainChangedAsync(domain);
     }
 
-    private RecordedSessionHostRuntimeState CreateRecordedSessionHostRuntimeState()
-    {
-        return new RecordedSessionHostRuntimeState(
-            Id,
-            viewLoaded,
-            IsTabActive);
-    }
-
-    private void PublishRecordedSessionHostRuntimeChange()
-    {
-        PublishEditorInput(hostRuntimeInput, CreateRecordedSessionHostRuntimeState());
-    }
-
     private void PublishEditorInput<T>(Subject<T> input, T value)
     {
         if (!editorInputSubjectsDisposed)
@@ -1104,53 +1086,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorInputSubjects.Dispose();
     }
 
-    private async ValueTask InitializeRecordedSessionExtensionsAsync(CancellationToken cancellationToken = default)
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        await recordedSessionExtensions.InitializeAsync(
-            RecordedSessionHostStateProjection.Create(
-                currentEditorState,
-                CreateRecordedSessionHostRuntimeState(),
-                Timeline),
-            cancellationToken);
-    }
-
-    private async ValueTask DisposeRecordedSessionExtensionScopesAsync()
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        await recordedSessionExtensions.DisposeScopesAsync();
-    }
-
-    private async ValueTask DisposeRecordedSessionExtensionsAsync()
-    {
-        if (recordedSessionExtensions is null)
-        {
-            return;
-        }
-
-        await recordedSessionExtensions.DisposeAsync();
-    }
-
     private void DisposeProcessedTelemetryRetention()
     {
         processedTelemetryRetention?.Dispose();
         processedTelemetryRetention = null;
-    }
-
-    private void SetRecordedSessionExtensionTimelineVisibleRange(
-        double startNormalized,
-        double endNormalized,
-        object source)
-    {
-        Timeline.SetVisibleRange(startNormalized, endNormalized, source);
     }
 
     private void SetPendingTimelineAlignmentMark(TimelineAlignmentMark? mark)
@@ -1450,15 +1389,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
-    void IRecordedSessionHostOperations.SetTimelineVisibleRange(
-        double startNormalized,
-        double endNormalized,
-        object source) =>
-        SetRecordedSessionExtensionTimelineVisibleRange(startNormalized, endNormalized, source);
-
-    void IRecordedSessionHostOperations.AddError(string message) => ErrorMessages.Add(message);
-
-    void IRecordedSessionHostOperations.AddNotification(string message) => Notifications.Add(message);
+    void ISessionOperationGateway.AddError(string message) => ErrorMessages.Add(message);
 
     Guid ISessionOperationGateway.SessionId => Id;
 
@@ -1498,7 +1429,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISegmentComparisonFactory segmentComparisonFactory,
         ISessionOperationRunner sessionOperationRunner,
         IBikeCoordinator? bikeCoordinator = null,
-        ExtensionHostDependencies? extensionHost = null,
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
         IVideoPaneFactory? videoPaneFactory = null)
         : base(shell, dialogService, uiThreadDispatcher)
@@ -1531,7 +1461,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisSelectionInput,
             signalPlotContextMenuActionsInput,
             domainInput,
-            hostRuntimeInput,
             dirtyBaselineInput,
             stalenessReplayInput);
         editorStateController = new RecordedSessionEditorStateController(
@@ -1735,17 +1664,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PreferencesPage,
             sessionCoordinator,
             this);
-        if (extensionHost is not null)
-        {
-            recordedSessionExtensions = new RecordedSessionExtensionManager(
-                Id,
-                extensionHost.RecordedSessionExtensionFactories,
-                extensionHost.ExtensionDatabase,
-                extensionHost.BackgroundTaskRunner,
-                uiThreadDispatcher,
-                this);
-        }
-
         SignalsPage = new RecordedSignalsPageViewModel(SignalsWorkspace, MediaWorkspace);
         SpringPage = new SpringPageViewModel(AnalysisWorkspace);
         StrokesPage = new StrokesPageViewModel(AnalysisWorkspace);
@@ -1809,10 +1727,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     editorStateController.State,
                     stalenessReplayInput),
                 RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
-                RecordedSessionEditorEffects.ExtensionHostPublication(
-                    editorStateController.State,
-                    hostRuntimeInput.StartWith(CreateRecordedSessionHostRuntimeState()),
-                    Timeline),
             ],
             ApplyRecordedSessionEditorEffect);
     }
@@ -2265,12 +2179,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (effect is RecordedSessionEditorEffect.UpdateDirtyBaseline)
         {
             EvaluateDirtiness();
-            return;
-        }
-
-        if (effect is RecordedSessionEditorEffect.PublishExtensionHostState publish)
-        {
-            recordedSessionExtensions?.UpdateHostState(publish.State);
         }
     }
 
@@ -2503,9 +2411,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return Task.CompletedTask;
     }
 
-    protected override async Task CloseImplementation()
+    protected override Task CloseImplementation()
     {
-        await StopLoadedSessionAsync();
+        StopLoadedSession();
         UnsubscribeVmEventHandlers();
         DisposeWorkspace(MobileWorkspace);
         DisposeWorkspace(SignalsWorkspace);
@@ -2518,13 +2426,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorStateSubscription.Dispose();
         editorStateController.Dispose();
         editorActions.Dispose();
-        await DisposeRecordedSessionExtensionsAsync();
         viewLoadOperation.Dispose();
         loadOperation.Dispose();
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
         DisposeEditorInputSubjects();
+        return Task.CompletedTask;
     }
 
     private static void DisposeWorkspace(object workspace)
@@ -2633,11 +2541,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (wasLoaded)
         {
-            PublishRecordedSessionHostRuntimeChange();
             return;
         }
-
-        PublishRecordedSessionHostRuntimeChange();
 
         // Subscribe before the awaited restore so a remote sync apply that
         // lands while restore is in flight is not missed.
@@ -2662,12 +2567,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            await InitializeRecordedSessionExtensionsAsync(loadLifecycleToken);
-            if (!viewLoaded || loadLifecycleToken.IsCancellationRequested)
-            {
-                return;
-            }
-
             if (videoPane is not null)
             {
                 await videoPane.RefreshClipsAsync();
@@ -2689,7 +2588,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override void OnActivated()
     {
         hasBeenActivated = true;
-        PublishRecordedSessionHostRuntimeChange();
 
         if (!viewLoaded)
         {
@@ -2697,11 +2595,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         _ = HandleDeferredDomainAsync();
-    }
-
-    protected override void OnDeactivated()
-    {
-        PublishRecordedSessionHostRuntimeChange();
     }
 
     private bool ShouldDeferDomainHandling() =>
@@ -2723,17 +2616,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     [RelayCommand]
-    private async Task Unloaded()
+    private void Unloaded()
     {
         if (layoutProfileTransitionState.IsTransitioning)
         {
             return;
         }
 
-        await StopLoadedSessionAsync();
+        StopLoadedSession();
     }
 
-    private async Task StopLoadedSessionAsync()
+    private void StopLoadedSession()
     {
         viewLoaded = false;
         viewLoadOperation.Cancel();
@@ -2742,10 +2635,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         replayStalenessOnNextLoad = true;
         deferredDomain = null;
         stalenessReconciler.ResetForUnload();
-        PublishRecordedSessionHostRuntimeChange();
         sessionOperationRunner.Cancel(Id);
         segmentComparison.Clear();
-        await DisposeRecordedSessionExtensionScopesAsync();
         DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();
     }

@@ -1,5 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
 
@@ -17,7 +16,6 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public bool DeferDomainHandling { get; set; }
     public List<SessionSnapshot> AppliedSnapshots { get; } = [];
     public List<string> Errors { get; } = [];
-    public List<string> Notifications { get; } = [];
     public int LoadRequestCount { get; private set; }
     public int SessionInsightsRequestCount { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffPreviews { get; } = [];
@@ -49,15 +47,8 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
         return Task.CompletedTask;
     }
 
-    public List<(double StartSeconds, double EndSeconds)> AnalysisRanges { get; } = [];
-    public int AnalysisRangeClearCount { get; private set; }
     public List<double> AnalysisRangeBoundaries { get; } = [];
     public List<SignalLayoutPreferences> SignalLayoutPreferences { get; } = [];
-
-    public void SetAnalysisRange(double startSeconds, double endSeconds) =>
-        AnalysisRanges.Add((startSeconds, endSeconds));
-
-    public void ClearAnalysisRange() => AnalysisRangeClearCount++;
 
     public void SetSignalLayoutPreferences(SignalLayoutPreferences preferences) => SignalLayoutPreferences.Add(preferences);
 
@@ -65,11 +56,5 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
 
     public void RequestSessionInsights() => SessionInsightsRequestCount++;
 
-    public void SetTimelineVisibleRange(double startNormalized, double endNormalized, object source)
-    {
-    }
-
     public void AddError(string message) => Errors.Add(message);
-
-    public void AddNotification(string message) => Notifications.Add(message);
 }

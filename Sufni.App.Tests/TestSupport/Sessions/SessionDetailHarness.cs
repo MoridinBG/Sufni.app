@@ -2,7 +2,6 @@ using System.Reactive.Linq;
 using Avalonia;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Models;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
@@ -87,13 +86,12 @@ internal sealed class SessionDetailHarness
         SessionSnapshot? snapshot = null,
         SessionDetailLoadResult? loadResult = null,
         IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null,
-        bool isDesktop = true,
-        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories = null)
+        bool isDesktop = true)
     {
         snapshot ??= CreateRecordedSession();
         ConfigureSnapshot(snapshot, projectionChanges);
         ConfigureLoad(snapshot, loadResult ?? CreateLoadedResult());
-        return CreateEditor(snapshot, isDesktop, recordedSessionExtensionFactories);
+        return CreateEditor(snapshot, isDesktop);
     }
 
     public Task LoadAsync(SessionDetailViewModel editor, Rect? bounds = null) =>
@@ -105,8 +103,8 @@ internal sealed class SessionDetailHarness
     public Task DeleteAsync(SessionDetailViewModel editor, bool navigateBack = true) =>
         editor.DeleteCommand.ExecuteAsync(navigateBack);
 
-    public Task UnloadAsync(SessionDetailViewModel editor) =>
-        editor.UnloadedCommand.ExecuteAsync(null);
+    public void Unload(SessionDetailViewModel editor) =>
+        editor.UnloadedCommand.Execute(null);
 
     public void PublishProjectionChange(IObserver<RecordedSessionDomainSnapshot> publisher, RecordedSessionDomainSnapshot snapshot) =>
         publisher.OnNext(snapshot);
@@ -176,8 +174,7 @@ internal sealed class SessionDetailHarness
 
     private SessionDetailViewModel CreateEditor(
         SessionSnapshot snapshot,
-        bool isDesktop,
-        IReadOnlyList<IRecordedSessionExtensionFactory>? recordedSessionExtensionFactories)
+        bool isDesktop)
     {
         TestApp.SetIsDesktop(isDesktop);
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
@@ -204,10 +201,6 @@ internal sealed class SessionDetailHarness
             TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
-            extensionHost: new ExtensionHostDependencies(
-                recordedSessionExtensionFactories ?? [],
-                Substitute.For<IExtensionDatabaseConnection>(),
-                new InlineBackgroundTaskRunner()),
             videoPaneFactory: VideoPaneFactory);
     }
 }

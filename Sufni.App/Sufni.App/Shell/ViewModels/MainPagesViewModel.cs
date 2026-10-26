@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Acquisition.Coordinators;
@@ -32,7 +31,7 @@ namespace Sufni.App.Shell.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator;
+    private readonly IAppDataRefresher appDataRefresher;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IVideoCoordinator videoCoordinator;
@@ -96,7 +95,7 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Constructors
 
     public MainPagesViewModel(
-        IAppStateRefreshOrchestrator appStateRefreshOrchestrator,
+        IAppDataRefresher appDataRefresher,
         IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
@@ -118,7 +117,7 @@ public partial class MainPagesViewModel : ViewModelBase
         PairingServerViewModel? pairingServerViewModel = null)
         : base(uiThreadDispatcher)
     {
-        this.appStateRefreshOrchestrator = appStateRefreshOrchestrator;
+        this.appDataRefresher = appDataRefresher;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
         this.videoCoordinator = videoCoordinator;
@@ -254,7 +253,7 @@ public partial class MainPagesViewModel : ViewModelBase
             await ProfilingLiveDaqReplay.SeedIfRequestedAsync(services);
         }
 #endif
-        await appStateRefreshOrchestrator.RefreshAllStateAsync();
+        await appDataRefresher.RefreshAsync();
 
         DatabaseLoaded = true;
     }

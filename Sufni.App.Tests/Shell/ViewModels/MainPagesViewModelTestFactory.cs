@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.Theming;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
@@ -43,7 +42,7 @@ internal static class MainPagesViewModelTestFactory
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
         ITrackCoordinator? trackCoordinator = null,
-        IAppStateRefreshOrchestrator? appStateRefreshOrchestrator = null,
+        IAppDataRefresher? appDataRefresher = null,
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
@@ -55,14 +54,14 @@ internal static class MainPagesViewModelTestFactory
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
-        appStateRefreshOrchestrator ??= Substitute.For<IAppStateRefreshOrchestrator>();
+        appDataRefresher ??= Substitute.For<IAppDataRefresher>();
         var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
         workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher);
 
-        appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         if (themeService is null)
         {
             themeService = Substitute.For<IThemeService>();
@@ -78,7 +77,7 @@ internal static class MainPagesViewModelTestFactory
         }
 
         return new MainPagesViewModel(
-            appStateRefreshOrchestrator,
+            appDataRefresher,
             importSessionsCoordinator,
             trackCoordinator,
             syncCoordinator,

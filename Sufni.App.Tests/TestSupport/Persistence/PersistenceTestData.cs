@@ -1,5 +1,4 @@
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.Telemetry;
 
@@ -46,15 +45,8 @@ internal static class PersistenceTestData
         }
     }.BinaryForm;
 
-    public static SqliteConnectionContext CreateConnectionContext(
-        string databasePath,
-        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators) =>
-        new(
-            databasePath,
-            createAppDirectories: false,
-            extensionMigrators,
-            extensionCascadeRuleProviders: [],
-            extensionStateRefreshParticipantsProvider: () => []);
+    public static SqliteConnectionContext CreateConnectionContext(string databasePath) =>
+        new(databasePath, createAppDirectories: false);
 }
 
 internal sealed class TableColumnInfo
@@ -65,39 +57,4 @@ internal sealed class TableColumnInfo
 internal sealed class SqliteMasterRow
 {
     public string Name { get; set; } = string.Empty;
-}
-
-[Table("test_extension_row")]
-internal sealed class TestExtensionRow
-{
-    [PrimaryKey]
-    [Column("id")]
-    public string Id { get; set; } = string.Empty;
-
-    [Column("value")]
-    public int Value { get; set; }
-}
-
-[Table("second_test_extension_row")]
-internal sealed class SecondTestExtensionRow
-{
-    [PrimaryKey]
-    [Column("id")]
-    public string Id { get; set; } = string.Empty;
-}
-
-[Table("test_extension_row")]
-internal sealed class DuplicateNamedExtensionRow
-{
-    [PrimaryKey]
-    [Column("id")]
-    public string Id { get; set; } = string.Empty;
-}
-
-[Table("session")]
-internal sealed class CoreNamedExtensionRow
-{
-    [PrimaryKey]
-    [Column("id")]
-    public string Id { get; set; } = string.Empty;
 }

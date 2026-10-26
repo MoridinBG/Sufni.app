@@ -9,7 +9,6 @@ using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Kinematics;
 
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
@@ -23,9 +22,7 @@ namespace Sufni.App.Infrastructure;
 
 internal sealed class DatabaseMigrationRunner(
     string databasePath,
-    SQLiteAsyncConnection connection,
-    ExtensionDatabaseMigratorRunner extensionMigratorRunner,
-    ExtensionCascadeService extensionCascadeService)
+    SQLiteAsyncConnection connection)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
     private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment"];
@@ -53,10 +50,9 @@ internal sealed class DatabaseMigrationRunner(
             await MigrateSessionVideosAsync();
             await MigrateSessionDerivationWindowsAsync();
             await MigrateSessionSegmentsAsync();
-            await extensionMigratorRunner.RunAsync(connection);
+            await DropSchemaVersionTableAsync();
 
             var cleanupSummary = await Cleanup();
-            await extensionCascadeService.RepairOrphansAsync(refreshExtensionState: false);
             logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
             logger.Verbose(
                 "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
@@ -165,7 +161,6 @@ internal sealed class DatabaseMigrationRunner(
                     FROM private_session_video_clip
                     """);
                 transaction.Execute("DROP TABLE private_session_video_clip");
-                transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
             }
 
             transaction.Execute("DROP TABLE IF EXISTS private_session_video");
@@ -198,7 +193,6 @@ internal sealed class DatabaseMigrationRunner(
                     FROM private_saved_session_segment
                     """);
                 transaction.Execute("DROP TABLE private_saved_session_segment");
-                transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.segment-analysis'");
             });
         }
 
@@ -276,11 +270,15 @@ internal sealed class DatabaseMigrationRunner(
             if (hasRangeTable)
             {
                 transaction.Execute("DROP TABLE private_session_source_range");
-                transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.session-editing'");
             }
         });
         await coreMigrations.MarkAppliedAsync(migrationId);
     }
+
+    // The schema versions of the former extension tables, which the copy
+    // migrations above replaced.
+    private Task DropSchemaVersionTableAsync() =>
+        connection.ExecuteAsync("DROP TABLE IF EXISTS extension_schema_version");
 
     private static RecordedSessionDerivationWindow? TryReadDerivationWindow(string? processingFingerprintJson)
     {

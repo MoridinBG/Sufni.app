@@ -7,12 +7,9 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia.Controls;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
-using Sufni.App.Extensibility.Capabilities;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
@@ -23,10 +20,6 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.ItemLists;
-using Sufni.App.Extensibility.Database;
-using Sufni.App.Extensibility.RecordedSessions;
-using Sufni.App.Extensibility.Views;
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.LiveDaq.Coordinators;
@@ -79,7 +72,6 @@ namespace Sufni.App;
 public partial class App : Application
 {
     internal static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
-    internal static AppExtensionCollection Extensions { get; } = new();
 
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
@@ -125,24 +117,11 @@ public partial class App : Application
 
         var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
 
-        RegisterBuildTimeExtensions(Extensions, isDesktop);
-
-        var extensionViewRegistry = new ExtensionViewRegistry();
-        ServiceCollection.AddSingleton<IExtensionViewRegistry>(extensionViewRegistry);
-
-        var extensionServiceContext = new AppExtensionServiceRegistrationContext(isDesktop);
-        Extensions.RegisterServices(ServiceCollection, extensionServiceContext);
-
-        var extensionCapabilityRegistry = new AppExtensionCapabilityRegistry(extensionViewRegistry);
-        ServiceCollection.AddSingleton(extensionCapabilityRegistry);
-        ServiceCollection.AddSingleton<IAppExtensionCapabilityRegistry>(extensionCapabilityRegistry);
-
         ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
         ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
-            sp.GetRequiredService<IExtensionViewRegistry>(),
-            sp));
+            sp.GetRequiredService<IAppEnvironment>()));
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
         ServiceCollection.AddSingleton<ILayoutProfileTransitionState, LayoutProfileTransitionState>();
@@ -162,10 +141,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
                 AppPaths.DatabasePath,
-                createAppDirectories: true,
-                sp.GetServices<IExtensionDatabaseMigrator>().ToArray(),
-                sp.GetServices<IExtensionCascadeRuleProvider>().ToArray(),
-                () => sp.GetServices<IExtensionStateRefreshParticipant>().ToArray()));
+                createAppDirectories: true));
         ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
@@ -176,10 +152,8 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
         ServiceCollection.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();
         ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
-        ServiceCollection.AddSingleton<IExtensionDatabaseConnection, ExtensionDatabaseConnection>();
         ServiceCollection.AddSingleton<ISessionContentReader, SessionContentReader>();
         ServiceCollection.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
-        ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
@@ -232,9 +206,7 @@ public partial class App : Application
         ServiceCollection.AddSingleton<IStravaSegmentService, StravaSegmentService>();
         ServiceCollection.AddSingleton<ISegmentPickerFactory, SegmentPickerFactory>();
         ServiceCollection.AddSingleton<ISegmentComparisonFactory, SegmentComparisonFactory>();
-        ServiceCollection.AddSingleton<AppDataRefresher>();
-        ServiceCollection.AddSingleton<IAppStateRefreshOrchestrator>(sp => sp.GetRequiredService<AppDataRefresher>());
-        ServiceCollection.AddSingleton<IAppDataRefresher>(sp => sp.GetRequiredService<AppDataRefresher>());
+        ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
         ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
         ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
         ServiceCollection.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
@@ -344,8 +316,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
         ServiceCollection.AddSingleton<ShellRootViewModel>();
 
-        Extensions.RegisterCapabilities(extensionCapabilityRegistry);
-
         IsDesktop = isDesktop;
         Services = ServiceCollection.BuildServiceProvider();
 
@@ -373,11 +343,6 @@ public partial class App : Application
         ResolveCapabilityEagerServices(
             Services,
             Services.GetRequiredService<IAppEnvironment>().Capabilities);
-
-        foreach (var eagerServiceType in extensionCapabilityRegistry.EagerServiceTypes)
-        {
-            _ = Services.GetRequiredService(eagerServiceType);
-        }
 
         // One-time, per-device normalization: reset every source-backed session's
         // processing option to 25 ms and recompute it so its fingerprint records the
@@ -481,6 +446,4 @@ public partial class App : Application
             _ = services.GetService<IInboundSyncCoordinator>();
         }
     }
-
-    static partial void RegisterBuildTimeExtensions(AppExtensionCollection extensions, bool isDesktop);
 }

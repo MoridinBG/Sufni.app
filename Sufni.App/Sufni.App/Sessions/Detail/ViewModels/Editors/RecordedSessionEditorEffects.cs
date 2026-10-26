@@ -18,8 +18,6 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record RequestAnalysis(RecordedSessionAnalysisEffectRequest Request) : RecordedSessionEditorEffect;
 
-    public sealed record PublishExtensionHostState(RecordedSessionHostState State) : RecordedSessionEditorEffect;
-
     public sealed record SyncMapMedia(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
     public sealed record RefreshCommands(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
@@ -191,23 +189,6 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         return changes.Select(static _ => new RecordedSessionEditorEffect.UpdateDirtyBaseline());
     }
 
-    public static IObservable<RecordedSessionEditorEffect> ExtensionHostPublication(
-        IObservable<RecordedSessionEditorState> states,
-        IObservable<RecordedSessionHostRuntimeState> runtimeStates,
-        IRecordedSessionTimeline timeline)
-    {
-        ArgumentNullException.ThrowIfNull(states);
-        ArgumentNullException.ThrowIfNull(runtimeStates);
-        ArgumentNullException.ThrowIfNull(timeline);
-
-        return states
-            .CombineLatest(
-                runtimeStates.DistinctUntilChanged(),
-                (state, runtime) => RecordedSessionHostStateProjection.Create(state, runtime, timeline))
-            .DistinctUntilChanged()
-            .Select(static state => new RecordedSessionEditorEffect.PublishExtensionHostState(state));
-    }
-
     public static IObservable<RecordedSessionEditorEffect> ExplicitAnalysisRequests(
         IObservable<RecordedSessionEditorIntent> intents)
     {
@@ -282,11 +263,6 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
     }
 
 }
-
-internal sealed record RecordedSessionHostRuntimeState(
-    Guid SessionId,
-    bool ViewLoaded,
-    bool IsActive);
 
 internal sealed record RecordedSessionAnalysisEffectState(
     TelemetryTimeRange? AnalysisRange,

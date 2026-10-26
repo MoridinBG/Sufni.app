@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
@@ -17,7 +16,6 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Extensibility.Database;
 using Sufni.App.Video.Services;
 namespace Sufni.App.Tests.TestSupport.Persistence;
 
@@ -30,23 +28,10 @@ internal sealed class TestPersistenceHarness
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISyncDataStore syncDataStore;
-    private readonly IExtensionDatabaseConnection extensionDatabaseConnection;
 
     public TestPersistenceHarness(string databasePath)
-        : this(CreateConnectionContext(databasePath, []))
     {
-    }
-
-    public TestPersistenceHarness(
-        string databasePath,
-        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators)
-        : this(CreateConnectionContext(databasePath, extensionMigrators))
-    {
-    }
-
-    private TestPersistenceHarness(SqliteConnectionContext context)
-    {
-        this.context = context;
+        context = PersistenceTestData.CreateConnectionContext(databasePath);
         var fingerprintService = new ProcessingFingerprintService();
         trackRepository = new TrackRepository(context);
         sessionRepository = new SessionRepository(context, fingerprintService);
@@ -54,7 +39,6 @@ internal sealed class TestPersistenceHarness
         sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService);
-        extensionDatabaseConnection = new ExtensionDatabaseConnection(context);
     }
 
     public ISessionRepository SessionRepository => sessionRepository;
@@ -69,9 +53,6 @@ internal sealed class TestPersistenceHarness
 
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
-
-    public Task<IExtensionDatabaseSession> OpenSessionAsync(string extensionId) =>
-        extensionDatabaseConnection.OpenSessionAsync(extensionId);
 
     public Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>()
         where T : Synchronizable, new() =>
@@ -249,14 +230,4 @@ internal sealed class TestPersistenceHarness
             data,
             session.ProcessingFingerprintJson);
     }
-
-    private static SqliteConnectionContext CreateConnectionContext(
-        string databasePath,
-        IEnumerable<IExtensionDatabaseMigrator> extensionMigrators) =>
-        new(
-            databasePath,
-            createAppDirectories: false,
-            extensionMigrators,
-            extensionCascadeRuleProviders: [],
-            extensionStateRefreshParticipantsProvider: () => []);
 }

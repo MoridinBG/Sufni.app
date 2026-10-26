@@ -1,8 +1,6 @@
 <Project>
   <PropertyGroup>
     <LangVersion>14.0</LangVersion>
-    <SufniPrivateExtensionsRoot Condition="'$(SufniPrivateExtensionsRoot)' == ''">$(MSBuildThisFileDirectory)../Sufni.PrivateExtensions/</SufniPrivateExtensionsRoot>
-    <SufniPrivateExtensionsProps>$(SufniPrivateExtensionsRoot)Directory.Private.props</SufniPrivateExtensionsProps>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(SufniEnableProfilingDiagnostics)' == 'true'">
@@ -15,6 +13,4 @@
                          '$(MSBuildProjectName)' == 'Sufni.App.macOS')">
     <ProjectReference Include="$(SufniProfilingProject)" />
   </ItemGroup>
-
-  <Import Project="$(SufniPrivateExtensionsProps)" Condition="Exists('$(SufniPrivateExtensionsProps)')" />
 </Project>

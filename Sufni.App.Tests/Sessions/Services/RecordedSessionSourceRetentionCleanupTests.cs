@@ -22,7 +22,7 @@ public class RecordedSessionSourceRetentionCleanupTests
     public async Task RunAsync_RetainsSourcesReferencedByDerivedSessions()
     {
         using var tempDatabase = new TempDatabase("recorded-source-retention-persisted-window.db");
-        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath, []);
+        var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var repository = new RecordedSessionSourceRepository(context);
         var store = Substitute.For<IRecordedSessionSourceStoreWriter>();
         var retainedSourceId = Guid.NewGuid();

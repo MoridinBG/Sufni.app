@@ -1,7 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Theming;
 
@@ -251,12 +250,12 @@ public class MainPagesViewModelTests
     [Fact]
     public async Task Constructor_RefreshesAllState_WithInitialDatabaseLoad()
     {
-        var appStateRefreshOrchestrator = Substitute.For<IAppStateRefreshOrchestrator>();
-        appStateRefreshOrchestrator.RefreshAllStateAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        var appDataRefresher = Substitute.For<IAppDataRefresher>();
+        appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        _ = MainPagesViewModelTestFactory.Create(appStateRefreshOrchestrator: appStateRefreshOrchestrator);
+        _ = MainPagesViewModelTestFactory.Create(appDataRefresher: appDataRefresher);
 
-        await appStateRefreshOrchestrator.Received(1).RefreshAllStateAsync(Arg.Any<CancellationToken>());
+        await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -335,7 +334,7 @@ public class MainPagesViewModelTests
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
         new(
-            Substitute.For<IAppStateRefreshOrchestrator>(),
+            Substitute.For<IAppDataRefresher>(),
             synchronizationClientService: null,
             pairingClientCoordinator: null,
             synchronizationServerService: server,

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
 using Sufni.App.Acquisition.Models;
-using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.ExtensionHost.Contracts.Models;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;

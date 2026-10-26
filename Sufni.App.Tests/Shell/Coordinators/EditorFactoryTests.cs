@@ -1,6 +1,4 @@
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Database;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 using Sufni.Telemetry;
@@ -373,8 +371,6 @@ public class EditorFactoryTests
                     HasKeyboard: true,
                     SupportsLongPressContextMenu: false)),
             new LayoutProfileTransitionState(),
-            Array.Empty<IRecordedSessionExtensionFactory>(),
-            Substitute.For<IExtensionDatabaseConnection>(),
             backgroundTaskRunner,
             () => throw new InvalidOperationException("The import-sessions resolver should not run in these tests."),
             Substitute.For<IVideoPaneFactory>(),

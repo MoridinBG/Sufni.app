@@ -109,7 +109,7 @@ public class SessionDetailViewModelTests
         var loadTask = harness.LoadAsync(editor);
         await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, telemetry));
 
-        await harness.UnloadAsync(editor);
+        harness.Unload(editor);
         pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
             new SessionTrackPresentationData(
                 Guid.NewGuid(),
@@ -216,7 +216,7 @@ public class SessionDetailViewModelTests
         var loadTask = harness.LoadAsync(editor);
         await Task.Yield();
 
-        await harness.UnloadAsync(editor);
+        harness.Unload(editor);
         pending.SetResult(harness.CreateLoadedResult(TestTelemetryData.CreateProcessed()));
         await loadTask;
 
@@ -354,29 +354,6 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_InitializesRecordedSessionExtensionScope_AndUnloadedDisposesIt()
-    {
-        var harness = new SessionDetailHarness();
-        var snapshot = harness.CreateRecordedSession(hasProcessedData: false);
-        var factory = new TestRecordedSessionExtensionFactory("test");
-        var editor = harness.CreateLoadedRecordedSession(
-            snapshot,
-            IncompleteResult(snapshot.Id),
-            recordedSessionExtensionFactories: [factory]);
-
-        await harness.LoadAsync(editor);
-
-        Assert.NotNull(factory.Scope);
-        Assert.True(factory.Scope.Initialized);
-        Assert.Contains(factory.Scope.UpdatedStates, state => state.Identity.IsLoaded);
-
-        await harness.UnloadAsync(editor);
-
-        Assert.True(factory.Scope.Disposed);
-        Assert.False(factory.Scope.UpdatedStates.Last().Identity.IsLoaded);
-    }
-
-    [AvaloniaFact]
     public async Task Loaded_RetainsProcessedTelemetry_AndUnloadedReleasesIt()
     {
         var harness = new SessionDetailHarness();
@@ -388,37 +365,9 @@ public class SessionDetailViewModelTests
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.RetainedSessionIds);
         Assert.Empty(harness.ProcessedTelemetryReader.ReleasedSessionIds);
 
-        await harness.UnloadAsync(editor);
+        harness.Unload(editor);
 
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.ReleasedSessionIds);
-    }
-
-    [AvaloniaFact]
-    public async Task RecordedSessionHostContext_RoutesHostCommands()
-    {
-        var harness = new SessionDetailHarness();
-        var snapshot = harness.CreateRecordedSession(hasProcessedData: true);
-        var factory = new TestRecordedSessionExtensionFactory("test");
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var selectedRange = new TelemetryTimeRange(0.05, 0.2);
-        var editor = harness.CreateLoadedRecordedSession(
-            snapshot,
-            harness.CreateLoadedResult(telemetry),
-            recordedSessionExtensionFactories: [factory]);
-
-        await harness.LoadAsync(editor);
-        var context = factory.Context!;
-
-        context.SetAnalysisRange(selectedRange.StartSeconds, selectedRange.EndSeconds);
-        context.SetTimelineVisibleRange(0.2, 0.8, context);
-        context.AddError("extension error");
-        context.AddNotification("extension notification");
-
-        Assert.Equal(selectedRange, editor.CurrentAnalysisRange);
-        Assert.Equal(0.2, editor.Timeline.VisibleRangeStart, 6);
-        Assert.Equal(0.8, editor.Timeline.VisibleRangeEnd, 6);
-        Assert.Contains("extension error", editor.ErrorMessages);
-        Assert.Contains("extension notification", editor.Notifications);
     }
 
     [AvaloniaFact]

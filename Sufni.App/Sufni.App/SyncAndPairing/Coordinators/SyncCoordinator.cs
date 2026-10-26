@@ -16,7 +16,7 @@ public class SyncCoordinator : ISyncCoordinator
     private static readonly TimeSpan DefaultInboundActivityIdleGrace = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FinalInboundActivityIdleGrace = TimeSpan.FromSeconds(2);
 
-    private readonly IAppStateRefreshOrchestrator appStateRefreshOrchestrator;
+    private readonly IAppDataRefresher appDataRefresher;
     private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -65,7 +65,7 @@ public class SyncCoordinator : ISyncCoordinator
     public event EventHandler<SyncFailedEventArgs>? SyncFailed;
 
     public SyncCoordinator(
-        IAppStateRefreshOrchestrator appStateRefreshOrchestrator,
+        IAppDataRefresher appDataRefresher,
         ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null,
         ISynchronizationServerService? synchronizationServerService = null,
@@ -75,7 +75,7 @@ public class SyncCoordinator : ISyncCoordinator
         IUiThreadDispatcher? uiThreadDispatcher = null,
         Func<TimeSpan, Task>? inboundActivityDelayAsync = null)
     {
-        this.appStateRefreshOrchestrator = appStateRefreshOrchestrator;
+        this.appDataRefresher = appDataRefresher;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
@@ -352,7 +352,7 @@ public class SyncCoordinator : ISyncCoordinator
 
     private Task RefreshStateAsync()
     {
-        return appStateRefreshOrchestrator.RefreshAllStateAsync();
+        return appDataRefresher.RefreshAsync();
     }
 
     private sealed class SyncProgressReporter(Action<SynchronizationProgressSnapshot> report)
