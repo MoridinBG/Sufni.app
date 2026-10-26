@@ -7,6 +7,7 @@ using Sufni.App.Extensibility.Views;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.Extensibility.Capabilities;
 
+[Collection("Ui")]
 public class AppExtensionCollectionTests
 {
     [Fact]

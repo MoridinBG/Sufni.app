@@ -14,6 +14,7 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Extensibility.RecordedSessions;
 
+[Collection("Ui")]
 public class RecordedSessionExtensionManagerTests
 {
     [Fact]

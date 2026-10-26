@@ -5,6 +5,7 @@ using Sufni.App.Theming;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Tests.Theming;
 
+[Collection("Ui")]
 public class SufniThemeTests
 {
     [Fact]

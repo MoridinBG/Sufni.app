@@ -12,6 +12,7 @@ using Sufni.App.Shared.Common;
 using Sufni.App.Tests.TestSupport.Async;
 namespace Sufni.App.Tests.Acquisition.Services;
 
+[Collection("Ui")]
 public class TelemetryDataStoreServiceTests
 {
     [Fact]

@@ -7,6 +7,7 @@ using Sufni.App.Tests.TestSupport.Doubles;
 
 namespace Sufni.App.Tests.ExtensionHost.Runtime.RecordedSessions;
 
+[Collection("Ui")]
 public class RecordedSessionExtensionSlotPublisherTests
 {
     [Fact]
