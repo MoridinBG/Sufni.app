@@ -28,10 +28,8 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
@@ -58,7 +56,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IAppPreferences appPreferences;
     private readonly ISessionBlobSwapRequestStore swapRequestStore;
-    private readonly IExtensionSyncService? extensionSyncService;
     private readonly ISecureStorage secureStorage;
     private readonly System.Threading.Lock advertisingGate = new();
     private readonly System.Threading.Lock startGate = new();
@@ -242,21 +239,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
         ISessionBlobSwapRequestStore swapRequestStore)
-        : this(syncDataStore, pairedDeviceRepository, sessionRepository, sessionTelemetryWriter, recordedSessionSourceRepository, recordedSessionSourceSyncQuery, appPreferences, secureStorage, swapRequestStore, null)
-    {
-    }
-
-    internal SynchronizationServerService(
-        ISyncDataStore syncDataStore,
-        IPairedDeviceRepository pairedDeviceRepository,
-        ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
-        IRecordedSessionSourceRepository recordedSessionSourceRepository,
-        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
-        IAppPreferences appPreferences,
-        ISecureStorage secureStorage,
-        ISessionBlobSwapRequestStore swapRequestStore,
-        IExtensionSyncService? extensionSyncService)
     {
         this.syncDataStore = syncDataStore;
         this.pairedDeviceRepository = pairedDeviceRepository;
@@ -267,7 +249,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
         this.swapRequestStore = swapRequestStore;
-        this.extensionSyncService = extensionSyncService;
         Initialization = Init();
     }
 
@@ -557,40 +538,10 @@ public class SynchronizationServerService : ISynchronizationServerService
         SynchronizationData data,
         ISyncDataStore syncDataStore,
         IAppPreferences appPreferences,
-        IExtensionSyncService? extensionSyncService,
         Action<SynchronizationData> synchronizationDataArrived)
     {
-        var extensionPlan = extensionSyncService is null
-            ? null
-            : await extensionSyncService.PrepareBatchesAsync(data.ExtensionBatches);
-
         await syncDataStore.MergeAllAsync(data);
         await appPreferences.ApplySyncDataAsync(data.AppPreferences);
-
-        if (extensionSyncService is not null && extensionPlan is not null)
-        {
-            try
-            {
-                await extensionSyncService.ApplyPreparedBatchesAsync(
-                    extensionPlan,
-                    SynchronizationPhase.ReceivingChanges,
-                    currentStep: 0,
-                    totalSteps: 0);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                logger.Error(exception, "Extension synchronization failed after pushed core data was persisted");
-                synchronizationDataArrived(data);
-                return Results.Problem(
-                    statusCode: StatusCodes.Status500InternalServerError,
-                    title: "Synchronization partially applied",
-                    detail: "Core synchronization data was applied, but extension synchronization failed.");
-            }
-        }
 
         synchronizationDataArrived(data);
         return Results.NoContent();
@@ -836,15 +787,9 @@ public class SynchronizationServerService : ISynchronizationServerService
                         data.AppPreferences = await appPreferences.GetSyncDataAsync(
                             since,
                             upperInclusive);
-                        if (extensionSyncService is not null)
-                        {
-                            data.ExtensionBatches.AddRange(await extensionSyncService.CreateBatchesAsync(
-                                since,
-                                upperInclusive));
-                        }
 
                         logger.Verbose(
-                            "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
+                            "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
                             since,
                             upperInclusive,
                             data.Boards.Count,
@@ -852,7 +797,6 @@ public class SynchronizationServerService : ISynchronizationServerService
                             data.Setups.Count,
                             data.Sessions.Count,
                             data.Tracks.Count,
-                            data.ExtensionBatches.Count,
                             data.AppPreferences is not null);
 
                         return Results.Ok(data);
@@ -866,20 +810,18 @@ public class SynchronizationServerService : ISynchronizationServerService
                     async () =>
                     {
                         logger.Verbose(
-                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, {ExtensionBatchCount} extension batches, and app preferences present {HasAppPreferences}",
+                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
                             data.Boards.Count,
                             data.Bikes.Count,
                             data.Setups.Count,
                             data.Sessions.Count,
                             data.Tracks.Count,
-                            data.ExtensionBatches.Count,
                             data.AppPreferences is not null);
 
                         return await ApplySynchronizationPushAsync(
                             data,
                             syncDataStore,
                             appPreferences,
-                            extensionSyncService,
                             arrived => SynchronizationDataArrived?.Invoke(
                                 this,
                                 new SynchronizationDataArrivedEventArgs(arrived)));

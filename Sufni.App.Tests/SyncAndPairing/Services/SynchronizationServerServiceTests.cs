@@ -2,8 +2,6 @@ using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
-using Sufni.App.ExtensionHost.Contracts.Sync;
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
@@ -42,25 +40,12 @@ public class SynchronizationServerServiceTests
     }
 
     [Fact]
-    public async Task ApplySynchronizationPushAsync_PreparesExtensionsBeforeCoreMerge()
+    public async Task ApplySynchronizationPushAsync_MergesCoreAndPreferencesBeforePublishing()
     {
         var calls = new List<string>();
-        var data = CreateSynchronizationDataWithExtensionBatch();
+        var data = new SynchronizationData();
         var syncDataStore = Substitute.For<ISyncDataStore>();
         var appPreferences = Substitute.For<IAppPreferences>();
-        var participant = CreateExtensionParticipant();
-        participant.PrepareBatchAsync(Arg.Any<ExtensionSyncEnvelope>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                calls.Add("prepare");
-                return new ExtensionSyncPrepareResult.Prepared(new PreparedBatch());
-            });
-        participant.ApplyPreparedBatchAsync(Arg.Any<IExtensionSyncPreparedBatch>(), Arg.Any<CancellationToken>())
-            .Returns(_ =>
-            {
-                calls.Add("extension");
-                return new ExtensionSyncApplyResult.Applied([]);
-            });
         syncDataStore.MergeAllAsync(data).Returns(_ =>
         {
             calls.Add("core");
@@ -76,61 +61,10 @@ public class SynchronizationServerServiceTests
             data,
             syncDataStore,
             appPreferences,
-            new ExtensionSyncService([participant]),
             _ => calls.Add("publish"));
 
-        Assert.Equal(["prepare", "core", "preferences", "extension", "publish"], calls);
+        Assert.Equal(["core", "preferences", "publish"], calls);
         await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
-    }
-
-    [Fact]
-    public async Task ApplySynchronizationPushAsync_DoesNotMutateCore_WhenExtensionPreparationFails()
-    {
-        var data = CreateSynchronizationDataWithExtensionBatch();
-        var syncDataStore = Substitute.For<ISyncDataStore>();
-        var appPreferences = Substitute.For<IAppPreferences>();
-        var participant = CreateExtensionParticipant();
-        participant.PrepareBatchAsync(Arg.Any<ExtensionSyncEnvelope>(), Arg.Any<CancellationToken>())
-            .Returns(new ExtensionSyncPrepareResult.Failed("extension payload invalid"));
-        var published = 0;
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            SynchronizationServerService.ApplySynchronizationPushAsync(
-                data,
-                syncDataStore,
-                appPreferences,
-                new ExtensionSyncService([participant]),
-                _ => published++));
-
-        await syncDataStore.DidNotReceive().MergeAllAsync(Arg.Any<SynchronizationData>());
-        await appPreferences.DidNotReceive().ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>());
-        Assert.Equal(0, published);
-    }
-
-    [Fact]
-    public async Task ApplySynchronizationPushAsync_PublishesCoreAndReturnsFailure_WhenExtensionApplyFails()
-    {
-        var data = CreateSynchronizationDataWithExtensionBatch();
-        var syncDataStore = Substitute.For<ISyncDataStore>();
-        var appPreferences = Substitute.For<IAppPreferences>();
-        var participant = CreateExtensionParticipant();
-        participant.PrepareBatchAsync(Arg.Any<ExtensionSyncEnvelope>(), Arg.Any<CancellationToken>())
-            .Returns(new ExtensionSyncPrepareResult.Prepared(new PreparedBatch()));
-        participant.ApplyPreparedBatchAsync(Arg.Any<IExtensionSyncPreparedBatch>(), Arg.Any<CancellationToken>())
-            .Returns(new ExtensionSyncApplyResult.Failed("extension failed", []));
-        var published = 0;
-
-        var result = await SynchronizationServerService.ApplySynchronizationPushAsync(
-            data,
-            syncDataStore,
-            appPreferences,
-            new ExtensionSyncService([participant]),
-            _ => published++);
-
-        await syncDataStore.Received(1).MergeAllAsync(data);
-        await appPreferences.Received(1).ApplySyncDataAsync(data.AppPreferences);
-        Assert.Equal(1, published);
-        await AssertStatusCodeAsync(result, StatusCodes.Status500InternalServerError);
     }
 
     [Fact]
@@ -202,27 +136,6 @@ public class SynchronizationServerServiceTests
         Assert.Equal([sessionId], arrivedSessionIds);
         await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
     }
-
-    private static SynchronizationData CreateSynchronizationDataWithExtensionBatch() => new()
-    {
-        ExtensionBatches =
-        [
-            new ExtensionSyncEnvelope(
-                "test",
-                SchemaVersion: 1,
-                ContentType: "application/test",
-                Payload: [1, 2, 3])
-        ]
-    };
-
-    private static IExtensionSyncParticipant CreateExtensionParticipant()
-    {
-        var participant = Substitute.For<IExtensionSyncParticipant>();
-        participant.ExtensionId.Returns("test");
-        return participant;
-    }
-
-    private sealed record PreparedBatch : IExtensionSyncPreparedBatch;
 
     private static async Task AssertStatusCodeAsync(IResult result, int expectedStatusCode)
     {

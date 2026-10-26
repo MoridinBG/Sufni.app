@@ -6,7 +6,6 @@ using System.Text;
 using System.Text.Json;
 using NSubstitute;
 using Sufni.App.ExtensionHost.Contracts.Services;
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
@@ -49,7 +48,7 @@ internal sealed class SyncTestServerHarness
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
         new(SecureStorage, new HttpClient(new StubHttpMessageHandler(sendAsync)));
 
-    public SynchronizationClientService CreateSynchronizationClientService(IExtensionSyncService? extensionSync = null) =>
+    public SynchronizationClientService CreateSynchronizationClientService() =>
         new(
             SyncDataStore,
             SessionRepository,
@@ -58,8 +57,7 @@ internal sealed class SyncTestServerHarness
             SourceStore,
             RecordedSessionSourceSyncQuery,
             HttpApiService,
-            AppPreferences,
-            extensionSync);
+            AppPreferences);
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)
     {

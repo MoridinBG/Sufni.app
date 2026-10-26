@@ -70,17 +70,17 @@ Authorization is enforced as a route group — `MapGroup("").RequireAuthorizatio
 
 ## Client
 
-`SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Protocol v3 persists `last_push_time` and `last_pull_time` independently, so a successful push cannot skip a failed or partially applied pull, and vice versa. Each direction replays the previous whole-second timestamp bucket (`sinceExclusive = cursor - 1` for a positive cursor) and de-duplicates through normal merge semantics; this closes the gap created when multiple writes share the same second as the prior upper bound.
+`SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Protocol v3 persists `last_push_time` and `last_pull_time` independently, so a successful push cannot skip a failed or incomplete pull, and vice versa. Each direction replays the previous whole-second timestamp bucket (`sinceExclusive = cursor - 1` for a positive cursor) and de-duplicates through normal merge semantics; this closes the gap created when multiple writes share the same second as the prior upper bound.
 
-1. **Push local changes** — sample one `upperInclusive`, collect core entities, app preferences, and outgoing extension envelopes in `(lastPushTime - 1, upperInclusive]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_time` after success
-2. **Pull remote changes** — GET `/sync/pull?since=` from the pull watermark, receive the server-sampled `upper_bound`, prepare every known extension envelope before committing core rows, merge core rows in one SQLite transaction, apply app preferences, then apply the prepared extension batches. Advance only `last_pull_time`, and only after extension apply and processed-BLOB swap handling leave the pull complete
+1. **Push local changes** — sample one `upperInclusive`, collect core entities and app preferences in `(lastPushTime - 1, upperInclusive]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_time` after success
+2. **Pull remote changes** — GET `/sync/pull?since=` from the pull watermark, receive the server-sampled `upper_bound`, merge core rows in one SQLite transaction, then apply app preferences. Advance only `last_pull_time`, and only after processed-BLOB swap handling leaves the pull complete
 3. **Push incomplete sessions** — for each session id the server advertises (a missing-blob *fill* or a held-blob *push-swap*), upload the local blob **and its stored fingerprint**; the server commits a fill or a push-swap when the fingerprint matches its target, ignores a non-matching push-swap upload, and rejects (400) a non-matching fill
 4. **Pull incomplete sessions** — download blobs for two kinds of target and commit each only when the downloaded fingerprint matches the target (otherwise keep what is local and retry later): **fills** (local rows with no blob, target = the row's own stored fingerprint) and **swaps** (rows whose held blob has a different current-schema fingerprint than the one just pulled, target = the accepted remote fingerprint — see *Processed-BLOB coherence* below)
 5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourcePayload`
 6. **Pull incomplete recorded sources** — for each local source id produced by `IRecordedSessionSourceSyncQuery`, download the server's `RecordedSessionSourcePayload`
 
-The metadata snapshot's one `upper_bound` applies to every core table, app
-preferences, and extension batch. Core delta queries include updates and
+The metadata snapshot's one `upper_bound` applies to every core table and app
+preferences. Core delta queries include updates and
 tombstones only in `(sinceExclusive, upperInclusive]`; tracks added because a
 changed session references them are also constrained to `updated <=
 upperInclusive`, so related-row expansion cannot leak a later generation into
@@ -89,11 +89,11 @@ the response.
 The four blob/source transfer phases run with bounded client concurrency
 (`SyncTransferDop = 3`). Session pulls preserve fill-before-swap phasing:
 all missing-blob fills are downloaded and committed before swap downloads
-start. Any unresolved transient swap or extension partial-apply result holds
-back the pull watermark, so the same bounded metadata delta is replayed and the
-swap/preparation work is re-derived on the next run.
+start. Any unresolved transient swap holds back the pull watermark, so the same
+bounded metadata delta is replayed and the swap work is re-derived on the next
+run.
 
-Source sync runs after metadata and extension sync so both sides know which
+Source sync runs after metadata sync so both sides know which
 session ids and derivation windows exist before asking for missing source
 payloads. Source rows are transferred through the incomplete-source endpoints
 when a side has no source row or when its local source hash no longer matches
@@ -124,7 +124,7 @@ the persistence operation.
 `session.data` (the processed telemetry blob) never travels in `SynchronizationData`; only metadata does. Because a recompute can replace an *existing* blob — not just fill a missing one — the protocol keeps one invariant: **the processed generation describes one coherent result**. A generation contains the blob and fingerprint plus `duration_seconds`, `distance_meters`, `ascent_meters`, `descent_meters`, `full_track_id`, `gps_offset_seconds`, and the cached session-window `track`; those values are retained or replaced together.
 
 - **Deferred metadata merge.** When an inbound metadata update arrives for a row that already holds a blob, both merge paths — the client pull (`ApplyRemoteSession`) and the desktop hub's push merge (`MergeSessionMetadata`) — apply independent user metadata but retain the complete held processed generation. The row therefore never advertises a fingerprint, summary, track linkage/alignment, or cached track from bytes it does not yet hold.
-- **Transient pull-swap set.** During the client's pull, every deferred row whose held fingerprint differs from the accepted remote fingerprint — when **both are current-schema** and the row has the raw source of the incoming session (its `source_session_id` when present, otherwise the session id) — is queued as a *swap* containing the id, target fingerprint, and accepted target generation. The set is never persisted; it is re-derived from the metadata delta each run. A network error, extension partial apply, or unresolved swap (`404` or fingerprint mismatch) holds `last_pull_time` back, so the next run re-pulls the same delta and retries. Fills are not swaps — they are re-derived every run from `data IS NULL` regardless of the watermark, so they are never lost.
+- **Transient pull-swap set.** During the client's pull, every deferred row whose held fingerprint differs from the accepted remote fingerprint — when **both are current-schema** and the row has the raw source of the incoming session (its `source_session_id` when present, otherwise the session id) — is queued as a *swap* containing the id, target fingerprint, and accepted target generation. The set is never persisted; it is re-derived from the metadata delta each run. A network error or an unresolved swap (`404` or fingerprint mismatch) holds `last_pull_time` back, so the next run re-pulls the same delta and retries. Fills are not swaps — they are re-derived every run from `data IS NULL` regardless of the watermark, so they are never lost.
 - **Validate and match before commit.** A sync pull download commits only when its advertised fingerprint ordinal-matches the target. `SessionTelemetryWriter.SwapSessionPsstAsync` deserializes the transferred MessagePack before persistence; invalid bytes leave the current generation untouched. New swaps then pass the accepted `SessionProcessedGeneration` to `UpdateSessionProcessedGenerationAsync`, which replaces the blob, fingerprint, four summary metrics, full-track id, normalized GPS offset, and cached track in one SQLite `UPDATE` with no sync-facing `updated` bump. Legacy fingerprint-only requests keep the previous validated metric-recomputation path. Session detail loading never fetches missing BLOBs; sync localizes them before open.
 - **Hub push-swap (push direction).** The desktop hub runs no pull phase, so to *receive* a recomputed blob for a row it already holds it records a durable push-swap request during the same transaction as the deferred metadata merge. `session_blob_swap_request` stores the session id, target fingerprint, and serialized target generation; legacy rows without `target_generation` remain readable. A request is created only when the incoming current-schema fingerprint is eligible against the hub's current database inputs while the held one is not (or when the referenced source has not arrived yet, preserving the accepted target until source sync completes). Invalid/legacy/equal/ineligible targets clear the request. For derived sessions, the input probe resolves the source through the incoming derivation window. `GET /session/incomplete` advertises requests alongside data-null fills; `PATCH /session/data` validates the bytes and commits the coherent generation only for a matching target, then clears the request. A non-matching push-swap upload is ignored (`204`, not `400`) and leaves the request pending.
 - **Request cleanup and excluded rows.** Startup removes swap requests whose session is missing or soft-deleted, and database triggers remove them on physical or soft deletion; the incomplete-session query repeats the orphan cleanup before listing requests. Source-less rows keep their only blob (they cannot self-heal by recompute) and never swap it out — they only ever *gain* a blob through a fill. A legacy (pre-current-schema) fingerprint on either side defers to the one-time per-device normalization pass rather than swapping during the mixed-version upgrade window. Because every device recomputes the same source at the same options on the same binary, fingerprints converge and there is normally nothing to swap post-upgrade.
@@ -148,8 +148,7 @@ SynchronizationData
 ├── Sessions[] (metadata, tuning fields, full-track link, processing fingerprint; no blob)
 ├── Tracks[]
 ├── Segments[] (saved segments, JSON `segment`)
-├── AppPreferences? (map/session preferences as AppPreferencesSyncData)
-└── ExtensionBatches[] (opaque extension envelopes)
+└── AppPreferences? (map/session preferences as AppPreferencesSyncData)
 ```
 
 Every bike sync row must carry the `rear_suspension` union. Payloads that omit
@@ -167,14 +166,3 @@ it when a push carries segments.
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`. Their bodies are binary `application/octet-stream`; row metadata travels in HTTP headers so large BLOBs are not base64-encoded in JSON.
 
-Extension envelopes are handled by `ExtensionSyncService`. Outgoing
-participants create bounded batches containing an extension id, payload version,
-and opaque bytes from the same `(sinceExclusive, upperInclusive]` window as core
-state. Incoming unknown ids are ignored. Every known envelope is first passed to
-`PrepareBatchAsync`; all preparation must succeed before core rows are committed,
-so payload validation and extension-owned planning happen before mutation.
-Prepared batches apply after the core transaction and app preferences. That apply
-stage is deliberately not one cross-extension/core database transaction: if a
-known participant fails there, the result is reported as partially applied and
-the client does not advance `last_pull_time`, so replay must be idempotent. Core
-sync code never interprets extension payload fields.

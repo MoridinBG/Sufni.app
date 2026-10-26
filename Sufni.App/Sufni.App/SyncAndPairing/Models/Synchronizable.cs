@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using MessagePack;
 using SQLite;
-using Sufni.App.ExtensionHost.Contracts.Sync;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
@@ -67,5 +66,4 @@ public class SynchronizationData
     [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
     [JsonPropertyName("segment")] public List<SessionSegment> Segments { get; set; } = [];
     [JsonPropertyName("app_preferences")] public AppPreferencesSyncData? AppPreferences { get; set; }
-    [JsonPropertyName("extension")] public List<ExtensionSyncEnvelope> ExtensionBatches { get; set; } = [];
 }

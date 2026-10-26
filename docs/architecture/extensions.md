@@ -1,10 +1,10 @@
 # Extension Host
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, host services, view resolution, database hooks, sync envelopes, and recorded-session contribution slots.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the public extension host: build-time module registration, capability registration, host services, view resolution, database hooks, and recorded-session contribution slots.
 
 ## Overview
 
-`Sufni.App.ExtensionHost/` is the public SDK project that contains the contracts that let a build add extension modules without hard-coding feature-specific dependencies in the shared app. `Sufni.App/Sufni.App/Extensibility/` contains the in-app host implementations for those contracts: capability registration, view lookup, extension database sessions, cascades, sync routing, recorded-session managers, and notification/dialog bridges. The public app owns only neutral host surfaces. Extension modules own their own services, view models, views, database tables, sync payloads, and user-facing workflow semantics.
+`Sufni.App.ExtensionHost/` is the public SDK project that contains the contracts that let a build add extension modules without hard-coding feature-specific dependencies in the shared app. `Sufni.App/Sufni.App/Extensibility/` contains the in-app host implementations for those contracts: capability registration, view lookup, extension database sessions, cascades, recorded-session managers, and notification/dialog bridges. The public app owns only neutral host surfaces. Extension modules own their own services, view models, views, database tables, and user-facing workflow semantics.
 
 The SDK is split into two top-level namespaces inside the one assembly:
 
@@ -160,14 +160,6 @@ Extensions declare references to core rows through `IExtensionCascadeRuleProvide
 
 The core row soft-delete and matching extension cascade rules share the same transaction. Rules are applied by entity kind/id even when the core row is already tombstoned or absent, which lets retries and orphaned extension rows converge. Startup orphan repair applies the same declared rules after core cleanup. `IExtensionStateRefreshParticipant` lets extension state refresh after cascade work without public coordinators knowing extension store types; delete workflows refresh after the transaction commits when any rule matched. The main page startup database load also invokes these participants after the core stores refresh, so extension-owned read stores are hydrated before recorded-session contributions need persisted extension state.
 
-## Sync Envelopes
-
-`SynchronizationData.ExtensionBatches` carries opaque extension sync envelopes. Each envelope has an extension id, payload version, and serialized payload bytes. Core sync code does not inspect payload fields.
-
-`ExtensionSyncService` asks registered participants for outgoing batches during push/pull response creation. `CreateBatchAsync(sinceExclusive, upperInclusive)` receives the same bounded snapshot interval used by core entities and app preferences. Incoming unknown ids are ignored so public and extended builds can coexist; blank or duplicate registered participant ids are rejected at service construction.
-
-Known incoming envelopes use a two-stage contract. `PrepareBatchAsync` validates and converts each envelope into an opaque `IExtensionSyncPreparedBatch`; all known batches must prepare successfully before core synchronization rows are committed. Only then does the host apply core entities in their transaction, apply app preferences, and call `ApplyPreparedBatchAsync` in participant order. The apply stage is not one cross-extension/core transaction: if it fails after core persistence, sync reports a partial apply and the client holds its pull watermark so the bounded delta is replayed. Participants must therefore make prepared application retry-safe. Core sync code never interprets extension payload fields.
-
 ## Recorded-Session Scope
 
 `SessionDetailViewModel` owns one `RecordedSessionExtensionManager` per open recorded session. The manager creates scopes from registered `IRecordedSessionExtensionFactory` instances on `Loaded`, updates them with `RecordedSessionHostState` derived from the recorded editor state/host facets, and disposes them on `Unloaded` / final close. Factory extension ids are required and unique.
@@ -308,6 +300,6 @@ plot layer converts those descriptors to ScottPlot primitives at render time.
 
 ## Neutrality Rules
 
-Public code may name the host, slots, descriptors, migrations, cascades, sync envelopes, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
+Public code may name the host, slots, descriptors, migrations, cascades, and operation leases. Public code must not name extension-specific entities, database columns, payload fields, platform services, view models, views, assets, or workflows.
 
 This is now maintained by convention and code review rather than an automated test. The previous `PublicNeutralityTests` repository-scanning enforcement has been removed.

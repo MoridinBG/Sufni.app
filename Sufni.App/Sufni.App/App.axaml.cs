@@ -10,7 +10,6 @@ using Avalonia.Controls;
 using Sufni.App.ExtensionHost.Contracts.Database;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessionCatalog;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
-using Sufni.App.ExtensionHost.Contracts.Sync;
 using Sufni.App.ExtensionHost.Contracts.Services;
 
 using Sufni.App.Extensibility.Capabilities;
@@ -26,7 +25,6 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.ItemLists;
 using Sufni.App.Extensibility.Database;
 using Sufni.App.Extensibility.RecordedSessions;
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Extensibility.Views;
 using Sufni.App.ExtensionHost.Contracts.Capabilities;
 using Sufni.App.Infrastructure;
@@ -183,7 +181,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ISessionContentReader, SessionContentReader>();
         ServiceCollection.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
         ServiceCollection.AddSingleton<IExtensionCascadeService, ExtensionCascadeService>();
-        ServiceCollection.AddSingleton<IExtensionSyncService, ExtensionSyncService>();
         ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
         ServiceCollection.AddSingleton<IThemeService, ThemeService>();
         ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);

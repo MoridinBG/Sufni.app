@@ -2,13 +2,8 @@ using Avalonia;
 using Avalonia.Logging;
 using Avalonia.Skia;
 using Microsoft.Extensions.DependencyInjection;
-using Sufni.App.ExtensionHost.Contracts.Sync;
-using Sufni.App.ExtensionHost.Contracts.Services;
 
-using Sufni.App.Extensibility.Sync;
 using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.ViewModels;
@@ -18,17 +13,7 @@ public static class DesktopAppBootstrapper
 {
     public static void RegisterDesktopSync(IServiceCollection services)
     {
-        services.AddSingleton<ISynchronizationServerService>(sp => new SynchronizationServerService(
-            sp.GetRequiredService<ISyncDataStore>(),
-            sp.GetRequiredService<IPairedDeviceRepository>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
-            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<IRecordedSessionSourceSyncQuery>(),
-            sp.GetRequiredService<IAppPreferences>(),
-            sp.GetRequiredService<ISecureStorage>(),
-            sp.GetRequiredService<ISessionBlobSwapRequestStore>(),
-            sp.GetService<IExtensionSyncService>()));
+        services.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
         services.AddSingleton<IPairingServerCoordinator, PairingServerCoordinator>();
         services.AddSingleton<IInboundSyncCoordinator, InboundSyncCoordinator>();
         services.AddSingleton<PairingServerViewModel>();

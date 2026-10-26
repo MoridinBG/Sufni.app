@@ -197,7 +197,7 @@ Presentation-layer topics:
 
 ## Extension Host
 
-The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, sync envelopes, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Recorded-session contracts require revision-backed content tokens and classify exact multi-family reads as `Available`, `Stale`, or `Missing`. Neutral signal rows may publish separate consecutive runs so unavailable gaps are not connected. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
+The public extension host lets build-time modules register services, view templates, database migrations, cascade rules, app-level toolbar actions, and recorded-session UI contributions without adding capability-specific dependencies to the shared app. Dependency-lower `Sufni.Telemetry.Caching` provides the shared single-flight LRU primitive. Recorded-session contracts require revision-backed content tokens and classify exact multi-family reads as `Available`, `Stale`, or `Missing`. Neutral signal rows may publish separate consecutive runs so unavailable gaps are not connected. Public builds have no modules by default; non-public builds opt in through private MSBuild imports and a generated partial startup hook.
 
 Topics in [architecture/extensions.md](architecture/extensions.md):
 
@@ -209,7 +209,6 @@ Topics in [architecture/extensions.md](architecture/extensions.md):
 - [Shared Caching](architecture/extensions.md#shared-caching) — dependency-lower single-flight production, independent waiter cancellation, bounded LRU retention, and clear-generation semantics
 - [Database Hooks](architecture/extensions.md#database-hooks) — schema versions, migrators, constrained extension sessions
 - [Cascade Rules](architecture/extensions.md#cascade-rules) — declared extension-owned row cleanup
-- [Sync Envelopes](architecture/extensions.md#sync-envelopes) — opaque payload routing
 - [Recorded-Session Scope](architecture/extensions.md#recorded-session-scope) — per-open-session scope lifecycle and host operations
 - [Recorded-Session Slots](architecture/extensions.md#recorded-session-slots) — generic contribution slots and descriptors
 - [Neutrality Rules](architecture/extensions.md#neutrality-rules) — public naming boundaries
