@@ -22,12 +22,15 @@ mc:Ignorable="d">
     x:Name="PageScrollViewer"
     IsScrollChainingEnabled="False">
         <StackPanel Spacing="10">
-            <Grid ColumnDefinitions="*,Auto">
-                <views:RecordedSessionToolbarContributionsView
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <segmentViews:SegmentMatchToolbarView
                     Grid.Column="0"
+                    DataContext="{Binding Workspace.SegmentComparison}" />
+                <views:RecordedSessionToolbarContributionsView
+                    Grid.Column="1"
                     ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
                 <segmentViews:SegmentPickerSheetButtonView
-                    Grid.Column="1"
+                    Grid.Column="2"
                     VerticalAlignment="Center"
                     DataContext="{Binding Workspace.SegmentPicker}" />
             </Grid>

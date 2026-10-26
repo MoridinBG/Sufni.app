@@ -84,7 +84,7 @@ public partial class SessionMediaDesktopView : UserControl
     {
         if (args.PropertyName is nameof(ISessionMediaWorkspace.MapState)
             or nameof(ISessionMediaWorkspace.MapViewModel)
-            or nameof(ISessionMediaWorkspace.ExtensionSlots)
+            or nameof(ISessionMediaWorkspace.MatchedTrack)
             or nameof(ISessionMediaWorkspace.Video))
         {
             SyncMapView();
@@ -95,7 +95,7 @@ public partial class SessionMediaDesktopView : UserControl
     private void SyncMapView()
     {
         MapViewControl.DataContext = workspace?.MapViewModel;
-        MapViewControl.ExtensionSlots = workspace?.ExtensionSlots;
+        MapViewControl.MatchedTrack = workspace?.MatchedTrack;
         MapViewControl.Timeline = workspace?.Timeline;
     }
 

@@ -69,6 +69,7 @@ internal sealed class EditorFactory(
     IVideoPaneFactory videoPaneFactory,
     ISessionEditingCoordinator sessionEditingCoordinator,
     ISegmentPickerFactory segmentPickerFactory,
+    ISegmentComparisonFactory segmentComparisonFactory,
     ISessionOperationRunner sessionOperationRunner) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
@@ -188,6 +189,7 @@ internal sealed class EditorFactory(
             () => this,
             sessionEditingCoordinator,
             segmentPickerFactory,
+            segmentComparisonFactory,
             sessionOperationRunner,
             bikeCoordinator,
             new ExtensionHostDependencies(

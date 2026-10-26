@@ -7,6 +7,7 @@ xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:segmentViews="clr-namespace:Sufni.App.Segments.DesktopViews"
+xmlns:segmentMobileViews="clr-namespace:Sufni.App.Segments.Views"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
@@ -14,12 +15,15 @@ x:DataType="vm:IRecordedSessionSignalsWorkspace"
 mc:Ignorable="d">
 
     <Grid RowDefinitions="Auto,*" RowSpacing="8">
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-            <controls:RecordedSessionToolbarContributionsView
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+            <segmentMobileViews:SegmentMatchToolbarView
                 Grid.Column="0"
+                DataContext="{Binding SegmentComparison}" />
+            <controls:RecordedSessionToolbarContributionsView
+                Grid.Column="1"
                 ExtensionSlots="{Binding ExtensionSlots}" />
             <segmentViews:SegmentPickerFlyoutButtonView
-                Grid.Column="1"
+                Grid.Column="2"
                 VerticalAlignment="Center"
                 DataContext="{Binding SegmentPicker}" />
         </Grid>

@@ -36,7 +36,6 @@ mc:Ignorable="d">
                     <plots:AnalysisPlotView
                     AnalysisRange="{Binding #Root.AnalysisRange}"
                     AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     ImuLocation="{Binding #Root.ImuLocation}"
                     IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                     AnalysisPlotKind="VibrationDistribution"

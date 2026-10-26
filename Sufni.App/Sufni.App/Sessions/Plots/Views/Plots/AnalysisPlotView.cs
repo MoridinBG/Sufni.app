@@ -1,11 +1,12 @@
 using System;
-using System.Collections.Specialized;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Input;
 using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
@@ -29,7 +30,6 @@ public enum AnalysisPlotKind
 
 public class AnalysisPlotView : SufniTelemetryPlotView
 {
-    private RecordedSessionExtensionSlots? subscribedSlots;
     private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
@@ -89,9 +89,9 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<AnalysisPlotView, object?>(nameof(HeaderContent));
 
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<AnalysisPlotView, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
+    public static readonly StyledProperty<IReadOnlyList<SegmentAnalysisOverlay>?> AnalysisOverlaysProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, IReadOnlyList<SegmentAnalysisOverlay>?>(
+            nameof(AnalysisOverlays));
 
     public static readonly StyledProperty<ICommand?> SelectAnalysisRangeCommandProperty =
         AvaloniaProperty.Register<AnalysisPlotView, ICommand?>(nameof(SelectAnalysisRangeCommand));
@@ -184,10 +184,13 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(HeaderContentProperty, value);
     }
 
-    public RecordedSessionExtensionSlots? ExtensionSlots
+    /// <summary>
+    /// Overlays of a compared segment match; the plot shows those of its kind and side.
+    /// </summary>
+    public IReadOnlyList<SegmentAnalysisOverlay>? AnalysisOverlays
     {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
+        get => GetValue(AnalysisOverlaysProperty);
+        set => SetValue(AnalysisOverlaysProperty, value);
     }
 
     public ICommand? SelectAnalysisRangeCommand
@@ -259,11 +262,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
             if (IsAnalysisOverlayProperty(e.Property.Name))
             {
-                if (e.Property == ExtensionSlotsProperty)
-                {
-                    SubscribeToSlots(ExtensionSlots);
-                }
-
                 ApplyAnalysisOverlayDescriptor(refresh: true);
             }
 
@@ -278,14 +276,12 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        SubscribeToSlots(ExtensionSlots);
         SubscribeToAnalysisResultState(AnalysisResultState);
         ApplyAnalysisOverlayDescriptor(refresh: false);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        SubscribeToSlots(null);
         SubscribeToAnalysisResultState(null);
         if (HasPlotModel && PlotModel is PositionVelocityPlot)
         {
@@ -375,11 +371,9 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             nameof(VelocityAverageMode);
 
     private static bool IsAnalysisOverlayProperty(string? propertyName) =>
-        propertyName is nameof(ExtensionSlots) or
+        propertyName is nameof(AnalysisOverlays) or
             nameof(AnalysisPlotKind) or
-            nameof(SuspensionType) or
-            nameof(BalanceType) or
-            nameof(ImuLocation);
+            nameof(SuspensionType);
 
     private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
     {
@@ -523,30 +517,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         }
     }
 
-    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
-    {
-        if (ReferenceEquals(subscribedSlots, slots))
-        {
-            return;
-        }
-
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.AnalysisOverlays.CollectionChanged -= OnAnalysisOverlaysChanged;
-        }
-
-        subscribedSlots = slots;
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.AnalysisOverlays.CollectionChanged += OnAnalysisOverlaysChanged;
-        }
-    }
-
-    private void OnAnalysisOverlaysChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        ApplyAnalysisOverlayDescriptor(refresh: true);
-    }
-
     private void ApplyAnalysisOverlayDescriptor(bool refresh)
     {
         if (!HasPlotModel)
@@ -563,17 +533,16 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
     private RecordedSessionAnalysisPlotOverlayDescriptor? CreateAnalysisOverlayDescriptor()
     {
-        if (ExtensionSlots is null || ResolveAnalysisOverlayTarget() is not { } target)
+        SegmentAnalysisPlot? plot = AnalysisPlotKind switch
         {
-            return null;
-        }
-
-        var overlays = ExtensionSlots.AnalysisOverlays
-            .Where(contribution => contribution.TargetPlot == target && contribution.Overlay is not null)
-            .OrderBy(contribution => contribution.Order)
-            .Select(contribution => contribution.Overlay!)
-            .ToArray();
-
+            AnalysisPlotKind.TravelDistribution => SegmentAnalysisPlot.TravelDistribution,
+            AnalysisPlotKind.VelocityDistribution => SegmentAnalysisPlot.VelocityDistribution,
+            _ => null,
+        };
+        var overlays = AnalysisOverlays?
+            .Where(overlay => overlay.Plot == plot && overlay.Side == SuspensionType)
+            .Select(overlay => overlay.Overlay)
+            .ToArray() ?? [];
         if (overlays.Length == 0)
         {
             return null;
@@ -583,22 +552,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             overlays.SelectMany(overlay => overlay.Lines).ToArray(),
             overlays.SelectMany(overlay => overlay.Bands).ToArray(),
             overlays.SelectMany(overlay => overlay.Labels).ToArray());
-    }
-
-    private RecordedSessionAnalysisPlotTarget? ResolveAnalysisOverlayTarget()
-    {
-        return AnalysisPlotKind switch
-        {
-            AnalysisPlotKind.TravelDistribution => RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType),
-            AnalysisPlotKind.TravelFrequencyDistribution => RecordedSessionAnalysisPlotTarget.TravelFrequencyDistribution(SuspensionType),
-            AnalysisPlotKind.VelocityDistribution => RecordedSessionAnalysisPlotTarget.VelocityDistribution(SuspensionType),
-            AnalysisPlotKind.Balance => RecordedSessionAnalysisPlotTarget.Balance(BalanceType),
-            AnalysisPlotKind.StrokeLengthDistribution => RecordedSessionAnalysisPlotTarget.StrokeLengthDistribution(SuspensionType, BalanceType),
-            AnalysisPlotKind.StrokeSpeedDistribution => RecordedSessionAnalysisPlotTarget.StrokeSpeedDistribution(SuspensionType, BalanceType),
-            AnalysisPlotKind.DeepTravelDistribution => RecordedSessionAnalysisPlotTarget.DeepTravelDistribution(SuspensionType),
-            AnalysisPlotKind.VibrationDistribution => RecordedSessionAnalysisPlotTarget.VibrationDistribution(SuspensionType, ImuLocation),
-            _ => null,
-        };
     }
 
     private void UpdateAnalysisTitle()

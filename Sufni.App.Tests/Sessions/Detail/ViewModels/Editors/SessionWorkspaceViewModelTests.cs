@@ -50,7 +50,8 @@ public class SessionWorkspaceViewModelTests
             timeline,
             () => extensionSlots,
             actions,
-            TestSegmentPickers.Create());
+            TestSegmentPickers.Create(),
+            TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
@@ -203,7 +204,8 @@ public class SessionWorkspaceViewModelTests
             gateway,
             actions,
             new RelayCommand<TelemetryRangeSelection?>(_ => { }),
-            Substitute.For<IRecordedSessionAnalysisResultState>());
+            Substitute.For<IRecordedSessionAnalysisResultState>(),
+            TestSegmentComparisons.Create());
         state.OnNext(CreateState());
         return (state, gateway, actions, workspace);
     }
@@ -217,7 +219,8 @@ public class SessionWorkspaceViewModelTests
             () => null,
             new SessionTimelineLinkViewModel(),
             () => new RecordedSessionExtensionSlots(),
-            videoPane: null);
+            videoPane: null,
+            TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
 
@@ -228,6 +231,27 @@ public class SessionWorkspaceViewModelTests
         Assert.True(workspace.HasMediaContent);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.MapState), changes);
         Assert.Contains(nameof(SessionMediaWorkspaceViewModel.HasMediaContent), changes);
+    }
+
+    [Fact]
+    public async Task SessionMediaWorkspace_ShowsTheComparedMatchOnTheMap()
+    {
+        using var segmentComparison = await TestSegmentComparisons.CreateWithMatchAsync();
+        using var state = new Subject<RecordedSessionEditorState>();
+        using var workspace = new SessionMediaWorkspaceViewModel(
+            state,
+            () => null,
+            new SessionTimelineLinkViewModel(),
+            () => new RecordedSessionExtensionSlots(),
+            videoPane: null,
+            segmentComparison);
+        var changes = TrackPropertyChanges(workspace);
+        Assert.Null(workspace.MatchedTrack);
+
+        segmentComparison.TravelRows[0].HeaderActions.Single(action => action.Id == "compare-analysis").Command!.Execute(null);
+
+        Assert.Equal(2, workspace.MatchedTrack?.SessionTrack.Count);
+        Assert.Contains(nameof(SessionMediaWorkspaceViewModel.MatchedTrack), changes);
     }
 
     [Fact]
@@ -248,7 +272,8 @@ public class SessionWorkspaceViewModelTests
             () => null,
             new SessionTimelineLinkViewModel(),
             () => new RecordedSessionExtensionSlots(),
-            videoPane);
+            videoPane,
+            TestSegmentComparisons.Create());
         state.OnNext(CreateState());
         var videoBeforeLink = workspace.Video;
         var changes = TrackPropertyChanges(workspace);
@@ -359,7 +384,8 @@ public class SessionWorkspaceViewModelTests
             timeline,
             () => extensionSlots,
             actions,
-            TestSegmentPickers.Create());
+            TestSegmentPickers.Create(),
+            TestSegmentComparisons.Create());
         var changes = TrackPropertyChanges(workspace);
         state.OnNext(CreateState());
         changes.Clear();

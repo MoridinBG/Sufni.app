@@ -61,7 +61,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         SessionTimelineLinkViewModel timeline,
         Func<RecordedSessionExtensionSlots> extensionSlots,
         RecordedSessionEditorActions actions,
-        SegmentPickerViewModel segmentPicker)
+        SegmentPickerViewModel segmentPicker,
+        SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(analysisResultState);
@@ -76,6 +77,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         this.extensionSlots = extensionSlots;
         this.actions = actions;
         SegmentPicker = segmentPicker;
+        SegmentComparison = segmentComparison;
         stateSubscription = state.Subscribe(ApplyState);
     }
 
@@ -116,6 +118,7 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
     public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
 
     public SegmentPickerViewModel SegmentPicker { get; }
+    public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId =>
         signalPlotContextMenuActionsBySignalRowId;

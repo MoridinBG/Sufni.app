@@ -40,6 +40,17 @@ public class SignalRowActionsControllerTests
     }
 
     [Fact]
+    public void AirtimeActions_AreHidden_UntilTheSessionHasAirtimes()
+    {
+        var airtimeActions = AirtimeActions().ToArray();
+        Assert.All(airtimeActions, action => Assert.False(action.IsVisible));
+
+        controller.SetHasAirtimes(true);
+
+        Assert.All(airtimeActions, action => Assert.True(action.IsVisible));
+    }
+
+    [Fact]
     public void AirtimeActionCommand_TogglesContextFlag_AndSyncsCheckedState()
     {
         var airtimeAction = controller.TravelHeaderActions[0];
@@ -125,6 +136,16 @@ public class SignalRowActionsControllerTests
             controller.ElevationHeaderActions[1],
         ];
     }
+
+    private IEnumerable<SignalRowAction> AirtimeActions() =>
+    [
+        controller.TravelHeaderActions[0],
+        controller.VelocityHeaderActions[0],
+        controller.ImuHeaderActions[0],
+        controller.PitchRollHeaderActions[0],
+        controller.SpeedHeaderActions[0],
+        controller.ElevationHeaderActions[0],
+    ];
 
     private static SignalRowActionsController CreateController(SignalRowActionState state)
     {

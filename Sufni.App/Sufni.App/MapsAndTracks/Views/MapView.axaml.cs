@@ -34,11 +34,10 @@ namespace Sufni.App.MapsAndTracks.Views;
 
 public partial class MapView : UserControl
 {
-    private const string ExtensionOverlayLayerName = "Extension Overlays";
+    private const string MatchedTrackLayerName = "Matched Track";
     private const string MapsuiInfoWidgetNamespace = "Mapsui.Widgets.InfoWidgets";
 
     private MapControl? mapControl;
-    private RecordedSessionExtensionSlots? subscribedSlots;
     private readonly MapInteractionController interaction = new(
         action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background));
     private readonly RenderedTrackGeometryCache renderedTrackGeometryCache = new();
@@ -62,14 +61,13 @@ public partial class MapView : UserControl
         set => SetValue(TimelineProperty, value);
     }
 
-    public static readonly StyledProperty<RecordedSessionExtensionSlots?> ExtensionSlotsProperty =
-        AvaloniaProperty.Register<MapView, RecordedSessionExtensionSlots?>(
-            nameof(ExtensionSlots));
+    public static readonly StyledProperty<MatchedTrackOverlay?> MatchedTrackProperty =
+        AvaloniaProperty.Register<MapView, MatchedTrackOverlay?>(nameof(MatchedTrack));
 
-    public RecordedSessionExtensionSlots? ExtensionSlots
+    public MatchedTrackOverlay? MatchedTrack
     {
-        get => GetValue(ExtensionSlotsProperty);
-        set => SetValue(ExtensionSlotsProperty, value);
+        get => GetValue(MatchedTrackProperty);
+        set => SetValue(MatchedTrackProperty, value);
     }
 
     public MapViewModel? ViewModel => DataContext as MapViewModel;
@@ -99,9 +97,8 @@ public partial class MapView : UserControl
                     }
 
                     break;
-                case nameof(ExtensionSlots):
-                    SubscribeToSlots(ExtensionSlots);
-                    UpdateExtensionMapOverlays();
+                case nameof(MatchedTrack):
+                    UpdateMatchedTrackLayer();
                     break;
             }
         };
@@ -130,7 +127,7 @@ public partial class MapView : UserControl
             var sessionTrackLayer = CreateSessionTrackLayer(); // Initially empty
             mapControl.Map.Layers.Add(sessionTrackLayer);
             mapControl.Map.Layers.Add(CreateStartEndPointsLayer());
-            mapControl.Map.Layers.Add(CreateExtensionOverlayLayer());
+            mapControl.Map.Layers.Add(new MemoryLayer { Name = MatchedTrackLayerName });
             mapControl.Map.Layers.Add(positionMarkerLayer);
 
             interaction.ViewportNotificationDue += NotifyViewportChanged;
@@ -150,14 +147,12 @@ public partial class MapView : UserControl
         base.OnAttachedToVisualTree(e);
         SubscribeToViewModel(ViewModel);
         ApplyViewModelState();
-        SubscribeToSlots(ExtensionSlots);
-        UpdateExtensionMapOverlays();
+        UpdateMatchedTrackLayer();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SubscribeToViewModel(null);
-        SubscribeToSlots(null);
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -323,44 +318,18 @@ public partial class MapView : UserControl
         appliedGeometry = geometry;
     }
 
-    private void SubscribeToSlots(RecordedSessionExtensionSlots? slots)
+    private void UpdateMatchedTrackLayer()
     {
-        if (ReferenceEquals(subscribedSlots, slots))
-        {
-            return;
-        }
-
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.MapOverlays.CollectionChanged -= OnMapOverlaysChanged;
-        }
-
-        subscribedSlots = slots;
-        if (subscribedSlots is not null)
-        {
-            subscribedSlots.MapOverlays.CollectionChanged += OnMapOverlaysChanged;
-        }
-    }
-
-    private void OnMapOverlaysChanged(object? sender, NotifyCollectionChangedEventArgs args)
-    {
-        UpdateExtensionMapOverlays();
-    }
-
-    private void UpdateExtensionMapOverlays()
-    {
-        if (mapControl?.Map.Layers.FindLayer(ExtensionOverlayLayerName).FirstOrDefault() is not MemoryLayer layer)
+        if (mapControl?.Map.Layers.FindLayer(MatchedTrackLayerName).FirstOrDefault() is not MemoryLayer layer)
         {
             return;
         }
 
         var features = new List<IFeature>();
-        if (ExtensionSlots is not null)
+        if (MatchedTrack is { } matchedTrack)
         {
-            foreach (var contribution in ExtensionSlots.MapOverlays.OrderBy(static contribution => contribution.Order))
-            {
-                AddExtensionOverlayFeatures(features, contribution);
-            }
+            AddMatchedTrackLine(features, matchedTrack.SessionTrack, width: 3, opacity: 0.25);
+            AddMatchedTrackLine(features, matchedTrack.SegmentTrack, width: 4, opacity: 0.7);
         }
 
         layer.Features = features;
@@ -412,51 +381,27 @@ public partial class MapView : UserControl
     private static bool IsInfoWidget(IWidget widget) =>
         widget.GetType().Namespace == MapsuiInfoWidgetNamespace;
 
-    private static void AddExtensionOverlayFeatures(
+    private static void AddMatchedTrackLine(
         List<IFeature> features,
-        RecordedSessionMapOverlayContribution contribution)
+        IReadOnlyList<TrackPoint> trackPoints,
+        double width,
+        double opacity)
     {
-        foreach (var line in contribution.Lines)
+        var coordinates = trackPoints
+            .Where(point => double.IsFinite(point.X) && double.IsFinite(point.Y))
+            .Select(point => new Coordinate(point.X, point.Y))
+            .ToArray();
+        if (coordinates.Length < 2)
         {
-            if (line.Points.Count < 2)
-            {
-                continue;
-            }
-
-            var coordinates = line.Points
-                .Select(MapTrackGeometry.ProjectMapCoordinate)
-                .Select(point => point.ToCoordinate())
-                .ToArray();
-            var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
-            feature.Styles.Add(new VectorStyle
-            {
-                Line = new Pen(ToMapColor(line.Style.Color, line.Style.Opacity), line.Style.Width),
-            });
-            features.Add(feature);
+            return;
         }
 
-        foreach (var point in contribution.Points)
+        var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
+        feature.Styles.Add(new VectorStyle
         {
-            var projected = MapTrackGeometry.ProjectMapCoordinate(point.Coordinate);
-            var feature = new PointFeature(projected.X, projected.Y);
-            feature.Styles.Add(new SymbolStyle
-            {
-                SymbolType = SymbolType.Ellipse,
-                Fill = new Brush(ToMapColor(point.Style.Fill, point.Style.Opacity)),
-                Line = new Pen(ToMapColor(point.Style.Stroke, point.Style.Opacity), point.Style.StrokeWidth),
-                SymbolScale = point.Style.Radius,
-            });
-            features.Add(feature);
-        }
-    }
-
-    private static Color ToMapColor(RecordedSessionMapColor color, double opacity)
-    {
-        return new Color(
-            color.R,
-            color.G,
-            color.B,
-            (int)Math.Round(color.A * Math.Clamp(opacity, 0.0, 1.0)));
+            Line = new Pen(new Color(115, 199, 240, (int)Math.Round(255 * opacity)), width),
+        });
+        features.Add(feature);
     }
 
     private void OnMapPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -507,11 +452,6 @@ public partial class MapView : UserControl
     private MemoryLayer CreateStartEndPointsLayer()
     {
         return new MemoryLayer { Name = "Start/End Marker", Style = new SymbolStyle { SymbolScale = 0.5 } };
-    }
-
-    private static MemoryLayer CreateExtensionOverlayLayer()
-    {
-        return new MemoryLayer { Name = ExtensionOverlayLayerName };
     }
 
     public void SetNormalizedCursorPosition(double pos)

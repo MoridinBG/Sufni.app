@@ -1,12 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
-
+using Sufni.App.ExtensionHost.Contracts.Models;
+using Sufni.App.ExtensionHost.Contracts.Services;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
+using Sufni.App.Segments.Services.Matching;
 using Sufni.App.Segments.Stores;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.Telemetry;
 namespace Sufni.App.Segments.Coordinators;
 
 public abstract record SegmentChangeResult
@@ -18,8 +25,42 @@ public abstract record SegmentChangeResult
 }
 
 /// <summary>
-/// Owns the saved-segment workflows: create, rename, and delete. Segment
-/// names are unique among the live segments of one session.
+/// The selected range of a session to match, with its track timeline and the
+/// session's telemetry duration.
+/// </summary>
+public sealed record SegmentMatchSource(
+    Guid SessionId,
+    TelemetryTimeRange Range,
+    TrackTimeRange TrackTimeline,
+    double DurationSeconds);
+
+public abstract record SegmentMatchResult
+{
+    private SegmentMatchResult() { }
+
+    /// <param name="Matches">Every usable match, ordered by the local time of the matched segment.</param>
+    /// <param name="FirstPage">The comparisons of the first matches.</param>
+    public sealed record Matched(IReadOnlyList<SegmentMatch> Matches, SegmentComparisonPage FirstPage) : SegmentMatchResult;
+    public sealed record NoTrack : SegmentMatchResult;
+    public sealed record Cancelled : SegmentMatchResult;
+    public sealed record Failed(string ErrorMessage) : SegmentMatchResult;
+}
+
+/// <summary>
+/// Up to <see cref="Size"/> comparisons, and the matches skipped because their
+/// session changed, is gone, or has no matched signals.
+/// </summary>
+public sealed record SegmentComparisonPage(
+    IReadOnlyList<SegmentComparison> Comparisons,
+    IReadOnlyList<SegmentMatch> UnavailableMatches)
+{
+    public const int Size = 10;
+}
+
+/// <summary>
+/// Owns the saved-segment workflows: create, rename, and delete, and matching a
+/// selected range against every session. Segment names are unique among the live
+/// segments of one session.
 /// </summary>
 public interface ISegmentCoordinator
 {
@@ -39,12 +80,36 @@ public interface ISegmentCoordinator
     /// Returns the first free "Segment N" name in the session.
     /// </summary>
     string NextName(Guid sessionId);
+
+    /// <summary>
+    /// Matches the source range against every session as the session's operation,
+    /// and builds the first comparison page. A newer operation of the session cancels it.
+    /// </summary>
+    Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source);
+
+    /// <summary>Builds the comparisons of the first available matches.</summary>
+    Task<SegmentComparisonPage> LoadComparisonPageAsync(
+        IReadOnlyList<SegmentMatch> matches,
+        double sourceDurationSeconds,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Loads the analysis input of a comparison, or null when its session changed
+    /// or is gone.
+    /// </summary>
+    Task<SegmentComparisonDetail?> LoadComparisonDetailAsync(
+        SegmentComparison comparison,
+        CancellationToken cancellationToken);
 }
 
 internal sealed class SegmentCoordinator(
     ISessionSegmentRepository repository,
     ISessionSegmentStoreWriter segmentStore,
-    ISessionStore sessionStore) : ISegmentCoordinator
+    ISessionStore sessionStore,
+    ISegmentMatcher matcher,
+    ISessionContentReader contentReader,
+    ISessionOperationRunner operationRunner,
+    IBackgroundTaskRunner backgroundTaskRunner) : ISegmentCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SegmentCoordinator>();
     private static readonly SegmentChangeResult MissingSegment =
@@ -127,6 +192,186 @@ internal sealed class SegmentCoordinator(
         return $"Segment {index}";
     }
 
+    public async Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source)
+    {
+        using var operation = operationRunner.Start(source.SessionId, "matching segment");
+        var cancellationToken = operation.CancellationToken;
+        try
+        {
+            if (await LoadSourceAsync(source, cancellationToken) is not var (points, contentToken))
+            {
+                return new SegmentMatchResult.NoTrack();
+            }
+
+            var progress = new Progress(value => ReportMatchProgress(operation, value));
+            var matches = await backgroundTaskRunner.RunAsync(
+                () => matcher.FindMatchesAsync(
+                    new SegmentMatchRequest(
+                        points,
+                        new SegmentMatchSourceContext(source.SessionId, source.Range, contentToken),
+                        SegmentDtwMatchOptions.Default),
+                    cancellationToken,
+                    progress),
+                cancellationToken);
+
+            var sorted = matches
+                .OrderBy(match => GetMatchedSegmentLocalTime(match))
+                .ThenBy(match => match.NormalizedCostMeters)
+                .ThenBy(match => match.SessionName, StringComparer.CurrentCulture)
+                .ToArray();
+            operation.Report("building comparison rows", 85);
+            var firstPage = await LoadComparisonPageAsync(sorted, source.DurationSeconds, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return operation.IsCurrent
+                ? new SegmentMatchResult.Matched(sorted.Except(firstPage.UnavailableMatches).ToArray(), firstPage)
+                : new SegmentMatchResult.Cancelled();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return new SegmentMatchResult.Cancelled();
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Segment matching failed");
+            return new SegmentMatchResult.Failed($"Segment matching failed: {e.Message}");
+        }
+    }
+
+    public async Task<SegmentComparisonPage> LoadComparisonPageAsync(
+        IReadOnlyList<SegmentMatch> matches,
+        double sourceDurationSeconds,
+        CancellationToken cancellationToken)
+    {
+        var comparisons = new List<SegmentComparison>();
+        var unavailable = new List<SegmentMatch>();
+        foreach (var match in matches)
+        {
+            if (comparisons.Count == SegmentComparisonPage.Size)
+            {
+                break;
+            }
+
+            var snapshot = await contentReader.GetExactSnapshotAsync(
+                match.SessionId,
+                match.ContentToken,
+                SessionContentSelection.All,
+                cancellationToken);
+            if (snapshot is not SessionContentSnapshotResult.Available { Snapshot.ProcessedTelemetry: { } telemetry } available)
+            {
+                unavailable.Add(match);
+                continue;
+            }
+
+            var track = available.Snapshot.Track;
+            var comparison = await backgroundTaskRunner.RunAsync(
+                () => SegmentComparisonBuilder.Build(
+                    match,
+                    telemetry,
+                    sourceDurationSeconds,
+                    track,
+                    GetTrackTimeline(track, telemetry)),
+                cancellationToken);
+            if (comparison is null)
+            {
+                unavailable.Add(match);
+            }
+            else
+            {
+                comparisons.Add(comparison);
+            }
+        }
+
+        return new SegmentComparisonPage(comparisons, unavailable);
+    }
+
+    public async Task<SegmentComparisonDetail?> LoadComparisonDetailAsync(
+        SegmentComparison comparison,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await contentReader.GetExactSnapshotAsync(
+            comparison.Match.SessionId,
+            comparison.Match.ContentToken,
+            SessionContentSelection.All,
+            cancellationToken);
+        return snapshot is SessionContentSnapshotResult.Available { Snapshot.ProcessedTelemetry: { } telemetry } available
+            ? SegmentComparisonBuilder.BuildDetail(telemetry, available.Snapshot.Track)
+            : null;
+    }
+
+    private async Task<(IReadOnlyList<TrackPoint> Points, SessionContentToken Token)?> LoadSourceAsync(
+        SegmentMatchSource source,
+        CancellationToken cancellationToken)
+    {
+        if (await contentReader.GetSessionAsync(source.SessionId, cancellationToken) is not { } session)
+        {
+            return null;
+        }
+
+        var snapshot = await contentReader.GetExactSnapshotAsync(
+            source.SessionId,
+            session.ContentToken,
+            SessionContentSelection.Track,
+            cancellationToken);
+        if (snapshot is not SessionContentSnapshotResult.Available { Snapshot.Track: { } track })
+        {
+            return null;
+        }
+
+        var start = source.TrackTimeline.OriginSeconds + source.Range.StartSeconds;
+        var end = source.TrackTimeline.OriginSeconds + source.Range.EndSeconds;
+        var points = track.Where(point => point.Time >= start && point.Time <= end).ToArray();
+        return points.Length >= 2 ? (points, session.ContentToken) : null;
+    }
+
+    private static DateTime GetMatchedSegmentLocalTime(SegmentMatch match) =>
+        match.SessionTimestamp is { } timestamp
+            ? DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime.AddSeconds(match.StartSeconds)
+            : DateTime.MaxValue;
+
+    private static TrackTimeRange? GetTrackTimeline(IReadOnlyList<TrackPoint>? points, TelemetryData telemetry)
+    {
+        if (double.IsFinite(telemetry.Metadata.Timestamp) &&
+            double.IsFinite(telemetry.Metadata.Duration) &&
+            telemetry.Metadata.Duration > 0)
+        {
+            return new TrackTimeRange(telemetry.Metadata.Timestamp, telemetry.Metadata.Duration);
+        }
+
+        if (points is null || points.Count < 2)
+        {
+            return null;
+        }
+
+        var first = points.FirstOrDefault(point => double.IsFinite(point.Time));
+        var last = points.LastOrDefault(point => double.IsFinite(point.Time));
+        var duration = last?.Time - first?.Time;
+        return first is not null && duration is > 0 && double.IsFinite(duration.Value)
+            ? new TrackTimeRange(first.Time, duration.Value)
+            : null;
+    }
+
+    private static void ReportMatchProgress(SessionOperation operation, SegmentMatchProgress progress)
+    {
+        switch (progress)
+        {
+            case SegmentMatchProgress.EnumeratingSessions enumerating:
+                operation.Report(
+                    $"enumerating session {Math.Max(1, enumerating.CurrentSession)}/{Math.Max(1, enumerating.TotalSessions)}",
+                    5 + 30 * Fraction(enumerating.CurrentSession, enumerating.TotalSessions));
+                break;
+            case SegmentMatchProgress.MatchingSessions matching:
+                operation.Report(
+                    $"matching session {Math.Clamp(matching.CompletedSessions + 1, 1, Math.Max(1, matching.TotalSessions))}/{Math.Max(1, matching.TotalSessions)}",
+                    35 + 50 * Fraction(matching.CompletedSessions + Math.Clamp(matching.CurrentSessionFraction, 0, 1), matching.TotalSessions));
+                break;
+            default:
+                operation.Report("loading sessions", 0);
+                break;
+        }
+    }
+
+    private static double Fraction(double current, int total) => total <= 0 ? 0 : Math.Clamp(current / total, 0, 1);
+
     private async Task<SegmentChangeResult> WriteAsync(string action, Func<Task<SessionSegment?>> write)
     {
         try
@@ -144,5 +389,10 @@ internal sealed class SegmentCoordinator(
             logger.Error(e, "Saved segment could not be {Action}", action);
             return new SegmentChangeResult.Failed($"Saved segment could not be {action}: {e.Message}");
         }
+    }
+
+    private sealed class Progress(Action<SegmentMatchProgress> report) : IProgress<SegmentMatchProgress>
+    {
+        public void Report(SegmentMatchProgress value) => report(value);
     }
 }

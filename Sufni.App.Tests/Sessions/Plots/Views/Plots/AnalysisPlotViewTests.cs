@@ -14,6 +14,7 @@ using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 using Sufni.Telemetry;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
+using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Plots.Views.Plots;
@@ -327,62 +328,49 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task AnalysisPlotView_AppliesExtensionOverlayDescriptors_WhenContributionsChangeAndTelemetryReloads()
+    public async Task AnalysisPlotView_AppliesComparisonOverlaysOfItsKindAndSide()
     {
-        var slots = new RecordedSessionExtensionSlots();
         var view = new TestableAnalysisPlotView
         {
             AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
             SuspensionType = SuspensionType.Front,
-            ExtensionSlots = slots,
             Telemetry = CreateProcessed(),
         };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Empty(plot.Plot.PlottableList.OfType<Scatter>());
+        var otherOverlay = new RecordedSessionAnalysisPlotOverlayDescriptor(
+            [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
+            [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())],
+            Labels: []);
 
-        slots.AnalysisOverlays.Add(new RecordedSessionAnalysisOverlayContribution(
-            "extension",
-            "rear-overlay",
-            Order: 0,
-            RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType.Rear),
-            ViewModel: null,
-            new RecordedSessionAnalysisPlotOverlayDescriptor(
-                [new RecordedSessionPlotLineOverlay(1, 2, 3, 4, CreateOverlayStyle())],
-                [new RecordedSessionPlotBandOverlay(5, 6, CreateOverlayStyle())],
-                Labels: [])));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Empty(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Empty(plot.Plot.PlottableList.OfType<Scatter>());
-
-        slots.AnalysisOverlays.Add(new RecordedSessionAnalysisOverlayContribution(
-            "extension",
-            "front-overlay",
-            Order: 1,
-            RecordedSessionAnalysisPlotTarget.TravelDistribution(SuspensionType.Front),
-            ViewModel: null,
-            new RecordedSessionAnalysisPlotOverlayDescriptor(
-                [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],
-                [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))],
-                Labels:
-                [
-                    new RecordedSessionPlotLabelOverlay(
-                        X: 0,
-                        Y: 18,
-                        "match avg: 18.0 mm",
-                        new RecordedSessionPlotLabelStyle(
-                            new RecordedSessionMapColor(255, 17, 34, 51),
-                            BackgroundColor: null,
-                            FontSize: 11,
-                            RecordedSessionPlotLabelAnchor.Top),
-                        RecordedSessionPlotLabelPlacement.PlotRightEdge)
-                ])));
+        view.AnalysisOverlays =
+        [
+            new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Rear, otherOverlay),
+            new SegmentAnalysisOverlay(SegmentAnalysisPlot.VelocityDistribution, SuspensionType.Front, otherOverlay),
+            new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Front, CreateFrontOverlay()),
+        ];
         await ViewTestHelpers.FlushDispatcherAsync();
 
         AssertAnalysisOverlay(plot);
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_KeepsComparisonOverlays_WhenTelemetryReloads()
+    {
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
+            SuspensionType = SuspensionType.Front,
+            Telemetry = CreateProcessed(),
+            AnalysisOverlays =
+            [
+                new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Front, CreateFrontOverlay()),
+            ],
+        };
+
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
 
         view.Telemetry = CreateProcessed();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -410,6 +398,24 @@ public class AnalysisPlotViewTests
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         Assert.Contains(GetBars(plot.Plot), bar => bar.LineWidth == 3.0f);
     }
+
+    private static RecordedSessionAnalysisPlotOverlayDescriptor CreateFrontOverlay() =>
+        new(
+            [new RecordedSessionPlotLineOverlay(2, 12, 8, 18, CreateOverlayStyle(width: 3))],
+            [new RecordedSessionPlotBandOverlay(20, 30, CreateOverlayStyle(opacity: 0.35))],
+            Labels:
+            [
+                new RecordedSessionPlotLabelOverlay(
+                    X: 0,
+                    Y: 18,
+                    "match avg: 18.0 mm",
+                    new RecordedSessionPlotLabelStyle(
+                        new RecordedSessionMapColor(255, 17, 34, 51),
+                        BackgroundColor: null,
+                        FontSize: 11,
+                        RecordedSessionPlotLabelAnchor.Top),
+                    RecordedSessionPlotLabelPlacement.PlotRightEdge)
+            ]);
 
     private static RecordedSessionPlotOverlayStyle CreateOverlayStyle(double width = 2, double opacity = 0.75)
     {

@@ -1,3 +1,4 @@
+using Sufni.App.Segments.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -54,7 +55,8 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         ISessionOperationGateway gateway,
         RecordedSessionEditorActions actions,
         IRelayCommand<TelemetryRangeSelection?> selectAnalysisRangeCommand,
-        IRecordedSessionAnalysisResultState analysisResultState)
+        IRecordedSessionAnalysisResultState analysisResultState,
+        SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(extensionSlots);
@@ -66,6 +68,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         this.actions = actions;
         SelectAnalysisRangeCommand = selectAnalysisRangeCommand;
         AnalysisResultState = analysisResultState;
+        SegmentComparison = segmentComparison;
         PositionVelocity = new PositionVelocityPageViewModel(this);
         stateSubscription = state.Subscribe(ApplyState);
     }
@@ -105,6 +108,8 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     }
 
     public RecordedSessionExtensionSlots ExtensionSlots => extensionSlots();
+
+    public SegmentComparisonViewModel SegmentComparison { get; }
 
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } =
         SessionInsightsPresentation.TravelDistributionModeOptions;

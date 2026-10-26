@@ -8,7 +8,7 @@ namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 /// <summary>
 /// Owns the per-row plot header actions for a recorded session: the six
 /// airtime toggles and six analysis-selection toggles, their icon and
-/// tool-tip state.
+/// tool-tip state. The airtime toggles are hidden while the session has no airtimes.
 /// </summary>
 internal sealed class SignalRowActionsController
 {
@@ -141,6 +141,16 @@ internal sealed class SignalRowActionsController
         UpdateAnalysisSelectionAction(showElevationAnalysisSelectionAction, showElevationAnalysisSelection(), hasSelection);
     }
 
+    public void SetHasAirtimes(bool hasAirtimes)
+    {
+        showAirtimeAction.IsVisible = hasAirtimes;
+        showVelocityAirtimeAction.IsVisible = hasAirtimes;
+        showImuAirtimeAction.IsVisible = hasAirtimes;
+        showPitchRollAirtimeAction.IsVisible = hasAirtimes;
+        showSpeedAirtimeAction.IsVisible = hasAirtimes;
+        showElevationAirtimeAction.IsVisible = hasAirtimes;
+    }
+
     public void RefreshAirtimeActionStates()
     {
         UpdateAirtimeAction(showAirtimeAction, showAirtime());
@@ -204,6 +214,7 @@ internal sealed class SignalRowActionsController
             ToolTip = isChecked ? "Hide airtime" : "Show airtime",
             Command = new RelayCommand(toggle),
             IsChecked = isChecked,
+            IsVisible = false,
             Tone = SignalRowActionTone.Default,
         };
     }

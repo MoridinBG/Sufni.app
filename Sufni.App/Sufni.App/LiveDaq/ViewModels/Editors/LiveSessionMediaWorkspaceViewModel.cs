@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,6 +31,7 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
     public SessionTimelineLinkViewModel Timeline { get; }
     public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+    public MatchedTrackOverlay? MatchedTrack => null;
     public double? MediaColumnWidth { get; } = 400;
     public VideoPaneViewModel? Video => null;
 

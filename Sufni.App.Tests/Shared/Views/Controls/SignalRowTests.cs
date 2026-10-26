@@ -360,6 +360,22 @@ public class SignalRowTests
     }
 
     [AvaloniaFact]
+    public async Task SignalRow_HiddenHeaderAction_AppearsWhenItBecomesVisible()
+    {
+        var action = CreateAction("toggle_action", SignalRowActionKind.Toggle);
+        action.IsVisible = false;
+        var row = CreateRow("Travel");
+        row.HeaderActions = [action];
+
+        await using var mounted = await MountAsync(row);
+
+        action.IsVisible = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
+    }
+
+    [AvaloniaFact]
     public void SignalRowExtensionHost_ReusesNeutralSignalPlotView_OnSameHostedRowUpdate()
     {
         var slots = new RecordedSessionExtensionSlots();

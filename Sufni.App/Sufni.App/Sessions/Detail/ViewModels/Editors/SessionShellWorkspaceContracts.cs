@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -67,6 +68,7 @@ public interface IRecordedSessionSignalsWorkspace
     SessionTimelineLinkViewModel Timeline { get; }
     RecordedSessionExtensionSlots ExtensionSlots { get; }
     SegmentPickerViewModel SegmentPicker { get; }
+    SegmentComparisonViewModel SegmentComparison { get; }
     IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
@@ -106,6 +108,9 @@ public interface ISessionMediaWorkspace
     /// The video pane while the session has a playable clip; otherwise null.
     /// </summary>
     VideoPaneViewModel? Video { get; }
+
+    /// <summary>The compared segment match while the analysis compares one; otherwise null.</summary>
+    MatchedTrackOverlay? MatchedTrack { get; }
 }
 
 public interface ISessionAnalysisWorkspace
@@ -118,6 +123,7 @@ public interface ISessionAnalysisWorkspace
     VelocityAverageMode SelectedVelocityAverageMode { get; set; }
     SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; }
     RecordedSessionExtensionSlots ExtensionSlots { get; }
+    SegmentComparisonViewModel? SegmentComparison { get; }
     IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; }
     IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; }
     IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; }

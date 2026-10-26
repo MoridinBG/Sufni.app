@@ -65,6 +65,7 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
     public VelocityAverageMode SelectedVelocityAverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
     public SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile { get; set; } = SessionInsightsTargetProfile.Trail;
     public RecordedSessionExtensionSlots ExtensionSlots { get; }
+    public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } =
     [
         new(TravelDistributionMode.ActiveSuspension, "Active suspension", "Uses compression and rebound stroke samples."),
@@ -191,6 +192,7 @@ internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSign
     public SessionTimelineLinkViewModel Timeline { get; } = new();
     public RecordedSessionExtensionSlots ExtensionSlots { get; }
     public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
+    public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
     public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; set; } =
         new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     public bool ShowAirtime { get; set; } = true;
@@ -272,6 +274,7 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
     public RecordedSessionExtensionSlots ExtensionSlots { get; }
     public double? MediaColumnWidth { get; set; } = 400;
     public VideoPaneViewModel? Video { get; set; }
+    public MatchedTrackOverlay? MatchedTrack { get; set; }
 
     public void NotifyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

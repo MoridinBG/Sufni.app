@@ -4,7 +4,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.ExtensionHost.Contracts.Presentation;
 using Sufni.App.ExtensionHost.Runtime.RecordedSessions;
 
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.ViewModels;
+using Sufni.App.Segments.ViewModels;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Video.ViewModels;
@@ -15,6 +17,7 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
     private readonly Func<MapViewModel?> mapViewModel;
     private readonly Func<RecordedSessionExtensionSlots> extensionSlots;
     private readonly VideoPaneViewModel? videoPane;
+    private readonly SegmentComparisonViewModel segmentComparison;
     private readonly IDisposable stateSubscription;
     private MapViewModel? currentMapViewModel;
     private RecordedSessionExtensionSlots? currentExtensionSlots;
@@ -26,7 +29,8 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
         Func<MapViewModel?> mapViewModel,
         SessionTimelineLinkViewModel timeline,
         Func<RecordedSessionExtensionSlots> extensionSlots,
-        VideoPaneViewModel? videoPane)
+        VideoPaneViewModel? videoPane,
+        SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(mapViewModel);
@@ -42,6 +46,8 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
             videoPane.PropertyChanged += OnVideoPanePropertyChanged;
         }
 
+        this.segmentComparison = segmentComparison;
+        segmentComparison.PropertyChanged += OnSegmentComparisonPropertyChanged;
         stateSubscription = state.Subscribe(ApplyState);
     }
 
@@ -58,6 +64,10 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
     public double? MediaColumnWidth => mediaColumnWidth;
 
     public VideoPaneViewModel? Video => videoPane is { HasVideo: true } ? videoPane : null;
+
+    public MatchedTrackOverlay? MatchedTrack => segmentComparison.AnalysisComparison is { } analysis
+        ? new MatchedTrackOverlay(analysis.Detail.MatchedSessionTrackPoints, analysis.Comparison.MatchedSegmentTrackPoints)
+        : null;
 
     private void ApplyState(RecordedSessionEditorState state)
     {
@@ -92,9 +102,18 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
         }
     }
 
+    private void OnSegmentComparisonPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(SegmentComparisonViewModel.AnalysisComparison))
+        {
+            OnPropertyChanged(nameof(MatchedTrack));
+        }
+    }
+
     public void Dispose()
     {
         stateSubscription.Dispose();
+        segmentComparison.PropertyChanged -= OnSegmentComparisonPropertyChanged;
         if (videoPane is not null)
         {
             videoPane.PropertyChanged -= OnVideoPanePropertyChanged;

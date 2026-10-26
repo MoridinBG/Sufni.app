@@ -2,6 +2,7 @@
 x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.StrokesPageView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
     xmlns:controls2="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
 xmlns:controls="clr-namespace:Sufni.App.Extensibility.Views"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -23,6 +24,7 @@ mc:Ignorable="d">
         ClipToBounds="True"
         Spacing="8">
             <controls:RecordedSessionAnalysisContributionsView ExtensionSlots="{Binding Workspace.ExtensionSlots}" />
+            <segmentViews:SegmentAnalysisComparisonBannerView DataContext="{Binding Workspace.SegmentComparison}" />
 
             <StackPanel
             Name="MobileStrokesSideRadioButtons"
@@ -48,7 +50,6 @@ mc:Ignorable="d">
                 CompressionLengthRowHeight="260"
                 CompressionSpeedRowHeight="260"
                 DeepTravelRowHeight="220"
-                ExtensionSlots="{Binding Workspace.ExtensionSlots}"
                 MinCardHeight="260"
                 PresentationState="{Binding Workspace.FrontAnalysisState}"
                 ReboundLengthRowHeight="260"
@@ -68,7 +69,6 @@ mc:Ignorable="d">
                 CompressionLengthRowHeight="260"
                 CompressionSpeedRowHeight="260"
                 DeepTravelRowHeight="220"
-                ExtensionSlots="{Binding Workspace.ExtensionSlots}"
                 MinCardHeight="260"
                 PresentationState="{Binding Workspace.RearAnalysisState}"
                 ReboundLengthRowHeight="260"

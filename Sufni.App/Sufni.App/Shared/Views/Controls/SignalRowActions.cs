@@ -137,10 +137,13 @@ internal sealed class SignalRowActionsPresenter : UserControl
         toggleGroup.Children.Clear();
         executeGroup.Children.Clear();
 
-        var actions = GetVisibleActions().ToArray();
-        foreach (var action in actions)
+        foreach (var action in Actions ?? [])
         {
             SubscribeToAction(action);
+        }
+
+        foreach (var action in GetVisibleActions())
+        {
             var button = CreateActionButton(action);
             switch (action.Kind)
             {

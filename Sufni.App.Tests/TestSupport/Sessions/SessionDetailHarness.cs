@@ -202,6 +202,7 @@ internal sealed class SessionDetailHarness
             () => EditorFactory,
             SessionEditingCoordinator,
             TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
+            TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
             extensionHost: new ExtensionHostDependencies(
                 recordedSessionExtensionFactories ?? [],

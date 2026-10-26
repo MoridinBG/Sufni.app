@@ -28,7 +28,7 @@ mc:Ignorable="d">
                         <plots:AnalysisPlotView
                         AnalysisRange="{Binding #Root.AnalysisRange}"
                         AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                        AnalysisOverlays="{Binding #Root.AnalysisComparison.Overlays}"
                         HeaderContent="{Binding #Root.HeaderContent}"
                         IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                         AnalysisPlotKind="TravelDistribution"
@@ -43,7 +43,6 @@ mc:Ignorable="d">
                         <plots:AnalysisPlotView
                         AnalysisRange="{Binding #Root.AnalysisRange}"
                         AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
                         AnalysisPlotKind="TravelFrequencyDistribution"
                         SuspensionType="{Binding #Root.SuspensionType}"
                         Telemetry="{Binding #Root.Telemetry}">
@@ -64,7 +63,7 @@ mc:Ignorable="d">
                         <plots:AnalysisPlotView
                         AnalysisRange="{Binding #Root.AnalysisRange}"
                         AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                        ExtensionSlots="{Binding #Root.ExtensionSlots}"
+                        AnalysisOverlays="{Binding #Root.AnalysisComparison.Overlays}"
                         HeaderContent="{Binding #Root.HeaderContent}"
                         IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                         AnalysisPlotKind="TravelDistribution"

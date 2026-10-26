@@ -1,3 +1,4 @@
+using Sufni.App.Segments.ViewModels;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -107,6 +108,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public int PageCount => Pages.Count;
     public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
     public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
+    public SegmentComparisonViewModel? SegmentComparison => null;
 
     public SuspensionSettings ForkSettings => NotesPage.ForkSettings;
     public SuspensionSettings ShockSettings => NotesPage.ShockSettings;

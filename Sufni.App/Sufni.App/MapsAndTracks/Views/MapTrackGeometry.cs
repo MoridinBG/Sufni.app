@@ -9,12 +9,6 @@ namespace Sufni.App.MapsAndTracks.Views;
 
 internal static class MapTrackGeometry
 {
-    internal static (double X, double Y) ProjectMapCoordinate(RecordedSessionMapCoordinate coordinate)
-    {
-        var (x, y) = SphericalMercator.FromLonLat(coordinate.Longitude, coordinate.Latitude);
-        return (x, y);
-    }
-
     internal static bool TryGetVisibleTrackRange(
         IReadOnlyList<TrackPoint> sessionTrackPoints,
         TrackTimeRange context,

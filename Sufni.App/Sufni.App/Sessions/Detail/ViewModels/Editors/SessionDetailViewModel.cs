@@ -95,6 +95,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly SessionTimelineLinkViewModel timeline = new();
     private readonly VideoPaneViewModel? videoPane;
     private readonly SegmentPickerViewModel segmentPicker;
+    private readonly SegmentComparisonViewModel segmentComparison;
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
     private readonly RecordedSessionExtensionSlots emptyExtensionSlots = new();
     private readonly RecordedSessionExtensionManager? recordedSessionExtensions;
@@ -1499,6 +1500,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Func<IEditorFactory> editorFactory,
         ISessionEditingCoordinator sessionEditingCoordinator,
         ISegmentPickerFactory segmentPickerFactory,
+        ISegmentComparisonFactory segmentComparisonFactory,
         ISessionOperationRunner sessionOperationRunner,
         IBikeCoordinator? bikeCoordinator = null,
         ExtensionHostDependencies? extensionHost = null,
@@ -1517,6 +1519,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.recordedSessionProjection = recordedSessionProjection;
         this.processedTelemetryReader = processedTelemetryReader;
         this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
+        segmentComparison = segmentComparisonFactory.Create(
+            snapshot.Id,
+            (start, end) => Timeline.SetVisibleRange(start, end, this),
+            ErrorMessages.Add,
+            Notifications.Add);
         analysisResultState = analysisResultStateFactory.Create(() => telemetryData);
         analysisInputs = CreateCurrentAnalysisInputs();
         analysisResultState.Invalidate(analysisInputs);
@@ -1675,21 +1682,24 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             Timeline,
             () => ExtensionSlots,
             editorActions,
-            segmentPicker);
+            segmentPicker,
+            segmentComparison);
         videoPane = videoPaneFactory?.Create(Id, Timeline);
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State,
             () => MapViewModel,
             Timeline,
             () => ExtensionSlots,
-            videoPane);
+            videoPane,
+            segmentComparison);
         var analysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             editorStateController.State,
             () => ExtensionSlots,
             this,
             editorActions,
             SelectAnalysisRangeCommand,
-            analysisResultState);
+            analysisResultState,
+            segmentComparison);
         AnalysisWorkspace = analysisWorkspace;
         PositionVelocityPage = analysisWorkspace.PositionVelocity;
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
@@ -1839,6 +1849,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             PreferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
+            signalRowActions.SetHasAirtimes(state.TelemetryData?.Airtimes.Length > 0);
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
         }
@@ -1859,6 +1870,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 state.TelemetryData?.Metadata.Duration,
                 state.Intent.AnalysisRange);
         }
+
+        segmentComparison.SetSessionState(new SegmentComparisonSessionState(
+            state.Intent.AnalysisRange,
+            state.TelemetryData,
+            state.TrackTimelineContext,
+            state.Intent.SelectedTravelDistributionMode,
+            state.Intent.SelectedVelocityAverageMode,
+            state.Intent.DampingSpeedCutoffs,
+            state.Presentation.DampingPercentages));
 
         if (previous.FullTrackPoints != state.FullTrackPoints)
         {
@@ -2510,6 +2530,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DisposeWorkspace(MediaWorkspace);
         videoPane?.Dispose();
         segmentPicker.Dispose();
+        segmentComparison.Dispose();
         DisposeWorkspace(AnalysisWorkspace);
         editorEffects.Dispose();
         editorStateSubscription.Dispose();
@@ -2741,6 +2762,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         stalenessReconciler.ResetForUnload();
         PublishRecordedSessionHostRuntimeChange();
         sessionOperationRunner.Cancel(Id);
+        segmentComparison.Clear();
         await DisposeRecordedSessionExtensionScopesAsync();
         DisposeProcessedTelemetryRetention();
         DisposeScopedSubscriptions();

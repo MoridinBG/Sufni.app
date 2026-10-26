@@ -6,7 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
+using Sufni.App.Segments.Models;
 using Sufni.Telemetry;
 using Sufni.App.ExtensionHost.Contracts.SessionDetails;
 
@@ -256,45 +256,45 @@ public class VelocityBandView : TemplatedControl
         set => SetValue(HscPercentageProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> HsrMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> HsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<SegmentDampingMetric>>(
             nameof(HsrMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> HsrMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> HsrMetricAnnotations
     {
         get => GetValue(HsrMetricAnnotationsProperty);
         set => SetValue(HsrMetricAnnotationsProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> LsrMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> LsrMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<SegmentDampingMetric>>(
             nameof(LsrMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> LsrMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> LsrMetricAnnotations
     {
         get => GetValue(LsrMetricAnnotationsProperty);
         set => SetValue(LsrMetricAnnotationsProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> LscMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> LscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<SegmentDampingMetric>>(
             nameof(LscMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> LscMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> LscMetricAnnotations
     {
         get => GetValue(LscMetricAnnotationsProperty);
         set => SetValue(LscMetricAnnotationsProperty, value);
     }
 
-    public static readonly StyledProperty<IReadOnlyList<RecordedSessionAnalysisMetricContribution>> HscMetricAnnotationsProperty =
-        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<RecordedSessionAnalysisMetricContribution>>(
+    public static readonly StyledProperty<IReadOnlyList<SegmentDampingMetric>> HscMetricAnnotationsProperty =
+        AvaloniaProperty.Register<VelocityBandView, IReadOnlyList<SegmentDampingMetric>>(
             nameof(HscMetricAnnotations),
-            Array.Empty<RecordedSessionAnalysisMetricContribution>());
+            Array.Empty<SegmentDampingMetric>());
 
-    public IReadOnlyList<RecordedSessionAnalysisMetricContribution> HscMetricAnnotations
+    public IReadOnlyList<SegmentDampingMetric> HscMetricAnnotations
     {
         get => GetValue(HscMetricAnnotationsProperty);
         set => SetValue(HscMetricAnnotationsProperty, value);

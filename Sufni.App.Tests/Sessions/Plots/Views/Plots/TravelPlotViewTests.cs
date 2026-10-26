@@ -671,6 +671,7 @@ public class TravelPlotViewTests
         public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
 
         public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
+        public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
         public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; } =
             plotContextMenuActionsBySignalRowId ?? new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
         public int ClearAnalysisRangeCallCount { get; private set; }

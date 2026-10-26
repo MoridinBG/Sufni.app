@@ -28,7 +28,6 @@ mc:Ignorable="d">
                     BalanceSpeedMode="{Binding #Root.BalanceSpeedMode}"
                     BalanceType="{Binding #Root.BalanceType}"
                     DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
-                    ExtensionSlots="{Binding #Root.ExtensionSlots}"
                     HeaderContent="{Binding #Root.HeaderContent}"
                     IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                     AnalysisPlotKind="Balance"

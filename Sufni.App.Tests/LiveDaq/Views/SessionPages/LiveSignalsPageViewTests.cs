@@ -113,6 +113,7 @@ public class LiveSignalsPageViewTests
         public RecordedSessionExtensionSlots ExtensionSlots { get; } = new();
         public double? MediaColumnWidth => 400;
         public VideoPaneViewModel? Video => null;
+        public MatchedTrackOverlay? MatchedTrack => null;
     }
 }
 

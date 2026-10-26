@@ -13,6 +13,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:models="clr-namespace:Sufni.App.Infrastructure"
 xmlns:plotModels="clr-namespace:Sufni.App.MapsAndTracks.Plots"
 xmlns:plots="clr-namespace:Sufni.App.LiveDaq.Views.Plots"
+xmlns:segmentViews="clr-namespace:Sufni.App.Segments.Views"
 xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
 d:DesignHeight="450"
 d:DesignWidth="800"
@@ -24,6 +25,8 @@ mc:Ignorable="d">
         <controls:SignalRowsRoot.Rows>
             <controls:SignalRow
             RowId="{x:Static models:SignalRowIds.Travel}"
+            segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.TravelRows}"
+            segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
             controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding TravelHeaderActions}"
             Title="Travel (mm)"
@@ -50,6 +53,8 @@ mc:Ignorable="d">
                 <controls:SignalRow.ChildRows>
                     <controls:SignalRow
                     RowId="{x:Static models:SignalRowIds.Velocity}"
+                    segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.VelocityRows}"
+                    segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
                     controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
                     HeaderActions="{Binding VelocityHeaderActions}"
                     Title="Velocity (m/s)"
@@ -79,6 +84,8 @@ mc:Ignorable="d">
 
             <controls:SignalRow
             RowId="{x:Static models:SignalRowIds.Imu}"
+            segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.ImuRows}"
+            segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
             controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding ImuHeaderActions}"
             Title="Vibration RMS (g)"
@@ -137,6 +144,8 @@ mc:Ignorable="d">
 
             <controls:SignalRow
             RowId="{x:Static models:SignalRowIds.Speed}"
+            segmentViews:SegmentComparisonRows.Rows="{Binding SegmentComparison.SpeedRows}"
+            segmentViews:SegmentComparisonRows.Timeline="{Binding Timeline}"
             controls:SignalRowExtensionHost.ExtensionSlots="{Binding ExtensionSlots}"
             HeaderActions="{Binding SpeedHeaderActions}"
             Title="GPS speed (km/h)"

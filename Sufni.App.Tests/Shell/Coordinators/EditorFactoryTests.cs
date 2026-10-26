@@ -381,6 +381,7 @@ public class EditorFactoryTests
             Substitute.For<IVideoPaneFactory>(),
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(),
+            TestSegmentComparisons.CreateFactory(),
             new SessionOperationRunner());
     }
 

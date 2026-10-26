@@ -178,6 +178,7 @@ internal sealed class SessionDetailViewTestContext
             () => Substitute.For<IEditorFactory>(),
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(dialogService: dialogService),
+            TestSegmentComparisons.CreateFactory(),
             new SessionOperationRunner());
     }
 }
