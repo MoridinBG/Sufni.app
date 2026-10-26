@@ -73,10 +73,11 @@ need a lock. After the commit the coordinator publishes the changed sessions,
 requests their recompute with `RecomputeReason.SourceWindowChanged` before any
 other await (an open editor prompts for a recompute of a stale session unless
 one is already running), publishes the changed clips, opens a split's second
-part in the background, and waits for the recomputes. The editor shows the
-operation overlay while an edit runs, allows one edit at a time, and enables a
-command only when every remaining part keeps at least five samples and a trim
-removes at least one.
+part in the background, and waits for the recomputes. Until a recompute
+completes, the session shows as stale and then reloads, as after a built-in
+recalculate; edits do not use the operation overlay. The editor allows one edit
+at a time and enables a command only when every remaining part keeps at least
+five samples and a trim removes at least one.
 
 ## Dependency Injection
 

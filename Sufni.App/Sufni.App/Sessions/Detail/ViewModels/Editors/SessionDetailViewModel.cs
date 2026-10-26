@@ -1392,12 +1392,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool CanUndoTrimFromPlotContext(TelemetryPlotContextMenuContext? context) =>
         !IsSessionEditRunning &&
         IsTelemetryPlotContext(context) &&
-        sessionSnapshot.CanUndoTrim;
+        sessionSnapshot is { CanUndoTrim: true };
 
     private Task TrimFromBeginningFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
         CanTrimFromBeginningFromPlotContext(context)
             ? RunSessionEditAsync(
-                "Trimming session",
                 "Session trimmed.",
                 () => sessionEditingCoordinator.TrimFromBeginningAsync(Id, context!.ClickSeconds))
             : Task.CompletedTask;
@@ -1405,7 +1404,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private Task TrimUntilEndFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
         CanTrimUntilEndFromPlotContext(context)
             ? RunSessionEditAsync(
-                "Trimming session",
                 "Session trimmed.",
                 () => sessionEditingCoordinator.TrimUntilEndAsync(Id, context!.ClickSeconds))
             : Task.CompletedTask;
@@ -1413,7 +1411,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private Task SplitFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
         CanSplitFromPlotContext(context)
             ? RunSessionEditAsync(
-                "Splitting session",
                 "Session split.",
                 () => sessionEditingCoordinator.SplitAsync(Id, context!.ClickSeconds))
             : Task.CompletedTask;
@@ -1421,35 +1418,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private Task UndoTrimFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
         CanUndoTrimFromPlotContext(context)
             ? RunSessionEditAsync(
-                "Restoring session trim",
                 "Session trim restored.",
                 () => sessionEditingCoordinator.UndoTrimAsync(Id))
             : Task.CompletedTask;
 
-    private async Task RunSessionEditAsync(
-        string progressMessage,
-        string appliedMessage,
-        Func<Task<SessionEditResult>> edit)
+    private async Task RunSessionEditAsync(string appliedMessage, Func<Task<SessionEditResult>> edit)
     {
-        SetSessionOperationState(SessionOperationPresentationState.Progress(progressMessage, 0));
-        try
+        switch (await edit())
         {
-            switch (await edit())
-            {
-                case SessionEditResult.Applied { RecomputeError: { } recomputeError }:
-                    ErrorMessages.Add(recomputeError);
-                    break;
-                case SessionEditResult.Applied:
-                    Notifications.Add(appliedMessage);
-                    break;
-                case SessionEditResult.Failed failed:
-                    ErrorMessages.Add(failed.ErrorMessage);
-                    break;
-            }
-        }
-        finally
-        {
-            SetSessionOperationState(SessionOperationPresentationState.Hidden);
+            case SessionEditResult.Applied { RecomputeError: { } recomputeError }:
+                ErrorMessages.Add(recomputeError);
+                break;
+            case SessionEditResult.Applied:
+                Notifications.Add(appliedMessage);
+                break;
+            case SessionEditResult.Failed failed:
+                ErrorMessages.Add(failed.ErrorMessage);
+                break;
         }
     }
 
