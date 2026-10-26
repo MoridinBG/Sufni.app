@@ -287,7 +287,7 @@ matched session in one transaction and updates the alignment offset. A clip is
 live only while its session is live: `ISessionVideoRepository` reads the clips
 of live sessions, and no delete cascades to clips. Builds that
 ran the old video extension have their `private_session_video_clip` rows copied
-once into `session_video`; the copy drops the source table and its
+once into `session_video` (`core_migration` id `session-video`); the copy drops the source table and its
 `extension_schema_version` row. See [video.md](video.md).
 
 `session_segment` holds saved segments: a name and a time range in seconds
@@ -295,7 +295,8 @@ from the session's telemetry start. It is a `Synchronizable` table. A segment
 is live only while its session is live: `ISessionSegmentRepository` reads the
 live segments of live sessions, and no delete cascades to segments. Builds that
 ran the old segment extension have every `private_saved_session_segment` row,
-tombstones included, copied once into `session_segment`; the copy drops the
+tombstones included, copied once into `session_segment` (`core_migration` id
+`session-segment`); the copy drops the
 source table and its `extension_schema_version` row. See
 [segments.md](segments.md).
 

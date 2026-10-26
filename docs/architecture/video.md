@@ -34,7 +34,7 @@ Video playback is a capability. `AppCapabilities.CanPlayVideo` is true on Window
 
 `session_video` holds one row per linked session: id, `session_id`, `path`, `start_timestamp` (unix seconds), `duration_seconds`, `alignment_offset_seconds`, and `added` (unix milliseconds). One import writes one row for each matched session in a single transaction.
 
-`DatabaseMigrationRunner` creates the table with the core tables. A clip is live only while its session is live: the repository reads the clips of live sessions, and a session delete does not touch `session_video`. Startup cleanup removes rows whose session row is gone. Builds that ran the old video extension have their `private_session_video_clip` rows copied into `session_video` once; the copy drops the source table and its extension schema-version row.
+`DatabaseMigrationRunner` creates the table with the core tables. A clip is live only while its session is live: the repository reads the clips of live sessions, and a session delete does not touch `session_video`. Startup cleanup removes rows whose session row is gone. Builds that ran the old video extension have their `private_session_video_clip` rows copied into `session_video` once (`core_migration` id `session-video`); the copy drops the source table and its extension schema-version row.
 
 ## Store And Coordinator
 

@@ -50,9 +50,9 @@ internal sealed class DatabaseMigrationRunner(
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();
-            await CopyPrivateSessionVideosAsync();
+            await MigrateSessionVideosAsync();
             await MigrateSessionDerivationWindowsAsync();
-            await CopyPrivateSessionSegmentsAsync();
+            await MigrateSessionSegmentsAsync();
             await extensionMigratorRunner.RunAsync(connection);
 
             var cleanupSummary = await Cleanup();
@@ -141,52 +141,64 @@ internal sealed class DatabaseMigrationRunner(
 
     // One-time copy of the video links kept by the former private video
     // extension. The source table exists only on databases that ran it.
-    private async Task CopyPrivateSessionVideosAsync()
+    private async Task MigrateSessionVideosAsync()
     {
-        var sourceTableCount = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_video_clip'");
-        if (sourceTableCount == 0)
+        const string migrationId = "session-video";
+        if (await coreMigrations.IsAppliedAsync(migrationId))
         {
             return;
         }
 
-        await connection.RunInTransactionAsync(transaction =>
+        var hasSourceTable = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_video_clip'") > 0;
+        if (hasSourceTable)
         {
-            transaction.Execute(
-                """
-                INSERT OR IGNORE INTO session_video
-                    (id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added)
-                SELECT id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added
-                FROM private_session_video_clip
-                """);
-            transaction.Execute("DROP TABLE private_session_video_clip");
-            transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
-        });
+            await connection.RunInTransactionAsync(transaction =>
+            {
+                transaction.Execute(
+                    """
+                    INSERT OR IGNORE INTO session_video
+                        (id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added)
+                    SELECT id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added
+                    FROM private_session_video_clip
+                    """);
+                transaction.Execute("DROP TABLE private_session_video_clip");
+                transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.video'");
+            });
+        }
+
+        await coreMigrations.MarkAppliedAsync(migrationId);
     }
 
     // One-time copy of the saved segments kept by the former private segment
     // extension, tombstones included so that peers' deletions stay deleted.
-    private async Task CopyPrivateSessionSegmentsAsync()
+    private async Task MigrateSessionSegmentsAsync()
     {
-        var sourceTableCount = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_saved_session_segment'");
-        if (sourceTableCount == 0)
+        const string migrationId = "session-segment";
+        if (await coreMigrations.IsAppliedAsync(migrationId))
         {
             return;
         }
 
-        await connection.RunInTransactionAsync(transaction =>
+        var hasSourceTable = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_saved_session_segment'") > 0;
+        if (hasSourceTable)
         {
-            transaction.Execute(
-                """
-                INSERT OR IGNORE INTO session_segment
-                    (id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted)
-                SELECT id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted
-                FROM private_saved_session_segment
-                """);
-            transaction.Execute("DROP TABLE private_saved_session_segment");
-            transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.segment-analysis'");
-        });
+            await connection.RunInTransactionAsync(transaction =>
+            {
+                transaction.Execute(
+                    """
+                    INSERT OR IGNORE INTO session_segment
+                        (id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted)
+                    SELECT id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted
+                    FROM private_saved_session_segment
+                    """);
+                transaction.Execute("DROP TABLE private_saved_session_segment");
+                transaction.Execute("DELETE FROM extension_schema_version WHERE extension_id = 'sufni.private.segment-analysis'");
+            });
+        }
+
+        await coreMigrations.MarkAppliedAsync(migrationId);
     }
 
     // One-time move of trim/split windows onto the session row. Windows come from
