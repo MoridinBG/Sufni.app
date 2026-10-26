@@ -24,6 +24,7 @@ public enum AnalysisPlotKind
     StrokeSpeedDistribution,
     DeepTravelDistribution,
     VibrationDistribution,
+    PositionVelocity,
 }
 
 public class AnalysisPlotView : SufniTelemetryPlotView
@@ -71,6 +72,16 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         AvaloniaProperty.Register<AnalysisPlotView, DampingSpeedCutoffs>(
             nameof(DampingSpeedCutoffs),
             DampingSpeedCutoffs.Default);
+
+    public static readonly StyledProperty<PositionVelocitySideMode> PositionVelocitySideModeProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, PositionVelocitySideMode>(
+            nameof(PositionVelocitySideMode),
+            PositionVelocitySideMode.Both);
+
+    public static readonly StyledProperty<PositionVelocityDisplayMode> PositionVelocityDisplayModeProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, PositionVelocityDisplayMode>(
+            nameof(PositionVelocityDisplayMode),
+            PositionVelocityDisplayMode.Traces);
 
     public static readonly StyledProperty<string> AnalysisTitleProperty =
         AvaloniaProperty.Register<AnalysisPlotView, string>(nameof(AnalysisTitle), string.Empty);
@@ -149,6 +160,18 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(DampingSpeedCutoffsProperty, value);
     }
 
+    public PositionVelocitySideMode PositionVelocitySideMode
+    {
+        get => GetValue(PositionVelocitySideModeProperty);
+        set => SetValue(PositionVelocitySideModeProperty, value);
+    }
+
+    public PositionVelocityDisplayMode PositionVelocityDisplayMode
+    {
+        get => GetValue(PositionVelocityDisplayModeProperty);
+        set => SetValue(PositionVelocityDisplayModeProperty, value);
+    }
+
     public string AnalysisTitle
     {
         get => GetValue(AnalysisTitleProperty);
@@ -222,7 +245,8 @@ public class AnalysisPlotView : SufniTelemetryPlotView
                 e.Property.Name is nameof(BalanceDisplacementMode) && AnalysisPlotKind == AnalysisPlotKind.Balance ||
                 e.Property.Name is nameof(BalanceSpeedMode) && AnalysisPlotKind == AnalysisPlotKind.Balance ||
                 e.Property.Name is nameof(DampingSpeedCutoffs) && AnalysisPlotKind is AnalysisPlotKind.Balance or AnalysisPlotKind.VelocityDistribution ||
-                e.Property.Name is nameof(VelocityAverageMode) && AnalysisPlotKind == AnalysisPlotKind.VelocityDistribution)
+                e.Property.Name is nameof(VelocityAverageMode) && AnalysisPlotKind == AnalysisPlotKind.VelocityDistribution ||
+                e.Property.Name is nameof(PositionVelocitySideMode) or nameof(PositionVelocityDisplayMode) && AnalysisPlotKind == AnalysisPlotKind.PositionVelocity)
             {
                 if (!HasPlotModel)
                 {
@@ -263,6 +287,13 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         SubscribeToSlots(null);
         SubscribeToAnalysisResultState(null);
+        if (HasPlotModel && PlotModel is PositionVelocityPlot)
+        {
+            // Releases the native stroke paths while detached; the next attach reloads.
+            PlotModel.Clear();
+            RequestReload();
+        }
+
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -278,6 +309,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             AnalysisPlotKind.StrokeSpeedDistribution => new StrokeSpeedDistributionPlot(PlotControl.Plot, SuspensionType, BalanceType, CurrentTheme),
             AnalysisPlotKind.DeepTravelDistribution => new DeepTravelDistributionPlot(PlotControl.Plot, SuspensionType, CurrentTheme),
             AnalysisPlotKind.VibrationDistribution => new VibrationThirdsPlot(PlotControl.Plot, SuspensionType, ImuLocation, CurrentTheme),
+            AnalysisPlotKind.PositionVelocity => new PositionVelocityPlot(PlotControl.Plot, CurrentTheme),
             _ => throw new ArgumentOutOfRangeException()
         };
 
@@ -450,6 +482,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             AnalysisPlotKind.StrokeSpeedDistribution => RecordedSessionAnalysisFamily.StrokeSpeedDistribution,
             AnalysisPlotKind.DeepTravelDistribution => RecordedSessionAnalysisFamily.DeepTravelDistribution,
             AnalysisPlotKind.VibrationDistribution => RecordedSessionAnalysisFamily.VibrationDistribution,
+            AnalysisPlotKind.PositionVelocity => RecordedSessionAnalysisFamily.PositionVelocity,
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -480,6 +513,9 @@ public class AnalysisPlotView : SufniTelemetryPlotView
                 plot.LoadAnalysisData(data);
                 break;
             case (VibrationThirdsPlot plot, VibrationDistributionAnalysisResult data):
+                plot.LoadAnalysisData(data);
+                break;
+            case (PositionVelocityPlot plot, PositionVelocityAnalysisResult data):
                 plot.LoadAnalysisData(data);
                 break;
             default:
@@ -577,6 +613,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             AnalysisPlotKind.StrokeSpeedDistribution => AnalysisPlotTitles.StrokeSpeedDistribution(SuspensionType, BalanceType),
             AnalysisPlotKind.DeepTravelDistribution => AnalysisPlotTitles.DeepTravelDistribution(SuspensionType),
             AnalysisPlotKind.VibrationDistribution => AnalysisPlotTitles.VibrationDistribution(SuspensionType, ImuLocation),
+            AnalysisPlotKind.PositionVelocity => AnalysisPlotTitles.PositionVelocity(),
             _ => string.Empty
         };
     }
@@ -596,6 +633,10 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             case VelocityDistributionPlot velocityDistribution:
                 velocityDistribution.AverageMode = VelocityAverageMode;
                 velocityDistribution.DampingSpeedCutoffs = DampingSpeedCutoffs;
+                break;
+            case PositionVelocityPlot positionVelocity:
+                positionVelocity.SideMode = PositionVelocitySideMode;
+                positionVelocity.DisplayMode = PositionVelocityDisplayMode;
                 break;
         }
     }

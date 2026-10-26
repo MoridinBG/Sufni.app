@@ -137,10 +137,6 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public IRecordedSessionOperationLease StartOperation(string description) =>
         Substitute.For<IRecordedSessionOperationLease>();
 
-    public void RequestPageSelection(string contributionId)
-    {
-    }
-
     public Task<Guid?> CreateDerivedSessionAsync(
         Guid fromSessionId,
         string name,

@@ -128,7 +128,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly RecordedPagePresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
-    private readonly RecordedSessionExtensionPagesController? extensionPagesController;
     private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
     private Session session;
     private RecordedSignalsPageViewModel SignalsPage { get; }
@@ -136,6 +135,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private SpringPageViewModel SpringPage { get; }
     private BalancePageViewModel BalancePage { get; }
     private VibrationPageViewModel VibrationPage { get; }
+    private PositionVelocityPageViewModel PositionVelocityPage { get; }
     private SessionInsightsPageViewModel AnalysisPage { get; }
 
     private readonly CancellableOperation loadOperation = new();
@@ -1347,9 +1347,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ?? throw new InvalidOperationException("Recorded-session extension hosting is not configured."))
         .StartOperation(description);
 
-    void IRecordedSessionHostOperations.RequestPageSelection(string contributionId) =>
-        extensionPagesController?.RequestRecordedSessionExtensionPageSelection(contributionId);
-
     Task<Guid?> IRecordedSessionHostOperations.CreateDerivedSessionAsync(
         Guid fromSessionId,
         string name,
@@ -1578,13 +1575,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             () => MapViewModel,
             Timeline,
             () => ExtensionSlots);
-        AnalysisWorkspace = new SessionAnalysisWorkspaceViewModel(
+        var analysisWorkspace = new SessionAnalysisWorkspaceViewModel(
             editorStateController.State,
             () => ExtensionSlots,
             this,
             editorActions,
             SelectAnalysisRangeCommand,
             analysisResultState);
+        AnalysisWorkspace = analysisWorkspace;
+        PositionVelocityPage = analysisWorkspace.PositionVelocity;
         SidebarWorkspace = new SessionSidebarWorkspaceViewModel(
             this,
             () => Name,
@@ -1623,7 +1622,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 uiThreadDispatcher,
                 recordedSessionOperationCoordinator,
                 this);
-            extensionPagesController = new RecordedSessionExtensionPagesController(recordedSessionExtensions, Pages, editorActions);
         }
 
         SignalsPage = new RecordedSignalsPageViewModel(SignalsWorkspace, MediaWorkspace);
@@ -1645,6 +1643,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(SpringPage);
         Pages.Add(StrokesPage);
         Pages.Add(DampingPage);
+        Pages.Add(PositionVelocityPage);
         Pages.Add(BalancePage);
         Pages.Add(VibrationPage);
         Pages.Add(AnalysisPage);
@@ -2403,7 +2402,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DisposeWorkspace(SignalsWorkspace);
         DisposeWorkspace(MediaWorkspace);
         DisposeWorkspace(AnalysisWorkspace);
-        extensionPagesController?.Dispose();
         editorEffects.Dispose();
         editorStateSubscription.Dispose();
         editorStateController.Dispose();

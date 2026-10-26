@@ -32,6 +32,8 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.VibrationDistribution => CalculateVibrationDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.ImuDisplayProjection => new ImuDisplayProjectionAnalysisResult(
                 ImuDisplaySignalProcessor.ProcessRecorded(telemetry)),
+            RecordedSessionAnalysisFamily.PositionVelocity => new PositionVelocityAnalysisResult(
+                PositionVelocityTraceBuilder.Build(telemetry, key.AnalysisRange)),
             _ => throw new ArgumentOutOfRangeException(nameof(key), key.Family, null),
         };
 

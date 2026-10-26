@@ -272,6 +272,13 @@ mc:Ignorable="d">
                     VelocityAverageMode="{Binding SelectedVelocityAverageMode}" />
                 </Grid>
 
+                <!--  Position/velocity  -->
+                <Grid Name="PositionVelocity">
+                    <controls:PositionVelocityAnalysisHost
+                    DataContext="{Binding PositionVelocity}"
+                    PlotHeight="460" />
+                </Grid>
+
                 <!--  Balance plots  -->
                 <Grid Name="Balance">
                     <Grid.ColumnDefinitions>

@@ -68,8 +68,7 @@ public class RecordedSessionExtensionManagerTests
             clearAnalysisRange: () => calls.Add("clear-analysis"),
             setTimelineVisibleRange: (start, end, source) => calls.Add(FormattableString.Invariant($"timeline:{start}:{end}:{source}")),
             addError: message => calls.Add($"error:{message}"),
-            addNotification: message => calls.Add($"notification:{message}"),
-            requestPageSelection: id => calls.Add($"page:{id}"));
+            addNotification: message => calls.Add($"notification:{message}"));
         await manager.InitializeAsync(CreateState(), cancellationToken: TestContext.Current.CancellationToken);
         var context = factory.Context;
 
@@ -78,7 +77,6 @@ public class RecordedSessionExtensionManagerTests
         context.SetTimelineVisibleRange(0.2, 0.8, "source");
         context.AddError("bad");
         context.AddNotification("done");
-        context.RequestPageSelection("extension.page");
 
         Assert.Equal(
             [
@@ -87,7 +85,6 @@ public class RecordedSessionExtensionManagerTests
                 "timeline:0.2:0.8:source",
                 "error:bad",
                 "notification:done",
-                "page:extension.page",
             ],
             calls);
     }
@@ -139,21 +136,17 @@ public class RecordedSessionExtensionManagerTests
             "match 12.00",
             "-2.00",
             RecordedSessionMetricTone.Negative);
-        var analysisTabContribution = CreateAnalysisTabContribution("test", "tab");
 
         factory.Scope!.Slots.SignalToolbarViews.Add(contribution);
         factory.Scope.Slots.AnalysisMetrics.Add(metricContribution);
-        factory.Scope.Slots.AnalysisTabs.Add(analysisTabContribution);
 
         Assert.Equal([contribution], manager.ExtensionSlots.SignalToolbarViews);
         Assert.Equal([metricContribution], manager.ExtensionSlots.AnalysisMetrics);
-        Assert.Equal([analysisTabContribution], manager.ExtensionSlots.AnalysisTabs);
 
         await manager.DisposeScopesAsync();
 
         Assert.Empty(manager.ExtensionSlots.SignalToolbarViews);
         Assert.Empty(manager.ExtensionSlots.AnalysisMetrics);
-        Assert.Empty(manager.ExtensionSlots.AnalysisTabs);
     }
 
     [Fact]
@@ -224,70 +217,6 @@ public class RecordedSessionExtensionManagerTests
             ]));
 
         Assert.Contains("duplicate", exception.Message);
-    }
-
-    [Fact]
-    public async Task ScopeSlotChanges_AcceptsAnalysisTabContributionFromOwner()
-    {
-        var factory = new TestRecordedSessionExtensionFactory("owner");
-        var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
-        var contribution = CreateAnalysisTabContribution("owner", "tab");
-
-        factory.Scope!.Slots.AnalysisTabs.Add(contribution);
-
-        Assert.Equal([contribution], manager.ExtensionSlots.AnalysisTabs);
-    }
-
-    [Fact]
-    public async Task ScopeSlotChanges_RejectAnalysisTabContributionFromDifferentOwner()
-    {
-        var factory = new TestRecordedSessionExtensionFactory("owner");
-        var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("other", "tab")));
-
-        Assert.Contains("other:tab", exception.Message);
-        Assert.Contains("owner", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.AnalysisTabs);
-    }
-
-    [Fact]
-    public async Task ScopeSlotChanges_RejectAnalysisTabContributionWithBlankContributionId()
-    {
-        var factory = new TestRecordedSessionExtensionFactory("owner");
-        var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("owner", " ")));
-
-        Assert.Contains("recorded-session analysis tabs contribution id is required", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.AnalysisTabs);
-    }
-
-    [Fact]
-    public async Task ScopeSlotChanges_RejectDuplicateContributionIdsAcrossAnalysisTabsAndOtherSlotFamilies()
-    {
-        var factory = new TestRecordedSessionExtensionFactory("owner");
-        var manager = CreateManager([factory]);
-        await manager.InitializeAsync(CreateState(isLoaded: true), cancellationToken: TestContext.Current.CancellationToken);
-        factory.Scope!.Slots.AnalysisTabs.Add(CreateAnalysisTabContribution("owner", "duplicate"));
-
-        var exception = Assert.Throws<InvalidOperationException>(() =>
-            factory.Scope.Slots.Pages.Add(new RecordedSessionPageContribution(
-                "owner",
-                "duplicate",
-                Order: 2,
-                "Page",
-                new TestContributionViewModel(),
-                RequestedIndex: 0)));
-
-        Assert.Contains("duplicate", exception.Message);
-        Assert.Contains("owner", exception.Message);
-        Assert.Empty(manager.ExtensionSlots.Pages);
     }
 
     [Fact]
@@ -439,7 +368,6 @@ public class RecordedSessionExtensionManagerTests
         Action<double, double, object>? setTimelineVisibleRange = null,
         Action<string>? addError = null,
         Action<string>? addNotification = null,
-        Action<string>? requestPageSelection = null,
         IUiThreadDispatcher? uiThreadDispatcher = null)
     {
         var coordinator = operationCoordinator ?? new RecordedSessionOperationCoordinator((_, _) => { }, () => { });
@@ -457,8 +385,7 @@ public class RecordedSessionExtensionManagerTests
                 setTimelineVisibleRange,
                 addError,
                 addNotification,
-                coordinator.StartOperation,
-                requestPageSelection));
+                coordinator.StartOperation));
     }
 
     private static RecordedSessionHostState CreateState(
@@ -481,19 +408,6 @@ public class RecordedSessionExtensionManagerTests
                 DampingSpeedCutoffs.Default,
                 VelocityAverageMode.SampleAveraged,
                 TravelDistributionMode.ActiveSuspension));
-    }
-
-    private static RecordedSessionAnalysisTabContribution CreateAnalysisTabContribution(
-        string extensionId,
-        string contributionId)
-    {
-        return new RecordedSessionAnalysisTabContribution(
-            extensionId,
-            contributionId,
-            Order: 1,
-            "Extension tab",
-            RequestedIndex: 3,
-            new TestContributionViewModel());
     }
 
     private sealed class DeferredUiThreadDispatcher : IUiThreadDispatcher

@@ -23,7 +23,6 @@ public sealed class DelegatingRecordedSessionHostOperations(
     Action<string>? addError = null,
     Action<string>? addNotification = null,
     Func<string, IRecordedSessionOperationLease>? startOperation = null,
-    Action<string>? requestPageSelection = null,
     Func<RecordedSessionTimelineAlignmentTarget, double, string?, bool>? tryBeginTimelineAlignment = null,
     TryResolveTimelineAlignmentHandler? tryResolveTimelineAlignment = null,
     Func<RecordedSessionTimelineAlignmentTarget, string?, bool>? tryCancelTimelineAlignment = null,
@@ -76,9 +75,6 @@ public sealed class DelegatingRecordedSessionHostOperations(
         startOperation is null
             ? Substitute.For<IRecordedSessionOperationLease>()
             : startOperation(description);
-
-    public void RequestPageSelection(string contributionId) =>
-        (requestPageSelection ?? (_ => { }))(contributionId);
 
     public Task<Guid?> CreateDerivedSessionAsync(
         Guid fromSessionId,

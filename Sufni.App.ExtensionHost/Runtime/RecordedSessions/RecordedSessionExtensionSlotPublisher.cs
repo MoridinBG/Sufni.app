@@ -10,11 +10,9 @@ public sealed class RecordedSessionExtensionSlotBuilder
 {
     public List<RecordedSessionToolbarCommandContribution> SignalToolbarCommands { get; } = [];
     public List<RecordedSessionToolbarViewContribution> SignalToolbarViews { get; } = [];
-    public List<RecordedSessionPageContribution> Pages { get; } = [];
     public List<RecordedSessionMediaPaneContribution> MediaPanes { get; } = [];
     public List<RecordedSessionMapOverlayContribution> MapOverlays { get; } = [];
     public List<RecordedSessionAnalysisBannerContribution> AnalysisBanners { get; } = [];
-    public List<RecordedSessionAnalysisTabContribution> AnalysisTabs { get; } = [];
     public List<RecordedSessionAnalysisOverlayContribution> AnalysisOverlays { get; } = [];
     public List<RecordedSessionAnalysisMetricContribution> AnalysisMetrics { get; } = [];
     public List<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = [];
@@ -30,11 +28,9 @@ public sealed class RecordedSessionExtensionSlotBuilder
 
         SignalToolbarCommands.AddRange(slots.SignalToolbarCommands);
         SignalToolbarViews.AddRange(slots.SignalToolbarViews);
-        Pages.AddRange(slots.Pages);
         MediaPanes.AddRange(slots.MediaPanes);
         MapOverlays.AddRange(slots.MapOverlays);
         AnalysisBanners.AddRange(slots.AnalysisBanners);
-        AnalysisTabs.AddRange(slots.AnalysisTabs);
         AnalysisOverlays.AddRange(slots.AnalysisOverlays);
         AnalysisMetrics.AddRange(slots.AnalysisMetrics);
         SessionListIndicators.AddRange(slots.SessionListIndicators);
@@ -49,11 +45,9 @@ public sealed class RecordedSessionExtensionSlotBuilder
     {
         slots.SignalToolbarCommands.ReplaceWith(SignalToolbarCommands);
         slots.SignalToolbarViews.ReplaceWith(SignalToolbarViews);
-        slots.Pages.ReplaceWith(Pages);
         slots.MediaPanes.ReplaceWith(MediaPanes);
         slots.MapOverlays.ReplaceWith(MapOverlays);
         slots.AnalysisBanners.ReplaceWith(AnalysisBanners);
-        slots.AnalysisTabs.ReplaceWith(AnalysisTabs);
         slots.AnalysisOverlays.ReplaceWith(AnalysisOverlays);
         slots.AnalysisMetrics.ReplaceWith(AnalysisMetrics);
         slots.SessionListIndicators.ReplaceWith(SessionListIndicators);

@@ -13,11 +13,9 @@ public sealed class RecordedSessionExtensionSlots
 {
     public ObservableCollection<RecordedSessionToolbarCommandContribution> SignalToolbarCommands { get; } = CreateCollection<RecordedSessionToolbarCommandContribution>();
     public ObservableCollection<RecordedSessionToolbarViewContribution> SignalToolbarViews { get; } = CreateCollection<RecordedSessionToolbarViewContribution>();
-    public ObservableCollection<RecordedSessionPageContribution> Pages { get; } = CreateCollection<RecordedSessionPageContribution>();
     public ObservableCollection<RecordedSessionMediaPaneContribution> MediaPanes { get; } = CreateCollection<RecordedSessionMediaPaneContribution>();
     public ObservableCollection<RecordedSessionMapOverlayContribution> MapOverlays { get; } = CreateCollection<RecordedSessionMapOverlayContribution>();
     public ObservableCollection<RecordedSessionAnalysisBannerContribution> AnalysisBanners { get; } = CreateCollection<RecordedSessionAnalysisBannerContribution>();
-    public ObservableCollection<RecordedSessionAnalysisTabContribution> AnalysisTabs { get; } = CreateCollection<RecordedSessionAnalysisTabContribution>();
     public ObservableCollection<RecordedSessionAnalysisOverlayContribution> AnalysisOverlays { get; } = CreateCollection<RecordedSessionAnalysisOverlayContribution>();
     public ObservableCollection<RecordedSessionAnalysisMetricContribution> AnalysisMetrics { get; } = CreateCollection<RecordedSessionAnalysisMetricContribution>();
     public ObservableCollection<RecordedSessionListIndicatorContribution> SessionListIndicators { get; } = CreateCollection<RecordedSessionListIndicatorContribution>();
@@ -37,11 +35,9 @@ public sealed class RecordedSessionExtensionSlots
             [
                 Subscribe(SignalToolbarCommands, changed),
                 Subscribe(SignalToolbarViews, changed),
-                Subscribe(Pages, changed),
                 Subscribe(MediaPanes, changed),
                 Subscribe(MapOverlays, changed),
                 Subscribe(AnalysisBanners, changed),
-                Subscribe(AnalysisTabs, changed),
                 Subscribe(AnalysisOverlays, changed),
                 Subscribe(AnalysisMetrics, changed),
                 Subscribe(SessionListIndicators, changed),

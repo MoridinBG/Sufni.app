@@ -25,13 +25,11 @@ Plot views are controls under `Sufni.App/Sufni.App/Shared/Views/Plots/` and the 
 ## Zoomed Plot Modal
 
 Every app-owned `SufniPlotView` surface is wrapped in the SDK's
-`PlotZoomContainer`, either through `SignalRow`, analysis/leverage host XAML,
-or a direct wrapper around a raw extension-owned `AvaPlot`. The container
-listens for `InputElement.DoubleTappedEvent`, ignores gestures that originate
-inside interactive controls, and raises `PlotZoomRequested`. ScottPlot's
-`DoubleClickBenchmark` response is disabled in `SufniAvaPlot` and in raw
-extension plots that opt into the same modal so the double-click gesture is
-owned by the app.
+`PlotZoomContainer`, either through `SignalRow` or analysis/leverage host XAML.
+The container listens for `InputElement.DoubleTappedEvent`, ignores gestures
+that originate inside interactive controls, and raises `PlotZoomRequested`.
+ScottPlot's `DoubleClickBenchmark` response is disabled in `SufniAvaPlot` so
+the double-click gesture is owned by the app.
 
 `PlotZoomOverlayHost` listens for `PlotZoomRequested` at the `TopLevel` and
 moves the live plot control into the modal; it never creates a copy. Borrowing
@@ -70,7 +68,7 @@ SufniPlot                      (Plots/SufniPlot.cs)
 │   │       ExtensionSignalPlot
 │   ├── TravelDistributionPlot, TravelFrequencyDistributionPlot, DeepTravelDistributionPlot,
 │   │   VelocityDistributionPlot, StrokeLengthDistributionPlot, StrokeSpeedDistributionPlot,
-│   │   BalancePlot, VibrationThirdsPlot
+│   │   BalancePlot, VibrationThirdsPlot, PositionVelocityPlot
 │   └── LiveStreamingPlotBase  (Plots/LiveStreamingPlotBase.cs)
 │       └── LiveTravelPlot, LiveVelocityPlot, LiveImuPlot, LiveFramePitchRollPlot
 └── LeverageRatioPlot          (no telemetry — fed a CoordinateList)
@@ -80,7 +78,7 @@ SufniPlot                      (Plots/SufniPlot.cs)
 
 `SufniPlotView` (the Avalonia control) resolves the active theme with `SufniThemes.FromVariant(ActualThemeVariant)`, subscribes to `ThemeVariantScope.ActualThemeVariantProperty` in `OnAttachedToVisualTree`, disposes the subscription in `OnDetachedFromVisualTree`, and exposes a `protected virtual void OnThemeChanged(SufniTheme)` hook. `SufniTimeSeriesPlotView` (and `LeverageRatioPlotView`) override the hook to call `plot.ApplyTheme(theme)` and `RequestReload()` so keyed range overlays, marker lines, and cursor tooltips repaint with the new palette. Analysis plot views use the same reload path but read the cached `RecordedSessionAnalysisResult` from `IRecordedSessionAnalysisResultState` when available, so a theme flip rerenders bars, labels, readouts, and overlays without recomputing telemetry statistics. `LiveSignalPlotViewBase` overrides it to call `Plot?.ApplyTheme(theme)` and rely on the next batch to redraw. The plot view's `PlotFigureBackground` / `PlotDataBackground` `StyledProperty` defaults use `SufniThemes.Fallback` because Avalonia property metadata is static; `ApplyPlotOptions` and `ApplyPlotBackgroundColors` check `IsSet(...)` before pushing them — when the consumer never bound the property (e.g. analysis tabs with no `SignalRow` wrapper) the view falls back to `CurrentTheme.Plot.Root` at reload time so theme flips reach those plots too.
 
-Recorded time-series reloads are also demand-gated by effective visibility. `EffectiveVisibilityObserver` watches the attached plot or host plus every visual ancestor's local `IsVisible` value, because Avalonia does not raise a reliable descendant notification when only an ancestor changes. While hidden, `SufniTimeSeriesPlotView` keeps one latest reload pending instead of rebuilding display data; becoming effectively visible applies that latest input once. The recorded IMU view base uses that visible `LoadPlotData` edge to request the shared projection, observes input/result changes only while attached, and reloads both IMU rows from the matching current-generation result. `SignalRow` assigns ready plot content to its host only while the row is effectively visible and expanded, removing it on collapse or detach. The desktop analysis host combines selected-tab state with the same effective visibility before requesting built-in analysis or Session Insights; extension tab factory and disposal ownership are unchanged.
+Recorded time-series reloads are also demand-gated by effective visibility. `EffectiveVisibilityObserver` watches the attached plot or host plus every visual ancestor's local `IsVisible` value, because Avalonia does not raise a reliable descendant notification when only an ancestor changes. While hidden, `SufniTimeSeriesPlotView` keeps one latest reload pending instead of rebuilding display data; becoming effectively visible applies that latest input once. The recorded IMU view base uses that visible `LoadPlotData` edge to request the shared projection, observes input/result changes only while attached, and reloads both IMU rows from the matching current-generation result. `SignalRow` assigns ready plot content to its host only while the row is effectively visible and expanded, removing it on collapse or detach. The desktop analysis host combines selected-tab state with the same effective visibility before requesting analysis results or Session Insights.
 
 `TelemetryPlot` is the telemetry-styled base shared by recorded and live plot families. It adds front/rear suspension series colors (theme-invariant statics — series colors encode signal meaning), marker lines, cursor/readout styling, legend styling, right-axis styling, the display knobs `MaximumDisplayHz` / `SmoothingLevel` / `AnalysisRange`, the protected `PrepareDisplaySignal(samples, sampleRate)` helper that runs the [display-time pipeline](#display-time-pipeline), the shared axis-rule classes `LockedVerticalSoftLockedHorizontalRule` / `BoundedZoomRule` and the `FixedAutoScaler`, configuration helpers (`ConfigureRightAxisStyle`, `ConfigureTimeTicks`, `ConfigureSymmetricValueTicks`, `ShowSourceLegend`), and `AddMarkerLines(...)` for the vertical lines drawn at `TelemetryData.Markers`. Its `ApplyTheme` override repopulates marker / cursor-tooltip colors and patches an existing tooltip in place when one is attached. `RecordedTimeSeriesPlot` adds the recorded-only keyed range-overlay renderer for Travel, Velocity, IMU, and TrackSignal rows. `ZoomFractions.TimeSeries = 0.01` and `ZoomFractions.Analysis = 0.10` are the standardized minimum-span fractions used by the rules.
 
@@ -101,13 +99,17 @@ telemetry reloads. `TelemetryPlot` translates those neutral line and
 band descriptors into ScottPlot plottables without knowing extension
 workflow semantics.
 
-The recorded-session Telemetry Analysis area can also host contributed
-analysis tabs as neutral view-model-backed content. The desktop
-analysis view orders those tabs among the built-in analysis tabs by
-requested index and contribution order, while mobile projects them into
-the recorded-session page collection at the corresponding analysis
-position. Public plot classes and analysis plot views do not depend on
-the contributed content's implementation details.
+`AnalysisPlotKind.PositionVelocity` hosts `PositionVelocityPlot`, which
+renders a `PositionVelocityAnalysisResult` (wheel position against wheel
+velocity for every compression and rebound stroke, clipped to the analysis
+range by `Sufni.Telemetry.PositionVelocityTraceBuilder`). Its side and display
+modes are plot options like the other analysis modes: traces draw each stroke
+as a faint `ViewportReducedScatter`, which keeps one Skia path per stroke at
+several Douglas-Peucker error levels and picks the coarsest level whose
+on-screen error stays below half a pixel at the current zoom; heatmap mode
+draws the result's precomputed per-side percentage grids with color bars. The
+result is keyed by telemetry generation and analysis range, so a recompute with
+an unchanged range reloads the plot.
 
 Velocity, stroke-length, stroke-speed, and deep-travel analysis
 plots are selectable through the neutral `ISelectableAnalysisPlot`
@@ -133,6 +135,7 @@ outlined.
 | Balance  | `BalancePlot`                  | Front vs rear scatter with polynomial trend lines and a compact lower-right MSD / slope-delta readout above the source legend in `Travel` / `Zenith` displacement modes; `Speed` mode plots the travel position where peak stroke speed occurred and omits regression |
 | IMU      | `ImuPlot`                      | Per-location rolling vibration RMS from dynamic acceleration, plotted over time                                      |
 | IMU      | `FramePitchRollPlot`           | Frame-only pitch and roll in degrees, derived from accelerometer and gyro data                                      |
+| Analysis | `PositionVelocityPlot`         | Wheel position (%) against velocity (mm/s) per stroke, as front/rear/both traces or density heatmaps with color bars, bounded to 0–100 % and a symmetric velocity limit |
 | IMU      | `VibrationThirdsPlot`          | Grouped bars (compression / rebound / overall) of lower / middle / upper third vibration percentages                 |
 | Leverage | `LeverageRatioPlot`            | Travel-vs-leverage-ratio scatter from copied `Sufni.Kinematics.CoordinateList` data derived from `KinematicSolution` |
 | Live     | `LiveTravelPlot`               | Two `DataStreamer`s (front / rear), running-max Y autoscale, streaming smoother per channel                          |
@@ -171,7 +174,7 @@ For live data, every batch is smoothed by a per-channel `TelemetryDisplayStreami
 
 ## Cross-Cutting Patterns
 
-**Disposable extension rendering resources.** A custom extension-owned plot control owns every disposable plottable and native drawing object it creates, including Skia `SKPath` instances. Position/velocity re-rendering runs under the plot's synchronization lock, disposes the previously installed path levels after replacement, and disposes all owned scatters and paths on detach before clearing the plot. Disposal is idempotent, and a disposed plottable no longer renders or rebuilds native geometry. The sealed, finalizer-free scatter uses ordinary deterministic disposal without finalizer suppression. `Plot.Clear()` removes plot membership but is not relied on to dispose extension-owned native resources.
+**Disposable plot resources.** `PositionVelocityPlot` owns its stroke scatters and their Skia `SKPath` levels. `Clear()` disposes them before clearing the plot, so every reload releases the previous paths, and `AnalysisPlotView` clears the plot when it detaches and reloads it on the next attach. `ViewportReducedScatter` replaces its path levels when the data-area size changes and disposes the replaced ones; disposal is idempotent, and a disposed scatter no longer renders. `Plot.Clear()` alone is not relied on to dispose native resources.
 
 **Plot invalidation.** `SufniPlotView` is the single owner of app-level ScottPlot refresh scheduling. Callers classify each request with the neutral `PlotInvalidation` flags (`Cursor`, `Overlay`, `Data`, `Viewport`, `Layout`, or `Theme`); requests posted before the render-priority dispatcher flush are unioned and delivered once. The base implementation still performs one full `AvaPlot.Refresh()` for every non-empty union, so classification alone changes no rendering behavior. Consumer-specific work may use the reasons to introduce a qualified cache or cursor-only path, but it must retain the full-refresh fallback whenever data, viewport, layout, or theme state makes cached content invalid.
 

@@ -50,6 +50,7 @@ public class ViewLocator : IDataTemplate
         [typeof(LiveSignalsPageViewModel)] = static () => new global::Sufni.App.LiveDaq.Views.SessionPages.LiveSignalsPageView(),
         [typeof(RecordedSignalsPageViewModel)] = static () => new global::Sufni.App.Sessions.Signals.Views.SessionPages.RecordedSignalsPageView(),
         [typeof(NotesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.NotesPageView(),
+        [typeof(PositionVelocityPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.PositionVelocityPageView(),
         [typeof(PreferencesPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.PreferencesPageView(),
         [typeof(SessionInsightsPageViewModel)] = static () => new global::Sufni.App.Sessions.Insights.Views.SessionPages.SessionInsightsPageView(),
         [typeof(SpringPageViewModel)] = static () => new global::Sufni.App.Sessions.Pages.Views.SessionPages.SpringPageView(),
@@ -128,18 +129,6 @@ public class ViewLocator : IDataTemplate
 
         var viewModelType = data.GetType();
 
-        if (data is RecordedSessionExtensionPageViewModel extensionPage)
-        {
-            // Host the inner view model in a ContentControl instead of resolving its view
-            // directly. The content presenter assigns the built view's DataContext to its
-            // Content, which for a carousel page is this wrapper - so a directly resolved
-            // view would bind against the wrapper (wrong type) rather than the inner view
-            // model. Re-rooting through a ContentControl whose Content is the inner view
-            // model gives the resolved view the correct DataContext, matching how the
-            // desktop analysis view hosts extension content.
-            return new ContentControl { Content = extensionPage.ViewModel };
-        }
-
         if (data is ShellRootPresentation shellPresentation)
         {
             var shellView = shellPresentation.LayoutProfile == UiLayoutProfile.Compact
@@ -177,11 +166,6 @@ public class ViewLocator : IDataTemplate
     public bool Match(object? data)
     {
         if (data is null) return false;
-
-        if (data is RecordedSessionExtensionPageViewModel extensionPage)
-        {
-            return Match(extensionPage.ViewModel);
-        }
 
         var layoutProfile = ResolveLayoutProfile();
         var viewModelType = data.GetType();

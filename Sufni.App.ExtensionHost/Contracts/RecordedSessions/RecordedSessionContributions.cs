@@ -33,14 +33,6 @@ public sealed record RecordedSessionToolbarViewContribution(
     RecordedSessionToolbarZone Zone,
     IRecordedSessionToolbarContributionViewModel ViewModel) : IRecordedSessionContribution;
 
-public sealed record RecordedSessionPageContribution(
-    string ExtensionId,
-    string ContributionId,
-    int Order,
-    string DisplayName,
-    IRecordedSessionPageContributionViewModel ViewModel,
-    int RequestedIndex) : IRecordedSessionContribution;
-
 public sealed record RecordedSessionMediaPaneContribution(
     string ExtensionId,
     string ContributionId,
@@ -91,35 +83,6 @@ public sealed record RecordedSessionAnalysisBannerContribution(
     string ContributionId,
     int Order,
     IRecordedSessionAnalysisBannerContributionViewModel ViewModel) : IRecordedSessionContribution;
-
-public sealed record RecordedSessionAnalysisTabContribution(
-    string ExtensionId,
-    string ContributionId,
-    int Order,
-    string DisplayName,
-    int RequestedIndex,
-    Func<IRecordedSessionAnalysisTabContributionViewModel> CreateViewModel) : IRecordedSessionContribution
-{
-    public bool OwnsCreatedViewModel { get; init; } = true;
-
-    public RecordedSessionAnalysisTabContribution(
-        string ExtensionId,
-        string ContributionId,
-        int Order,
-        string DisplayName,
-        int RequestedIndex,
-        IRecordedSessionAnalysisTabContributionViewModel ViewModel)
-        : this(
-            ExtensionId,
-            ContributionId,
-            Order,
-            DisplayName,
-            RequestedIndex,
-            () => ViewModel)
-    {
-        OwnsCreatedViewModel = false;
-    }
-}
 
 public sealed record RecordedSessionAnalysisOverlayContribution(
     string ExtensionId,

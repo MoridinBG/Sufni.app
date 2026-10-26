@@ -459,6 +459,95 @@ public class AnalysisPlotViewTests
         return default!;
     }
 
+    [AvaloniaTheory]
+    [InlineData(PositionVelocitySideMode.Both, 2)]
+    [InlineData(PositionVelocitySideMode.Front, 1)]
+    [InlineData(PositionVelocitySideMode.Rear, 1)]
+    public async Task AnalysisPlotView_PositionVelocity_RendersStrokeTracesForShownSides(
+        PositionVelocitySideMode sideMode,
+        int expectedTraceCount)
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        view.PositionVelocitySideMode = sideMode;
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
+        Assert.Equal(expectedTraceCount, plot.PlottableList.OfType<ViewportReducedScatter>().Count());
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_PositionVelocity_HeatmapModeRendersHeatmapsInsteadOfTraces()
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        view.PositionVelocityDisplayMode = PositionVelocityDisplayMode.Heatmap;
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
+        Assert.Equal(2, plot.PlottableList.OfType<Heatmap>().Count());
+        Assert.Empty(plot.PlottableList.OfType<ViewportReducedScatter>());
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_PositionVelocity_RequestsNewResult_WhenTelemetryRecomputesWithSameRange()
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        await using var mounted = await PlotViewTestSupport.MountAsync(view);
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        state.Invalidate(state.CurrentInputs! with { TelemetryGeneration = 2 });
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(2, state.Requests.Last().TelemetryGeneration);
+        Assert.Empty(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot.PlottableList.OfType<ViewportReducedScatter>());
+    }
+
+    [AvaloniaFact]
+    public async Task AnalysisPlotView_PositionVelocity_DisposesStrokeTraces_WhenDetached()
+    {
+        var (view, state, key) = CreatePositionVelocityView();
+        var mounted = await PlotViewTestSupport.MountAsync(view);
+        state.Publish(key, CreatePositionVelocityResult());
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var traces = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot.PlottableList
+            .OfType<ViewportReducedScatter>()
+            .ToArray();
+
+        await mounted.DisposeAsync();
+
+        Assert.NotEmpty(traces);
+        Assert.All(traces, trace => Assert.True(trace.IsDisposed));
+    }
+
+    private static (TestableAnalysisPlotView View, TestAnalysisResultState State, RecordedSessionAnalysisKey Key)
+        CreatePositionVelocityView()
+    {
+        var inputs = CreateAnalysisInputs();
+        var state = new TestAnalysisResultState(inputs);
+        var view = new TestableAnalysisPlotView
+        {
+            AnalysisPlotKind = AnalysisPlotKind.PositionVelocity,
+            AnalysisResultState = state,
+            Telemetry = CreateProcessed(),
+        };
+        return (view, state, inputs.CreateKey(RecordedSessionAnalysisFamily.PositionVelocity));
+    }
+
+    private static PositionVelocityAnalysisResult CreatePositionVelocityResult()
+    {
+        static PositionVelocitySideTrace Side() => new(
+            [new PositionVelocityStrokeTrace([0, 50, 100], [0, 500, -500])],
+            new double[PositionVelocityTraceBuilder.HeatmapVelocityBinCount, PositionVelocityTraceBuilder.HeatmapPositionBinCount]);
+
+        return new PositionVelocityAnalysisResult(new PositionVelocityTraceSet(Side(), Side(), 1000));
+    }
+
     private static Bar[] GetBars(Plot plot)
     {
         var bars = new List<Bar>();

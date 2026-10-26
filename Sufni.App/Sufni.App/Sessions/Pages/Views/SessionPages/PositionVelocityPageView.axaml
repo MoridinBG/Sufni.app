@@ -1,0 +1,27 @@
+<UserControl
+x:Class="Sufni.App.Sessions.Pages.Views.SessionPages.PositionVelocityPageView"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:controls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:vm="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
+d:DesignHeight="600"
+d:DesignWidth="500"
+x:DataType="vm:PositionVelocityPageViewModel"
+mc:Ignorable="d">
+
+    <ScrollViewer
+    x:Name="PageScrollViewer"
+    ClipToBounds="True"
+    HorizontalScrollBarVisibility="Disabled"
+    IsScrollChainingEnabled="False">
+        <StackPanel
+        Width="{Binding #PageScrollViewer.Bounds.Width}"
+        ClipToBounds="True">
+            <controls:PositionVelocityAnalysisHost
+            MinCardHeight="260"
+            PlotHeight="460" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

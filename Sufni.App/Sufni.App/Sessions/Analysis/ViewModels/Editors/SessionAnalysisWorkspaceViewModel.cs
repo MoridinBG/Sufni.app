@@ -16,6 +16,7 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Insights.ViewModels.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 namespace Sufni.App.Sessions.Analysis.ViewModels.Editors;
 
 internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISessionAnalysisWorkspace, IDisposable
@@ -65,6 +66,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         this.actions = actions;
         SelectAnalysisRangeCommand = selectAnalysisRangeCommand;
         AnalysisResultState = analysisResultState;
+        PositionVelocity = new PositionVelocityPageViewModel(this);
         stateSubscription = state.Subscribe(ApplyState);
     }
 
@@ -154,6 +156,8 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     public bool CanEditDampingSpeedCutoffs => canEditDampingSpeedCutoffs;
 
     public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
+
+    public PositionVelocityPageViewModel PositionVelocity { get; }
 
     public SessionInsightsResult SessionInsights => sessionInsights;
 

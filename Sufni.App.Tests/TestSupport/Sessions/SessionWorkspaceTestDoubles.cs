@@ -17,6 +17,7 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -112,6 +113,7 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
         new RelayCommand<TelemetryRangeSelection?>(_ => { });
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; set; }
     public TelemetryRangeSelection? ActiveRearAnalysisSelection { get; set; }
+    public PositionVelocityPageViewModel? PositionVelocity { get; set; }
 
     public void RequestSessionInsights() => SessionInsightsRequests.Increment();
     public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
@@ -300,24 +302,6 @@ internal sealed class RequestCounter
 
 internal static class TestRecordedSessionExtensionContributions
 {
-    public static RecordedSessionAnalysisTabContribution AddAnalysisTab(
-        this RecordedSessionExtensionSlots slots,
-        string contributionId = "analysis-tab",
-        string displayName = "Extension",
-        int requestedIndex = 0,
-        IRecordedSessionAnalysisTabContributionViewModel? viewModel = null)
-    {
-        var contribution = new RecordedSessionAnalysisTabContribution(
-            "test",
-            contributionId,
-            Order: 0,
-            displayName,
-            requestedIndex,
-            viewModel ?? new TestContributionViewModel());
-        slots.AnalysisTabs.Add(contribution);
-        return contribution;
-    }
-
     public static RecordedSessionMediaPaneContribution AddMediaPane(
         this RecordedSessionExtensionSlots slots,
         string contributionId = "media-pane",

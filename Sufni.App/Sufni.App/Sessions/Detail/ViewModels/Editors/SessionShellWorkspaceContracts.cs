@@ -132,6 +132,7 @@ public interface ISessionAnalysisWorkspace
     DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
     bool CanEditDampingSpeedCutoffs { get; }
     IRecordedSessionAnalysisResultState? AnalysisResultState => null;
+    PositionVelocityPageViewModel? PositionVelocity => null;
     SessionInsightsResult SessionInsights { get; }
     void RequestSessionInsights() { }
     IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }

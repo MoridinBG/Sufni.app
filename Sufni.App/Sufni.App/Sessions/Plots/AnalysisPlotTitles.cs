@@ -25,6 +25,8 @@ internal static class AnalysisPlotTitles
     public static string DeepTravelDistribution(SuspensionType type) =>
         $"{SuspensionName(type)} deep-travel strokes";
 
+    public static string PositionVelocity() => "Position/velocity";
+
     public static string VibrationDistribution(SuspensionType type, ImuLocation location) =>
         $"{SuspensionName(type)} {location.ToString().ToLowerInvariant()} vibration distribution";
 

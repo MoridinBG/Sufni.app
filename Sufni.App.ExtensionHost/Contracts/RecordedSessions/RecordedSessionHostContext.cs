@@ -60,7 +60,6 @@ public interface IRecordedSessionHostOperations
     void AddError(string message);
     void AddNotification(string message);
     IRecordedSessionOperationLease StartOperation(string description);
-    void RequestPageSelection(string contributionId);
     Task<Guid?> CreateDerivedSessionAsync(
         Guid fromSessionId,
         string name,
@@ -162,11 +161,6 @@ public sealed class RecordedSessionHostContext
     public IRecordedSessionOperationLease StartOperation(string message)
     {
         return Operations.StartOperation(message);
-    }
-
-    public void RequestPageSelection(string contributionId)
-    {
-        Operations.RequestPageSelection(contributionId);
     }
 
     public Task<Guid?> CreateDerivedSessionAsync(

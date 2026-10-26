@@ -50,13 +50,6 @@ public class RecordedSessionExtensionSlotsTests
             "match 42.00",
             "+3.00",
             RecordedSessionMetricTone.Positive));
-        slots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
-            "extension",
-            "tab",
-            Order: 40,
-            "Extension tab",
-            RequestedIndex: 3,
-            new TestContributionViewModel()));
 
         var toolbarContribution = Assert.Single(slots.SignalToolbarViews);
         Assert.Equal(RecordedSessionToolbarZone.Leading, toolbarContribution.Zone);
@@ -70,9 +63,6 @@ public class RecordedSessionExtensionSlotsTests
         Assert.Equal(RecordedSessionAnalysisMetricTarget.FrontHscPercentage, metricContribution.TargetMetric);
         Assert.True(metricContribution.HasDeltaValue);
         Assert.True(metricContribution.IsPositiveTone);
-        var tabContribution = Assert.Single(slots.AnalysisTabs);
-        Assert.Equal("Extension tab", tabContribution.DisplayName);
-        Assert.Equal(3, tabContribution.RequestedIndex);
     }
 
     [Fact]
@@ -105,12 +95,12 @@ public class RecordedSessionExtensionSlotsTests
 
         AddOneContributionToEachFamily(slots);
 
-        Assert.Equal(15, notifications);
+        Assert.Equal(13, notifications);
 
         subscription.Dispose();
         slots.SignalToolbarViews.Add(CreateToolbarContribution("after-dispose"));
 
-        Assert.Equal(15, notifications);
+        Assert.Equal(13, notifications);
     }
 
     [Fact]
@@ -125,11 +115,9 @@ public class RecordedSessionExtensionSlotsTests
 
         Assert.Equal(["toolbar-command"], target.SignalToolbarCommands.Select(contribution => contribution.ContributionId));
         Assert.Equal(["toolbar-view"], target.SignalToolbarViews.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["page"], target.Pages.Select(contribution => contribution.ContributionId));
         Assert.Equal(["media"], target.MediaPanes.Select(contribution => contribution.ContributionId));
         Assert.Equal(["map"], target.MapOverlays.Select(contribution => contribution.ContributionId));
         Assert.Equal(["banner"], target.AnalysisBanners.Select(contribution => contribution.ContributionId));
-        Assert.Equal(["tab"], target.AnalysisTabs.Select(contribution => contribution.ContributionId));
         Assert.Equal(["overlay"], target.AnalysisOverlays.Select(contribution => contribution.ContributionId));
         Assert.Equal(["metric"], target.AnalysisMetrics.Select(contribution => contribution.ContributionId));
         Assert.Equal(["indicator"], target.SessionListIndicators.Select(contribution => contribution.ContributionId));
@@ -144,13 +132,6 @@ public class RecordedSessionExtensionSlotsTests
     {
         slots.SignalToolbarCommands.Add(CreateToolbarCommandContribution("toolbar-command"));
         slots.SignalToolbarViews.Add(CreateToolbarContribution("toolbar-view"));
-        slots.Pages.Add(new RecordedSessionPageContribution(
-            "extension",
-            "page",
-            Order: 2,
-            "Page",
-            new TestContributionViewModel(),
-            RequestedIndex: 0));
         slots.MediaPanes.Add(new RecordedSessionMediaPaneContribution(
             "extension",
             "media",
@@ -166,13 +147,6 @@ public class RecordedSessionExtensionSlotsTests
             "extension",
             "banner",
             Order: 5,
-            new TestContributionViewModel()));
-        slots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
-            "extension",
-            "tab",
-            Order: 6,
-            "Extension tab",
-            RequestedIndex: 3,
             new TestContributionViewModel()));
         slots.AnalysisOverlays.Add(new RecordedSessionAnalysisOverlayContribution(
             "extension",

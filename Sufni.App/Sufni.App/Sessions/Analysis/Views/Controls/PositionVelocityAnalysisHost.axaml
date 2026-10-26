@@ -1,0 +1,71 @@
+<analysisControls:AnalysisHostBase
+x:Name="Root"
+x:Class="Sufni.App.Sessions.Analysis.Views.Controls.PositionVelocityAnalysisHost"
+x:DataType="pages:PositionVelocityPageViewModel"
+xmlns="https://github.com/avaloniaui"
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:analysisControls="clr-namespace:Sufni.App.Sessions.Analysis.Views.Controls"
+xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
+xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:pages="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
+xmlns:plots="clr-namespace:Sufni.App.Sessions.Plots.Views.Plots"
+xmlns:zoom="clr-namespace:Sufni.App.ExtensionHost.Runtime.Presentation;assembly=Sufni.App.ExtensionHost"
+d:DesignHeight="520"
+d:DesignWidth="900"
+mc:Ignorable="d">
+
+    <controls:PlaceholderOverlayContainer PresentationState="{Binding PresentationState}">
+        <controls:PlaceholderOverlayContainer.ReadyContent>
+            <zoom:PlotZoomContainer Height="{Binding #Root.PlotHeight}">
+                <plots:AnalysisPlotView
+                Name="PositionVelocityPlot"
+                AnalysisPlotKind="PositionVelocity"
+                AnalysisRange="{Binding Workspace.AnalysisRange}"
+                AnalysisResultState="{Binding Workspace.AnalysisResultState}"
+                IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
+                PositionVelocityDisplayMode="{Binding SelectedDisplayMode}"
+                PositionVelocitySideMode="{Binding SideMode}"
+                Telemetry="{Binding Workspace.TelemetryData}">
+                    <plots:AnalysisPlotView.HeaderContent>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ComboBox
+                            Name="DisplayModeComboBox"
+                            Width="130"
+                            ItemsSource="{Binding DisplayModeOptions}"
+                            SelectedValue="{Binding SelectedDisplayMode, Mode=TwoWay}"
+                            SelectedValueBinding="{Binding Value, DataType=pages:PositionVelocityDisplayModeOption}"
+                            ToolTip.Tip="Choose whether the plot shows stroke paths or sample-density heatmaps.">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="pages:PositionVelocityDisplayModeOption">
+                                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <ComboBox
+                            Name="SideModeComboBox"
+                            Width="130"
+                            IsVisible="{Binding IsSideSelectorVisible}"
+                            ItemsSource="{Binding SideModeOptions}"
+                            SelectedValue="{Binding SelectedSideMode, Mode=TwoWay}"
+                            SelectedValueBinding="{Binding Value, DataType=pages:PositionVelocitySideModeOption}"
+                            ToolTip.Tip="Choose which suspension side is shown.">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="pages:PositionVelocitySideModeOption">
+                                        <TextBlock Text="{Binding DisplayName}" ToolTip.Tip="{Binding Description}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </plots:AnalysisPlotView.HeaderContent>
+                </plots:AnalysisPlotView>
+            </zoom:PlotZoomContainer>
+        </controls:PlaceholderOverlayContainer.ReadyContent>
+        <controls:PlaceholderOverlayContainer.PlaceholderContent>
+            <controls:SurfacePlaceholderCard
+            MinCardHeight="{Binding #Root.MinCardHeight}"
+            Title="{Binding DisplayName}" />
+        </controls:PlaceholderOverlayContainer.PlaceholderContent>
+    </controls:PlaceholderOverlayContainer>
+</analysisControls:AnalysisHostBase>

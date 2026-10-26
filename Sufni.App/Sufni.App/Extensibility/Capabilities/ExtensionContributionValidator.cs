@@ -64,11 +64,9 @@ internal static class ExtensionContributionValidator
         var hostedRowTargets = ValidateHostedRows(slots.HostedSignalRows, ownerExtensionId, contributionIds);
         ValidateContributions(slots.SignalToolbarCommands, ownerExtensionId, "recorded-session signal toolbar commands", contributionIds);
         ValidateContributions(slots.SignalToolbarViews, ownerExtensionId, "recorded-session signal toolbar views", contributionIds);
-        ValidateContributions(slots.Pages, ownerExtensionId, "recorded-session pages", contributionIds);
         ValidateContributions(slots.MediaPanes, ownerExtensionId, "recorded-session media panes", contributionIds);
         ValidateContributions(slots.MapOverlays, ownerExtensionId, "recorded-session map overlays", contributionIds);
         ValidateContributions(slots.AnalysisBanners, ownerExtensionId, "recorded-session analysis banners", contributionIds);
-        ValidateContributions(slots.AnalysisTabs, ownerExtensionId, "recorded-session analysis tabs", contributionIds);
         ValidateContributions(slots.AnalysisOverlays, ownerExtensionId, "recorded-session analysis overlays", contributionIds);
         ValidateContributions(slots.AnalysisMetrics, ownerExtensionId, "recorded-session analysis metrics", contributionIds);
         ValidateContributions(slots.SessionListIndicators, ownerExtensionId, "recorded-session list indicators", contributionIds);

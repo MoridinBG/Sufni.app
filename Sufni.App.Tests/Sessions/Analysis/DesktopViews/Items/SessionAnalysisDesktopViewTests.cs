@@ -2,10 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
-using Sufni.App.ExtensionHost.Contracts.RecordedSessions;
 using Sufni.App.Sessions.Analysis.DesktopViews.Items;
 using Sufni.App.Sessions.Analysis.Views.Controls;
-using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Sessions;
@@ -16,115 +15,42 @@ namespace Sufni.App.Tests.Sessions.Analysis.DesktopViews.Items;
 public class SessionAnalysisDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_ComposesBuiltInAndExtensionTabs()
+    public async Task SessionAnalysisDesktopView_ShowsPositionVelocityTabAfterDamping_WhenWorkspaceOffersIt()
     {
         var workspace = CreateWorkspace();
-        workspace.ExtensionSlots.AnalysisTabs.Add(CreateAnalysisTabContribution());
+        workspace.PositionVelocity = new PositionVelocityPageViewModel(workspace);
 
         await using var mounted = await MountAsync(workspace);
 
-        Assert.Contains("Spring rate", GetTabHeaders(mounted.View));
-        Assert.Contains("Extension tab", GetTabHeaders(mounted.View));
-        Assert.True(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
-
-        await SelectTabAsync(mounted.View, "Extension tab");
-
-        var extensionContent = GetExtensionAnalysisTabContent(mounted.View);
-        Assert.True(extensionContent.IsVisible);
-        Assert.False(mounted.View.FindControl<Grid>("SpringRate")!.IsVisible);
+        var headers = GetTabHeaders(mounted.View);
+        Assert.Equal(headers.IndexOf("Damping") + 1, headers.IndexOf("Position/velocity"));
     }
 
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_ExtensionTab_IsMaterializedLazilyAndDisposedWhenRemoved()
+    public async Task SessionAnalysisDesktopView_OmitsPositionVelocityTab_WhenWorkspaceDoesNotOfferIt()
     {
-        var createdCount = 0;
-        var workspace = CreateWorkspace();
-        var viewModel = new DisposableContributionViewModel();
-        workspace.ExtensionSlots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
-            "extension",
-            "disposable-tab",
-            Order: 0,
-            "Disposable tab",
-            RequestedIndex: 3,
-            () =>
-            {
-                createdCount++;
-                return viewModel;
-            }));
+        await using var mounted = await MountAsync(CreateWorkspace());
 
-        await using var mounted = await MountAsync(workspace);
-
-        Assert.Equal(0, createdCount);
-
-        await SelectTabAsync(mounted.View, "Disposable tab");
-
-        Assert.Equal(1, createdCount);
-        Assert.False(viewModel.IsDisposed);
-
-        workspace.ExtensionSlots.AnalysisTabs.Clear();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(1, viewModel.DisposeCount);
+        Assert.DoesNotContain("Position/velocity", GetTabHeaders(mounted.View));
     }
 
     [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_BorrowedExtensionTab_IsNotDisposedWhenRemoved()
+    public async Task SessionAnalysisDesktopView_SelectingPositionVelocity_ActivatesOnlyItsAnalysisDemand()
     {
         var workspace = CreateWorkspace();
-        var viewModel = new DisposableContributionViewModel();
-        workspace.ExtensionSlots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
-            "extension",
-            "borrowed-tab",
-            Order: 0,
-            "Borrowed tab",
-            RequestedIndex: 3,
-            () => viewModel)
-        {
-            OwnsCreatedViewModel = false,
-        });
+        workspace.PositionVelocity = new PositionVelocityPageViewModel(workspace);
         await using var mounted = await MountAsync(workspace);
-        await SelectTabAsync(mounted.View, "Borrowed tab");
 
-        workspace.ExtensionSlots.AnalysisTabs.Clear();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        await SelectTabAsync(mounted.View, "Position/velocity");
 
-        Assert.Equal(0, viewModel.DisposeCount);
-    }
-
-    [AvaloniaFact]
-    public async Task SessionAnalysisDesktopView_BorrowedExtensionTab_SurvivesDetachAndReattach()
-    {
-        var workspace = CreateWorkspace();
-        var viewModel = new DisposableContributionViewModel();
-        var createdCount = 0;
-        workspace.ExtensionSlots.AnalysisTabs.Add(new RecordedSessionAnalysisTabContribution(
-            "extension",
-            "borrowed-tab",
-            Order: 0,
-            "Borrowed tab",
-            RequestedIndex: 3,
-            () =>
-            {
-                createdCount++;
-                return viewModel;
-            })
-        {
-            OwnsCreatedViewModel = false,
-        });
-        await using var mounted = await MountAsync(workspace);
-        await SelectTabAsync(mounted.View, "Borrowed tab");
-
-        mounted.Container.Child = null;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(0, viewModel.DisposeCount);
-
-        mounted.Container.Child = mounted.View;
-        await ViewTestHelpers.FlushDispatcherAsync();
-        await SelectTabAsync(mounted.View, "Borrowed tab");
-
-        Assert.Equal(2, createdCount);
-        Assert.Equal(0, viewModel.DisposeCount);
+        var positionVelocityHost = mounted.View.FindControl<Grid>("PositionVelocity")!
+            .GetVisualDescendants()
+            .OfType<PositionVelocityAnalysisHost>()
+            .Single();
+        Assert.True(positionVelocityHost.IsAnalysisDemandActive);
+        Assert.All(
+            mounted.View.FindControl<Grid>("SpringRate")!.GetVisualDescendants().OfType<AnalysisHostBase>(),
+            host => Assert.False(host.IsAnalysisDemandActive));
     }
 
     [AvaloniaFact]
@@ -173,28 +99,13 @@ public class SessionAnalysisDesktopViewTests
         return new MountedSessionAnalysisDesktopView(host, container, view);
     }
 
-    private static RecordedSessionAnalysisTabContribution CreateAnalysisTabContribution()
-    {
-        return new RecordedSessionAnalysisTabContribution(
-            "extension",
-            "extension-tab",
-            Order: 0,
-            "Extension tab",
-            RequestedIndex: 3,
-            () => new TestContributionViewModel
-            {
-                Name = "ExtensionAnalysisTabContent",
-                Content = new TextBlock { Text = "Extension analysis" },
-            });
-    }
-
-    private static IReadOnlyList<string> GetTabHeaders(SessionAnalysisDesktopView view)
+    private static List<string> GetTabHeaders(SessionAnalysisDesktopView view)
     {
         var tabControl = view.FindControl<TabStrip>("TabControl")!;
         return tabControl.Items
             .OfType<TabItem>()
             .Select(item => item.Header?.ToString() ?? "")
-            .ToArray();
+            .ToList();
     }
 
     private static async Task SelectTabAsync(SessionAnalysisDesktopView view, string header)
@@ -208,14 +119,6 @@ public class SessionAnalysisDesktopViewTests
 
         tabControl.SelectedIndex = index;
         await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    private static TestContributionViewModel GetExtensionAnalysisTabContent(SessionAnalysisDesktopView view)
-    {
-        var analysisContentHost = view.FindControl<ItemsControl>("AnalysisContentHost")!;
-        return analysisContentHost.Items
-            .OfType<TestContributionViewModel>()
-            .Single(view => view.Name == "ExtensionAnalysisTabContent");
     }
 }
 

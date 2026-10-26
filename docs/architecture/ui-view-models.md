@@ -200,16 +200,6 @@ There are five kinds of view model in the presentation layer:
   flows off the editor itself: `SignalRowActionsController` builds the
   built-in signal-row header actions (airtime and analysis-selection toggles)
   through owner-supplied state accessors and actions;
-  `RecordedSessionExtensionPagesController` mirrors contributed extension
-  pages and contributed analysis tabs into the editor's stable `Pages`
-  collection and resolves contributed-page selection through the action
-  gateway. Its projected wrapper keys distinguish `page` from `analysis` and
-  use the ordinal `(ExtensionId, ContributionId)` pair within each family. A
-  slot rebuild with the same analysis-tab key reuses the existing wrapper and
-  any lazily materialized view model while recomputing placement; the wrapper
-  is removed, and owned materialized content is disposed, only when that key
-  disappears or the controller is disposed. Ordinary page view models are
-  borrowed, while analysis-tab factory results are host-owned by default.
   `ProcessingPreferenceWorkflow` owns the confirm-recompute-persist flow that
   runs when a processing preference change is committed. The editor constructs
   these collaborators and delegates; it no longer owns those flows. Session
@@ -263,12 +253,12 @@ the `Save` / `Reset` / `Close` surface.
 Each editor exposes an `ObservableCollection<PageViewModelBase>
 Pages`. `SessionShellMobileView` binds that collection to a
 `CarouselPage` and binds the shared selected index to both the
-`CarouselPage` and `PipsPager`, so swipes, pips, and contributed page
-selection all update the same workspace-owned index. The two editors
+`CarouselPage` and `PipsPager`, so swipes and pips update the same
+workspace-owned index. The two editors
 compose different page sets:
 
-- Recorded sessions: signals, spring, strokes, damping, balance,
-  vibration, insights, notes, preferences.
+- Recorded sessions: signals, spring, strokes, damping, position/velocity,
+  balance, vibration, insights, notes, preferences.
 - Live captures: signals, spring, damping, notes, preferences; balance is
   inserted when the current live analysis produces balance data.
 
@@ -281,13 +271,15 @@ the recorded editor, `LiveSignalsPageViewModel` for the live editor.
 Several analysis pages are also workspace-backed so their
 presentation states and SVG surfaces can be built from the editor's
 analysis service; notes and preferences remain the mostly local
-parameterless pages. Recorded-session extension scopes can contribute
-additional analysis tabs; mobile projects those tabs into the same
-`Pages` collection at the matching analysis-page position.
-`RecordedSessionExtensionPagesController` satisfies contributed-page
-selection requests by dispatching `SelectPageIndex` for the matching page. On
-desktop, the recorded-session analysis view composes built-in and
-contributed analysis tabs into one tab strip and places the selected
+parameterless pages. `PositionVelocityPageViewModel` is owned by the
+recorded `SessionAnalysisWorkspaceViewModel`, which exposes it as
+`ISessionAnalysisWorkspace.PositionVelocity` (null for live captures). The
+same instance is the mobile page and the desktop tab content. It holds the
+selected side and display mode as view state and derives the shown side,
+the side-selector visibility, and its presentation state from the
+workspace's front and rear analysis states. On desktop, the analysis view
+builds one tab strip from the built-in tabs, adding Position/velocity after
+Damping only when the workspace offers it, and places the selected
 analysis body plus extension banners inside one vertical scroll
 region; analysis plot hosts use natural fixed plot heights instead
 of stretching to the current analysis pane height.
@@ -362,12 +354,12 @@ Two pages diverge from that pattern:
   `Unloaded` / final close it disposes all scopes. The manager mirrors
   each scope's `RecordedSessionExtensionSlots` into one host slot
   collection. Recorded signals, media, and analysis workspaces expose
-  that same slot object so views can render contributed pages, toolbar
+  that same slot object so views can render toolbar
   content, media panes, map overlays, analysis banners/overlays,
   session-list indicators/actions, signal-row actions, hosted signal rows,
   and time-range overlays without adding workflow-specific properties
   to public workspace contracts. Extension scopes can request analysis
-  range changes, timeline range changes, notifications, page selection,
+  range changes, timeline range changes, notifications,
   and cancellable host operations through `RecordedSessionHostContext`;
   they do not write editor state directly.
 - **`PreferencesPageViewModel`** owns the per-plot `Selected` and

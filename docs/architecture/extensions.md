@@ -64,12 +64,6 @@ Desktop platform heads expose a neutral `Program.RegisterPlatformExtensions(ISer
 
 This keeps public `ViewLocator` dictionaries free of extension view-model types while still letting extension views render anywhere Avalonia data templates are used. Extensions that use one control in both profiles register only the shared factory; a profile-specific factory is optional, not a migration requirement.
 
-Recorded-session page and analysis-tab contributions are projected into the
-session page collection behind an app-internal wrapper page view model.
-`ViewLocator` unwraps that wrapper in both `Match` and `Build`, so template
-matching and view construction are decided by the wrapped contribution view
-model's registered factory — without this the mobile page carousel would fall
-back to the default `ToString()` presenter.
 
 ## Host Services
 
@@ -229,7 +223,6 @@ without a long positional constructor. It exposes constrained host operations:
 - set timeline visible range
 - begin, resolve, or cancel a pending timeline alignment mark
 - post errors or notifications
-- request contributed page selection
 - run a cancellable operation through `RecordedSessionOperationCoordinator`
 - read processed telemetry and track points through `IRecordedSessionDataReader`
 - create a derived recorded session, update a session's source-absolute
@@ -320,14 +313,13 @@ The builder can copy an existing slot snapshot, and the slot collection exposes
 a generic change subscription so host mirroring is not manually repeated per
 slot family.
 
-The 15 current public slot families are:
+The 13 current public slot families are:
 
 - signal toolbar commands
 - signal toolbar views
-- contributed pages
 - media panes
 - map overlays
-- analysis banners, analysis tabs, analysis plot overlays, and analysis metric annotations
+- analysis banners, analysis plot overlays, and analysis metric annotations
 - session-list indicators and actions
 - plot context-menu actions
 - plot-row header actions
@@ -335,7 +327,7 @@ The 15 current public slot families are:
 - recorded time-range overlays
 
 View-model-backed slot families use marker interfaces instead of `object`:
-signal toolbar views, page, media pane, analysis banner/tab/overlay,
+signal toolbar views, media pane, analysis banner/overlay,
 session-list indicator, session-list action, and hosted signal row
 contributions each require the matching
 `IRecordedSession...ContributionViewModel` marker. Descriptor-only
@@ -346,35 +338,10 @@ overlays carry neutral records or command descriptors instead.
 Contribution view-model lifetime follows each contribution contract.
 `IExtensionViewModel` remains a marker; disposal applies only when a realized
 view model also implements synchronous `IDisposable`. Instance-bearing toolbar,
-page, media-pane, banner/overlay, and list contributions are borrowed: host
+media-pane, banner/overlay, and list contributions are borrowed: host
 controls detach or replace their wrappers but do not dispose the extension-owned
-view model. Analysis-tab contributions carry a
-`CreateViewModel` factory and are host-owned by default through
-`OwnsCreatedViewModel`; the compatibility constructor that accepts an existing
-view model, or an explicit `OwnsCreatedViewModel = false`, makes that content
-borrowed instead. The materializing host disposes owned content on genuine
-removal/replacement or final host disposal, but never creates an unmaterialized
-view model merely to dispose it. Extension-owned disposal must be idempotent and
+view model. Extension-owned disposal must be idempotent and
 must not depend on an async callback from the host.
-
-Recorded-session analysis tabs are lazy on both presentation profiles, with
-profile-specific retention rules. Desktop materializes a tab only on first
-selection and treats a new contribution record as replacement even when its
-extension/contribution ids are unchanged; realized owned content is disposed and
-new content is created lazily. Mobile projects a tab through a lazy wrapper in
-the normal recorded-session `Pages` collection, so projection alone does not
-invoke `CreateViewModel`. The wrapper's stable identity is the ordinal
-`(ExtensionId, ContributionId)` pair in the separate `analysis` key namespace.
-A slot reset that republishes the same key reuses the wrapper and any materialized
-view model, even if the contribution record or factory instance changed, while
-still moving the wrapper to its newly computed order. This is retention rather
-than descriptor replacement: the wrapper's captured display name, factory, and
-ownership flag do not change. To establish a new mobile content generation, the
-old key must disappear or the extension must publish a different contribution
-id. The mobile host drops and, when owned, disposes content only when the key
-disappears or the page controller is disposed on final close. These rules do not
-change scope ownership: the recorded-session manager still owns scope creation,
-host-state updates, slot mirroring, and disposal on unload/final close.
 
 A hosted signal row whose plot should match the app's themed time-series
 rows can contribute the SDK's neutral `RecordedSessionSignalPlotViewModel`
@@ -412,15 +379,6 @@ Session-list indicators and actions are created by registered `IRecordedSessionL
 Providers whose contribution availability can change without a core recorded-session summary change also implement `IRecordedSessionListContributionChangeSource`. The aggregate list service exposes those invalidations as a neutral `ContributionsChanged` event. Session list rows respond by asking the list service to recreate their indicator and action descriptors from the latest summary, without the public app learning which extension-owned state changed.
 
 Views render these through generic host controls or bindable descriptor properties. Public plot and map models receive neutral descriptors only; they do not depend on extension workflow semantics.
-
-Analysis-tab contributions add neutral view-model-backed content to the
-recorded-session Telemetry Analysis area. Each contribution declares a zero-based
-`RequestedIndex` relative to the built-in analysis tab order. Desktop renders
-contributions before the built-in tab with the same requested index and sorts
-multiple contributions by `Order`, extension id, and contribution id; requested
-indexes after the built-in range render after the built-in analysis tabs.
-Mobile projects the same contributions into the recorded-session pages
-collection at the corresponding analysis-page position, after the Signals page.
 
 Time-series signal targets are typed at the extension boundary. Built-in signal rows are referenced with `RecordedSessionBuiltInSignalRow`; extension-owned rows are referenced with `RecordedSessionProjectionRowTarget.Extension(extensionId, contributionId)`. The target's `StableKey` is the only string used internally for row lookup and persisted expansion state. Host XAML may keep legacy `SignalRowIds` for built-in rows behind conversion helpers, but extension-facing contribution records do not expose those row id strings.
 
