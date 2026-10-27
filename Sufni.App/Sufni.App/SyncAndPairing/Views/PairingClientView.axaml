@@ -8,20 +8,14 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
 xmlns:v="clr-namespace:Sufni.App.Shared.Views.Controls"
 xmlns:vm="clr-namespace:Sufni.App.SyncAndPairing.ViewModels"
+xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:PairingClientViewModel"
 Background="{DynamicResource SufniRegion}"
+lifecycle:ViewLifecycle.AttachedToVisualTreeCommand="{Binding LoadedCommand}"
+lifecycle:ViewLifecycle.DetachedFromVisualTreeCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="AttachedToVisualTree">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="DetachedFromVisualTree">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Grid RowDefinitions="* auto">
         <StackPanel

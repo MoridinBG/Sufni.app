@@ -8,20 +8,14 @@ xmlns:live="clr-namespace:Sufni.App.LiveDaq.Services.LiveStreaming"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:shared="clr-namespace:Sufni.App.LiveDaq.Views.Shared"
 xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="800"
 d:DesignWidth="420"
 x:DataType="vm:LiveDaqDetailViewModel"
 Background="{DynamicResource SufniRegion}"
+lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
+lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="Unloaded">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Grid RowDefinitions="* auto auto">
         <ScrollViewer Grid.Row="0" Name="DiagnosticsScrollViewer">

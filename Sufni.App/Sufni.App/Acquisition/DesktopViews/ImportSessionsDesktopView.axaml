@@ -7,20 +7,14 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:shared="clr-namespace:Sufni.App.Acquisition.Views.Shared"
 xmlns:views="clr-namespace:Sufni.App.Acquisition.Views"
 xmlns:vm="clr-namespace:Sufni.App.Acquisition.ViewModels"
+xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ImportSessionsViewModel"
 Background="{DynamicResource SufniRegion}"
+lifecycle:ViewLifecycle.AttachedToVisualTreeCommand="{Binding LoadedCommand}"
+lifecycle:ViewLifecycle.DetachedFromVisualTreeCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="AttachedToVisualTree">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="DetachedFromVisualTree">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <views:ImportSessionsContentView>
         <views:ImportSessionsContentView.BottomContent>

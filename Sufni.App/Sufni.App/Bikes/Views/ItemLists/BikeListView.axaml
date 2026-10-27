@@ -8,21 +8,15 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
     xmlns:vml="clr-namespace:Sufni.App.Bikes.ViewModels.ItemLists"
+    xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:BikeListViewModel"
     Background="{DynamicResource SufniRegion}"
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
+    lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
+    lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
     mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="Unloaded">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Grid ColumnDefinitions="*" RowDefinitions="auto * auto auto">
 

@@ -75,6 +75,23 @@ public class SessionShellMobileViewTests
         Assert.False(busyOverlay.IsVisible);
     }
 
+    [AvaloniaFact]
+    public async Task SessionShellMobileView_RunsHostLifecycleCommands_WithCarouselBounds()
+    {
+        var host = CreateHost();
+        await using var mounted = await MountAsync(host);
+        var carousel = mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage")
+            ?? throw new InvalidOperationException("Session carousel was not found.");
+
+        Assert.Equal(carousel.Bounds, Assert.Single(host.LoadedBounds));
+        Assert.Equal(0, host.UnloadedCount);
+
+        mounted.Host.Content = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(1, host.UnloadedCount);
+    }
+
     private static FakeShellHostViewModel CreateHost()
     {
         var host = new FakeShellHostViewModel
@@ -160,11 +177,15 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
     [ObservableProperty]
     public partial bool IsDirty { get; set; }
 
-    [RelayCommand]
-    private void Loaded(Rect? bounds) { }
+    public List<Rect?> LoadedBounds { get; } = [];
+
+    public int UnloadedCount { get; private set; }
 
     [RelayCommand]
-    private void Unloaded() { }
+    private void Loaded(Rect? bounds) => LoadedBounds.Add(bounds);
+
+    [RelayCommand]
+    private void Unloaded() => UnloadedCount++;
 
     [RelayCommand]
     private void Save() { }

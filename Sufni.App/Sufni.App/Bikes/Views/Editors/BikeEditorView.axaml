@@ -11,19 +11,13 @@ xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing
 xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:vm="using:Sufni.App.Bikes.ViewModels.Editors"
 xmlns:zoom="clr-namespace:Sufni.App.Shared.Views.Plots"
+xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="450"
 d:DesignWidth="800"
 x:DataType="vm:BikeEditorViewModel"
+lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
+lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="Unloaded">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <UserControl.Styles>
         <Style Selector="TextBlock">
