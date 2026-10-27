@@ -22,6 +22,26 @@ documentation work.
 
 It is very important to keep the docs up to date as changes are introduced.
 
+# Architecture Goal
+
+`docs/ARCHITECTURE-MANIFEST.md` is the target architecture. Read it together
+with `docs/ARCHITECTURE.md` before you design a change.
+
+The two documents have different jobs:
+
+- `docs/ARCHITECTURE.md` and `docs/architecture/*.md` describe the current
+  state of the codebase. Keep them accurate, even where the current state
+  contradicts the manifest.
+- `docs/ARCHITECTURE-MANIFEST.md` describes the goal. The codebase moves
+  toward it over time.
+
+Every change must comply with the manifest. Code that you add or change
+follows the manifest, even where the surrounding code does not. Do not copy a
+pattern from existing code when the manifest rejects it. If a task cannot
+comply without changes outside its scope, say so and ask before you widen the
+scope. When you find existing code that contradicts the manifest, report it.
+Do not fix it unless the task asks for it.
+
 # Project Overview
 
 Sufni.App is a cross-platform desktop and mobile application for recording,
