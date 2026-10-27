@@ -11,7 +11,7 @@ All commands are run from the repository root (`Sufni.App/`).
   for Linux/Windows desktop builds.
 - iOS device/simulator deployment also needs Xcode installed at
   `/Applications/Dev/Xcode.app` and a Microsoft.iOS SDK pack under
-  `/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_26.2/…`
+  `/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_27.1/…`
   (installed with the `ios` workload). The exact pack version in the
   commands below may need updating as the SDK changes.
 - Android builds need the Android SDK. Either set `ANDROID_HOME` to the
@@ -169,10 +169,10 @@ dotnet build Sufni.App/Sufni.App.iOS/Sufni.App.iOS.csproj \
 xcrun simctl list devices available
 
 # Launch (replace <UDID> with one from the list above)
-/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_26.2/26.2.10217/tools/bin/mlaunch \
+/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_27.1/27.1.10018/tools/bin/mlaunch \
   --launchsim Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/iossimulator-arm64/Sufni.App.iOS.app \
   --device=:v2:udid=<UDID> \
-  -sdk 26.2 \
+  -sdk 27.1 \
   --sdkroot /Applications/Dev/Xcode.app/Contents/Developer
 ```
 
@@ -187,11 +187,11 @@ dotnet build Sufni.App/Sufni.App.iOS/Sufni.App.iOS.csproj \
   -c Debug -f net10.0-ios -r ios-arm64 -p:RuntimeIdentifier=ios-arm64
 
 # List connected devices (to confirm the device name)
-/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_26.2/26.2.10217/tools/bin/mlaunch \
+/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_27.1/27.1.10018/tools/bin/mlaunch \
   --listdev
 
 # Install the freshly built bundle onto the device
-/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_26.2/26.2.10217/tools/bin/mlaunch \
+/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_27.1/27.1.10018/tools/bin/mlaunch \
   --devname "iPhone" \
   --installdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app \
   --wait-for-unlock \
@@ -199,7 +199,7 @@ dotnet build Sufni.App/Sufni.App.iOS/Sufni.App.iOS.csproj \
   --sdkroot /Applications/Dev/Xcode.app/Contents/Developer
 
 # Kill any existing instance and launch
-/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_26.2/26.2.10217/tools/bin/mlaunch \
+/usr/local/share/dotnet/packs/Microsoft.iOS.Sdk.net10.0_27.1/27.1.10018/tools/bin/mlaunch \
   --devname "iPhone" \
   --killdev com.moridinbg.Sufni.App \
   --launchdev Sufni.App/Sufni.App.iOS/bin/Debug/net10.0-ios/ios-arm64/Sufni.App.iOS.app \
