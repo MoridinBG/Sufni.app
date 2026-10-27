@@ -12,6 +12,7 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
     private Pixel[] pixels = [];
     private Pixel[][] segments = [];
     private float[] xPixels = [];
+    private readonly SKPathBuilder linePathBuilder = new();
     private SKPath? linePath;
     private TransformKey cachedTransform;
     private bool hasCachedTransform;
@@ -132,8 +133,7 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
 
     private void UpdateLinePath()
     {
-        linePath ??= new SKPath();
-        linePath.Rewind();
+        linePathBuilder.Reset();
         var linePathEndsWithFinitePoint = false;
         foreach (var pixel in pixels)
         {
@@ -145,15 +145,19 @@ internal sealed class ReusableScrollLeftView(DataStreamer streamer) : IDataStrea
 
             if (linePathEndsWithFinitePoint)
             {
-                linePath.LineTo(pixel.ToSKPoint());
+                linePathBuilder.LineTo(pixel.ToSKPoint());
             }
             else
             {
-                linePath.MoveTo(pixel.ToSKPoint());
+                linePathBuilder.MoveTo(pixel.ToSKPoint());
             }
 
             linePathEndsWithFinitePoint = true;
         }
+
+        linePath?.Dispose();
+        // Snapshot copies the points, so the builder keeps its storage across frames; Detach would hand it over.
+        linePath = linePathBuilder.Snapshot();
     }
 
     private void ResetLinePath()

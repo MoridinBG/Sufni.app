@@ -9,18 +9,14 @@
     xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
     xmlns:vmp="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
     xmlns:vme="clr-namespace:Sufni.App.Sessions.Detail.Views.Editors"
+    xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vm:ISessionShellMobileWorkspace"
     Background="{DynamicResource SufniRegion}"
     Focusable="True"
+    lifecycle:ViewLifecycle.UnloadedCommand="{Binding $self.UnloadedCommand}"
     mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Unloaded">
-            <InvokeCommandAction Command="{Binding $parent[vme:SessionShellMobileView].UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Grid>
         <Grid Margin="12,8,12,6" IsVisible="{Binding ScreenState.IsReady}" RowDefinitions="auto auto * auto auto auto auto">
@@ -46,7 +42,9 @@
                 Grid.Row="2"
                 Background="{DynamicResource SufniRegion}"
                 ItemsSource="{Binding Pages}"
-                SelectedIndex="{Binding SelectedPageIndex, Mode=TwoWay}">
+                SelectedIndex="{Binding SelectedPageIndex, Mode=TwoWay}"
+                lifecycle:ViewLifecycle.LoadedCommand="{Binding $parent[vme:SessionShellMobileView].LoadedCommand}"
+                lifecycle:ViewLifecycle.LoadedCommandParameter="{Binding ElementName=SessionCarouselPage, Path=Bounds}">
                 <CarouselPage.PageTemplate>
                     <DataTemplate x:DataType="vmp:PageViewModelBase">
                         <ContentPage
@@ -56,13 +54,6 @@
                             AutomaticallyApplySafeAreaPadding="False" />
                     </DataTemplate>
                 </CarouselPage.PageTemplate>
-                <Interaction.Behaviors>
-                    <EventTriggerBehavior EventName="Loaded">
-                        <InvokeCommandAction
-                            Command="{Binding $parent[vme:SessionShellMobileView].LoadedCommand}"
-                            CommandParameter="{Binding ElementName=SessionCarouselPage, Path=Bounds}" />
-                    </EventTriggerBehavior>
-                </Interaction.Behaviors>
             </CarouselPage>
 
             <PipsPager

@@ -7,20 +7,14 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vml="clr-namespace:Sufni.App.SyncAndPairing.ViewModels.ItemLists"
+    xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:PairedDeviceListViewModel"
     Background="{DynamicResource SufniRegion}"
+    lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
+    lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
     mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="Unloaded">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Grid
         Background="{DynamicResource SufniBackgroundDisabled}"

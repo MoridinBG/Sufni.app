@@ -11,22 +11,16 @@ xmlns:items="clr-namespace:Sufni.App.LiveDaq.DesktopViews.Items"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
+xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
 x:DataType="vm:LiveSessionDetailViewModel"
 Background="{DynamicResource SufniRegion}"
 Focusable="True"
+lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
+lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
-
-    <Interaction.Behaviors>
-        <EventTriggerBehavior EventName="Loaded">
-            <InvokeCommandAction Command="{Binding LoadedCommand}" />
-        </EventTriggerBehavior>
-        <EventTriggerBehavior EventName="Unloaded">
-            <InvokeCommandAction Command="{Binding UnloadedCommand}" />
-        </EventTriggerBehavior>
-    </Interaction.Behaviors>
 
     <Grid>
         <editors:SessionShellDesktopView

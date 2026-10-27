@@ -59,7 +59,6 @@ internal sealed class ViewportReducedScatter : Scatter, IDisposable
             origin.Y);
         foreach (var coordinatePath in level.StrokePaths)
         {
-            pixelPath.Rewind();
             coordinatePath.Transform(transform, pixelPath);
             LineStyle.Render(renderPack.Canvas, pixelPath, renderPack.Paint);
         }
@@ -133,11 +132,10 @@ internal sealed class ViewportReducedScatter : Scatter, IDisposable
         var stackEnds = new int[maximumStrokeCount];
         var coordinateCount = 0;
         var maximumErrorSquared = 0.0;
+        using var pathBuilder = new SKPathBuilder();
 
         for (var strokeIndex = 0; strokeIndex < side.Strokes.Count; strokeIndex++)
         {
-            var path = new SKPath();
-            strokePaths[strokeIndex] = path;
             var stroke = side.Strokes[strokeIndex];
             var count = stroke.Count;
             for (var index = 0; index < count; index++)
@@ -160,14 +158,14 @@ internal sealed class ViewportReducedScatter : Scatter, IDisposable
 
                 if (first)
                 {
-                    path.MoveTo(
+                    pathBuilder.MoveTo(
                         (float)stroke.PositionPercent[index],
                         (float)stroke.VelocityMmPerSecond[index]);
                     first = false;
                 }
                 else
                 {
-                    path.LineTo(
+                    pathBuilder.LineTo(
                         (float)stroke.PositionPercent[index],
                         (float)stroke.VelocityMmPerSecond[index]);
                 }
@@ -187,6 +185,8 @@ internal sealed class ViewportReducedScatter : Scatter, IDisposable
                 previousKeptIndex = index;
                 coordinateCount++;
             }
+
+            strokePaths[strokeIndex] = pathBuilder.Detach();
 
             if (count == 1)
             {

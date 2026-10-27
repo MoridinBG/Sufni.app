@@ -6,47 +6,47 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Ace4896.DBus.Services.Secrets" Version="1.6.0" />
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.9" />
-    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
-    <PackageVersion Include="Tmds.MDns" Version="0.8.0" />
-    <PackageVersion Include="Avalonia" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Android" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.0.0" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.14" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.1" />
+    <PackageVersion Include="Tmds.MDns" Version="0.10.1" />
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Android" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
     <PackageVersion Include="Avalonia.Controls.ItemsRepeater" Version="12.0.0" />
-    <PackageVersion Include="PanAndZoom" Version="12.0.0.1" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.HarfBuzz" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Headless" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Native" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Skia" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.Labs.Controls" Version="12.0.2" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.0.5" />
-    <PackageVersion Include="Avalonia.iOS" Version="12.0.5" />
+    <PackageVersion Include="PanAndZoom" Version="12.1.1" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.HarfBuzz" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Native" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Labs.Controls" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.iOS" Version="12.1.4" />
     <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="Deadpikle.AvaloniaProgressRing" Version="0.11.0" />
-    <PackageVersion Include="DynamicData" Version="9.4.31" />
-    <PackageVersion Include="LibVLCSharp.Avalonia" Version="3.10.0" />
+    <PackageVersion Include="DynamicData" Version="9.5.0" />
+    <PackageVersion Include="LibVLCSharp.Avalonia" Version="3.10.2" />
     <PackageVersion Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
     <PackageVersion Include="Mapsui.Avalonia12" Version="5.1.0" />
     <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
     <!-- SIMD reductions/dot-product for telemetry DSP (TensorPrimitives). -->
-    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.9" />
-    <PackageVersion Include="MessagePack" Version="3.1.7" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.14" />
+    <PackageVersion Include="MessagePack" Version="3.1.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
     <PackageVersion Include="ScottPlot" Version="5.1.59" />
     <PackageVersion Include="ScottPlot.Avalonia" Version="5.1.59" />
-    <PackageVersion Include="Serilog" Version="4.3.1" />
+    <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
-    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.13" />
-    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
-    <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
+    <PackageVersion Include="Svg.Controls.Skia.Avalonia" Version="12.0.0.17" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
+    <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
     <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.2.0.3" />
     <!-- Align the Xamarin.AndroidX.Lifecycle family. Common/Common.Jvm/Runtime/Runtime.Android resolve
          transitively to 2.11.0.1, so pin the remaining family members up to match; otherwise their
@@ -57,16 +57,16 @@
     <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModel.Android" Version="2.11.0.1" />
     <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState" Version="2.11.0.1" />
     <PackageVersion Include="Xamarin.AndroidX.Lifecycle.ViewModelSavedState.Android" Version="2.11.0.1" />
-    <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.0.1" />
-    <PackageVersion Include="sqlite-net-e" Version="1.11.0" />
-    <PackageVersion Include="SourceGear.sqlite3" Version="3.50.4.5" />
+    <PackageVersion Include="Xaml.Behaviors.Avalonia" Version="12.0.7" />
+    <PackageVersion Include="sqlite-net-e" Version="1.11.285" />
+    <PackageVersion Include="SourceGear.sqlite3" Version="3.53.4" />
     <PackageVersion Include="ZstdSharp.Port" Version="0.8.8" />
     <!-- Test-only packages used by Sufni.App.Tests / Sufni.Telemetry.Tests -->
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="NSubstitute" Version="5.3.0" />
+    <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <!-- Dev-only DSP performance harness (Sufni.Telemetry.Benchmarks); not in any shipping solution. -->
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
