@@ -150,7 +150,7 @@ public class BikeCreationScreenshots
 
         Directory.CreateDirectory(OutputDir);
         var path = Path.Combine(OutputDir, filename);
-        bitmap.Save(path);
+        bitmap.Save(path, PngBitmapEncoderOptions.Default);
 
         window.Close();
         await FlushAsync();
