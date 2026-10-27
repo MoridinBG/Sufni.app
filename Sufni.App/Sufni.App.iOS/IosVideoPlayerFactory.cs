@@ -58,8 +58,8 @@ internal sealed class IosVideoPlayer : IVideoPlayer
 
     private async Task UpdateVideoSizeAsync(AVAsset asset, int version)
     {
-        var tracks = await asset.LoadTracksWithMediaTypeAsync(AVMediaTypes.Video.GetConstant()!);
-        var track = tracks.Count > 0 ? tracks[0] : null;
+        var tracks = await asset.LoadTracksWithMediaTypeAsync(AVMediaTypes.Video);
+        var track = tracks.Length > 0 ? tracks[0] : null;
         if (version != loadVersion || track is null || track.NaturalSize.Width <= 0 || track.NaturalSize.Height <= 0)
         {
             return;
