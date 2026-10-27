@@ -8,10 +8,6 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Serilog;
 
-#if SUFNI_PROFILING_DIAGNOSTICS
-using Sufni.App.LiveDaq.Services;
-using Sufni.Profiling;
-#endif
 using Sufni.App.LiveDaq.Stores;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
@@ -53,12 +49,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         this.snapshot = snapshot;
         this.liveDaqClientFactory = liveDaqClientFactory;
         this.evictAsync = evictAsync;
-#if SUFNI_PROFILING_DIAGNOSTICS
-        if (ProfilingLiveDaqReplay.Matches(snapshot.IdentityKey))
-        {
-            requestedConfiguration = ProfilingLiveDaqReplay.Configuration;
-        }
-#endif
         currentState = LiveDaqSharedStreamState.Empty with
         {
             ProtocolVersion = snapshot.ProtocolVersion,
@@ -137,14 +127,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-#if SUFNI_PROFILING_DIAGNOSTICS
-        using var profilingStage = ProfilingBench01.IsActive
-            ? ProfilingRuntime.BeginStage(
-                ProfilingBench01.Scenario,
-                "LiveStream.Stop",
-                IdentityKey)
-            : null;
-#endif
         Task<LivePreviewStartResult?>? waitTask = null;
         LifecycleOperation? operationToStart = null;
 
@@ -154,9 +136,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             ThrowIfDisposed();
             if (currentState.IsClosed)
             {
-#if SUFNI_PROFILING_DIAGNOSTICS
-                profilingStage?.SetResult(0, 0, "already_closed");
-#endif
                 return;
             }
 
@@ -164,9 +143,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             if (pendingLifecycleOperation is null && liveDaqClient is null)
             {
                 PublishDisconnectedStateLocked(null);
-#if SUFNI_PROFILING_DIAGNOSTICS
-                profilingStage?.SetResult(0, 0, "no_client");
-#endif
                 return;
             }
 
@@ -197,9 +173,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         {
             await WaitForLifecycleResultAsync(waitTask, cancellationToken);
         }
-#if SUFNI_PROFILING_DIAGNOSTICS
-        profilingStage?.SetResult(0, 0, "disconnected");
-#endif
     }
 
     public async Task ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default)

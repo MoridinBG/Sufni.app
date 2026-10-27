@@ -10,9 +10,6 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Serilog;
-#if SUFNI_PROFILING_DIAGNOSTICS
-using Sufni.App.LiveDaq.Services;
-#endif
 using Sufni.App.Shared.Common;
 using Sufni.Telemetry;
 
@@ -1257,13 +1254,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         LiveStartRequest request,
         LiveV3Capabilities capabilities)
     {
-#if SUFNI_PROFILING_DIAGNOSTICS
-        if (expectedBoardId is not null && ProfilingLiveDaqReplay.Matches(expectedBoardId))
-        {
-            return ProfilingLiveDaqReplay.CreateStartRequest(capabilities);
-        }
-#endif
-
         var requestedStreams = request.RequestedStreamMask == LiveStreamMask.None
             ? CreateLegacyRequestedStreamMask(request)
             : request.RequestedStreamMask;

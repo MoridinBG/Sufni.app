@@ -5,10 +5,6 @@ using Serilog;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
-#if SUFNI_PROFILING_DIAGNOSTICS
-using Sufni.App.LiveDaq.Services;
-using Sufni.Profiling;
-#endif
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
@@ -152,12 +148,6 @@ public sealed class SessionCommandService
         ArgumentNullException.ThrowIfNull(preferences);
 
         logger.Information("Starting live session save for {SessionId}", session.Id);
-#if SUFNI_PROFILING_DIAGNOSTICS
-        using var profilingStage = ProfilingRuntime.BeginStage(
-            ProfilingBench01.Scenario,
-            "LiveSave.CommandTotal",
-            session.Id.ToString("N"));
-#endif
 
         try
         {
@@ -214,13 +204,6 @@ public sealed class SessionCommandService
                 publicationWarning = $"Live session was saved, but app state could not be refreshed: {e.Message}";
                 logger.Warning(e, "Failed to publish live session state after saving session {SessionId}", session.Id);
             }
-#if SUFNI_PROFILING_DIAGNOSTICS
-            ProfilingBench01.Saved(snapshot.Id, source, capture.TelemetryCapture);
-            profilingStage?.SetResult(
-                0,
-                source.Payload.LongLength,
-                publicationWarning is null ? "saved" : "saved_publication_failed");
-#endif
 
             logger.Information("Live session save completed for {SessionId}", session.Id);
             return new LiveSessionSaveResult.Saved(
@@ -230,18 +213,10 @@ public sealed class SessionCommandService
         }
         catch (OperationCanceledException)
         {
-#if SUFNI_PROFILING_DIAGNOSTICS
-            profilingStage?.SetResult(0, 0, "canceled");
-            ProfilingBench01.SaveFailed(profilingStage?.CorrelationId, "save_canceled");
-#endif
             throw;
         }
         catch (Exception e)
         {
-#if SUFNI_PROFILING_DIAGNOSTICS
-            profilingStage?.SetResult(0, 0, "failed");
-            ProfilingBench01.SaveFailed(profilingStage?.CorrelationId, "save_failed", e.Message);
-#endif
             logger.Error(e, "Live session save failed for {SessionId}", session.Id);
             return new LiveSessionSaveResult.Failed(e.Message);
         }

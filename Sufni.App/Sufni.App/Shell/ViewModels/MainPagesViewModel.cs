@@ -12,9 +12,6 @@ using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.ItemLists;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
-#if SUFNI_PROFILING_DIAGNOSTICS
-using Sufni.App.LiveDaq.Services;
-#endif
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
@@ -245,12 +242,6 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         DatabaseLoaded = false;
 
-#if SUFNI_PROFILING_DIAGNOSTICS
-        if (App.Current?.Services is { } services)
-        {
-            await ProfilingLiveDaqReplay.SeedIfRequestedAsync(services);
-        }
-#endif
         await appDataRefresher.RefreshAsync();
 
         DatabaseLoaded = true;
