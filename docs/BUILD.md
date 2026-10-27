@@ -4,7 +4,8 @@ All commands are run from the repository root (`Sufni.App/`).
 
 ## Prerequisites
 
-- .NET SDK 10.0 (`dotnet --version` should print `10.0.*`).
+- .NET SDK 10.0.4xx. `global.json` pins 10.0.403 and rolls forward to the
+  latest patch of that band, which the platform workloads match.
 - Platform workloads: `dotnet workload install macos ios android` on
   macOS, `dotnet workload install android` on Linux/Windows. Not needed
   for Linux/Windows desktop builds.
