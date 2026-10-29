@@ -11,7 +11,7 @@ namespace Sufni.App.Tests.Sessions.Services;
 public class RecordedSessionSourceRepositoryTests
 {
     [Fact]
-    public async Task RecordedSessionSourceCrud_RoundTripsSourceAndMissingSourceIds()
+    public async Task PutRecordedSessionSourceAsync_RoundTripsSourceAndMissingSourceIds()
     {
         using var tempDatabase = new TempDatabase("source-crud.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -27,7 +27,6 @@ public class RecordedSessionSourceRepositoryTests
         await database.PutRecordedSessionSourceAsync(source);
 
         var loaded = await database.GetRecordedSessionSourceAsync(sessionId);
-        var allSources = await database.GetRecordedSessionSourcesAsync();
         var allSnapshots = await database.GetRecordedSessionSourceSnapshotsAsync();
         var snapshot = await database.GetRecordedSessionSourceSnapshotAsync(sessionId);
         var missingSourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
@@ -39,18 +38,10 @@ public class RecordedSessionSourceRepositoryTests
         Assert.Equal(1, loaded.SchemaVersion);
         Assert.Equal(source.SourceHash, loaded.SourceHash);
         Assert.Equal([1, 2, 3], loaded.Payload);
-        Assert.Single(allSources);
         Assert.Equal(RecordedSessionSourceSnapshot.From(source), Assert.Single(allSnapshots));
         Assert.Equal(RecordedSessionSourceSnapshot.From(source), snapshot);
         Assert.DoesNotContain(sessionId, missingSourceIds);
         Assert.Contains(missingSessionId, missingSourceIds);
-
-        await database.DeleteRecordedSessionSourceAsync(sessionId);
-
-        Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
-        Assert.Null(await database.GetRecordedSessionSourceSnapshotAsync(sessionId));
-        Assert.Contains(sessionId, await database.GetSessionIdsMissingRecordedSourceAsync());
-
     }
 
     [Fact]

@@ -255,14 +255,14 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 
 `IRecordedSessionSourceRepository` owns recorded-source rows:
 
-- `GetRecordedSessionSourcesAsync()` / `GetRecordedSessionSourceAsync(id)` — load recorded-source rows or one full source payload
+- `GetRecordedSessionSourceAsync(id)` — load one full source payload
 - `GetRecordedSessionSourceSnapshotsAsync()` / `GetRecordedSessionSourceSnapshotAsync(id)` — metadata-only source projections for stores and refreshes
 - `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids whose recording source (`source_session_id`, or the session's own id) has no source row, or whose source row hash differs from the persisted processing fingerprint's `SourceHash`
 - `GetMissingRecordingSourceIdsAsync()` — the same check, but returns the recording source ids instead of the session ids
 - `GetReferencedSourceSessionIdsAsync()` — returns the distinct `source_session_id` values of live sessions that derive from another session's source
 - `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs; startup normalization uses it to enumerate recomputable source-backed sessions
 - `DeleteOrphanedRecordedSessionSourcesAsync()` — in one transaction, removes source rows whose owner session no longer exists and that no live session references through `source_session_id`, and returns their ids
-- `PutRecordedSessionSourceAsync(source)` / `DeleteRecordedSessionSourceAsync(sessionId)` — insert/replace or remove a recorded source outside the processed-session transaction, used by source sync and source-store writes
+- `PutRecordedSessionSourceAsync(source)` — insert/replace a recorded source outside the processed-session transaction for source sync; source deletion stays inside session transactions and orphan retention cleanup
 
 `session_blob_swap_request` is local durable coordination state for the desktop
 hub's push-direction processed-generation swaps. Each row stores the session id,

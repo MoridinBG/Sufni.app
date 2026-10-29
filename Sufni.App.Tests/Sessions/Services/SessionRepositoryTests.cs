@@ -345,7 +345,7 @@ public class SessionRepositoryTests
         }
 
         Assert.Equal(updateCount + putCount, (await database.GetSessionsAsync()).Count);
-        Assert.Equal(updateCount + putCount, (await database.GetRecordedSessionSourcesAsync()).Count);
+        Assert.Equal(updateCount + putCount, (await database.GetRecordedSessionSourceSnapshotsAsync()).Count);
     }
 
     [Fact]

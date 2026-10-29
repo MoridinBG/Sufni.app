@@ -48,7 +48,6 @@ public class RecordedSessionSourceStoreTests
 
         await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await sourceRepository.DidNotReceive().GetRecordedSessionSourcesAsync();
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(kept.SessionId, snapshot.SessionId);
         Assert.Null(store.Get(removed.SessionId));
@@ -67,7 +66,6 @@ public class RecordedSessionSourceStoreTests
 
         await store.PublishSourcesRemovedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
 
-        _ = sourceRepository.DidNotReceiveWithAnyArgs().DeleteRecordedSessionSourceAsync(default);
         Assert.Empty(snapshots);
         Assert.Null(store.Get(source.SessionId));
     }

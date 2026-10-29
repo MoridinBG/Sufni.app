@@ -13,8 +13,6 @@ namespace Sufni.App.Sessions.Services;
 
 public interface IRecordedSessionSourceRepository
 {
-    Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync();
-
     Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id);
 
     Task<List<RecordedSessionSourceSnapshot>> GetRecordedSessionSourceSnapshotsAsync();
@@ -41,8 +39,6 @@ public interface IRecordedSessionSourceRepository
     Task<List<Guid>> GetReferencedSourceSessionIdsAsync();
 
     Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
-
-    Task DeleteRecordedSessionSourceAsync(Guid sessionId);
 
     /// <summary>
     /// Deletes, in one transaction, the source rows whose session row is gone and
@@ -73,12 +69,6 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
                                                        )
                                                        VALUES (?, ?, ?, ?, ?, ?)
                                                        """;
-
-    public async Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync()
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        return await connection.Table<RecordedSessionSource>().ToListAsync();
-    }
 
     public async Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id)
     {
@@ -161,12 +151,6 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         await connection.ExecuteAsync(PutRecordedSessionSourceSql, CreatePutRecordedSessionSourceValues(source));
     }
 
-    public async Task DeleteRecordedSessionSourceAsync(Guid sessionId)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        await DeleteRecordedSessionSourceAsync(connection, sessionId);
-    }
-
     public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
         connectionContext.RunInTransactionAsync<IReadOnlyList<Guid>>(connection =>
         {
@@ -226,11 +210,6 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
             DeleteRecordedSessionSource(connection, sessionId);
         }
     }
-
-    private static Task<int> DeleteRecordedSessionSourceAsync(
-        SQLiteAsyncConnection connection,
-        Guid sessionId) =>
-        connection.ExecuteAsync("DELETE FROM session_recording_source WHERE session_id=?", sessionId);
 
     private static object?[] CreatePutRecordedSessionSourceValues(RecordedSessionSource source) =>
     [

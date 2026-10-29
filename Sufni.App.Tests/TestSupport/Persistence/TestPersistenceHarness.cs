@@ -146,9 +146,6 @@ internal sealed class TestPersistenceHarness
     public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null) =>
         sessionTelemetryWriter.PatchSessionTrackAsync(id, points, gpsOffsetSeconds);
 
-    public Task<List<RecordedSessionSource>> GetRecordedSessionSourcesAsync() =>
-        recordedSessionSourceRepository.GetRecordedSessionSourcesAsync();
-
     public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id) =>
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
 
@@ -169,9 +166,6 @@ internal sealed class TestPersistenceHarness
 
     public Task PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
         recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
-
-    public Task DeleteRecordedSessionSourceAsync(Guid sessionId) =>
-        recordedSessionSourceRepository.DeleteRecordedSessionSourceAsync(sessionId);
 
     public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
         recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync();
