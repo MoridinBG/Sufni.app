@@ -36,7 +36,7 @@ public class MainViewTests
     public async Task MainView_UsesWorkspaceHost_WhenLoaded()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var root = CreateRoot(MainPagesViewModelTestFactory.Create());
         var view = new MainView
@@ -55,7 +55,7 @@ public class MainViewTests
     public async Task MainView_ShowsSyncBusyOverlay_WhenSyncRuns()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var server = new TestSynchronizationServerService();
         var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: CreateSyncCoordinator(server));

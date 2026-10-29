@@ -73,16 +73,10 @@ public partial class App : Application
 
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
-    public bool IsDesktop { get; private set; }
 
 #if DEBUG
     protected virtual bool ShouldAttachDeveloperTools => !OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid();
 #endif
-
-    internal void SetIsDesktopForTests(bool isDesktop)
-    {
-        IsDesktop = isDesktop;
-    }
 
     public override void Initialize()
     {
@@ -112,8 +106,6 @@ public partial class App : Application
         }
 
         LoggingBootstrapper.InstallGlobalExceptionHooks();
-
-        var isDesktop = ApplicationLifetime is IClassicDesktopStyleApplicationLifetime;
 
         ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
@@ -307,7 +299,6 @@ public partial class App : Application
         ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
         ServiceCollection.AddSingleton<ShellRootViewModel>();
 
-        IsDesktop = isDesktop;
         Services = ServiceCollection.BuildServiceProvider();
 
         if (!DataTemplates.OfType<ViewLocator>().Any())

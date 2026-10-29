@@ -29,7 +29,7 @@ public class MainPagesDesktopViewTests
     public async Task MainPagesDesktopView_ShowsPairingRequestPanel_WhenPairingPinExists()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
@@ -63,7 +63,7 @@ public class MainPagesDesktopViewTests
     public async Task MainPagesDesktopView_HidesServerSyncSurfaces_WhenHostCapabilityIsUnavailable()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
@@ -100,7 +100,7 @@ public class MainPagesDesktopViewTests
     public async Task MainPagesDesktopView_ShowsSyncInPairedDevicesSurface()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
@@ -160,7 +160,7 @@ public class MainPagesDesktopViewTests
     public async Task MainPagesDesktopView_ShowsClientPairAction_WhenClientIsUnpaired()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingClientPage = CreatePairingClientPage(isPaired: false);
         var viewModel = MainPagesViewModelTestFactory.Create(
@@ -191,7 +191,7 @@ public class MainPagesDesktopViewTests
     public async Task MainPagesDesktopView_ShowsClientSyncAndUnpairActions_WhenClientIsPaired()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var syncCoordinator = TestCoordinatorSubstitutes.Sync();
         syncCoordinator.IsPaired.Returns(true);
@@ -227,7 +227,7 @@ public class MainPagesDesktopViewTests
     public async Task MainPagesDesktopView_HidesOpenVideoButton_WhenVideoPlaybackIsUnavailable()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(
             capabilities: new AppCapabilities(

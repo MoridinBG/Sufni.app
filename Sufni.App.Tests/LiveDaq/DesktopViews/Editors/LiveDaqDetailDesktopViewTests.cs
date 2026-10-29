@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -37,7 +38,7 @@ public class LiveDaqDetailDesktopViewTests
     private static async Task<MountedLiveDaqDetailDesktopView> MountAsync(LiveDaqDetailViewModel editor)
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var view = new LiveDaqDetailDesktopView
         {

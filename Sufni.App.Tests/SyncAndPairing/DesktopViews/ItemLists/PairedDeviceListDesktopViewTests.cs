@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using System;
 using System.Linq;
 using Avalonia.Controls;
@@ -65,7 +66,7 @@ public class PairedDeviceListDesktopViewTests
     private static async Task<MountedPairedDeviceListDesktopView> MountAsync(PairedDeviceListDesktopView view)
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedPairedDeviceListDesktopView(host, view);

@@ -68,7 +68,6 @@ public class VelocityBandViewTests
     [AvaloniaFact]
     public async Task VelocityBandView_BandsUseVelocityDistributionDataAreaOffsets()
     {
-        TestApp.SetIsDesktop(true);
         var view = CreateMountedView(CreateWorkspace());
 
         await using var mounted = await MountAsync(view);
@@ -83,7 +82,6 @@ public class VelocityBandViewTests
     [AvaloniaFact]
     public async Task DesktopDrag_PreviewsCommitsAndDoesNotRequestHapticFeedback()
     {
-        TestApp.SetIsDesktop(true);
         var workspace = CreateWorkspace();
         var view = CreateMountedView(workspace);
         var hapticCount = 0;
@@ -199,38 +197,30 @@ public class VelocityBandViewTests
     [AvaloniaFact]
     public async Task DampingAnalysisHost_EnablesHapticFeedbackOnDampingHandles()
     {
-        TestApp.SetIsDesktop(false);
+        var host = new DampingAnalysisHost
+        {
+            Width = 600,
+            Height = 420,
+            PresentationState = SurfacePresentationState.Ready,
+            HasAnalysisData = false,
+            StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
+            SuspensionType = SuspensionType.Front,
+            DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
+            AnalysisWorkspace = CreateWorkspace(),
+        };
+
+        EnsureVelocityBandStyle();
+        var window = await ViewTestHelpers.ShowViewAsync(host);
         try
         {
-            var host = new DampingAnalysisHost
-            {
-                Width = 600,
-                Height = 420,
-                PresentationState = SurfacePresentationState.Ready,
-                HasAnalysisData = false,
-                StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
-                SuspensionType = SuspensionType.Front,
-                DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
-                AnalysisWorkspace = CreateWorkspace(),
-            };
+            var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
 
-            EnsureVelocityBandStyle();
-            var window = await ViewTestHelpers.ShowViewAsync(host);
-            try
-            {
-                var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
-
-                Assert.True(HapticFeedbackBehavior.GetIsEnabled(band));
-            }
-            finally
-            {
-                window.Close();
-                await ViewTestHelpers.FlushDispatcherAsync();
-            }
+            Assert.True(HapticFeedbackBehavior.GetIsEnabled(band));
         }
         finally
         {
-            TestApp.SetIsDesktop(true);
+            window.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
         }
     }
 

@@ -65,12 +65,6 @@ public static class ViewTestHelpers
         SufniThemeResourceBridge.PopulateVariant(resources, SufniThemes.Dark);
     }
 
-    public static void EnsureViewTestDataTemplates(bool isDesktop)
-    {
-        TestApp.SetIsDesktop(isDesktop);
-        EnsureViewTestDataTemplates(isDesktop ? UiLayoutProfile.Workspace : UiLayoutProfile.Compact);
-    }
-
     public static void EnsureViewTestDataTemplates(UiLayoutProfile layoutProfile)
     {
         var application = Application.Current
@@ -115,7 +109,7 @@ public static class ViewTestHelpers
     public static void EnsureSessionDetailViewSetup(bool isDesktop)
     {
         EnsureViewTestResources();
-        EnsureViewTestDataTemplates(isDesktop);
+        EnsureViewTestDataTemplates(isDesktop ? UiLayoutProfile.Workspace : UiLayoutProfile.Compact);
 
         if (isDesktop)
         {
@@ -144,16 +138,15 @@ public static class ViewTestHelpers
     }
 
     private static IAppEnvironment CreateAppEnvironment(UiLayoutProfile layoutProfile) =>
-        new AppEnvironment(
-            DefaultLayoutProfile: layoutProfile,
-            LayoutProfile: layoutProfile,
-            Capabilities: new AppCapabilities(
+        TestAppEnvironment.Create(
+            layoutProfile,
+            capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
                 CanPlayVideo: false),
-            Input: new InputCapabilities(
+            input: new InputCapabilities(
                 HasPointer: true,
                 HasTouch: true,
                 HasKeyboard: true,

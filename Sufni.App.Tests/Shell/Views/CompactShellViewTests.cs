@@ -25,7 +25,7 @@ public class CompactShellViewTests
     public async Task CompactShellView_OpensDrawer_WhenPagesCommandExecutes()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var root = CreateRoot();
         var view = new CompactShellView
@@ -51,7 +51,7 @@ public class CompactShellViewTests
     public async Task CompactShellView_TabbedPage_UpdatesSelectedPrimaryIndex_OnSelectionChange()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var root = CreateRoot();
         var view = new CompactShellView
@@ -81,7 +81,7 @@ public class CompactShellViewTests
     public async Task CompactShellView_SelectedPrimaryIndex_UpdatesTabbedPageSelection()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var root = CreateRoot();
         var view = new CompactShellView
@@ -106,7 +106,7 @@ public class CompactShellViewTests
     public async Task CompactShellView_BindsMainPagesAndPrimaryPageContent()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var root = CreateRoot();
         var view = new CompactShellView
@@ -134,7 +134,7 @@ public class CompactShellViewTests
     public async Task CompactShellView_SidePanel_UsesDirectLayoutProfileAction()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var uiPreferences = Substitute.For<IUiPreferences>();
         uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);

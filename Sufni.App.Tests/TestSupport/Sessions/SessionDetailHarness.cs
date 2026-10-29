@@ -169,7 +169,6 @@ internal sealed class SessionDetailHarness
         SessionSnapshot snapshot,
         bool isDesktop)
     {
-        TestApp.SetIsDesktop(isDesktop);
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
             new RecordedSessionAnalysisComputer(SessionInsightsService),
             new InlineBackgroundTaskRunner(),

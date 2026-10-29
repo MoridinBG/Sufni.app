@@ -41,7 +41,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_BindsPagesAndShowsEmptyWorkspaceState_WhenNoTabIsSelected()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var view = new WorkspaceShellView
@@ -64,7 +64,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_BindsTabsAndHidesEmptyWorkspaceState_WhenTabIsSelected()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var tab = new TestTabPage("Session");
@@ -88,7 +88,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_TabDragFeedback_FadesDraggedTabAndShowsInsertionIndicator()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         await using var mounted = await MountAsync(new WorkspaceShellView
         {
@@ -116,7 +116,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_TabClose_NoopsAutomationPeerRefresh_WhenNoPanelPeerWasMaterialized()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
         EnsureFluentTheme();
 
         var root = CreateRoot();
@@ -139,7 +139,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_TabClose_RefreshesPanelPeers_WhenPanelPeerChildrenWereCached()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
         EnsureFluentTheme();
 
         var root = CreateRoot();
@@ -162,7 +162,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_TabClose_ClearsTabOnceActiveElement_FromClosedContent()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
         EnsureFluentTheme();
 
         var root = CreateRoot();
@@ -193,7 +193,7 @@ public class WorkspaceShellViewTests
     public async Task WorkspaceShellView_TabClose_PreservesTabOnceActiveElement_FromRemainingContent()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
         EnsureFluentTheme();
 
         var root = CreateRoot();

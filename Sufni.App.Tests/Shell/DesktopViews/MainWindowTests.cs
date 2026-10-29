@@ -24,7 +24,7 @@ public class MainWindowTests
     public async Task MainWindow_UsesShortcutRegistryForWindowShortcuts()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         await using var mounted = await MountAsync(new MainWindow
         {
@@ -68,7 +68,7 @@ public class MainWindowTests
     public async Task MainWindow_HandlesRegisteredTabShortcutsBeforeFocusNavigation()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var first = new TestTabPageViewModel();
@@ -106,7 +106,7 @@ public class MainWindowTests
     public async Task MainWindow_HandlesRegisteredTabShortcutFromHandledKeyDownEvent()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var first = new TestTabPageViewModel();
@@ -143,7 +143,7 @@ public class MainWindowTests
     public async Task MainWindow_HandlesRegisteredTabShortcutFromRawKeyUp_WhenRawKeyDownIsMissing()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var first = new TestTabPageViewModel();
@@ -171,7 +171,7 @@ public class MainWindowTests
     public async Task MainWindow_SuppressesRawTabKeyUp_WhenRawKeyDownAlreadyHandledShortcut()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var first = new TestTabPageViewModel();
@@ -206,7 +206,7 @@ public class MainWindowTests
     public async Task MainWindow_DoesNotInterceptRegisteredNonTabShortcuts()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
         var first = new TestTabPageViewModel();
@@ -234,7 +234,7 @@ public class MainWindowTests
     public async Task MainWindow_AutomationPeer_BlocksDescentFocusAndHitTest_OnMacOS()
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         await using var mounted = await MountAsync(new MainWindow
         {

@@ -108,7 +108,7 @@ public class SessionShellMobileViewTests
     private static async Task<MountedShell> MountAsync(FakeShellHostViewModel host)
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var shell = new SessionShellMobileView
         {

@@ -23,6 +23,7 @@ using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Infrastructure;
+using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.LiveDaq.Stores;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Services;
@@ -100,20 +101,7 @@ internal static class MainPagesViewModelTestFactory
         UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
         AppCapabilities? capabilities = null,
         InputCapabilities? input = null) =>
-        new AppEnvironment(
-            DefaultLayoutProfile: layoutProfile,
-            LayoutProfile: layoutProfile,
-            Capabilities: capabilities ?? new AppCapabilities(
-                CanHostSyncServer: true,
-                CanPairAsClient: false,
-                SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                CanPlayVideo: true),
-            Input: input ?? new InputCapabilities(
-                HasPointer: true,
-                HasTouch: false,
-                HasKeyboard: true,
-                SupportsLongPressContextMenu: false));
+        TestAppEnvironment.Create(layoutProfile, capabilities, input);
 
     private static BikeListViewModel CreateBikeListPage() =>
         new(

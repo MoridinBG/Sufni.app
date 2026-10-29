@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -13,7 +14,7 @@ internal static class ListHostTestSupport
         where TControl : Control
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: false);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var shell = MainPagesViewModelTestFactory.Create();
         var hostView = new MainPagesViewBase

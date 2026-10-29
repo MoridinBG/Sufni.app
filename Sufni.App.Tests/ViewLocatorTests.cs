@@ -11,12 +11,11 @@ namespace Sufni.App.Tests;
 public class ViewLocatorTests
 {
     [AvaloniaFact]
-    public void Build_UsesWorkspaceFactory_WhenLayoutProfileIsWorkspaceAndAppIsNotDesktop()
+    public void Build_UsesWorkspaceFactory_WhenLayoutProfileIsWorkspace()
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        TestApp.SetIsDesktop(false);
-        var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
+        var environment = TestAppEnvironment.Create(UiLayoutProfile.Workspace);
         var locator = new ViewLocator(environment);
 
         var view = locator.Build(MainPagesViewModelTestFactory.Create(appEnvironment: environment));

@@ -87,7 +87,7 @@ public class SessionMediaDesktopViewTests : IDisposable
         SessionPaneGroupPreferences? layoutPreferences = null)
     {
         ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(isDesktop: true);
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var view = new SessionMediaDesktopView
         {
