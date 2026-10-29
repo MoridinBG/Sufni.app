@@ -13,8 +13,6 @@ public static class SessionPreferencesTestExtensions
     public static ISessionPreferences WithDefaultObserveRecorded(this ISessionPreferences preferences)
     {
         preferences.ObserveRecorded(Arg.Any<Guid>()).Returns(Observable.Empty<SessionPreferences>());
-        preferences.ObserveRecordedChanges(Arg.Any<Guid>())
-            .Returns(Observable.Empty<PreferenceValueChange<SessionPreferences>>());
         preferences.ObserveAllRecordedChanges()
             .Returns(Observable.Empty<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>());
         return preferences;

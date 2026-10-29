@@ -564,7 +564,7 @@ public sealed class AppPreferences : IAppPreferences
                 .DistinctUntilChanged();
         }
 
-        public IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedChanges(Guid sessionId)
+        private IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedChanges(Guid sessionId)
         {
             return Observable
                 .FromAsync(async () => new PreferenceValueChange<SessionPreferences>(

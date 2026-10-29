@@ -78,6 +78,5 @@ public interface ISessionPreferences
     // Replays the current value and emits local writes, local no-sync-clock
     // writes, and remote sync applies.
     IObservable<SessionPreferences> ObserveRecorded(Guid sessionId);
-    IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedChanges(Guid sessionId);
     IObservable<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> ObserveAllRecordedChanges();
 }

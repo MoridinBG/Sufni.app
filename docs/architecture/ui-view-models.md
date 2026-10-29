@@ -365,7 +365,8 @@ Two pages diverge from that pattern:
   base presentation states, while the live editor calls
   `LiveSessionSignalsWorkspaceViewModel.ApplyPlotPreferences`. The
   recorded editor also persists changes through `ISessionPreferences`
-  (loaded on `Loaded`, written via `UpdateRecordedAsync`) and folds
+  (loaded on `Loaded`, written via `UpdateRecordedAsync`, observed as values
+  through `ObserveRecorded`) and folds
   the analysis preferences (travel-distribution mode,
   velocity-average mode, balance-displacement mode, target profile)
   processing preferences, and desktop session-detail layout ratios
