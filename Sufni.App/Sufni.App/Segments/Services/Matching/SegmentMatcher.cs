@@ -59,7 +59,7 @@ internal sealed class SegmentMatcher : ISegmentMatcher
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var options = NormalizeOptions(request.Options);
+        var options = request.Options;
         if (!TryBuildSourcePath(request.SegmentPoints, options, out var source))
         {
             return [];
@@ -77,54 +77,36 @@ internal sealed class SegmentMatcher : ISegmentMatcher
         // Candidates are processed one at a time; the heavy window scans inside
         // FindBestMatch fan out across cores instead, so one long session cannot
         // pin the tail of the search to a single thread.
-        for (var index = 0; index < candidates.Tracks.Count; index++)
+        for (var index = 0; index < candidates.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var reporter = progress is null
                 ? null
-                : new MatchingSessionsReporter(progress, index, candidates.Tracks.Count);
+                : new MatchingSessionsReporter(progress, index, candidates.Count);
             reporter?.Report(0);
 
-            var match = FindBestMatch(source, candidates.Tracks[index], request, options, parallelOptions, reporter is null ? null : reporter.Report);
+            var match = FindBestMatch(source, candidates[index], request, options, parallelOptions, reporter is null ? null : reporter.Report);
             if (match is not null)
             {
                 matches.Add(match);
             }
 
-            progress?.Report(new SegmentMatchProgress.MatchingSessions(index + 1, candidates.Tracks.Count));
+            progress?.Report(new SegmentMatchProgress.MatchingSessions(index + 1, candidates.Count));
         }
 
-        if (request.Source is { } sourceContext &&
-            await contentReader.GetExactSnapshotAsync(
-                sourceContext.SessionId,
-                sourceContext.ContentToken,
+        if (await contentReader.GetExactSnapshotAsync(
+                request.Source.SessionId,
+                request.Source.ContentToken,
                 SessionContentSelection.None,
                 cancellationToken) is not SessionContentSnapshotResult.Available)
         {
             return [];
         }
 
-        return matches
-            .OrderBy(match => match.NormalizedCostMeters)
-            .ThenBy(match => match.MedianErrorMeters)
-            .ThenBy(match => candidates.SessionSortKeys.TryGetValue(match.SessionId, out var key) ? key.Timestamp : long.MaxValue)
-            .ThenBy(match => match.SessionName, StringComparer.Ordinal)
-            .ToList();
+        return matches;
     }
 
-    private static SegmentDtwMatchOptions NormalizeOptions(SegmentDtwMatchOptions options)
-    {
-        var defaults = SegmentDtwMatchOptions.Default;
-        return new SegmentDtwMatchOptions(
-            ResampleStepMeters: options.ResampleStepMeters > 0 ? options.ResampleStepMeters : defaults.ResampleStepMeters,
-            MinSegmentLengthMeters: options.MinSegmentLengthMeters > 0 ? options.MinSegmentLengthMeters : defaults.MinSegmentLengthMeters,
-            MaxPointDistanceMeters: options.MaxPointDistanceMeters > 0 ? options.MaxPointDistanceMeters : defaults.MaxPointDistanceMeters,
-            MaxNormalizedCostMeters: options.MaxNormalizedCostMeters > 0 ? options.MaxNormalizedCostMeters : defaults.MaxNormalizedCostMeters,
-            CandidateLengthToleranceRatio: options.CandidateLengthToleranceRatio >= 0 ? options.CandidateLengthToleranceRatio : defaults.CandidateLengthToleranceRatio,
-            MaxDegreeOfParallelism: options.MaxDegreeOfParallelism > 0 ? options.MaxDegreeOfParallelism : defaults.MaxDegreeOfParallelism);
-    }
-
-    private async Task<CandidateLoadResult> LoadCandidateTracksAsync(
+    private async Task<IReadOnlyList<CandidateTrack>> LoadCandidateTracksAsync(
         TrackPath source,
         SegmentDtwMatchOptions options,
         CancellationToken cancellationToken,
@@ -132,15 +114,6 @@ internal sealed class SegmentMatcher : ISegmentMatcher
     {
         progress?.Report(new SegmentMatchProgress.LoadingSessions());
         var sessions = await contentReader.GetSessionsAsync(cancellationToken);
-        var sortKeys = new Dictionary<Guid, SessionSortKey>(sessions.Count);
-
-        for (var index = 0; index < sessions.Count; index++)
-        {
-            var session = sessions[index];
-            cancellationToken.ThrowIfCancellationRequested();
-            sortKeys[session.Id] = new SessionSortKey(session.Timestamp ?? long.MaxValue);
-        }
-
         var candidateTracks = new CandidateTrack?[sessions.Count];
         var progressGate = new object();
         var completed = 0;
@@ -186,7 +159,7 @@ internal sealed class SegmentMatcher : ISegmentMatcher
             }
         }
 
-        return new CandidateLoadResult(tracks, sortKeys);
+        return tracks;
     }
 
     private async Task<TrackPath?> GetPreparedCandidatePathAsync(
@@ -254,10 +227,6 @@ internal sealed class SegmentMatcher : ISegmentMatcher
                 BitConverter.DoubleToInt64Bits(reference.OriginY),
                 BitConverter.DoubleToInt64Bits(reference.Scale));
     }
-    private sealed record CandidateLoadResult(
-        IReadOnlyList<CandidateTrack> Tracks,
-        IReadOnlyDictionary<Guid, SessionSortKey> SessionSortKeys);
-    private readonly record struct SessionSortKey(long Timestamp);
     // Serializes MatchingSessions reports for one session and drops sub-percent
     // updates so parallel workers can tick progress cheaply without flooding the
     // UI or reporting backwards.

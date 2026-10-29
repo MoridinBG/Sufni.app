@@ -47,7 +47,7 @@ public class SegmentMatcherTests
         var progress = new ProgressRecorder();
 
         var match = Assert.Single(await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 120, 320), Source: null, CreateLooseOptions()),
+            CreateRequest(BuildLineTrack(1000, 120, 320), CreateLooseOptions()),
             TestContext.Current.CancellationToken,
             progress));
 
@@ -67,7 +67,7 @@ public class SegmentMatcherTests
         AddSession("Offset", timestamp: 2000, BuildLineTrack(2000, 0, 400, y: 2));
 
         var match = Assert.Single(await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions()),
+            CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions()),
             TestContext.Current.CancellationToken));
 
         Assert.Equal(2, match.NormalizedCostMeters, precision: 6);
@@ -79,23 +79,10 @@ public class SegmentMatcherTests
         AddSession("Reversed", timestamp: 2000, BuildReversedLineTrack(2000, 0, 400));
 
         var matches = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions()),
+            CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions()),
             TestContext.Current.CancellationToken);
 
         Assert.Empty(matches);
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_OrdersEqualScoresBySessionTime()
-    {
-        var later = AddSession("Later", timestamp: 3000, BuildLineTrack(3000, 0, 400));
-        var earlier = AddSession("Earlier", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-
-        var matches = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions()),
-            TestContext.Current.CancellationToken);
-
-        Assert.Equal([earlier.Id, later.Id], matches.Select(match => match.SessionId));
     }
 
     [Fact]
@@ -107,10 +94,10 @@ public class SegmentMatcherTests
         var source = BuildLineTrack(1000, 100, 300);
 
         var serial = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(source, Source: null, CreateOptions()),
+            CreateRequest(source, CreateOptions()),
             TestContext.Current.CancellationToken);
         var parallel = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(source, Source: null, CreateOptions(maxDegreeOfParallelism: 4)),
+            CreateRequest(source, CreateOptions(maxDegreeOfParallelism: 4)),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(serial, parallel, MatchComparer.Instance);
@@ -133,11 +120,11 @@ public class SegmentMatcherTests
                 secondLoaded.TrySetResult();
             }
 
-            return reader.Tracks[sessionId];
+            return reader.Tracks.GetValueOrDefault(sessionId);
         };
 
         var matches = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions(maxDegreeOfParallelism: 4)),
+            CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions(maxDegreeOfParallelism: 4)),
             TestContext.Current.CancellationToken);
 
         Assert.Equal([first.Id, second.Id], matches.Select(match => match.SessionId));
@@ -165,7 +152,7 @@ public class SegmentMatcherTests
     {
         var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
         var matcher = new SegmentMatcher(reader);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         var first = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
         var second = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
@@ -179,7 +166,7 @@ public class SegmentMatcherTests
     {
         var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 500));
         var matcher = new SegmentMatcher(reader);
-        var firstRequest = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var firstRequest = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
         var otherRequest = firstRequest with { SegmentPoints = BuildLineTrack(1000, 200, 400) };
 
         var first = await matcher.FindMatchesAsync(firstRequest, TestContext.Current.CancellationToken);
@@ -195,12 +182,12 @@ public class SegmentMatcherTests
     {
         var session = AddSession("Original", timestamp: 3000, BuildLineTrack(3000, 0, 400));
         var matcher = new SegmentMatcher(reader);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        reader.Sessions = [session with { Name = "Renamed" }];
+        ReplaceSession(session with { Name = "Renamed" });
         var renamed = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        reader.Sessions = [session with { ContentToken = session.ContentToken with { TrackProjectionRevision = 2 } }];
+        ReplaceSession(session with { ContentToken = session.ContentToken with { TrackProjectionRevision = 2 } });
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal("Renamed", Assert.Single(renamed).SessionName);
@@ -222,14 +209,14 @@ public class SegmentMatcherTests
                 await releaseLoad.Task;
             }
 
-            return reader.Tracks[sessionId];
+            return reader.Tracks.GetValueOrDefault(sessionId);
         };
         var matcher = new SegmentMatcher(reader);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         var staleRun = matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
         await loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        reader.Sessions = [current];
+        ReplaceSession(current);
         releaseLoad.SetResult();
         var staleMatches = await staleRun;
         var currentMatches = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
@@ -250,10 +237,10 @@ public class SegmentMatcherTests
         {
             loadStarted.TrySetResult();
             await releaseLoad.Task;
-            return reader.Tracks[sessionId];
+            return reader.Tracks.GetValueOrDefault(sessionId);
         };
         var matcher = new SegmentMatcher(reader);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         var first = matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
         await loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
@@ -270,12 +257,12 @@ public class SegmentMatcherTests
         var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
         var changed = session with { ContentToken = session.ContentToken with { TrackProjectionRevision = 2 } };
         var matcher = new SegmentMatcher(reader, preparedPathRetentionLimitBytes: 1_500);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        reader.Sessions = [changed];
+        ReplaceSession(changed);
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        reader.Sessions = [session];
+        ReplaceSession(session);
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal(2, reader.TrackReads(session.Id, session.ContentToken));
@@ -286,7 +273,7 @@ public class SegmentMatcherTests
     {
         var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
         var matcher = new SegmentMatcher(reader, preparedPathRetentionLimitBytes: 1);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
@@ -299,7 +286,7 @@ public class SegmentMatcherTests
     {
         var session = AddSession("Missing", timestamp: 2000, track: null);
         var matcher = new SegmentMatcher(reader);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
@@ -317,10 +304,10 @@ public class SegmentMatcherTests
         {
             loadStarted.TrySetResult();
             await releaseLoad.Task;
-            return reader.Tracks[sessionId];
+            return reader.Tracks.GetValueOrDefault(sessionId);
         };
         var matcher = new SegmentMatcher(reader);
-        var request = new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions());
+        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
         using var cancellation = new CancellationTokenSource();
 
         var cancelled = matcher.FindMatchesAsync(request, cancellation.Token);
@@ -344,12 +331,12 @@ public class SegmentMatcherTests
         {
             loadStarted.TrySetResult();
             await releaseLoad.Task;
-            return reader.Tracks[sessionId];
+            return reader.Tracks.GetValueOrDefault(sessionId);
         };
         using var cancellation = new CancellationTokenSource();
 
         var match = new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 100, 300), Source: null, CreateOptions()),
+            CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions()),
             cancellation.Token);
         await loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
         cancellation.Cancel();
@@ -363,12 +350,29 @@ public class SegmentMatcherTests
     public async Task FindMatchesAsync_ReturnsNothingForATooShortSegmentWithoutReadingSessions()
     {
         var matches = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(BuildLineTrack(1000, 0, 20), Source: null, CreateOptions()),
+            CreateRequest(BuildLineTrack(1000, 0, 20), CreateOptions()),
             TestContext.Current.CancellationToken);
 
         Assert.Empty(matches);
         Assert.Equal(0, reader.GetSessionsCalls);
     }
+
+    private SegmentMatchRequest CreateRequest(IReadOnlyList<TrackPoint> points, SegmentDtwMatchOptions options)
+    {
+        var source = AddSession("Source", (long)points[0].Time, track: null);
+        return new SegmentMatchRequest(
+            points,
+            new SegmentMatchSourceContext(
+                source.Id,
+                new TelemetryTimeRange(0, points[^1].Time - points[0].Time),
+                source.ContentToken),
+            options);
+    }
+
+    private void ReplaceSession(SessionCatalogItem replacement) =>
+        reader.Sessions = reader.Sessions
+            .Select(session => session.Id == replacement.Id ? replacement : session)
+            .ToArray();
 
     private SessionCatalogItem AddSession(string name, long timestamp, IReadOnlyList<TrackPoint>? track)
     {

@@ -14,7 +14,7 @@ public sealed record SegmentMatchSourceContext(
 
 public sealed record SegmentMatchRequest(
     IReadOnlyList<TrackPoint> SegmentPoints,
-    SegmentMatchSourceContext? Source,
+    SegmentMatchSourceContext Source,
     SegmentDtwMatchOptions Options);
 
 public sealed record SegmentMatch(

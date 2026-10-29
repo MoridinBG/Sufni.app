@@ -723,19 +723,15 @@ internal static class SegmentDtw
         double matchStartSeconds,
         double matchEndSeconds)
     {
-        var sourceOrigin = request.Source?.Range is { } sourceRange
-            ? source.Samples[0].SourceTimeSeconds - sourceRange.StartSeconds
-            : source.Samples[0].SourceTimeSeconds;
+        var sourceRange = request.Source.Range;
+        var sourceOrigin = source.Samples[0].SourceTimeSeconds - sourceRange.StartSeconds;
         var candidateOrigin = ResolveTimelineOrigin(candidate);
 
         var grouped = path
             .Select(point =>
             {
                 var sourceSeconds = source.Samples[point.SourceIndex].SourceTimeSeconds - sourceOrigin;
-                if (request.Source?.Range is { } range)
-                {
-                    sourceSeconds = Math.Clamp(sourceSeconds, range.StartSeconds, range.EndSeconds);
-                }
+                sourceSeconds = Math.Clamp(sourceSeconds, sourceRange.StartSeconds, sourceRange.EndSeconds);
 
                 var candidateSeconds = candidate.Path.Samples[score.Window.StartIndex + point.CandidateIndex].SourceTimeSeconds - candidateOrigin;
                 candidateSeconds = Math.Clamp(
@@ -852,7 +848,7 @@ internal static class SegmentDtw
         CandidateWindow window,
         SegmentMatchRequest request)
     {
-        if (request.Source?.SessionId != candidate.Session.Id || request.Source?.Range is null)
+        if (request.Source.SessionId != candidate.Session.Id)
         {
             return false;
         }
@@ -860,8 +856,8 @@ internal static class SegmentDtw
         var origin = ResolveTimelineOrigin(candidate);
         var candidateStartSeconds = candidate.Path.Samples[window.StartIndex].SourceTimeSeconds - origin;
         var candidateEndSeconds = candidate.Path.Samples[window.EndIndex].SourceTimeSeconds - origin;
-        return candidateStartSeconds < request.Source!.Range.EndSeconds &&
-               request.Source!.Range.StartSeconds < candidateEndSeconds;
+        return candidateStartSeconds < request.Source.Range.EndSeconds &&
+               request.Source.Range.StartSeconds < candidateEndSeconds;
     }
 
     private static double ResolveTimelineOrigin(CandidateTrack candidate)
