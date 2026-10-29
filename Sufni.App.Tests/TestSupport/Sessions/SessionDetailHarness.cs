@@ -100,12 +100,6 @@ internal sealed class SessionDetailHarness
     public void Unload(SessionDetailViewModel editor) =>
         editor.UnloadedCommand.Execute(null);
 
-    public void PublishProjectionChange(IObserver<RecordedSessionDomainSnapshot> publisher, RecordedSessionDomainSnapshot snapshot) =>
-        publisher.OnNext(snapshot);
-
-    public void PublishPreferenceChange(IObserver<global::Sufni.App.Infrastructure.SessionPreferences> publisher, global::Sufni.App.Infrastructure.SessionPreferences preferences) =>
-        publisher.OnNext(preferences);
-
     public void ConfigureSnapshot(SessionSnapshot snapshot, IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null)
     {
         ProjectionChanges = projectionChanges ?? Observable.Empty<RecordedSessionDomainSnapshot>();

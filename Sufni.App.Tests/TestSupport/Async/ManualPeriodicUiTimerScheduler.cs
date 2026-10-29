@@ -39,22 +39,6 @@ public sealed class ManualPeriodicUiTimerScheduler :
         return AddTimer(repeats: false, action);
     }
 
-    public void FireNext()
-    {
-        ScheduledTimer? timer;
-        lock (gate)
-        {
-            timer = timers.FirstOrDefault();
-        }
-
-        if (timer is null)
-        {
-            throw new InvalidOperationException("No periodic UI timer is scheduled.");
-        }
-
-        timer.Fire();
-    }
-
     public void FireAll()
     {
         ScheduledTimer[] snapshot;

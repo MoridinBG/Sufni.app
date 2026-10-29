@@ -31,12 +31,6 @@ public static class ViewTestHelpers
         return window;
     }
 
-    public static Window ShowView<TView>(object dataContext)
-        where TView : Control, new()
-    {
-        return ShowView(new TView { DataContext = dataContext });
-    }
-
     public static async Task<Window> ShowViewAsync(Control view)
     {
         var host = ShowView(view);

@@ -24,10 +24,6 @@ internal sealed class StubLiveSessionService : ILiveSessionService
     public LiveSessionPresentationSnapshot Current { get; private set; }
 
     public LiveSessionCapturePackage? CapturePackage { get; set; }
-    public int EnsureAttachedCallCount { get; private set; }
-    public int ResetCaptureCallCount { get; private set; }
-    public int PrepareCaptureForSaveCallCount { get; private set; }
-    public int DisposeCallCount { get; private set; }
 
     public static StubLiveSessionService WithDefaultLiveStream(
         LiveSessionPresentationSnapshot? initialSnapshot = null,
@@ -46,22 +42,16 @@ internal sealed class StubLiveSessionService : ILiveSessionService
         signalBatches.OnNext(batch);
     }
 
-    public Task EnsureAttachedAsync(CancellationToken cancellationToken = default)
-    {
-        EnsureAttachedCallCount++;
-        return Task.CompletedTask;
-    }
+    public Task EnsureAttachedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
     {
-        ResetCaptureCallCount++;
         PublishSnapshot(LiveSessionPresentationSnapshot.Empty);
         return Task.CompletedTask;
     }
 
     public Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default)
     {
-        PrepareCaptureForSaveCallCount++;
         return CapturePackage is null
             ? Task.FromException<LiveSessionCapturePackage>(
                 new InvalidOperationException("No live session capture package was configured."))
@@ -70,7 +60,6 @@ internal sealed class StubLiveSessionService : ILiveSessionService
 
     public ValueTask DisposeAsync()
     {
-        DisposeCallCount++;
         snapshots.OnCompleted();
         signalBatches.OnCompleted();
         return ValueTask.CompletedTask;

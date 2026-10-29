@@ -33,15 +33,6 @@ public class LiveDaqCoordinatorTests
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
     private readonly StubLiveSessionService liveSessionService = StubLiveSessionService.WithDefaultLiveStream();
-    private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
-    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
-    private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-    private readonly IDaqManagementService daqManagementService = Substitute.For<IDaqManagementService>();
-    private readonly IFilesService filesService = Substitute.For<IFilesService>();
-    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
-    private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
