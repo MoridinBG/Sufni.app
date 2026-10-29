@@ -43,7 +43,6 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                 case DaqMalformedSstFileRecord malformedRecord:
                     files.Add(new NetworkTelemetryFile(
                         ipEndPoint,
-                        daqManagementService,
                         malformedRecord.RecordId,
                         malformedRecord.Name,
                         malformedRecord.TimestampUtc,
@@ -54,7 +53,6 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                 case DaqSstFileRecord sstRecord:
                     files.Add(new NetworkTelemetryFile(
                         ipEndPoint,
-                        daqManagementService,
                         sstRecord.RecordId,
                         sstRecord.Name,
                         sstRecord.TimestampUtc,

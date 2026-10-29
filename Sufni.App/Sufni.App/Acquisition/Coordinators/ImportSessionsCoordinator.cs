@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Channels;
@@ -98,30 +97,26 @@ public class ImportSessionsCoordinator(
         var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
         var bikeSnapshot = BikeSnapshot.From(bike);
 
-        var sessions = new Dictionary<IPEndPoint, IDaqManagementSession>();
+        IDaqManagementSession? batchSession = null;
         try
         {
-            foreach (var networkFile in files.OfType<NetworkTelemetryFile>())
+            var networkFiles = files.OfType<NetworkTelemetryFile>().ToArray();
+            if (networkFiles.Length > 0)
             {
-                if (sessions.ContainsKey(networkFile.EndPoint))
+                var endpoint = networkFiles[0].EndPoint;
+                batchSession = await daqManagementService.OpenSessionAsync(
+                    endpoint.Address.ToString(), endpoint.Port);
+                foreach (var networkFile in networkFiles)
                 {
-                    networkFile.AttachSession(sessions[networkFile.EndPoint]);
-                    continue;
+                    networkFile.AttachSession(batchSession);
                 }
-
-                var session = await daqManagementService.OpenSessionAsync(
-                    networkFile.EndPoint.Address.ToString(),
-                    networkFile.EndPoint.Port);
-                sessions[networkFile.EndPoint] = session;
-                networkFile.AttachSession(session);
             }
 
-            var lanes = BuildImportLanes(files, sessions);
             var channel = Channel.CreateBounded<(ITelemetryFile File, TelemetryFileSource Source)>(
                 new BoundedChannelOptions(4)
                 {
                     SingleReader = false,
-                    SingleWriter = false,
+                    SingleWriter = true,
                 });
             var totalToProcess = files.Count(f => f.ShouldBeImported is not false);
             var processedCount = 0;
@@ -187,12 +182,10 @@ public class ImportSessionsCoordinator(
                 }
             }
 
-            async Task RunProducerAsync(IReadOnlyList<ITelemetryFile> lane)
+            async Task RunProducerAsync()
             {
-                foreach (var telemetryFile in lane)
+                foreach (var telemetryFile in files)
                 {
-                    // Legacy semantics: only HasValue && Value is "import";
-                    // !HasValue is "trash"; HasValue && !Value is "leave alone".
                     if (telemetryFile.ShouldBeImported is false)
                     {
                         continue;
@@ -296,11 +289,10 @@ public class ImportSessionsCoordinator(
             var consumerTasks = Enumerable.Range(0, ImportProcessDop)
                 .Select(_ => RunConsumerAsync())
                 .ToArray();
-            var producerTasks = lanes.Select(RunProducerAsync).ToArray();
             Exception? producerException = null;
             try
             {
-                await Task.WhenAll(producerTasks);
+                await RunProducerAsync();
                 channel.Writer.Complete();
             }
             catch (Exception e)
@@ -374,48 +366,13 @@ public class ImportSessionsCoordinator(
         }
         finally
         {
-            foreach (var session in sessions.Values)
+            if (batchSession is not null)
             {
-                await session.DisposeAsync();
+                await batchSession.DisposeAsync();
             }
         }
 
         return new SessionImportResult(imported, failures);
-    }
-
-    private static List<IReadOnlyList<ITelemetryFile>> BuildImportLanes(
-        IReadOnlyList<ITelemetryFile> files,
-        IReadOnlyDictionary<IPEndPoint, IDaqManagementSession> sessions)
-    {
-        var lanes = new List<IReadOnlyList<ITelemetryFile>>();
-        var networkLanes = new Dictionary<IPEndPoint, List<ITelemetryFile>>();
-        var localLane = new List<ITelemetryFile>();
-
-        foreach (var file in files)
-        {
-            if (file is NetworkTelemetryFile networkFile && sessions.ContainsKey(networkFile.EndPoint))
-            {
-                if (!networkLanes.TryGetValue(networkFile.EndPoint, out var lane))
-                {
-                    lane = [];
-                    networkLanes.Add(networkFile.EndPoint, lane);
-                    lanes.Add(lane);
-                }
-
-                lane.Add(file);
-            }
-            else
-            {
-                localLane.Add(file);
-            }
-        }
-
-        if (localLane.Count > 0)
-        {
-            lanes.Add(localLane);
-        }
-
-        return lanes;
     }
 
     private static RecordedSessionDomainSnapshot CreateImportDomain(

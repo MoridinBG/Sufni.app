@@ -281,39 +281,27 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Fact]
-    public async Task ImportAsync_OpensOneNetworkSessionPerEndpointRoutesTrashThroughSessionAndDisposes()
+    public async Task ImportAsync_TrashesBatchFilesThroughOneSessionAndDisposesIt()
     {
         var harness = new ImportWorkflowHarness();
         var (setup, _) = harness.SeedSetupAndBike();
-        var endpointA = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
-        var endpointB = new IPEndPoint(IPAddress.Parse("10.0.0.2"), 1557);
-        var sessionA = Substitute.For<IDaqManagementSession>();
-        var sessionB = Substitute.For<IDaqManagementSession>();
+        var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
+        var session = Substitute.For<IDaqManagementSession>();
         harness.DaqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(sessionA));
-        harness.DaqManagementService.OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(sessionB));
-        sessionA.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(session));
+        session.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-        sessionB.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-        var fileA1 = CreateNetworkFile(endpointA, id: 1);
-        var fileA2 = CreateNetworkFile(endpointA, id: 2);
-        var fileB = CreateNetworkFile(endpointB, id: 3);
+        var first = CreateNetworkFile(endpoint, id: 1);
+        var second = CreateNetworkFile(endpoint, id: 2);
 
-        await harness.CreateCoordinator().ImportAsync([fileA1, fileA2, fileB], setup.Id);
+        var result = await harness.CreateCoordinator().ImportAsync([first, second], setup.Id);
 
+        Assert.Empty(result.Failures);
         await harness.DaqManagementService.Received(1)
             .OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>());
-        await harness.DaqManagementService.Received(1)
-            .OpenSessionAsync("10.0.0.2", 1557, Arg.Any<CancellationToken>());
-        await sessionA.Received(1).TrashFileAsync(1, Arg.Any<CancellationToken>());
-        await sessionA.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
-        await sessionB.Received(1).TrashFileAsync(3, Arg.Any<CancellationToken>());
-        await harness.DaqManagementService.DidNotReceiveWithAnyArgs()
-            .TrashFileAsync(default!, default, default, Arg.Any<CancellationToken>());
-        await sessionA.Received(1).DisposeAsync();
-        await sessionB.Received(1).DisposeAsync();
+        await session.Received(1).TrashFileAsync(1, Arg.Any<CancellationToken>());
+        await session.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
+        await session.Received(1).DisposeAsync();
     }
 
     [Fact]
@@ -361,7 +349,7 @@ public class ImportSessionsCoordinatorTests
     }
 
     private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>
-        new(endpoint, Substitute.For<IDaqManagementService>(), id, $"{id:00000}.SST",
+        new(endpoint, id, $"{id:00000}.SST",
             DateTimeOffset.FromUnixTimeSeconds(111 + id), TimeSpan.FromSeconds(6))
         { ShouldBeImported = null };
 
