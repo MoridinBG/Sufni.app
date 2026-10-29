@@ -13,10 +13,7 @@ internal interface ITelemetryBikeProcessingContextFactory
     TelemetryBikeProcessingContext Create(SetupSnapshot setup, BikeSnapshot bike);
 }
 
-internal sealed record TelemetryBikeProcessingContext(
-    BikeData BikeData,
-    ISensorConfiguration? FrontSensorConfiguration,
-    RearTravelCalibrationBuildResult RearTravelCalibration);
+internal sealed record TelemetryBikeProcessingContext(BikeData BikeData);
 
 internal sealed class TelemetryBikeProcessingContextFactory(
     IRearTravelCalibrationBuilder rearTravelCalibrationBuilder) : ITelemetryBikeProcessingContextFactory
@@ -49,9 +46,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
         var rearTravelCalibration = rearTravelCalibrationBuilder.TryBuild(setup, bike);
 
         return new TelemetryBikeProcessingContext(
-            TelemetryBikeData.Create(frontSensorConfiguration, rearTravelCalibration.Calibration),
-            frontSensorConfiguration,
-            rearTravelCalibration);
+            TelemetryBikeData.Create(frontSensorConfiguration, rearTravelCalibration.Calibration));
     }
 
     private readonly record struct CacheRequest(

@@ -24,26 +24,26 @@ public class TelemetryBikeProcessingContextFactoryTests
 
         Assert.Same(first, second);
         Assert.Equal(1, rearCalibrationBuilder.Calls);
-        Assert.NotNull(first.FrontSensorConfiguration);
         Assert.NotNull(first.BikeData.FrontMeasurementToTravel);
-        Assert.False(first.BikeData.FrontMeasurementToTravel.Target is AdcTravelLookupTable);
-        Assert.Equal(first.FrontSensorConfiguration!.MaxTravel, first.BikeData.FrontMaxTravel);
+        Assert.False(first.BikeData.FrontMeasurementWraps);
     }
 
     [Fact]
-    public void Create_DoesNotAddLookupToRotationalFrontCalibration()
+    public void Create_BindsRotationalFrontCalibrationToBike()
     {
         var factory = CreateFactory(out _);
-        var bike = CreateBike();
+        var bike = CreateBike() with { HeadAngle = 90 };
         var setup = CreateSetup(
             bike.Id,
             frontSensorConfigurationJson: RotationalForkJson());
 
         var context = factory.Create(setup, bike);
 
-        Assert.IsType<RotationalForkSensorConfiguration>(context.FrontSensorConfiguration);
         Assert.NotNull(context.BikeData.FrontMeasurementToTravel);
-        Assert.False(context.BikeData.FrontMeasurementToTravel.Target is AdcTravelLookupTable);
+        Assert.True(context.BikeData.FrontMeasurementWraps);
+        Assert.Equal(160, context.BikeData.FrontMaxTravel);
+        Assert.Equal(0, context.BikeData.FrontMeasurementToTravel(0), 1e-9);
+        Assert.Equal(200, context.BikeData.FrontMeasurementToTravel(2048), 1e-9);
     }
 
     [Fact]
@@ -186,8 +186,8 @@ public class TelemetryBikeProcessingContextFactoryTests
         var second = factory.Create(setup, bike);
 
         Assert.Same(first, second);
-        Assert.False(first.RearTravelCalibration.Succeeded);
-        Assert.Null(first.RearTravelCalibration.Calibration);
+        Assert.Null(first.BikeData.RearMeasurementToTravel);
+        Assert.Null(first.BikeData.RearMaxTravel);
         Assert.Equal(1, rearCalibrationBuilder.Calls);
     }
 
