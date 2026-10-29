@@ -19,7 +19,7 @@ public static class LoggingBootstrapper
     private static string? currentPlatformName;
     private static ILogEventSink? currentPlatformSink;
 
-    public static string? CurrentLogFilePath { get; private set; }
+    internal static string? CurrentLogFilePath { get; private set; }
 
     public static void Initialize(string platformName, ILogEventSink? platformSink = null)
     {
