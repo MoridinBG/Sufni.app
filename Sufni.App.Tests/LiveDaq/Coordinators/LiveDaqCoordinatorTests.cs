@@ -252,7 +252,7 @@ public class LiveDaqCoordinatorTests
             IsOnline: true,
             SetupName: "setup",
             BikeName: "bike");
-        liveDaqStore.Upsert(snapshot);
+        liveDaqStore.ReplaceAll([snapshot]);
 
         await CreateCoordinator().SelectAsync(snapshot.IdentityKey);
 
@@ -272,7 +272,7 @@ public class LiveDaqCoordinatorTests
             IsOnline: true,
             SetupName: "setup",
             BikeName: "bike");
-        liveDaqStore.Upsert(snapshot);
+        liveDaqStore.ReplaceAll([snapshot]);
         var context = CreateSessionContext(snapshot.IdentityKey, snapshot.DisplayName);
         knownBoardsQuery.GetSessionContext(snapshot.IdentityKey).Returns(context);
 

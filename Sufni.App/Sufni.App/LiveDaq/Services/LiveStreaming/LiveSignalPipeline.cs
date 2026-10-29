@@ -250,7 +250,6 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         double[]? velocityRearSnap = null;
         int batchCount;
         long batchRevision;
-        PendingSignalBatch batchToFlush;
 
         lock (gate)
         {
@@ -259,7 +258,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
                 return;
             }
 
-            batchToFlush = pendingSignalBatch;
+            var batchToFlush = pendingSignalBatch;
             pendingSignalBatch = new PendingSignalBatch();
 
             batchCount = batchToFlush.TravelTimes.Count;
@@ -294,47 +293,34 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             batchRevision = signalRevision;
         }
 
-        try
+        double[] frontVelocity;
+        double[] rearVelocity;
+        if (batchCount > 0)
         {
-            double[] frontVelocity;
-            double[] rearVelocity;
-            if (batchCount > 0)
-            {
-                frontVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityFrontSnap!, batchCount);
-                rearVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityRearSnap!, batchCount);
-            }
-            else
-            {
-                frontVelocity = [];
-                rearVelocity = [];
-            }
-
-            var batch = new LiveSignalBatch(
-                Revision: batchRevision,
-                TravelTimes: travelTimesArr,
-                FrontTravel: frontTravelArr,
-                RearTravel: rearTravelArr,
-                VelocityTimes: travelTimesArr,
-                FrontVelocity: frontVelocity,
-                RearVelocity: rearVelocity,
-                ImuTimes: imuTimesDict,
-                ImuVibrationRms: imuVibrationRmsDict,
-                FramePitchRollTimes: framePitchRollTimesArr,
-                FramePitchDegrees: framePitchArr,
-                FrameRollDegrees: frameRollArr);
-
-            signalBatchesSubject.OnNext(batch);
+            frontVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityFrontSnap!, batchCount);
+            rearVelocity = ComputeVelocityAppend(velocityTimesSnap!, velocityRearSnap!, batchCount);
         }
-        catch
+        else
         {
-            lock (gate)
-            {
-                batchToFlush.AppendFrom(pendingSignalBatch);
-                pendingSignalBatch = batchToFlush;
-            }
-
-            throw;
+            frontVelocity = [];
+            rearVelocity = [];
         }
+
+        var batch = new LiveSignalBatch(
+            Revision: batchRevision,
+            TravelTimes: travelTimesArr,
+            FrontTravel: frontTravelArr,
+            RearTravel: rearTravelArr,
+            VelocityTimes: travelTimesArr,
+            FrontVelocity: frontVelocity,
+            RearVelocity: rearVelocity,
+            ImuTimes: imuTimesDict,
+            ImuVibrationRms: imuVibrationRmsDict,
+            FramePitchRollTimes: framePitchRollTimesArr,
+            FramePitchDegrees: framePitchArr,
+            FrameRollDegrees: frameRollArr);
+
+        signalBatchesSubject.OnNext(batch);
     }
 
     private double[] ComputeVelocityAppend(IReadOnlyList<double> times, IReadOnlyList<double> travel, int batchCount)
@@ -492,39 +478,6 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             FramePitchRollTimes.Clear();
             FramePitchDegrees.Clear();
             FrameRollDegrees.Clear();
-        }
-
-        public void AppendFrom(PendingSignalBatch other)
-        {
-            TravelTimes.AddRange(other.TravelTimes);
-            FrontTravel.AddRange(other.FrontTravel);
-            RearTravel.AddRange(other.RearTravel);
-
-            foreach (var entry in other.ImuTimes)
-            {
-                if (!ImuTimes.TryGetValue(entry.Key, out var values))
-                {
-                    values = new List<double>();
-                    ImuTimes[entry.Key] = values;
-                }
-
-                values.AddRange(entry.Value);
-            }
-
-            foreach (var entry in other.ImuVibrationRms)
-            {
-                if (!ImuVibrationRms.TryGetValue(entry.Key, out var values))
-                {
-                    values = new List<double>();
-                    ImuVibrationRms[entry.Key] = values;
-                }
-
-                values.AddRange(entry.Value);
-            }
-
-            FramePitchRollTimes.AddRange(other.FramePitchRollTimes);
-            FramePitchDegrees.AddRange(other.FramePitchDegrees);
-            FrameRollDegrees.AddRange(other.FrameRollDegrees);
         }
     }
 }

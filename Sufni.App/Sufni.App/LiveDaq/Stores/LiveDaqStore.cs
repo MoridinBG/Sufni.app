@@ -19,12 +19,6 @@ internal sealed class LiveDaqStore : ILiveDaqStoreWriter
         return lookup.HasValue ? lookup.Value : null;
     }
 
-    public void Upsert(LiveDaqSnapshot snapshot) => source.AddOrUpdate(snapshot);
-
-    public void Remove(string identityKey) => source.RemoveKey(identityKey);
-
-    public void Clear() => source.Clear();
-
     public void ReplaceAll(IEnumerable<LiveDaqSnapshot> snapshots) =>
         source.Edit(updater => updater.Load(snapshots));
 }

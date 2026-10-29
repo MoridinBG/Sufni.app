@@ -187,13 +187,13 @@ public class LiveDaqDetailViewModelTests
         editor.SetTabActive(true);
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        harness.LiveDaqStore.Upsert(LiveDaqDetailHarness.DefaultSnapshot());
+        harness.LiveDaqStore.ReplaceAll([LiveDaqDetailHarness.DefaultSnapshot()]);
         await Task.Yield();
 
         Assert.True(editor.CanManage);
 
         harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
-        harness.LiveDaqStore.Remove("board-1");
+        harness.LiveDaqStore.ReplaceAll([]);
         await Task.Yield();
 
         Assert.False(editor.CanManage);

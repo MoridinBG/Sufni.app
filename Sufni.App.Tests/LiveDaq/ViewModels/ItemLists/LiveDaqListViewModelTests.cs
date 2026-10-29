@@ -18,7 +18,8 @@ public class LiveDaqListViewModelTests
         var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher);
         viewModel.LoadedCommand.Execute(null);
 
-        store.Upsert(new LiveDaqSnapshot(
+        store.ReplaceAll([
+            new LiveDaqSnapshot(
             IdentityKey: "board-alpha",
             DisplayName: "Alpha Board",
             BoardId: "board-alpha",
@@ -26,8 +27,8 @@ public class LiveDaqListViewModelTests
             Port: 1557,
             IsOnline: true,
             SetupName: "Race Setup",
-            BikeName: "Trail Bike"));
-        store.Upsert(new LiveDaqSnapshot(
+            BikeName: "Trail Bike"),
+            new LiveDaqSnapshot(
             IdentityKey: "board-beta",
             DisplayName: "Beta Board",
             BoardId: "board-beta",
@@ -35,7 +36,7 @@ public class LiveDaqListViewModelTests
             Port: 1666,
             IsOnline: false,
             SetupName: "Park Setup",
-            BikeName: "Enduro Bike"));
+            BikeName: "Enduro Bike")]);
 
         Assert.Equal(2, viewModel.Items.Count);
 
@@ -57,7 +58,7 @@ public class LiveDaqListViewModelTests
     {
         var store = new LiveDaqStore();
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        store.Upsert(new LiveDaqSnapshot(
+        var firstBoard = new LiveDaqSnapshot(
             IdentityKey: "board-1",
             DisplayName: "Board 1",
             BoardId: "board-1",
@@ -65,7 +66,8 @@ public class LiveDaqListViewModelTests
             Port: 1557,
             IsOnline: true,
             SetupName: "Setup",
-            BikeName: "Bike"));
+            BikeName: "Bike");
+        store.ReplaceAll([firstBoard]);
         var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher);
 
         Assert.Empty(viewModel.Items);
@@ -75,7 +77,7 @@ public class LiveDaqListViewModelTests
         coordinator.DidNotReceive().Activate();
 
         viewModel.UnloadedCommand.Execute(null);
-        store.Upsert(new LiveDaqSnapshot(
+        store.ReplaceAll([firstBoard, new LiveDaqSnapshot(
             IdentityKey: "board-2",
             DisplayName: "Board 2",
             BoardId: "board-2",
@@ -83,7 +85,7 @@ public class LiveDaqListViewModelTests
             Port: null,
             IsOnline: false,
             SetupName: "Setup",
-            BikeName: "Bike"));
+            BikeName: "Bike")]);
         Assert.Empty(viewModel.Items);
 
         viewModel.LoadedCommand.Execute(null);

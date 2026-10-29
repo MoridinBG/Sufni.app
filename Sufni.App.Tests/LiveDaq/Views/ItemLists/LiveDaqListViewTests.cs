@@ -21,7 +21,7 @@ public class LiveDaqListViewTests
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var store = new LiveDaqStore();
-        store.Upsert(new LiveDaqSnapshot(
+        store.ReplaceAll([new LiveDaqSnapshot(
             IdentityKey: "board-1",
             DisplayName: "Board 1",
             BoardId: "board-id-xyz",
@@ -29,7 +29,7 @@ public class LiveDaqListViewTests
             Port: 1557,
             IsOnline: true,
             SetupName: "Race",
-            BikeName: "Demo"));
+            BikeName: "Demo")]);
 
         var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
         await using var mounted = await MountAsync(viewModel);
