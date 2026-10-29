@@ -1,13 +1,10 @@
 using System.Runtime.InteropServices;
 using System.Text;
-using Serilog;
 
 namespace Sufni.Telemetry;
 
 public class RawTelemetryData
 {
-    private static readonly ILogger logger = Log.ForContext<RawTelemetryData>();
-
     #region Public properties
 
     public byte[] Magic { get; set; } = null!;
@@ -38,10 +35,8 @@ public class RawTelemetryData
 
     public static SstFileInspection InspectStream(Stream stream)
     {
-        logger.Verbose("Inspecting SST stream");
         using var reader = new BinaryReader(stream);
         var (parser, version) = CreateParser(reader);
-        logger.Verbose("Using SST parser version {Version} for inspection", version);
         return parser.Inspect(reader, version);
     }
 
@@ -52,10 +47,8 @@ public class RawTelemetryData
 
     public static RawTelemetryData FromStream(Stream stream)
     {
-        logger.Verbose("Parsing SST stream");
         using var reader = new BinaryReader(stream);
         var (parser, version) = CreateParser(reader);
-        logger.Verbose("Using SST parser version {Version} for parsing", version);
         return parser.Parse(reader, version);
     }
 
@@ -85,19 +78,16 @@ public class RawTelemetryData
         var magic = reader.ReadBytes(4);
         if (magic.Length != 4)
         {
-            logger.Verbose("Rejected stream because SST magic header was incomplete");
             throw new FormatException("Data is not SST format");
         }
 
         if (magic is [(byte)'S', (byte)'S', (byte)'T', (byte)'5'])
         {
-            logger.Verbose("Selected SST parser version {Version}", SstV5Constants.Version);
             return (new SstV5Parser(), SstV5Constants.Version);
         }
 
         if (magic[0] != (byte)'S' || magic[1] != (byte)'S' || magic[2] != (byte)'T')
         {
-            logger.Verbose("Rejected stream because SST magic header was missing");
             throw new FormatException("Data is not SST format");
         }
 
@@ -109,8 +99,6 @@ public class RawTelemetryData
             4 => new SstV4TlvParser(),
             _ => throw new FormatException($"Unsupported SST version: {version}")
         };
-
-        logger.Verbose("Selected SST parser version {Version}", version);
 
         return (parser, version);
     }

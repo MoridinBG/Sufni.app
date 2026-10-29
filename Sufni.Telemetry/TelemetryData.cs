@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using MathNet.Numerics.Statistics;
 using MessagePack;
-using Serilog;
 
 #pragma warning disable CS8618
 
@@ -10,7 +9,6 @@ namespace Sufni.Telemetry;
 [MessagePackObject(keyAsPropertyName: true)]
 public class TelemetryData
 {
-    private static readonly ILogger logger = Log.ForContext<TelemetryData>();
     private readonly Lazy<StrokeCoarseIndexes> strokeCoarseIndexes;
 
     public const int TravelBinsForVelocityHistogram = 10;
@@ -544,28 +542,7 @@ public class TelemetryData
         BikeData bikeData,
         TelemetryProcessingOptions processingOptions)
     {
-        return FromRecording(rawData, metadata, bikeData, processingOptions, logLifecycle: true);
-    }
-
-    private static TelemetryData FromRecording(
-        RawTelemetryData rawData,
-        Metadata metadata,
-        BikeData bikeData,
-        TelemetryProcessingOptions processingOptions,
-        bool logLifecycle)
-    {
         ArgumentNullException.ThrowIfNull(processingOptions);
-
-        if (logLifecycle)
-        {
-            logger.Verbose(
-                "Starting telemetry processing for source {SourceName} with sample rate {SampleRate}, version {Version}, {FrontSampleCount} front samples, and {RearSampleCount} rear samples",
-                metadata.SourceName,
-                metadata.SampleRate,
-                metadata.Version,
-                rawData.Front.Length,
-                rawData.Rear.Length);
-        }
 
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
         td.Markers = rawData.Markers;
@@ -605,18 +582,6 @@ public class TelemetryData
             td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorShockTravel);
             td.CalculateAirTimes();
 
-            if (logLifecycle)
-            {
-                logger.Verbose(
-                    "Segment-aware telemetry processing completed with front present {FrontPresent}, rear present {RearPresent}, {AirtimeCount} airtimes, {MarkerCount} markers, IMU present {HasImuData}, and GPS points {GpsPointCount}",
-                    td.Front.Present,
-                    td.Rear.Present,
-                    td.Airtimes.Length,
-                    td.Markers.Length,
-                    td.ImuData is not null,
-                    td.GpsData?.Length ?? 0);
-            }
-
             return td;
         }
 
@@ -627,23 +592,10 @@ public class TelemetryData
         td.Rear.Present = rc != 0;
         if (!td.Front.Present && !td.Rear.Present)
         {
-            if (logLifecycle)
-            {
-                logger.Verbose("Telemetry processing aborted because both suspension sample arrays were empty");
-            }
-
             throw new Exception("Front and rear record arrays are empty!");
         }
         if (td.Front.Present && td.Rear.Present && fc != rc)
         {
-            if (logLifecycle)
-            {
-                logger.Verbose(
-                    "Telemetry processing aborted because front and rear sample counts differed: {FrontSampleCount} front and {RearSampleCount} rear",
-                    fc,
-                    rc);
-            }
-
             throw new Exception("Front and rear record counts are not equal!");
         }
 
@@ -678,18 +630,6 @@ public class TelemetryData
                 filter));
 
         td.CalculateAirTimes();
-
-        if (logLifecycle)
-        {
-            logger.Verbose(
-                "Telemetry processing completed with front present {FrontPresent}, rear present {RearPresent}, {AirtimeCount} airtimes, {MarkerCount} markers, IMU present {HasImuData}, and GPS points {GpsPointCount}",
-                td.Front.Present,
-                td.Rear.Present,
-                td.Airtimes.Length,
-                td.Markers.Length,
-                td.ImuData is not null,
-                td.GpsData?.Length ?? 0);
-        }
 
         return td;
     }
@@ -763,7 +703,7 @@ public class TelemetryData
             ];
         }
 
-        return FromRecording(rawData, metadata, capture.BikeData, processingOptions, logLifecycle: false);
+        return FromRecording(rawData, metadata, capture.BikeData, processingOptions);
     }
 
     private static bool UsesSegmentAwareLiveCapture(LiveTelemetryCapture capture) =>

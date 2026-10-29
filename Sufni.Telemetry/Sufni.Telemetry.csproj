@@ -9,7 +9,6 @@
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" />
     <PackageReference Include="MessagePack" />
-    <PackageReference Include="Serilog" />
     <PackageReference Include="System.Numerics.Tensors" />
   </ItemGroup>
 

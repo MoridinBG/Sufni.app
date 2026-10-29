@@ -52,8 +52,8 @@ Logging work must follow the application architecture documented in
 - Services should use `Information` level logs much more sparingly than coordinator for
   the same event. If a service adds value, it should usually do so at
   `Verbose`, `Debug`, `Warning`, or `Error`.
-- Libraries may reference Serilog directly to produce events, but they
-  do not configure sinks.
+- `Sufni.Telemetry` and `Sufni.Kinematics` do not log or reference Serilog.
+  Application boundaries own processing and solver failure reporting.
 
 ## Structured logging policy
 
@@ -212,7 +212,6 @@ Use `Verbose` for:
 - repeated per-item diagnostics when the sequence still matters to
   support
 - phase internals that are too noisy for `Information`
-- hot-path library tracing
 
 If a log is more detailed than `Information` but still helps explain
 how the workflow progressed in support logs, choose `Verbose`. If it
