@@ -37,8 +37,6 @@ public static class TestTelemetryData
             Timestamp = metadata.Timestamp,
             Front = front,
             Rear = rear,
-            FrontAnomalyRate = 0.0,
-            RearAnomalyRate = 0.0,
         };
 
         return TelemetryData.FromRecording(rawData, metadata, bikeData);

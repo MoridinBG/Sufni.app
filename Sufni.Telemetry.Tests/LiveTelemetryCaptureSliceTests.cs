@@ -87,15 +87,14 @@ public class LiveTelemetryCaptureSliceTests
                 Duration = 10,
             },
             BikeData: CreateBikeData(),
-            FrontMeasurements: Enumerable.Range(0, 100).Select(index => (ushort)index).ToArray(),
-            RearMeasurements: [],
+            FrontSegments: [new RawCountSegment { Counts = Enumerable.Range(0, 100).Select(index => (ushort)index).ToArray() }],
+            RearSegments: [],
             ImuData: null,
             GpsData: null,
-            Markers: []) with
-        {
-            FinalStatus = finalStatus,
-            MissingFinalStatus = true,
-        };
+            Markers: [],
+            StreamGaps: [],
+            FinalStatus: finalStatus,
+            MissingFinalStatus: true);
 
         var result = capture.Slice(2.5, null);
 
@@ -119,18 +118,17 @@ public class LiveTelemetryCaptureSliceTests
                 Duration = 5,
             },
             BikeData: CreateBikeData(),
-            FrontMeasurements: Enumerable.Range(0, 20).Select(index => (ushort)index).ToArray(),
-            RearMeasurements: Enumerable.Range(100, 20).Select(index => (ushort)index).ToArray(),
+            FrontSegments: [new RawCountSegment { Counts = Enumerable.Range(0, 20).Select(index => (ushort)index).ToArray() }],
+            RearSegments: [new RawCountSegment { Counts = Enumerable.Range(100, 20).Select(index => (ushort)index).ToArray() }],
             ImuData: null,
             GpsData: null,
-            Markers: []) with
-        {
-            FinalStatus = new SstFinalStatus
+            Markers: [],
+            StreamGaps: [],
+            FinalStatus: new SstFinalStatus
             {
                 StoppedMonotonicDeltaUs = 5_000_000,
             },
-            MissingFinalStatus = true,
-        };
+            MissingFinalStatus: true);
 
         var result = capture.Slice(2.6, null);
 

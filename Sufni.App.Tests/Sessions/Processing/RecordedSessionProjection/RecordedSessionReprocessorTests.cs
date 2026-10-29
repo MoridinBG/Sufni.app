@@ -151,8 +151,8 @@ public class RecordedSessionReprocessorTests
                 Duration = 0.64
             },
             BikeData: new BikeData(180, null, measurement => measurement / 10.0, null),
-            FrontMeasurements: Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray(),
-            RearMeasurements: [],
+            FrontSegments: [new RawCountSegment { Counts = Enumerable.Range(0, 64).Select(sample => (ushort)(1200 + sample)).ToArray() }],
+            RearSegments: [],
             ImuData: null,
             GpsData:
             [
@@ -168,7 +168,10 @@ public class RecordedSessionReprocessorTests
                     Epe2d: 0.5f,
                     Epe3d: 0.8f)
             ],
-            Markers: [])
+            Markers: [],
+            StreamGaps: [],
+            FinalStatus: null,
+            MissingFinalStatus: false)
         {
             TemperatureData =
             [
@@ -298,11 +301,14 @@ public class RecordedSessionReprocessorTests
                 Duration = 2.0
             },
             BikeData: new BikeData(180, null, measurement => measurement / 10.0, null),
-            FrontMeasurements: Enumerable.Range(0, 200).Select(sample => (ushort)(1200 + sample)).ToArray(),
-            RearMeasurements: [],
+            FrontSegments: [new RawCountSegment { Counts = Enumerable.Range(0, 200).Select(sample => (ushort)(1200 + sample)).ToArray() }],
+            RearSegments: [],
             ImuData: null,
             GpsData: null,
-            Markers: []);
+            Markers: [],
+            StreamGaps: [],
+            FinalStatus: null,
+            MissingFinalStatus: false);
         var source = RecordedSessionSourceFactory.CreateLiveCapture(sourceSessionId, capture);
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
         session = session with
@@ -410,8 +416,6 @@ public class RecordedSessionReprocessorTests
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
         Assert.Equal(5, telemetryData.Metadata.Version);
         Assert.True(telemetryData.Front.HasGaps);
-        Assert.Single(telemetryData.StreamGaps);
-        Assert.True(telemetryData.MissingFinalStatus);
         var persistedTelemetry = TelemetryData.FromBinary(result.ProcessedTelemetry.Data);
         Assert.NotNull(persistedTelemetry.ImuData);
         Assert.Empty(persistedTelemetry.ImuData.Records);
@@ -456,7 +460,6 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(4, telemetryData.Metadata.Version);
         Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.False(telemetryData.Front.HasGaps);
-        Assert.Empty(telemetryData.StreamGaps);
         var persistedTelemetry = TelemetryData.FromBinary(result.ProcessedTelemetry.Data);
         Assert.NotNull(persistedTelemetry.ImuData);
         Assert.Empty(persistedTelemetry.ImuData.Records);

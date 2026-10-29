@@ -323,7 +323,6 @@ public class RawTelemetryDataSliceTests
         var rear = Enumerable.Range(100, sampleCount).Select(index => (ushort)index).ToArray();
         return new RawTelemetryData
         {
-            Magic = [(byte)'S', (byte)'S', (byte)'T', 5],
             Version = 5,
             SampleRate = sampleRate,
             Timestamp = 1_000,

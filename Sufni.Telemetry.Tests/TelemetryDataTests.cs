@@ -355,7 +355,7 @@ public class TelemetryDataTests
     }
 
     [Fact]
-    public void BinarySerialization_WithSegmentedData_PreservesSegmentsStrokeTimesAndFinalStatusMetadata()
+    public void BinarySerialization_WithSegmentedData_PreservesSegmentsAndStrokeTimes()
     {
         var telemetry = new TelemetryData
         {
@@ -414,31 +414,6 @@ public class TelemetryDataTests
                     }
                 ],
             },
-            StreamGaps =
-            [
-                new RawStreamGap
-                {
-                    StreamKind = 1,
-                    FirstMissingIndex = 2,
-                    MissingCount = 3,
-                    MissingTimeUs = 30_000,
-                    Reason = "index_gap",
-                }
-            ],
-            FinalStatus = new SstFinalStatus
-            {
-                SessionResultReason = 2,
-                StoppedMonotonicDeltaUs = 2_000_000,
-                Streams =
-                [
-                    new SstStreamFinalStatus
-                    {
-                        StreamKind = 1,
-                        ProducerState = 1,
-                        ProducerMissedCount = 3,
-                    }
-                ],
-            },
         };
 
         var result = TelemetryData.FromBinary(telemetry.BinaryForm);
@@ -450,10 +425,6 @@ public class TelemetryDataTests
         Assert.NotNull(result.ImuData);
         Assert.True(result.ImuData.HasGaps);
         Assert.Single(result.ImuData.Segments);
-        Assert.Single(result.StreamGaps);
-        Assert.Equal("index_gap", result.StreamGaps[0].Reason);
-        Assert.NotNull(result.FinalStatus);
-        Assert.Equal(2, result.FinalStatus.SessionResultReason);
     }
 
     [Fact]

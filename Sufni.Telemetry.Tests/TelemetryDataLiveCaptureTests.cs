@@ -42,11 +42,14 @@ public class TelemetryDataLiveCaptureTests
                 Duration = 0.4,
             },
             BikeData: CreateBikeData(),
-            FrontMeasurements: front,
-            RearMeasurements: rear,
+            FrontSegments: [new RawCountSegment { Counts = front }],
+            RearSegments: [new RawCountSegment { Counts = rear }],
             ImuData: imuData,
             GpsData: gpsData,
-            Markers: markers);
+            Markers: markers,
+            StreamGaps: [],
+            FinalStatus: null,
+            MissingFinalStatus: false);
 
         var result = TelemetryData.FromLiveCapture(capture);
 
@@ -72,11 +75,14 @@ public class TelemetryDataLiveCaptureTests
                 Duration = 0.02,
             },
             BikeData: CreateBikeData(),
-            FrontMeasurements: [1000, 1010, 1020, 1030],
-            RearMeasurements: [1100, 1110, 1120, 1130],
+            FrontSegments: [new RawCountSegment { Counts = [1000, 1010, 1020, 1030] }],
+            RearSegments: [new RawCountSegment { Counts = [1100, 1110, 1120, 1130] }],
             ImuData: null,
             GpsData: null,
-            Markers: []);
+            Markers: [],
+            StreamGaps: [],
+            FinalStatus: null,
+            MissingFinalStatus: false);
 
         var result = TelemetryData.FromLiveCapture(capture);
 
@@ -85,7 +91,7 @@ public class TelemetryDataLiveCaptureTests
     }
 
     [Fact]
-    public void FromLiveCapture_WithSegmentedTravel_PreservesGapsAndFinalStatus()
+    public void FromLiveCapture_WithSegmentedTravel_PreservesGaps()
     {
         var finalStatus = new SstFinalStatus
         {
@@ -150,9 +156,6 @@ public class TelemetryDataLiveCaptureTests
         Assert.True(result.Front.Present);
         Assert.True(result.Front.HasGaps);
         Assert.False(result.Rear.Present);
-        Assert.Single(result.StreamGaps);
-        Assert.Same(finalStatus, result.FinalStatus);
-        Assert.False(result.MissingFinalStatus);
     }
 
     [Fact]

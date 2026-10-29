@@ -91,10 +91,7 @@ TelemetryData
 ├── ImuData: RawImuData? (v4/v5/live capture)
 ├── GpsData: GpsRecord[]? (v4/v5/live capture)
 ├── Markers: MarkerData[] (v4/v5/live capture)
-├── TemperatureAverages: TemperatureAverage[] (V4/V5/live samples, averaged by location)
-├── StreamGaps[] (stream/location/index/count/time/reason gap metadata)
-├── FinalStatus: SstFinalStatus? (V5 stream/session stop status)
-└── MissingFinalStatus: bool
+└── TemperatureAverages: TemperatureAverage[] (V4/V5/live samples, averaged by location)
 ```
 
 Suspension `Travel[]` and `Velocity[]` are always the flat dense processed arrays for that side. `ProcessedSuspensionSegment` stores a range over those arrays (`FirstDenseIndex`, `SampleCount`) plus the source timeline anchor (`FirstSourceIndex`, `StartSeconds`); per-segment travel/velocity arrays are no longer serialized. `SuspensionTimeSeriesSampler` samples segment-aware data by combining the segment range with the flat arrays. `TelemetryData.FromBinary(...)` normalizes old blobs whose segments predate `SampleCount`, inferring counts from the next segment's `FirstDenseIndex` or the flat array length so legacy dense and gapped data still samples correctly.
@@ -103,7 +100,7 @@ Each newly written `Stroke` map contains only `Start`, `End`, `Stat`, `StartSeco
 
 `RawImuData` is written as compact encoding version 1: a six-field indexed array containing the version, sample rate, indexed metadata entries, binary active-location IDs, indexed per-location segments with six-value sample arrays, and `HasGaps`. New processed data serializes one segment/sample graph and never serializes the dense compatibility `Records` list. `RawImuDataFormatter` permanently reads both this compact shape and the legacy named-map dense-only, segment-only, and dense-plus-segment shapes; dense-only values are adapted through `SampleSegments` when rewritten.
 
-The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a derived BLOB in the `session.data` column. The original recording source is persisted separately so the BLOB can be regenerated when processing inputs change.
+The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a derived BLOB in the `session.data` column. The original recording source is persisted separately so the BLOB can be regenerated when processing inputs change. Stream-gap and final-status metadata stay on the raw source; processed suspensions retain the segment boundaries and `HasGaps` needed for analysis.
 
 ### Recorded Session Derivation
 

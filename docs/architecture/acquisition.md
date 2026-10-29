@@ -112,7 +112,7 @@ graph TD
     Prefix -->|"SST + version 3"| V3["SstV3Parser"]
     Prefix -->|"SST + version 4"| V4["SstV4TlvParser"]
     Prefix -->|"SST5"| V5["SstV5Parser"]
-    V3 --> RawTD["RawTelemetryData<br/>(raw uint16 front/rear, markers, IMU/GPS/temperature, malformed flag)"]
+    V3 --> RawTD["RawTelemetryData<br/>(raw uint16 front/rear, markers, IMU/GPS/temperature)"]
     V4 --> RawTD
     V5 --> RawTD
 ```
@@ -158,7 +158,7 @@ Each chunk: 1-byte type + uint16 payload length + variable payload. Unknown chun
 
 The parser (`Sufni.Telemetry/SstV4TlvParser.cs`) tracks `telemetrySampleCount` as it processes chunks. Marker timestamps are calculated as `telemetrySampleCount / telemetrySampleRate` at the point the marker chunk appears. IMU data is only retained if calibration metadata (`ImuMeta`) is present.
 
-The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. Inspection computes duration, version, the `HasUnknown` flag, and any malformed warning. Import rows expose duration and malformed warnings; version and unknown-chunk details stay in the parser result. Unknown TLV chunk types (or unknown rate-stream types inside a `Rates` chunk) do not block import: inspect skips past their payload and sets `HasUnknown = true` on the resulting `ValidSstFileInspection`. A `MalformedSstFileInspection` is returned for header / framing failures that prevent a clean read — truncated header, invalid chunk lengths, incomplete trailing chunk header, or a missing/invalid telemetry sample rate — and for a file with a valid rate but zero complete telemetry samples (`SST v4 telemetry data is missing.`, zero duration). If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, marks the result with a malformed warning, and still allows import.
+The `Inspect()` path walks every TLV chunk, validating each chunk's declared length and accumulating telemetry sample count without decoding IMU/GPS payloads. Inspection computes duration, version, the `HasUnknown` flag, and any malformed warning. Import rows expose duration and malformed warnings; version and unknown-chunk details stay in the parser result. Unknown TLV chunk types (or unknown rate-stream types inside a `Rates` chunk) do not block import: inspect skips past their payload and sets `HasUnknown = true` on the resulting `ValidSstFileInspection`. A `MalformedSstFileInspection` is returned for header / framing failures that prevent a clean read — truncated header, invalid chunk lengths, incomplete trailing chunk header, or a missing/invalid telemetry sample rate — and for a file with a valid rate but zero complete telemetry samples (`SST v4 telemetry data is missing.`, zero duration). If the final TLV chunk declares bytes past EOF, the parser trims incomplete trailing data, keeps any complete records, reports a malformed warning through inspection, and still allows import.
 
 ### SST V5 Chunked Format
 
@@ -197,4 +197,4 @@ All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 - **`MarkerData`** — TimestampOffset (seconds from session start)
 - **`TemperatureSample`** — TimestampUtc, LocationId, TemperatureCelsius
 - **`TemperatureAverage`** — LocationId and averaged TemperatureCelsius, derived during processing and serialized on `TelemetryData`
-- **`RawStreamGap` / `SstFinalStatus`** — SST v5 gap and terminal stream-status metadata retained on raw/processed telemetry for diagnostics and safe reprocessing
+- **`RawStreamGap` / `SstFinalStatus`** — SST v5 gap and terminal stream-status metadata retained on raw telemetry and live-capture sources for reprocessing

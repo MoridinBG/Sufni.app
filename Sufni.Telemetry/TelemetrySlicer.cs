@@ -20,20 +20,15 @@ internal static class TelemetrySlicer
 
         return new RawTelemetryData
         {
-            Magic = raw.Magic?.ToArray() ?? [],
             Version = raw.Version,
             SampleRate = raw.SampleRate,
             Timestamp = checked(raw.Timestamp + WholeSecondOffset(window.StartSeconds)),
             Front = frontSegments.Length > 0 ? FlattenCounts(frontSegments) : SliceDense(raw.Front, window, raw.SampleRate),
             Rear = rearSegments.Length > 0 ? FlattenCounts(rearSegments) : SliceDense(raw.Rear, window, raw.SampleRate),
-            FrontAnomalyRate = raw.FrontAnomalyRate,
-            RearAnomalyRate = raw.RearAnomalyRate,
             Markers = SliceMarkers(raw.Markers, window),
             ImuData = SliceImuData(raw.ImuData, window, streamGaps),
             GpsData = SliceGpsData(raw.GpsData, RawBaseUtcMs(raw), window),
             TemperatureData = SliceTemperatureData(raw.TemperatureData, RawBaseUtcSeconds(raw), window),
-            Malformed = raw.Malformed,
-            MalformedMessage = raw.MalformedMessage,
             SessionStartUtcMs = raw.SessionStartUtcMs == 0
                 ? 0
                 : checked(raw.SessionStartUtcMs + TimeOffsetMilliseconds(window.StartSeconds)),

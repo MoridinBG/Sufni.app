@@ -33,7 +33,6 @@ public class SstV5ParserTests
         Assert.Equal([2000, 2001], rearSegment.Counts);
         Assert.False(result.MissingFinalStatus);
         Assert.NotNull(result.FinalStatus);
-        Assert.False(result.Malformed);
     }
 
     [Fact]
@@ -58,7 +57,6 @@ public class SstV5ParserTests
         Assert.Equal(5, result.Version);
         Assert.Equal([1000, 1001], result.Front);
         Assert.Equal([2000, 2001], result.Rear);
-        Assert.False(result.Malformed);
         Assert.False(result.MissingFinalStatus);
     }
 
@@ -486,7 +484,7 @@ public class SstV5ParserTests
     }
 
     [Fact]
-    public void Inspect_TruncatedPayloadAfterCompleteTravel_MatchesFullParserWarning()
+    public void Inspect_TruncatedPayloadAfterCompleteTravel_ReportsWarningAndMatchesParsedTiming()
     {
         var bytes = SstV5TestFiles.Create(
             chunks:
@@ -503,9 +501,7 @@ public class SstV5ParserTests
         var inspection = Assert.IsType<ValidSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
         var parsed = RawTelemetryData.FromByteArray(bytes);
 
-        const string warning = "SST v5 chunk extends past end of file; incomplete trailing chunk data was trimmed.";
-        Assert.Equal(warning, inspection.MalformedMessage);
-        Assert.Equal(parsed.MalformedMessage, inspection.MalformedMessage);
+        Assert.NotNull(inspection.MalformedMessage);
         Assert.Equal(TimeSpan.FromSeconds(parsed.RecordingDurationSeconds!.Value), inspection.Duration);
         Assert.Equal(parsed.SampleRate, inspection.TelemetrySampleRate);
         Assert.Equal(

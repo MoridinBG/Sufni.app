@@ -7,20 +7,15 @@ public class RawTelemetryData
 {
     #region Public properties
 
-    public byte[] Magic { get; set; } = null!;
     public byte Version { get; set; }
     public ushort SampleRate { get; set; }
     public long Timestamp { get; set; }
     public ushort[] Front { get; set; } = [];
     public ushort[] Rear { get; set; } = [];
-    public double FrontAnomalyRate { get; set; }
-    public double RearAnomalyRate { get; set; }
     public MarkerData[] Markers { get; set; } = [];
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
     public TemperatureSample[] TemperatureData { get; set; } = [];
-    public bool Malformed { get; set; }
-    public string? MalformedMessage { get; set; }
     public long SessionStartUtcMs { get; set; }
     public double? RecordingDurationSeconds { get; set; }
     public RawCountSegment[] FrontSegments { get; set; } = [];

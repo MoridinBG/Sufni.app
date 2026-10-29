@@ -91,7 +91,6 @@ public class SstV3Parser : ISstParser
 
         var rtd = new RawTelemetryData
         {
-            Magic = "SST"u8.ToArray(),
             Version = version,
             SampleRate = sampleRate,
             Timestamp = timestamp,

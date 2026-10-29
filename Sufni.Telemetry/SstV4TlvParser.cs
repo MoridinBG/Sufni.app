@@ -233,7 +233,6 @@ public class SstV4TlvParser : ISstParser
         var temperatureSamples = new List<TemperatureSample>();
         var rates = new Dictionary<TlvChunkType, ushort>();
         var telemetrySampleCount = 0;
-        string? malformedMessage = null;
 
         while (cursor.Position + ChunkHeaderSize <= cursor.Length)
         {
@@ -244,9 +243,6 @@ public class SstV4TlvParser : ISstParser
             var length = bounds.EffectivePayloadLength;
             var payload = bytes.AsSpan(chunkStart + ChunkHeaderSize, length);
             var payloadReader = new SstByteReader(payload);
-
-            if (bounds.IsTrimmed)
-                malformedMessage ??= TrimmedTrailingChunkMessage;
 
             if (!Enum.IsDefined(typeof(TlvChunkType), typeByte))
             {
@@ -399,7 +395,6 @@ public class SstV4TlvParser : ISstParser
 
         var rtd = new RawTelemetryData
         {
-            Magic = "SST"u8.ToArray(),
             Version = version,
             SampleRate = sampleRate,
             Timestamp = timestamp,
@@ -407,8 +402,6 @@ public class SstV4TlvParser : ISstParser
             ImuData = imuData is { Meta.Count: > 0 } ? imuData : null,
             GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null,
             TemperatureData = temperatureSamples.ToArray(),
-            Malformed = malformedMessage is not null,
-            MalformedMessage = malformedMessage,
             SessionStartUtcMs = checked(timestamp * 1000),
             RecordingDurationSeconds = (double)Math.Max(front.Length, rear.Length) / sampleRate
         };

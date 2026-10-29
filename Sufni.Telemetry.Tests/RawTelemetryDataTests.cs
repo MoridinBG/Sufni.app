@@ -76,6 +76,5 @@ public class RawTelemetryDataTests
         var result = RawTelemetryData.FromStream(ms);
 
         Assert.Contains((ushort)2000, result.Front);
-        Assert.Equal(0, result.FrontAnomalyRate);
     }
 }

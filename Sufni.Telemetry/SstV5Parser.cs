@@ -796,12 +796,6 @@ public class SstV5Parser : ISstParser
             }
 
             var missingFinalStatus = FinalStatus is null;
-            var malformedMessage = WarningMessage;
-            if (missingFinalStatus)
-            {
-                malformedMessage ??= MissingFinalStatusMessage;
-            }
-
             var durationSeconds = FinalStatus is not null
                 ? FinalStatus.StoppedMonotonicDeltaUs / 1_000_000.0
                 : MaxObservedEndUs / 1_000_000.0;
@@ -810,7 +804,6 @@ public class SstV5Parser : ISstParser
             var sampleRate = checked((ushort)(travelDescriptor.AcceptedRateMhz / 1000));
             return new RawTelemetryData
             {
-                Magic = "SST5"u8.ToArray(),
                 Version = Version,
                 SampleRate = sampleRate,
                 Timestamp = SessionStartUtcMs!.Value / 1000,
@@ -827,8 +820,6 @@ public class SstV5Parser : ISstParser
                 ImuData = imuData,
                 GpsData = GpsRecords.Count > 0 ? GpsRecords.ToArray() : null,
                 TemperatureData = TemperatureSamples.ToArray(),
-                Malformed = malformedMessage is not null,
-                MalformedMessage = malformedMessage,
             };
         }
 

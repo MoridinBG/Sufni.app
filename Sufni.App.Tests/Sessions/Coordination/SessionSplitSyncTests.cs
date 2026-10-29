@@ -111,11 +111,19 @@ public class SessionSplitSyncTests
                 Duration = DurationSeconds
             },
             new BikeData(null, null, null, null),
-            Enumerable.Range(0, (int)(SampleRate * DurationSeconds))
-                .Select(index => (ushort)Math.Round(1_800 + 450 * Math.Sin(index / 16.0)))
-                .ToArray(),
+            [
+                new RawCountSegment
+                {
+                    Counts = Enumerable.Range(0, (int)(SampleRate * DurationSeconds))
+                        .Select(index => (ushort)Math.Round(1_800 + 450 * Math.Sin(index / 16.0)))
+                        .ToArray(),
+                }
+            ],
             [],
             ImuData: null,
             GpsData: null,
-            Markers: []);
+            Markers: [],
+            StreamGaps: [],
+            FinalStatus: null,
+            MissingFinalStatus: false);
 }

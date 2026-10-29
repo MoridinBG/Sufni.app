@@ -207,13 +207,12 @@ public class SstV4TlvParserTests
     }
 
     [Fact]
-    public void Parse_TelemetryChunkExtendingPastEnd_TrimsPartialRecordAndMarksMalformed()
+    public void Parse_TelemetryChunkExtendingPastEnd_TrimsPartialRecord()
     {
         using var ms = CreateV4WithTelemetryChunkExtendingPastEnd(actualTelemetryPayloadBytes: 10, declaredTelemetryPayloadBytes: 16);
 
         var result = RawTelemetryData.FromStream(ms);
 
-        Assert.True(result.Malformed);
         Assert.Equal(2, result.Front.Length);
         Assert.Equal(2, result.Rear.Length);
     }

@@ -577,8 +577,8 @@ public class SessionCoordinatorTests
                     Duration = 0.03,
                 },
                 BikeData: context.BikeData,
-                FrontMeasurements: [1000, 1010, 1020, 1030, 1040, 1050],
-                RearMeasurements: [1100, 1110, 1120, 1130, 1140, 1150],
+                FrontSegments: [new RawCountSegment { Counts = [1000, 1010, 1020, 1030, 1040, 1050] }],
+                RearSegments: [new RawCountSegment { Counts = [1100, 1110, 1120, 1130, 1140, 1150] }],
                 ImuData: null,
                 GpsData: withGps
                     ?
@@ -596,7 +596,10 @@ public class SessionCoordinatorTests
                             Epe3d: 0.8f),
                     ]
                     : null,
-                Markers: []));
+                Markers: [],
+                StreamGaps: [],
+                FinalStatus: null,
+                MissingFinalStatus: false));
     }
 
     private void SeedLiveCaptureDependencies(LiveSessionCapturePackage capture)

@@ -23,9 +23,6 @@ public class TelemetryData
     public RawImuData? ImuData { get; set; }
     public GpsRecord[]? GpsData { get; set; }
     public TemperatureAverage[] TemperatureAverages { get; set; } = [];
-    public RawStreamGap[] StreamGaps { get; set; } = [];
-    public SstFinalStatus? FinalStatus { get; set; }
-    public bool MissingFinalStatus { get; set; }
     [IgnoreMember] public byte[] BinaryForm => MessagePackSerializer.Serialize(this);
     [IgnoreMember] internal StrokeCoarseIndexes CoarseStrokeIndexes => strokeCoarseIndexes.Value;
 
@@ -544,9 +541,6 @@ public class TelemetryData
         td.ImuData = rawData.ImuData;
         td.GpsData = rawData.GpsData;
         td.TemperatureAverages = CalculateTemperatureAverages(rawData.TemperatureData);
-        td.StreamGaps = rawData.StreamGaps;
-        td.FinalStatus = rawData.FinalStatus;
-        td.MissingFinalStatus = rawData.MissingFinalStatus;
 
         if (UsesSegmentAwareTravel(rawData))
         {

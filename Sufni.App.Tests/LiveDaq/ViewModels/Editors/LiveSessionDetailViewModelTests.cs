@@ -529,8 +529,8 @@ public class LiveSessionDetailViewModelTests : IDisposable
                     Duration = 0.03,
                 },
                 BikeData: context.BikeData,
-                FrontMeasurements: [1000, 1010, 1020, 1030, 1040, 1050],
-                RearMeasurements: [1100, 1110, 1120, 1130, 1140, 1150],
+                FrontSegments: [new RawCountSegment { Counts = [1000, 1010, 1020, 1030, 1040, 1050] }],
+                RearSegments: [new RawCountSegment { Counts = [1100, 1110, 1120, 1130, 1140, 1150] }],
                 ImuData: null,
                 GpsData:
                 [
@@ -546,7 +546,10 @@ public class LiveSessionDetailViewModelTests : IDisposable
                         Epe2d: 0.5f,
                         Epe3d: 0.8f),
                 ],
-                Markers: []));
+                Markers: [],
+                StreamGaps: [],
+                FinalStatus: null,
+                MissingFinalStatus: false));
     }
 
     private async Task WaitForUiRefreshAsync()
