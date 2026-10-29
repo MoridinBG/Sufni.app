@@ -97,7 +97,6 @@ internal abstract record RecordedSessionLoadPresentation
 
     public sealed record IncompleteLocalData(
         MissingSessionData Missing,
-        bool HasProcessedData,
         SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
     public sealed record Failed(

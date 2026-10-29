@@ -170,7 +170,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private IDisposable? processedTelemetryRetention;
     private SessionSnapshot? sessionSnapshot;
     private TelemetryData? telemetryData;
-    private List<TrackPoint>? fullTrackPoints;
     private List<TrackPoint>? trackPoints;
     private MapViewModel? mapViewModel;
     private bool mapInitializeRequested;
@@ -222,7 +221,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     #region Observable properties
 
-    [ObservableProperty] public partial bool IsComplete { get; set; }
     public IReadOnlyList<TravelDistributionModeOption> TravelDistributionModeOptions { get; } = SessionInsightsPresentation.TravelDistributionModeOptions;
     public IReadOnlyList<BalanceDisplacementModeOption> BalanceDisplacementModeOptions { get; } = SessionInsightsPresentation.BalanceDisplacementModeOptions;
     public IReadOnlyList<BalanceSpeedModeOption> BalanceSpeedModeOptions { get; } = SessionInsightsPresentation.BalanceSpeedModeOptions;
@@ -892,7 +890,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SessionDetailLoadResult.IncompleteLocalData incomplete =>
                 new RecordedSessionLoadPresentation.IncompleteLocalData(
                     incomplete.Missing,
-                    snapshot?.HasProcessedData ?? false,
                     snapshot),
             SessionDetailLoadResult.Failed failed => new RecordedSessionLoadPresentation.Failed(
                 failed.ErrorMessage,
@@ -1700,7 +1697,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SetSignalPresentationState(CreateSignalPresentationState());
         if (!snapshot.HasProcessedData)
         {
-            PublishCurrentLoadPresentation();
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty(sessionSnapshot));
         }
 
         editorEffects = new RecordedSessionEditorEffects(
@@ -1734,12 +1731,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             _ = mapViewModel?.InitializeAsync();
         }
 
-        var isComplete = IsCompleteFromLoadPresentation(state.Load);
-        if (IsComplete != isComplete)
-        {
-            IsComplete = isComplete;
-        }
-
         if (previous.Session != state.Session)
         {
             sessionSnapshot = state.Session;
@@ -1762,11 +1753,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             signalRowActions.SetHasAirtimes(state.TelemetryData?.Airtimes.Length > 0);
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
-        }
-
-        if (previous.FullTrackPoints != state.FullTrackPoints)
-        {
-            fullTrackPoints = ToTrackPointList(state.FullTrackPoints);
         }
 
         if (previous.TrackPoints != state.TrackPoints)
@@ -1851,19 +1837,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    private static bool IsCompleteFromLoadPresentation(RecordedSessionLoadPresentation load)
-    {
-        return load switch
-        {
-            RecordedSessionLoadPresentation.Loaded => true,
-            RecordedSessionLoadPresentation.IncompleteLocalData incomplete => incomplete.HasProcessedData,
-            RecordedSessionLoadPresentation.Loading loading => loading.Session?.HasProcessedData ?? false,
-            RecordedSessionLoadPresentation.Empty empty => empty.Session?.HasProcessedData ?? false,
-            RecordedSessionLoadPresentation.Failed failed => failed.Session?.HasProcessedData ?? false,
-            _ => false,
-        };
-    }
-
     private void ApplyRuntimeSessionState(SessionSnapshot snapshot)
     {
         session.FullTrack = snapshot.FullTrackId;
@@ -1875,56 +1848,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         PublishEditorInput(pageCountInput, Pages.Count);
         editorActions.RefreshSelectedPageAnalysis();
-    }
-
-    private void PublishCurrentLoadPresentation()
-    {
-        PublishLoadPresentation(CreateCurrentLoadPresentation());
-    }
-
-    private RecordedSessionLoadPresentation CreateCurrentLoadPresentation()
-    {
-        var snapshot = sessionSnapshot;
-        return currentEditorState.Load switch
-        {
-            RecordedSessionLoadPresentation.Loaded loaded when telemetryData is not null =>
-                loaded with
-                {
-                    Data = loaded.Data with
-                    {
-                        TelemetryPresentation = CreateCurrentTelemetryPresentation(
-                            loaded.Data.TelemetryPresentation)
-                    },
-                    Session = snapshot,
-                },
-            RecordedSessionLoadPresentation.Loading loading => loading with
-            {
-                Session = snapshot,
-            },
-            RecordedSessionLoadPresentation.IncompleteLocalData incomplete => incomplete with
-            {
-                HasProcessedData = snapshot?.HasProcessedData ?? incomplete.HasProcessedData,
-                Session = snapshot,
-            },
-            RecordedSessionLoadPresentation.Failed failed => failed with
-            {
-                Session = snapshot,
-            },
-            _ => new RecordedSessionLoadPresentation.Empty(snapshot),
-        };
-    }
-
-    private SessionTelemetryPresentationData CreateCurrentTelemetryPresentation(
-        SessionTelemetryPresentationData current)
-    {
-        return current with
-        {
-            TelemetryData = telemetryData!,
-            FullTrackId = sessionSnapshot?.FullTrackId ?? session.FullTrack,
-            FullTrackPoints = fullTrackPoints,
-            TrackPoints = trackPoints,
-            MediaColumnWidth = currentEditorState.Presentation.MediaColumnWidth,
-        };
     }
 
     private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()
@@ -2321,7 +2244,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             RearLowSpeedCompression = NotesPage.ShockSettings.LowSpeedCompression,
             RearLowSpeedRebound = NotesPage.ShockSettings.LowSpeedRebound,
             RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
-            HasProcessedData = IsComplete,
             FullTrack = session.FullTrack,
             GpsOffsetSeconds = session.GpsOffsetSeconds,
         };

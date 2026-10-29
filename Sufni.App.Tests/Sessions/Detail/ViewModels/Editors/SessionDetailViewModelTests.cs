@@ -219,7 +219,6 @@ public class SessionDetailViewModelTests
         await loadTask;
 
         Assert.Null(editor.CurrentTelemetryData);
-        Assert.False(editor.IsComplete);
     }
 
     [AvaloniaFact]
@@ -343,7 +342,6 @@ public class SessionDetailViewModelTests
 
         await harness.LoadAsync(editor);
 
-        Assert.False(editor.IsComplete);
         Assert.Equal(SessionScreenStateKind.IncompleteLocalData, editor.ScreenState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.SignalsWorkspace.TravelSignalState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.AnalysisWorkspace.FrontAnalysisState.Kind);
