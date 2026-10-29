@@ -17,7 +17,7 @@ public class ManagementClientTests
     [InlineData(ManagementClientValidationCase.NullConfigBytes)]
     public async Task Commands_ValidateConnectionAndArguments(ManagementClientValidationCase testCase)
     {
-        using var client = new ManagementClient();
+        using var client = CreateClient();
 
         switch (testCase)
         {
@@ -81,7 +81,7 @@ public class ManagementClientTests
             var pong = ManagementProtocolReader.CreateFrame(ManagementFrameType.Pong, request.Header.RequestId, []);
             await ManagementTestServer.WriteFrameAsync(stream, pong[..6]);
         });
-        using var client = CreateConnectedClient();
+        using var client = CreateClient();
         await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync(cancellationToken: TestContext.Current.CancellationToken));
@@ -107,7 +107,7 @@ public class ManagementClientTests
         await serverTask;
     }
 
-    private static ManagementClient CreateConnectedClient() => new(
+    private static ManagementClient CreateClient() => new(
         connectTimeout: TimeSpan.FromSeconds(2),
         ioTimeout: TimeSpan.FromSeconds(2),
         commitTimeout: TimeSpan.FromSeconds(2));

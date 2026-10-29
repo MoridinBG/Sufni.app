@@ -25,13 +25,13 @@ internal sealed class ManagementClient : IDisposable
     private uint nextRequestId;
 
     public ManagementClient(
-        TimeSpan? connectTimeout = null,
-        TimeSpan? ioTimeout = null,
-        TimeSpan? commitTimeout = null)
+        TimeSpan connectTimeout,
+        TimeSpan ioTimeout,
+        TimeSpan commitTimeout)
     {
-        this.connectTimeout = connectTimeout ?? TimeSpan.FromSeconds(5);
-        this.ioTimeout = ioTimeout ?? TimeSpan.FromSeconds(5);
-        this.commitTimeout = commitTimeout ?? TimeSpan.FromSeconds(15);
+        this.connectTimeout = connectTimeout;
+        this.ioTimeout = ioTimeout;
+        this.commitTimeout = commitTimeout;
     }
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
@@ -414,8 +414,6 @@ internal sealed class ManagementClient : IDisposable
     private static DaqDirectoryRecord CreateDirectoryRecord(DaqDirectoryId directoryId, IReadOnlyList<DaqFileRecord> files) => directoryId switch
     {
         DaqDirectoryId.Root => new DaqRootDirectoryRecord(files),
-        DaqDirectoryId.Uploaded => new DaqUploadedDirectoryRecord(files),
-        DaqDirectoryId.Trash => new DaqTrashDirectoryRecord(files),
         _ => throw new DaqManagementException($"Unsupported directory id {directoryId}.")
     };
 
@@ -437,8 +435,6 @@ internal sealed class ManagementClient : IDisposable
         var expectedFileClass = directoryId switch
         {
             DaqDirectoryId.Root => DaqFileClass.RootSst,
-            DaqDirectoryId.Uploaded => DaqFileClass.UploadedSst,
-            DaqDirectoryId.Trash => DaqFileClass.TrashSst,
             _ => throw new DaqManagementException($"Unsupported directory id {directoryId}.")
         };
 

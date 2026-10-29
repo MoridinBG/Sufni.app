@@ -191,6 +191,8 @@ internal static class ManagementProtocolHelpers
         }
     }
 
+    // The protocol boundary rejects unmapped error codes before presentation.
+#pragma warning disable CS8524
     public static string ToUserMessage(DaqManagementErrorCode errorCode) => errorCode switch
     {
         DaqManagementErrorCode.InvalidRequest => "The device rejected the management request.",
@@ -199,7 +201,7 @@ internal static class ManagementProtocolHelpers
         DaqManagementErrorCode.IoError => "The device reported an I/O error while processing the management request.",
         DaqManagementErrorCode.ValidationError => "The device rejected the uploaded CONFIG file during validation.",
         DaqManagementErrorCode.UnsupportedTarget => "The requested target is not supported by the device.",
-        DaqManagementErrorCode.InternalError => "The device reported an internal management error.",
-        _ => $"The device returned management error code {(int)errorCode}."
+        DaqManagementErrorCode.InternalError => "The device reported an internal management error."
     };
+#pragma warning restore CS8524
 }

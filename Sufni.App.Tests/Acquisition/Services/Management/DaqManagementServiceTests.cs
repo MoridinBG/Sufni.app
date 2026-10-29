@@ -85,7 +85,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
         });
 
-        var result = await CreateService().ListDirectoryAsync(server.Host, server.Port, DaqDirectoryId.Uploaded, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().ListDirectoryAsync(server.Host, server.Port, DaqDirectoryId.Root, cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         var error = Assert.IsType<DaqListDirectoryResult.Error>(result);
