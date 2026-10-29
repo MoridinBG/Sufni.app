@@ -104,13 +104,6 @@ public class SyncCoordinator : ISyncCoordinator
             return;
         }
 
-        if (synchronizationClientService is null)
-        {
-            logger.Error("Sync request could not start because no synchronization client service is available");
-            SyncFailed?.Invoke(this, new SyncFailedEventArgs("Sync failed: sync unavailable"));
-            return;
-        }
-
         logger.Information("Starting synchronization");
         SetOutboundSyncRunning(true);
         try
@@ -134,7 +127,7 @@ public class SyncCoordinator : ISyncCoordinator
 
             logger.Verbose("Running remote synchronization phases");
             var result = await backgroundTaskRunner.RunAsync(() =>
-                synchronizationClientService.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress)));
+                synchronizationClientService!.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress)));
 
             logger.Verbose("Refreshing local stores after synchronization");
             Progress = new SynchronizationProgressSnapshot(

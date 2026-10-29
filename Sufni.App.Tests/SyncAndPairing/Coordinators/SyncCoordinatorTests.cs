@@ -100,24 +100,6 @@ public class SyncCoordinatorTests
         await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task SyncAllAsync_IsNoOp_WhenSynchronizationClientServiceIsNull()
-    {
-        SetPairingState(true);
-        // Bypass the helper — it uses `??` to fall back to the class-level
-        // substitute, so a null override there wouldn't actually inject null.
-        var coordinator = new SyncCoordinator(
-            appDataRefresher,
-            synchronizationClientService: null,
-            pairingClientCoordinator: pairing,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero);
-
-        await coordinator.SyncAllAsync();
-
-        await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
-    }
-
     // ----- SyncAllAsync happy path -----
 
     [AvaloniaFact]

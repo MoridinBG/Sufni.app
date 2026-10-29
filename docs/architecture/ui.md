@@ -171,10 +171,10 @@ or magic strings. This convention applies to both coordinator and
 service contracts when the caller's next step differs by outcome.
 
 Store writer APIs use the shared neutral
-`StoreMutationResult<TSnapshot>` and `StoreDeleteResult<TSnapshot>` records:
-`Saved`/`Deleted` carry the published snapshot result, `Conflict`/`Blocked`
-carry the current snapshot when available, and `Missing`/`Failed` carry
-diagnostic text. Workflow services and coordinators translate those neutral
+`StoreMutationResult<TSnapshot>` and `StoreDeleteResult<TSnapshot>` records.
+Mutation results are `Saved` (published snapshot), `Conflict` (current snapshot),
+`Missing` or `Failed` (diagnostic text). Delete results are `Deleted` (optional
+previous snapshot) or `Failed` (diagnostic text). Workflow services and coordinators translate those neutral
 records into UI-facing results such as `BikeSaveResult`, `SessionSaveResult`,
 and `LiveSessionSaveResult` instead of leaking store-specific contracts into
 editors.

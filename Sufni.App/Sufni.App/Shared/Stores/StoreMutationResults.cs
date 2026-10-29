@@ -24,9 +24,5 @@ public abstract record StoreDeleteResult<TSnapshot>
 
     public sealed record Deleted(TSnapshot? PreviousSnapshot = null) : StoreDeleteResult<TSnapshot>;
 
-    public sealed record Blocked(string ErrorMessage, TSnapshot? CurrentSnapshot = null) : StoreDeleteResult<TSnapshot>;
-
-    public sealed record Missing(string ErrorMessage) : StoreDeleteResult<TSnapshot>;
-
     public sealed record Failed(string ErrorMessage) : StoreDeleteResult<TSnapshot>;
 }

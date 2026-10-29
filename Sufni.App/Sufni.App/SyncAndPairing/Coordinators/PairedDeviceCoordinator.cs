@@ -51,14 +51,6 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
                     logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
                     return new PairedDeviceUnpairResult.Unpaired();
 
-                case StoreDeleteResult<PairedDeviceSnapshot>.Blocked blocked:
-                    logger.Warning("Paired-device unpair blocked for {DeviceId}: {ErrorMessage}", deviceId, blocked.ErrorMessage);
-                    return new PairedDeviceUnpairResult.Failed(blocked.ErrorMessage);
-
-                case StoreDeleteResult<PairedDeviceSnapshot>.Missing missing:
-                    logger.Warning("Paired-device unpair failed because {DeviceId} was missing: {ErrorMessage}", deviceId, missing.ErrorMessage);
-                    return new PairedDeviceUnpairResult.Failed(missing.ErrorMessage);
-
                 case StoreDeleteResult<PairedDeviceSnapshot>.Failed failed:
                     logger.Error("Paired-device unpair failed for {DeviceId}: {ErrorMessage}", deviceId, failed.ErrorMessage);
                     return new PairedDeviceUnpairResult.Failed(failed.ErrorMessage);

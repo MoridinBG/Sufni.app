@@ -193,10 +193,6 @@ internal class BikeCoordinator(
                     logger.Warning("Bike save conflict for {BikeId}", bike.Id);
                     return new BikeSaveResult.Conflict(conflict.CurrentSnapshot);
 
-                case StoreMutationResult<BikeSnapshot>.Missing missing:
-                    logger.Error("Bike save failed because bike {BikeId} was missing: {ErrorMessage}", bike.Id, missing.ErrorMessage);
-                    return new BikeSaveResult.Failed(missing.ErrorMessage);
-
                 case StoreMutationResult<BikeSnapshot>.Failed failed:
                     logger.Error("Bike save failed for {BikeId}: {ErrorMessage}", bike.Id, failed.ErrorMessage);
                     return new BikeSaveResult.Failed(failed.ErrorMessage);
@@ -262,13 +258,6 @@ internal class BikeCoordinator(
                     logger.Warning("Bike damping speed cutoff update conflict for {BikeId}", bikeId);
                     return new BikeDampingSpeedCutoffUpdateResult.Conflict(conflict.CurrentSnapshot);
 
-                case StoreMutationResult<BikeSnapshot>.Missing missing:
-                    logger.Error(
-                        "Bike damping speed cutoff update failed because bike {BikeId} was missing: {ErrorMessage}",
-                        bikeId,
-                        missing.ErrorMessage);
-                    return new BikeDampingSpeedCutoffUpdateResult.Failed(missing.ErrorMessage);
-
                 case StoreMutationResult<BikeSnapshot>.Failed failed:
                     logger.Error(
                         "Bike damping speed cutoff update failed for {BikeId}: {ErrorMessage}",
@@ -304,14 +293,6 @@ internal class BikeCoordinator(
                 await editorFactory().CloseBikeEditor(bikeId);
                 logger.Information("Bike delete completed for {BikeId}", bikeId);
                 return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
-
-            case StoreDeleteResult<BikeSnapshot>.Blocked blocked:
-                logger.Warning("Bike delete blocked for {BikeId}: {ErrorMessage}", bikeId, blocked.ErrorMessage);
-                return new BikeDeleteResult(BikeDeleteOutcome.Failed, blocked.ErrorMessage);
-
-            case StoreDeleteResult<BikeSnapshot>.Missing missing:
-                logger.Warning("Bike delete failed because bike {BikeId} was missing: {ErrorMessage}", bikeId, missing.ErrorMessage);
-                return new BikeDeleteResult(BikeDeleteOutcome.Failed, missing.ErrorMessage);
 
             case StoreDeleteResult<BikeSnapshot>.Failed failed:
                 logger.Error("Bike delete failed for {BikeId}: {ErrorMessage}", bikeId, failed.ErrorMessage);
