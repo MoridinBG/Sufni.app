@@ -52,7 +52,7 @@ Each persisted writer interface additionally exposes:
   videos, and session segments.
 - Semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
-  `CommitSessionMetadataFieldAsync`, `CommitTrackPatchAsync`, and
+  `CommitTrackPatchAsync`, and
   `CommitLocalUnpairAsync`. These methods persist one aggregate family,
   re-read any database-computed snapshot fields, and publish the resulting
   snapshot through the store.

@@ -29,10 +29,6 @@ internal sealed class SessionStore(
 {
     public IObservable<SessionSnapshot> Watch(Guid id) =>
         WatchCore(id)
-            // Skip Remove events: RefreshAsync clears and repopulates the
-            // cache, so a watched session can briefly disappear before the
-            // fresh Add arrives. The editor should react only to the current
-            // Add/Update snapshot, not to that transient removal.
             .Where(c => c.Reason is ChangeReason.Add or ChangeReason.Update)
             .Select(c => c.Current);
 
@@ -64,29 +60,6 @@ internal sealed class SessionStore(
             await sessionRepository.PutSessionAsync(session);
             cancellationToken.ThrowIfCancellationRequested();
             return await PublishFreshSessionAsync(session.Id);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
-    }
-
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(
-        Guid sessionId,
-        Func<Session, Session> metadataUpdate,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var current = Get(sessionId);
-        if (current is null)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Missing("Session is missing.");
-        }
-
-        try
-        {
-            var session = metadataUpdate(current.ToMetadataEntity());
-            return await CommitSessionMetadataAsync(session, current.Updated, cancellationToken);
         }
         catch (Exception e)
         {

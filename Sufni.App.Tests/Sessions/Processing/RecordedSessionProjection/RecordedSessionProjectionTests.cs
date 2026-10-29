@@ -279,7 +279,7 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_StaysSubscribed_WhenRefreshClearsAndReaddsSameSession()
+    public void WatchSession_StaysSubscribed_WhenRefreshUpdatesSameSession()
     {
         var scheduler = new QueuedRecordedSessionProjectionScheduler();
         using var stores = new StoreFixtures();
@@ -428,14 +428,8 @@ public class RecordedSessionProjectionTests
 
         public void Add(SessionSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
-        public void RefreshWith(SessionSnapshot snapshot)
-        {
-            cache.Edit(updater =>
-            {
-                updater.Clear();
-                updater.AddOrUpdate(snapshot);
-            });
-        }
+        public void RefreshWith(SessionSnapshot snapshot) =>
+            cache.EditDiff([snapshot], EqualityComparer<SessionSnapshot>.Default);
 
         public void Remove(Guid id) => cache.RemoveKey(id);
 

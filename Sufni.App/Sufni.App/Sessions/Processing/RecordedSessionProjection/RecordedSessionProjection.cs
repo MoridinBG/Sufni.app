@@ -141,7 +141,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     {
         var affected = new HashSet<Guid>();
         var completedWatches = new List<ReplaySubject<RecordedSessionDomainSnapshot>>();
-        var replacedKeys = FindKeysRemovedAndReadded(changes);
         lock (stateGate)
         {
             if (disposed)
@@ -160,11 +159,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                         affected.Add(change.Key);
                         break;
                     case ChangeReason.Remove:
-                        if (replacedKeys.Contains(change.Key))
-                        {
-                            break;
-                        }
-
                         RemoveSessionSetupIndexLocked(change.Key);
                         domains.Remove(change.Key);
                         summaries.RemoveKey(change.Key);
@@ -182,32 +176,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
 
         CompleteWatches(completedWatches);
         QueueRecompute(affected);
-    }
-
-    private static HashSet<Guid> FindKeysRemovedAndReadded(IChangeSet<SessionSnapshot, Guid> changes)
-    {
-        var removed = new HashSet<Guid>();
-        var added = new HashSet<Guid>();
-
-        foreach (var change in changes)
-        {
-            switch (change.Reason)
-            {
-                case ChangeReason.Add:
-                case ChangeReason.Update:
-                case ChangeReason.Refresh:
-                    added.Add(change.Key);
-                    break;
-                case ChangeReason.Remove:
-                    removed.Add(change.Key);
-                    break;
-                case ChangeReason.Moved:
-                    break;
-            }
-        }
-
-        removed.IntersectWith(added);
-        return removed;
     }
 
     private void ApplySetupChanges(IChangeSet<SetupSnapshot, Guid> changes)
@@ -306,7 +274,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         QueueRecompute(sessionIds);
     }
 
-    public void QueueRecompute(Guid sessionId) => QueueRecompute([sessionId]);
+    private void QueueRecompute(Guid sessionId) => QueueRecompute([sessionId]);
 
     private void QueueRecompute(IEnumerable<Guid> sessionIds)
     {

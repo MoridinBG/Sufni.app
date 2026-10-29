@@ -27,11 +27,6 @@ public interface ISessionStoreWriter : ISessionStore
         long? baselineUpdated = null,
         CancellationToken cancellationToken = default);
 
-    Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataFieldAsync(
-        Guid sessionId,
-        Func<Session, Session> metadataUpdate,
-        CancellationToken cancellationToken = default);
-
     Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,
