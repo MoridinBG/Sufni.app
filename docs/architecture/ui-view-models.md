@@ -129,8 +129,8 @@ There are five kinds of view model in the presentation layer:
   `(Stale)` or `(No Raw)` to the display name when appropriate, formats
   the always-visible row timestamp as local time only because the group
   header owns the date, formats the optional subtitle from unit-labelled
-  duration plus GPS distance/ascent/descent, and exposes flags the view
-  can style independently of the text.
+  duration plus GPS distance/ascent/descent. Staleness appears in the title;
+  completion and video availability retain their own bound indicators.
 
 - **Editor view models** (`ViewModels/Editors/`) — `BikeEditorViewModel`,
   `SetupEditorViewModel`, `SessionDetailViewModel`,
@@ -221,8 +221,8 @@ There are five kinds of view model in the presentation layer:
   content with a later loading presentation. `RecordedSessionEditorStateController`
   maps pre-content progress into
   `SessionScreenPresentationState`, whose loading states always expose a
-  concrete message, normalized `0..1` progress fraction, and progress-visible
-  flag for both workspace and compact session shells.
+  concrete message and normalized `0..1` progress fraction. Both workspace and
+  compact session shells show progress while `IsLoading` is true.
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   in `Loaded` and disposes that subscription in `Unloaded`. Initial or
   runtime domain snapshots that are recomputable prompt the user to

@@ -292,7 +292,6 @@ public class SessionListViewModelTests
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
-            Assert.True(row.IsStale);
             Assert.Equal("Alpine", row.BaseName);
             Assert.Equal("Alpine", row.Name);
             Assert.Equal("Alpine (Stale)", row.TitleText);
@@ -306,7 +305,7 @@ public class SessionListViewModelTests
     }
 
     [Fact]
-    public void NoRawRows_ShowSuffix_ButAreNotStaleAndSearchUsesSummaryText()
+    public void NoRawRows_ShowSuffix_ButSearchUsesSummaryText()
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
@@ -319,8 +318,6 @@ public class SessionListViewModelTests
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
-            Assert.False(row.IsStale);
-            Assert.True(row.HasNoRawSource);
             Assert.Equal("Alpine", row.BaseName);
             Assert.Equal("Alpine", row.Name);
             Assert.Equal("Alpine (No Raw)", row.TitleText);

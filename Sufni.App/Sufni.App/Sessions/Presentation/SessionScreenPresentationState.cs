@@ -15,17 +15,11 @@ public sealed record SessionScreenPresentationState
     public SessionScreenPresentationState(
         SessionScreenStateKind kind,
         string? message,
-        double progressFraction,
-        bool showProgress)
+        double progressFraction)
     {
         if (kind == SessionScreenStateKind.Loading && string.IsNullOrWhiteSpace(message))
         {
             throw new ArgumentException("Loading session screen state requires a message.", nameof(message));
-        }
-
-        if (kind == SessionScreenStateKind.Loading && !showProgress)
-        {
-            throw new ArgumentException("Loading session screen state requires progress.", nameof(showProgress));
         }
 
         Kind = kind;
@@ -33,13 +27,11 @@ public sealed record SessionScreenPresentationState
         ProgressFraction = kind == SessionScreenStateKind.Loading
             ? NormalizeProgress(progressFraction)
             : 0;
-        ShowProgress = kind == SessionScreenStateKind.Loading && showProgress;
     }
 
     public SessionScreenStateKind Kind { get; }
     public string? Message { get; }
     public double ProgressFraction { get; }
-    public bool ShowProgress { get; }
 
     public bool IsLoading => Kind == SessionScreenStateKind.Loading;
     public bool IsReady => Kind == SessionScreenStateKind.Ready;
@@ -47,20 +39,19 @@ public sealed record SessionScreenPresentationState
     public bool IsError => Kind == SessionScreenStateKind.Error;
 
     public static SessionScreenPresentationState Ready { get; } =
-        new(SessionScreenStateKind.Ready, null, 0, false);
+        new(SessionScreenStateKind.Ready, null, 0);
 
     public static SessionScreenPresentationState Loading(string message, double progressFraction)
     {
         return new SessionScreenPresentationState(
             SessionScreenStateKind.Loading,
             message,
-            progressFraction,
-            true);
+            progressFraction);
     }
 
     public static SessionScreenPresentationState Error(string? message)
     {
-        return new SessionScreenPresentationState(SessionScreenStateKind.Error, message, 0, false);
+        return new SessionScreenPresentationState(SessionScreenStateKind.Error, message, 0);
     }
 
     public static SessionScreenPresentationState IncompleteLocalData(string? message)
@@ -68,8 +59,7 @@ public sealed record SessionScreenPresentationState
         return new SessionScreenPresentationState(
             SessionScreenStateKind.IncompleteLocalData,
             message,
-            0,
-            false);
+            0);
     }
 
     private static double NormalizeProgress(double value)

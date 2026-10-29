@@ -25,7 +25,6 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     private readonly Func<SessionRowViewModel, Task> requestRecalculate;
 
     public Guid Id { get; private set; }
-    public long Updated { get; private set; }
 
     public string BaseName
     {
@@ -68,18 +67,6 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         get => field;
         private set => SetProperty(ref field, value);
     } = SessionDateGroupKey.NoDate;
-
-    public bool IsStale
-    {
-        get => field;
-        private set => SetProperty(ref field, value);
-    }
-
-    public bool HasNoRawSource
-    {
-        get => field;
-        private set => SetProperty(ref field, value);
-    }
 
     public bool CanRecalculate
     {
@@ -124,11 +111,8 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     public void Update(RecordedSessionSummary summary, SessionVideoSnapshot? latestVideo)
     {
         Id = summary.Id;
-        Updated = summary.Updated;
         BaseName = summary.Name;
         Name = BaseName;
-        IsStale = summary.Staleness.IsStale;
-        HasNoRawSource = summary.Staleness is SessionStaleness.MissingRawSource;
         CanRecalculate = summary.Staleness.CanManualRecompute;
         TitleText = summary.Staleness switch
         {

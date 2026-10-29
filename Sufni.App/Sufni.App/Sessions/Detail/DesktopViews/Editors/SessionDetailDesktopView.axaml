@@ -89,7 +89,7 @@ mc:Ignorable="d">
             MessageForeground="{DynamicResource SufniForeground}"
             ProgressValue="{Binding ScreenState.ProgressFraction}"
             ShowIndicator="False"
-            ShowProgress="{Binding ScreenState.ShowProgress}"
+            ShowProgress="{Binding ScreenState.IsLoading}"
             UseStackLayout="True" />
 
         <Border

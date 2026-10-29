@@ -60,7 +60,7 @@ mc:Ignorable="d">
             MessageForeground="{DynamicResource SufniForeground}"
             ProgressValue="{Binding ScreenState.ProgressFraction}"
             ShowIndicator="False"
-            ShowProgress="{Binding ScreenState.ShowProgress}"
+            ShowProgress="{Binding ScreenState.IsLoading}"
             UseStackLayout="True" />
 
         <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniBackground}" BorderBrush="{DynamicResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
