@@ -34,15 +34,7 @@ public interface IProcessingFingerprintService
     /// <see cref="ProcessingFingerprint.MatchesDatabaseInputs"/> because it cannot
     /// read the option inside a SQLite transaction.
     /// </summary>
-    ProcessingFingerprint CreateCurrentDatabaseInputs(
-        SessionSnapshot session,
-        SetupSnapshot setup,
-        BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source);
-
     ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input);
-
-    ProcessingFingerprint? ParsePersisted(SessionSnapshot session);
 
     /// <summary>
     /// The schema version stamped into fingerprints created by this build. The
@@ -57,20 +49,6 @@ public interface IProcessingFingerprintService
     /// schema versions of the local and remote fingerprints.
     /// </summary>
     ProcessingFingerprint? Parse(string? fingerprintJson);
-
-    SessionStaleness Evaluate(
-        SessionSnapshot session,
-        SetupSnapshot? setup,
-        BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null);
-
-    ProcessingFingerprintEvaluation EvaluateState(
-        SessionSnapshot session,
-        SetupSnapshot? setup,
-        BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null);
 
     ProcessingFingerprintEvaluation EvaluateState(
         SessionSnapshot session,

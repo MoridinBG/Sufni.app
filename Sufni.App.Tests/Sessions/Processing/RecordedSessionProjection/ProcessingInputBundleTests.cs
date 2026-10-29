@@ -76,7 +76,7 @@ public class ProcessingInputBundleTests
             SetupSnapshot.From(seeded.Setup, boardId: null),
             BikeSnapshot.From(seeded.Bike));
         var bundleFingerprint = fingerprintService.CreateCurrentDatabaseInputs(bundle);
-        var snapshotFingerprint = fingerprintService.CreateCurrentDatabaseInputs(
+        var snapshotFingerprint = fingerprintService.CreateCurrent(
             SessionSnapshot.From(seeded.Session),
             SetupSnapshot.From(seeded.Setup, boardId: null),
             BikeSnapshot.From(seeded.Bike),

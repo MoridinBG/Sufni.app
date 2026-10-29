@@ -819,7 +819,7 @@ public class SessionRepositoryTests
         Setup setup,
         Bike bike,
         RecordedSessionSource source) =>
-        fingerprintService.CreateCurrentDatabaseInputs(
+        fingerprintService.CreateCurrent(
             SessionSnapshot.From(session),
             SetupSnapshot.From(setup, boardId: null),
             BikeSnapshot.From(bike),

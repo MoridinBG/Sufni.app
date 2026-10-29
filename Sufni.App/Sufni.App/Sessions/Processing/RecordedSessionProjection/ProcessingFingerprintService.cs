@@ -47,20 +47,6 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
                 (options ?? TelemetryProcessingOptions.Default).ClampedVelocityFilterWindowMilliseconds,
         };
 
-    public ProcessingFingerprint CreateCurrentDatabaseInputs(
-        SessionSnapshot session,
-        SetupSnapshot setup,
-        BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source)
-    {
-        return CreateCurrentDatabaseInputs(
-            session,
-            setup,
-            bike,
-            source,
-            ProcessingDependencyHash.Compute(setup, bike));
-    }
-
     public ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input)
     {
         if (input.Session.SetupId != input.Setup.Id)
@@ -123,7 +109,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             DerivationWindow: session.DerivationWindow);
     }
 
-    public ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>
+    private ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>
         Parse(session.ProcessingFingerprintJson);
 
     public ProcessingFingerprint? Parse(string? fingerprintJson)
@@ -141,31 +127,6 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         {
             return null;
         }
-    }
-
-    public SessionStaleness Evaluate(
-        SessionSnapshot session,
-        SetupSnapshot? setup,
-        BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null)
-    {
-        options ??= TelemetryProcessingOptions.Default;
-        var persisted = ParsePersisted(session);
-        return Evaluate(session, setup, bike, source, persisted, current: null, options, dependencyHash: null);
-    }
-
-    public ProcessingFingerprintEvaluation EvaluateState(
-        SessionSnapshot session,
-        SetupSnapshot? setup,
-        BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source,
-        TelemetryProcessingOptions? options = null)
-    {
-        var dependencyHash = setup is not null && bike is not null
-            ? ProcessingDependencyHash.Compute(setup, bike)
-            : null;
-        return EvaluateState(session, setup, bike, source, dependencyHash, options);
     }
 
     public ProcessingFingerprintEvaluation EvaluateState(

@@ -832,7 +832,8 @@ public class DatabaseMigrationRunnerTests
             SessionSnapshot.From(persisted),
             SetupSnapshot.From(seed.Setup, boardId: null),
             BikeSnapshot.From(persistedBike!),
-            RecordedSessionSourceSnapshot.From(seed.Source));
+            RecordedSessionSourceSnapshot.From(seed.Source),
+            dependencyHash: null);
 
         AssertProcessedSessionFingerprintCase(fingerprintCase, evaluation, staleFingerprint);
     }

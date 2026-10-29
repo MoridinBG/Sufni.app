@@ -602,11 +602,13 @@ internal sealed class SynchronizationMergeEngine(
 
         try
         {
-            return fingerprintService.CreateCurrentDatabaseInputs(
-                SessionSnapshot.From(session),
-                SetupSnapshot.From(setup, null),
-                BikeSnapshot.From(bike),
-                RecordedSessionSourceSnapshot.From(sources[0]));
+            return fingerprintService.CreateCurrentDatabaseInputs(new SessionProcessingInputBundle(
+                new SessionProcessingInput(session.Id, setupId, SessionSnapshot.From(session).DerivationWindow),
+                new SetupProcessingInput(
+                    setup.Id, setup.BikeId, setup.FrontSensorConfigurationJson, setup.RearSensorConfigurationJson),
+                new BikeProcessingInput(
+                    bike.Id, bike.HeadAngle, bike.ForkStroke, bike.ShockStroke, bike.RearSuspension),
+                RecordedSessionSourceSnapshot.From(sources[0])));
         }
         catch (InvalidOperationException)
         {

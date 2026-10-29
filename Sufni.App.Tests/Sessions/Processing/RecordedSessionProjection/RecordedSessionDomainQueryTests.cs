@@ -151,11 +151,6 @@ public class RecordedSessionDomainQueryTests
             Arg.Any<SetupSnapshot>(),
             Arg.Any<BikeSnapshot>(),
             Arg.Any<RecordedSessionSourceSnapshot>());
-        fingerprintService.DidNotReceive().Evaluate(
-            Arg.Any<SessionSnapshot>(),
-            Arg.Any<SetupSnapshot?>(),
-            Arg.Any<BikeSnapshot?>(),
-            Arg.Any<RecordedSessionSourceSnapshot?>());
     }
 
     [Fact]

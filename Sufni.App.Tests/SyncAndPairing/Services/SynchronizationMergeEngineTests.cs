@@ -887,12 +887,12 @@ public class SynchronizationMergeEngineTests
             var newWindow = new RecordedSessionDerivationWindow(newSourceSessionId, 1, null);
 
             return (
-                AppJson.Serialize(fingerprintService.CreateCurrentDatabaseInputs(
+                AppJson.Serialize(fingerprintService.CreateCurrent(
                     SessionSnapshot.From(WithWindow(session, oldWindow)),
                     setupSnapshot,
                     bikeSnapshot,
                     RecordedSessionSourceSnapshot.From(oldSource))),
-                AppJson.Serialize(fingerprintService.CreateCurrentDatabaseInputs(
+                AppJson.Serialize(fingerprintService.CreateCurrent(
                     SessionSnapshot.From(WithWindow(session, newWindow)),
                     setupSnapshot,
                     bikeSnapshot,
@@ -912,7 +912,7 @@ public class SynchronizationMergeEngineTests
         var derivationWindow = scenario == PushSwapScenario.DerivedStaleIncoming
             ? new RecordedSessionDerivationWindow(sourceSessionId, 1, null)
             : null;
-        var canonical = fingerprintService.CreateCurrentDatabaseInputs(
+        var canonical = fingerprintService.CreateCurrent(
             SessionSnapshot.From(WithWindow(session, derivationWindow)),
             setupSnapshot,
             bikeSnapshot,
