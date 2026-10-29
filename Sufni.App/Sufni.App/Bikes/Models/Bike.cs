@@ -119,10 +119,6 @@ public class Bike : Synchronizable
     [Column("image_rotation_degrees")]
     public double ImageRotationDegrees { get; set; }
 
-    [JsonIgnore]
-    [Ignore]
-    public bool HasWheels => FrontWheelDiameterMm.HasValue && RearWheelDiameterMm.HasValue;
-
     [JsonPropertyName("image")]
     [Column("image")]
     public byte[] ImageBytes
@@ -201,32 +197,6 @@ public class Bike : Synchronizable
         var dx = rearWheel.X - bottomBracket.X;
         var dy = rearWheel.Y - bottomBracket.Y;
         return double.Hypot(dx, dy);
-    }
-
-    public Bike WithRearSuspension(RearSuspensionSpec rearSuspension)
-    {
-        ArgumentNullException.ThrowIfNull(rearSuspension);
-
-        var snapshot = BikeSnapshot.From(this) with
-        {
-            RearSuspension = rearSuspension,
-            Chainstay = null,
-        };
-        return FromSnapshot(snapshot);
-    }
-
-    public Bike WithShockStroke(double? shockStroke)
-    {
-        var rearSuspension = RearSuspension is RearSuspensionSpec.Linkage linkage && shockStroke.HasValue
-            ? new RearSuspensionSpec.Linkage(linkage.Spec.WithShockStroke(shockStroke.Value))
-            : RearSuspension;
-
-        var snapshot = BikeSnapshot.From(this) with
-        {
-            ShockStroke = shockStroke,
-            RearSuspension = rearSuspension,
-        };
-        return FromSnapshot(snapshot);
     }
 }
 

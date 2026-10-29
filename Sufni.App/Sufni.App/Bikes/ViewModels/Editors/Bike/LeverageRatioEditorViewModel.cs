@@ -14,7 +14,6 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
     [ObservableProperty] public partial LeverageRatioSpec? Value { get; set; }
     [ObservableProperty] public partial ObservableCollection<LeverageRatioPoint> PointsView { get; set; } = [];
     [ObservableProperty] public partial string[] ValidationErrors { get; set; } = [];
-    [ObservableProperty] public partial CoordinateList? LeverageRatioPlotData { get; set; }
     [ObservableProperty] public partial bool CanEdit { get; set; }
 
     public event EventHandler? Changed;
@@ -35,9 +34,6 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
         PointsView = value is null
             ? []
             : [.. value.Points];
-        LeverageRatioPlotData = value is null
-            ? null
-            : value.DeriveLeverageRatioData();
 
         OnPropertyChanged(nameof(PointCount));
         OnPropertyChanged(nameof(MaxShockStroke));

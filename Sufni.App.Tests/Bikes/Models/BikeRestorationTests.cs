@@ -87,70 +87,9 @@ public class BikeRestorationTests
             RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(4)),
         };
 
-        var updated = source.WithRearSuspension(new RearSuspensionSpec.Hardtail());
+        source.RearSuspension = new RearSuspensionSpec.Hardtail();
 
-        Assert.Null(updated.Chainstay);
-    }
-
-    [Fact]
-    public void WithRearSuspension_RecomputesChainstayFromReplacementLinkage()
-    {
-        var source = new Bike(Guid.NewGuid(), "linkage bike")
-        {
-            Chainstay = 440,
-            RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(4)),
-        };
-
-        var updated = source.WithRearSuspension(
-            new RearSuspensionSpec.Linkage(LinkageWithChainstay(10)));
-
-        Assert.Equal(10, updated.Chainstay);
-    }
-
-    [Fact]
-    public void WithShockStroke_OnLinkageBike_RebuildsLinkageSpecWithoutMutatingOriginal()
-    {
-        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
-        var source = new Bike(Guid.NewGuid(), "linkage bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 170,
-            ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
-            Updated = 7,
-        };
-
-        var updated = source.WithShockStroke(0.75);
-
-        Assert.NotSame(source, updated);
-        Assert.Equal(linkage.ShockStroke, source.ShockStroke);
-        Assert.Equal(linkage.ShockStroke, Assert.IsType<RearSuspensionSpec.Linkage>(source.RearSuspension).Spec.ShockStroke);
-        Assert.Equal(0.75, updated.ShockStroke);
-        Assert.Equal(0.75, Assert.IsType<RearSuspensionSpec.Linkage>(updated.RearSuspension).Spec.ShockStroke);
-        Assert.Equal(source.Id, updated.Id);
-        Assert.Equal(source.Name, updated.Name);
-    }
-
-    [Fact]
-    public void WithRearSuspension_ReturnsNewBikeWithoutMutatingOriginal()
-    {
-        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
-        var source = new Bike(Guid.NewGuid(), "hardtail bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 170,
-            RearSuspension = new RearSuspensionSpec.Hardtail(),
-            Updated = 7,
-        };
-
-        var updated = source.WithRearSuspension(new RearSuspensionSpec.LeverageRatio(leverageRatio));
-
-        Assert.NotSame(source, updated);
-        Assert.IsType<RearSuspensionSpec.Hardtail>(source.RearSuspension);
-        var updatedLeverageRatio = Assert.IsType<RearSuspensionSpec.LeverageRatio>(updated.RearSuspension);
-        Assert.Equal(leverageRatio, updatedLeverageRatio.Spec);
-        Assert.Equal(source.Id, updated.Id);
-        Assert.Equal(source.Name, updated.Name);
+        Assert.Null(source.Chainstay);
     }
 
     private static IReadOnlyList<(string Name, JointType? Type, double X, double Y)> DescribeJoints(IEnumerable<JointSpec> joints) =>
