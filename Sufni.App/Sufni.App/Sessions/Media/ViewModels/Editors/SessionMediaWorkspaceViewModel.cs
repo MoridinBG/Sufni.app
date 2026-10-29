@@ -13,26 +13,23 @@ namespace Sufni.App.Sessions.Media.ViewModels.Editors;
 
 internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
 {
-    private readonly Func<MapViewModel?> mapViewModel;
     private readonly VideoPaneViewModel? videoPane;
     private readonly SegmentComparisonViewModel segmentComparison;
     private readonly IDisposable stateSubscription;
-    private MapViewModel? currentMapViewModel;
     private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
     private double? mediaColumnWidth;
 
     public SessionMediaWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
-        Func<MapViewModel?> mapViewModel,
+        MapViewModel? mapViewModel,
         SessionTimelineLinkViewModel timeline,
         VideoPaneViewModel? videoPane,
         SegmentComparisonViewModel segmentComparison)
     {
         ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(mapViewModel);
         ArgumentNullException.ThrowIfNull(timeline);
 
-        this.mapViewModel = mapViewModel;
+        MapViewModel = mapViewModel;
         Timeline = timeline;
         this.videoPane = videoPane;
         if (videoPane is not null)
@@ -47,7 +44,7 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
 
     public bool HasMediaContent => MapState.ReservesLayout || Video is not null;
 
-    public MapViewModel? MapViewModel => currentMapViewModel;
+    public MapViewModel? MapViewModel { get; }
 
     public SurfacePresentationState MapState => mapState;
 
@@ -63,13 +60,6 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
 
     private void ApplyState(RecordedSessionEditorState state)
     {
-        var nextMapViewModel = mapViewModel();
-        if (!ReferenceEquals(currentMapViewModel, nextMapViewModel))
-        {
-            currentMapViewModel = nextMapViewModel;
-            OnPropertyChanged(nameof(MapViewModel));
-        }
-
         if (SetProperty(ref mapState, state.Presentation.MapState, nameof(MapState)))
         {
             OnPropertyChanged(nameof(HasMediaContent));

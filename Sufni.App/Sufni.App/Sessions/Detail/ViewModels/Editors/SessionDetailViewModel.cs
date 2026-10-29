@@ -1599,9 +1599,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorStateController.State.Select(state => new VideoSessionTiming(
                 state.Session?.Timestamp,
                 state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds)));
+        mapViewModel = mapViewModelFactory.Create();
         MediaWorkspace = new SessionMediaWorkspaceViewModel(
             editorStateController.State,
-            () => MapViewModel,
+            mapViewModel,
             Timeline,
             videoPane,
             segmentComparison);
@@ -1665,7 +1666,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         Pages.Add(PreferencesPage);
         Pages.CollectionChanged += OnPagesChanged;
         PublishEditorInput(pageCountInput, Pages.Count);
-        mapViewModel = mapViewModelFactory.Create();
         if (snapshot.HasProcessedData)
         {
             presentationApplier.ApplyRecordedLoadingStates();

@@ -211,7 +211,7 @@ public class SessionWorkspaceViewModelTests
         using var state = new Subject<RecordedSessionEditorState>();
         using var workspace = new SessionMediaWorkspaceViewModel(
             state,
-            () => null,
+            null,
             new SessionTimelineLinkViewModel(),
             videoPane: null,
             TestSegmentComparisons.Create());
@@ -234,7 +234,7 @@ public class SessionWorkspaceViewModelTests
         using var state = new Subject<RecordedSessionEditorState>();
         using var workspace = new SessionMediaWorkspaceViewModel(
             state,
-            () => null,
+            null,
             new SessionTimelineLinkViewModel(),
             videoPane: null,
             segmentComparison);
@@ -263,7 +263,7 @@ public class SessionWorkspaceViewModelTests
         using var state = new Subject<RecordedSessionEditorState>();
         using var workspace = new SessionMediaWorkspaceViewModel(
             state,
-            () => null,
+            null,
             new SessionTimelineLinkViewModel(),
             videoPane,
             TestSegmentComparisons.Create());
