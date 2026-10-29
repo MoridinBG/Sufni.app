@@ -55,7 +55,6 @@ public class ImportSessionsCoordinatorTests
         {
             Assert.True(sessionsPublished);
             Assert.True(sourcesPublished);
-            Assert.Equal(0, telemetrySource.AllocatedCapacity);
             Assert.Throws<ObjectDisposedException>(() => telemetrySource.SstBytes);
             return Task.CompletedTask;
         });
@@ -212,8 +211,8 @@ public class ImportSessionsCoordinatorTests
             Arg.Is<RecordedSessionDomainSnapshot>(domain => domain.Session.Name == "trimmed"),
             Arg.Any<RecordedSessionSource>(),
             Arg.Any<CancellationToken>());
-        Assert.Equal(0, rejectedSource.AllocatedCapacity);
-        Assert.Equal(0, importableSource.AllocatedCapacity);
+        Assert.Throws<ObjectDisposedException>(() => rejectedSource.SstBytes);
+        Assert.Throws<ObjectDisposedException>(() => importableSource.SstBytes);
         Assert.Contains(progressEvents, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
     }
 
@@ -274,10 +273,9 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
-        Assert.Equal(0, goodSource.AllocatedCapacity);
+        Assert.Throws<ObjectDisposedException>(() => goodSource.SstBytes);
         if (brokenSource is not null)
         {
-            Assert.Equal(0, brokenSource.AllocatedCapacity);
             Assert.Throws<ObjectDisposedException>(() => brokenSource.SstBytes);
         }
     }
@@ -363,7 +361,7 @@ public class ImportSessionsCoordinatorTests
     }
 
     private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>
-        new(endpoint, Substitute.For<IDaqManagementService>(), id, $"{id:00000}.SST", 3,
+        new(endpoint, Substitute.For<IDaqManagementService>(), id, $"{id:00000}.SST",
             DateTimeOffset.FromUnixTimeSeconds(111 + id), TimeSpan.FromSeconds(6))
         { ShouldBeImported = null };
 

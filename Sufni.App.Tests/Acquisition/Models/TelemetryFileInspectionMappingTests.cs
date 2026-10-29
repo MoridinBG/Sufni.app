@@ -21,18 +21,15 @@ public class TelemetryFileInspectionMappingTests
     {
         var file = await CreateTelemetryFileAsync(sourceKind, payload);
 
-        Assert.Equal((byte)4, file.Version);
         Assert.False(file.ShouldBeImported);
         switch (payload)
         {
             case InspectionPayload.ValidV4WithUnknownChunk:
-                Assert.True(file.HasUnknown);
                 Assert.True(file.CanImport);
                 Assert.Null(file.MalformedMessage);
                 Assert.Equal("00:00:05", file.Duration);
                 break;
             case InspectionPayload.MalformedV4:
-                Assert.False(file.HasUnknown);
                 Assert.False(file.CanImport);
                 Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
                 break;
@@ -62,7 +59,6 @@ public class TelemetryFileInspectionMappingTests
 
         await file.OnImported();
 
-        Assert.True(file.Imported);
         await storageFile.Received(1).MoveAsync(uploaded);
     }
 

@@ -13,14 +13,11 @@ public interface ITelemetryFile
     // Null means the importer has not made a decision yet; true/false is the
     // user's or auto-selection state for the next import operation.
     public bool? ShouldBeImported { get; set; }
-    public bool Imported { get; set; }
     public string Description { get; set; }
-    public byte Version { get; }
     public DateTime StartTime { get; }
     public string Duration { get; }
     public string? MalformedMessage { get; }
     public bool CanImport { get; }
-    public bool HasUnknown { get; }
 
     // Returns the immutable raw source bytes and metadata used for durable
     // recorded-session reprocessing.

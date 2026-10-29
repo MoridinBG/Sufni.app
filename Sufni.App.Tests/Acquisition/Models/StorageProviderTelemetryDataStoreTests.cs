@@ -61,8 +61,6 @@ public class StorageProviderTelemetryDataStoreTests
         using var source = await telemetryFile.ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal("ride.SST", source.FileName);
-        Assert.Equal(bytes.Length, source.LogicalLength);
-        Assert.Equal(bytes.Length, source.AllocatedCapacity);
         Assert.Equal(bytes, source.SstBytes.ToArray());
     }
 

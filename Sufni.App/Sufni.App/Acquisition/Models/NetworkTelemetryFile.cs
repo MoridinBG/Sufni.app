@@ -15,14 +15,11 @@ public class NetworkTelemetryFile : ITelemetryFile
     public string Name { get; set; }
     public string FileName { get; }
     public bool? ShouldBeImported { get; set; }
-    public bool Imported { get; set; }
     public string Description { get; set; }
-    public byte Version { get; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
     public string? MalformedMessage { get; }
     public bool CanImport { get; }
-    public bool HasUnknown => false;
 
     private readonly IPEndPoint ipEndPoint;
     private readonly IDaqManagementService daqManagementService;
@@ -78,7 +75,6 @@ public class NetworkTelemetryFile : ITelemetryFile
             throw new DaqManagementException(error.ErrorCode, error.Message);
         }
 
-        Imported = true;
     }
 
     public async Task OnTrashed()
@@ -101,7 +97,6 @@ public class NetworkTelemetryFile : ITelemetryFile
         IDaqManagementService daqManagementService,
         int recordId,
         string name,
-        byte version,
         DateTimeOffset? timestampUtc,
         TimeSpan? duration,
         string? malformedMessage = null,
@@ -113,7 +108,6 @@ public class NetworkTelemetryFile : ITelemetryFile
         var effectiveDuration = duration;
         CanImport = canImport;
         ShouldBeImported = false;
-        Version = version;
         StartTime = (timestampUtc ?? FallbackStartTimeUtc).LocalDateTime;
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
         MalformedMessage = malformedMessage;

@@ -14,10 +14,9 @@ public sealed class TelemetryFileSource : IDisposable
     private byte[]? backingBytes;
     private readonly int offset;
     private readonly int logicalLength;
-    private readonly int allocatedCapacity;
 
     public TelemetryFileSource(string fileName, byte[] sstBytes)
-        : this(fileName, sstBytes, 0, sstBytes.Length, sstBytes.Length)
+        : this(fileName, sstBytes, 0, sstBytes.Length)
     {
     }
 
@@ -25,14 +24,12 @@ public sealed class TelemetryFileSource : IDisposable
         string fileName,
         byte[] backingBytes,
         int offset,
-        int logicalLength,
-        int allocatedCapacity)
+        int logicalLength)
     {
         FileName = fileName;
         this.backingBytes = backingBytes;
         this.offset = offset;
         this.logicalLength = logicalLength;
-        this.allocatedCapacity = allocatedCapacity;
     }
 
     public string FileName { get; }
@@ -47,10 +44,6 @@ public sealed class TelemetryFileSource : IDisposable
         }
     }
 
-    public int LogicalLength => logicalLength;
-
-    public int AllocatedCapacity => Volatile.Read(ref backingBytes) is null ? 0 : allocatedCapacity;
-
     internal static TelemetryFileSource TakeOwnership(string fileName, MemoryStream memory)
     {
         if (!memory.TryGetBuffer(out var buffer))
@@ -62,8 +55,7 @@ public sealed class TelemetryFileSource : IDisposable
             fileName,
             buffer.Array!,
             buffer.Offset,
-            checked((int)memory.Length),
-            memory.Capacity);
+            checked((int)memory.Length));
     }
 
     public void Dispose()

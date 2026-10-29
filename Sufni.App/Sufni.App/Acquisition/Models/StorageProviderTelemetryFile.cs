@@ -14,14 +14,11 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     public string Name { get; set; }
     public string FileName => storageFile.Name;
     public bool? ShouldBeImported { get; set; }
-    public bool Imported { get; set; }
     public string Description { get; set; }
-    public byte Version { get; private set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; }
     public string? MalformedMessage { get; private set; }
     public bool CanImport { get; private set; }
-    public bool HasUnknown { get; private set; }
 
     private async Task Init()
     {
@@ -56,7 +53,6 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
     public async Task OnImported()
     {
-        Imported = true;
         await MoveToSiblingFolderAsync("uploaded", "The \"uploaded\" folder could not be accessed.");
     }
 
@@ -88,12 +84,10 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     private void ApplyInspection(TelemetryFileInspectionState state)
     {
         ShouldBeImported = state.ShouldBeImported;
-        Version = state.Version;
         StartTime = state.StartTime;
         Duration = state.Duration;
         MalformedMessage = state.MalformedMessage;
         CanImport = state.CanImport;
-        HasUnknown = state.HasUnknown;
     }
 
     private static DateTime ResolveFallbackStartTime(IStorageFile storageFile)

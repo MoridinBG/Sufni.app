@@ -46,7 +46,6 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                         daqManagementService,
                         malformedRecord.RecordId,
                         malformedRecord.Name,
-                        malformedRecord.SstVersion,
                         malformedRecord.TimestampUtc,
                         malformedRecord.Duration,
                         malformedRecord.MalformedMessage,
@@ -58,7 +57,6 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                         daqManagementService,
                         sstRecord.RecordId,
                         sstRecord.Name,
-                        sstRecord.SstVersion,
                         sstRecord.TimestampUtc,
                         sstRecord.Duration));
                     break;

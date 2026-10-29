@@ -11,20 +11,16 @@ internal static class TelemetryFileInspectionMapper
         {
             ValidSstFileInspection valid => new TelemetryFileInspectionState(
                 ShouldBeImported: false,
-                Version: valid.Version,
                 StartTime: valid.StartTime,
                 Duration: valid.Duration.ToString(@"hh\:mm\:ss"),
                 MalformedMessage: valid.MalformedMessage,
-                CanImport: true,
-                HasUnknown: valid.HasUnknown),
+                CanImport: true),
             MalformedSstFileInspection malformed => new TelemetryFileInspectionState(
                 ShouldBeImported: false,
-                Version: malformed.Version ?? 0,
                 StartTime: malformed.StartTime ?? fallbackStartTime,
                 Duration: malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown",
                 MalformedMessage: malformed.Message,
-                CanImport: false,
-                HasUnknown: false),
+                CanImport: false),
             _ => throw new ArgumentOutOfRangeException(nameof(inspection), inspection, "Unknown SST inspection result.")
         };
     }
@@ -32,9 +28,7 @@ internal static class TelemetryFileInspectionMapper
 
 internal sealed record TelemetryFileInspectionState(
     bool? ShouldBeImported,
-    byte Version,
     DateTime StartTime,
     string Duration,
     string? MalformedMessage,
-    bool CanImport,
-    bool HasUnknown);
+    bool CanImport);

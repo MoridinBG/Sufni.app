@@ -13,14 +13,11 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public string Name { get; set; }
     public string FileName => fileInfo.Name;
     public bool? ShouldBeImported { get; set; }
-    public bool Imported { get; set; }
     public string Description { get; set; }
-    public byte Version { get; private set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; } = "unknown";
     public string? MalformedMessage { get; private set; }
     public bool CanImport { get; private set; }
-    public bool HasUnknown { get; private set; }
 
     public MassStorageTelemetryFile(FileInfo fileInfo)
     {
@@ -41,7 +38,6 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
     public Task OnImported()
     {
-        Imported = true;
         File.Move(fileInfo.FullName,
             Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, "uploaded", fileInfo.Name));
         return Task.CompletedTask;
@@ -57,11 +53,9 @@ public class MassStorageTelemetryFile : ITelemetryFile
     private void ApplyInspection(TelemetryFileInspectionState state)
     {
         ShouldBeImported = state.ShouldBeImported;
-        Version = state.Version;
         StartTime = state.StartTime;
         Duration = state.Duration;
         MalformedMessage = state.MalformedMessage;
         CanImport = state.CanImport;
-        HasUnknown = state.HasUnknown;
     }
 }
