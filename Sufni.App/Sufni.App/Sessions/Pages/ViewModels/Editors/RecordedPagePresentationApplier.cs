@@ -48,7 +48,7 @@ internal sealed class RecordedPagePresentationApplier
         balancePage.ReboundBalanceState = SurfacePresentationState.Hidden;
     }
 
-    public void ApplyRecordedLoadingStates(bool mapExpected)
+    public void ApplyRecordedLoadingStates()
     {
         springPage.FrontDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
         springPage.RearDistributionState = SurfacePresentationState.Loading("Loading spring chart.");

@@ -190,32 +190,6 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         stateSubscription.Dispose();
     }
 
-    internal static readonly HashSet<string> ForwardedProperties =
-    [
-        nameof(TelemetryData),
-        nameof(AnalysisRange),
-        nameof(SelectedTravelDistributionMode),
-        nameof(SelectedBalanceDisplacementMode),
-        nameof(SelectedBalanceSpeedMode),
-        nameof(SelectedVelocityAverageMode),
-        nameof(SelectedSessionInsightsTargetProfile),
-        nameof(FrontAnalysisState),
-        nameof(RearAnalysisState),
-        nameof(CompressionBalanceState),
-        nameof(ReboundBalanceState),
-        nameof(FrontForkVibrationState),
-        nameof(FrontFrameVibrationState),
-        nameof(RearForkVibrationState),
-        nameof(RearFrameVibrationState),
-        nameof(DampingPercentages),
-        nameof(DampingSpeedCutoffs),
-        nameof(PlotDampingSpeedCutoffs),
-        nameof(CanEditDampingSpeedCutoffs),
-        nameof(SessionInsights),
-        nameof(ActiveFrontAnalysisSelection),
-        nameof(ActiveRearAnalysisSelection),
-    ];
-
     private void ApplyState(RecordedSessionEditorState state)
     {
         SetProperty(ref telemetryData, state.TelemetryData, nameof(TelemetryData));

@@ -180,46 +180,6 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         stateSubscription.Dispose();
     }
 
-    internal static readonly HashSet<string> ForwardedProperties =
-    [
-        nameof(TelemetryData),
-        nameof(AnalysisResultState),
-        nameof(AnalysisRange),
-        nameof(TrackPoints),
-        nameof(TrackTimelineContext),
-        nameof(TravelSignalState),
-        nameof(VelocitySignalState),
-        nameof(ImuSignalState),
-        nameof(PitchRollSignalState),
-        nameof(SpeedSignalState),
-        nameof(ElevationSignalState),
-        nameof(SignalDisplayPreferences),
-        nameof(SignalLayoutPreferences),
-        nameof(SourceVisibility),
-        nameof(Timeline),
-        nameof(SignalPlotContextMenuActionsBySignalRowId),
-        nameof(ShowAirtime),
-        nameof(ShowVelocityAirtime),
-        nameof(ShowImuAirtime),
-        nameof(ShowPitchRollAirtime),
-        nameof(ShowSpeedAirtime),
-        nameof(ShowElevationAirtime),
-        nameof(AnalysisSelectionHighlightRanges),
-        nameof(HasAnalysisSelection),
-        nameof(ShowAnalysisSelection),
-        nameof(ShowVelocityAnalysisSelection),
-        nameof(ShowImuAnalysisSelection),
-        nameof(ShowPitchRollAnalysisSelection),
-        nameof(ShowSpeedAnalysisSelection),
-        nameof(ShowElevationAnalysisSelection),
-        nameof(TravelHeaderActions),
-        nameof(VelocityHeaderActions),
-        nameof(ImuHeaderActions),
-        nameof(PitchRollHeaderActions),
-        nameof(SpeedHeaderActions),
-        nameof(ElevationHeaderActions),
-    ];
-
     private void ApplyState(RecordedSessionEditorState state)
     {
         SetProperty(ref telemetryData, state.TelemetryData, nameof(TelemetryData));

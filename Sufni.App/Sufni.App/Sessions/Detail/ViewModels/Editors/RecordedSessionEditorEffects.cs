@@ -18,7 +18,7 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record SyncMapMedia(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
 
-    public sealed record RefreshCommands(RecordedSessionLoadedData LoadedData) : RecordedSessionEditorEffect;
+    public sealed record RefreshCommands : RecordedSessionEditorEffect;
 
     public sealed record EvaluateRecomputeStaleness(RecordedSessionDomainSnapshot Domain) : RecordedSessionEditorEffect;
 
@@ -31,13 +31,6 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
 {
     private readonly CompositeDisposable subscriptions = [];
     private bool disposed;
-
-    public RecordedSessionEditorEffects(
-        IObservable<RecordedSessionEditorEffect> effects,
-        Action<RecordedSessionEditorEffect> apply)
-        : this([effects], apply)
-    {
-    }
 
     public RecordedSessionEditorEffects(
         IEnumerable<IObservable<RecordedSessionEditorEffect>> effectStreams,
@@ -148,13 +141,7 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
                 state.TrackPoints,
                 state.TrackTimelineContext))
             .DistinctUntilChanged()
-            .Select(static loadedData => new RecordedSessionEditorEffect.RefreshCommands(loadedData));
-    }
-
-    public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
-        IObservable<RecordedSessionEditorState> states)
-    {
-        return RecomputeStaleness(states, Observable.Empty<Unit>());
+            .Select(static _ => new RecordedSessionEditorEffect.RefreshCommands());
     }
 
     public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(

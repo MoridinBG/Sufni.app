@@ -673,7 +673,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         if (currentSnapshot?.HasProcessedData == true)
         {
             presentationApplier.ClearRecordedPresentation();
-            presentationApplier.ApplyRecordedLoadingStates(mapExpected);
+            presentationApplier.ApplyRecordedLoadingStates();
             await PublishSessionLoadProgressAsync(
                 SessionDetailLoadProgress.PreparingSession,
                 mapExpected,
@@ -1668,7 +1668,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         mapViewModel = mapViewModelFactory.Create();
         if (snapshot.HasProcessedData)
         {
-            presentationApplier.ApplyRecordedLoadingStates(snapshot.FullTrackId is not null);
+            presentationApplier.ApplyRecordedLoadingStates();
             PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
                 snapshot.FullTrackId is not null,
                 SessionDetailLoadProgress.PreparingSession,
