@@ -77,7 +77,6 @@ public class VelocityDistributionPlotTests
             Velocity = velocity,
             TravelBins = HistogramBuilder.Linspace(0, 100, Parameters.TravelHistBins + 1),
             VelocityBins = [-200, -100, 0, 100, 200],
-            FineVelocityBins = [-200, -100, 0, 100, 200],
             Strokes = new Strokes
             {
                 Compressions = compressions,
@@ -95,7 +94,6 @@ public class VelocityDistributionPlotTests
             Velocity = [],
             TravelBins = [0, 1],
             VelocityBins = [0, 1],
-            FineVelocityBins = [0, 1],
             Strokes = new Strokes
             {
                 Compressions = [],
@@ -126,7 +124,6 @@ public class VelocityDistributionPlotTests
             },
             DigitizedTravel = digitizedTravel,
             DigitizedVelocity = digitizedVelocity,
-            FineDigitizedVelocity = [],
         };
     }
 

@@ -5,12 +5,11 @@ namespace Sufni.Telemetry.Tests;
 public class StrokeCoarseIndexesTests
 {
     [Fact]
-    public void AffectedStatistics_WithValidLegacyPair_ReuseBothCoarseArraysAndIgnoreFineIndexes()
+    public void AffectedStatistics_WithValidLegacyPair_ReuseBothCoarseArrays()
     {
         var telemetry = CreateTelemetryData(
             digitizedTravel: [2, 2, 2, 2],
-            digitizedVelocity: [0, 0, 0, 0],
-            fineDigitizedVelocity: [99]);
+            digitizedVelocity: [0, 0, 0, 0]);
 
         var travel = TelemetryStatistics.CalculateTravelHistogram(
             telemetry,
@@ -32,8 +31,7 @@ public class StrokeCoarseIndexesTests
     {
         var telemetry = CreateTelemetryData(
             digitizedTravel: [2, 2, 2, 2],
-            digitizedVelocity: [0],
-            fineDigitizedVelocity: [99, 99, 99, 99]);
+            digitizedVelocity: [0]);
 
         var travel = TelemetryStatistics.CalculateTravelHistogram(
             telemetry,
@@ -119,8 +117,7 @@ public class StrokeCoarseIndexesTests
     {
         var legacy = CreateTelemetryData(
             digitizedTravel: [1, 4, 11, 18],
-            digitizedVelocity: [1, 1, 2, 2],
-            fineDigitizedVelocity: [9, 9, 9, 9]);
+            digitizedVelocity: [1, 1, 2, 2]);
         var derived = CreateTelemetryData();
         var velocityOptions = new VelocityStatisticsOptions(
             VelocityAverageMode: VelocityAverageMode.SampleAveraged);
@@ -163,8 +160,7 @@ public class StrokeCoarseIndexesTests
 
     private static TelemetryData CreateTelemetryData(
         int[]? digitizedTravel = null,
-        int[]? digitizedVelocity = null,
-        int[]? fineDigitizedVelocity = null)
+        int[]? digitizedVelocity = null)
     {
         var stroke = new Stroke
         {
@@ -178,7 +174,6 @@ public class StrokeCoarseIndexesTests
             },
             DigitizedTravel = digitizedTravel ?? [],
             DigitizedVelocity = digitizedVelocity ?? [],
-            FineDigitizedVelocity = fineDigitizedVelocity ?? [],
         };
         return CreateTelemetryData(
             stroke,
@@ -212,7 +207,6 @@ public class StrokeCoarseIndexesTests
                 Velocity = velocity,
                 TravelBins = Enumerable.Range(0, 21).Select(index => (double)index).ToArray(),
                 VelocityBins = velocityBins,
-                FineVelocityBins = [],
                 Segments = segments,
                 HasGaps = segments.Length > 1,
                 Strokes = Strokes.FromCategorized([stroke], [], []),
@@ -224,7 +218,6 @@ public class StrokeCoarseIndexesTests
                 Velocity = [],
                 TravelBins = [],
                 VelocityBins = [],
-                FineVelocityBins = [],
                 Strokes = Strokes.FromCategorized([], [], []),
             },
             Airtimes = [],

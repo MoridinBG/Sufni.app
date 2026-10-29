@@ -42,7 +42,7 @@ A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed fir
 
 `Strokes.FilterStrokes()` (`Sufni.Telemetry/Strokes.cs`) identifies strokes by finding sign changes in velocity. Adjacent strokes where both have max position < 5mm (near full extension) are concatenated — this prevents small oscillations at top-out from fragmenting the data into many tiny strokes. Strokes too short AND too brief to qualify as any category are silently discarded.
 
-Each stroke records its start/end sample indices, length (travel delta in mm), duration, and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count). New processing does not populate the legacy `DigitizedTravel`, `DigitizedVelocity`, or `FineDigitizedVelocity` arrays. When a coarse-index consumer first runs, `StrokeCoarseIndexes` accepts the legacy travel/velocity arrays only as one complete, in-range pair matching the stroke's source range; otherwise it derives both arrays from the processed samples. Segment-aware derivation uses the stroke's original segment-local coarse velocity-bin domain so gapped recordings retain their established histogram semantics. Fine digitized velocity is not read by production analysis.
+Each stroke records its start/end sample indices, length (travel delta in mm), duration, and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count). New processing does not populate the legacy `DigitizedTravel` or `DigitizedVelocity` arrays. When a coarse-index consumer first runs, `StrokeCoarseIndexes` accepts the legacy travel/velocity arrays only as one complete, in-range pair matching the stroke's source range; otherwise it derives both arrays from the processed samples. Segment-aware derivation uses the stroke's original segment-local coarse velocity-bin domain so gapped recordings retain their established histogram semantics. Legacy fine digitized velocity is skipped during decoding.
 
 ### Stroke Categorization
 
@@ -71,7 +71,6 @@ All constants in `Sufni.Telemetry/Parameters.cs`:
 | `BottomoutThreshold`              | 3 mm     | Distance from max travel to count as bottomout                |
 | `TravelHistBins`                  | 20       | Number of travel histogram bins                               |
 | `VelocityHistStep`                | 100 mm/s | Coarse velocity histogram bin width                           |
-| `VelocityHistStepFine`            | 15 mm/s  | Fine velocity histogram bin width                             |
 | `DeepTravelThresholdRatio`        | 0.75     | Travel ratio above which deep-travel stroke counts start      |
 
 ### Serialized Structure
@@ -84,7 +83,7 @@ TelemetryData
 ├── Front: Suspension
 │   ├── Present, MaxTravel, AnomalyRate
 │   ├── Travel[], Velocity[]
-│   ├── TravelBins[], VelocityBins[], FineVelocityBins[]
+│   ├── TravelBins[], VelocityBins[]
 │   ├── Strokes (Compressions[], Rebounds[])
 │   └── Segments[] (FirstDenseIndex, FirstSourceIndex, StartSeconds, SampleCount), HasGaps
 ├── Rear: Suspension (same structure)
@@ -100,7 +99,7 @@ TelemetryData
 
 Suspension `Travel[]` and `Velocity[]` are always the flat dense processed arrays for that side. `ProcessedSuspensionSegment` stores a range over those arrays (`FirstDenseIndex`, `SampleCount`) plus the source timeline anchor (`FirstSourceIndex`, `StartSeconds`); per-segment travel/velocity arrays are no longer serialized. `SuspensionTimeSeriesSampler` samples segment-aware data by combining the segment range with the flat arrays. `TelemetryData.FromBinary(...)` normalizes old blobs whose segments predate `SampleCount`, inferring counts from the next segment's `FirstDenseIndex` or the flat array length so legacy dense and gapped data still samples correctly.
 
-Each newly written `Stroke` map contains only `Start`, `End`, `Stat`, `StartSeconds`, and `EndSeconds`. `StrokeFormatter` permanently reads the three legacy digitization fields, but omits them when writing both new results and rewritten legacy results. Source-less legacy processed BLOBs therefore remain readable while future rewrites stop carrying the duplicate arrays.
+Each newly written `Stroke` map contains only `Start`, `End`, `Stat`, `StartSeconds`, and `EndSeconds`. `StrokeFormatter` reads the legacy coarse travel/velocity digitization fields and skips fine velocity indexes, but omits them when writing both new results and rewritten legacy results. Source-less legacy processed BLOBs therefore remain readable while future rewrites stop carrying the duplicate arrays.
 
 `RawImuData` is written as compact encoding version 1: a six-field indexed array containing the version, sample rate, indexed metadata entries, binary active-location IDs, indexed per-location segments with six-value sample arrays, and `HasGaps`. New processed data serializes one segment/sample graph and never serializes the dense compatibility `Records` list. `RawImuDataFormatter` permanently reads both this compact shape and the legacy named-map dense-only, segment-only, and dense-plus-segment shapes; dense-only values are adapted through `SampleSegments` when rewritten.
 

@@ -32,7 +32,6 @@ public class Suspension
     public Strokes Strokes { get; set; }
     public double[] TravelBins { get; set; }
     public double[] VelocityBins { get; set; }
-    public double[] FineVelocityBins { get; set; }
     public ProcessedSuspensionSegment[] Segments { get; set; } = [];
     public bool HasGaps { get; set; }
 }

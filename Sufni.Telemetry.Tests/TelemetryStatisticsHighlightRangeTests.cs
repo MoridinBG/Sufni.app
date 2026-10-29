@@ -177,7 +177,6 @@ public class TelemetryStatisticsHighlightRangeTests
                 Velocity = [0, 0.2, 0.4, 0.6, 0.8, 1.0],
                 TravelBins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200],
                 VelocityBins = [-2, -1, 0, 1, 2],
-                FineVelocityBins = [],
                 Strokes = new Strokes
                 {
                     Compressions = [compression],
@@ -191,7 +190,6 @@ public class TelemetryStatisticsHighlightRangeTests
                 Velocity = [],
                 TravelBins = [],
                 VelocityBins = [],
-                FineVelocityBins = [],
                 Strokes = new Strokes
                 {
                     Compressions = [],

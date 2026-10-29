@@ -31,15 +31,4 @@ public class HistogramBuilderTests
         Assert.Equal(1, HistogramBuilder.DigitizeValue(10, bins));
         Assert.Equal(1, HistogramBuilder.DigitizeValue(20, bins));
     }
-
-    [Fact]
-    public void DigitizeVelocity_CentersZeroWithinVelocityBin()
-    {
-        double[] velocity = [-12, 0, 12];
-
-        var result = HistogramBuilder.DigitizeVelocity(velocity, 10);
-
-        Assert.Equal([-25, -15, -5, 5, 15, 25], result.Bins);
-        Assert.Equal([1, 2, 3], result.Values);
-    }
 }

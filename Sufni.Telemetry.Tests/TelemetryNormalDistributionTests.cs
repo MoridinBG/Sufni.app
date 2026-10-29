@@ -38,7 +38,6 @@ public class TelemetryNormalDistributionTests
             Velocity = velocity,
             TravelBins = [0, 100],
             VelocityBins = [-100, 0, 100],
-            FineVelocityBins = [-100, 0, 100],
             Strokes = new Strokes
             {
                 Compressions = [new Stroke { Start = 1, End = 3 }],
@@ -55,7 +54,6 @@ public class TelemetryNormalDistributionTests
                 Velocity = [],
                 TravelBins = [],
                 VelocityBins = [],
-                FineVelocityBins = [],
                 Strokes = new Strokes { Compressions = [], Rebounds = [] },
             },
             Airtimes = [],

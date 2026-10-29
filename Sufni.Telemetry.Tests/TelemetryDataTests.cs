@@ -368,7 +368,6 @@ public class TelemetryDataTests
                 Velocity = [0, 10],
                 TravelBins = [0, 100],
                 VelocityBins = [0, 10],
-                FineVelocityBins = [0, 10],
                 HasGaps = true,
                 Segments =
                 [
@@ -393,13 +392,12 @@ public class TelemetryDataTests
                             Stat = new StrokeStat(),
                             DigitizedTravel = [],
                             DigitizedVelocity = [],
-                            FineDigitizedVelocity = [],
                         }
                     ],
                     Rebounds = [],
                 },
             },
-            Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [], FineVelocityBins = [] },
+            Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [] },
             Airtimes = [],
             ImuData = new RawImuData
             {
@@ -1464,9 +1462,8 @@ public class TelemetryDataTests
                 Strokes = Strokes.FromCategorized([compression], [], []),
                 TravelBins = CreateTravelBins(100),
                 VelocityBins = [-100, 0, 100],
-                FineVelocityBins = [-100, 0, 100],
             },
-            Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [], FineVelocityBins = [] },
+            Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [] },
             Airtimes = [],
             ImuData = new RawImuData
             {
@@ -1626,7 +1623,6 @@ public class TelemetryDataTests
                         []),
                     TravelBins = CreateTravelBins(100),
                     VelocityBins = [-100, 0, 100],
-                    FineVelocityBins = [-100, 0, 100],
                 },
                 Rear = CreateSuspension([], 100, [], []),
                 Airtimes = [],
@@ -1720,7 +1716,6 @@ public class TelemetryDataTests
             Velocity = [0, 0, 0],
             TravelBins = [0, 10, 20],
             VelocityBins = [-100, 0, 100],
-            FineVelocityBins = [-100, 0, 100],
             Strokes = new Strokes { Compressions = [], Rebounds = [] },
         };
 
@@ -1777,7 +1772,6 @@ public class TelemetryDataTests
                 Strokes = new Strokes(),
                 TravelBins = CreateTravelBins(100),
                 VelocityBins = [-100, 0, 100],
-                FineVelocityBins = [-100, 0, 100],
                 Segments = segments,
                 HasGaps = hasGaps,
             },
@@ -1789,7 +1783,6 @@ public class TelemetryDataTests
                 Strokes = new Strokes(),
                 TravelBins = [],
                 VelocityBins = [],
-                FineVelocityBins = [],
                 Segments = [],
             },
             Airtimes = [],
@@ -1896,7 +1889,6 @@ public class TelemetryDataTests
             Velocity = velocity ?? new double[travel.Length],
             TravelBins = CreateTravelBins(maxTravel),
             VelocityBins = [-100, 0, 100],
-            FineVelocityBins = [-100, 0, 100],
             Strokes = new Strokes
             {
                 Compressions = compressions ?? [],
@@ -1934,7 +1926,6 @@ public class TelemetryDataTests
             },
             DigitizedTravel = digitizedTravel ?? [],
             DigitizedVelocity = digitizedVelocity ?? [],
-            FineDigitizedVelocity = [],
         };
     }
 

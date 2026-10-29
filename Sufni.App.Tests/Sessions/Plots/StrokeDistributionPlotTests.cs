@@ -122,7 +122,6 @@ public class StrokeDistributionPlotTests
             Velocity = [120, 0, 360, 0],
             TravelBins = HistogramBuilder.Linspace(0, 200, Parameters.TravelHistBins + 1),
             VelocityBins = [-400, -300, -200, -100, 0, 100, 200, 300, 400],
-            FineVelocityBins = [-400, -300, -200, -100, 0, 100, 200, 300, 400],
             Strokes = new Strokes
             {
                 Compressions = compressions,
@@ -140,7 +139,6 @@ public class StrokeDistributionPlotTests
             Velocity = [],
             TravelBins = [0, 1],
             VelocityBins = [0, 1],
-            FineVelocityBins = [0, 1],
             Strokes = new Strokes
             {
                 Compressions = [],
@@ -163,7 +161,6 @@ public class StrokeDistributionPlotTests
             },
             DigitizedTravel = [],
             DigitizedVelocity = [],
-            FineDigitizedVelocity = [],
         };
     }
 }

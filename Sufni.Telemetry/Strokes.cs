@@ -27,7 +27,6 @@ public class Stroke
     public StrokeStat Stat { get; set; }
     public int[] DigitizedTravel { get; set; } = [];
     public int[] DigitizedVelocity { get; set; } = [];
-    public int[] FineDigitizedVelocity { get; set; } = [];
     public double StartSeconds { get; set; }
     public double EndSeconds { get; set; }
 

@@ -146,7 +146,6 @@ public class SessionPresentationServiceTests
                     },
                     DigitizedTravel = [0],
                     DigitizedVelocity = [0],
-                    FineDigitizedVelocity = [0],
                 },
             ],
             Rebounds = [],
@@ -168,7 +167,6 @@ public class SessionPresentationServiceTests
                     },
                     DigitizedTravel = [0],
                     DigitizedVelocity = [0],
-                    FineDigitizedVelocity = [0],
                 },
             ],
             Rebounds = [],
@@ -206,7 +204,6 @@ public class SessionPresentationServiceTests
             Velocity = velocity,
             TravelBins = [0, 10, 20, 30, 40],
             VelocityBins = [-500, 0, 500],
-            FineVelocityBins = [-500, 0, 500],
             Strokes = new Strokes
             {
                 Compressions =
@@ -218,7 +215,6 @@ public class SessionPresentationServiceTests
                         Stat = new StrokeStat { Count = 2 },
                         DigitizedTravel = [],
                         DigitizedVelocity = [],
-                        FineDigitizedVelocity = [],
                     },
                 ],
                 Rebounds =
@@ -230,7 +226,6 @@ public class SessionPresentationServiceTests
                         Stat = new StrokeStat { Count = 2 },
                         DigitizedTravel = [],
                         DigitizedVelocity = [],
-                        FineDigitizedVelocity = [],
                     },
                 ],
             },

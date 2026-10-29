@@ -135,7 +135,6 @@ public class BalancePlotTests
                     },
                     DigitizedTravel = [0],
                     DigitizedVelocity = [0],
-                    FineDigitizedVelocity = [0],
                 },
             ],
             Rebounds = [],
@@ -157,7 +156,6 @@ public class BalancePlotTests
                     },
                     DigitizedTravel = [0],
                     DigitizedVelocity = [0],
-                    FineDigitizedVelocity = [0],
                 },
             ],
             Rebounds = [],
@@ -211,7 +209,6 @@ public class BalancePlotTests
             },
             DigitizedTravel = [0],
             DigitizedVelocity = [0],
-            FineDigitizedVelocity = [0],
         };
     }
 }

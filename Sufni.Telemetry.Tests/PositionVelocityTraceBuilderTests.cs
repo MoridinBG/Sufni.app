@@ -229,7 +229,6 @@ public class PositionVelocityTraceBuilderTests
                     Strokes = null!,
                     TravelBins = [],
                     VelocityBins = [],
-                    FineVelocityBins = []
                 },
                 rear: CreateMissingSuspension()),
             analysisRange: null);
@@ -469,7 +468,6 @@ public class PositionVelocityTraceBuilderTests
             Strokes = new Strokes { Compressions = compressions ?? [], Rebounds = rebounds ?? [] },
             TravelBins = [],
             VelocityBins = [],
-            FineVelocityBins = [],
             Segments = segments ?? [],
             HasGaps = hasGaps
         };
@@ -495,6 +493,5 @@ public class PositionVelocityTraceBuilderTests
             Strokes = new Strokes { Compressions = [], Rebounds = [] },
             TravelBins = [],
             VelocityBins = [],
-            FineVelocityBins = []
         };
 }

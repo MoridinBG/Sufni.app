@@ -375,7 +375,6 @@ public class SelectableAnalysisPlotTests
             Velocity = [100, 120, 80, -60, -90],
             TravelBins = HistogramBuilder.Linspace(0, 100, Parameters.TravelHistBins + 1),
             VelocityBins = [-200, -100, 0, 100, 200],
-            FineVelocityBins = [-200, -100, 0, 100, 200],
             Strokes = new Strokes
             {
                 Compressions =
@@ -426,7 +425,6 @@ public class SelectableAnalysisPlotTests
             Velocity = [0, 700, 0, -600, 0],
             TravelBins = HistogramBuilder.Linspace(0, 100, 11),
             VelocityBins = [-1000, 0, 1000],
-            FineVelocityBins = [-1000, 0, 1000],
             Strokes = new Strokes
             {
                 Compressions =
@@ -464,7 +462,6 @@ public class SelectableAnalysisPlotTests
             Velocity = [],
             TravelBins = [0, 1],
             VelocityBins = [0, 1],
-            FineVelocityBins = [0, 1],
             Strokes = new Strokes
             {
                 Compressions = [],
@@ -495,7 +492,6 @@ public class SelectableAnalysisPlotTests
             },
             DigitizedTravel = digitizedTravel,
             DigitizedVelocity = digitizedVelocity,
-            FineDigitizedVelocity = [],
         };
     }
 }

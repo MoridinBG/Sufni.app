@@ -72,10 +72,6 @@ public sealed class StrokeFormatter : IMessagePackFormatter<Stroke?>
                         stroke.DigitizedVelocity = options.Resolver.GetFormatterWithVerify<int[]>()
                             .Deserialize(ref reader, options)!;
                         break;
-                    case nameof(Stroke.FineDigitizedVelocity):
-                        stroke.FineDigitizedVelocity = options.Resolver.GetFormatterWithVerify<int[]>()
-                            .Deserialize(ref reader, options)!;
-                        break;
                     case nameof(Stroke.StartSeconds):
                         stroke.StartSeconds = reader.ReadDouble();
                         break;

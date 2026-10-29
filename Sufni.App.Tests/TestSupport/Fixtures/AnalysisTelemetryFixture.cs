@@ -103,7 +103,6 @@ public static class AnalysisTelemetryFixture
             Strokes = new Strokes { Compressions = [], Rebounds = [] },
             TravelBins = [],
             VelocityBins = [],
-            FineVelocityBins = [],
         };
     }
 
@@ -154,7 +153,6 @@ public static class AnalysisTelemetryFixture
             Strokes = new Strokes { Compressions = [.. compressions], Rebounds = [.. rebounds] },
             TravelBins = Enumerable.Range(0, 21).Select(i => spec.MaxTravel / 20.0 * i).ToArray(),
             VelocityBins = [],
-            FineVelocityBins = [],
         };
     }
 
@@ -174,7 +172,6 @@ public static class AnalysisTelemetryFixture
             End = end,
             DigitizedTravel = [0, 1],
             DigitizedVelocity = [0, 1],
-            FineDigitizedVelocity = [0, 1],
             Stat = new StrokeStat
             {
                 SumTravel = spec.MaxTravel * averageTravelPercent / 100.0 * count,

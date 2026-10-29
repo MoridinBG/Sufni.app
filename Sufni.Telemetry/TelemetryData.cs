@@ -239,7 +239,6 @@ public class TelemetryData
         suspension.Strokes = trace.Strokes;
         suspension.TravelBins = trace.TravelBins;
         suspension.VelocityBins = trace.VelocityBins;
-        suspension.FineVelocityBins = trace.FineVelocityBins;
         if (trace.Travel.Length == 0)
         {
             suspension.Segments = [];
@@ -325,7 +324,6 @@ public class TelemetryData
             suspension.Strokes = new Strokes();
             suspension.TravelBins = [];
             suspension.VelocityBins = [];
-            suspension.FineVelocityBins = [];
             suspension.Segments = [];
             suspension.HasGaps = false;
             return;
@@ -411,9 +409,6 @@ public class TelemetryData
         suspension.VelocityBins = HistogramBuilder.CreateVelocityBins(
             velocityForBins,
             Parameters.VelocityHistStep);
-        suspension.FineVelocityBins = HistogramBuilder.CreateVelocityBins(
-            velocityForBins,
-            Parameters.VelocityHistStepFine);
         suspension.Segments = [.. processedSegments];
         suspension.HasGaps = processedSegments.Count > 1;
         suspension.AnomalyRate = CalculateAnomalyRate(anomalyCount, sampleCount, sampleRate);

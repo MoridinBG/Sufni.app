@@ -57,7 +57,6 @@ internal static class TestSegmentMatches
                 Strokes = new Strokes { Compressions = [], Rebounds = [] },
                 TravelBins = [],
                 VelocityBins = [],
-                FineVelocityBins = [],
             },
             Rear = new Suspension
             {
@@ -68,7 +67,6 @@ internal static class TestSegmentMatches
                 Strokes = new Strokes { Compressions = [], Rebounds = [] },
                 TravelBins = [],
                 VelocityBins = [],
-                FineVelocityBins = [],
             },
             Airtimes = [new Airtime { Start = 20.5, End = 21.5 }],
             Markers = [],

@@ -48,7 +48,6 @@ public class SuspensionTraceProcessorTests
         Assert.Equal(measurements.Length, result.Velocity.Length);
         Assert.NotEmpty(result.TravelBins);
         Assert.NotEmpty(result.VelocityBins);
-        Assert.NotEmpty(result.FineVelocityBins);
         Assert.NotEmpty(result.Strokes.Compressions);
         Assert.NotEmpty(result.Strokes.Rebounds);
         Assert.All(
@@ -57,7 +56,6 @@ public class SuspensionTraceProcessorTests
             {
                 Assert.Empty(stroke.DigitizedTravel);
                 Assert.Empty(stroke.DigitizedVelocity);
-                Assert.Empty(stroke.FineDigitizedVelocity);
             });
     }
 

@@ -6,8 +6,7 @@ public sealed record ProcessedSuspensionTrace(
     double[] Velocity,
     Strokes Strokes,
     double[] TravelBins,
-    double[] VelocityBins,
-    double[] FineVelocityBins);
+    double[] VelocityBins);
 
 public static class SuspensionTraceProcessor
 {
@@ -26,7 +25,6 @@ public static class SuspensionTraceProcessor
             ? CalculateUnfilteredVelocity(travel, dt)
             : velocityFilter.Process(travel, dt);
         var velocityBins = HistogramBuilder.CreateVelocityBins(velocity, Parameters.VelocityHistStep);
-        var fineVelocityBins = HistogramBuilder.CreateVelocityBins(velocity, Parameters.VelocityHistStepFine);
 
         var strokeAnalysis = StrokeAnalyzer.Analyze(
             velocity,
@@ -40,8 +38,7 @@ public static class SuspensionTraceProcessor
             velocity,
             strokeAnalysis.Strokes,
             travelBins,
-            velocityBins,
-            fineVelocityBins);
+            velocityBins);
     }
 
     private static double[] CalculateTravel(

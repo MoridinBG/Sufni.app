@@ -23,9 +23,6 @@ public static class Parameters
     // (mm/s) step between velocity histogram bins
     public const double VelocityHistStep = 100.0;
 
-    // (mm/s) step between fine-grained velocity histogram bins
-    public const double VelocityHistStepFine = 15.0;
-
     // (mm) bottom-outs are regions where travel > max_travel - this value
     public const double BottomoutThreshold = 3;
 

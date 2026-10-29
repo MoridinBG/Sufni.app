@@ -282,7 +282,6 @@ public class GoldenTelemetryCompatibilityFixtureTests
             Stat = new StrokeStat { Count = 2 },
             DigitizedTravel = [3, 4],
             DigitizedVelocity = [5, 6],
-            FineDigitizedVelocity = [7, 8],
             StartSeconds = 0.1,
             EndSeconds = 0.2,
         };
@@ -313,11 +312,10 @@ public class GoldenTelemetryCompatibilityFixtureTests
             fields);
         Assert.Empty(rewritten.DigitizedTravel);
         Assert.Empty(rewritten.DigitizedVelocity);
-        Assert.Empty(rewritten.FineDigitizedVelocity);
     }
 
     [Fact]
-    public void OldStrokeDigitizationFixture_FromBinary_PreservesAllPersistedIndexes()
+    public void OldStrokeDigitizationFixture_FromBinary_PreservesCoarseIndexes()
     {
         var telemetry = TelemetryData.FromBinary(
             GoldenTelemetryCompatibilityFixtures.ProcessedOldStrokeDigitization.GetBytes());
@@ -325,7 +323,6 @@ public class GoldenTelemetryCompatibilityFixtureTests
         var stroke = Assert.Single(telemetry.Front.Strokes.Compressions);
         Assert.Equal([2, 4], stroke.DigitizedTravel);
         Assert.Equal([5, 6], stroke.DigitizedVelocity);
-        Assert.Equal([7, 8], stroke.FineDigitizedVelocity);
     }
 
     [Fact]
@@ -345,11 +342,10 @@ public class GoldenTelemetryCompatibilityFixtureTests
             rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.DigitizedVelocity))));
         Assert.Equal(
             -1,
-            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.FineDigitizedVelocity))));
+            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes("FineDigitizedVelocity")));
         var stroke = Assert.Single(rewritten.Front.Strokes.Compressions);
         Assert.Empty(stroke.DigitizedTravel);
         Assert.Empty(stroke.DigitizedVelocity);
-        Assert.Empty(stroke.FineDigitizedVelocity);
     }
 
     [Fact]
@@ -439,7 +435,6 @@ public class GoldenTelemetryCompatibilityFixtureTests
         Strokes = new Strokes(),
         TravelBins = [],
         VelocityBins = [],
-        FineVelocityBins = [],
     };
 
     [MessagePackObject(keyAsPropertyName: true, AllowPrivate = true)]

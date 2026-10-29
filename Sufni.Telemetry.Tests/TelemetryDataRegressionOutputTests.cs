@@ -90,10 +90,8 @@ public class TelemetryDataRegressionOutputTests
     {
         AssertClose(DecodedBaseline.FrontTravelBins, Result.Front.TravelBins);
         AssertClose(DecodedBaseline.FrontVelocityBins, Result.Front.VelocityBins);
-        AssertClose(DecodedBaseline.FrontFineVelocityBins, Result.Front.FineVelocityBins);
         AssertClose(DecodedBaseline.RearTravelBins, Result.Rear.TravelBins);
         AssertClose(DecodedBaseline.RearVelocityBins, Result.Rear.VelocityBins);
-        AssertClose(DecodedBaseline.RearFineVelocityBins, Result.Rear.FineVelocityBins);
         AssertClose(DecodedBaseline.FrontTravelHistogram,
             TelemetryStatistics.CalculateTravelHistogram(Result, SuspensionType.Front).Values);
         AssertClose(DecodedBaseline.RearTravelHistogram,

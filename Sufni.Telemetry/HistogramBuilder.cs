@@ -1,9 +1,5 @@
 namespace Sufni.Telemetry;
 
-public readonly record struct DigitizedSeries(
-    double[] Bins,
-    int[] Values);
-
 public static class HistogramBuilder
 {
     private const double BinEdgeTolerance = 0.0001;
@@ -52,12 +48,6 @@ public static class HistogramBuilder
         }
 
         return DigitizeValue(value, bins, bins.Length - 2);
-    }
-
-    public static DigitizedSeries DigitizeVelocity(double[] velocity, double step)
-    {
-        var bins = CreateVelocityBins(velocity, step);
-        return new DigitizedSeries(bins, Digitize(velocity, bins));
     }
 
     internal static double[] CreateVelocityBins(ReadOnlySpan<double> velocity, double step)
