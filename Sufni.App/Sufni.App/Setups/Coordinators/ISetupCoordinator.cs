@@ -11,8 +11,6 @@ public interface ISetupCoordinator
 {
     Task OpenCreateAsync(Guid? suggestedBoardId = null);
 
-    Task OpenCreateForDetectedBoardAsync();
-
     Task OpenEditAsync(Guid setupId);
 
     Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated);

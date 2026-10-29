@@ -44,7 +44,7 @@ graph LR
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header for display before import (source varies by implementation)
 
-**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, `TryAddStorageProviderAsync(...)`, and `DetectConnectedBoardIdAsync(...)`. The import screen talks to this service directly; screens and coordinators do not construct concrete datastore implementations themselves.
+**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, and `TryAddStorageProviderAsync(...)`. The import screen talks to this service directly; screens and coordinators do not construct concrete datastore implementations themselves.
 
 ### Import Screen Boundaries
 
@@ -53,7 +53,7 @@ The import-sessions feature is the canonical worked example of the current bound
 - `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors.
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads persistence repositories directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
-- `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction, duplicate detection, and one-shot board detection for setup creation.
+- `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
 
 The import workflow is staged once the user starts a batch from the selected
@@ -73,7 +73,7 @@ source files remain unacknowledged.
 
 `MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
 
-`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation, one-shot board detection, and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Coordinators that commit import results after background processing use `IUiThreadDispatcher` for store writes and shell/UI-facing state.
+`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Coordinators that commit import results after background processing use `IUiThreadDispatcher` for store writes and shell/UI-facing state.
 
 `MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed warnings, start-time, and duration state for the same bytes.
 

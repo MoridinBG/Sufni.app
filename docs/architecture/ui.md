@@ -227,7 +227,7 @@ The architecture is intended to be tested in layers:
 - View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command or local busy-state transitions, and progress-driven notification updates under a test `SynchronizationContext`.
 - Read-graph tests assert joined projections and derived-change flags across session, setup, bike, and recorded-source updates.
 - Coordinator tests assert workflow semantics such as persistence, store writes, branching, result shapes, per-file progress emission, and background-runner usage.
-- Service tests cover infrastructure ownership when the behavior is non-trivial, for example datastore registration, duplicate detection, or one-shot board detection.
+- Service tests cover infrastructure ownership when the behavior is non-trivial, for example datastore registration or duplicate detection.
 
 ## Further Details
 

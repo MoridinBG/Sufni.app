@@ -33,20 +33,6 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public async Task DetectConnectedBoardIdAsync_ReturnsNullWithoutProbe_WhenMassStorageUnsupported()
-    {
-        var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
-        var service = CreateService(
-            backgroundTaskRunner: backgroundTaskRunner,
-            appEnvironment: CreateEnvironment(supportsMassStorageImport: false));
-
-        var detected = await service.DetectConnectedBoardIdAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Null(detected);
-        Assert.Equal(0, backgroundTaskRunner.InvocationCount);
-    }
-
-    [Fact]
     public async Task LoadFilesAsync_UsesBackgroundRunnerToReadDataStoreFiles()
     {
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();

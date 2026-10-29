@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 
-using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
@@ -19,7 +18,6 @@ namespace Sufni.App.Setups.Coordinators;
 public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
-    ITelemetryDataStoreService telemetryDataStoreService,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     IShellCoordinator shell,
@@ -43,14 +41,6 @@ public class SetupCoordinator(
         var snapshot = SetupSnapshot.From(seed, actualBoardId);
         editorFactory().OpenNewSetupEditor(snapshot);
         return Task.CompletedTask;
-    }
-
-    public async Task OpenCreateForDetectedBoardAsync()
-    {
-        logger.Information("Starting setup create for detected board");
-        var detected = await telemetryDataStoreService.DetectConnectedBoardIdAsync();
-        logger.Information("Opening setup create for detected board {BoardId}", detected);
-        await OpenCreateAsync(detected);
     }
 
     public Task OpenEditAsync(Guid setupId)

@@ -1,7 +1,6 @@
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
-using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
@@ -20,7 +19,6 @@ public class SetupCoordinatorTests
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupPersistenceTransactionRunner setupPersistenceTransactions = Substitute.For<ISetupPersistenceTransactionRunner>();
-    private readonly ITelemetryDataStoreService telemetry = Substitute.For<ITelemetryDataStoreService>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
@@ -54,7 +52,6 @@ public class SetupCoordinatorTests
         coordinator = new(
             setupStore,
             bikeStore,
-            telemetry,
             filesService,
             backgroundTaskRunner,
             shell,
@@ -106,25 +103,6 @@ public class SetupCoordinatorTests
 
         Assert.NotNull(captured);
         Assert.Null(captured!.BoardId);
-    }
-
-    [Fact]
-    public async Task OpenCreateForDetectedBoardAsync_ForwardsDetectedBoardId()
-    {
-        var boardId = Guid.NewGuid();
-        telemetry.DetectConnectedBoardIdAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Guid?>(boardId));
-        setupStore.FindByBoardId(boardId).Returns((SetupSnapshot?)null);
-
-        SetupSnapshot? captured = null;
-        editorFactory.When(factory => factory.OpenNewSetupEditor(Arg.Any<SetupSnapshot>()))
-            .Do(call => captured = call.Arg<SetupSnapshot>());
-
-        await CreateCoordinator().OpenCreateForDetectedBoardAsync();
-
-        await telemetry.Received(1).DetectConnectedBoardIdAsync(Arg.Any<CancellationToken>());
-        Assert.NotNull(captured);
-        Assert.Equal(boardId, captured!.BoardId);
     }
 
     // ----- OpenEditAsync -----

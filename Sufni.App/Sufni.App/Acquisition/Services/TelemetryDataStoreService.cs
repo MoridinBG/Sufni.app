@@ -323,31 +323,4 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
             _ => false
         };
     }
-
-    public Task<Guid?> DetectConnectedBoardIdAsync(CancellationToken cancellationToken = default) =>
-        !supportsMassStorageImport
-            ? Task.FromResult<Guid?>(null)
-            : backgroundTaskRunner.RunAsync(() =>
-        {
-            // Pure read: do not construct a MassStorageTelemetryDataStore,
-            // its constructor creates the uploaded/ subdirectory as a side
-            // effect. Mass-storage only — the network case requires async
-            // mDNS discovery and is not the realistic first-run scenario.
-            try
-            {
-                var drive = DriveInfo.GetDrives()
-                    .FirstOrDefault(d => d is { IsReady: true } &&
-                                         File.Exists(Path.Combine(d.RootDirectory.FullName, "BOARDID")));
-                if (drive is null) return (Guid?)null;
-
-                var serialHex = File.ReadAllText(
-                    Path.Combine(drive.RootDirectory.FullName, "BOARDID")).ToLower();
-                return UuidUtil.CreateDeviceUuid(serialHex);
-            }
-            catch (Exception ex)
-            {
-                logger.Warning(ex, "Failed to detect mass-storage board on startup");
-                return null;
-            }
-        }, cancellationToken);
 }

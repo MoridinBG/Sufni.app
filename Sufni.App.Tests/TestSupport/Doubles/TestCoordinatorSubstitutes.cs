@@ -49,7 +49,6 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<ISetupCoordinator>();
 
         coordinator.OpenCreateAsync(Arg.Any<Guid?>()).Returns(Task.CompletedTask);
-        coordinator.OpenCreateForDetectedBoardAsync().Returns(Task.CompletedTask);
         coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.ImportSetupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SetupImportResult>(new SetupImportResult.Canceled()));

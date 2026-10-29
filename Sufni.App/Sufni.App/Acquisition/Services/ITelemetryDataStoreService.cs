@@ -17,10 +17,6 @@ public interface ITelemetryDataStoreService
     public void StartBrowse();
     public void StopBrowse();
 
-    // One-shot mass-storage probe for setup flows. It reads mounted drives
-    // without mutating DataStores, browse state, or DAQ-side directories.
-    public Task<Guid?> DetectConnectedBoardIdAsync(CancellationToken cancellationToken = default);
-
     public Task<IReadOnlyList<ITelemetryFile>> LoadFilesAsync(
         ITelemetryDataStore dataStore,
         CancellationToken cancellationToken = default);
