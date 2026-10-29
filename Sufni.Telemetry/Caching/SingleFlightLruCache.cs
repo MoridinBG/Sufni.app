@@ -20,11 +20,6 @@ public sealed class SingleFlightLruCache<TKey, TValue>
     private readonly Dictionary<TKey, Lazy<Task<TValue>>> pendingAsync = [];
     private long retainedWeight;
 
-    public SingleFlightLruCache(int capacity)
-        : this(maximumCount: capacity, maximumWeight: null, valueWeight: null, shouldRetain: null, factory: null)
-    {
-    }
-
     public SingleFlightLruCache(int capacity, Func<TKey, TValue> factory)
         : this(
             maximumCount: capacity,
@@ -193,18 +188,6 @@ public sealed class SingleFlightLruCache<TKey, TValue>
             RemoveRetainedLocked(key);
             pendingSync.Remove(key);
             pendingAsync.Remove(key);
-        }
-    }
-
-    public void Remove(TKey key, TValue value)
-    {
-        lock (gate)
-        {
-            if (retained.TryGetValue(key, out var node) &&
-                EqualityComparer<TValue>.Default.Equals(node.Value.Value, value))
-            {
-                RemoveRetainedNodeLocked(node);
-            }
         }
     }
 

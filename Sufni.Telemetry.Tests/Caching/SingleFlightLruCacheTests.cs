@@ -234,7 +234,7 @@ public class SingleFlightLruCacheTests
         var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFactory = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        var cache = new SingleFlightLruCache<int, int>(capacity: 8);
+        var cache = new SingleFlightLruCache<int, int>(maximumWeight: 8, valueWeight: static _ => 1);
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var tasks = Enumerable
             .Range(0, 16)
@@ -290,7 +290,7 @@ public class SingleFlightLruCacheTests
     public async Task GetOrAddAsync_DoesNotRetainFaultedFactoryTask()
     {
         var calls = 0;
-        var cache = new SingleFlightLruCache<int, int>(capacity: 4);
+        var cache = new SingleFlightLruCache<int, int>(maximumWeight: 4, valueWeight: static _ => 1);
 
         Task<int> Factory(int key, CancellationToken _)
         {
@@ -313,7 +313,7 @@ public class SingleFlightLruCacheTests
         var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFactory = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        var cache = new SingleFlightLruCache<int, int>(capacity: 4);
+        var cache = new SingleFlightLruCache<int, int>(maximumWeight: 4, valueWeight: static _ => 1);
 
         Task<int> Factory(int key, CancellationToken _)
         {
@@ -351,24 +351,6 @@ public class SingleFlightLruCacheTests
 
         Assert.Equal(1, first);
         Assert.Equal(2, second);
-    }
-
-    [Fact]
-    public void RemoveWithValue_EvictsOnlyMatchingEntry()
-    {
-        var created = 0;
-        var cache = new SingleFlightLruCache<int, int>(
-            capacity: 4,
-            key => Interlocked.Increment(ref created));
-
-        var first = cache.GetOrAdd(1);
-        cache.Remove(1, first + 1);
-        var stillCached = cache.GetOrAdd(1);
-        cache.Remove(1, first);
-        var reloaded = cache.GetOrAdd(1);
-
-        Assert.Equal(first, stillCached);
-        Assert.NotEqual(first, reloaded);
     }
 
     [Fact]
@@ -468,7 +450,7 @@ public class SingleFlightLruCacheTests
     public async Task GetOrAddAsync_RetriesAfterProducerCancellation()
     {
         var calls = 0;
-        var cache = new SingleFlightLruCache<int, int>(capacity: 4);
+        var cache = new SingleFlightLruCache<int, int>(maximumWeight: 4, valueWeight: static _ => 1);
 
         Task<int> Create(int key, CancellationToken _)
         {
@@ -488,7 +470,7 @@ public class SingleFlightLruCacheTests
     {
         var oldStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOld = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cache = new SingleFlightLruCache<int, string>(capacity: 4);
+        var cache = new SingleFlightLruCache<int, string>(maximumWeight: 4, valueWeight: static _ => 1);
 
         var oldWaiter = cache.GetOrAddAsync(
             1,
