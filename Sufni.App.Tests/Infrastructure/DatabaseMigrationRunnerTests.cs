@@ -931,40 +931,21 @@ public class DatabaseMigrationRunnerTests
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetSessionAsync(activeSessionId);
 
-        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Equal(
-            activeSessionId.ToString("D"),
-            verificationConnection.ExecuteScalar<string>(
-                $"SELECT session_id FROM {SessionBlobSwapRequestStore.TableName}"));
+        Assert.Equal(activeSessionId, Assert.Single(await database.GetRequestedSessionBlobSwapIdsAsync()));
 
+        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
         verificationConnection.Execute(
             "UPDATE session SET deleted = ? WHERE id = ?",
             12,
             activeSessionId);
-        Assert.Equal(
-            0,
-            verificationConnection.ExecuteScalar<int>(
-                $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
+        Assert.Empty(await database.GetRequestedSessionBlobSwapIdsAsync());
 
         verificationConnection.Execute(
             $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
             hardDeletedSessionId,
             "target");
         verificationConnection.Execute("DELETE FROM session WHERE id = ?", hardDeletedSessionId);
-        Assert.Equal(
-            0,
-            verificationConnection.ExecuteScalar<int>(
-                $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
-
-        verificationConnection.Execute(
-            $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
-            Guid.NewGuid(),
-            "orphan");
         Assert.Empty(await database.GetRequestedSessionBlobSwapIdsAsync());
-        Assert.Equal(
-            0,
-            verificationConnection.ExecuteScalar<int>(
-                $"SELECT COUNT(*) FROM {SessionBlobSwapRequestStore.TableName}"));
     }
 
     [Fact]

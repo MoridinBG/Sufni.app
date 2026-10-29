@@ -272,9 +272,8 @@ The merge engine inserts, replaces, or clears the request inside the same
 transaction that accepts the corresponding deferred session metadata. Startup
 adds the generation column when needed, removes requests for missing or
 soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
-request with its owner session. The request store repeats orphan cleanup before
-returning the incomplete-session list and clears a matching request only after
-the validated generation write succeeds.
+request with its owner session. Listing pending requests only reads the table; a
+matching request is cleared after the validated generation write succeeds.
 
 `session_video` links a local video file to a recorded session. It is local
 state and is not synchronized. `ISessionVideoRepository` writes one row per
