@@ -232,7 +232,7 @@ A local video file is linked to every recorded session whose recording window ov
 
 Topics in [architecture/video.md](architecture/video.md):
 
-- [Persistence](architecture/video.md#persistence) — `session_video` table, clip liveness, one-time copy migration
+- [Persistence](architecture/video.md#persistence) — `session_video` table and clip liveness
 - [Store And Coordinator](architecture/video.md#store-and-coordinator) — `SessionVideoStore`, `VideoCoordinator`
 - [Import](architecture/video.md#import) — "Open video" action and overlap matching
 - [Clip Selection](architecture/video.md#clip-selection) — which clip shows at a telemetry time
@@ -250,7 +250,7 @@ A saved segment is a named time range on one recorded session. Segments are sync
 
 Topics in [architecture/segments.md](architecture/segments.md):
 
-- [Persistence](architecture/segments.md#persistence) — `session_segment` table, startup cleanup, one-time copy migration
+- [Persistence](architecture/segments.md#persistence) — `session_segment` table and startup cleanup
 - [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
 - [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
 - [Trim And Split](architecture/segments.md#trim-and-split) — how edits move segments

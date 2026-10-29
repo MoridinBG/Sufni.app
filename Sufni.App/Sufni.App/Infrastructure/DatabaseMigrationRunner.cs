@@ -45,9 +45,9 @@ internal sealed class DatabaseMigrationRunner(
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();
-            await MigrateSessionVideosAsync();
+            await coreMigrations.MarkAppliedAsync("session-video");
             await MigrateSessionDerivationWindowsAsync();
-            await MigrateSessionSegmentsAsync();
+            await coreMigrations.MarkAppliedAsync("session-segment");
             await DropSchemaVersionTableAsync();
 
             var cleanupSummary = await Cleanup();
@@ -131,69 +131,6 @@ internal sealed class DatabaseMigrationRunner(
                 WHERE session_id = NEW.id;
             END
             """);
-    }
-
-    // One-time copy of the video clips stored by older builds. The source table
-    // exists only on databases that ran those builds. The older
-    // `private_session_video` table holds nothing to keep, so it is dropped as is.
-    private async Task MigrateSessionVideosAsync()
-    {
-        const string migrationId = "session-video";
-        if (await coreMigrations.IsAppliedAsync(migrationId))
-        {
-            return;
-        }
-
-        var hasSourceTable = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_session_video_clip'") > 0;
-        await connection.RunInTransactionAsync(transaction =>
-        {
-            if (hasSourceTable)
-            {
-                transaction.Execute(
-                    """
-                    INSERT OR IGNORE INTO session_video
-                        (id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added)
-                    SELECT id, session_id, path, start_timestamp, duration_seconds, alignment_offset_seconds, added
-                    FROM private_session_video_clip
-                    """);
-                transaction.Execute("DROP TABLE private_session_video_clip");
-            }
-
-            transaction.Execute("DROP TABLE IF EXISTS private_session_video");
-        });
-
-        await coreMigrations.MarkAppliedAsync(migrationId);
-    }
-
-    // One-time copy of the saved segments stored by older builds, tombstones
-    // included so that peers' deletions stay deleted.
-    private async Task MigrateSessionSegmentsAsync()
-    {
-        const string migrationId = "session-segment";
-        if (await coreMigrations.IsAppliedAsync(migrationId))
-        {
-            return;
-        }
-
-        var hasSourceTable = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'private_saved_session_segment'") > 0;
-        if (hasSourceTable)
-        {
-            await connection.RunInTransactionAsync(transaction =>
-            {
-                transaction.Execute(
-                    """
-                    INSERT OR IGNORE INTO session_segment
-                        (id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted)
-                    SELECT id, session_id, name, start_seconds, end_seconds, updated, client_updated, deleted
-                    FROM private_saved_session_segment
-                    """);
-                transaction.Execute("DROP TABLE private_saved_session_segment");
-            });
-        }
-
-        await coreMigrations.MarkAppliedAsync(migrationId);
     }
 
     // One-time move of trim/split windows onto the session row. Windows come from

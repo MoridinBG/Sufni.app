@@ -164,7 +164,7 @@ erDiagram
 
 ## SQLite Persistence Repositories
 
-`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the copy migrations, performs startup cleanup, and repairs duplicate track ranges.
+`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It constructs the database at `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db` and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and repairs duplicate track ranges.
 
 The connection context is also the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization, then delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`, so the connection/transaction lock is held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations; raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences are not used.
 
@@ -279,19 +279,14 @@ matching request is cleared after the validated generation write succeeds.
 state and is not synchronized. `ISessionVideoRepository` writes one row per
 matched session in one transaction and updates the alignment offset. A clip is
 live only while its session is live: `ISessionVideoRepository` reads the clips
-of live sessions, and no delete cascades to clips. Older builds stored clips in
-`private_session_video_clip`. Startup copies those rows into `session_video`
-once (`core_migration` id `session-video`), drops that table, and drops
-`private_session_video`, an older table that is not copied. See
-[video.md](video.md).
+of live sessions, and no delete cascades to clips. The unshipped private-video
+copy migration is removed; its `session-video` marker remains recorded as applied. See [video.md](video.md).
 
 `session_segment` holds saved segments: a name and a time range in seconds
 from the session's telemetry start. It is a `Synchronizable` table. A segment
 is live only while its session is live: `ISessionSegmentRepository` reads the
-live segments of live sessions, and no delete cascades to segments. Older
-builds stored segments in `private_saved_session_segment`. Startup copies every
-row, tombstones included, into `session_segment` once (`core_migration` id
-`session-segment`) and drops that table. See [segments.md](segments.md).
+live segments of live sessions, and no delete cascades to segments. The unshipped
+private-segment copy migration is removed; its `session-segment` marker remains recorded as applied. See [segments.md](segments.md).
 
 The session derivation window lives on the session row. `source_session_id`,
 `window_start_seconds`, and `window_end_seconds` describe the window; a null
@@ -303,7 +298,7 @@ splits in `private_session_source_range`. Startup copies them once
 session's own full range are copied, then sessions without a range row take the
 window stored in their processing fingerprint. The copy drops the range table.
 
-After the three copies, startup drops `extension_schema_version`, the table
+After the derivation-window migration, startup drops `extension_schema_version`, the table
 that held the schema versions of the old tables.
 
 ## JSON Serialization

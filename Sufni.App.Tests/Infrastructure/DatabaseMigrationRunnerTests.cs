@@ -949,56 +949,6 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task Initialization_CopiesPrivateVideoLinks_AndDropsSourceTable()
-    {
-        using var tempDatabase = new TempDatabase("private-video-copy.db");
-        var sessionId = Guid.NewGuid();
-        var clipId = Guid.NewGuid();
-
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
-        {
-            connection.CreateTable<Session>();
-            connection.Insert(new Session(sessionId, "ride", string.Empty, null) { Updated = 10 });
-            connection.Execute(
-                """
-                CREATE TABLE private_session_video_clip (
-                    id TEXT PRIMARY KEY, session_id TEXT, path TEXT NOT NULL, file_name TEXT NOT NULL,
-                    start_timestamp INTEGER NOT NULL, duration_seconds REAL NOT NULL,
-                    alignment_offset_seconds REAL NOT NULL, added INTEGER NOT NULL, updated INTEGER NOT NULL)
-                """);
-            connection.Execute(
-                "INSERT INTO private_session_video_clip VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                clipId, sessionId, "/videos/ride.mp4", "ride.mp4", 1_000, 60.0, 2.5, 7, 8);
-        }
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var clip = Assert.Single(await database.SessionVideoRepository.GetLiveAsync());
-
-        Assert.Equal((clipId, sessionId, "/videos/ride.mp4", 1_000L, 60.0, 2.5, 7L),
-            (clip.Id, clip.SessionId, clip.Path, clip.StartTimestamp, clip.DurationSeconds, clip.AlignmentOffsetSeconds, clip.Added));
-        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video_clip'"));
-    }
-
-    [Fact]
-    public async Task Initialization_DropsTheAbandonedVideoTable()
-    {
-        using var tempDatabase = new TempDatabase("abandoned-video-table.db");
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
-        {
-            connection.Execute("CREATE TABLE private_session_video (session_id TEXT PRIMARY KEY, path TEXT NOT NULL)");
-            connection.Execute("INSERT INTO private_session_video VALUES (?, ?)", Guid.NewGuid(), "/videos/ride.mp4");
-        }
-
-        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
-
-        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_session_video'"));
-    }
-
-    [Fact]
     public async Task Initialization_CopiesSessionSourceRanges_AndDropsRangeTable()
     {
         using var tempDatabase = new TempDatabase("session-source-range-copy.db");
@@ -1069,41 +1019,6 @@ public class DatabaseMigrationRunnerTests
         var session = SessionSnapshot.From((await database.GetSessionAsync(sessionId))!);
 
         Assert.Equal(window, session.DerivationWindow);
-    }
-
-    [Fact]
-    public async Task Initialization_CopiesPrivateSegmentsWithTombstones_AndDropsSourceTable()
-    {
-        using var tempDatabase = new TempDatabase("private-segment-copy.db");
-        var sessionId = Guid.NewGuid();
-        var liveId = Guid.NewGuid();
-        var deletedId = Guid.NewGuid();
-
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
-        {
-            connection.CreateTable<Session>();
-            connection.Insert(new Session(sessionId, "ride", string.Empty, null) { Updated = 10 });
-            connection.Execute(
-                """
-                CREATE TABLE private_saved_session_segment (
-                    id TEXT PRIMARY KEY, session_id TEXT NOT NULL, name TEXT NOT NULL,
-                    start_seconds REAL NOT NULL, end_seconds REAL NOT NULL,
-                    updated INTEGER NOT NULL, client_updated INTEGER NOT NULL, deleted INTEGER)
-                """);
-            const string insertSegment = "INSERT INTO private_saved_session_segment VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            connection.Execute(insertSegment, liveId, sessionId, "climb", 1.5, 4.0, now, now, null);
-            connection.Execute(insertSegment, deletedId, sessionId, "descent", 5.0, 9.0, now, now, now);
-        }
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var live = Assert.Single(await database.SessionSegmentRepository.GetLiveAsync());
-
-        Assert.Equal((liveId, sessionId, "climb", 1.5, 4.0), (live.Id, live.SessionId, live.Name, live.StartSeconds, live.EndSeconds));
-        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.NotNull(verificationConnection.Find<SessionSegment>(deletedId)?.Deleted);
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'private_saved_session_segment'"));
     }
 
     [Fact]
