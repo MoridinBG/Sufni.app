@@ -174,7 +174,7 @@ SST v5 final status is parsed into `SstFinalStatus` when present. Stream final-s
 
 ### Spike Elimination
 
-`SpikeElimination.EliminateSpikes()` (`Sufni.Telemetry/SpikeElimination.cs`) cleans sensor data in four stages:
+`SpikeElimination.EliminateSpikesAsInt()` (`Sufni.Telemetry/SpikeElimination.cs`) cleans sensor data in four stages:
 
 1. **Detect sudden changes** — multi-pass sliding window search over the sample-rate equivalent of 5 ms. A change is flagged when the unscaled total magnitude exceeds `MinimumCandidateTotalChangeCounts=100` ADC counts AND every individual step within the window exceeds the per-sample threshold derived from `MinimumAdjacentStepChangeRateCountsPerSecond=30_000`. Multi-sample candidates, plus single-sample candidates when the 5 ms window rounds to one sample, are ignored when the signal continues in the same direction by at least the per-sample threshold within the sample-rate equivalent of the next 5 ms. Already-flagged regions are excluded from subsequent passes.
 
@@ -184,7 +184,7 @@ SST v5 final status is parsed into `SstFinalStatus` when present. Stream final-s
 
 4. **Handle temporary dips and unrecovered tails** — walks the remaining changes in order, tracking a cumulative negative offset (`activeFaultDelta`). Each segment between changes is shifted by the active offset. Negative changes accumulate into the offset; subsequent positive changes partially undo it (clamped to zero). Any leftover offset at the final change is also applied to the trailing samples through end of capture, so a dip that never recovers is corrected as a sensor fault rather than left in the signal.
 
-`SpikeElimination` returns cleaned integer samples plus an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
+`SpikeElimination` edits the integer samples in place and returns an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
 
 ### Parsed Telemetry Data Structures
 

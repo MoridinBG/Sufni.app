@@ -5,40 +5,36 @@ namespace Sufni.Telemetry.Tests;
 public class SpikeEliminationTests
 {
     [Fact]
-    public void EliminateSpikes_WithCleanSignal_ReturnsSameSignal()
+    public void EliminateSpikesAsInt_WithCleanSignal_ReturnsSameSignal()
     {
-        // Arrange
         int[] signal = [100, 101, 102, 103, 104, 105];
 
-        // Act
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
-        // Assert
         Assert.Equal(0, anomalyCount);
         for (int i = 0; i < signal.Length; i++)
         {
-            Assert.Equal((ushort)signal[i], fixedSignal[i]);
+            Assert.Equal(signal[i], fixedSignal[i]);
         }
     }
 
     [Fact]
-    public void EliminateSpikes_WithSinglePointSpike_EliminatesIt()
+    public void EliminateSpikesAsInt_WithSinglePointSpike_EliminatesIt()
     {
-        // Arrange
         var signal = new int[20];
         Array.Fill(signal, 100);
         signal[10] = 1000; // Spike
 
-        // Act
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
-        // Assert
         Assert.True(anomalyCount > 0);
-        Assert.Equal((ushort)100, fixedSignal[10]);
+        Assert.Equal(100, fixedSignal[10]);
     }
 
     [Fact]
-    public void EliminateSpikes_WithPositiveSpikeWindow_DoesNotShiftRecoveredTail()
+    public void EliminateSpikesAsInt_WithPositiveSpikeWindow_DoesNotShiftRecoveredTail()
     {
         var signal = new int[240];
         Array.Fill(signal, 60);
@@ -47,11 +43,12 @@ public class SpikeEliminationTests
             signal[index] = 4095;
         }
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
         Assert.True(anomalyCount > 0);
-        Assert.Equal((ushort)60, fixedSignal[130]);
-        Assert.Equal((ushort)60, fixedSignal[239]);
+        Assert.Equal(60, fixedSignal[130]);
+        Assert.Equal(60, fixedSignal[239]);
     }
 
     [Fact]
@@ -121,39 +118,35 @@ public class SpikeEliminationTests
     }
 
     [Fact]
-    public void EliminateSpikes_WithInitialJump_CorrectsBaseline()
+    public void EliminateSpikesAsInt_WithInitialJump_CorrectsBaseline()
     {
-        // Arrange
         var signal = new int[200];
         for (int i = 0; i < 10; i++) signal[i] = 100;
         for (int i = 10; i < 200; i++) signal[i] = 1100; // Jump of 1000
 
-        // Act
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
-        // Assert
-        Assert.Equal((ushort)100, fixedSignal[10]);
-        Assert.Equal((ushort)100, fixedSignal[199]);
+        Assert.Equal(100, fixedSignal[10]);
+        Assert.Equal(100, fixedSignal[199]);
     }
 
     [Fact]
-    public void EliminateSpikes_WithDipAndJumpBack_CorrectsDip()
+    public void EliminateSpikesAsInt_WithDipAndJumpBack_CorrectsDip()
     {
-        // Arrange
         var signal = new int[200];
         Array.Fill(signal, 1000);
         for (int i = 120; i < 170; i++) signal[i] = 200;
 
-        // Act
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
-        // Assert
-        Assert.Equal((ushort)1000, fixedSignal[130]);
-        Assert.Equal((ushort)1000, fixedSignal[199]);
+        Assert.Equal(1000, fixedSignal[130]);
+        Assert.Equal(1000, fixedSignal[199]);
     }
 
     [Fact]
-    public void EliminateSpikes_WithUnresolvedDip_CorrectsSignalToEnd()
+    public void EliminateSpikesAsInt_WithUnresolvedDip_CorrectsSignalToEnd()
     {
         var signal = new int[200];
         Array.Fill(signal, 1000);
@@ -162,15 +155,16 @@ public class SpikeEliminationTests
             signal[i] = 200;
         }
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
         Assert.True(anomalyCount > 0);
-        Assert.Equal((ushort)1000, fixedSignal[130]);
-        Assert.Equal((ushort)1000, fixedSignal[199]);
+        Assert.Equal(1000, fixedSignal[130]);
+        Assert.Equal(1000, fixedSignal[199]);
     }
 
     [Fact]
-    public void EliminateSpikes_WithSuccessiveNegativeChanges_WaitsForActualRecovery()
+    public void EliminateSpikesAsInt_WithSuccessiveNegativeChanges_WaitsForActualRecovery()
     {
         var signal = new int[200];
         Array.Fill(signal, 1000);
@@ -183,11 +177,12 @@ public class SpikeEliminationTests
             signal[i] = 500;
         }
 
-        var (fixedSignal, anomalyCount) = SpikeElimination.EliminateSpikes(signal.ToArray(), sampleRate: 1000);
+        var fixedSignal = signal.ToArray();
+        var anomalyCount = SpikeElimination.EliminateSpikesAsInt(fixedSignal, sampleRate: 1000);
 
         Assert.True(anomalyCount > 0);
-        Assert.Equal((ushort)1000, fixedSignal[130]);
-        Assert.Equal((ushort)1000, fixedSignal[150]);
-        Assert.Equal((ushort)1000, fixedSignal[199]);
+        Assert.Equal(1000, fixedSignal[130]);
+        Assert.Equal(1000, fixedSignal[150]);
+        Assert.Equal(1000, fixedSignal[199]);
     }
 }

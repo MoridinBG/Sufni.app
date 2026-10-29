@@ -2,10 +2,10 @@ using System.Buffers;
 
 namespace Sufni.Telemetry;
 
-public record SignalChange(int Start, int End, int Change);
-
 public static class SpikeElimination
 {
+    private sealed record SignalChange(int Start, int End, int Change);
+
     // Candidate windows must move this many raw counts from start to end.
     private const int MinimumCandidateTotalChangeCounts = 100;
     // Every adjacent step in a candidate window must meet this raw-count rate.
@@ -16,20 +16,6 @@ public static class SpikeElimination
     private const int ContinuationLookaheadDurationMilliseconds = 5;
     // Baseline-shift correction is only allowed this close to recording start.
     private const int EarlyBaselineShiftDurationMilliseconds = 100;
-
-    public static (ushort[] fixedSignal, int anomalyCount) EliminateSpikes(
-        int[] signal,
-        int sampleRate)
-    {
-        var anomalyCount = EliminateSpikesAsInt(signal.AsSpan(), sampleRate);
-        var fixedSignal = new ushort[signal.Length];
-        for (var index = 0; index < signal.Length; index++)
-        {
-            fixedSignal[index] = ClampAdcSample(signal[index]);
-        }
-
-        return (fixedSignal, anomalyCount);
-    }
 
     public static int EliminateSpikesAsInt(
         Span<int> signal,
@@ -112,8 +98,6 @@ public static class SpikeElimination
 
         return anomalyCount;
     }
-
-    private static ushort ClampAdcSample(int value) => (ushort)Math.Clamp(value, 0, 4095);
 
     private static int ScaleDurationMilliseconds(int durationMilliseconds, int sampleRate)
     {
