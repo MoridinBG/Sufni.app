@@ -65,7 +65,7 @@ public class SstV5Parser : ISstParser
 
             ValidateChunkEnvelope(envelope, context);
 
-            if (envelope.ChunkType == SstV5Constants.ChunkSessionMetadata)
+            if (envelope.ChunkType == SstV5ProtocolConstants.ChunkSessionMetadata)
             {
                 if (context.MetadataParsed || chunkStart != contentStart + SstV5ProtocolConstants.HeaderRemainderSize)
                 {
@@ -81,7 +81,7 @@ public class SstV5Parser : ISstParser
                 throw context.Malformed("SST v5 data chunk appears before session metadata.");
             }
 
-            if (envelope.ChunkType == SstV5Constants.ChunkFinalStatus)
+            if (envelope.ChunkType == SstV5ProtocolConstants.ChunkFinalStatus)
             {
                 ScanFinalStatus(reader, envelope.DeclaredLength, context);
                 continue;
@@ -115,8 +115,8 @@ public class SstV5Parser : ISstParser
         }
 
         SkipBytes(reader.BaseStream, envelope.DeclaredLength - (uint)headerLength);
-        context.HasCompleteTravelData |= streamKind == SstV5Constants.StreamTravel;
-        if (streamKind == SstV5Constants.StreamTravel)
+        context.HasCompleteTravelData |= streamKind == SstV5ProtocolConstants.StreamTravel;
+        if (streamKind == SstV5ProtocolConstants.StreamTravel)
         {
             uint describedSources = 0;
             for (var index = 0; index < descriptor.Sources.Count; index++)
@@ -216,7 +216,7 @@ public class SstV5Parser : ISstParser
             cursor.MoveTo((int)declaredEnd);
             ValidateChunkEnvelope(envelope, context);
 
-            if (chunkType == SstV5Constants.ChunkSessionMetadata)
+            if (chunkType == SstV5ProtocolConstants.ChunkSessionMetadata)
             {
                 if (context.MetadataParsed || chunkStart != SstV5ProtocolConstants.HeaderRemainderSize)
                 {
@@ -232,7 +232,7 @@ public class SstV5Parser : ISstParser
                 throw context.Malformed("SST v5 data chunk appears before session metadata.");
             }
 
-            if (chunkType == SstV5Constants.ChunkFinalStatus)
+            if (chunkType == SstV5ProtocolConstants.ChunkFinalStatus)
             {
                 ParseFinalStatus(payload, context);
                 continue;
@@ -332,22 +332,22 @@ public class SstV5Parser : ISstParser
         {
             switch (streamKind)
             {
-                case SstV5Constants.StreamTravel:
+                case SstV5ProtocolConstants.StreamTravel:
                     DecodeTravelData(descriptor, compactPayload, header, context);
                     break;
-                case SstV5Constants.StreamImu:
+                case SstV5ProtocolConstants.StreamImu:
                     DecodeImuData(descriptor, compactPayload, header, context);
                     break;
-                case SstV5Constants.StreamTemperature:
+                case SstV5ProtocolConstants.StreamTemperature:
                     DecodeTemperatureData(descriptor, compactPayload, header, context);
                     break;
-                case SstV5Constants.StreamGps:
+                case SstV5ProtocolConstants.StreamGps:
                     DecodeGpsData(descriptor, compactPayload, header, context);
                     break;
-                case SstV5Constants.StreamBattery:
+                case SstV5ProtocolConstants.StreamBattery:
                     DecodeBatteryData(descriptor, compactPayload, header, context);
                     break;
-                case SstV5Constants.StreamMarker:
+                case SstV5ProtocolConstants.StreamMarker:
                     DecodeMarkerData(descriptor, compactPayload, header, context);
                     break;
             }
@@ -357,7 +357,7 @@ public class SstV5Parser : ISstParser
             throw context.Malformed(ex.Message, ex);
         }
 
-        context.HasCompleteTravelData |= streamKind == SstV5Constants.StreamTravel;
+        context.HasCompleteTravelData |= streamKind == SstV5ProtocolConstants.StreamTravel;
         context.ObserveDataEnd(descriptor, header.FirstMonotonicDeltaUs, header.SampleCount);
     }
 
@@ -381,8 +381,8 @@ public class SstV5Parser : ISstParser
         {
             var builder = source.SourceBitMask switch
             {
-                SstV5Constants.SensorForkTravel => context.FrontBuilder,
-                SstV5Constants.SensorShockTravel => context.RearBuilder,
+                SstV5ProtocolConstants.SensorForkTravel => context.FrontBuilder,
+                SstV5ProtocolConstants.SensorShockTravel => context.RearBuilder,
                 _ => throw context.Malformed("SST v5 travel source bit is unsupported by this app."),
             };
 
@@ -400,8 +400,8 @@ public class SstV5Parser : ISstParser
         {
             var builder = record.SourceBitMask switch
             {
-                SstV5Constants.SensorForkTravel => context.FrontBuilder,
-                SstV5Constants.SensorShockTravel => context.RearBuilder,
+                SstV5ProtocolConstants.SensorForkTravel => context.FrontBuilder,
+                SstV5ProtocolConstants.SensorShockTravel => context.RearBuilder,
                 _ => throw context.Malformed("SST v5 travel source bit is unsupported by this app."),
             };
             builder.AddValidSample(record.Index, record.MonotonicDeltaUs, record.Count, descriptor.AcceptedRateMhz);
@@ -447,7 +447,7 @@ public class SstV5Parser : ISstParser
             if ((header.ValidityMask & source.SourceBitMask) == 0)
             {
                 context.AddGap(
-                    SstV5Constants.StreamTemperature,
+                    SstV5ProtocolConstants.StreamTemperature,
                     SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask),
                     header.FirstIndex,
                     header.SampleCount,
@@ -472,9 +472,9 @@ public class SstV5Parser : ISstParser
         SstV5DataHeader header,
         V5ParseContext context)
     {
-        if ((header.ValidityMask & SstV5Constants.SensorGps) == 0)
+        if ((header.ValidityMask & SstV5ProtocolConstants.SensorGps) == 0)
         {
-            context.AddGap(SstV5Constants.StreamGps, null, header.FirstIndex, header.SampleCount, null, "invalid_validity");
+            context.AddGap(SstV5ProtocolConstants.StreamGps, null, header.FirstIndex, header.SampleCount, null, "invalid_validity");
             return;
         }
 
@@ -490,9 +490,9 @@ public class SstV5Parser : ISstParser
         SstV5DataHeader header,
         V5ParseContext context)
     {
-        if ((header.ValidityMask & SstV5Constants.SensorBattery) == 0)
+        if ((header.ValidityMask & SstV5ProtocolConstants.SensorBattery) == 0)
         {
-            context.AddGap(SstV5Constants.StreamBattery, null, header.FirstIndex, header.SampleCount, null, "invalid_validity");
+            context.AddGap(SstV5ProtocolConstants.StreamBattery, null, header.FirstIndex, header.SampleCount, null, "invalid_validity");
             return;
         }
 
@@ -510,7 +510,7 @@ public class SstV5Parser : ISstParser
     {
         foreach (var record in SstV5CompactPayloadDecoder.DecodeMarkers(descriptor, header, compactPayload))
         {
-            if (record.MarkerType == SstV5Constants.MarkerManualUserMark)
+            if (record.MarkerType == SstV5ProtocolConstants.MarkerManualUserMark)
             {
                 context.Markers.Add(new MarkerData(record.MonotonicDeltaUs / 1_000_000.0));
             }
@@ -641,7 +641,7 @@ public class SstV5Parser : ISstParser
 
         public void ObserveDataEnd(SstV5StreamDescriptor descriptor, ulong firstMonotonicDeltaUs, uint sampleCount)
         {
-            var endUs = descriptor.TimingModelId == SstV5Constants.TimingFixedRate
+            var endUs = descriptor.TimingModelId == SstV5ProtocolConstants.TimingFixedRate
                 ? SstV5CompactPayloadDecoder.CalculateSampleMonotonicUs(
                     firstMonotonicDeltaUs,
                     sampleCount,
@@ -658,8 +658,8 @@ public class SstV5Parser : ISstParser
 
         public SstV5StreamDescriptor RequireSupportedTravelDescriptor()
         {
-            if (!StreamDescriptors.TryGetValue(SstV5Constants.StreamTravel, out var travelDescriptor) ||
-                (travelDescriptor.AcceptedSensorMask & (SstV5Constants.SensorForkTravel | SstV5Constants.SensorShockTravel)) == 0 ||
+            if (!StreamDescriptors.TryGetValue(SstV5ProtocolConstants.StreamTravel, out var travelDescriptor) ||
+                (travelDescriptor.AcceptedSensorMask & (SstV5ProtocolConstants.SensorForkTravel | SstV5ProtocolConstants.SensorShockTravel)) == 0 ||
                 travelDescriptor.AcceptedRateMhz == 0 ||
                 travelDescriptor.AcceptedRateMhz % 1000 != 0 ||
                 travelDescriptor.AcceptedRateMhz / 1000 > ushort.MaxValue)
@@ -688,7 +688,7 @@ public class SstV5Parser : ISstParser
 
         private ushort? TelemetrySampleRate()
         {
-            if (!StreamDescriptors.TryGetValue(SstV5Constants.StreamTravel, out var travelDescriptor) ||
+            if (!StreamDescriptors.TryGetValue(SstV5ProtocolConstants.StreamTravel, out var travelDescriptor) ||
                 travelDescriptor.AcceptedRateMhz == 0 ||
                 travelDescriptor.AcceptedRateMhz % 1000 != 0 ||
                 travelDescriptor.AcceptedRateMhz / 1000 > ushort.MaxValue)
@@ -746,13 +746,13 @@ public class SstV5Parser : ISstParser
         {
             // Tag travel gaps with the travel sensor bit (fork=front, shock=rear) so the
             // processing layer can attribute a gap to the correct side instead of both.
-            FrontBuilder = new FixedRateSegmentBuilder<ushort>(SstV5Constants.StreamTravel, (byte)SstV5Constants.SensorForkTravel, AddGap);
-            RearBuilder = new FixedRateSegmentBuilder<ushort>(SstV5Constants.StreamTravel, (byte)SstV5Constants.SensorShockTravel, AddGap);
+            FrontBuilder = new FixedRateSegmentBuilder<ushort>(SstV5ProtocolConstants.StreamTravel, (byte)SstV5ProtocolConstants.SensorForkTravel, AddGap);
+            RearBuilder = new FixedRateSegmentBuilder<ushort>(SstV5ProtocolConstants.StreamTravel, (byte)SstV5ProtocolConstants.SensorShockTravel, AddGap);
         }
 
         public override void OnMetadataParsed()
         {
-            if (!StreamDescriptors.TryGetValue(SstV5Constants.StreamImu, out var imuDescriptor))
+            if (!StreamDescriptors.TryGetValue(SstV5ProtocolConstants.StreamImu, out var imuDescriptor))
             {
                 return;
             }
@@ -762,7 +762,7 @@ public class SstV5Parser : ISstParser
                 var location = SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask);
                 ImuData.Meta.Add(new ImuMetaEntry(location, source.AccelLsbPerG, source.GyroLsbPerDps));
                 ImuData.ActiveLocations.Add(location);
-                ImuBuilders[location] = new FixedRateSegmentBuilder<ImuRecord>(SstV5Constants.StreamImu, location, AddGap);
+                ImuBuilders[location] = new FixedRateSegmentBuilder<ImuRecord>(SstV5ProtocolConstants.StreamImu, location, AddGap);
             }
 
             ImuData.SampleRate = imuDescriptor.AcceptedRateMhz % 1000 == 0

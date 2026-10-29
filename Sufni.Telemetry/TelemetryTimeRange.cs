@@ -2,11 +2,6 @@ namespace Sufni.Telemetry;
 
 public readonly record struct TelemetryTimeRange
 {
-    private enum RangeValidationState
-    {
-        Normalized,
-    }
-
     public const double MinimumDurationSeconds = 0.1;
 
     public double StartSeconds { get; }
@@ -29,12 +24,6 @@ public readonly record struct TelemetryTimeRange
         EndSeconds = end;
     }
 
-    private TelemetryTimeRange(double startSeconds, double endSeconds, RangeValidationState _)
-    {
-        StartSeconds = startSeconds;
-        EndSeconds = endSeconds;
-    }
-
     public static bool TryCreate(double startSeconds, double endSeconds, out TelemetryTimeRange range)
     {
         range = default;
@@ -44,7 +33,7 @@ public readonly record struct TelemetryTimeRange
             return false;
         }
 
-        range = new TelemetryTimeRange(start, end, RangeValidationState.Normalized);
+        range = new TelemetryTimeRange(start, end);
         return true;
     }
 
@@ -68,7 +57,7 @@ public readonly record struct TelemetryTimeRange
             return false;
         }
 
-        range = new TelemetryTimeRange(start, end, RangeValidationState.Normalized);
+        range = new TelemetryTimeRange(start, end);
         return true;
     }
 

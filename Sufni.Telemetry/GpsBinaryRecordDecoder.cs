@@ -40,7 +40,7 @@ public static class GpsBinaryRecordDecoder
             epe3d);
     }
 
-    private static bool TryCreateTimestamp(uint date, uint timeMs, out DateTime timestamp)
+    internal static bool TryCreateTimestamp(uint date, uint timeMs, out DateTime timestamp)
     {
         timestamp = default;
         if (date == 0)

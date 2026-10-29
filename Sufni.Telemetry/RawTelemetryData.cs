@@ -61,7 +61,7 @@ public class RawTelemetryData
     {
         if (bytes.Span.StartsWith("SST5"u8))
         {
-            return new SstV5Parser().Parse(bytes[4..], SstV5Constants.Version);
+            return new SstV5Parser().Parse(bytes[4..], SstV5ProtocolConstants.Version);
         }
 
         using var stream = CreateReadOnlyMemoryStream(bytes);
@@ -83,7 +83,7 @@ public class RawTelemetryData
 
         if (magic is [(byte)'S', (byte)'S', (byte)'T', (byte)'5'])
         {
-            return (new SstV5Parser(), SstV5Constants.Version);
+            return (new SstV5Parser(), SstV5ProtocolConstants.Version);
         }
 
         if (magic[0] != (byte)'S' || magic[1] != (byte)'S' || magic[2] != (byte)'T')

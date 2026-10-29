@@ -243,38 +243,12 @@ public static class SstV5CompactPayloadDecoder
             epe3d = reader.ReadSingle();
         }
 
-        if (!TryCreateGpsTimestamp(date, timeMs, out var timestamp))
+        if (!GpsBinaryRecordDecoder.TryCreateTimestamp(date, timeMs, out var timestamp))
         {
             return null;
         }
 
         return new GpsRecord(timestamp, latitude, longitude, altitude, speed, heading, fixMode, satellites, epe2d, epe3d);
-    }
-
-    private static bool TryCreateGpsTimestamp(uint date, uint timeMs, out DateTime timestamp)
-    {
-        timestamp = default;
-        if (date == 0)
-        {
-            return false;
-        }
-
-        var year = (int)(date / 10000);
-        var month = (int)(date / 100 % 100);
-        var day = (int)(date % 100);
-
-        if (year is < 1 or > 9999 || month is < 1 or > 12)
-        {
-            return false;
-        }
-
-        if (day < 1 || day > DateTime.DaysInMonth(year, month))
-        {
-            return false;
-        }
-
-        timestamp = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timeMs);
-        return true;
     }
 
     private static ImuRecord ReadImuRecord(ReadOnlySpan<byte> bytes)

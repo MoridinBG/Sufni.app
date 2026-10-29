@@ -192,7 +192,7 @@ internal static class TelemetrySlicer
         var sliced = new List<RawStreamGap>(gaps.Length);
         foreach (var gap in gaps)
         {
-            if (gap.StreamKind == SstV5Constants.StreamTravel)
+            if (gap.StreamKind == SstV5ProtocolConstants.StreamTravel)
             {
                 var start = StartSampleIndex(window.StartSeconds, travelSampleRate);
                 var end = EndSampleIndexExclusive(window, travelSampleRate, int.MaxValue);
@@ -200,7 +200,7 @@ internal static class TelemetrySlicer
                 continue;
             }
 
-            if (gap.StreamKind == SstV5Constants.StreamImu && imuSampleRate is > 0)
+            if (gap.StreamKind == SstV5ProtocolConstants.StreamImu && imuSampleRate is > 0)
             {
                 var start = StartSampleIndex(window.StartSeconds, imuSampleRate.Value);
                 var end = EndSampleIndexExclusive(window, imuSampleRate.Value, int.MaxValue);

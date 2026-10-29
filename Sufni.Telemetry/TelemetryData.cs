@@ -262,17 +262,17 @@ public class TelemetryData
     }
 
     private static bool UsesSegmentAwareTravel(RawTelemetryData rawData) =>
-        rawData.Version == SstV5Constants.Version &&
+        rawData.Version == SstV5ProtocolConstants.Version &&
         (rawData.FrontSegments.Length > 1 ||
          rawData.RearSegments.Length > 1 ||
-         rawData.StreamGaps.Any(gap => gap.StreamKind == SstV5Constants.StreamTravel));
+         rawData.StreamGaps.Any(gap => gap.StreamKind == SstV5ProtocolConstants.StreamTravel));
 
     // A travel gap tagged with a side's sensor bit belongs only to that side. A travel gap with
     // no location (e.g. a stream-level final-status counter) is not side-attributable, so it is
     // treated as affecting both sides.
     private static bool HasTravelGapForSide(RawStreamGap[] streamGaps, uint sensorBit) =>
         streamGaps.Any(gap =>
-            gap.StreamKind == SstV5Constants.StreamTravel &&
+            gap.StreamKind == SstV5ProtocolConstants.StreamTravel &&
             (gap.LocationId is null || gap.LocationId == (byte)sensorBit));
 
     private static void ProcessSuspensionSide(
@@ -578,8 +578,8 @@ public class TelemetryData
                     td.Metadata.SampleRate,
                     processingOptions));
 
-            td.Front.HasGaps = td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorForkTravel);
-            td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5Constants.SensorShockTravel);
+            td.Front.HasGaps = td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorForkTravel);
+            td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorShockTravel);
             td.CalculateAirTimes();
 
             return td;
@@ -645,7 +645,7 @@ public class TelemetryData
         TelemetryProcessingOptions processingOptions)
     {
         var version = UsesSegmentAwareLiveCapture(capture)
-            ? SstV5Constants.Version
+            ? SstV5ProtocolConstants.Version
             : capture.Metadata.Version;
         var metadata = new Metadata
         {
@@ -676,32 +676,6 @@ public class TelemetryData
             GpsData = capture.GpsData,
             TemperatureData = capture.TemperatureData,
         };
-
-        if (rawData.FrontSegments.Length == 0 && rawData.Front.Length > 0)
-        {
-            rawData.FrontSegments =
-            [
-                new RawCountSegment
-                {
-                    FirstIndex = 0,
-                    FirstMonotonicDeltaUs = 0,
-                    Counts = rawData.Front,
-                }
-            ];
-        }
-
-        if (rawData.RearSegments.Length == 0 && rawData.Rear.Length > 0)
-        {
-            rawData.RearSegments =
-            [
-                new RawCountSegment
-                {
-                    FirstIndex = 0,
-                    FirstMonotonicDeltaUs = 0,
-                    Counts = rawData.Rear,
-                }
-            ];
-        }
 
         return FromRecording(rawData, metadata, capture.BikeData, processingOptions);
     }
