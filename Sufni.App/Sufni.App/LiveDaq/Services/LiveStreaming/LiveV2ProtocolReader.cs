@@ -45,10 +45,6 @@ public sealed class LiveV2ProtocolReader
 
     private static bool IsKnownFrameType(LiveV2FrameType frameType) => frameType switch
     {
-        LiveV2FrameType.StartLive => true,
-        LiveV2FrameType.StopLive => true,
-        LiveV2FrameType.Ping => true,
-        LiveV2FrameType.Identify => true,
         LiveV2FrameType.StartLiveAck => true,
         LiveV2FrameType.StopLiveAck => true,
         LiveV2FrameType.Error => true,
@@ -104,10 +100,6 @@ public sealed class LiveV2ProtocolReader
         var metadata = CreateFrameMetadata(header);
         return header.FrameType switch
         {
-            LiveV2FrameType.StartLive => new LiveStartRequestFrame(metadata, ParseStartRequest(payload)),
-            LiveV2FrameType.StopLive => ParseEmptyPayloadFrame<LiveStopRequestFrame>(header, payload),
-            LiveV2FrameType.Ping => ParseEmptyPayloadFrame<LivePingFrame>(header, payload),
-            LiveV2FrameType.Identify => ParseEmptyPayloadFrame<LiveIdentifyRequestFrame>(header, payload),
             LiveV2FrameType.StartLiveAck => new LiveStartAckFrame(metadata, ParseStartAck(payload)),
             LiveV2FrameType.StopLiveAck => new LiveStopAckFrame(metadata, ParseStopAck(payload)),
             LiveV2FrameType.Error => new LiveErrorFrame(metadata, ParseError(payload)),
@@ -154,16 +146,6 @@ public sealed class LiveV2ProtocolReader
         }
 
         return header;
-    }
-
-    private static LiveStartRequest ParseStartRequest(ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, LiveV2ProtocolConstants.StartRequestPayloadSize, LiveV2FrameType.StartLive);
-        return new LiveStartRequest(
-            RequestedSensorMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
-            TravelRateMhz: LiveProtocolHelpers.HertzToMillihertz(BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8])),
-            ImuRateMhz: LiveProtocolHelpers.HertzToMillihertz(BinaryPrimitives.ReadUInt32LittleEndian(payload[8..12])),
-            GpsRateMhz: LiveProtocolHelpers.HertzToMillihertz(BinaryPrimitives.ReadUInt32LittleEndian(payload[12..16])));
     }
 
     private static LiveIdentifyAck ParseIdentifyAck(ReadOnlySpan<byte> payload)

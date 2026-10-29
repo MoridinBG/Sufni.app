@@ -286,7 +286,6 @@ public sealed record LivePingFrame(LiveFrameMetadata Header, uint? Nonce = null)
 {
     public byte SessionId { get; init; }
 }
-public sealed record LiveIdentifyRequestFrame(LiveFrameMetadata Header) : LiveProtocolFrame(Header);
 public sealed record LiveStartAckFrame(LiveFrameMetadata Header, LiveStartAck Payload) : LiveProtocolFrame(Header);
 public sealed record LiveSessionHeaderFrame(LiveFrameMetadata Header, LiveSessionHeader Payload) : LiveProtocolFrame(Header);
 public sealed record LiveStopAckFrame(LiveFrameMetadata Header, LiveStopAck Payload) : LiveProtocolFrame(Header);

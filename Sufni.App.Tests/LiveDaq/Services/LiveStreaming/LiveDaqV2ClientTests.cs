@@ -28,7 +28,7 @@ public class LiveDaqV2ClientTests
                 var requestBytes = await LiveDaqClientProtocolHarness<LiveDaqV2Client>.ReadExactAsync(
                     stream,
                     LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
-                var request = Assert.IsType<LiveStartRequestFrame>(LiveV2ProtocolReader.ParseFrame(requestBytes));
+                var request = Assert.IsType<LiveStartRequestFrame>(LiveV2RequestReader.ParseFrame(requestBytes));
                 Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, request.Payload.RequestedSensorMask);
                 Assert.Equal((uint)200_000, request.Payload.TravelRateMhz);
                 Assert.Equal((uint)100_000, request.Payload.ImuRateMhz);
@@ -430,7 +430,7 @@ public class LiveDaqV2ClientTests
             await stream.FlushAsync();
 
             var stopBytes = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize);
-            Assert.IsType<LiveStopRequestFrame>(LiveV2ProtocolReader.ParseFrame(stopBytes));
+            Assert.IsType<LiveStopRequestFrame>(LiveV2RequestReader.ParseFrame(stopBytes));
 
             await stream.WriteAsync(LiveProtocolTestFrames.CreateStopAckFrame(3, sessionHeader.SessionId));
             await stream.FlushAsync();
@@ -643,7 +643,7 @@ public class LiveDaqV2ClientTests
             await stream.FlushAsync();
 
             var stopBytes = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize);
-            Assert.IsType<LiveStopRequestFrame>(LiveV2ProtocolReader.ParseFrame(stopBytes));
+            Assert.IsType<LiveStopRequestFrame>(LiveV2RequestReader.ParseFrame(stopBytes));
             await stream.WriteAsync(LiveProtocolTestFrames.CreateStopAckFrame(4, sessionHeader.SessionId));
             await stream.FlushAsync();
         }, cancellationToken: TestContext.Current.CancellationToken);

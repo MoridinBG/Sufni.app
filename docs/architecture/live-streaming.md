@@ -203,7 +203,7 @@ All transport types live in `Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/
 
 ### Protocol Reader
 
-`LiveV2ProtocolReader` and `LiveV3ProtocolReader` are the protocol-specific frame readers. V2 handles the legacy `"LIVE"` frame envelope and direct batch payloads. V3 handles the `LIV3` handshake, server hello, 12-byte headers, capabilities/device-state/start/result control frames, and SST v5 descriptor/data payload decoding. Both readers translate wire payloads into canonical `LiveProtocolFrame` records before anything reaches `LiveDaqSharedStream`, diagnostics state, or live-session capture.
+`LiveV2ProtocolReader` and `LiveV3ProtocolReader` are the protocol-specific frame readers. V2 builds client requests and decodes DAQ responses in the legacy `"LIVE"` frame envelope, including direct batch payloads. Client-direction v2 decoding lives in `TestSupport/LiveDaq/LiveV2RequestReader` for the fake device. V3 handles the `LIV3` handshake, server hello, 12-byte headers, capabilities/device-state/start/result control frames, and SST v5 descriptor/data payload decoding. Both readers translate wire payloads into canonical `LiveProtocolFrame` records before anything reaches `LiveDaqSharedStream`, diagnostics state, or live-session capture.
 
 ### Client
 

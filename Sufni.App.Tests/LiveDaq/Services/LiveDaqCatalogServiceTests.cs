@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.LiveDaq;
 using System.Net;
 using System.Net.Sockets;
 using NSubstitute;
@@ -350,7 +351,6 @@ public class LiveDaqCatalogServiceTests
             using var client = await listener.AcceptTcpClientAsync();
             await using var stream = client.GetStream();
 
-            // Read the Identify frame (16-byte header, no payload)
             var requestBuffer = new byte[LiveV2ProtocolConstants.FrameHeaderSize];
             var totalRead = 0;
             while (totalRead < requestBuffer.Length)
@@ -360,11 +360,8 @@ public class LiveDaqCatalogServiceTests
                 totalRead += read;
             }
 
-            var header = LiveV2ProtocolReader.ParseHeader(requestBuffer);
-            Assert.Equal(LiveV2FrameType.Identify, header.FrameType);
-            Assert.Equal((uint)0, header.PayloadLength);
+            Assert.IsType<LiveIdentifyRequestFrame>(LiveV2RequestReader.ParseFrame(requestBuffer));
 
-            // Respond with IdentifyAck
             var response = LiveProtocolTestFrames.CreateIdentifyAckFrame(sequence: 1, boardSerial: boardSerial);
             await stream.WriteAsync(response);
         }
