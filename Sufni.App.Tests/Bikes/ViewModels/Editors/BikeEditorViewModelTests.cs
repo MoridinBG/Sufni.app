@@ -213,7 +213,7 @@ public class BikeEditorViewModelTests
         // and the shock LinkViewModel.
         Assert.Equal(7, editor.LinkageEditor.JointViewModels.Count);
         Assert.Single(editor.LinkageEditor.LinkViewModels);
-        Assert.Equal(BikeRearSuspensionMode.Linkage, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.Linkage, editor.RearSuspensionMode);
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -225,7 +225,7 @@ public class BikeEditorViewModelTests
 
         var editor = CreateEditor(snapshot);
 
-        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.LeverageRatio, editor.RearSuspensionMode);
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -236,7 +236,7 @@ public class BikeEditorViewModelTests
 
         var editor = CreateEditor(snapshot, isNew: true);
 
-        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.LeverageRatio, editor.RearSuspensionMode);
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -250,7 +250,7 @@ public class BikeEditorViewModelTests
 
         var editor = CreateEditor(snapshot);
 
-        Assert.Equal(BikeRearSuspensionMode.Linkage, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.Linkage, editor.RearSuspensionMode);
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -681,10 +681,10 @@ public class BikeEditorViewModelTests
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         var editor = CreateEditor(snapshot);
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.LeverageRatio);
         await Task.Yield();
 
-        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.LeverageRatio, editor.RearSuspensionMode);
         Assert.Null(editor.WheelGeometry.FrontWheelRimSize);
         Assert.Null(editor.WheelGeometry.FrontWheelTireWidth);
         Assert.Null(editor.WheelGeometry.FrontWheelDiameter);
@@ -701,10 +701,10 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         Assert.NotNull(editor.ShockStroke);
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.None);
         await Task.Yield();
 
-        Assert.Equal(BikeRearSuspensionMode.None, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.None, editor.RearSuspensionMode);
         Assert.Null(editor.ShockStroke);
     }
 
@@ -717,7 +717,7 @@ public class BikeEditorViewModelTests
         var originalShockStroke = editor.ShockStroke;
         Assert.NotNull(originalShockStroke);
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.LeverageRatio);
         await Task.Yield();
 
         Assert.Equal(originalShockStroke, editor.ShockStroke);
@@ -730,16 +730,16 @@ public class BikeEditorViewModelTests
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
         var editor = CreateEditor(snapshot);
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.None);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.None);
         await Task.Yield();
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.Linkage);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.Linkage);
         await Task.Yield();
         dialogService.ClearReceivedCalls();
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.LeverageRatio);
         await Task.Yield();
 
-        Assert.Equal(BikeRearSuspensionMode.LeverageRatio, editor.RearSuspensionMode);
+        Assert.Equal(RearSuspensionKind.LeverageRatio, editor.RearSuspensionMode);
         await dialogService.DidNotReceiveWithAnyArgs()
             .ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
     }
@@ -789,7 +789,7 @@ public class BikeEditorViewModelTests
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.InvalidRearSuspension("Linkage data is required for linkage bikes."));
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.Linkage);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.Linkage);
         await Task.Yield();
 
         Assert.True(editor.SaveCommand.CanExecute(null));
@@ -831,7 +831,7 @@ public class BikeEditorViewModelTests
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.InvalidRearSuspension("Leverage ratio data is required for leverage ratio bikes."));
 
-        editor.SetRearSuspensionModeCommand.Execute(BikeRearSuspensionMode.LeverageRatio);
+        editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.LeverageRatio);
         await Task.Yield();
 
         Assert.True(editor.SaveCommand.CanExecute(null));
