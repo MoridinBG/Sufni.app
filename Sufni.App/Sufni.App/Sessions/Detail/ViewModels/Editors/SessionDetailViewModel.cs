@@ -93,7 +93,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
     private readonly ISessionOperationRunner sessionOperationRunner;
     private readonly SessionStalenessReconciler stalenessReconciler;
-    private readonly IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache;
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
@@ -115,7 +114,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CompositeDisposable editorInputSubjects;
     private readonly RecordedSessionEditorStateController editorStateController;
     private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
-    private readonly Func<IEditorFactory> editorFactory;
     private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
     private bool replayStalenessOnNextLoad;
@@ -552,13 +550,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool IsSessionInsightsPageSelected => ReferenceEquals(SelectedPage, AnalysisPage);
 
-    internal SessionSnapshot? CurrentSessionSnapshot => currentEditorState.Session;
 
     internal TelemetryData? CurrentTelemetryData => currentEditorState.TelemetryData;
 
     internal IReadOnlyList<TrackPoint>? CurrentTrackPoints => currentEditorState.TrackPoints;
 
-    internal TelemetryTimeRange? CurrentAnalysisRange => currentEditorState.Intent.AnalysisRange;
 
     private static string FormatSeconds(double seconds)
     {
@@ -1417,10 +1413,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher uiThreadDispatcher,
         bool deferDomainHandlingWhenInactive,
-        IRecordedSessionProcessingOptionCache recordedSessionProcessingOptionCache,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         IRecordedSessionAnalysisResultStateFactory analysisResultStateFactory,
-        Func<IEditorFactory> editorFactory,
         ISessionEditingCoordinator sessionEditingCoordinator,
         ISegmentPickerFactory segmentPickerFactory,
         ISegmentComparisonFactory segmentComparisonFactory,
@@ -1440,7 +1434,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.sessionStore = sessionStore;
         this.recordedSessionProjection = recordedSessionProjection;
         this.processedTelemetryReader = processedTelemetryReader;
-        this.recordedSessionProcessingOptionCache = recordedSessionProcessingOptionCache;
         analysisResultState = analysisResultStateFactory.Create(() => telemetryData);
         analysisInputs = CreateCurrentAnalysisInputs();
         analysisResultState.Invalidate(analysisInputs);
@@ -1488,7 +1481,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             (start, end) => Timeline.SetVisibleRange(start, end, this),
             ErrorMessages.Add,
             Notifications.Add);
-        this.editorFactory = editorFactory;
         this.sessionEditingCoordinator = sessionEditingCoordinator;
         this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
         recordedPreferenceStore = new RecordedPreferenceStore(
@@ -1756,7 +1748,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 ApplyRuntimeSessionState(snapshot);
             }
 
-            OnPropertyChanged(nameof(CurrentSessionSnapshot));
         }
 
         if (previous.TelemetryData != state.TelemetryData)
@@ -1791,7 +1782,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Intent.AnalysisRange != state.Intent.AnalysisRange)
         {
-            OnPropertyChanged(nameof(CurrentAnalysisRange));
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
         }
         if (previous.AnalysisSelection != state.AnalysisSelection)
@@ -1879,13 +1869,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         session.FullTrack = snapshot.FullTrackId;
         session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
         session.Updated = snapshot.Updated;
-    }
-
-    private void ClearAnalysisSelections()
-    {
-        PublishEditorInput(analysisSelectionInput, CreateEmptyAnalysisSelectionState());
-        signalRowActions.ClearAnalysisSelectionToggles();
-        signalRowActions.RefreshAnalysisSelectionActionStates();
     }
 
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
@@ -2504,21 +2487,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public void SetAnalysisRangeBoundary(double boundarySeconds)
     {
         editorActions.SetAnalysisRangeBoundary(boundarySeconds);
-    }
-
-    private void SetAnalysisRangeStartBoundary(double boundarySeconds)
-    {
-        editorActions.SetAnalysisRangeStartBoundary(boundarySeconds);
-    }
-
-    private void SetAnalysisRangeEndBoundary(double boundarySeconds)
-    {
-        editorActions.SetAnalysisRangeEndBoundary(boundarySeconds);
-    }
-
-    public void SetAnalysisRangeBoundaryFromMarker(double markerSeconds)
-    {
-        SetAnalysisRangeBoundary(markerSeconds);
     }
 
     [RelayCommand]

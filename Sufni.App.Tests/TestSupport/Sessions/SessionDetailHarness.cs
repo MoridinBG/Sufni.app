@@ -62,13 +62,11 @@ internal sealed class SessionDetailHarness
     public ISessionPreferences SessionPreferences { get; } = Substitute.For<ISessionPreferences>();
     public TestSessionProcessedTelemetryReader ProcessedTelemetryReader { get; } = new();
     public ISessionEditingCoordinator SessionEditingCoordinator { get; } = Substitute.For<ISessionEditingCoordinator>();
-    public IEditorFactory EditorFactory { get; } = Substitute.For<IEditorFactory>();
     public IVideoPaneFactory? VideoPaneFactory { get; set; }
     public SessionSegmentStore SegmentStore { get; } = new(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher());
     public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
     public SessionOperationRunner OperationRunner { get; } = new();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
-    public IRecordedSessionProcessingOptionCache ProcessingOptionCache { get; set; } = new InMemoryRecordedSessionProcessingOptionCache();
     public IObservable<RecordedSessionDomainSnapshot> ProjectionChanges { get; private set; } = Observable.Empty<RecordedSessionDomainSnapshot>();
 
     public SessionSnapshot CreateRecordedSession(
@@ -189,10 +187,8 @@ internal sealed class SessionDetailHarness
             SessionPreferences,
             UiThreadDispatcher,
             deferDomainHandlingWhenInactive: isDesktop,
-            ProcessingOptionCache,
             ProcessedTelemetryReader,
             analysisResultStateFactory,
-            () => EditorFactory,
             SessionEditingCoordinator,
             TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),

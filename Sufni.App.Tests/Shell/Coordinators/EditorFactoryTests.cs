@@ -345,7 +345,6 @@ public class EditorFactoryTests
             analysisResultStateFactory,
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges()),
             Substitute.For<ISessionPreferences>(),
-            Substitute.For<IRecordedSessionProcessingOptionCache>(),
             new TestSessionProcessedTelemetryReader(),
             TestCoordinatorSubstitutes.LiveDaq(),
             Substitute.For<IDaqManagementService>(),
