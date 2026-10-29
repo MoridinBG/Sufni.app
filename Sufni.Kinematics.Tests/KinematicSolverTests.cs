@@ -26,9 +26,10 @@ public class KinematicSolverTests
         var firstCharacteristics = new BikeCharacteristics(firstSolution);
         var secondCharacteristics = new BikeCharacteristics(secondSolution);
 
-        var firstCoordinates = firstSolution.ToCoordinateDictionary();
-        var secondCoordinates = secondSolution.ToCoordinateDictionary();
-        AssertCoordinateListsEqual(firstCoordinates[mapping.RearWheel], secondCoordinates[mapping.RearWheel]);
+        Assert.True(firstSolution.TryGetPath(mapping.RearWheel, out var firstPath));
+        Assert.True(secondSolution.TryGetPath(mapping.RearWheel, out var secondPath));
+        Assert.Equal(firstPath.X, secondPath.X);
+        Assert.Equal(firstPath.Y, secondPath.Y);
         AssertCoordinateListsEqual(firstCharacteristics.LeverageRatioData, secondCharacteristics.LeverageRatioData);
     }
 
@@ -46,26 +47,10 @@ public class KinematicSolverTests
             shockStroke: 1);
 
         var solution = new KinematicSolver(linkage, steps: 2, iterations: 1).SolveSuspensionMotion();
-        var coordinates = solution.ToCoordinateDictionary();
+        Assert.True(solution.TryGetPath("moving", out var path));
 
-        Assert.Equal(1.0, coordinates["moving"].X[1], 6);
-        Assert.Equal(0.0, coordinates["moving"].Y[1], 6);
-    }
-
-    [Fact]
-    public void ToCoordinateDictionary_ReturnsCopies()
-    {
-        var linkage = TestLinkages.FullSuspensionLinkageSpec();
-        var solution = new KinematicSolver(linkage, steps: 2, iterations: 1).SolveSuspensionMotion();
-        var mapping = new JointNameMapping();
-
-        var firstCoordinates = solution.ToCoordinateDictionary();
-        firstCoordinates[mapping.RearWheel].X[0] = 1000;
-        var secondCoordinates = solution.ToCoordinateDictionary();
-
-        Assert.NotEqual(1000, secondCoordinates[mapping.RearWheel].X[0]);
-        Assert.True(solution.TryGetPath(mapping.RearWheel, out var path));
-        Assert.NotEqual(1000, path.X[0]);
+        Assert.Equal(1.0, path.X[1], 6);
+        Assert.Equal(0.0, path.Y[1], 6);
     }
 
     [Fact]

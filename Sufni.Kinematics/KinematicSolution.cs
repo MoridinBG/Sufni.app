@@ -20,14 +20,6 @@ public sealed class KinematicSolution
     public IReadOnlyList<JointPath> JointPaths => jointPathView;
 
     public bool TryGetPath(string jointName, out JointPath path) => jointPathsByName.TryGetValue(jointName, out path!);
-
-    public Dictionary<string, CoordinateList> ToCoordinateDictionary()
-    {
-        return jointPaths.ToDictionary(
-            path => path.JointName,
-            path => new CoordinateList([.. path.X], [.. path.Y]),
-            StringComparer.Ordinal);
-    }
 }
 
 public sealed record JointPath

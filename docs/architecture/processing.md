@@ -197,7 +197,7 @@ For each of the 200 steps (0% to 100% shock compression):
 
 `EnforceLength()` corrects each link toward its target along the link axis. When both endpoints are free (`movableEndpointCount == 2`), each moves by half the error so the link length matches in a single pass. When only one endpoint is free, that endpoint receives the *full* correction (`correctionScale = 1.0`). Multiple iterations are still required for the system to converge because every move perturbs the neighboring links sharing those joints.
 
-Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mapping each joint name to its X,Y positions across all steps. `ToCoordinateDictionary()` returns fresh mutable `CoordinateList` copies on every call and is currently used by tests/diagnostics rather than production plotting.
+Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mapping each joint name to its X,Y positions across all steps. Consumers read the paths through `JointPaths` or `TryGetPath`.
 
 The app layer wraps solver construction in `IKinematicSolutionCache` (`Sufni.App/Sufni.App/Bikes/Services/KinematicSolutionCache.cs`), a capacity-64 single-flight LRU keyed by `(LinkageSpec, steps, iterations)`. Editor analysis, save validation, rear calibration, and telemetry bike-processing context creation all request immutable solutions through this cache instead of constructing independent solvers for the same linkage.
 
