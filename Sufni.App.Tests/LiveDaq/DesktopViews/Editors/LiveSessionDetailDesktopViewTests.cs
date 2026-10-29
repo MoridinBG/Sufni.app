@@ -65,7 +65,6 @@ public class LiveSessionDetailDesktopViewTests
         var signalBatches = new ReplaySubject<LiveSignalBatch>(1);
         var header = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 909);
         var snapshot = new LiveSessionPresentationSnapshot(
-            Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
             AnalysisTelemetry: null,
             DampingPercentages: SessionDampingPercentages.Empty,
             SessionTrackPoints: [],
@@ -75,12 +74,6 @@ public class LiveSessionDetailDesktopViewTests
                 SessionHeader: header,
                 CaptureStartUtc: header.SessionStartUtc,
                 CaptureDuration: TimeSpan.FromSeconds(3),
-                TravelQueueDepth: 0,
-                ImuQueueDepth: 0,
-                GpsQueueDepth: 0,
-                TravelDroppedBatches: 0,
-                ImuDroppedBatches: 0,
-                GpsDroppedBatches: 0,
                 CanSave: true),
             CaptureRevision: 1);
 

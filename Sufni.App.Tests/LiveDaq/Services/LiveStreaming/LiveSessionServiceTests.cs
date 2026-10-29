@@ -72,8 +72,8 @@ public class LiveSessionServiceTests
         sharedStream.Received(1).AcquireConfigurationLock();
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
 
-        var streaming = Assert.IsType<LiveSessionStreamPresentation.Streaming>(service.Current.Stream);
-        Assert.Equal(sessionHeader.SessionId, streaming.SessionHeader.SessionId);
+        Assert.Equal(LiveConnectionState.Connected, service.Current.Controls.ConnectionState);
+        Assert.Equal(sessionHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
 
         await service.DisposeAsync();
 
@@ -151,8 +151,6 @@ public class LiveSessionServiceTests
 
         currentState = currentState with { IsClosed = true, LastError = "link lost" };
         states.OnNext(currentState);
-
-        Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
 
         var partialCapture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(5, partialCapture.TelemetryCapture.RearMeasurements.Length);
@@ -466,8 +464,7 @@ public class LiveSessionServiceTests
 
         PublishSharedState(nextHeader, isClosed: false);
 
-        var closed = Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
-        Assert.Equal("DAQ started a new live session.", closed.ErrorMessage);
+        Assert.True(service.Current.Controls.HasLastError);
         Assert.Equal(sessionHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
         Assert.True(service.Current.Controls.CanSave);
     }
@@ -486,14 +483,9 @@ public class LiveSessionServiceTests
 
         await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        var streaming = Assert.IsType<LiveSessionStreamPresentation.Streaming>(service.Current.Stream);
-        Assert.Equal(nextHeader.SessionId, streaming.SessionHeader.SessionId);
         Assert.Equal(nextHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
         Assert.Null(service.Current.Controls.LastError);
         Assert.False(service.Current.Controls.CanSave);
-        Assert.Equal(0u, service.Current.Controls.TravelQueueDepth);
-        Assert.Equal(0u, service.Current.Controls.ImuQueueDepth);
-        Assert.Equal(0u, service.Current.Controls.GpsQueueDepth);
     }
 
     [Theory]
@@ -513,7 +505,6 @@ public class LiveSessionServiceTests
 
         await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.IsType<LiveSessionStreamPresentation.Closed>(service.Current.Stream);
         Assert.NotEqual(nextHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
     }
 
@@ -537,7 +528,6 @@ public class LiveSessionServiceTests
         Assert.Single(capture.GpsData!);
         Assert.Equal(2.0, Assert.Single(capture.Markers).TimestampOffset);
         Assert.Equal((byte)2, capture.FinalStatus?.SessionResultReason);
-        Assert.Equal(3u, service.Current.Controls.TravelQueueDepth);
         var imuSegment = Assert.Single(capture.ImuData!.Segments);
         Assert.Equal((short)20, Assert.Single(imuSegment.Records).Ax);
     }
@@ -653,17 +643,17 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task TravelFrames_SkipIntermediateAnalysisRevisions_WhenRecomputeAlreadyRunning()
+    public async Task TravelFrames_AnalysisCatchesUpAfterPendingRecompute()
     {
         var blockingRunner = new BlockingOnceBackgroundTaskRunner();
         var service = CreateService(blockingRunner);
-        var skippedRecomputesReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var latestAnalysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
-            if (snapshot.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0)
+            if (snapshot.AnalysisTelemetry?.Front.Travel.Length == 15)
             {
-                skippedRecomputesReady.TrySetResult();
+                latestAnalysisReady.TrySetResult();
             }
         });
 
@@ -674,14 +664,14 @@ public class LiveSessionServiceTests
             frames.OnNext(CreateTravelBatchFrame());
             await blockingRunner.Started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-            frames.OnNext(CreateTravelBatchFrame());
-            frames.OnNext(CreateTravelBatchFrame());
+            frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + 25_000));
+            frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + 50_000));
 
             blockingRunner.Release();
 
-            await skippedRecomputesReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            await latestAnalysisReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-            Assert.True(service.Current.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0);
+            Assert.Equal(15, service.Current.AnalysisTelemetry!.Front.Travel.Length);
         }
         finally
         {
@@ -799,21 +789,10 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task TravelFrames_WhenDisplayPipelineStalls_CaptureContinuesAndDisplayDropsAreCounted()
+    public async Task TravelFrames_WhenDisplayPipelineStalls_CaptureRemainsComplete()
     {
         var signalPipeline = new BlockingSignalPipeline();
         var service = CreateService(signalPipeline: signalPipeline);
-        var displayDropsReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
-        {
-            if (snapshot.Controls.ClientDropCounters.SignalBatchesCoalesced > 0
-                && snapshot.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0)
-            {
-                displayDropsReady.TrySetResult();
-            }
-        });
-
         try
         {
             await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -827,12 +806,7 @@ public class LiveSessionServiceTests
                     firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + (ulong)(index + 1) * 1_000_000));
             }
 
-            await displayDropsReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
             Assert.True(service.Current.Controls.CanSave);
-            Assert.True(service.Current.Controls.ClientDropCounters.SignalBatchesCoalesced > 0);
-            Assert.True(service.Current.Controls.ClientDropCounters.SignalSamplesDiscarded > 0);
-            Assert.True(service.Current.Controls.ClientDropCounters.AnalysisRecomputesSkipped > 0);
 
             var capture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(105, capture.TelemetryCapture.FrontMeasurements.Length);

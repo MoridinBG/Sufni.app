@@ -153,7 +153,7 @@ public class LiveDaqSessionStateTests
     }
 
     [Fact]
-    public void CreateSnapshot_FormatsDecimalRates_AndAppliesV3StatusCounters()
+    public void CreateSnapshot_FormatsDecimalRates()
     {
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
@@ -164,27 +164,11 @@ public class LiveDaqSessionStateTests
             protocolVersion: LiveProtocolVersion.V3);
         state.ApplySharedSessionState(sessionHeader);
 
-        state.ApplyFrame(new LiveStatusFrame(
-            new LiveFrameMetadata(10),
-            [
-                new LiveStreamStatus(LiveStreamMask.Travel, 1, 0, 0, 2, 20, 3, 30),
-                new LiveStreamStatus(LiveStreamMask.Imu, 1, 0, 0, 4, 40, 5, 50),
-                new LiveStreamStatus(LiveStreamMask.Gps, 1, 0, 0, 6, 60, 7, 70),
-            ]));
-        state.ApplyFrame(new LiveBatteryBatchFrame(
-            new LiveFrameMetadata(11),
-            new LiveBatchHeader(802, 1, 0, 123456789, 1),
-            [new LiveBatteryRecord(0, 0, 4100, 0)]));
-
         var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
 
         Assert.Equal("Travel: 123.45 Hz", snapshot.Session.AcceptedTravelRateText);
         Assert.Equal("IMU: 100 Hz", snapshot.Session.AcceptedImuRateText);
         Assert.Equal("GPS: 5.5 Hz", snapshot.Session.AcceptedGpsRateText);
-        Assert.Equal((uint)0, snapshot.Travel.QueueDepth);
-        Assert.Equal((uint)0, snapshot.Imus[0].QueueDepth);
-        Assert.Equal((uint)0, snapshot.Gps.QueueDepth);
-        Assert.NotNull(snapshot.LastFrameReceivedUtc);
     }
 
     [Fact]

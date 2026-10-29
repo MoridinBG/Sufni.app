@@ -215,7 +215,7 @@ The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ id
 
 ### Drop Counters
 
-`LiveDaqClientDropCounters` is the immutable record published as part of `LiveDaqSharedStreamState` and rolled into the live-session control state. It tracks six pressure boundaries: `RawTelemetryFramesSkipped` at the receive-loop raw channel, `ParsedTelemetryFramesDropped` at the parse-to-publish channel, `SubscriberFramesDropped` at each shared-stream subscriber buffer, `SignalBatchesCoalesced` when the live signal display loop merges pending batches, `SignalSamplesDiscarded` when signal batches exceed display capacity, and `StatisticsRecomputesSkipped` when live-session statistics recompute work is skipped because a newer recompute superseded it. Recording-side counters added by the live-session display/statistics loops are merged on top by `LiveSessionService` before it publishes them to the UI.
+`LiveDaqClientDropCounters` reports receive, parse, and subscriber-buffer pressure through `LiveDaqSharedStreamState`. `LiveSessionService` uses increasing pressure to defer analysis briefly; the counters are not copied into presentation state. Recording and display remain separate, so dropping a display update does not remove captured samples.
 
 ### Shared Stream
 

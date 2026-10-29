@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Sufni.Telemetry;
 using Sufni.App.MapsAndTracks.Models;
@@ -36,18 +35,7 @@ public sealed record LiveSignalBatch(
         FrameRollDegrees: []);
 }
 
-public abstract record LiveSessionStreamPresentation
-{
-    private LiveSessionStreamPresentation() { }
-
-    public sealed record Idle : LiveSessionStreamPresentation;
-    public sealed record Connecting : LiveSessionStreamPresentation;
-    public sealed record Streaming(DateTime? SessionStartLocalTime, LiveSessionHeader SessionHeader) : LiveSessionStreamPresentation;
-    public sealed record Closed(string? ErrorMessage) : LiveSessionStreamPresentation;
-}
-
 public sealed record LiveSessionPresentationSnapshot(
-    LiveSessionStreamPresentation Stream,
     TelemetryData? AnalysisTelemetry,
     SessionDampingPercentages DampingPercentages,
     IReadOnlyList<TrackPoint> SessionTrackPoints,
@@ -55,7 +43,6 @@ public sealed record LiveSessionPresentationSnapshot(
     long CaptureRevision)
 {
     public static readonly LiveSessionPresentationSnapshot Empty = new(
-        Stream: new LiveSessionStreamPresentation.Idle(),
         AnalysisTelemetry: null,
         DampingPercentages: SessionDampingPercentages.Empty,
         SessionTrackPoints: [],

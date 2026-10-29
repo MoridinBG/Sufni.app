@@ -472,7 +472,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
     {
         header ??= LiveProtocolTestFrames.CreateSessionHeaderModel();
         return new LiveSessionPresentationSnapshot(
-            Stream: new LiveSessionStreamPresentation.Streaming(header.SessionStartUtc.LocalDateTime, header),
             AnalysisTelemetry: telemetryData,
             DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
             SessionTrackPoints: trackPoints ?? [],
@@ -482,12 +481,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 SessionHeader: header,
                 CaptureStartUtc: header.SessionStartUtc,
                 CaptureDuration: TimeSpan.FromSeconds(3),
-                TravelQueueDepth: 0,
-                ImuQueueDepth: 0,
-                GpsQueueDepth: 0,
-                TravelDroppedBatches: 0,
-                ImuDroppedBatches: 0,
-                GpsDroppedBatches: 0,
                 CanSave: canSave),
             CaptureRevision: canSave ? captureRevision : 0);
     }

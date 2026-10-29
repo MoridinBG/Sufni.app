@@ -339,15 +339,6 @@ public static class LiveProtocolHelpers
             ? $"{label}: {FormatMillihertzAsHertz(value)} Hz"
             : $"{label}: -";
 
-    public static LiveSessionStats CreateSessionStatsFromStatus(IReadOnlyList<LiveStreamStatus> statuses) => new(
-        SessionId: 0,
-        TravelQueueDepth: 0,
-        ImuQueueDepth: 0,
-        GpsQueueDepth: 0,
-        TravelDroppedBatches: GetDroppedStatusCount(statuses, LiveStreamMask.Travel),
-        ImuDroppedBatches: GetDroppedStatusCount(statuses, LiveStreamMask.Imu),
-        GpsDroppedBatches: GetDroppedStatusCount(statuses, LiveStreamMask.Gps));
-
     public static IReadOnlyList<LiveImuLocation> GetActiveImuLocations(LiveImuLocationMask mask)
     {
         var locations = new List<LiveImuLocation>(3);
@@ -412,19 +403,6 @@ public static class LiveProtocolHelpers
         if ((mask & LiveStreamMask.Imu) != LiveStreamMask.None) streamMask |= LiveV2StreamMask.Imu;
         if ((mask & LiveStreamMask.Gps) != LiveStreamMask.None) streamMask |= LiveV2StreamMask.Gps;
         return streamMask;
-    }
-
-    private static uint GetDroppedStatusCount(IReadOnlyList<LiveStreamStatus> statuses, LiveStreamMask stream)
-    {
-        foreach (var status in statuses)
-        {
-            if (status.Stream == stream)
-            {
-                return checked((uint)Math.Min((ulong)uint.MaxValue, status.ProducerMissedCount + status.SinkMissedCount));
-            }
-        }
-
-        return 0;
     }
 
     extension(LiveSensorInstanceMask mask)

@@ -8,16 +8,8 @@ public sealed record LiveSessionControlState(
     LiveSessionHeader? SessionHeader,
     DateTimeOffset? CaptureStartUtc,
     TimeSpan CaptureDuration,
-    uint TravelQueueDepth,
-    uint ImuQueueDepth,
-    uint GpsQueueDepth,
-    uint TravelDroppedBatches,
-    uint ImuDroppedBatches,
-    uint GpsDroppedBatches,
     bool CanSave)
 {
-    public LiveDaqClientDropCounters ClientDropCounters { get; init; } = LiveDaqClientDropCounters.Empty;
-
     public string ConnectionStateText => $"State: {ConnectionState}";
     public string CaptureDurationText => $"Capture: {CaptureDuration:g}";
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);
@@ -33,12 +25,6 @@ public sealed record LiveSessionControlState(
         SessionHeader: null,
         CaptureStartUtc: null,
         CaptureDuration: TimeSpan.Zero,
-        TravelQueueDepth: 0,
-        ImuQueueDepth: 0,
-        GpsQueueDepth: 0,
-        TravelDroppedBatches: 0,
-        ImuDroppedBatches: 0,
-        GpsDroppedBatches: 0,
         CanSave: false);
 
 }

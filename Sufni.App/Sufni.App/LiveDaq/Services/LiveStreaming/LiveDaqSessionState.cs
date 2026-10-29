@@ -68,10 +68,6 @@ public sealed class LiveDaqSessionState
                 case LiveSessionStatsFrame sessionStatsFrame:
                     ApplySessionStats(sessionStatsFrame.Payload);
                     break;
-
-                case LiveStatusFrame statusFrame:
-                    ApplySessionStats(LiveProtocolHelpers.CreateSessionStatsFromStatus(statusFrame.Streams));
-                    break;
             }
         }
     }
