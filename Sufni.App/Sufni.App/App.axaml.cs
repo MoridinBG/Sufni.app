@@ -117,7 +117,6 @@ public partial class App : Application
 
         ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
 
-        ServiceCollection.AddSingleton<IHttpApiService, HttpApiService>();
         ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
             sp.GetRequiredService<IAppEnvironment>()));
         ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();

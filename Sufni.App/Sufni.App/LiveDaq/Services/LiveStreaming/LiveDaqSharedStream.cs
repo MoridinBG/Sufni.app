@@ -1283,11 +1283,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
             public void Start()
             {
-                _ = Task.Factory.StartNew(
-                    () => DrainAsync(),
-                    CancellationToken.None,
-                    TaskCreationOptions.LongRunning,
-                    TaskScheduler.Default);
+                _ = Task.Run(DrainAsync);
             }
 
             public bool Enqueue(BufferedFrameItem item)

@@ -23,6 +23,7 @@ public static class MobileAppBootstrapper
         services.AddKeyedSingleton<IServiceDiscovery>("daq", (_, key) => createServiceDiscovery((string)key!));
         services.AddKeyedSingleton<IServiceDiscovery>("sync", (_, key) => createServiceDiscovery((string)key!));
         services.AddSingleton(_ => createHapticFeedback());
+        services.AddSingleton<IHttpApiService, HttpApiService>();
         services.AddSingleton<ISynchronizationClientService, SynchronizationClientService>();
         services.AddSingleton<IPairingClientCoordinator, PairingClientCoordinator>();
         services.AddSingleton<PairingClientViewModel>();
