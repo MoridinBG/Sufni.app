@@ -16,14 +16,8 @@ public class LiveV3ProtocolSerializationTests
             LiveV3ProtocolTestFrames.CapabilitiesRequest(),
             LiveV3ProtocolReader.CreateCapabilitiesRequestFrame(sequence: 0));
         Assert.Equal(
-            LiveV3ProtocolTestFrames.DeviceStateRequest(),
-            LiveV3ProtocolReader.CreateDeviceStateRequestFrame(sequence: 1));
-        Assert.Equal(
             LiveV3ProtocolTestFrames.StopRequest(),
             LiveV3ProtocolReader.CreateStopRequestFrame(sessionId: 1, sequence: 4));
-        Assert.Equal(
-            LiveV3ProtocolTestFrames.Ping(),
-            LiveV3ProtocolReader.CreatePingFrame(sessionId: 1, sequence: 3, nonce: 0xa1b2c3d4));
     }
 
     [Fact]

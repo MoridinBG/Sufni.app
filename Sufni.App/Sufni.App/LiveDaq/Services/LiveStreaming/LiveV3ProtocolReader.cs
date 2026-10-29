@@ -154,16 +154,6 @@ public sealed class LiveV3ProtocolReader
     public static byte[] CreateStopRequestFrame(byte sessionId, uint sequence) =>
         CreateFrame(LiveV3FrameType.StopReq, sessionId, sequence, ReadOnlySpan<byte>.Empty);
 
-    public static byte[] CreatePingFrame(byte sessionId, uint sequence, uint nonce)
-    {
-        var payload = new byte[LiveV3ProtocolConstants.PingPongPayloadSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(payload, nonce);
-        return CreateFrame(LiveV3FrameType.Ping, sessionId, sequence, payload);
-    }
-
-    public static byte[] CreateDeviceStateRequestFrame(uint sequence) =>
-        CreateFrame(LiveV3FrameType.DeviceStateReq, sessionId: 0, sequence, ReadOnlySpan<byte>.Empty);
-
     public static LiveV3FrameHeader ParseHeader(ReadOnlySpan<byte> headerBytes, bool allowUnknownFrameType = false)
     {
         if (headerBytes.Length < LiveV3ProtocolConstants.FrameHeaderSize)

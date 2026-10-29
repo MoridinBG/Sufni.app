@@ -66,8 +66,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private Task? parseLoopTask;
     private Task? publishLoopTask;
     private TaskCompletionSource<LiveV3Capabilities>? pendingCapabilities;
-    private TaskCompletionSource<LiveV3DeviceState>? pendingDeviceState;
-    private TaskCompletionSource<uint>? pendingPong;
     private TaskCompletionSource<LivePreviewStartResult>? pendingStartResult;
     private TaskCompletionSource<LiveStopResult>? pendingStopResult;
     private TaskCompletionSource<LiveSessionResult>? pendingSessionResult;
@@ -77,8 +75,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private byte? startResultAwaitingHeaderSessionId;
     private LiveStartRequest? pendingStartRequest;
     private LiveStreamMask pendingRequestedStreamMask;
-    private uint? pendingPingNonce;
-    private byte? pendingPingSessionId;
     private uint nextSequence;
     private int rawFramesInFlight;
     private int parsedFramesInFlight;
@@ -224,122 +220,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         finally
         {
             lifecycleGate.Release();
-        }
-    }
-
-    internal async Task<LiveV3DeviceState> RequestDeviceStateAsync(CancellationToken cancellationToken = default)
-    {
-        Task<LiveV3DeviceState> task;
-        TaskCompletionSource<LiveV3DeviceState>? createdRequest = null;
-        await lifecycleGate.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            if (!IsConnected || stream is null)
-            {
-                throw new InvalidOperationException("Live client is not connected.");
-            }
-
-            if (lifecyclePhase is not (LifecyclePhase.Ready or LifecyclePhase.Active))
-            {
-                throw new InvalidOperationException(
-                    $"A LIVE v3 device state request is not valid while the client is {lifecyclePhase}.");
-            }
-
-            if (pendingDeviceState is not null)
-            {
-                throw new InvalidOperationException("A LIVE v3 device state request is already in progress.");
-            }
-
-            createdRequest = new TaskCompletionSource<LiveV3DeviceState>(TaskCreationOptions.RunContinuationsAsynchronously);
-            pendingDeviceState = createdRequest;
-            await sendBytesAsync(
-                stream,
-                LiveV3ProtocolReader.CreateDeviceStateRequestFrame(GetNextSequence()),
-                cancellationToken);
-            task = pendingDeviceState.Task;
-        }
-        catch
-        {
-            if (createdRequest is not null && pendingDeviceState == createdRequest)
-            {
-                pendingDeviceState = null;
-            }
-
-            throw;
-        }
-        finally
-        {
-            lifecycleGate.Release();
-        }
-
-        try
-        {
-            return await task.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // There is no request ID on the wire. Keep the operation pending until its response
-            // arrives so a later request cannot consume the canceled caller's response.
-            throw;
-        }
-    }
-
-    internal async Task PingAsync(uint nonce, CancellationToken cancellationToken = default)
-    {
-        Task<uint> task;
-        TaskCompletionSource<uint>? createdRequest = null;
-        await lifecycleGate.WaitAsync(cancellationToken);
-        try
-        {
-            ThrowIfDisposed();
-            if (!IsConnected || stream is null)
-            {
-                throw new InvalidOperationException("Live client is not connected.");
-            }
-            if (lifecyclePhase is LifecyclePhase.AwaitingHello or LifecyclePhase.Disconnected)
-            {
-                throw new InvalidOperationException(
-                    $"A LIVE v3 ping is not valid while the client is {lifecyclePhase}.");
-            }
-            if (pendingPong is not null)
-            {
-                throw new InvalidOperationException("A LIVE v3 ping is already in progress.");
-            }
-
-            createdRequest = new TaskCompletionSource<uint>(TaskCreationOptions.RunContinuationsAsynchronously);
-            pendingPong = createdRequest;
-            pendingPingNonce = nonce;
-            pendingPingSessionId = activeSessionId ?? 0;
-            await sendBytesAsync(
-                stream,
-                LiveV3ProtocolReader.CreatePingFrame(pendingPingSessionId.Value, GetNextSequence(), nonce),
-                cancellationToken);
-            task = createdRequest.Task;
-        }
-        catch
-        {
-            if (createdRequest is not null && pendingPong == createdRequest)
-            {
-                pendingPong = null;
-                pendingPingNonce = null;
-                pendingPingSessionId = null;
-            }
-            throw;
-        }
-        finally
-        {
-            lifecycleGate.Release();
-        }
-
-        try
-        {
-            _ = await task.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // Preserve the outstanding nonce until PONG arrives; LIVE v3 has no request ID.
-            throw;
         }
     }
 
@@ -875,19 +755,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                     pendingCapabilities = null;
                     break;
 
-                case LiveV3DeviceStateFrame deviceStateFrame:
-                    RequireLifecyclePhase(
-                        LiveV3FrameType.DeviceStateResp,
-                        LifecyclePhase.Ready,
-                        LifecyclePhase.Active);
-                    if (pendingDeviceState is null)
-                    {
-                        throw new FormatException("LIVE v3 DEVICE_STATE_RESP arrived without an outstanding request.");
-                    }
-                    pendingDeviceState?.TrySetResult(deviceStateFrame.Payload);
-                    pendingDeviceState = null;
-                    break;
-
                 case LiveV3StartResultFrame startResultFrame:
                     RequireLifecyclePhase(LiveV3FrameType.StartResult, LifecyclePhase.StartPending);
                     if (pendingStartResult is null)
@@ -970,29 +837,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                     protocolReader.ResetSessionContext();
                     break;
 
-                case LivePongFrame pongFrame:
-                    if (pendingPong is null)
-                    {
-                        throw new FormatException("LIVE v3 PONG arrived without an outstanding PING.");
-                    }
-                    if (pongFrame.SessionId != pendingPingSessionId)
-                    {
-                        throw new FormatException("LIVE v3 PONG session ID did not match the outstanding PING.");
-                    }
-                    if (pongFrame.Nonce == pendingPingNonce)
-                    {
-                        pendingPong.TrySetResult(pongFrame.Nonce!.Value);
-                    }
-                    else
-                    {
-                        pendingPong.TrySetException(
-                            new IOException("LIVE v3 PONG nonce did not match the outstanding PING."));
-                    }
-                    pendingPong = null;
-                    pendingPingNonce = null;
-                    pendingPingSessionId = null;
-                    break;
-
                 case LiveV3ErrorFrame errorFrame:
                     HandleErrorFrame(errorFrame);
                     break;
@@ -1071,12 +915,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         var message = LiveV3ProtocolHelpers.CreateErrorMessage(frame.Payload);
         pendingCapabilities?.TrySetException(new IOException(message));
         pendingCapabilities = null;
-        pendingDeviceState?.TrySetException(new IOException(message));
-        pendingDeviceState = null;
-        pendingPong?.TrySetException(new IOException(message));
-        pendingPong = null;
-        pendingPingNonce = null;
-        pendingPingSessionId = null;
 
         if (pendingStartResult is not null)
         {
@@ -1147,12 +985,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     {
         pendingCapabilities?.TrySetException(new IOException(startupMessage));
         pendingCapabilities = null;
-        pendingDeviceState?.TrySetException(new IOException("Disconnected before DEVICE_STATE_RESP was received."));
-        pendingDeviceState = null;
-        pendingPong?.TrySetException(new IOException("Disconnected before PONG was received."));
-        pendingPong = null;
-        pendingPingNonce = null;
-        pendingPingSessionId = null;
         pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(startupMessage));
         pendingStartResult = null;
         pendingStopResult?.TrySetException(new IOException("Disconnected before STOP_RESULT was received."));
