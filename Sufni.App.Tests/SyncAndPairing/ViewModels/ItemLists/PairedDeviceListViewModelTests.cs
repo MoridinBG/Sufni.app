@@ -28,7 +28,7 @@ public class PairedDeviceListViewModelTests
 
         var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
         var deleteTcs = new TaskCompletionSource();
-        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId, Arg.Any<CancellationToken>())
+        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId)
             .Returns(_ => CompleteUnpairAsync());
 
         var coordinator = new PairedDeviceCoordinator(storeWriter);
@@ -105,7 +105,7 @@ public class PairedDeviceListViewModelTests
         pairedDeviceStore.Get(snapshot.DeviceId).Returns(snapshot);
 
         var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
-        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId, Arg.Any<CancellationToken>())
+        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId)
             .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
                 new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
 

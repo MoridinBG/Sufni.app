@@ -88,13 +88,13 @@ public class SessionCoordinatorTests
             HasProcessedData = true,
         });
         sessionStore
-            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
+            .CommitSessionMetadataAsync(session, 5)
             .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                 new StoreMutationResult<SessionSnapshot>.Saved(savedSnapshot)));
 
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
-        await sessionStore.Received(1).CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>());
+        await sessionStore.Received(1).CommitSessionMetadataAsync(session, 5);
         shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SessionSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
@@ -113,8 +113,7 @@ public class SessionCoordinatorTests
         Assert.Same(current, conflict.CurrentSnapshot);
         await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
             Arg.Any<Session>(),
-            Arg.Any<long?>(),
-            Arg.Any<CancellationToken>());
+            Arg.Any<long?>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -125,7 +124,7 @@ public class SessionCoordinatorTests
         sessionStore.Get(existing.Id).Returns(existing);
         var session = new Session(existing.Id, "x", "", null);
         sessionStore
-            .CommitSessionMetadataAsync(session, 5, Arg.Any<CancellationToken>())
+            .CommitSessionMetadataAsync(session, 5)
             .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                 new StoreMutationResult<SessionSnapshot>.Failed("disk full")));
 

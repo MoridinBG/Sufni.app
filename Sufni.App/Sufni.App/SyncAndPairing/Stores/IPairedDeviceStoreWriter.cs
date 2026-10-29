@@ -21,8 +21,7 @@ public interface IPairedDeviceStoreWriter : IPairedDeviceStore
     Task RefreshAsync(CancellationToken cancellationToken = default);
 
     Task<StoreDeleteResult<PairedDeviceSnapshot>> CommitLocalUnpairAsync(
-        string deviceId,
-        CancellationToken cancellationToken = default);
+        string deviceId);
 
     Task PublishPairedDevicesChangedAsync(
         IReadOnlyCollection<string> deviceIds,

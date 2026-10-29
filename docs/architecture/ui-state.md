@@ -55,7 +55,9 @@ Each persisted writer interface additionally exposes:
   `CommitTrackPatchAsync`, and
   `CommitLocalUnpairAsync`. These methods persist one aggregate family,
   re-read any database-computed snapshot fields, and publish the resulting
-  snapshot through the store.
+  snapshot through the store. Commit operations do not cancel between persistence
+  and publication. Track alignment retains a caller cancellation check before
+  persistence; other current commit callers supply no cancellation token.
 - Publish-only batch methods such as `PublishSessionsChangedAsync` and
   `PublishSessionsRemovedAsync`. Sync appliers, server events, and
   transaction runners call these after persistence has already changed; the

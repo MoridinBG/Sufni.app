@@ -32,16 +32,13 @@ internal sealed class PairedDeviceStore(
     }
 
     public async Task<StoreDeleteResult<PairedDeviceSnapshot>> CommitLocalUnpairAsync(
-        string deviceId,
-        CancellationToken cancellationToken = default)
+        string deviceId)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         var previous = Get(deviceId);
 
         try
         {
             await pairedDeviceRepository.DeletePairedDeviceAsync(deviceId);
-            cancellationToken.ThrowIfCancellationRequested();
             await PublishRemoveAsync(deviceId);
             return new StoreDeleteResult<PairedDeviceSnapshot>.Deleted(previous);
         }

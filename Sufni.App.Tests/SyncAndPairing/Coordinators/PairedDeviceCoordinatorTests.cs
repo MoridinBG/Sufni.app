@@ -20,7 +20,7 @@ public class PairedDeviceCoordinatorTests
 
     public PairedDeviceCoordinatorTests()
     {
-        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>())
             .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
                 new StoreDeleteResult<PairedDeviceSnapshot>.Deleted()));
     }
@@ -35,13 +35,13 @@ public class PairedDeviceCoordinatorTests
         var result = await coordinator.UnpairAsync("device-123");
 
         Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123", Arg.Any<CancellationToken>());
+        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123");
     }
 
     [Fact]
     public async Task UnpairAsync_ReturnsFailed_AndDoesNotRemoveFromStore_WhenDatabaseThrows()
     {
-        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>())
             .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
                 new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
         var coordinator = CreateCoordinator();
@@ -49,7 +49,7 @@ public class PairedDeviceCoordinatorTests
         var result = await coordinator.UnpairAsync("device-123");
 
         Assert.IsType<PairedDeviceUnpairResult.Failed>(result);
-        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123", Arg.Any<CancellationToken>());
+        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123");
     }
 
     // ----- Constructor tolerates null server -----
@@ -61,7 +61,7 @@ public class PairedDeviceCoordinatorTests
 
         var result = await coordinator.UnpairAsync("device-abc");
         Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-abc", Arg.Any<CancellationToken>());
+        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-abc");
     }
 
     // ----- Server event subscriptions -----

@@ -42,10 +42,8 @@ internal sealed class SessionStore(
 
     public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
         Session session,
-        long? baselineUpdated = null,
-        CancellationToken cancellationToken = default)
+        long? baselineUpdated = null)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         if (baselineUpdated.HasValue)
         {
             var current = Get(session.Id);
@@ -58,7 +56,6 @@ internal sealed class SessionStore(
         try
         {
             await sessionRepository.PutSessionAsync(session);
-            cancellationToken.ThrowIfCancellationRequested();
             return await PublishFreshSessionAsync(session.Id);
         }
         catch (Exception e)
@@ -70,27 +67,22 @@ internal sealed class SessionStore(
     public Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,
-        string? fingerprint,
-        CancellationToken cancellationToken = default) =>
-        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation: null, cancellationToken);
+        string? fingerprint) =>
+        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation: null);
 
     public Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,
         string? fingerprint,
-        SessionProcessedGeneration generation,
-        CancellationToken cancellationToken = default) =>
-        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation, cancellationToken);
+        SessionProcessedGeneration generation) =>
+        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation);
 
     private async Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapCoreAsync(
         Guid sessionId,
         byte[] data,
         string? fingerprint,
-        SessionProcessedGeneration? generation,
-        CancellationToken cancellationToken)
+        SessionProcessedGeneration? generation)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
         try
         {
             if (generation is null)
@@ -106,7 +98,6 @@ internal sealed class SessionStore(
                     generation);
             }
 
-            cancellationToken.ThrowIfCancellationRequested();
             return await PublishFreshSessionAsync(sessionId);
         }
         catch (Exception e)
@@ -126,7 +117,6 @@ internal sealed class SessionStore(
         try
         {
             await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, points, gpsOffsetSeconds);
-            cancellationToken.ThrowIfCancellationRequested();
             return await PublishFreshSessionAsync(sessionId);
         }
         catch (Exception e)

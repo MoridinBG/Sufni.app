@@ -24,21 +24,18 @@ public interface ISessionStoreWriter : ISessionStore
 
     Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
         Session session,
-        long? baselineUpdated = null,
-        CancellationToken cancellationToken = default);
+        long? baselineUpdated = null);
+
+    Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
+        Guid sessionId,
+        byte[] data,
+        string? fingerprint);
 
     Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
         Guid sessionId,
         byte[] data,
         string? fingerprint,
-        CancellationToken cancellationToken = default);
-
-    Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint,
-        SessionProcessedGeneration generation,
-        CancellationToken cancellationToken = default);
+        SessionProcessedGeneration generation);
 
     Task<StoreMutationResult<SessionSnapshot>> CommitTrackPatchAsync(
         Guid sessionId,

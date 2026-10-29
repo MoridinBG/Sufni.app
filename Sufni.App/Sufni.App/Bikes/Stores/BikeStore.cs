@@ -32,10 +32,8 @@ internal sealed class BikeStore(
 
     public async Task<StoreMutationResult<BikeSnapshot>> CommitBikeAsync(
         Bike bike,
-        long? baselineUpdated = null,
-        CancellationToken cancellationToken = default)
+        long? baselineUpdated = null)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         if (baselineUpdated.HasValue)
         {
             var current = Get(bike.Id);
@@ -48,7 +46,6 @@ internal sealed class BikeStore(
         try
         {
             await bikeRepository.PutAsync(bike);
-            cancellationToken.ThrowIfCancellationRequested();
             var snapshot = BikeSnapshot.From(bike);
             await PublishSnapshotAsync(snapshot);
             return new StoreMutationResult<BikeSnapshot>.Saved(snapshot);
@@ -60,16 +57,13 @@ internal sealed class BikeStore(
     }
 
     public async Task<StoreDeleteResult<BikeSnapshot>> CommitBikeDeleteAsync(
-        Guid bikeId,
-        CancellationToken cancellationToken = default)
+        Guid bikeId)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         var previous = Get(bikeId);
 
         try
         {
             await bikeRepository.DeleteAsync(bikeId);
-            cancellationToken.ThrowIfCancellationRequested();
             await PublishRemoveAsync(bikeId);
             return new StoreDeleteResult<BikeSnapshot>.Deleted(previous);
         }

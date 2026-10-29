@@ -29,14 +29,14 @@ public class BikeCoordinatorTests
     public BikeCoordinatorTests()
     {
         editorFactory.CloseBikeEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>())
+        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
             .Returns(callInfo =>
             {
                 var bike = callInfo.Arg<Bike>();
                 return Task.FromResult<StoreMutationResult<BikeSnapshot>>(
                     new StoreMutationResult<BikeSnapshot>.Saved(BikeSnapshot.From(bike)));
             });
-        bikeStore.CommitBikeDeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        bikeStore.CommitBikeDeleteAsync(Arg.Any<Guid>())
             .Returns(Task.FromResult<StoreDeleteResult<BikeSnapshot>>(
                 new StoreDeleteResult<BikeSnapshot>.Deleted()));
     }
@@ -186,8 +186,7 @@ public class BikeCoordinatorTests
                 b.RearWheelDiameterMm == 750 &&
                 b.ImageRotationDegrees == 13.5 &&
                 b.Updated == 7),
-            5,
-            Arg.Any<CancellationToken>());
+            5);
         shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
@@ -228,7 +227,7 @@ public class BikeCoordinatorTests
 
         var conflict = Assert.IsType<BikeSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
+        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -237,7 +236,7 @@ public class BikeCoordinatorTests
     {
         var existing = TestSnapshots.Bike(updated: 5);
         bikeStore.Get(existing.Id).Returns(existing);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>())
+        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
             .Returns(Task.FromResult<StoreMutationResult<BikeSnapshot>>(
                 new StoreMutationResult<BikeSnapshot>.Failed("disk full")));
         var coordinator = CreateCoordinator();
@@ -263,7 +262,7 @@ public class BikeCoordinatorTests
             RearReboundDampingCutoffMmPerSecond = 150,
         };
         bikeStore.Get(existing.Id).Returns(existing);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>())
+        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
             .Returns(callInfo =>
             {
                 var bike = callInfo.Arg<Bike>();
@@ -292,8 +291,7 @@ public class BikeCoordinatorTests
                 bike.FrontReboundDampingCutoffMmPerSecond == 130 &&
                 bike.RearCompressionDampingCutoffMmPerSecond == 140 &&
                 bike.RearReboundDampingCutoffMmPerSecond == 150),
-            5,
-            Arg.Any<CancellationToken>());
+            5);
         shell.DidNotReceive().GoBack();
     }
 
@@ -315,8 +313,7 @@ public class BikeCoordinatorTests
         await bikeStore.Received(1).CommitBikeAsync(
             Arg.Is<Bike>(bike =>
                 bike.RearReboundDampingCutoffMmPerSecond == DampingSpeedCutoffs.MaximumMmPerSecond),
-            5,
-            Arg.Any<CancellationToken>());
+            5);
     }
 
     [Fact]
@@ -334,7 +331,7 @@ public class BikeCoordinatorTests
 
         var conflict = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
+        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -343,7 +340,7 @@ public class BikeCoordinatorTests
     {
         var existing = TestSnapshots.Bike(updated: 5);
         bikeStore.Get(existing.Id).Returns(existing);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>())
+        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
             .Returns(Task.FromResult<StoreMutationResult<BikeSnapshot>>(
                 new StoreMutationResult<BikeSnapshot>.Failed("disk full")));
 
@@ -383,7 +380,7 @@ public class BikeCoordinatorTests
 
         var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
         Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
+        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -416,7 +413,7 @@ public class BikeCoordinatorTests
                 Arg.Is<RearSuspensionSpec.Linkage>(rearSuspension => rearSuspension.Spec == linkage),
                 Arg.Any<CancellationToken>());
         Assert.False(saveTask.IsCompleted);
-        _ = bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
+        _ = bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
         shell.DidNotReceive().GoBack();
 
         var analysisResult = new BikeEditorAnalysisResult.Computed(
@@ -430,8 +427,7 @@ public class BikeCoordinatorTests
         Assert.Same(analysisResult, saved.AnalysisResult);
         await bikeStore.Received(1).CommitBikeAsync(
             Arg.Is<Bike>(committed => committed.Id == existing.Id),
-            5,
-            Arg.Any<CancellationToken>());
+            5);
         shell.Received(1).GoBack();
     }
 
@@ -454,7 +450,7 @@ public class BikeCoordinatorTests
         await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(
             default!,
             Arg.Any<CancellationToken>());
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>(), Arg.Any<CancellationToken>());
+        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
         shell.DidNotReceive().GoBack();
     }
 
@@ -471,7 +467,7 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
         await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
-        await bikeStore.DidNotReceive().CommitBikeDeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await bikeStore.DidNotReceive().CommitBikeDeleteAsync(Arg.Any<Guid>());
     }
 
     [Fact]
@@ -484,7 +480,7 @@ public class BikeCoordinatorTests
         var result = await coordinator.DeleteAsync(id);
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
-        await bikeStore.Received(1).CommitBikeDeleteAsync(id, Arg.Any<CancellationToken>());
+        await bikeStore.Received(1).CommitBikeDeleteAsync(id);
         await editorFactory.Received(1).CloseBikeEditor(id);
     }
 
@@ -493,7 +489,7 @@ public class BikeCoordinatorTests
     {
         var id = Guid.NewGuid();
         dependencyQuery.IsBikeInUseAsync(id).Returns(false);
-        bikeStore.CommitBikeDeleteAsync(id, Arg.Any<CancellationToken>())
+        bikeStore.CommitBikeDeleteAsync(id)
             .Returns(Task.FromResult<StoreDeleteResult<BikeSnapshot>>(
                 new StoreDeleteResult<BikeSnapshot>.Failed("locked")));
         var coordinator = CreateCoordinator();

@@ -216,8 +216,7 @@ public class SynchronizationClientServiceTests
         await sessionStore.DidNotReceive().CommitPsstSwapAsync(
             Arg.Any<Guid>(),
             Arg.Any<byte[]>(),
-            Arg.Any<string?>(),
-            Arg.Any<CancellationToken>());
+            Arg.Any<string?>());
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,
             Arg.Any<long>());
@@ -254,8 +253,7 @@ public class SynchronizationClientServiceTests
                 sessionId,
                 Arg.Any<byte[]>(),
                 target,
-                targetGeneration,
-                Arg.Any<CancellationToken>())
+                targetGeneration)
             .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                 new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: sessionId))));
 
@@ -265,8 +263,7 @@ public class SynchronizationClientServiceTests
             sessionId,
             Arg.Any<byte[]>(),
             target,
-            targetGeneration,
-            Arg.Any<CancellationToken>());
+            targetGeneration);
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,
             Arg.Any<long>());
@@ -300,7 +297,7 @@ public class SynchronizationClientServiceTests
         });
         httpApiService.GetSessionPsstAsync(swapId).Returns(new SessionBlobPayload(swapTarget, [1, 2, 3]));
         sessionStore
-            .CommitPsstSwapAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .CommitPsstSwapAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>())
             .Returns(callInfo => Task.FromResult<StoreMutationResult<SessionSnapshot>>(
                 new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: callInfo.Arg<Guid>()))));
 

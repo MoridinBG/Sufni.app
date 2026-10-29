@@ -15,12 +15,10 @@ public interface IBikeStoreWriter : IBikeStore
 
     Task<StoreMutationResult<BikeSnapshot>> CommitBikeAsync(
         Bike bike,
-        long? baselineUpdated = null,
-        CancellationToken cancellationToken = default);
+        long? baselineUpdated = null);
 
     Task<StoreDeleteResult<BikeSnapshot>> CommitBikeDeleteAsync(
-        Guid bikeId,
-        CancellationToken cancellationToken = default);
+        Guid bikeId);
 
     Task PublishBikesChangedAsync(
         IReadOnlyCollection<Guid> bikeIds,
