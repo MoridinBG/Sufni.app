@@ -56,7 +56,6 @@ public class MapInteractionControllerTests
         DrainPosted();
 
         Assert.Equal(1, notifications);
-        Assert.False(controller.IsPointerInteractionActive);
 
         controller.NavigatorViewportChanged();
         Assert.Empty(posted);

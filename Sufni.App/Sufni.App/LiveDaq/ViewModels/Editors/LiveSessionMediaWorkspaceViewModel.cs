@@ -19,21 +19,16 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
     private bool mapExpected;
 
     public bool HasMediaContent => MapState.ReservesLayout;
-    public MapViewModel? MapViewModel { get; }
+    public MapViewModel MapViewModel { get; }
     public SurfacePresentationState MapState => !mapExpected
         ? SurfacePresentationState.Hidden
-        : MapViewModel?.SessionTrackPoints?.Count > 0
+        : MapViewModel.SessionTrackPoints?.Count > 0
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
     public SessionTimelineLinkViewModel Timeline { get; }
     public MatchedTrackOverlay? MatchedTrack => null;
     public double? MediaColumnWidth { get; } = 400;
     public VideoPaneViewModel? Video => null;
-
-    public LiveSessionMediaWorkspaceViewModel()
-    {
-        Timeline = new SessionTimelineLinkViewModel();
-    }
 
     public LiveSessionMediaWorkspaceViewModel(
         IMapViewModelFactory mapViewModelFactory,
@@ -48,7 +43,7 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
 
     public async Task InitializeAsync()
     {
-        if (MapViewModel is null || isInitialized)
+        if (isInitialized)
         {
             return;
         }
@@ -66,16 +61,11 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
 
     public void SetTrackPoints(IReadOnlyList<TrackPoint>? trackPoints, TrackTimeRange? timelineContext)
     {
-        if (MapViewModel is null)
-        {
-            return;
-        }
-
         MapViewModel.SessionTrackPoints = trackPoints?.ToList() ?? [];
         MapViewModel.TimelineContext = timelineContext;
         OnPropertyChanged(nameof(MapState));
         OnPropertyChanged(nameof(HasMediaContent));
     }
 
-    public void Dispose() => MapViewModel?.Dispose();
+    public void Dispose() => MapViewModel.Dispose();
 }

@@ -667,9 +667,8 @@ public partial class MapView : UserControl
                 return cachedGeometry;
             }
 
-            var generation = (cachedGeometry?.Generation ?? 0) + 1;
             cachedPoints = points;
-            cachedGeometry = RenderedTrackGeometry.Create(points, generation, buildTimeIndex);
+            cachedGeometry = RenderedTrackGeometry.Create(points, buildTimeIndex);
             return cachedGeometry;
         }
     }
@@ -678,27 +677,17 @@ public partial class MapView : UserControl
     {
         private RenderedTrackGeometry(
             IReadOnlyList<TrackPoint> points,
-            Coordinate[] coordinates,
-            LineString lineString,
             IFeature[] lineFeatures,
             IFeature[] markerFeatures,
-            TrackPointTimeIndex? timeIndex,
-            long generation)
+            TrackPointTimeIndex? timeIndex)
         {
             Points = points;
-            Coordinates = coordinates;
-            LineString = lineString;
             LineFeatures = lineFeatures;
             MarkerFeatures = markerFeatures;
             TimeIndex = timeIndex;
-            Generation = generation;
         }
 
         public IReadOnlyList<TrackPoint> Points { get; }
-
-        public Coordinate[] Coordinates { get; }
-
-        public LineString LineString { get; }
 
         public IFeature[] LineFeatures { get; }
 
@@ -706,11 +695,8 @@ public partial class MapView : UserControl
 
         public TrackPointTimeIndex? TimeIndex { get; }
 
-        public long Generation { get; }
-
         public static RenderedTrackGeometry Create(
             IReadOnlyList<TrackPoint> points,
-            long generation,
             bool buildTimeIndex)
         {
             var coordinates = points.Select(point => (point.X, point.Y).ToCoordinate()).ToArray();
@@ -722,12 +708,9 @@ public partial class MapView : UserControl
                 : Array.Empty<IFeature>();
             return new RenderedTrackGeometry(
                 points,
-                coordinates,
-                lineString,
                 lineFeatures,
                 CreateMarkerFeatures(points),
-                buildTimeIndex ? new TrackPointTimeIndex(points) : null,
-                generation);
+                buildTimeIndex ? new TrackPointTimeIndex(points) : null);
         }
 
         private static IFeature[] CreateMarkerFeatures(IReadOnlyList<TrackPoint> points)

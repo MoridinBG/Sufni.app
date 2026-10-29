@@ -118,11 +118,6 @@ public class Track : Synchronizable
         return points;
     }
 
-    public List<TrackPoint> GenerateSessionTrack(long start, long end)
-    {
-        return GenerateSessionTrack((double)start, end);
-    }
-
     public List<TrackPoint> GenerateSessionTrack(double start, double end)
     {
         var session = Points

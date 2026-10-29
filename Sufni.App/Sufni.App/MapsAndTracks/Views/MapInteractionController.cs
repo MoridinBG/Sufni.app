@@ -17,8 +17,6 @@ internal sealed class MapInteractionController(Action<Action> postNotification)
 
     public event Action? ViewportNotificationDue;
 
-    public bool IsPointerInteractionActive => pointerInteractionActive;
-
     public bool IsApplyingTimelineUpdate => applyingTimelineUpdate;
 
     public void PointerPressed() => pointerInteractionActive = true;

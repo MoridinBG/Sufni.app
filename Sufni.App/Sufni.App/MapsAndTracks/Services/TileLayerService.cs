@@ -120,17 +120,6 @@ public class TileLayerService : ITileLayerService, IDisposable
         await SaveCustomLayersAsync();
     }
 
-    public async Task RemoveCustomLayerAsync(TileLayerConfig config)
-    {
-        if (!config.IsCustom) return;
-        AvailableLayers.Remove(config);
-        if (SelectedLayer == config)
-        {
-            await SetSelectedLayerAsync(AvailableLayers.First());
-        }
-        await SaveCustomLayersAsync();
-    }
-
     private async Task SaveCustomLayersAsync()
     {
         var customLayers = AvailableLayers.Where(l => l.IsCustom).ToList();

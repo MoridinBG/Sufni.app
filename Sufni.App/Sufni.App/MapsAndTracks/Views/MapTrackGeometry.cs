@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Mapsui.Projections;
 using Sufni.App.MapsAndTracks.Models;
 
 namespace Sufni.App.MapsAndTracks.Views;

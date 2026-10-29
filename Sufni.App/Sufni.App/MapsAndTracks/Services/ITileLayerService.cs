@@ -16,5 +16,4 @@ public interface ITileLayerService
     Task InitializeAsync();
     Task SetSelectedLayerAsync(TileLayerConfig config);
     Task AddCustomLayerAsync(TileLayerConfig config);
-    Task RemoveCustomLayerAsync(TileLayerConfig config);
 }
