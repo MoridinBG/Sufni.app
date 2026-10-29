@@ -73,7 +73,7 @@ source files remain unacknowledged.
 
 `MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
 
-`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Coordinators that commit import results after background processing use `IUiThreadDispatcher` for store writes and shell/UI-facing state.
+`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) uses a `DispatcherTimer` for browse cadence, while expensive work runs off the UI thread. Drive probing, removed-storage-provider checks, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Import publication goes through the store writers, whose base marshals cache edits through `IUiThreadDispatcher`.
 
 `MassStorageTelemetryDataStore.CreateAsync()` performs the `BOARDID` read and `uploaded/` directory creation off thread. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed warnings, start-time, and duration state for the same bytes.
 
@@ -81,7 +81,7 @@ On import, files move to an `uploaded/` subdirectory, which the datastore create
 
 ### Network (WiFi DAQ)
 
-`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_gosst._tcp`). Network import goes through `IDaqManagementService`: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
+`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_sufni._tcp`). Network import goes through `IDaqManagementService`: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
 
 - `Initialization` performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and stores the resulting device GUID on the datastore. File listing happens in `GetFiles()`.
 - `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, maps `DaqSstFileRecord` values into importable `NetworkTelemetryFile` instances, and maps `DaqMalformedSstFileRecord` values into non-importable `NetworkTelemetryFile` instances (`canImport: false`) carrying the malformed message. The combined list is returned sorted by descending `StartTime`.
@@ -184,7 +184,7 @@ SST v5 final status is parsed into `SstFinalStatus` when present. Stream final-s
 
 4. **Handle temporary dips and unrecovered tails** — walks the remaining changes in order, tracking a cumulative negative offset (`activeFaultDelta`). Each segment between changes is shifted by the active offset. Negative changes accumulate into the offset; subsequent positive changes partially undo it (clamped to zero). Any leftover offset at the final change is also applied to the trailing samples through end of capture, so a dip that never recovers is corrected as a sensor fault rather than left in the signal.
 
-`SpikeElimination` edits the integer samples in place and returns an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is converted to an anomaly rate (per second) for quality reporting.
+`SpikeElimination` edits the integer samples in place and returns an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is stored as a per-suspension anomaly rate; a sensor-quality indicator is planned, and no current UI consumes it.
 
 ### Parsed Telemetry Data Structures
 

@@ -58,8 +58,8 @@ The older folder names remain for continuity: `Views/` mostly contains common or
 Platform heads establish the layout profile, application capabilities, and input capabilities at composition time. Shared behavior uses:
 
 - `IAppEnvironment.LayoutProfile` for compact versus workspace presentation.
-- `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, video playback (`CanPlayVideo`, false on Android), haptics, and native windowing.
-- `InputCapabilities` for pointer, touch, keyboard, pinch, and long-press context-menu behavior.
+- `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, video playback (`CanPlayVideo`, false on Android). Haptics follow service registration, and native windowing follows the Avalonia lifetime.
+- `InputCapabilities` for pointer, touch, keyboard, and long-press context-menu behavior; touch capabilities also drive pinch gestures.
 
 Tests configure these explicitly through service setup or test helpers rather than relying on platform inference.
 
@@ -90,7 +90,7 @@ Desktop heads register capabilities and services that mobile heads do not provid
 - **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the pairing UI and provides a `StartServerAsync()` passthrough.
 - **Inbound sync coordinator**: `IInboundSyncCoordinator` subscribes to `SynchronizationDataArrived` and publishes incoming bike/setup ids through store writer publish-only paths after the server merge has persisted them. Sessions and paired devices have their own dedicated coordinators so each store keeps exactly one writer.
 - **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider import is separately gated by `SupportsStorageProviderImport`.
-- **Native windowing**: window ownership, dialog windows, and raw window shortcuts are available only when capabilities indicate native windowing support.
+- **Native windowing**: the Avalonia desktop lifetime supplies the owner window and window-hosted dialogs and shortcuts.
 
 The workspace profile does not grant these capabilities by itself. For example, workspace profile on iOS must not expose the desktop sync server or mass-storage import.
 
@@ -138,9 +138,9 @@ The places where platform behavior still differs are deliberately small:
 
 - **Session detail load**. `SessionDetailViewModel` uses the same local-only staged coordinator path in both profiles: `LoadDetailAsync(...)` publishes decoded telemetry first, then `LoadTrackAsync(...)` settles optional map/track data under the same active load token. Missing processed telemetry or recorded-source payloads surface as an incomplete-local-data screen state; sync is responsible for downloading those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
 - **Sync side**. Desktop-capable platforms can host the server; mobile-capable platforms pair and sync as clients. There is no peer-to-peer mode and no path that runs both on one device unless a future platform registers both capabilities deliberately.
-- **Platform-only actions**. Sync server actions, pairing client actions, haptics, mass-storage import, storage-provider import, video playback, and native windowing are all capability-gated.
+- **Platform-only actions**. Sync server actions, pairing client actions, mass-storage import, storage-provider import, and video playback are capability-gated. Haptics require a registered service; native windowing follows the application lifetime.
 - **Dialogs**. `DialogService` shows generic prompts as standalone Avalonia `Window`s when the native lifetime has an owner window, and as in-tree overlays when the lifetime is single-view.
 - **Zoomed plot modal**. Double-clicking or double-tapping a plot opens the same live plot control in `PlotZoomOverlayHost`. Workspace profile shows a framed modal over a scrim; compact profile uses an edge-to-edge modal inside the safe area and rotates plot content in portrait-shaped windows. Escape close follows keyboard input capability, and single-view hosts participate in the hardware-back chain through `TryCloseTransientShellSurface`.
-- **Bike linkage editing**. `BikeEditorViewModel.CanChangeRearSuspensionMode` remains desktop-capability-oriented because the linkage editor canvas is built for a pointer-heavy interaction model.
+- **Bike linkage editing**. `BikeEditorDesktopView` sets `BikeEditorViewModel.CanChangeRearSuspensionMode`, so the gate currently follows the workspace view rather than an input capability. Moving that behavior to an input capability remains adoption work.
 
 Anything else (entity editing, save / conflict semantics, sensor calibration, shell navigation semantics, session detail loading, and plot model rendering) goes through the same coordinators, services, stores, and workspace model on every platform.

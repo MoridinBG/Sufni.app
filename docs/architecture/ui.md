@@ -115,7 +115,7 @@ Thread ownership is explicit:
 
 - The UI thread is reserved for bound-property updates, `ObservableCollection` mutation, notifications, native picker interaction, and lightweight read-store lookups.
 - Filesystem work, network work, datastore enumeration, SST parsing, PSST generation, and similar slow operations must cross an explicit background boundary (`IBackgroundTaskRunner` or a service-owned equivalent) before they run.
-- Code paths that need a testable UI-thread boundary use `IUiThreadDispatcher`; view/control code and Avalonia UI primitives such as `DispatcherTimer` may still use Avalonia's dispatcher directly. Dispatcher instances are supplied by the composition root and tests; view models do not construct Avalonia dispatcher services themselves. This keeps injected coordinator/view-model work testable while preserving Avalonia ownership at the edge.
+- Code paths that need a testable UI-thread boundary use `IUiThreadDispatcher`; view/control code and Avalonia UI primitives such as `DispatcherTimer` may still use Avalonia's dispatcher directly. Composition and tests supply these services on most paths; some constructors still create fallback dispatchers or background runners when an optional dependency is omitted. Those fallbacks remain adoption work, not a pattern for new code.
 - Services may still use UI-thread primitives for cadence or collection ownership (for example `DispatcherTimer`), but only the UI-bound collection mutation belongs back on the UI thread.
 - Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`. In particular, `ItemListViewModelBase` owns this lifecycle for every entity list: concrete lists build their store projection in `AttachSubscriptions`, clear projected rows after detach, ignore duplicate `Loaded` calls while already attached, and rebuild from the store's current state when loaded again.
 - Views connect those commands with the `ViewLifecycle` attached properties in `Shared/Views/ViewLifecycle.cs`, not with `Xaml.Behaviors` triggers: `LoadedCommand` (with optional `LoadedCommandParameter`) and `UnloadedCommand` follow Avalonia's `Loaded` / `Unloaded` events, and `AttachedToVisualTreeCommand` / `DetachedFromVisualTreeCommand` follow the visual-tree events for views that need that earlier timing. A command runs on every occurrence of its event and only when `CanExecute` allows it, so a view that is detached and attached again unloads and loads again.
@@ -216,7 +216,7 @@ before completion.
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
 and for small sealed event hierarchies such as `SessionImportEvent`
-(`Imported` / `ImportFailed` / `TrashFailed` /
+(`Imported` / `ImportFailed` / `PublicationFailed` / `TrashFailed` /
 `Progress(Current, Total)`) when a long-running workflow streams
 progress back to the UI.
 

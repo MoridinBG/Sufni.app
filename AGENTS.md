@@ -120,8 +120,8 @@ The layer roles are consistent across slices:
     (`Sessions/Detail/ViewModels/Editors/`), `LiveDaqDetailViewModel`
     (`LiveDaq/ViewModels/Editors/`). Constructed by
     `IEditorFactory` from snapshots or live-session contexts, never by
-    another view model. Persisted-entity editors implement
-    `IEditorActions` for the shared `CommonButtonLine`.
+    another view model. Persisted-entity editors inherit
+    the `TabPageViewModelBase` command surface used by `CommonButtonLine`.
   - The shell view models (`ShellRootViewModel`, `ShellWorkspaceViewModel`,
     `MainPagesViewModel`) live in `Shell/ViewModels/`.
     The base classes `ViewModelBase`, `ItemListViewModelBase`, and
@@ -164,7 +164,8 @@ The layer roles are consistent across slices:
   - `ITelemetryDataStoreService` → `Acquisition/Services/`.
   - `IHttpApiService`, `ISynchronizationClientService` → `SyncAndPairing/Services/`
     (the desktop-only `ISynchronizationServerService` stays in `Sufni.App.Desktop`).
-  - The live preview transport layer (`LiveDaqClient`, `LiveProtocolReader`,
+  - The live preview transport layer (`LiveDaqV2Client` / `LiveDaqV3Client`,
+    `LiveV2ProtocolReader` / `LiveV3ProtocolReader`,
     `LiveDaqSessionState`, `LiveDaqUiSnapshot`, protocol models) →
     `LiveDaq/Services/LiveStreaming/`.
 - `<Slice>/Models/` — domain entities: `Session` (`Sessions/Models/`), `Bike`
@@ -202,7 +203,7 @@ behind `ITelemetryDataStore` / `ITelemetryFile`:
   identifies it by a `BOARDID` marker file at the root of the drive, scans
   the root for `*.SST` files, and moves files into `uploaded/` or `trash/`
   subdirectories after import/delete.
-- **Network** — mDNS discovery (`_gosst._tcp`) locates a WiFi-connected DAQ,
+- **Network** — mDNS discovery (`_sufni._tcp`) locates a WiFi-connected DAQ,
   then the management protocol negotiates file listings and transfers. See
   `docs/architecture/daq-management.md` and
   `Services/Management/ManagementClient.cs` for the wire protocol.
@@ -250,12 +251,14 @@ orchestrates the pipeline. Roughly:
 3. Compute velocity via a fixed-dt Savitzky-Golay filter (see `Filters.cs`).
 4. Detect strokes — compression, rebound, idling (see `Strokes.cs`).
 5. Detect airtimes from stroke overlap heuristics.
-6. Persist travel/velocity arrays, stroke data, bin definitions, markers, gaps,
-   and other parsed side-channel data.
+6. Persist travel/velocity arrays, stroke data, bin definitions, markers, segment
+   boundaries and side-channel samples; raw sources retain gap/status metadata.
 7. Compute histogram tallies, FFT frequency histogram, balance, vibration, and
    other statistics lazily on demand.
 
-Thresholds and tunables live in `Sufni.Telemetry/Parameters.cs`.
+Stroke and histogram defaults live in `Sufni.Telemetry/Parameters.cs`;
+spike thresholds live in `SpikeElimination`, and velocity-filter defaults
+live in `TelemetryProcessingOptions`.
 
 Front/rear processing runs in parallel when both sides are present. The result
 is a `TelemetryData` object serialized with MessagePack and stored as a BLOB on
@@ -346,7 +349,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`SessionSyncApplier`, `PairedDeviceCoordinator`, `SyncCoordinator`,
+  (`ISessionTrackReader`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
+  `SyncCoordinator`,
   the desktop-only `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in

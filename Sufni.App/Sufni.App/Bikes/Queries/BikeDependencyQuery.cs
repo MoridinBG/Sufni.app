@@ -18,9 +18,7 @@ public sealed class BikeDependencyQuery : IBikeDependencyQuery, IDisposable
     public BikeDependencyQuery(ISynchronizableRepository<Setup> setupRepository, ISetupStore setupStore)
     {
         this.setupRepository = setupRepository;
-        // Materialize the setup store into a sync cache so the
-        // IsBikeInUse fast path can answer immediately. Disposed when
-        // the singleton is disposed at app shutdown.
+        // Materialize the stream for synchronous dependency checks.
         setupCache = setupStore.Connect().AsObservableCache();
         // Project the cache's change stream into a void signal that
         // delete-aware view models subscribe to. Each subscriber gets

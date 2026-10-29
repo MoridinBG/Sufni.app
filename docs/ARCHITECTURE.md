@@ -131,7 +131,7 @@ Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
 ## DAQ Management
 
-A side-channel framed TCP protocol for non-streaming DAQ operations: list and retrieve files, mark uploaded, trash remotely, set time, edit and replace CONFIG. Distinct from both the live preview protocol and the import file-transfer protocol, but shares the DAQ's single-client TCP port. Used by the network telemetry store, the import workflow, and the Live DAQ diagnostics tab.
+A side-channel framed TCP protocol for non-streaming DAQ operations: list and retrieve files, mark uploaded, trash remotely, set time, edit and replace CONFIG. Network imports use this management protocol for file transfer. It is distinct from live preview but shares the DAQ's single-client TCP port. Used by the network telemetry store, the import workflow, and the Live DAQ diagnostics tab.
 
 Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
@@ -154,7 +154,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
   - [Stroke Detection](architecture/processing.md#stroke-detection) — sign changes with top-out concatenation
   - [Stroke Categorization](architecture/processing.md#stroke-categorization) — compression / rebound / idling thresholds
   - [Airtime Detection](architecture/processing.md#airtime-detection) — front/rear overlap heuristics
-  - [Processing Parameters](architecture/processing.md#processing-parameters) — all tunables in `Parameters.cs`
+  - [Processing Parameters](architecture/processing.md#processing-parameters) — stroke/histogram defaults and the owners of other tunables
   - [Serialized Structure](architecture/processing.md#serialized-structure) — MessagePack `TelemetryData` shape
   - [Recorded Session Derivation](architecture/processing.md#recorded-session-derivation) — raw source, optional derivation window, processed BLOB, processing fingerprint, and staleness rules
   - [Shared Caching](architecture/processing.md#shared-caching) — `SingleFlightLruCache` for bounded reusable computations
@@ -272,9 +272,9 @@ mDNS announcement
 
 User selects row
   -> LiveDaqCoordinator.SelectAsync
-    -> shell.OpenOrFocus<LiveDaqDetailViewModel>
-      -> LiveDaqSharedStreamRegistry.GetOrCreate
-        -> LiveDaqSharedStream.AcquireLease
+    -> LiveDaqSharedStreamRegistry.GetOrCreate
+      -> IEditorFactory.OpenLiveDaqDetail -> shell.OpenOrFocus
+        -> new diagnostics editor acquires a shared-stream lease
 
 Diagnostics tab attaches
   -> shared stream uses ILiveDaqClientFactory for LiveDaqV2Client or LiveDaqV3Client

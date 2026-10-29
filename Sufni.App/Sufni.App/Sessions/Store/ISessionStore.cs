@@ -12,8 +12,7 @@ namespace Sufni.App.Sessions.Store;
 public interface ISessionStore
 {
     /// <summary>
-    /// DynamicData change stream. The session list view model uses
-    /// this to build a filtered, sorted projection to row VMs.
+    /// Changes to session snapshots.
     /// </summary>
     IObservable<IChangeSet<SessionSnapshot, Guid>> Connect();
 

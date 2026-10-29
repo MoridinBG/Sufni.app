@@ -66,8 +66,8 @@ public sealed record LiveDaqSessionContext(
 // context for the live DAQ list.
 public interface ILiveDaqKnownBoardsQuery
 {
-    // Replays the latest projection on subscribe and pushes updates when the
-    // underlying board, setup, or bike data changes.
+    // Replays enriched boards and refreshes on setup or bike store changes.
+    // Board-only writes do not trigger a refresh.
     IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes { get; }
 
     // Returns the latest enriched record for one identity key.
