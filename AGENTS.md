@@ -1,5 +1,5 @@
 NEVER make assumptions about naming, paths, flows or code. Always read the code or configurations or ask the user.
-If you repeatedly fail to achieve something, ask the user for direction. NEVER make more than two attempts.
+If you repeatedly fail to achieve something, ask the user for direction. NEVER make more than five attempts.
 NEVER queue several consecutive requests that retry user aproval. Always be ready to be denied.
 NEVER add functionality on your initiative, unless the user asked - commenting, logging, failsafes. Ask the user if it might really be needed.
 Don't change things not related to the current prompt.
