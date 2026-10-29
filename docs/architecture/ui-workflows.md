@@ -187,8 +187,7 @@ as overlay host with `DialogPresentationMode.Overlay`. View models
 never see this contract — they consume `IDialogService` only.
 
 `App` also eagerly resolves
-`IProcessingDependencyHashIndex`, `ISessionTrackReader`,
-`SessionSyncApplier`, `PairedDeviceCoordinator`,
+`ISessionTrackReader`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
 `SyncCoordinator`, plus the desktop-only
 `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
 mobile-only `IPairingClientCoordinator`). This is necessary because
