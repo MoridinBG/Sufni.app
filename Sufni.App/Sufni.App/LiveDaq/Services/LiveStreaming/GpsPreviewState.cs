@@ -2,17 +2,9 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
-public enum GpsFixKind
+public sealed record GpsPreviewState(string StatusText)
 {
-    None,
-    TwoDimensional,
-    ThreeDimensional,
-    Other,
-}
-
-public sealed record GpsPreviewState(bool HasFix, bool IsReady, GpsFixKind FixKind, string StatusText)
-{
-    public static readonly GpsPreviewState NoFix = new(false, false, GpsFixKind.None, "No GPS fix");
+    public static readonly GpsPreviewState NoFix = new("No GPS fix");
 
     public static GpsPreviewState FromRecord(GpsRecord? record)
     {
@@ -23,9 +15,9 @@ public sealed record GpsPreviewState(bool HasFix, bool IsReady, GpsFixKind FixKi
 
         return record.FixMode switch
         {
-            1 => new GpsPreviewState(true, false, GpsFixKind.TwoDimensional, "2D fix"),
-            2 => new GpsPreviewState(true, true, GpsFixKind.ThreeDimensional, "3D fix"),
-            _ => new GpsPreviewState(true, false, GpsFixKind.Other, $"Fix mode {record.FixMode}"),
+            1 => new GpsPreviewState("2D fix"),
+            2 => new GpsPreviewState("3D fix"),
+            _ => new GpsPreviewState($"Fix mode {record.FixMode}"),
         };
     }
 }

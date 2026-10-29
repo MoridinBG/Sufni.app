@@ -208,7 +208,7 @@ The view model never holds the configuration lock itself — that lives on the s
 
 ## GPS Preview State
 
-`GpsPreviewState` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/GpsPreviewState.cs`) is a small record interpreting the wire-level `GpsRecord.FixMode` byte. `FromRecord(record)` returns `NoFix` for mode 0 or null, a 2D-fix state for mode 1 (has fix but not ready for full use), a 3D-fix state for mode 2 (has fix and ready), and an "Other" state with the raw fix-mode number for anything else.
+`GpsPreviewState` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/GpsPreviewState.cs`) is a small record interpreting the wire-level `GpsRecord.FixMode` byte. `FromRecord(record)` returns `NoFix` for mode 0 or null, 2D-fix text for mode 1, 3D-fix text for mode 2, and the raw fix-mode number for anything else. It carries only the displayed status text.
 
 It is consumed by the diagnostics tab, where it drives the GPS section's status text in `LiveDaqDetailViewModel`. The live-session media workspace does not consume `GpsPreviewState`; it gates map availability from the accepted session header and then renders projected `TrackPoint[]` values published by the live session service. The capture-side GPS handling that turns `GpsRecord` records into projected `TrackPoint[]` for the live map and the saved track lives in `LiveSessionService.ApplyGpsBatchLocked` (shared `GpsTrackPointProjection.TryProject` / `ProjectAll`).
 

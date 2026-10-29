@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 using Sufni.App.Shared.Formatting;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -15,75 +14,58 @@ public enum LiveConnectionState
 
 public sealed record LiveSessionContractSnapshot(
     uint? SessionId,
-    LiveStreamMask SelectedStreamMask,
     LiveSensorInstanceMask RequestedSensorMask,
     LiveSensorInstanceMask AcceptedSensorMask,
     uint? AcceptedTravelHz,
     uint? AcceptedImuHz,
     uint? AcceptedGpsFixHz,
     DateTimeOffset? SessionStartUtc,
-    LiveSessionFlags Flags,
     IReadOnlyList<LiveImuLocation> ActiveImuLocations,
     uint? AcceptedTravelRateMhz = null,
     uint? AcceptedImuRateMhz = null,
     uint? AcceptedGpsRateMhz = null)
 {
-    public uint? AcceptedTemperatureRateMhz { get; init; }
-
     public static readonly LiveSessionContractSnapshot Empty = new(
         SessionId: null,
-        SelectedStreamMask: LiveStreamMask.None,
         RequestedSensorMask: LiveSensorInstanceMask.None,
         AcceptedSensorMask: LiveSensorInstanceMask.None,
         AcceptedTravelHz: null,
         AcceptedImuHz: null,
         AcceptedGpsFixHz: null,
         SessionStartUtc: null,
-        Flags: LiveSessionFlags.None,
         ActiveImuLocations: [],
         AcceptedTravelRateMhz: null,
         AcceptedImuRateMhz: null,
         AcceptedGpsRateMhz: null);
-
-    public LiveSensorInstanceMask MissingSensorMask => RequestedSensorMask & ~AcceptedSensorMask;
 
     public string AcceptedTravelRateText => LiveProtocolHelpers.FormatRateText("Travel", AcceptedTravelRateMhz);
 
     public string AcceptedImuRateText => LiveProtocolHelpers.FormatRateText("IMU", AcceptedImuRateMhz);
 
     public string AcceptedGpsRateText => LiveProtocolHelpers.FormatRateText("GPS", AcceptedGpsRateMhz);
-
-    public string AcceptedTemperatureRateText =>
-        LiveProtocolHelpers.FormatRateText("Temperature", AcceptedTemperatureRateMhz);
 }
 
 public sealed record LiveTravelUiSnapshot(
-    bool IsActive,
     bool FrontIsActive,
     bool RearIsActive,
     bool HasData,
     ushort? FrontMeasurement,
     ushort? RearMeasurement,
-    TimeSpan? SampleOffset,
     TimeSpan? SampleDelay,
-    uint QueueDepth,
-    uint DroppedBatches)
+    uint QueueDepth)
 {
     public string SampleDelayText => SampleDelay is { } delay
         ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
         : "";
 
     public static readonly LiveTravelUiSnapshot Empty = new(
-        IsActive: false,
         FrontIsActive: false,
         RearIsActive: false,
         HasData: false,
         FrontMeasurement: null,
         RearMeasurement: null,
-        SampleOffset: null,
         SampleDelay: null,
-        QueueDepth: 0,
-        DroppedBatches: 0);
+        QueueDepth: 0);
 }
 
 public sealed record LiveImuUiSnapshot(
@@ -95,10 +77,8 @@ public sealed record LiveImuUiSnapshot(
     short? Gx,
     short? Gy,
     short? Gz,
-    TimeSpan? SampleOffset,
     TimeSpan? SampleDelay,
-    uint QueueDepth,
-    uint DroppedBatches)
+    uint QueueDepth)
 {
     public string SampleDelayText => SampleDelay is { } delay
         ? $"Sample delay: {delay.TotalMilliseconds:F0} ms"
@@ -106,44 +86,21 @@ public sealed record LiveImuUiSnapshot(
 }
 
 public sealed record LiveGpsUiSnapshot(
-    bool IsActive,
     bool HasData,
     GpsPreviewState PreviewState,
     DateTime? FixTimestampUtc,
     double? Latitude,
     double? Longitude,
-    float? Altitude,
-    float? Speed,
-    float? Heading,
-    byte? Satellites,
-    float? Epe2d,
-    float? Epe3d,
-    uint QueueDepth,
-    uint DroppedBatches)
+    uint QueueDepth)
 {
     public static readonly LiveGpsUiSnapshot Empty = new(
-        IsActive: false,
         HasData: false,
         PreviewState: GpsPreviewState.NoFix,
         FixTimestampUtc: null,
         Latitude: null,
         Longitude: null,
-        Altitude: null,
-        Speed: null,
-        Heading: null,
-        Satellites: null,
-        Epe2d: null,
-        Epe3d: null,
-        QueueDepth: 0,
-        DroppedBatches: 0);
+        QueueDepth: 0);
 }
-
-public sealed record LiveTemperatureUiSnapshot(
-    LiveImuLocation Location,
-    bool HasData,
-    float? TemperatureCelsius,
-    TimeSpan? SampleOffset,
-    TimeSpan? SampleDelay);
 
 public sealed record LiveDaqUiSnapshot(
     LiveConnectionState ConnectionState,
@@ -155,8 +112,6 @@ public sealed record LiveDaqUiSnapshot(
     IReadOnlyList<LiveImuUiSnapshot> Imus,
     LiveGpsUiSnapshot Gps)
 {
-    public IReadOnlyList<LiveTemperatureUiSnapshot> Temperatures { get; init; } = [];
-
     public static readonly LiveDaqUiSnapshot Empty = new(
         ConnectionState: LiveConnectionState.Disconnected,
         ConnectionStateText: ToConnectionStateText(LiveConnectionState.Disconnected),
@@ -170,12 +125,6 @@ public sealed record LiveDaqUiSnapshot(
     public bool HasAcceptedSession => Session.SessionId is not null;
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);
     public bool HasImuData => Imus.Count > 0;
-    public bool HasTravelData => Travel.HasData;
-    public bool HasGpsData => Gps.HasData;
-    public bool HasTemperatureData => Temperatures.Any(temperature => temperature.HasData);
-
-    public bool CanConnect => ConnectionState is LiveConnectionState.Disconnected;
-    public bool CanDisconnect => ConnectionState is LiveConnectionState.Connected;
 
     public string SessionLengthText =>
         LastFrameReceivedUtc is { } lastFrame && Session.SessionStartUtc is { } start

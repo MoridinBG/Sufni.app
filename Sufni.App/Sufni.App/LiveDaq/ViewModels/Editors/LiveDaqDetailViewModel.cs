@@ -607,7 +607,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshSnapshot()
     {
         var state = sharedStream.CurrentState;
-        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedStreamMask);
+        sessionState.ApplySharedSessionState(state.SessionHeader);
         Snapshot = sessionState.CreateSnapshot(state.ConnectionState, state.LastError);
     }
 
@@ -634,7 +634,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private void RefreshSharedStreamState()
     {
         var state = sharedStream.CurrentState;
-        sessionState.ApplySharedSessionState(state.SessionHeader, state.SelectedStreamMask);
+        sessionState.ApplySharedSessionState(state.SessionHeader);
         CanConnect = !state.IsClosed
             && state.ConnectionState == LiveConnectionState.Disconnected
             && HasRequestedSensors;

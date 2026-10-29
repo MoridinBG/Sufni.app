@@ -26,7 +26,7 @@ public class GpsPreviewStateTests
     }
 
     [Fact]
-    public void FromRecord_ReportsTwoDimensionalFix_AsNotReady()
+    public void FromRecord_ReportsTwoDimensionalFix()
     {
         var state = GpsPreviewState.FromRecord(new GpsRecord(
             Timestamp: new DateTime(2026, 4, 12, 12, 0, 0, DateTimeKind.Utc),
@@ -40,13 +40,11 @@ public class GpsPreviewStateTests
             Epe2d: 2f,
             Epe3d: 4f));
 
-        Assert.True(state.HasFix);
-        Assert.False(state.IsReady);
-        Assert.Equal(GpsFixKind.TwoDimensional, state.FixKind);
+        Assert.Equal("2D fix", state.StatusText);
     }
 
     [Fact]
-    public void FromRecord_ReportsThreeDimensionalFix_AsReady()
+    public void FromRecord_ReportsThreeDimensionalFix()
     {
         var state = GpsPreviewState.FromRecord(new GpsRecord(
             Timestamp: new DateTime(2026, 4, 12, 12, 0, 0, DateTimeKind.Utc),
@@ -60,8 +58,6 @@ public class GpsPreviewStateTests
             Epe2d: 1.2f,
             Epe3d: 2.3f));
 
-        Assert.True(state.HasFix);
-        Assert.True(state.IsReady);
-        Assert.Equal(GpsFixKind.ThreeDimensional, state.FixKind);
+        Assert.Equal("3D fix", state.StatusText);
     }
 }

@@ -165,7 +165,7 @@ Capabilities use a 16-byte header followed by ordered 24-byte stream records. Th
 
 `SESSION_HEADER` begins with its own 24-byte LIVE header fields and then carries direct SST v5 stream descriptors, source descriptors, and omission records; it does not contain an SST file metadata envelope. Requested streams and sensors remain client request state. Accepted streams, sensors, rates, extensions, and omissions come from the session header. `LiveV3ProtocolReader` maps the descriptor-owned compact data, status, and final-status records into canonical frames. Status and final records follow accepted descriptor order and preserve producer state/failure, sink backlog, and missed-count/time fields.
 
-Temperature is decoded as its own low-rate canonical stream and is carried separately through diagnostics, capture, persistence, slicing, and recorded-session reprojection. Battery and marker frames are decoded and tolerated by consumers that do not retain them; marker history is saved by live capture. The current UI does not request temperature, battery, or marker streams.
+Temperature is decoded as its own low-rate canonical stream and is carried separately through capture, persistence, slicing, and recorded-session reprojection. Battery and marker frames are decoded and tolerated by consumers that do not retain them; marker history is saved by live capture. The current UI does not request temperature, battery, or marker streams.
 
 ### Start Handshakes
 
@@ -231,13 +231,13 @@ When the last observer releases its lease, the stream clears pending lifecycle o
 
 ### Session State
 
-`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values used by the diagnostics tab. It holds latest travel, per-location IMU, GPS, and stats/status frames behind a single lock. `ApplyFrame()` updates internal state from any canonical `LiveProtocolFrame`; `CreateSnapshot()` produces an immutable `LiveDaqUiSnapshot` for UI binding. The snapshot captures connection state, accepted session parameters, requested/accepted individual sensor masks, formatted accepted rates, and latest raw protocol values at a single point in time. Travel remains raw measurement data here; calibration and `mm (percent)` formatting are applied later in the detail view model. `LiveTravelUiSnapshot` carries front/rear active flags; when only one travel channel is accepted, the inactive channel is left empty so firmware neutral values are not presented as real measurements.
+`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values used by the diagnostics tab. It holds latest travel, per-location IMU, GPS, and stats/status frames behind a single lock. `ApplyFrame()` updates internal state from any canonical `LiveProtocolFrame`; `CreateSnapshot()` produces an immutable `LiveDaqUiSnapshot` for UI binding. The snapshot captures connection state, accepted session parameters, requested/accepted individual sensor masks, formatted accepted rates, and latest raw protocol values at a single point in time. The diagnostics snapshot contains displayed travel/IMU readings, GPS coordinates/fix time/status, queue depths, and sample freshness. Temperature history, GPS quality/motion fields, dropped-batch counts, and sample offsets are not projected. Travel remains raw measurement data here; calibration and `mm (percent)` formatting are applied later in the detail view model. `LiveTravelUiSnapshot` carries front/rear active flags; when only one travel channel is accepted, the inactive channel is left empty so firmware neutral values are not presented as real measurements.
 
 The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDaqSharedStream.Frames` directly and accumulates raw samples into its own capture stores — see [Capture Service](live-session.md#capture-service).
 
 ### GPS Preview State
 
-`GpsPreviewState` interprets GPS fix modes for diagnostics UI display: fix mode 0 is no fix, mode 1 is 2D fix (has fix but not ready for full use), mode 2 is 3D fix (has fix and ready). `LiveDaqSessionState` publishes it in `LiveDaqUiSnapshot` for the diagnostics tab. Live-session media does not consume this record; it renders map state from accepted GPS capability and projected `TrackPoint[]` values. See [Live Session Recording § GPS Preview State](live-session.md#gps-preview-state).
+`GpsPreviewState` interprets GPS fix modes for diagnostics UI display: fix mode 0 is no fix, mode 1 is 2D fix, and mode 2 is 3D fix. `LiveDaqSessionState` publishes it in `LiveDaqUiSnapshot` for the diagnostics tab. Live-session media does not consume this record; it renders map state from accepted GPS capability and projected `TrackPoint[]` values. See [Live Session Recording § GPS Preview State](live-session.md#gps-preview-state).
 
 ## Discovery & Catalog
 

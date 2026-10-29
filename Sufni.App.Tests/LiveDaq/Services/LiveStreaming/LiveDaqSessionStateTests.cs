@@ -6,47 +6,12 @@ namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 public class LiveDaqSessionStateTests
 {
     [Fact]
-    public void TemperatureFrame_UpdatesSeparateDiagnosticsReadings()
-    {
-        var context = new LiveV3SessionDecodeContext();
-        context.AcceptSession(42);
-        var headerFrame = Assert.IsType<LiveSessionHeaderFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.SessionHeaderAllStreams(),
-                context));
-        var temperatureFrame = Assert.IsType<LiveTemperatureBatchFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.TemperatureData(),
-                context));
-        var state = new LiveDaqSessionState();
-        state.ApplySharedSessionState(headerFrame.Payload, headerFrame.Payload.AcceptedStreamMask);
-
-        state.ApplyFrame(temperatureFrame);
-        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
-
-        Assert.Collection(
-            snapshot.Temperatures,
-            temperature =>
-            {
-                Assert.Equal(LiveImuLocation.Frame, temperature.Location);
-                Assert.True(temperature.HasData);
-                Assert.Equal(37.53f, temperature.TemperatureCelsius!.Value, 2);
-            },
-            temperature =>
-            {
-                Assert.Equal(LiveImuLocation.Fork, temperature.Location);
-                Assert.True(temperature.HasData);
-                Assert.Equal(24f, temperature.TemperatureCelsius!.Value, 2);
-            });
-    }
-
-    [Fact]
     public void CreateSnapshot_ProjectsAcceptedSessionAndLatestSensorValues()
     {
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 700);
 
-        state.ApplySharedSessionState(sessionHeader, LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps);
+        state.ApplySharedSessionState(sessionHeader);
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveV2FrameType.TravelBatch, 2),
             new LiveBatchHeader(700, 0, 10, 123456789, 2),
@@ -75,14 +40,12 @@ public class LiveDaqSessionStateTests
         Assert.Equal(sessionHeader.RequestedSensorMask, snapshot.Session.RequestedSensorMask);
         Assert.Equal(sessionHeader.AcceptedSensorMask, snapshot.Session.AcceptedSensorMask);
         Assert.Equal((uint)200, snapshot.Session.AcceptedTravelHz);
-        Assert.True(snapshot.Travel.IsActive);
         Assert.True(snapshot.Travel.FrontIsActive);
         Assert.True(snapshot.Travel.RearIsActive);
         Assert.True(snapshot.Travel.HasData);
         Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
         Assert.Equal((ushort)222, snapshot.Travel.RearMeasurement);
         Assert.Equal((uint)5, snapshot.Travel.QueueDepth);
-        Assert.Equal((uint)3, snapshot.Travel.DroppedBatches);
 
         Assert.Equal(2, snapshot.Imus.Count);
         Assert.Equal(LiveImuLocation.Frame, snapshot.Imus[0].Location);
@@ -91,14 +54,10 @@ public class LiveDaqSessionStateTests
         Assert.Equal(LiveImuLocation.Rear, snapshot.Imus[1].Location);
         Assert.Equal((short)19, snapshot.Imus[1].Ax);
         Assert.Equal((uint)4, snapshot.Imus[0].QueueDepth);
-        Assert.Equal((uint)2, snapshot.Imus[0].DroppedBatches);
 
-        Assert.True(snapshot.Gps.IsActive);
         Assert.True(snapshot.Gps.HasData);
-        Assert.True(snapshot.Gps.PreviewState.IsReady);
         Assert.Equal(48.2, snapshot.Gps.Latitude);
         Assert.Equal(16.3, snapshot.Gps.Longitude);
-        Assert.Equal((byte)9, snapshot.Gps.Satellites);
         Assert.Equal((uint)1, snapshot.Gps.QueueDepth);
     }
 
@@ -111,7 +70,7 @@ public class LiveDaqSessionStateTests
             requestedSensorMask: LiveSensorInstanceMask.Travel,
             acceptedSensorMask: LiveSensorInstanceMask.ForkTravel);
 
-        state.ApplySharedSessionState(sessionHeader, LiveStreamMask.Travel);
+        state.ApplySharedSessionState(sessionHeader);
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveV2FrameType.TravelBatch, 2),
             new LiveBatchHeader(702, 0, 10, 123456789, 1),
@@ -119,13 +78,11 @@ public class LiveDaqSessionStateTests
 
         var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
 
-        Assert.True(snapshot.Travel.IsActive);
         Assert.True(snapshot.Travel.FrontIsActive);
         Assert.False(snapshot.Travel.RearIsActive);
         Assert.True(snapshot.Travel.HasData);
         Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
         Assert.Null(snapshot.Travel.RearMeasurement);
-        Assert.Equal(LiveSensorInstanceMask.ShockTravel, snapshot.Session.MissingSensorMask);
     }
 
     [Fact]
@@ -133,7 +90,7 @@ public class LiveDaqSessionStateTests
     {
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 800);
-        state.ApplySharedSessionState(sessionHeader, LiveStreamMask.Travel | LiveStreamMask.Imu);
+        state.ApplySharedSessionState(sessionHeader);
 
         var snapshotInitial = state.CreateSnapshot(LiveConnectionState.Connected, null);
         Assert.Null(snapshotInitial.Travel.SampleDelay);
@@ -168,7 +125,7 @@ public class LiveDaqSessionStateTests
     {
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 801);
-        state.ApplySharedSessionState(sessionHeader, LiveStreamMask.Travel | LiveStreamMask.Imu);
+        state.ApplySharedSessionState(sessionHeader);
 
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveV2FrameType.TravelBatch, 2),
@@ -205,7 +162,7 @@ public class LiveDaqSessionStateTests
             acceptedImuRateMhz: 100_000,
             acceptedGpsRateMhz: 5_500,
             protocolVersion: LiveProtocolVersion.V3);
-        state.ApplySharedSessionState(sessionHeader, LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps);
+        state.ApplySharedSessionState(sessionHeader);
 
         state.ApplyFrame(new LiveStatusFrame(
             new LiveFrameMetadata(10),
@@ -224,9 +181,9 @@ public class LiveDaqSessionStateTests
         Assert.Equal("Travel: 123.45 Hz", snapshot.Session.AcceptedTravelRateText);
         Assert.Equal("IMU: 100 Hz", snapshot.Session.AcceptedImuRateText);
         Assert.Equal("GPS: 5.5 Hz", snapshot.Session.AcceptedGpsRateText);
-        Assert.Equal((uint)5, snapshot.Travel.DroppedBatches);
-        Assert.Equal((uint)9, snapshot.Imus[0].DroppedBatches);
-        Assert.Equal((uint)13, snapshot.Gps.DroppedBatches);
+        Assert.Equal((uint)0, snapshot.Travel.QueueDepth);
+        Assert.Equal((uint)0, snapshot.Imus[0].QueueDepth);
+        Assert.Equal((uint)0, snapshot.Gps.QueueDepth);
         Assert.NotNull(snapshot.LastFrameReceivedUtc);
     }
 
@@ -235,7 +192,7 @@ public class LiveDaqSessionStateTests
     {
         var state = new LiveDaqSessionState();
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 701);
-        state.ApplySharedSessionState(sessionHeader, LiveStreamMask.Travel);
+        state.ApplySharedSessionState(sessionHeader);
         state.ApplyFrame(new LiveTravelBatchFrame(
             CreateHeader(LiveV2FrameType.TravelBatch, 2),
             new LiveBatchHeader(701, 0, 10, 123456789, 1),
