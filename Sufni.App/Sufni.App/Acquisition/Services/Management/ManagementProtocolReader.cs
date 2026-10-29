@@ -10,16 +10,9 @@ internal sealed class ManagementProtocolReader
         ManagementProtocolConstants.FrameHeaderSize,
         static headerBytes => ParseHeader(headerBytes).TotalFrameLength);
 
-    public int BufferedByteCount => frameReader.BufferedByteCount;
-
     public void Append(ReadOnlySpan<byte> bytes)
     {
         frameReader.Append(bytes);
-    }
-
-    public void Reset()
-    {
-        frameReader.Reset();
     }
 
     public bool TryReadFrame(out ManagementProtocolFrame? frame)
@@ -114,15 +107,6 @@ internal sealed class ManagementProtocolReader
         var payload = frameBytes[ManagementProtocolConstants.FrameHeaderSize..];
         return header.FrameType switch
         {
-            ManagementFrameType.ListDirectoryRequest => ParseListDirectoryRequest(header, payload),
-            ManagementFrameType.GetFileRequest => ParseGetFileRequest(header, payload),
-            ManagementFrameType.TrashFileRequest => ParseTrashFileRequest(header, payload),
-            ManagementFrameType.MarkSstUploadedRequest => ParseMarkSstUploadedRequest(header, payload),
-            ManagementFrameType.PutFileBegin => ParsePutFileBeginRequest(header, payload),
-            ManagementFrameType.PutFileChunk => new ManagementPutFileChunkFrame(header, payload.ToArray()),
-            ManagementFrameType.PutFileCommit => ParseEmptyPayload<ManagementPutFileCommitFrame>(header, payload),
-            ManagementFrameType.SetTimeRequest => ParseSetTimeRequest(header, payload),
-            ManagementFrameType.Ping => ParseEmptyPayload<ManagementPingFrame>(header, payload),
             ManagementFrameType.ListDirectoryEntry => ParseListDirectoryEntry(header, payload),
             ManagementFrameType.ListDirectoryDone => ParseListDirectoryDone(header, payload),
             ManagementFrameType.FileBegin => ParseFileBegin(header, payload),
@@ -166,51 +150,6 @@ internal sealed class ManagementProtocolReader
         }
 
         return header;
-    }
-
-    private static ManagementListDirectoryRequestFrame ParseListDirectoryRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, ManagementProtocolConstants.ListDirectoryRequestPayloadSize, header.FrameType);
-        return new ManagementListDirectoryRequestFrame(header, ParseDirectoryId(BinaryPrimitives.ReadUInt16LittleEndian(payload[0..2])));
-    }
-
-    private static ManagementGetFileRequestFrame ParseGetFileRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, ManagementProtocolConstants.GetFileRequestPayloadSize, header.FrameType);
-        return new ManagementGetFileRequestFrame(
-            header,
-            ParseFileClass(BinaryPrimitives.ReadUInt16LittleEndian(payload[0..2])),
-            BinaryPrimitives.ReadInt32LittleEndian(payload[4..8]));
-    }
-
-    private static ManagementTrashFileRequestFrame ParseTrashFileRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, ManagementProtocolConstants.TrashFileRequestPayloadSize, header.FrameType);
-        return new ManagementTrashFileRequestFrame(header, BinaryPrimitives.ReadInt32LittleEndian(payload));
-    }
-
-    private static ManagementMarkSstUploadedRequestFrame ParseMarkSstUploadedRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, ManagementProtocolConstants.MarkSstUploadedRequestPayloadSize, header.FrameType);
-        return new ManagementMarkSstUploadedRequestFrame(header, BinaryPrimitives.ReadInt32LittleEndian(payload));
-    }
-
-    private static ManagementPutFileBeginRequestFrame ParsePutFileBeginRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, ManagementProtocolConstants.PutFileBeginPayloadSize, header.FrameType);
-        return new ManagementPutFileBeginRequestFrame(
-            header,
-            ParseFileClass(BinaryPrimitives.ReadUInt16LittleEndian(payload[0..2])),
-            BinaryPrimitives.ReadUInt64LittleEndian(payload[4..12]));
-    }
-
-    private static ManagementSetTimeRequestFrame ParseSetTimeRequest(ManagementFrameHeader header, ReadOnlySpan<byte> payload)
-    {
-        EnsurePayloadLength(payload, ManagementProtocolConstants.SetTimeRequestPayloadSize, header.FrameType);
-        return new ManagementSetTimeRequestFrame(
-            header,
-            BinaryPrimitives.ReadUInt32LittleEndian(payload[0..4]),
-            BinaryPrimitives.ReadUInt32LittleEndian(payload[4..8]));
     }
 
     private static ManagementListDirectoryEntryFrame ParseListDirectoryEntry(ManagementFrameHeader header, ReadOnlySpan<byte> payload)

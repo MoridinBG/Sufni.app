@@ -25,7 +25,7 @@ public class ManagementProtocolReaderTests
         var entry = Assert.IsType<ManagementListDirectoryEntryFrame>(frame);
         Assert.Equal((uint)5, entry.RequestId);
         Assert.Equal("00001.SST", entry.Name);
-        Assert.Equal(0, reader.BufferedByteCount);
+        Assert.False(reader.TryReadFrame(out _));
     }
 
     [Fact]
@@ -109,46 +109,6 @@ public class ManagementProtocolReaderTests
         Assert.Equal((ulong)77, frame.FileSizeBytes);
         Assert.Equal((uint)8192, frame.MaxChunkPayload);
         Assert.Equal("CONFIG", frame.Name);
-    }
-
-    [Fact]
-    public void CreateRequestHelpers_RoundTripToTypedRequestFrames()
-    {
-        var list = Assert.IsType<ManagementListDirectoryRequestFrame>(
-            ManagementProtocolReader.ParseFrame(
-                ManagementProtocolReader.CreateListDirectoryRequest(1, DaqDirectoryId.Uploaded)));
-        Assert.Equal(DaqDirectoryId.Uploaded, list.DirectoryId);
-
-        var get = Assert.IsType<ManagementGetFileRequestFrame>(
-            ManagementProtocolReader.ParseFrame(
-                ManagementProtocolReader.CreateGetFileRequest(2, DaqFileClass.TrashSst, 42)));
-        Assert.Equal(DaqFileClass.TrashSst, get.FileClass);
-        Assert.Equal(42, get.RecordId);
-
-        var trash = Assert.IsType<ManagementTrashFileRequestFrame>(
-            ManagementProtocolReader.ParseFrame(
-                ManagementProtocolReader.CreateTrashFileRequest(3, 99)));
-        Assert.Equal(99, trash.RecordId);
-
-        var uploaded = Assert.IsType<ManagementMarkSstUploadedRequestFrame>(
-            ManagementProtocolReader.ParseFrame(
-                ManagementProtocolReader.CreateMarkSstUploadedRequest(7, 88)));
-        Assert.Equal(88, uploaded.RecordId);
-
-        var putBegin = Assert.IsType<ManagementPutFileBeginRequestFrame>(
-            ManagementProtocolReader.ParseFrame(
-                ManagementProtocolReader.CreatePutFileBeginRequest(4, DaqFileClass.Config, 128)));
-        Assert.Equal(DaqFileClass.Config, putBegin.FileClass);
-        Assert.Equal((ulong)128, putBegin.FileSizeBytes);
-
-        var setTime = Assert.IsType<ManagementSetTimeRequestFrame>(
-            ManagementProtocolReader.ParseFrame(
-                ManagementProtocolReader.CreateSetTimeRequest(5, 123, 456)));
-        Assert.Equal((uint)123, setTime.UtcSeconds);
-        Assert.Equal((uint)456, setTime.Microseconds);
-
-        Assert.IsType<ManagementPingFrame>(
-            ManagementProtocolReader.ParseFrame(ManagementProtocolReader.CreatePingRequest(6)));
     }
 
     [Fact]

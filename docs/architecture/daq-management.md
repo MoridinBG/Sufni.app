@@ -26,8 +26,8 @@ Connection, per-frame I/O, and the `PUT_FILE_COMMIT` reply each have independent
 
 The protocol is little-endian, framed, request/response with a per-request `RequestId` that the device echoes. Wire types and helpers live in `Sufni.App/Sufni.App/Acquisition/Services/Management/`:
 
-- `ManagementProtocolModels.cs` — frame types, result codes, payload sizes, error mapping.
-- `ManagementProtocolReader.cs` — frame builders and parser, with an `UnreadByteBuffer`-backed accumulator that handles partial TCP reads.
+- `ManagementProtocolModels.cs` — response records, frame types, result codes, payload sizes, error mapping.
+- `ManagementProtocolReader.cs` — request builders and response parser, with an `UnreadByteBuffer`-backed accumulator that handles partial TCP reads. Client-request decoding and its records live in the management test support for the fake DAQ server.
 - `ManagementClient.cs` — connection lifecycle, per-operation send/receive loop, response validation.
 
 ### Frame Header

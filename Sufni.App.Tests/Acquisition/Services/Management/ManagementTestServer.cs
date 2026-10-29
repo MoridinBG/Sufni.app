@@ -31,10 +31,10 @@ internal sealed class ManagementTestServer : IAsyncDisposable
 
     public static async Task<ManagementProtocolFrame> ReadFrameAsync(
         NetworkStream stream,
-        ManagementProtocolReader? reader = null,
+        ManagementRequestReader? reader = null,
         CancellationToken cancellationToken = default)
     {
-        reader ??= new ManagementProtocolReader();
+        reader ??= new ManagementRequestReader();
         if (reader.TryReadFrame(out var bufferedFrame) && bufferedFrame is not null)
         {
             return bufferedFrame;

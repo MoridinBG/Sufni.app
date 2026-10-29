@@ -16,7 +16,7 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             Assert.Equal((uint)1, request.RequestId);
             Assert.Equal(DaqDirectoryId.Root, request.DirectoryId);
@@ -79,7 +79,7 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
@@ -98,7 +98,7 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
 
             await ManagementTestServer.WriteFrameAsync(stream,
@@ -138,7 +138,7 @@ public class DaqManagementServiceTests
         byte[] expectedBytes = [1, 2, 3, 4, 5, 6];
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementGetFileRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             Assert.Equal((uint)1, request.RequestId);
             Assert.Equal(DaqFileClass.RootSst, request.FileClass);
@@ -176,7 +176,7 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementGetFileRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateFileBeginFrame(
@@ -204,7 +204,7 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementMarkSstUploadedRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             Assert.Equal((uint)1, request.RequestId);
             Assert.Equal(42, request.RecordId);
@@ -224,7 +224,7 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementTrashFileRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateActionResultFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
@@ -244,7 +244,7 @@ public class DaqManagementServiceTests
         var observedRequestIds = new List<uint>();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             for (var i = 0; i < 5; i++)
             {
                 var ping = Assert.IsType<ManagementPingFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
@@ -305,7 +305,7 @@ public class DaqManagementServiceTests
         var expectedBytes = Enumerable.Range(0, 600).Select(i => (byte)(i % 251)).ToArray();
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             var begin = Assert.IsType<ManagementPutFileBeginRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             Assert.Equal((uint)1, begin.RequestId);
             Assert.Equal(DaqFileClass.Config, begin.FileClass);
@@ -340,7 +340,7 @@ public class DaqManagementServiceTests
         var releaseServer = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var serverTask = server.RunSessionAsync(async stream =>
         {
-            var reader = new ManagementProtocolReader();
+            var reader = new ManagementRequestReader();
             _ = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             await releaseServer.Task;
         });
