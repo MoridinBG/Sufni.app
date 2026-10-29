@@ -309,11 +309,9 @@ public class LiveDaqV3ClientTests
             await stream.WriteAsync(LiveV3ProtocolTestFrames.CapabilitiesResponse());
             await stream.FlushAsync();
 
-            var expectedStart = LiveV3ProtocolTestFrames.StartRequestAllStreams();
-            var actualStart = await ReadFrameAsync(stream);
-            Assert.Equal(expectedStart[..8], actualStart[..8]);
-            Assert.Equal(expectedStart[12..], actualStart[12..]);
-            Assert.Equal(1u, LiveV3ProtocolReader.ParseHeader(actualStart).TxSequence);
+            var start = Assert.IsType<LiveV3StartRequestFrame>(
+                LiveV3ProtocolReader.ParseFrame(await ReadFrameAsync(stream), new LiveV3SessionDecodeContext()));
+            Assert.Equal(SstV5ProtocolConstants.StreamTravel, Assert.Single(start.Payload.StreamRequests).StreamKind);
             await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultPriorityConflict());
             await stream.FlushAsync();
             await allowServerClose.Task;
