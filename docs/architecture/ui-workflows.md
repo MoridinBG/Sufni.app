@@ -98,11 +98,9 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
 
 - **Shell**: `ShellWorkspaceViewModel`, `ShellRootViewModel`, and the single
   `IShellCoordinator` implementation, `ShellWorkspaceCoordinator`, are shared
-  registrations. Single-view lifetimes additionally register
-  `MobileNavigationShellHost` behind `IMobileNavigationShellHost` and
-  `IMobileNavigationPageHost` for native host/back integration; this host
-  mirrors the shared workspace instead of owning a separate navigation model.
-- **Services**: `IHttpApiService`, `IBackgroundTaskRunner`,
+  registrations. Single-view lifetimes host the shell in `MainView` and wire
+  native back requests to the shared shell root.
+- **Services**: `IBackgroundTaskRunner`,
   `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
   SQLite repository interfaces, `ISyncDataStore`,
   `IFilesService`, `ITileLayerService`,
@@ -168,16 +166,16 @@ view models.
 Platform entry points add (a strict subset depending on the
 platform): `IAppEnvironment` with default layout profile, `AppCapabilities`,
 and `InputCapabilities`; `ISecureStorage`; `IServiceDiscovery` (registered as
-keyed singletons under `"gosst"` and optionally `"sync"`); `IHapticFeedback`;
+keyed singletons under `"daq"` and optionally `"sync"`); `IHapticFeedback`;
 `IFriendlyNameProvider`; `IVideoPlayerFactory` on heads with
 `AppCapabilities.CanPlayVideo`; `ISynchronizationServerService` +
 `IPairingServerCoordinator` + `IInboundSyncCoordinator` +
 `PairingServerViewModel` on server-capable desktop heads; or
 `ISynchronizationClientService` + `IPairingClientCoordinator` +
-`PairingClientViewModel` on client-capable mobile heads. Platform mode is
-determined once from the Avalonia application lifetime and stored on
-`App.IsDesktop`, but presentation selection flows through
-`IAppEnvironment.LayoutProfile`, and UI actions are gated by capabilities.
+`PairingClientViewModel` and `IHttpApiService` on client-capable mobile heads.
+Presentation selection flows through `IAppEnvironment.LayoutProfile`, and UI
+actions are gated by capabilities. The native Avalonia lifetime selects
+`MainWindow` or `MainView` at the composition edge.
 
 After `BuildServiceProvider()`, the lifetime wiring resolves
 `IDialogHost` and configures dialog presentation for the shell:
@@ -233,7 +231,7 @@ layout profile controls presentation only:
 
 - **Compact profile** — `CompactShellView` presents the shared workspace as the
   primary page plus the focused detail surface. Single-view mobile lifetimes
-  host it through `MainView` and `MobileNavigationShellHost` so safe areas,
+  host it through `MainView` so safe areas,
   plot overlays, and hardware back requests are wired to the native host. Back
   closes transient surfaces first, then delegates to `shell.GoBack()`.
 - **Workspace profile** — `WorkspaceShellView` presents the same tab collection

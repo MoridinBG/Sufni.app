@@ -97,7 +97,7 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 
 - [Project Layout](architecture/desktop-vs-mobile.md#project-layout) — shared `Sufni.App` and desktop-only `Sufni.App.Desktop`
 - [Layout Profiles And View Selection](architecture/desktop-vs-mobile.md#layout-profiles-and-view-selection) — `Compact` / `Workspace` and profile-based `ViewLocator`
-- [Platform Flag And Capabilities](architecture/desktop-vs-mobile.md#platform-flag-and-capabilities) — `App.IsDesktop`, `AppCapabilities`, and `InputCapabilities`
+- [Platform Capabilities](architecture/desktop-vs-mobile.md#platform-capabilities) — `IAppEnvironment`, `AppCapabilities`, and `InputCapabilities`
 - [Shared Navigation Shell](architecture/desktop-vs-mobile.md#shared-navigation-shell) — `ShellWorkspaceCoordinator` and profile-specific shell views
 - [Desktop-Capable Surface](architecture/desktop-vs-mobile.md#desktop-capable-surface) — sync server, inbound sync, pairing server
 - [Mobile-Capable Surface](architecture/desktop-vs-mobile.md#mobile-capable-surface) — pairing client, haptics, friendly-name

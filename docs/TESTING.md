@@ -103,7 +103,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 ## Parallelization Tiers
 
 - The suite runs xunit's default parallel collections; the assembly-level serialization is gone.
-- The **UI tier** is the one named collection: `[Collection("Ui")]` (defined in `Infrastructure/UiCollection.cs`, `DisableParallelization = true`). It serializes tests that share process-global state: anything touching `TestApp` (including `SetIsDesktop`), `Application.Current` resources, `ViewTestHelpers`, `[AvaloniaFact]`/`[AvaloniaTheory]` bodies on the headless dispatcher, `PeriodicUiTimer`, or anything that creates an Avalonia object or a `DispatcherTimer` (controls, resource dictionaries, services that own a `DispatcherTimer`). The Ui collection runs at the same time as the parallel collections. Each headless test resets the Avalonia dispatcher, and a parallel test that creates an Avalonia object in that window takes the UI dispatcher to its own thread, which stops the headless session and hangs the run.
+- The **UI tier** is the one named collection: `[Collection("Ui")]` (defined in `Infrastructure/UiCollection.cs`, `DisableParallelization = true`). It serializes tests that share process-global state: anything touching `TestApp`, `Application.Current` resources, `ViewTestHelpers`, `[AvaloniaFact]`/`[AvaloniaTheory]` bodies on the headless dispatcher, `PeriodicUiTimer`, or anything that creates an Avalonia object or a `DispatcherTimer` (controls, resource dictionaries, services that own a `DispatcherTimer`). The Ui collection runs at the same time as the parallel collections. Each headless test resets the Avalonia dispatcher, and a parallel test that creates an Avalonia object in that window takes the UI dispatcher to its own thread, which stops the headless session and hangs the run.
 - **A new test that touches any of those must carry `[Collection("Ui")]`.** Persistence-tier tests (isolated per test by `TempDatabase`/`TempDirectory`) and pure unit tests stay in the default parallel collections — do not add them to the Ui collection.
 - Audited process-global state: `App.ServiceCollection` is only written during startup composition (no test mutates it); `PeriodicUiTimer` is UI-tier only; dispatcher fakes are per-test instances.
 
@@ -111,7 +111,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 
 - When behavior branches on platform lifetime, layout profile, app capability, or input capability, cover the relevant branches.
 - Configure `IAppEnvironment`, layout profile, and capabilities explicitly when those are the behavior under test.
-- Use `TestApp.SetIsDesktop(true)` and `TestApp.SetIsDesktop(false)` only for the remaining native lifetime edges that intentionally read the platform flag, such as native overlay behavior.
+- Reuse `TestAppEnvironment.Create(...)` for explicit environment setup. View template helpers take `UiLayoutProfile`; gesture tests configure input behavior directly on the mounted controls.
 - Keep the assertion focused on the behavioral difference caused by the branch, not on the toggle itself.
 
 ## Layer Ownership

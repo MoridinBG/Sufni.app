@@ -386,7 +386,7 @@ When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading b
 - Test one unit through its public interface.
 - Aim for high coverage of meaningful behavior; trivial assignments, constants, and other obvious no-logic code do not need direct tests.
 - Reuse helpers from `Sufni.App.Tests/TestSupport/` before adding local duplicates.
-- Cover desktop/mobile branches when behavior differs; use `TestApp.SetIsDesktop(true/false)` only for `ViewLocator` or plot-gesture branches (see `docs/TESTING.md`) — other shell-specific behavior is driven by explicit service configuration. Cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
+- Cover desktop/mobile branches when behavior differs; configure layout and capabilities through `TestAppEnvironment` or explicit services, and gesture behavior on the mounted controls (see `docs/TESTING.md`). Cover `BaselineUpdated` versus `Updated` optimistic-concurrency flows where relevant.
 - Prefer deterministic async control such as `TaskCompletionSource<T>` and `TestSynchronizationContextScope` over timing-based waits.
 
 # Key Dependencies

@@ -6,7 +6,7 @@
 
 - [Project Layout](#project-layout)
 - [Layout Profiles And View Selection](#layout-profiles-and-view-selection)
-- [Platform Flag And Capabilities](#platform-flag-and-capabilities)
+- [Platform Capabilities](#platform-capabilities)
 - [Shared Navigation Shell](#shared-navigation-shell)
 - [Desktop-Capable Surface](#desktop-capable-surface)
 - [Mobile-Capable Surface](#mobile-capable-surface)
@@ -50,11 +50,9 @@ This means a mobile platform can render workspace-profile views when the local p
 
 The older folder names remain for continuity: `Views/` mostly contains common or compact-profile views, while `DesktopViews/` mostly contains workspace-profile views. The folder name is not the selection mechanism; `IAppEnvironment.LayoutProfile` is.
 
-## Platform Flag And Capabilities
+## Platform Capabilities
 
-`App.IsDesktop` still exists as a native lifetime/platform fact. It is set once in `OnFrameworkInitializationCompleted` from the Avalonia application lifetime and is used at the composition edge for platform concerns such as platform-only eager coordinator resolution and desktop window versus single-view lifetime wiring.
-
-User-visible UI behavior should not branch on `App.IsDesktop`. It should use:
+Platform heads establish the layout profile, application capabilities, and input capabilities at composition time. Shared behavior uses:
 
 - `IAppEnvironment.LayoutProfile` for compact versus workspace presentation.
 - `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, video playback (`CanPlayVideo`, false on Android), haptics, and native windowing.
@@ -79,7 +77,7 @@ The layout profile decides how that shared workspace is presented:
 | Back behavior | `GoBack()` returns to the previously focused tab or primary surface | same workspace history behavior |
 | Initial view | primary navigation visible, no welcome tab | neutral empty workspace state until a tab opens |
 
-Mobile native lifetime still creates `MainView` and `MobileNavigationShellHost` so Avalonia single-view integration, safe-area behavior, plot overlays, and hardware back wiring have a native host. That host mirrors the shared workspace; it is not a separate navigation model.
+Mobile native lifetime creates `MainView` so Avalonia single-view integration, safe-area behavior, plot overlays, and hardware back wiring have a native host. That host mirrors the shared workspace; it is not a separate navigation model.
 
 ## Desktop-Capable Surface
 
@@ -103,16 +101,15 @@ Mobile heads register capabilities and services that desktop heads generally do 
 - **`IFriendlyNameProvider`**: queried by `PairingClientCoordinator` to seed a default display name for the pairing record.
 - **Touch input capabilities**: pinch zoom and long-press context menus are exposed through `InputCapabilities`, not through the layout profile.
 
-Mobile heads register these inline in `MainApplication.CustomizeAppBuilder` (Android) or `AppDelegate.CustomizeAppBuilder` (iOS) before calling `base.CustomizeAppBuilder(builder)`.
+Mobile heads call `MobileAppBootstrapper.RegisterMobileSync(...)` from `MainApplication.CustomizeAppBuilder` (Android) or `AppDelegate.CustomizeAppBuilder` (iOS). The bootstrapper also registers `IHttpApiService`.
 
 ## DI Composition
 
 The shared DI container is `App.ServiceCollection` (a static `IServiceCollection`). Each platform entry point appends its registrations to it before Avalonia hands control to `App.OnFrameworkInitializationCompleted`, which then runs the shared registrations and calls `BuildServiceProvider()`.
 
-1. The platform head registers platform abstractions (`ISecureStorage`, `IServiceDiscovery`, optionally `IHapticFeedback`, `IFriendlyNameProvider`, `IVideoPlayerFactory`), platform sync services, and `IAppEnvironment` with the platform default layout profile and capabilities. Desktop heads call into `DesktopAppBootstrapper.RegisterDesktopSync(...)`; mobile heads register the sync client and pairing client coordinator inline.
+1. The platform head registers platform abstractions (`ISecureStorage`, `IServiceDiscovery`, optionally `IHapticFeedback`, `IFriendlyNameProvider`, `IVideoPlayerFactory`), platform sync services, and `IAppEnvironment` with the platform default layout profile and capabilities. Desktop heads call into `DesktopAppBootstrapper.RegisterDesktopSync(...)`; mobile heads call `MobileAppBootstrapper.RegisterMobileSync(...)`.
 2. `App.OnFrameworkInitializationCompleted` registers the shared graph: stores, services, queries, view models, `ShellWorkspaceViewModel`, `ShellRootViewModel`, `ShellWorkspaceCoordinator`, and the profile-aware `ViewLocator`.
-3. Single-view lifetimes also register `MobileNavigationShellHost` / `IMobileNavigationShellHost` / `IMobileNavigationPageHost` for native host integration.
-4. After the provider is built, the app eagerly resolves coordinators that subscribe to external events at construction time. The platform-only eager resolutions still follow platform capabilities: mobile resolves the pairing client coordinator; desktop resolves pairing server and inbound sync coordinators.
+3. After the provider is built, the app eagerly resolves coordinators that subscribe to external events at construction time. The platform-only eager resolutions still follow platform capabilities: mobile resolves the pairing client coordinator; desktop resolves pairing server and inbound sync coordinators.
 
 ## Solution Scoping
 
@@ -128,7 +125,7 @@ The mobile solutions deliberately omit `Sufni.App.Desktop` and the test projects
 
 ## Testing
 
-The headless test app (`Sufni.App.Tests/TestSupport/Harness/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests configure layout profile and capabilities explicitly when those are the behavior under test. `TestApp.SetIsDesktop(...)` is reserved for the remaining platform-lifetime edges, such as native overlay behavior.
+The headless test app (`Sufni.App.Tests/TestSupport/Harness/TestApp.cs`) is a subclass of `App` that skips both XAML loading and the DI bootstrap. Tests configure layout profile and capabilities explicitly when those are the behavior under test. `TestAppEnvironment` provides shared environment setup; view helpers select `UiLayoutProfile` explicitly and gesture tests configure input behavior on their controls.
 
 View-test helpers should select compact/workspace profile and capabilities explicitly rather than assuming platform-based view splits.
 
