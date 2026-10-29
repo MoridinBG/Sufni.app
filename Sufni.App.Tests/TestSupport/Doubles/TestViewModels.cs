@@ -1,4 +1,7 @@
 
+using NSubstitute;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Tests.TestSupport.Doubles;
 
@@ -13,7 +16,7 @@ public sealed class TestViewModel : ViewModelBase
 public sealed class TestTabPageViewModel : TabPageViewModelBase
 {
     public TestTabPageViewModel()
-        : base(new InlineUiThreadDispatcher())
+        : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
     {
     }
 }

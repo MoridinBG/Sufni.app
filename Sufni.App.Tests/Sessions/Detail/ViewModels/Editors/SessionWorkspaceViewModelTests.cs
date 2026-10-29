@@ -126,7 +126,7 @@ public class SessionWorkspaceViewModelTests
         var pages = new ObservableCollection<PageViewModelBase>();
         using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var workspace = new SessionShellMobileWorkspaceViewModel(
-            new TestTabPageViewModel(new InlineUiThreadDispatcher()),
+            new TestTabPageViewModel(),
             pages,
             driver.Controller.State,
             driver.Actions);
@@ -287,7 +287,7 @@ public class SessionWorkspaceViewModelTests
         using var state = new Subject<RecordedSessionEditorState>();
         var intents = Subscribe(actions);
         var workspace = new SessionShellMobileWorkspaceViewModel(
-            new TestTabPageViewModel(new InlineUiThreadDispatcher()),
+            new TestTabPageViewModel(),
             pages,
             state,
             actions);
@@ -496,7 +496,4 @@ public class SessionWorkspaceViewModelTests
     {
         public void RaiseNameChanged() => OnPropertyChanged("Name");
     }
-
-    private sealed class TestTabPageViewModel(IUiThreadDispatcher uiThreadDispatcher)
-        : TabPageViewModelBase(uiThreadDispatcher);
 }

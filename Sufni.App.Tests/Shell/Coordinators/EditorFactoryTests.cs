@@ -356,7 +356,6 @@ public class EditorFactoryTests
             uiThreadDispatcher,
             new AppEnvironment(
                 UiLayoutProfile.Workspace,
-                UiLayoutProfile.Workspace,
                 new AppCapabilities(
                     CanHostSyncServer: true,
                     CanPairAsClient: false,

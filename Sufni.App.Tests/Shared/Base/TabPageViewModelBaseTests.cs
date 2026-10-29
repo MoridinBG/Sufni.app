@@ -1,4 +1,7 @@
 
+using NSubstitute;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Tests.Shared.Base;
 
@@ -42,7 +45,7 @@ public class TabPageViewModelBaseTests
     private sealed class DirtyTrackingTabPageViewModel : TabPageViewModelBase
     {
         public DirtyTrackingTabPageViewModel()
-            : base(new InlineUiThreadDispatcher())
+            : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
         {
         }
 

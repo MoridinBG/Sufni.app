@@ -113,16 +113,6 @@ public class ViewLocator : IDataTemplate
             return shellView;
         }
 
-        if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Compact })
-        {
-            return new global::Sufni.App.Shell.Views.CompactShellView();
-        }
-
-        if (data is ShellRootViewModel { LayoutProfile: UiLayoutProfile.Workspace })
-        {
-            return new global::Sufni.App.Shell.DesktopViews.WorkspaceShellView();
-        }
-
         var layoutProfile = ResolveLayoutProfile();
         if (TryBuildProfileView(viewModelType, layoutProfile, out var profileView))
         {

@@ -46,6 +46,9 @@ The selected profile is a local preference read during startup through `IAppEnvi
 - `CompactViewFactories` for compact-profile views.
 - `WorkspaceViewFactories` for workspace-profile views.
 
+Shell roots supply `ShellRootPresentation`, which carries the root view model and
+selected profile; the locator sets that root as the shell view's data context.
+
 This means a mobile platform can render workspace-profile views when the local preference requests it, and a desktop platform can render compact-profile views. Platform capabilities still decide which actions are available inside those views.
 
 The older folder names remain for continuity: `Views/` mostly contains common or compact-profile views, while `DesktopViews/` mostly contains workspace-profile views. The folder name is not the selection mechanism; `IAppEnvironment.LayoutProfile` is.

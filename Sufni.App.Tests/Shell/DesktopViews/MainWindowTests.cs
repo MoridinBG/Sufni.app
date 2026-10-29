@@ -281,7 +281,6 @@ public class MainWindowTests
     private static ShellRootViewModel CreateRoot()
     {
         var environment = new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Workspace,
             LayoutProfile: UiLayoutProfile.Workspace,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,

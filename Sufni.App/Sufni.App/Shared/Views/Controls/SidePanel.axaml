@@ -142,8 +142,7 @@ mc:Ignorable="d">
         <MenuItem
         Name="LayoutProfileMenuItem"
         Command="{Binding ToggleLayoutProfileCommand}"
-        Header="{Binding LayoutProfileActionMenuText}"
-        IsVisible="{Binding CanChooseLayoutProfile}">
+        Header="{Binding LayoutProfileActionMenuText}">
             <MenuItem.Icon>
                 <Image Width="12" Source="{SvgImage /Assets/cog.svg}" />
             </MenuItem.Icon>

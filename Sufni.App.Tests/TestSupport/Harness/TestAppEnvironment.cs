@@ -9,7 +9,6 @@ internal static class TestAppEnvironment
         AppCapabilities? capabilities = null,
         InputCapabilities? input = null) =>
         new AppEnvironment(
-            DefaultLayoutProfile: layoutProfile,
             LayoutProfile: layoutProfile,
             Capabilities: capabilities ?? new AppCapabilities(
                 CanHostSyncServer: true,

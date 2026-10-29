@@ -27,7 +27,6 @@ public sealed record InputCapabilities(
 
 public interface IAppEnvironment : INotifyPropertyChanged
 {
-    UiLayoutProfile DefaultLayoutProfile { get; }
     UiLayoutProfile LayoutProfile { get; }
     AppCapabilities Capabilities { get; }
     InputCapabilities Input { get; }
@@ -39,20 +38,16 @@ public sealed class AppEnvironment : IAppEnvironment
     private UiLayoutProfile layoutProfile;
 
     public AppEnvironment(
-        UiLayoutProfile DefaultLayoutProfile,
         UiLayoutProfile LayoutProfile,
         AppCapabilities Capabilities,
         InputCapabilities Input)
     {
-        this.DefaultLayoutProfile = DefaultLayoutProfile;
         layoutProfile = LayoutProfile;
         this.Capabilities = Capabilities;
         this.Input = Input;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-
-    public UiLayoutProfile DefaultLayoutProfile { get; }
 
     public UiLayoutProfile LayoutProfile
     {
@@ -93,7 +88,6 @@ public static class AppEnvironmentRegistration
 
         return services.AddSingleton<IAppEnvironment>(_ =>
             new AppEnvironment(
-                defaultLayoutProfile,
                 UiLayoutProfileBootstrap.ReadPersistedProfile(defaultLayoutProfile),
                 capabilities,
                 input));

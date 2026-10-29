@@ -267,8 +267,7 @@ mc:Ignorable="d">
             <Button
             Name="LayoutProfileButton"
             Width="50"
-            Classes="embedded"
-            IsVisible="{Binding CanChooseLayoutProfile}">
+            Classes="embedded">
                 <Button.Styles>
                     <Style Selector="MenuItem">
                         <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />

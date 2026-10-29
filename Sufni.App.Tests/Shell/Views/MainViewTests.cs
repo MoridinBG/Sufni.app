@@ -27,7 +27,7 @@ public class MainViewTests
         ViewTestHelpers.EnsureViewTestResources();
 
         var root = CreateRoot(MainPagesViewModelTestFactory.Create());
-        var view = new ViewLocator().Build(root);
+        var view = new ViewLocator().Build(root.Presentation);
 
         Assert.IsType<CompactShellView>(view);
     }
@@ -104,7 +104,6 @@ public class MainViewTests
     private static ShellRootViewModel CreateRoot(MainPagesViewModel mainPages)
     {
         var environment = new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Compact,
             LayoutProfile: UiLayoutProfile.Compact,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,

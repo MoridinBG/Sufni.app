@@ -259,7 +259,6 @@ public class CompactShellViewTests
 
     private static IAppEnvironment CreateMobileCompactEnvironment() =>
         new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Compact,
             LayoutProfile: UiLayoutProfile.Compact,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,

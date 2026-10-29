@@ -16,6 +16,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.ViewModels;
+using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.Shell.ViewModels;
 using Sufni.App.Tests.TestSupport.Harness;
 
@@ -32,7 +33,7 @@ public class WorkspaceShellViewTests
         ViewTestHelpers.EnsureViewTestResources();
 
         var root = CreateRoot();
-        var view = new ViewLocator().Build(root);
+        var view = new ViewLocator().Build(root.Presentation);
 
         Assert.IsType<WorkspaceShellView>(view);
     }
@@ -67,7 +68,7 @@ public class WorkspaceShellViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var root = CreateRoot();
-        var tab = new TestTabPage("Session");
+        var tab = new TestTabPageViewModel { Name = "Session" };
         root.Workspace.OpenOrFocus(tab);
         var view = new WorkspaceShellView
         {
@@ -120,7 +121,7 @@ public class WorkspaceShellViewTests
         EnsureFluentTheme();
 
         var root = CreateRoot();
-        var tab = new TestTabPage("Session");
+        var tab = new TestTabPageViewModel { Name = "Session" };
         root.Workspace.OpenOrFocus(tab);
         var view = new WorkspaceShellView
         {
@@ -166,8 +167,8 @@ public class WorkspaceShellViewTests
         EnsureFluentTheme();
 
         var root = CreateRoot();
-        var closed = new TestTabPage("Closed");
-        var remaining = new TestTabPage("Remaining");
+        var closed = new TestTabPageViewModel { Name = "Closed" };
+        var remaining = new TestTabPageViewModel { Name = "Remaining" };
         root.Workspace.OpenOrFocus(closed);
         root.Workspace.OpenOrFocus(remaining);
         var view = new WorkspaceShellView
@@ -197,8 +198,8 @@ public class WorkspaceShellViewTests
         EnsureFluentTheme();
 
         var root = CreateRoot();
-        var closed = new TestTabPage("Closed");
-        var remaining = new TestTabPage("Remaining");
+        var closed = new TestTabPageViewModel { Name = "Closed" };
+        var remaining = new TestTabPageViewModel { Name = "Remaining" };
         root.Workspace.OpenOrFocus(closed);
         root.Workspace.OpenOrFocus(remaining);
         var view = new WorkspaceShellView
@@ -224,8 +225,8 @@ public class WorkspaceShellViewTests
         WorkspaceShellView view,
         ShellWorkspaceViewModel workspace)
     {
-        var target = new TestTabPage("Closed");
-        var remaining = new TestTabPage("Remaining");
+        var target = new TestTabPageViewModel { Name = "Closed" };
+        var remaining = new TestTabPageViewModel { Name = "Remaining" };
         workspace.OpenOrFocus(target);
         workspace.OpenOrFocus(remaining);
 
@@ -295,7 +296,6 @@ public class WorkspaceShellViewTests
     private static ShellRootViewModel CreateRoot()
     {
         var environment = new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Workspace,
             LayoutProfile: UiLayoutProfile.Workspace,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
@@ -321,15 +321,6 @@ public class WorkspaceShellViewTests
     {
         var host = await ViewTestHelpers.ShowViewAsync(view);
         return new MountedWorkspaceShellView(host, view);
-    }
-
-    private sealed class TestTabPage : TabPageViewModelBase
-    {
-        public TestTabPage(string name)
-            : base(TestDispatcher)
-        {
-            Name = name;
-        }
     }
 }
 

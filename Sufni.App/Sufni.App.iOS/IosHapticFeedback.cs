@@ -6,11 +6,6 @@ namespace Sufni.App.iOS;
 
 public sealed class IosHapticFeedback : IHapticFeedback
 {
-    public void Click()
-    {
-        TriggerImpact(UIImpactFeedbackStyle.Light);
-    }
-
     public void LongPress()
     {
         TriggerImpact(UIImpactFeedbackStyle.Medium);

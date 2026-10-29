@@ -1,3 +1,4 @@
+using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
@@ -508,7 +509,6 @@ public class ShellWorkspaceCoordinatorTests
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(
-            DefaultLayoutProfile: layoutProfile,
             LayoutProfile: layoutProfile,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
@@ -525,7 +525,7 @@ public class ShellWorkspaceCoordinatorTests
     private sealed class TestTabPageViewModel : TabPageViewModelBase
     {
         public TestTabPageViewModel(int id = 0)
-            : base(TestDispatcher)
+            : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), TestDispatcher)
         {
             Id = id;
         }

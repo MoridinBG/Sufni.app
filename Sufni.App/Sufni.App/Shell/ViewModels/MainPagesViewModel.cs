@@ -68,7 +68,6 @@ public partial class MainPagesViewModel : ViewModelBase
     public PairingServerViewModel? PairingServerViewModel { get; init; }
     public ObservableCollection<MainPrimaryPageViewModel> PrimaryPages { get; } = [];
     public ViewModelBase SelectedPrimaryPageContent => GetSelectedPrimaryPage();
-    public bool CanChooseLayoutProfile => true;
     public bool CanImportSessions =>
         appEnvironment.Capabilities.SupportsMassStorageImport ||
         appEnvironment.Capabilities.SupportsStorageProviderImport;

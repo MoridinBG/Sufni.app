@@ -2,6 +2,7 @@ using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.ViewModels;
+using Sufni.App.Tests.TestSupport.Doubles;
 
 namespace Sufni.App.Tests.Shell.ViewModels;
 
@@ -15,7 +16,6 @@ public class ShellRootViewModelTests
         var pages = MainPagesViewModelTestFactory.Create();
         var workspace = new ShellWorkspaceViewModel(TestDispatcher);
         var environment = new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Compact,
             LayoutProfile: UiLayoutProfile.Workspace,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,
@@ -88,7 +88,7 @@ public class ShellRootViewModelTests
     {
         var plotZoomState = Substitute.For<IPlotZoomState>();
         var root = CreateRoot(plotZoomState);
-        var tab = new TestTabPage();
+        var tab = new TestTabPageViewModel();
         root.Workspace.OpenOrFocus(tab);
         root.Pages.IsDrawerOpen = true;
 
@@ -104,8 +104,8 @@ public class ShellRootViewModelTests
     {
         var plotZoomState = Substitute.For<IPlotZoomState>();
         var root = CreateRoot(plotZoomState);
-        var previous = new TestTabPage();
-        var current = new TestTabPage();
+        var previous = new TestTabPageViewModel();
+        var current = new TestTabPageViewModel();
         root.Workspace.OpenOrFocus(previous);
         root.Workspace.OpenOrFocus(current);
 
@@ -129,7 +129,6 @@ public class ShellRootViewModelTests
     private static ShellRootViewModel CreateRoot(IPlotZoomState plotZoomState)
     {
         var environment = new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Compact,
             LayoutProfile: UiLayoutProfile.Compact,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,
@@ -149,13 +148,5 @@ public class ShellRootViewModelTests
             environment,
             plotZoomState,
             TestDispatcher);
-    }
-
-    private sealed class TestTabPage : TabPageViewModelBase
-    {
-        public TestTabPage()
-            : base(TestDispatcher)
-        {
-        }
     }
 }

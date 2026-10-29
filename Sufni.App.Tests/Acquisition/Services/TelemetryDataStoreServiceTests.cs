@@ -238,7 +238,6 @@ public class TelemetryDataStoreServiceTests
 
     private static IAppEnvironment CreateEnvironment(bool supportsMassStorageImport) =>
         new AppEnvironment(
-            DefaultLayoutProfile: UiLayoutProfile.Compact,
             LayoutProfile: UiLayoutProfile.Compact,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: false,

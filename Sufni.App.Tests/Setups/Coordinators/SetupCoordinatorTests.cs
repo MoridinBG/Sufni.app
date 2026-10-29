@@ -347,7 +347,6 @@ public class SetupCoordinatorTests
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(
-            DefaultLayoutProfile: layoutProfile,
             LayoutProfile: layoutProfile,
             Capabilities: new AppCapabilities(
                 CanHostSyncServer: true,

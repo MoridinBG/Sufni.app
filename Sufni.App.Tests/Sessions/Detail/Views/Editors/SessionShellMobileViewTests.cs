@@ -15,6 +15,7 @@ using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.App.Tests.TestSupport.Doubles;
 
 namespace Sufni.App.Tests.Sessions.Detail.Views.Editors;
 
@@ -141,7 +142,7 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
         Pages.CollectionChanged += OnPagesChanged;
     }
 
-    public TabPageViewModelBase Editor { get; } = new FakeTabPageViewModel(new InlineUiThreadDispatcher());
+    public TabPageViewModelBase Editor { get; } = new TestTabPageViewModel();
 
     public ObservableCollection<PageViewModelBase> Pages { get; } = [];
 
@@ -158,9 +159,6 @@ internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionSh
     public int PageCount => Pages.Count;
 
     public string SelectedPageDisplayName => SelectedPage?.DisplayName ?? string.Empty;
-
-    private sealed class FakeTabPageViewModel(IUiThreadDispatcher uiThreadDispatcher)
-        : TabPageViewModelBase(uiThreadDispatcher);
 
     [ObservableProperty]
     public partial SessionScreenPresentationState ScreenState { get; set; } = SessionScreenPresentationState.Ready;
