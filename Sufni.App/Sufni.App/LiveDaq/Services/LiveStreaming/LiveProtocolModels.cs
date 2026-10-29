@@ -83,13 +83,7 @@ public readonly record struct LiveStartRequest(
     uint TravelRateMhz,
     uint ImuRateMhz,
     uint GpsRateMhz,
-    LiveStreamMask RequestedStreamMask = LiveStreamMask.None,
-    uint TemperatureRateMhz = 0,
-    uint? TravelBatchDurationMs = null,
-    uint? ImuBatchDurationMs = null,
-    bool RequestGpsDiagnostics = false,
-    bool Priority = false,
-    bool NoGpsHeaderWait = false);
+    LiveStreamMask RequestedStreamMask = LiveStreamMask.None);
 
 public readonly record struct LiveStartAck(
     LiveStartErrorCode Result,

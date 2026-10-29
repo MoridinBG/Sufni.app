@@ -1089,39 +1089,20 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         var requestedStreams = request.RequestedStreamMask == LiveStreamMask.None
             ? CreateLegacyRequestedStreamMask(request)
             : request.RequestedStreamMask;
-        const LiveStreamMask knownStreams =
+        const LiveStreamMask requestedStreamKinds =
             LiveStreamMask.Travel |
             LiveStreamMask.Imu |
-            LiveStreamMask.Temperature |
-            LiveStreamMask.Gps |
-            LiveStreamMask.Battery |
-            LiveStreamMask.Marker;
+            LiveStreamMask.Gps;
         if (requestedStreams == LiveStreamMask.None)
         {
             throw new ArgumentException("LIVE v3 start requires at least one explicit stream.", nameof(request));
         }
-        if ((requestedStreams & ~knownStreams) != 0)
+        if ((requestedStreams & ~requestedStreamKinds) != 0)
         {
-            throw new ArgumentException("LIVE v3 start contains an unknown stream selection.", nameof(request));
-        }
-        if (request.NoGpsHeaderWait && (requestedStreams & LiveStreamMask.Gps) == 0)
-        {
-            throw new ArgumentException("NO_GPS_HEADER_WAIT requires a GPS stream.", nameof(request));
-        }
-        const LiveStreamMask telemetryStreams =
-            LiveStreamMask.Travel |
-            LiveStreamMask.Imu |
-            LiveStreamMask.Temperature |
-            LiveStreamMask.Gps;
-        if ((requestedStreams & LiveStreamMask.Marker) != 0 &&
-            (requestedStreams & telemetryStreams) == 0)
-        {
-            throw new ArgumentException(
-                "LIVE v3 marker requires at least one telemetry stream.",
-                nameof(request));
+            throw new ArgumentException("LIVE v3 start contains an unsupported stream selection.", nameof(request));
         }
 
-        var records = new List<LiveV3StreamRequestRecord>(6);
+        var records = new List<LiveV3StreamRequestRecord>(3);
         if ((requestedStreams & LiveStreamMask.Travel) != 0)
         {
             var capability = RequireCapability(capabilities, LiveStreamMask.Travel);
@@ -1129,7 +1110,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                 SstV5ProtocolConstants.StreamTravel,
                 ResolveRequestedSources(request.RequestedSensorMask, LiveSensorInstanceMask.Travel, capability),
                 request.TravelRateMhz,
-                request.TravelBatchDurationMs,
                 capability));
         }
         if ((requestedStreams & LiveStreamMask.Imu) != 0)
@@ -1139,60 +1119,20 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                 SstV5ProtocolConstants.StreamImu,
                 ResolveRequestedSources(request.RequestedSensorMask, LiveSensorInstanceMask.Imu, capability),
                 request.ImuRateMhz,
-                request.ImuBatchDurationMs,
-                capability));
-        }
-        if ((requestedStreams & LiveStreamMask.Temperature) != 0)
-        {
-            var capability = RequireCapability(capabilities, LiveStreamMask.Temperature);
-            records.Add(CreateRateRequest(
-                SstV5ProtocolConstants.StreamTemperature,
-                ResolveRequestedSources(request.RequestedSensorMask, LiveSensorInstanceMask.Imu, capability),
-                request.TemperatureRateMhz,
-                batchDurationMs: null,
                 capability));
         }
         if ((requestedStreams & LiveStreamMask.Gps) != 0)
         {
             var capability = RequireCapability(capabilities, LiveStreamMask.Gps);
-            var extensionMask = request.RequestGpsDiagnostics
-                ? capability.SupportedExtensionMask & SstV5ProtocolConstants.ExtensionGpsDiagPublicV1
-                : 0u;
             records.Add(CreateRateRequest(
                 SstV5ProtocolConstants.StreamGps,
                 RequireFixedSource(capability, LiveSensorInstanceMask.Gps),
                 request.GpsRateMhz,
-                batchDurationMs: null,
-                capability,
-                extensionMask));
-        }
-        if ((requestedStreams & LiveStreamMask.Battery) != 0)
-        {
-            var capability = RequireCapability(capabilities, LiveStreamMask.Battery);
-            records.Add(new LiveV3StreamRequestRecord(
-                SstV5ProtocolConstants.StreamBattery,
-                RecordFlags: 0,
-                SourceMask: RequireFixedSource(capability, LiveSensorInstanceMask.Battery),
-                ExtensionMask: 0,
-                RateMhz: 0,
-                BatchDurationMs: 0));
-        }
-        if ((requestedStreams & LiveStreamMask.Marker) != 0)
-        {
-            _ = RequireCapability(capabilities, LiveStreamMask.Marker);
-            records.Add(new LiveV3StreamRequestRecord(
-                SstV5ProtocolConstants.StreamMarker,
-                RecordFlags: 0,
-                SourceMask: LiveSensorInstanceMask.None,
-                ExtensionMask: 0,
-                RateMhz: 0,
-                BatchDurationMs: 0));
+                capability));
         }
 
         return new LiveV3StartRequest
         {
-            StartFlags = (ushort)((request.Priority ? LiveV3ProtocolConstants.StartFlagPriority : 0) |
-                                  (request.NoGpsHeaderWait ? LiveV3ProtocolConstants.StartFlagNoGpsHeaderWait : 0)),
             StreamRequests = records,
         };
     }
@@ -1278,9 +1218,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         byte streamKind,
         LiveSensorInstanceMask sourceMask,
         uint rateMhz,
-        uint? batchDurationMs,
-        LiveV3StreamCapability capability,
-        uint extensionMask = 0)
+        LiveV3StreamCapability capability)
     {
         ushort recordFlags = 0;
         if (rateMhz > 0)
@@ -1291,22 +1229,14 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             }
             recordFlags |= LiveV3ProtocolConstants.StreamRequestFlagRateOverride;
         }
-        if (batchDurationMs is { } duration)
-        {
-            if (duration == 0 || duration > capability.MaxBatchDurationMs)
-            {
-                throw new ArgumentOutOfRangeException(nameof(batchDurationMs), $"LIVE v3 batch duration is outside the DAQ capability range for {capability.Stream}.");
-            }
-            recordFlags |= LiveV3ProtocolConstants.StreamRequestFlagBatchDurationOverride;
-        }
 
         return new LiveV3StreamRequestRecord(
             streamKind,
             recordFlags,
             sourceMask,
-            extensionMask,
-            rateMhz,
-            batchDurationMs ?? 0);
+            ExtensionMask: 0,
+            RateMhz: rateMhz,
+            BatchDurationMs: 0);
     }
 
     private static bool IsQueuedDataFrameType(LiveV3FrameType frameType) => frameType switch

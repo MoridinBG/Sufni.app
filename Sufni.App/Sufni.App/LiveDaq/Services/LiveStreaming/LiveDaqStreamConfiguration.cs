@@ -1,5 +1,3 @@
-using System;
-
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 public sealed record LiveDaqStreamConfiguration(
@@ -7,13 +5,7 @@ public sealed record LiveDaqStreamConfiguration(
     uint TravelRateMhz,
     uint ImuRateMhz,
     uint GpsRateMhz,
-    LiveStreamMask RequestedStreamMask = LiveStreamMask.None,
-    uint TemperatureRateMhz = 0,
-    uint? TravelBatchDurationMs = null,
-    uint? ImuBatchDurationMs = null,
-    bool RequestGpsDiagnostics = false,
-    bool Priority = false,
-    bool NoGpsHeaderWait = false)
+    LiveStreamMask RequestedStreamMask = LiveStreamMask.None)
 {
     public static readonly LiveDaqStreamConfiguration Default = new(
         LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu,
@@ -27,8 +19,6 @@ public sealed record LiveDaqStreamConfiguration(
     public uint ImuHz => LiveProtocolHelpers.MillihertzToWholeHertz(ImuRateMhz);
 
     public uint GpsFixHz => LiveProtocolHelpers.MillihertzToWholeHertz(GpsRateMhz);
-
-    public uint TemperatureHz => LiveProtocolHelpers.MillihertzToWholeHertz(TemperatureRateMhz);
 
     public static LiveDaqStreamConfiguration FromRequestedRates(uint travelHz, uint imuHz, uint gpsFixHz)
     {
@@ -49,22 +39,6 @@ public sealed record LiveDaqStreamConfiguration(
         var requestedStreams = RequestedStreamMask == LiveStreamMask.None
             ? CreateStreamMask(TravelRateMhz, ImuRateMhz, GpsRateMhz)
             : RequestedStreamMask;
-        if (NoGpsHeaderWait && (requestedStreams & LiveStreamMask.Gps) == 0)
-        {
-            throw new InvalidOperationException("NO_GPS_HEADER_WAIT requires an explicit GPS stream request.");
-        }
-        const LiveStreamMask telemetryStreams =
-            LiveStreamMask.Travel |
-            LiveStreamMask.Imu |
-            LiveStreamMask.Temperature |
-            LiveStreamMask.Gps;
-        if ((requestedStreams & LiveStreamMask.Marker) != 0 &&
-            (requestedStreams & telemetryStreams) == 0)
-        {
-            throw new InvalidOperationException(
-                "A LIVE v3 marker stream requires at least one telemetry stream.");
-        }
-
         var requestedSensors = RequestedSensorMask;
         if (RequestedStreamMask == LiveStreamMask.None)
         {
@@ -75,23 +49,13 @@ public sealed record LiveDaqStreamConfiguration(
         {
             requestedSensors |= LiveSensorInstanceMask.Gps;
         }
-        if ((requestedStreams & LiveStreamMask.Battery) != 0)
-        {
-            requestedSensors |= LiveSensorInstanceMask.Battery;
-        }
 
         return new LiveStartRequest(
             requestedSensors,
             TravelRateMhz,
             ImuRateMhz,
             GpsRateMhz,
-            requestedStreams,
-            TemperatureRateMhz,
-            TravelBatchDurationMs,
-            ImuBatchDurationMs,
-            RequestGpsDiagnostics,
-            Priority,
-            NoGpsHeaderWait);
+            requestedStreams);
     }
 
     private static LiveSensorInstanceMask CreateSensorMask(uint travelRateMhz, uint imuRateMhz, uint gpsRateMhz)

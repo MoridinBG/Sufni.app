@@ -231,7 +231,7 @@ public class LiveDaqSharedStreamTests
         Assert.False(secondWait.IsCompleted);
         Assert.Equal(1, client.StartCalls);
 
-        var acceptedMask = LiveStreamMask.Temperature | LiveStreamMask.Marker;
+        var acceptedMask = LiveStreamMask.Gps;
         pendingStart.SetResult(CreateStartedResult(901, acceptedMask));
 
         var started = Assert.IsType<LivePreviewStartResult.Started>(await secondWait);
@@ -255,7 +255,7 @@ public class LiveDaqSharedStreamTests
             }
             else
             {
-                client.AcceptedStreamMask = LiveStreamMask.Temperature | LiveStreamMask.Marker;
+                client.AcceptedStreamMask = LiveStreamMask.Gps;
             }
         };
 
@@ -266,12 +266,11 @@ public class LiveDaqSharedStreamTests
         await firstClient.StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var latestConfiguration = new LiveDaqStreamConfiguration(
-            RequestedStreamMask: LiveStreamMask.Temperature | LiveStreamMask.Marker,
-            RequestedSensorMask: LiveSensorInstanceMask.None,
+            RequestedStreamMask: LiveStreamMask.Gps,
+            RequestedSensorMask: LiveSensorInstanceMask.Gps,
             TravelRateMhz: 0,
             ImuRateMhz: 0,
-            GpsRateMhz: 0,
-            TemperatureRateMhz: 5_000);
+            GpsRateMhz: 5_000);
         var reconfigure = stream.ApplyConfigurationAsync(latestConfiguration, cancellationToken: TestContext.Current.CancellationToken);
 
         pendingStart.SetResult(CreateStartedResult(902, LiveStreamMask.Travel));
@@ -282,8 +281,8 @@ public class LiveDaqSharedStreamTests
         var replacement = clientFactory.CreatedClients[1];
         var request = Assert.Single(replacement.StartRequests);
         Assert.Equal(latestConfiguration.RequestedStreamMask, request.RequestedStreamMask);
-        Assert.Equal(latestConfiguration.TemperatureRateMhz, request.TemperatureRateMhz);
-        Assert.Equal(LiveStreamMask.Temperature | LiveStreamMask.Marker, stream.CurrentState.SelectedStreamMask);
+        Assert.Equal(latestConfiguration.GpsRateMhz, request.GpsRateMhz);
+        Assert.Equal(LiveStreamMask.Gps, stream.CurrentState.SelectedStreamMask);
     }
 
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
@@ -333,7 +332,7 @@ public class LiveDaqSharedStreamTests
         await oldClient.StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var stop = stream.StopAsync(cancellationToken: TestContext.Current.CancellationToken);
-        pendingStart.SetResult(CreateStartedResult(903, LiveStreamMask.Temperature | LiveStreamMask.Marker));
+        pendingStart.SetResult(CreateStartedResult(903, LiveStreamMask.Gps));
         await start.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
@@ -360,7 +359,7 @@ public class LiveDaqSharedStreamTests
         await clientFactory.CreatedClients.Single().StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await stream.CloseAsync("terminal", cancellationToken: TestContext.Current.CancellationToken);
-        pendingStart.SetResult(CreateStartedResult(904, LiveStreamMask.Temperature | LiveStreamMask.Marker));
+        pendingStart.SetResult(CreateStartedResult(904, LiveStreamMask.Gps));
         Assert.Null(await start);
 
         Assert.True(stream.CurrentState.IsClosed);
@@ -383,7 +382,7 @@ public class LiveDaqSharedStreamTests
         await clientFactory.CreatedClients.Single().StartEntered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await stream.DisposeAsync();
-        pendingStart.SetResult(CreateStartedResult(905, LiveStreamMask.Temperature | LiveStreamMask.Marker));
+        pendingStart.SetResult(CreateStartedResult(905, LiveStreamMask.Gps));
         Assert.Null(await start);
         Assert.Throws<ObjectDisposedException>(() => stream.AcquireLease());
 
@@ -399,7 +398,7 @@ public class LiveDaqSharedStreamTests
         clientFactory.ConfigureBeforeReturn = client =>
             client.AcceptedStreamMask = clientFactory.CreatedClients.Count == 0
                 ? LiveStreamMask.Travel
-                : LiveStreamMask.Temperature | LiveStreamMask.Marker;
+                : LiveStreamMask.Gps;
 
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = stream.AcquireLease();
@@ -409,12 +408,11 @@ public class LiveDaqSharedStreamTests
         using var subscription = stream.Frames.Subscribe(observedFrames.Add);
 
         var configuration = new LiveDaqStreamConfiguration(
-            RequestedStreamMask: LiveStreamMask.Temperature | LiveStreamMask.Marker,
-            RequestedSensorMask: LiveSensorInstanceMask.None,
+            RequestedStreamMask: LiveStreamMask.Gps,
+            RequestedSensorMask: LiveSensorInstanceMask.Gps,
             TravelRateMhz: 0,
             ImuRateMhz: 0,
-            GpsRateMhz: 0,
-            TemperatureRateMhz: 5_000);
+            GpsRateMhz: 5_000);
         await stream.ApplyConfigurationAsync(configuration, cancellationToken: TestContext.Current.CancellationToken);
 
         oldClient.PublishFrame(CreateTravelBatchFrame(77));
@@ -424,7 +422,7 @@ public class LiveDaqSharedStreamTests
 
         Assert.False(stream.CurrentState.IsClosed);
         Assert.Equal(LiveConnectionState.Connected, stream.CurrentState.ConnectionState);
-        Assert.Equal(LiveStreamMask.Temperature | LiveStreamMask.Marker, stream.CurrentState.SelectedStreamMask);
+        Assert.Equal(LiveStreamMask.Gps, stream.CurrentState.SelectedStreamMask);
         Assert.DoesNotContain(observedFrames, frame => frame is LiveTravelBatchFrame travel && travel.Batch.FirstMonotonicUs == 77);
     }
 

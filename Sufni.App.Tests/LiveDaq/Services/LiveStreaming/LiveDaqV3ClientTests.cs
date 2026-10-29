@@ -321,7 +321,7 @@ public class LiveDaqV3ClientTests
 
         await using var client = new LiveDaqV3Client();
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
-        var result = await client.StartPreviewAsync(CreateAllStreamStartRequest(), cancellationToken: TestContext.Current.CancellationToken)
+        var result = await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
             .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
@@ -330,158 +330,6 @@ public class LiveDaqV3ClientTests
         Assert.True(client.IsConnected);
 
         allowServerClose.TrySetResult();
-        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-    }
-
-    [Fact]
-    public async Task StartPreviewAsync_BatteryOnlyDenialIsAdmissionResult_NotProtocolFailure()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        var allowServerClose = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var serverTask = Task.Run(async () =>
-        {
-            using var serverClient = await listener.AcceptTcpClientAsync();
-            await using var stream = serverClient.GetStream();
-            _ = await ReadExactAsync(stream, LiveV3ProtocolConstants.HandshakeSize);
-            await stream.WriteAsync(LiveV3ProtocolTestFrames.ServerHello());
-            _ = await ReadFrameAsync(stream);
-            await stream.WriteAsync(LiveV3ProtocolTestFrames.CapabilitiesResponse());
-            await stream.FlushAsync();
-
-            var start = Assert.IsType<LiveV3StartRequestFrame>(
-                LiveV3ProtocolReader.ParseFrame(
-                    await ReadFrameAsync(stream),
-                    new LiveV3SessionDecodeContext()));
-            var battery = Assert.Single(start.Payload.StreamRequests);
-            Assert.Equal(SstV5ProtocolConstants.StreamBattery, battery.StreamKind);
-            Assert.Equal(LiveSensorInstanceMask.Battery, battery.SourceMask);
-            Assert.Equal(0, battery.RecordFlags);
-            await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultDenied());
-            await stream.FlushAsync();
-            await allowServerClose.Task;
-        }, cancellationToken: TestContext.Current.CancellationToken);
-
-        await using var client = new LiveDaqV3Client();
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
-        var result = await client.StartPreviewAsync(new LiveStartRequest(
-                RequestedSensorMask: LiveSensorInstanceMask.Battery,
-                TravelRateMhz: 0,
-                ImuRateMhz: 0,
-                GpsRateMhz: 0,
-                RequestedStreamMask: LiveStreamMask.Battery), cancellationToken: TestContext.Current.CancellationToken)
-            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
-        Assert.IsType<LivePreviewStartResult.Rejected>(result);
-        Assert.True(client.IsConnected);
-
-        allowServerClose.TrySetResult();
-        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-    }
-
-    [Fact]
-    public async Task TemperatureOnlyStart_IsAcceptedAndEmitsTemperatureData()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-
-        var serverTask = RunStartupServerAsync(
-            listener,
-            async stream =>
-            {
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultPending());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionHeaderTemperature());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.TemperatureData());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionResultTemperature());
-                await stream.FlushAsync();
-            });
-
-        await using var client = new LiveDaqV3Client();
-        var temperatureObserved = new TaskCompletionSource<LiveTemperatureBatchFrame>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = client.Events.Subscribe(clientEvent =>
-        {
-            if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveTemperatureBatchFrame frame })
-            {
-                temperatureObserved.TrySetResult(frame);
-            }
-        });
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
-
-        var started = Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(new LiveStartRequest(
-                    RequestedSensorMask: LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
-                    TravelRateMhz: 0,
-                    ImuRateMhz: 0,
-                    GpsRateMhz: 0,
-                    RequestedStreamMask: LiveStreamMask.Temperature,
-                    TemperatureRateMhz: 30), cancellationToken: TestContext.Current.CancellationToken)
-                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
-        Assert.Equal(LiveStreamMask.Temperature, started.Header.AcceptedStreamMask);
-        Assert.Equal(30u, started.Header.AcceptedTemperatureRateMhz);
-        Assert.Equal(2, (await temperatureObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2))).Records.Count);
-
-        await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-    }
-
-    [Fact]
-    public async Task PriorityTelemetryBatteryAndMarkerStart_IsAcceptedWithGpsExtensionOmission()
-    {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-
-        var serverTask = RunStartupServerAsync(
-            listener,
-            async stream =>
-            {
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.StartResultPending());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionHeaderAllStreams());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.BatteryData());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.MarkerData());
-                await stream.WriteAsync(LiveV3ProtocolTestFrames.SessionResultAllStreams());
-                await stream.FlushAsync();
-            });
-
-        await using var client = new LiveDaqV3Client();
-        var batteryObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var markerObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = client.Events.Subscribe(clientEvent =>
-        {
-            if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveBatteryBatchFrame })
-            {
-                batteryObserved.TrySetResult();
-            }
-            else if (clientEvent is LiveDaqClientEvent.FrameReceived { Frame: LiveMarkerBatchFrame })
-            {
-                markerObserved.TrySetResult();
-            }
-        });
-        await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
-
-        var started = Assert.IsType<LivePreviewStartResult.Started>(
-            await client.StartPreviewAsync(CreateAllStreamStartRequest(), cancellationToken: TestContext.Current.CancellationToken)
-                .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
-        Assert.Equal(
-            LiveStreamMask.Travel |
-            LiveStreamMask.Imu |
-            LiveStreamMask.Temperature |
-            LiveStreamMask.Gps |
-            LiveStreamMask.Battery |
-            LiveStreamMask.Marker,
-            started.Header.AcceptedStreamMask);
-        var omission = Assert.Single(started.Header.AdmissionOmissions);
-        Assert.Equal(SstV5ProtocolConstants.StreamGps, omission.StreamKind);
-        Assert.Equal(SstV5ProtocolConstants.ExtensionGpsDiagPublicV1, omission.TargetMask);
-        await batteryObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-        await markerObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
         await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
         await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
     }
@@ -1100,24 +948,6 @@ public class LiveDaqV3ClientTests
 
         return frameBytes;
     }
-
-    private static LiveStartRequest CreateAllStreamStartRequest() => new(
-        RequestedSensorMask: LiveSensorInstanceMask.All,
-        TravelRateMhz: 200_000,
-        ImuRateMhz: 200_000,
-        GpsRateMhz: 5_000,
-        RequestedStreamMask: LiveStreamMask.Travel |
-                             LiveStreamMask.Imu |
-                             LiveStreamMask.Temperature |
-                             LiveStreamMask.Gps |
-                             LiveStreamMask.Battery |
-                             LiveStreamMask.Marker,
-        TemperatureRateMhz: 30,
-        TravelBatchDurationMs: 50,
-        ImuBatchDurationMs: 50,
-        RequestGpsDiagnostics: true,
-        Priority: true,
-        NoGpsHeaderWait: true);
 
     private static async Task WriteInChunksAsync(
         NetworkStream stream,
