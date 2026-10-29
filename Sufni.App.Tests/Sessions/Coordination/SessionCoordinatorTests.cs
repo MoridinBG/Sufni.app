@@ -329,13 +329,12 @@ public class SessionCoordinatorTests
     {
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
-        var dimensions = new SessionPresentationDimensions(320, 180);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, telemetry);
         var progress = new CapturingSessionDetailLoadProgress();
 
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, dimensions, progress, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, progress, cancellationToken: TestContext.Current.CancellationToken);
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
@@ -434,7 +433,6 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().LoadDetailAsync(
             snapshot.Id,
-            new SessionPresentationDimensions(320, 180),
             progress, cancellationToken: TestContext.Current.CancellationToken);
 
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);

@@ -35,7 +35,6 @@ public sealed class SessionLoader
 
     public async Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
-        SessionPresentationDimensions dimensions,
         IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default)
     {

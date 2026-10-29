@@ -109,7 +109,7 @@ internal sealed class SessionDetailViewTestContext
     {
         snapshot ??= CreateTelemetryLightSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: false);
@@ -131,7 +131,7 @@ internal sealed class SessionDetailViewTestContext
     {
         snapshot ??= CreateTelemetryBearingSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<SessionPresentationDimensions>(), Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);

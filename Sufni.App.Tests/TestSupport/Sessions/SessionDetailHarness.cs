@@ -88,8 +88,8 @@ internal sealed class SessionDetailHarness
         return CreateEditor(snapshot, isDesktop);
     }
 
-    public Task LoadAsync(SessionDetailViewModel editor, Rect? bounds = null) =>
-        editor.LoadedCommand.ExecuteAsync(bounds);
+    public Task LoadAsync(SessionDetailViewModel editor) =>
+        editor.LoadedCommand.ExecuteAsync(null);
 
     public Task SaveAsync(SessionDetailViewModel editor) =>
         editor.SaveCommand.ExecuteAsync(null);
@@ -142,7 +142,6 @@ internal sealed class SessionDetailHarness
 
         SessionCoordinator.LoadDetailAsync(
                 snapshot.Id,
-                Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(firstContentResult);

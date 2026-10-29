@@ -132,7 +132,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly CancellableOperation loadOperation = new();
     private readonly CancellableOperation viewLoadOperation = new();
-    private SessionPresentationDimensions? lastPresentationDimensions;
     private TimelineAlignmentMark? pendingTimelineAlignmentMark;
     private RecordedSessionAnalysisInputs analysisInputs;
     private readonly AnalysisRequestScheduler analysisRequestScheduler;
@@ -241,16 +240,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     #endregion Observable properties
 
     #region Private methods
-
-    private static SessionPresentationDimensions? CreatePresentationDimensions(Rect? bounds)
-    {
-        if (bounds is not Rect rect || rect.Width <= 0 || rect.Height <= 0)
-        {
-            return null;
-        }
-
-        return new SessionPresentationDimensions((int)rect.Width, (int)(rect.Height / 2.0));
-    }
 
     internal void ApplyDampingPercentages(SessionDampingPercentages percentages)
     {
@@ -698,10 +687,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            var dimensions = lastPresentationDimensions ?? SessionPresentationDimensions.Default;
             var progress = new SessionLoadProgressReporter(
                 update => PublishSessionLoadProgress(update, mapExpected, currentSnapshot, token));
-            var result = await sessionCoordinator.LoadDetailAsync(Id, dimensions, progress, token);
+            var result = await sessionCoordinator.LoadDetailAsync(Id, progress, token);
             if (token.IsCancellationRequested)
             {
                 return;
@@ -2412,7 +2400,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     }
 
     [RelayCommand]
-    private async Task Loaded(Rect? bounds = null)
+    private async Task Loaded()
     {
         var wasLoaded = viewLoaded;
         viewLoaded = true;
@@ -2420,12 +2408,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ? CancellationToken.None
             : viewLoadOperation.Start();
         processedTelemetryRetention ??= processedTelemetryReader.Retain(Id);
-        var dimensions = CreatePresentationDimensions(bounds);
-        if (dimensions is not null)
-        {
-            lastPresentationDimensions = dimensions;
-        }
-
         if (wasLoaded)
         {
             return;

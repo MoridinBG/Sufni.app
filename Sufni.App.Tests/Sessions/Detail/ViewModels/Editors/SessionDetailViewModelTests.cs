@@ -204,12 +204,11 @@ public class SessionDetailViewModelTests
             loadResult: IncompleteResult(snapshot.Id));
         harness.SessionCoordinator.LoadDetailAsync(
                 snapshot.Id,
-                Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(callInfo => AwaitWithCancellation(
                 pending.Task,
-                callInfo.ArgAt<CancellationToken>(3)));
+                callInfo.Arg<CancellationToken>()));
 
         var loadTask = harness.LoadAsync(editor);
         await Task.Yield();
@@ -241,7 +240,6 @@ public class SessionDetailViewModelTests
             watch.AsObservable());
         harness.SessionCoordinator.LoadDetailAsync(
                 snapshot.Id,
-                Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ => ++loadCount switch
@@ -302,7 +300,6 @@ public class SessionDetailViewModelTests
             watch.AsObservable());
         harness.SessionCoordinator.LoadDetailAsync(
                 snapshot.Id,
-                Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ => ++loadCount switch
@@ -473,7 +470,6 @@ public class SessionDetailViewModelTests
         Assert.Same(oldTelemetry, editor.CurrentTelemetryData);
         await harness.SessionCoordinator.Received(1).LoadDetailAsync(
             snapshot.Id,
-            Arg.Any<SessionPresentationDimensions>(),
             Arg.Any<IProgress<SessionDetailLoadProgress>>(),
             Arg.Any<CancellationToken>());
         await harness.DialogService.Received(1).ShowConfirmationAsync(
@@ -501,7 +497,6 @@ public class SessionDetailViewModelTests
             watch.AsObservable());
         harness.SessionCoordinator.LoadDetailAsync(
                 snapshot.Id,
-                Arg.Any<SessionPresentationDimensions>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ =>
@@ -526,7 +521,6 @@ public class SessionDetailViewModelTests
 
         await harness.SessionCoordinator.Received(2).LoadDetailAsync(
             snapshot.Id,
-            Arg.Any<SessionPresentationDimensions>(),
             Arg.Any<IProgress<SessionDetailLoadProgress>>(),
             Arg.Any<CancellationToken>());
         await harness.DialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
