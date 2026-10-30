@@ -1281,6 +1281,22 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task ImportLeverageRatio_FailurePreservesCurveAndSeparatesDiagnostics()
+    {
+        var curve = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
+        var editor = CreateEditor(TestSnapshots.LeverageRatioBike(curve));
+        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
+            .Returns(new LeverageRatioImportResult.Failed(LeverageRatioImportFailureReason.Import, "disk full"));
+
+        await editor.ImportLeverageRatioCommand.ExecuteAsync(null);
+
+        Assert.Equal(curve, editor.LeverageRatioEditor.BuildCurrent());
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal("disk full", failure.Details);
+        Assert.DoesNotContain("disk full", failure.Summary);
+    }
+
+    [AvaloniaFact]
     public async Task ImportLeverageRatio_SurfacesValidationErrors_ThroughChildState()
     {
         var snapshot = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)));

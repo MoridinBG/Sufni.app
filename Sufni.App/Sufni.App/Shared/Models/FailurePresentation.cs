@@ -117,4 +117,28 @@ public sealed record FailurePresentation
         BikeAnalysisFailureReason.Analyze => "The rear suspension analysis could not be shown. Check the bike configuration and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(BikeImportFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeImportFailureReason.Import => "The bike could not be imported. Check the selected file and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(BikeExportFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeExportFailureReason.Export => "The bike could not be exported. Check the destination and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(BikeImageFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeImageFailureReason.Read => "The bike image could not be read. Choose the file again.",
+        BikeImageFailureReason.Decode => "The bike image could not be displayed. Choose a supported image file.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(LeverageRatioImportFailureReason reason, string? details = null) => new(reason switch
+    {
+        LeverageRatioImportFailureReason.Import => "The leverage ratio file could not be imported. Check the selected file and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

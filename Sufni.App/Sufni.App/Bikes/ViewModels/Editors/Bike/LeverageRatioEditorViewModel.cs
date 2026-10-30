@@ -74,10 +74,6 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
                 ValidationErrors = invalid.ErrorMessages;
                 break;
 
-            case LeverageRatioImportResult.Failed failed:
-                ValidationErrors = [failed.ErrorMessage];
-                break;
-
             case LeverageRatioImportResult.Canceled:
                 break;
         }

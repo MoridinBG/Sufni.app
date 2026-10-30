@@ -55,7 +55,7 @@ internal class BikeCoordinator(
                 return new BikeImportResult.InvalidFile(invalid.ErrorMessage);
 
             case BikeFileImportResult.Failed failed:
-                return new BikeImportResult.Failed(failed.ErrorMessage);
+                return new BikeImportResult.Failed(failed.Reason, failed.Details);
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(result));

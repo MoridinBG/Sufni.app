@@ -40,3 +40,8 @@ public enum GpsOffsetFailureReason { Save }
 public enum SyncFailureReason { Synchronize, ProtocolMismatch }
 
 public enum BikeAnalysisFailureReason { Analyze }
+
+public enum BikeImportFailureReason { Import }
+public enum BikeExportFailureReason { Export }
+public enum BikeImageFailureReason { Read, Decode }
+public enum LeverageRatioImportFailureReason { Import }

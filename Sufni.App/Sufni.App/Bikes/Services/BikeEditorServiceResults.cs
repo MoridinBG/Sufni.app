@@ -24,7 +24,7 @@ public abstract record BikeImageLoadResult
 
     public sealed record Loaded(byte[] ImageBytes, string FileName) : BikeImageLoadResult;
     public sealed record Canceled : BikeImageLoadResult;
-    public sealed record Failed(string ErrorMessage) : BikeImageLoadResult;
+    public sealed record Failed(BikeImageFailureReason Reason, string? Details = null) : BikeImageLoadResult;
 }
 
 public abstract record BikeFileImportResult
@@ -34,7 +34,7 @@ public abstract record BikeFileImportResult
     public sealed record Imported(Bike Bike) : BikeFileImportResult;
     public sealed record Canceled : BikeFileImportResult;
     public sealed record InvalidFile(string ErrorMessage) : BikeFileImportResult;
-    public sealed record Failed(string ErrorMessage) : BikeFileImportResult;
+    public sealed record Failed(BikeImportFailureReason Reason, string? Details = null) : BikeFileImportResult;
 }
 
 public abstract record BikeExportResult
@@ -43,7 +43,7 @@ public abstract record BikeExportResult
 
     public sealed record Exported : BikeExportResult;
     public sealed record Canceled : BikeExportResult;
-    public sealed record Failed(string ErrorMessage) : BikeExportResult;
+    public sealed record Failed(BikeExportFailureReason Reason, string? Details = null) : BikeExportResult;
 }
 
 public abstract record LeverageRatioImportResult
@@ -53,5 +53,5 @@ public abstract record LeverageRatioImportResult
     public sealed record Imported(LeverageRatioSpec Value) : LeverageRatioImportResult;
     public sealed record Canceled : LeverageRatioImportResult;
     public sealed record Invalid(string[] ErrorMessages) : LeverageRatioImportResult;
-    public sealed record Failed(string ErrorMessage) : LeverageRatioImportResult;
+    public sealed record Failed(LeverageRatioImportFailureReason Reason, string? Details = null) : LeverageRatioImportResult;
 }

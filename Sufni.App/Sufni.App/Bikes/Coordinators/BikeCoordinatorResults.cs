@@ -1,4 +1,5 @@
 using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Models;
 using Sufni.App.Bikes.Services;
 
 namespace Sufni.App.Bikes.Coordinators;
@@ -12,5 +13,5 @@ public abstract record BikeImportResult
     public sealed record Imported(ImportedBikeEditorData Data) : BikeImportResult;
     public sealed record Canceled : BikeImportResult;
     public sealed record InvalidFile(string ErrorMessage) : BikeImportResult;
-    public sealed record Failed(string ErrorMessage) : BikeImportResult;
+    public sealed record Failed(BikeImportFailureReason Reason, string? Details = null) : BikeImportResult;
 }

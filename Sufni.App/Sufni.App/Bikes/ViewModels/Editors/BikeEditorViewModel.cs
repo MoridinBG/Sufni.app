@@ -917,7 +917,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var result = await bikeCoordinator.ExportBikeAsync(BikeModel.FromSnapshot(ToSnapshot(BaselineUpdated)));
         if (result is BikeExportResult.Failed failed)
         {
-            ErrorMessages.Add(new FailurePresentation($"Bike could not be exported: {failed.ErrorMessage}"));
+            ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
         }
     }
 
@@ -954,11 +954,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                     }
                     catch (Exception e)
                     {
-                        ErrorMessages.Add(new FailurePresentation($"Bike image could not be loaded: {e.Message}"));
+                        Log.ForContext<BikeEditorViewModel>().Warning(e, "Selected bike image could not be decoded for {BikeId}", Id);
+                        ErrorMessages.Add(FailurePresentation.From(BikeImageFailureReason.Decode));
                     }
                     break;
                 case BikeImageLoadResult.Failed failed:
-                    ErrorMessages.Add(new FailurePresentation($"Bike image could not be loaded: {failed.ErrorMessage}"));
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                     break;
             }
         }
@@ -980,7 +981,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             var result = await bikeCoordinator.ImportLeverageRatioAsync(token);
             if (token.IsCancellationRequested) return;
 
-            LeverageRatioEditor.ApplyImportResult(result);
+            if (result is LeverageRatioImportResult.Failed failed)
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+            else
+                LeverageRatioEditor.ApplyImportResult(result);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -1014,7 +1018,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                     ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
                     break;
                 case BikeImportResult.Failed failed:
-                    ErrorMessages.Add(new FailurePresentation($"Bike could not be imported: {failed.ErrorMessage}"));
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                     break;
             }
         }

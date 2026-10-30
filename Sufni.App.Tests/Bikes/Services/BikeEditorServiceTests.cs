@@ -19,6 +19,26 @@ public class BikeEditorServiceTests
     private BikeEditorService CreateService(IKinematicSolutionCache? kinematicSolutionCache = null) =>
         new(filesService, backgroundTaskRunner, kinematicSolutionCache ?? new KinematicSolutionCache());
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadImageAsync_ReturnsTypedFailure_WhenPickerOrReadFails(bool pickerFails)
+    {
+        var error = new IOException("unavailable image");
+        if (pickerFails)
+            filesService.OpenBikeImageFileAsync().Returns(Task.FromException<IStorageFile?>(error));
+        else
+        {
+            var file = TestStorageItems.TextFile("image.png", "");
+            file.OpenReadAsync().Returns(Task.FromException<Stream>(error));
+            filesService.OpenBikeImageFileAsync().Returns(file);
+        }
+
+        var result = await CreateService().LoadImageAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(BikeImageFailureReason.Read, Assert.IsType<BikeImageLoadResult.Failed>(result).Reason);
+    }
+
     [Fact]
     public async Task LoadImageAsync_LoadsBytesAndFileNameWithoutUsingPath()
     {

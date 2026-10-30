@@ -214,6 +214,15 @@ Deletion returns `BikeDeleteResult.Deleted | InUse | Failed` with
 technical details. The bike coordinator persists changes and supplies prepared
 snapshots to its store; there are no bike store mutation results.
 
+Bike file workflows also use closed reasons: `BikeFileImportResult` and
+`BikeImportResult` are `Imported | Canceled | InvalidFile | Failed`,
+`BikeExportResult` is `Exported | Canceled | Failed`, `BikeImageLoadResult` is
+`Loaded | Canceled | Failed`, and `LeverageRatioImportResult` is `Imported |
+Canceled | Invalid | Failed`. Picker and I/O failures carry their flow's reason
+and optional details. Image decode failure has its own presentation reason.
+CSV validation stays beside the curve; workflow failures use the editor error
+bar so diagnostics can expand without replacing the curve or leaking into text.
+
 Setup save returns `SetupSaveResult.Saved | Conflict | Failed`, deletion returns
 `SetupDeleteResult.Deleted | Failed`, import returns `SetupImportResult.Imported |
 Canceled | InvalidFile | Failed`, and export returns `SetupExportResult.Exported |

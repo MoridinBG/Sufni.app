@@ -64,15 +64,15 @@ internal sealed class BikeEditorService(
     public async Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default)
     {
         logger.Verbose("Opening leverage ratio CSV picker");
-        var file = await filesService.OpenLeverageRatioCsvFileAsync();
-        if (file is null)
-        {
-            logger.Verbose("Leverage ratio CSV import canceled");
-            return new LeverageRatioImportResult.Canceled();
-        }
-
         try
         {
+            var file = await filesService.OpenLeverageRatioCsvFileAsync();
+            if (file is null)
+            {
+                logger.Verbose("Leverage ratio CSV import canceled");
+                return new LeverageRatioImportResult.Canceled();
+            }
+
             return await backgroundTaskRunner.RunAsync<LeverageRatioImportResult>(async () =>
             {
                 await using var stream = await file.OpenReadAsync();
@@ -86,7 +86,7 @@ internal sealed class BikeEditorService(
                                 ? $"Line {error.LineNumber.Value}: {error.Message}"
                                 : error.Message)
                             .ToArray()),
-                    _ => new LeverageRatioImportResult.Failed("CSV file could not be parsed.")
+                    _ => new LeverageRatioImportResult.Failed(LeverageRatioImportFailureReason.Import)
                 };
             }, cancellationToken);
         }
@@ -97,22 +97,22 @@ internal sealed class BikeEditorService(
         catch (Exception e)
         {
             logger.Error(e, "Leverage ratio CSV import failed");
-            return new LeverageRatioImportResult.Failed(e.Message);
+            return new LeverageRatioImportResult.Failed(LeverageRatioImportFailureReason.Import, e.Message);
         }
     }
 
     public async Task<BikeImageLoadResult> LoadImageAsync(CancellationToken cancellationToken = default)
     {
         logger.Verbose("Opening bike image picker");
-        var file = await filesService.OpenBikeImageFileAsync();
-        if (file is null)
-        {
-            logger.Verbose("Bike image load canceled");
-            return new BikeImageLoadResult.Canceled();
-        }
-
         try
         {
+            var file = await filesService.OpenBikeImageFileAsync();
+            if (file is null)
+            {
+                logger.Verbose("Bike image load canceled");
+                return new BikeImageLoadResult.Canceled();
+            }
+
             var loadedImage = await backgroundTaskRunner.RunAsync(async () =>
             {
                 await using var stream = await file.OpenReadAsync();
@@ -135,22 +135,22 @@ internal sealed class BikeEditorService(
         catch (Exception e)
         {
             logger.Error(e, "Bike image load failed");
-            return new BikeImageLoadResult.Failed(e.Message);
+            return new BikeImageLoadResult.Failed(BikeImageFailureReason.Read, e.Message);
         }
     }
 
     public async Task<BikeFileImportResult> ImportBikeAsync(CancellationToken cancellationToken = default)
     {
         logger.Verbose("Opening bike import file picker");
-        var file = await filesService.OpenBikeFileAsync();
-        if (file is null)
-        {
-            logger.Verbose("Bike import canceled");
-            return new BikeFileImportResult.Canceled();
-        }
-
         try
         {
+            var file = await filesService.OpenBikeFileAsync();
+            if (file is null)
+            {
+                logger.Verbose("Bike import canceled");
+                return new BikeFileImportResult.Canceled();
+            }
+
             return await backgroundTaskRunner.RunAsync<BikeFileImportResult>(async () =>
             {
                 try
@@ -183,22 +183,22 @@ internal sealed class BikeEditorService(
         catch (Exception e)
         {
             logger.Error(e, "Bike import failed");
-            return new BikeFileImportResult.Failed(e.Message);
+            return new BikeFileImportResult.Failed(BikeImportFailureReason.Import, e.Message);
         }
     }
 
     public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
     {
         logger.Verbose("Opening bike export file picker for {BikeId}", bike.Id);
-        var file = await filesService.SaveBikeFileAsync(bike.Name);
-        if (file is null)
-        {
-            logger.Verbose("Bike export canceled for {BikeId}", bike.Id);
-            return new BikeExportResult.Canceled();
-        }
-
         try
         {
+            var file = await filesService.SaveBikeFileAsync(bike.Name);
+            if (file is null)
+            {
+                logger.Verbose("Bike export canceled for {BikeId}", bike.Id);
+                return new BikeExportResult.Canceled();
+            }
+
             return await backgroundTaskRunner.RunAsync(async () =>
             {
                 var bikeJson = bike.ToJson();
@@ -221,7 +221,7 @@ internal sealed class BikeEditorService(
         catch (Exception e)
         {
             logger.Error(e, "Bike export failed for {BikeId}", bike.Id);
-            return new BikeExportResult.Failed(e.Message);
+            return new BikeExportResult.Failed(BikeExportFailureReason.Export, e.Message);
         }
     }
 
