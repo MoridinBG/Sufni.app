@@ -38,3 +38,5 @@ public enum SessionEditFailureReason { Edit, Rejected }
 public enum GpsOffsetFailureReason { Save }
 
 public enum SyncFailureReason { Synchronize, ProtocolMismatch }
+
+public enum BikeAnalysisFailureReason { Analyze }

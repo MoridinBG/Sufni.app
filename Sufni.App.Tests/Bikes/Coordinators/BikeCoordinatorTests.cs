@@ -55,7 +55,7 @@ public class BikeCoordinatorTests : IDisposable
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.Unavailable());
+            .Returns(new BikeEditorAnalysisResult.NotApplicable());
 
         var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -73,11 +73,11 @@ public class BikeCoordinatorTests : IDisposable
         Assert.Equal(2.5, imported.Data.Bike.RearWheelTireWidth);
         Assert.Equal(711, imported.Data.Bike.RearWheelDiameterMm);
         Assert.Equal(12.5, imported.Data.Bike.ImageRotationDegrees);
-        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
+        Assert.IsType<BikeEditorAnalysisResult.NotApplicable>(imported.Data.AnalysisResult);
     }
 
     [Fact]
-    public async Task ImportBikeAsync_LoadsUnavailableAnalysis_ForDraftRearSuspension()
+    public async Task ImportBikeAsync_LoadsUnsolvableAnalysis_ForDraftRearSuspension()
     {
         var importedBike = new Bike(Guid.NewGuid(), "mismatched import")
         {
@@ -88,12 +88,12 @@ public class BikeCoordinatorTests : IDisposable
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(new BikeFileImportResult.Imported(importedBike));
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.Unavailable());
+            .Returns(new BikeEditorAnalysisResult.Unsolvable());
 
         var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var imported = Assert.IsType<BikeImportResult.Imported>(result);
-        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(imported.Data.AnalysisResult);
+        Assert.IsType<BikeEditorAnalysisResult.Unsolvable>(imported.Data.AnalysisResult);
         await bikeEditorService.Received(1)
             .LoadAnalysisAsync(Arg.Is<RearSuspensionSpec.LeverageRatioDraft>(_ => true), Arg.Any<CancellationToken>());
     }
@@ -127,7 +127,7 @@ public class BikeCoordinatorTests : IDisposable
         Assert.Equal(750, persisted.RearWheelDiameterMm);
         Assert.Equal(13.5, persisted.ImageRotationDegrees);
         Assert.Equal(9, saved.NewBaselineUpdated);
-        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
+        Assert.IsType<BikeEditorAnalysisResult.NotApplicable>(saved.AnalysisResult);
     }
 
     [Fact]
@@ -260,12 +260,12 @@ public class BikeCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLinkageAnalysisIsUnavailable()
+    public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLinkageAnalysisIsUnsolvable()
     {
         var existing = TestSnapshots.Bike(updated: 5);
         await SeedAsync(existing);
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.Unavailable());
+            .Returns(new BikeEditorAnalysisResult.Unsolvable());
         var coordinator = CreateCoordinator();
 
         var bike = new Bike(existing.Id, "full sus")

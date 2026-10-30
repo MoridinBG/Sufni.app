@@ -199,6 +199,12 @@ Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mappin
 
 The app layer wraps solver construction in `IKinematicSolutionCache` (`Sufni.App/Sufni.App/Bikes/Services/KinematicSolutionCache.cs`), a capacity-64 single-flight LRU keyed by `(LinkageSpec, steps, iterations)`. Editor analysis, save validation, rear calibration, and telemetry bike-processing context creation all request immutable solutions through this cache instead of constructing independent solvers for the same linkage.
 
+Invalid calculation inputs raise `KinematicCalculationException` with
+`MissingJointPath` or `DegenerateGeometry`; linkage and leverage-ratio validation
+keep their existing typed exceptions. Libraries do not log. Editor analysis
+classifies these expected input failures as `Unsolvable`, while unexpected
+exceptions become a typed analysis failure at the app boundary.
+
 ### Bike Characteristics
 
 `BikeCharacteristics` (`Sufni.Kinematics/BikeCharacteristics.cs`) derives datasets from the `KinematicSolution` returned by `KinematicSolver`:

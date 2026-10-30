@@ -579,7 +579,7 @@ public class BikeEditorViewModelTests
         editor.ImageCanvas.ImageRotationDegrees = 13.5;
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.NotApplicable()));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -606,7 +606,7 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.NotApplicable()));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -654,7 +654,7 @@ public class BikeEditorViewModelTests
         await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
         Assert.True(editor.IsPlotBusy);
 
-        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Unavailable());
+        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.NotApplicable());
         await Task.Yield();
 
         Assert.False(editor.IsPlotBusy);
@@ -685,7 +685,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.ShockStroke = 12.5;
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.NotApplicable()));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -1000,7 +1000,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
@@ -1015,7 +1015,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Failed("boom")));
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Failed(BikeAnalysisFailureReason.Analyze, "boom")));
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
@@ -1120,7 +1120,7 @@ public class BikeEditorViewModelTests
             .Returns(Task.FromResult<BikeImportResult>(
                 new BikeImportResult.Imported(new ImportedBikeEditorData(
                     importedBike,
-                    new BikeEditorAnalysisResult.Unavailable()))));
+                    new BikeEditorAnalysisResult.NotApplicable()))));
 
         await editor.ImportCommand.ExecuteAsync(null);
 
@@ -1152,7 +1152,7 @@ public class BikeEditorViewModelTests
 
         Assert.True(editor.IsPlotBusy);
 
-        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Unavailable());
+        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.NotApplicable());
         await resetTask;
 
         Assert.False(editor.IsPlotBusy);

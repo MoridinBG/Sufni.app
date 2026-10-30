@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.IO;
 using System.Text;
 using Avalonia.Platform.Storage;
@@ -112,23 +113,33 @@ public class BikeEditorServiceTests
         Assert.Contains("image_rotation_degrees", json);
     }
 
-    public static TheoryData<RearSuspensionSpec> UnavailableRearSuspensions => new()
+    public static TheoryData<RearSuspensionSpec, Type> UnavailableRearSuspensions => new()
     {
-        new RearSuspensionSpec.Hardtail(),
-        new RearSuspensionSpec.LinkageDraft(),
-        new RearSuspensionSpec.LeverageRatioDraft(),
+        { new RearSuspensionSpec.Hardtail(), typeof(BikeEditorAnalysisResult.NotApplicable) },
+        { new RearSuspensionSpec.LinkageDraft(), typeof(BikeEditorAnalysisResult.Unsolvable) },
+        { new RearSuspensionSpec.LeverageRatioDraft(), typeof(BikeEditorAnalysisResult.Unsolvable) },
     };
 
     [Theory]
     [MemberData(nameof(UnavailableRearSuspensions))]
-    public async Task LoadAnalysisAsync_ReturnsUnavailable_WithoutUsingCache(RearSuspensionSpec rearSuspension)
+    public async Task LoadAnalysisAsync_ClassifiesUnavailableInputs_WithoutSolving(RearSuspensionSpec rearSuspension, Type expected)
     {
-        var kinematicSolutionCache = new CountingKinematicSolutionCache();
+        var cache = new CountingKinematicSolutionCache();
 
-        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(rearSuspension, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService(cache).LoadAnalysisAsync(rearSuspension, TestContext.Current.CancellationToken);
 
-        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
-        Assert.Equal(0, kinematicSolutionCache.GetOrSolveCount);
+        Assert.IsType(expected, result);
+        Assert.Equal(0, cache.GetOrSolveCount);
+    }
+
+    [Fact]
+    public async Task LoadAnalysisAsync_UnexpectedSolverFailure_IsNotReportedAsUnsolvable()
+    {
+        var cache = new CountingKinematicSolutionCache { Failure = new InvalidOperationException("unexpected failure") };
+
+        var result = await CreateService(cache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()), TestContext.Current.CancellationToken);
+
+        Assert.Equal(BikeAnalysisFailureReason.Analyze, Assert.IsType<BikeEditorAnalysisResult.Failed>(result).Reason);
     }
 
     [Fact]
@@ -149,7 +160,7 @@ public class BikeEditorServiceTests
     }
 
     [Fact]
-    public async Task LoadAnalysisAsync_ReturnsUnavailable_WhenLinkageCannotBeSolved()
+    public async Task LoadAnalysisAsync_ReturnsUnsolvable_WhenLinkageCannotBeSolved()
     {
         var linkage = new LinkageSpec(
             [],
@@ -159,7 +170,7 @@ public class BikeEditorServiceTests
 
         var result = await CreateService().LoadAnalysisAsync(new RearSuspensionSpec.Linkage(linkage), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.IsType<BikeEditorAnalysisResult.Unavailable>(result);
+        Assert.IsType<BikeEditorAnalysisResult.Unsolvable>(result);
     }
 
     [Fact]
@@ -205,10 +216,12 @@ public class BikeEditorServiceTests
     private sealed class CountingKinematicSolutionCache : IKinematicSolutionCache
     {
         public int GetOrSolveCount { get; private set; }
+        public Exception? Failure { get; init; }
 
         public KinematicSolution GetOrSolve(LinkageSpec linkage, int steps = 200, int iterations = 1000)
         {
             GetOrSolveCount++;
+            if (Failure is { } failure) throw failure;
             return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
         }
     }

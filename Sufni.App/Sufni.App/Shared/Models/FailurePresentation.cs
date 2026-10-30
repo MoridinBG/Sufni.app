@@ -112,4 +112,9 @@ public sealed record FailurePresentation
         SyncFailureReason.ProtocolMismatch => "The devices use different sync versions. Update both devices to the same app version.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(BikeAnalysisFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeAnalysisFailureReason.Analyze => "The rear suspension analysis could not be shown. Check the bike configuration and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

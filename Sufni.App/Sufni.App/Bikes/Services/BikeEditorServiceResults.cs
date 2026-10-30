@@ -1,4 +1,5 @@
 using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Models;
 using Sufni.Kinematics;
 
 namespace Sufni.App.Bikes.Services;
@@ -12,8 +13,9 @@ public abstract record BikeEditorAnalysisResult
     private BikeEditorAnalysisResult() { }
 
     public sealed record Computed(BikeAnalysisPresentationData Data) : BikeEditorAnalysisResult;
-    public sealed record Unavailable : BikeEditorAnalysisResult;
-    public sealed record Failed(string ErrorMessage) : BikeEditorAnalysisResult;
+    public sealed record NotApplicable : BikeEditorAnalysisResult;
+    public sealed record Unsolvable : BikeEditorAnalysisResult;
+    public sealed record Failed(BikeAnalysisFailureReason Reason, string? Details = null) : BikeEditorAnalysisResult;
 }
 
 public abstract record BikeImageLoadResult

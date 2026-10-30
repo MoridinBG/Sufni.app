@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Kinematics;
 using Serilog;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
@@ -28,43 +29,35 @@ internal sealed class BikeEditorService(
         if (rearSuspension is RearSuspensionSpec.Hardtail or RearSuspensionSpec.LinkageDraft or RearSuspensionSpec.LeverageRatioDraft)
         {
             logger.Verbose("Skipping bike rear suspension analysis for {RearSuspensionType}", rearSuspension.GetType().Name);
-            return new BikeEditorAnalysisResult.Unavailable();
+            return rearSuspension is RearSuspensionSpec.Hardtail
+                ? new BikeEditorAnalysisResult.NotApplicable()
+                : new BikeEditorAnalysisResult.Unsolvable();
         }
 
         try
         {
             logger.Verbose("Starting bike rear suspension analysis for {RearSuspensionType}", rearSuspension.GetType().Name);
 
-            return await backgroundTaskRunner.RunAsync(() =>
+            return await backgroundTaskRunner.RunAsync(() => rearSuspension switch
             {
-                try
-                {
-                    return rearSuspension switch
-                    {
-                        RearSuspensionSpec.Linkage linkage => AnalyzeLinkage(linkage.Spec),
-                        RearSuspensionSpec.LeverageRatio leverageRatio => AnalyzeLeverageRatio(leverageRatio.Spec),
-                        _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension))
-                    };
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    logger.Warning(exception, "Bike rear suspension analysis returned unavailable");
-                    return new BikeEditorAnalysisResult.Unavailable();
-                }
+                RearSuspensionSpec.Linkage linkage => AnalyzeLinkage(linkage.Spec),
+                RearSuspensionSpec.LeverageRatio leverageRatio => AnalyzeLeverageRatio(leverageRatio.Spec),
+                _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension))
             }, cancellationToken);
         }
         catch (OperationCanceledException)
         {
             throw;
         }
+        catch (Exception e) when (e is LinkageValidationException or LeverageRatioValidationException or KinematicCalculationException)
+        {
+            logger.Warning(e, "Bike rear suspension analysis is unsolvable");
+            return new BikeEditorAnalysisResult.Unsolvable();
+        }
         catch (Exception e)
         {
             logger.Error(e, "Bike rear suspension analysis failed");
-            return new BikeEditorAnalysisResult.Failed(e.Message);
+            return new BikeEditorAnalysisResult.Failed(BikeAnalysisFailureReason.Analyze, e.Message);
         }
     }
 

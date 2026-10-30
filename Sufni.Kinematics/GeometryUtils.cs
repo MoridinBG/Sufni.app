@@ -90,13 +90,13 @@ public static class GeometryUtils
 
         if (magnitudeProduct == 0 || !double.IsFinite(magnitudeProduct))
         {
-            throw new InvalidOperationException("Cannot calculate angle for coincident or degenerate points.");
+            throw new KinematicCalculationException(KinematicCalculationFailureReason.DegenerateGeometry, "Cannot calculate angle for coincident or degenerate points.");
         }
 
         var cosAngle = dotProduct / magnitudeProduct;
         if (!double.IsFinite(cosAngle))
         {
-            throw new InvalidOperationException("Cannot calculate angle for coincident or degenerate points.");
+            throw new KinematicCalculationException(KinematicCalculationFailureReason.DegenerateGeometry, "Cannot calculate angle for coincident or degenerate points.");
         }
 
         // Clamp value to the valid range for Math.Acos to avoid NaN due to floating point errors

@@ -200,6 +200,11 @@ Result application must still enforce coherence after awaited work returns:
 completion carries `FailurePresentation`, retaining details for the error bar
 without putting exception text in the summary.
 
+`BikeEditorAnalysisResult` is `Computed | NotApplicable | Unsolvable | Failed`.
+Hardtails are not applicable; incomplete drafts and typed invalid-geometry inputs
+are unsolvable. Unexpected failures carry `BikeAnalysisFailureReason.Analyze`
+with optional details and no longer disappear into the unavailable state.
+
 Bike save returns `BikeSaveResult.Saved | Conflict | InvalidRearSuspension | Failed`.
 Its failure carries `BikeSaveFailureReason.Save | Analysis` and optional details.
 Cutoff updates return `BikeDampingSpeedCutoffUpdateResult.Saved | Conflict | Missing | Failed`

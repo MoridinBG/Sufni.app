@@ -104,7 +104,7 @@ internal class BikeCoordinator(
         }
 
         var validRearSuspension = (BikeRearSuspensionValidationResult.Valid)validation;
-        BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.Unavailable();
+        BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.NotApplicable();
         switch (validRearSuspension.RearSuspension)
         {
             case RearSuspensionSpec.Hardtail:
@@ -115,12 +115,12 @@ internal class BikeCoordinator(
                 analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
                 switch (analysisResult)
                 {
-                    case BikeEditorAnalysisResult.Unavailable:
+                    case BikeEditorAnalysisResult.Unsolvable:
                         logger.Warning("Bike save blocked because linkage was invalid for {BikeId}", bike.Id);
                         return new BikeSaveResult.InvalidRearSuspension(RearSuspensionValidationMessages.ForSave(
                             new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable)));
                     case BikeEditorAnalysisResult.Failed failed:
-                        return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, failed.ErrorMessage);
+                        return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, failed.Details);
                 }
                 break;
 
@@ -129,7 +129,7 @@ internal class BikeCoordinator(
                 analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
                 if (analysisResult is BikeEditorAnalysisResult.Failed leverageRatioFailed)
                 {
-                    return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, leverageRatioFailed.ErrorMessage);
+                    return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, leverageRatioFailed.Details);
                 }
                 break;
 

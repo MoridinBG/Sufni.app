@@ -1,4 +1,5 @@
 using Sufni.App.Shared.Models;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -470,7 +471,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         catch (Exception e)
         {
             if (token.IsCancellationRequested) return;
-            ApplyAnalysisResult(new BikeEditorAnalysisResult.Failed(e.Message));
+            Log.ForContext<BikeEditorViewModel>().Error(e, "Bike analysis could not be presented for {BikeId}", Id);
+            ApplyAnalysisResult(new BikeEditorAnalysisResult.Failed(BikeAnalysisFailureReason.Analyze));
         }
         finally
         {
@@ -488,7 +490,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 ImageCanvas.SetRearAxlePathData(computed.Data.RearAxlePathData);
                 ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
                 break;
-            case BikeEditorAnalysisResult.Unavailable:
+            case BikeEditorAnalysisResult.NotApplicable:
+            case BikeEditorAnalysisResult.Unsolvable:
                 LeverageRatioData = null;
                 ImageCanvas.SetRearAxlePathData(null);
                 ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
@@ -497,7 +500,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 LeverageRatioData = null;
                 ImageCanvas.SetRearAxlePathData(null);
                 ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
-                ErrorMessages.Add(new FailurePresentation($"Rear suspension analysis failed: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

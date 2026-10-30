@@ -5,6 +5,18 @@ namespace Sufni.Kinematics.Tests;
 public class BikeCharacteristicsRearMappingTests
 {
     [Fact]
+    public void AngleToShockStrokeDataset_WhenSensorJointIsMissing_ReportsMissingJointPath()
+    {
+        var characteristics = CreateCharacteristics();
+        var names = new JointNameMapping();
+
+        var failure = Assert.Throws<KinematicCalculationException>(() =>
+            characteristics.AngleToShockStrokeDataset("removed sensor joint", names.BottomBracket, names.ShockEye1));
+
+        Assert.Equal(KinematicCalculationFailureReason.MissingJointPath, failure.Reason);
+    }
+
+    [Fact]
     public void ShockStrokeToWheelTravelDataset_StartsAtZero_AndIsMonotonic()
     {
         var characteristics = CreateCharacteristics();

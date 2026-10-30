@@ -139,7 +139,7 @@ public sealed class BikeCharacteristics
             return path;
         }
 
-        throw new KeyNotFoundException($"Joint path '{jointName}' was not found in the kinematic solution.");
+        throw new KinematicCalculationException(KinematicCalculationFailureReason.MissingJointPath, $"Joint path '{jointName}' was not found in the kinematic solution.");
     }
 
     #endregion Private methods

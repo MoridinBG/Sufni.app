@@ -31,7 +31,7 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<IBikeCoordinator>();
 
         coordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
         coordinator.LoadImageAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
         coordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
