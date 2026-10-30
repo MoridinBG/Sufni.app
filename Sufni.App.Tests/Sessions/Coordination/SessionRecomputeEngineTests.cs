@@ -387,13 +387,18 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
-    public async Task RequestRecomputeAllAsync_RecomputesEveryRecomputableSession_AndCountsSkips()
+    public async Task RequestRecomputeAllAsync_ExcludesCurrentSessions_AndSkipsUnavailableOrMissingSessions()
     {
         var firstId = Guid.NewGuid();
         var secondId = Guid.NewGuid();
         var skippedId = Guid.NewGuid();
         var firstPersisted = ConfigureRecomputable(firstId);
         var secondPersisted = ConfigureRecomputable(secondId);
+        var currentId = Guid.NewGuid();
+        ConfigureRecomputable(currentId);
+        var currentDomain = domainQuery.Get(currentId)! with { Staleness = new SessionStaleness.Current() };
+        domainQuery.Get(currentId).Returns(currentDomain);
+        var missingId = Guid.NewGuid();
 
         // A session whose current staleness cannot be recomputed is enumerated but
         // skipped by the engine's guard, not surfaced as a failure.
@@ -409,7 +414,7 @@ public class SessionRecomputeEngineTests
             DerivedChangeKind.None));
         var skippedPersisted = new Session(skippedId, "skipped", "desc", Guid.NewGuid(), 100);
 
-        sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id]);
+        sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id, currentId, missingId]);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
@@ -419,9 +424,9 @@ public class SessionRecomputeEngineTests
             .RequestRecomputeAllAsync()
             .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(3, summary.Total);
+        Assert.Equal(4, summary.Total);
         Assert.Equal(2, summary.Recomputed);
-        Assert.Equal(1, summary.NotRecomputable);
+        Assert.Equal(2, summary.NotRecomputable);
         Assert.Equal(0, summary.Failed);
         Assert.Equal(0, summary.Superseded);
         await sessionTelemetryWriter.Received(2).UpdateProcessedDerivedDataAsync(

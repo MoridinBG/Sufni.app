@@ -29,13 +29,10 @@ public interface ISessionRecomputeEngine
     Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Rebuilds every live recorded session, fanning the per-session requests out
-    /// with a degree of parallelism scaled to the available CPU cores. Each
-    /// session goes through <see cref="RequestRecomputeAsync"/>, so per-session
-    /// cancel-and-replace and the not-recomputable guard still apply; sessions
-    /// that cannot be recomputed are counted and skipped rather than surfaced as
-    /// failures. When supplied, <paramref name="progress"/> is reported after each
-    /// session finishes so a caller can drive a progress indicator.
+    /// Rebuilds non-current sessions in parallel. Missing or unavailable sessions
+    /// are skipped; displaced work stops with Superseded. Fingerprints are the
+    /// checkpoint: no run resumes after restart, and staleness is derived again.
+    /// Progress counts only the selected non-current sessions.
     /// </summary>
     Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
         IProgress<SessionRecomputeAllProgress>? progress = null,
@@ -210,7 +207,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var ids = await sessionRepository.GetActiveSessionIdsAsync();
+        var ids = (await sessionRepository.GetActiveSessionIdsAsync())
+            .Where(id => recordedSessionDomainQuery.Get(id)?.Staleness is not SessionStaleness.Current)
+            .ToList();
 
         logger.Information("Starting recompute-all for {SessionCount} sessions", ids.Count);
 

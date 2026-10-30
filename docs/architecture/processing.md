@@ -166,6 +166,12 @@ bike geometry/rear suspension, recorded-source metadata for the effective source
 
 When the stored fingerprint is missing, uses an older processing version, references different processing inputs, has a different normalized derivation window, or the processed BLOB is absent while the raw source exists, the recorded session has the single recomputable `Stale` state. Missing setup/bike dependencies make it stale but not recomputable. A missing raw source is displayed separately as "No Raw"; the app can still load existing processed data, but it cannot regenerate it until the source is restored. If the source is missing and the persisted processed state is known to be stale, `SessionStaleness.MissingRawSource(ProcessedStateStale: true)` keeps the stale flag while still reporting the session as not recomputable. The source-less stale check compares the same database inputs as the source-backed path — **including the clamped velocity-filter option and normalized derivation window** — so changing either marks a source-less session stale too; it simply cannot be acted on until the source returns.
 
+Recompute-all selects only non-current sessions; missing or unavailable sessions
+are skips, and superseded per-session work stops without publishing. A completed
+fingerprint is the restart checkpoint. No in-memory bulk run is resumed after
+process restart: startup derives staleness again, and the next explicit request
+skips generations already current. There is no separate durable recompute queue.
+
 `SessionCoordinator.SetProcessingOptionAsync` commits the session column, publishes
 the snapshot, and starts recompute in the same UI publication turn. A failed or
 unrecomputable change restores the previous value only if the stored option still
