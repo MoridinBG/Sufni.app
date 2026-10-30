@@ -21,5 +21,5 @@ internal static class TestSegmentPickers
             dialogService ?? Substitute.For<IDialogService>());
 
     public static SegmentPickerViewModel Create() =>
-        CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentPickerSessionState>(), _ => { }, _ => { });
+        CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentPickerSessionState>(), _ => { }, _ => { }, _ => { });
 }

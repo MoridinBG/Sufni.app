@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using Sufni.Telemetry;
 
@@ -18,7 +19,8 @@ public interface ISegmentPickerFactory
         Guid sessionId,
         IObservable<SegmentPickerSessionState> sessionState,
         Action<TelemetryTimeRange?> setAnalysisRange,
-        Action<string> reportError);
+        Action<FailurePresentation> reportError,
+        Action<string> reportNotification);
 }
 
 internal sealed class SegmentPickerFactory(
@@ -30,6 +32,7 @@ internal sealed class SegmentPickerFactory(
         Guid sessionId,
         IObservable<SegmentPickerSessionState> sessionState,
         Action<TelemetryTimeRange?> setAnalysisRange,
-        Action<string> reportError) =>
-        new(sessionId, sessionState, segmentStore, segmentCoordinator, dialogService, setAnalysisRange, reportError);
+        Action<FailurePresentation> reportError,
+        Action<string> reportNotification) =>
+        new(sessionId, sessionState, segmentStore, segmentCoordinator, dialogService, setAnalysisRange, reportError, reportNotification);
 }

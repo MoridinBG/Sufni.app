@@ -29,7 +29,7 @@ public class StravaFailureViewsTests
         coordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
             .Returns(new StravaSegmentFetchResult.Failed(StravaSegmentFetchFailureReason.Load, details));
         using var picker = TestSegmentPickers.CreateFactory(segmentCoordinator: coordinator).Create(
-            Guid.NewGuid(), Observable.Return(new SegmentPickerSessionState(1000, 10, null)), _ => { }, _ => { });
+            Guid.NewGuid(), Observable.Return(new SegmentPickerSessionState(1000, 10, null)), _ => { }, _ => { }, _ => { });
         var dialog = new StravaConnectDialogViewModel(coordinator, new StravaConnectionSnapshot("client", "secret", false))
         {
             RedirectUrl = "http://localhost/exchange_token?code=abc"

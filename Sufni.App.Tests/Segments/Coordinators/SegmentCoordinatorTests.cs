@@ -1,4 +1,5 @@
 using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
 using NSubstitute;
 
 using Sufni.App.Segments.Coordinators;
@@ -46,23 +47,70 @@ public class SegmentCoordinatorTests
     }
 
     [Fact]
-    public async Task CreateAsync_WithDuplicateName_FailsWithoutWriting()
+    public async Task CreateAsync_WithDuplicateName_ReturnsInvalidWithoutWriting()
     {
         var result = await CreateCoordinator().CreateAsync(session.Id, "Segment 1", 2, 5);
 
-        Assert.IsType<SegmentChangeResult.Failed>(result);
+        Assert.IsType<SegmentChangeResult.Invalid>(result);
         await repository.DidNotReceive().InsertAsync(Arg.Any<SessionSegment>());
     }
 
     [Fact]
-    public async Task DeleteAsync_WhenSegmentIsGone_Fails()
+    public async Task DeleteAsync_WhenSegmentIsGone_ReturnsMissing()
     {
         repository.DeleteAsync(Arg.Any<Guid>()).Returns((SessionSegment?)null);
 
         var result = await CreateCoordinator().DeleteAsync(Guid.NewGuid());
 
-        Assert.IsType<SegmentChangeResult.Failed>(result);
+        Assert.IsType<SegmentChangeResult.SegmentMissing>(result);
         await segmentStore.DidNotReceive().PublishSegmentsAsync(Arg.Any<IReadOnlyCollection<SessionSegmentSnapshot>>(), Arg.Any<IReadOnlyCollection<Guid>>());
+    }
+
+    [Theory]
+    [InlineData(SegmentWriteFailureReason.Create)]
+    [InlineData(SegmentWriteFailureReason.Rename)]
+    [InlineData(SegmentWriteFailureReason.Delete)]
+    public async Task Write_WhenPersistenceFails_ReturnsReasonAndPreservesPublishedSegments(SegmentWriteFailureReason operation)
+    {
+        using var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var existing = new SessionSegmentSnapshot(Guid.NewGuid(), session.Id, "Existing", 2, 5);
+        await store.PublishSegmentsAsync([existing], []);
+        var error = new IOException("storage unavailable");
+        repository.InsertAsync(Arg.Any<SessionSegment>()).Returns(Task.FromException(error));
+        repository.RenameAsync(existing.Id, Arg.Any<string>()).Returns(Task.FromException<SessionSegment?>(error));
+        repository.DeleteAsync(existing.Id).Returns(Task.FromException<SessionSegment?>(error));
+        var coordinator = CreateCoordinator(store);
+
+        var result = operation switch
+        {
+            SegmentWriteFailureReason.Create => await coordinator.CreateAsync(session.Id, "New", 3, 6),
+            SegmentWriteFailureReason.Rename => await coordinator.RenameAsync(existing.Id, "Renamed"),
+            SegmentWriteFailureReason.Delete => await coordinator.DeleteAsync(existing.Id),
+            _ => throw new ArgumentOutOfRangeException(nameof(operation))
+        };
+
+        var failure = Assert.IsType<SegmentChangeResult.Failed>(result);
+        Assert.Equal(operation, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
+        Assert.Equal([existing], store.GetForSession(session.Id));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSessionIsGone_ReturnsMissingWithoutWriting()
+    {
+        var result = await CreateCoordinator().CreateAsync(Guid.NewGuid(), "Segment", 2, 5);
+
+        Assert.IsType<SegmentChangeResult.SessionMissing>(result);
+        await repository.DidNotReceive().InsertAsync(Arg.Any<SessionSegment>());
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithUnorderedRange_ReturnsInvalidWithoutWriting()
+    {
+        var result = await CreateCoordinator().CreateAsync(session.Id, "Segment", 5, 2);
+
+        Assert.IsType<SegmentChangeResult.Invalid>(result);
+        await repository.DidNotReceive().InsertAsync(Arg.Any<SessionSegment>());
     }
 
     [Fact]
@@ -234,5 +282,5 @@ public class SegmentCoordinatorTests
         return [];
     }
 
-    private SegmentCoordinator CreateCoordinator() => new(repository, segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner(), stravaService);
+    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner(), stravaService);
 }

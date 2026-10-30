@@ -214,4 +214,11 @@ public sealed record FailurePresentation
         StravaSegmentFetchFailureReason.Load => "Strava segments could not be loaded. Check the connection and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SegmentWriteFailureReason reason, string? details = null) => new(reason switch
+    {
+        SegmentWriteFailureReason.Create => "The segment could not be saved. Try again.",
+        SegmentWriteFailureReason.Rename => "The segment could not be renamed. Try again.",
+        SegmentWriteFailureReason.Delete => "The segment could not be deleted. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

@@ -67,3 +67,5 @@ public enum ServerStartFailureReason { Start }
 
 public enum StravaConnectFailureReason { Connect }
 public enum StravaSegmentFetchFailureReason { Load }
+
+public enum SegmentWriteFailureReason { Create, Rename, Delete }

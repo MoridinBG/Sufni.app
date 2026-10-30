@@ -21,7 +21,8 @@ public class SegmentPickerViewModelTests
     private readonly ISegmentCoordinator segmentCoordinator = Substitute.For<ISegmentCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly List<TelemetryTimeRange?> analysisRanges = [];
-    private readonly List<string> errors = [];
+    private readonly List<FailurePresentation> errors = [];
+    private readonly List<string> notifications = [];
     private readonly Subject<SegmentPickerSessionState> sessionState = new();
 
     public SegmentPickerViewModelTests()
@@ -112,13 +113,45 @@ public class SegmentPickerViewModelTests
     {
         segmentCoordinator.NextName(sessionId).Returns("Segment 1");
         segmentCoordinator.CreateAsync(sessionId, "Segment 1", 2, 4)
-            .Returns(new SegmentChangeResult.Failed("Session no longer exists."));
+            .Returns(new SegmentChangeResult.Failed(SegmentWriteFailureReason.Create, "technical diagnostic"));
         AnswerNamePrompt(prompt => prompt.ConfirmCommand.Execute(null));
         using var picker = CreateLoadedPicker();
 
         await picker.SaveSelectionAsync(new TelemetryTimeRange(2, 4));
 
-        Assert.Single(errors);
+        var failure = Assert.Single(errors);
+        Assert.Equal("technical diagnostic", failure.Details);
+        Assert.DoesNotContain(failure.Details, failure.Summary);
+        Assert.Empty(notifications);
+    }
+
+    [Fact]
+    public async Task SaveSelectionAsync_WhenSessionIsGone_ReportsNotification()
+    {
+        segmentCoordinator.NextName(sessionId).Returns("Segment 1");
+        segmentCoordinator.CreateAsync(sessionId, "Segment 1", 2, 4)
+            .Returns(new SegmentChangeResult.SessionMissing());
+        AnswerNamePrompt(prompt => prompt.ConfirmCommand.Execute(null));
+        using var picker = CreateLoadedPicker();
+
+        await picker.SaveSelectionAsync(new TelemetryTimeRange(2, 4));
+
+        Assert.Empty(errors);
+        Assert.Single(notifications);
+    }
+
+    [Fact]
+    public async Task DeleteSavedSegment_WhenAlreadyGone_ReportsNotification()
+    {
+        var segment = AddSegment("Segment", 2, 4);
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        segmentCoordinator.DeleteAsync(segment.Id).Returns(new SegmentChangeResult.SegmentMissing());
+        using var picker = CreateLoadedPicker();
+
+        await picker.DeleteSavedSegmentCommand.ExecuteAsync(picker.SavedSegments[0]);
+
+        Assert.Empty(errors);
+        Assert.Single(notifications);
     }
 
     [Fact]
@@ -232,7 +265,8 @@ public class SegmentPickerViewModelTests
             segmentCoordinator,
             dialogService,
             analysisRanges.Add,
-            errors.Add);
+            errors.Add,
+            notifications.Add);
         sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, durationSeconds, analysisRange));
         return picker;
     }

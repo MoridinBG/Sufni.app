@@ -1599,7 +1599,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     editorActions.ClearAnalysisRange();
                 }
             },
-            message => ErrorMessages.Add(new FailurePresentation(message)));
+            ErrorMessages.Add,
+            Notifications.Add);
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(
             this,
             Pages,

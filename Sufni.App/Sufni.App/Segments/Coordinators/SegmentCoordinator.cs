@@ -22,7 +22,10 @@ public abstract record SegmentChangeResult
     private SegmentChangeResult() { }
 
     public sealed record Applied : SegmentChangeResult;
-    public sealed record Failed(string ErrorMessage) : SegmentChangeResult;
+    public sealed record SessionMissing : SegmentChangeResult;
+    public sealed record SegmentMissing : SegmentChangeResult;
+    public sealed record Invalid(string Message) : SegmentChangeResult;
+    public sealed record Failed(SegmentWriteFailureReason Reason, string? Details = null) : SegmentChangeResult;
 }
 
 /// <summary>
@@ -138,25 +141,25 @@ internal sealed class SegmentCoordinator(
     IStravaSegmentService stravaService) : ISegmentCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SegmentCoordinator>();
-    private static readonly SegmentChangeResult MissingSegment =
-        new SegmentChangeResult.Failed("Saved segment no longer exists.");
 
     public async Task<SegmentChangeResult> CreateAsync(Guid sessionId, string name, double startSeconds, double endSeconds)
     {
         if (sessionStore.Get(sessionId) is null)
         {
-            return new SegmentChangeResult.Failed("Session no longer exists.");
+            return new SegmentChangeResult.SessionMissing();
         }
 
         if (!double.IsFinite(startSeconds) || !double.IsFinite(endSeconds) || startSeconds >= endSeconds)
         {
-            return new SegmentChangeResult.Failed("Saved segment range is invalid.");
+            logger.Warning("Invalid segment range for session {SessionId}", sessionId);
+            return new SegmentChangeResult.Invalid("Saved segment range is invalid.");
         }
 
         var trimmedName = name.Trim();
         if (ValidateName(sessionId, trimmedName) is { } error)
         {
-            return new SegmentChangeResult.Failed(error);
+            logger.Warning("Invalid segment name for session {SessionId}: {Validation}", sessionId, error);
+            return new SegmentChangeResult.Invalid(error);
         }
 
         var segment = new SessionSegment
@@ -166,7 +169,7 @@ internal sealed class SegmentCoordinator(
             StartSeconds = startSeconds,
             EndSeconds = endSeconds,
         };
-        return await WriteAsync("saved", async () =>
+        return await WriteAsync(SegmentWriteFailureReason.Create, segment.Id, async () =>
         {
             await repository.InsertAsync(segment);
             return segment;
@@ -178,19 +181,20 @@ internal sealed class SegmentCoordinator(
         var trimmedName = name.Trim();
         if (segmentStore.Get(segmentId) is not { } existing)
         {
-            return MissingSegment;
+            return new SegmentChangeResult.SegmentMissing();
         }
 
         if (ValidateName(existing.SessionId, trimmedName, segmentId) is { } error)
         {
-            return new SegmentChangeResult.Failed(error);
+            logger.Warning("Invalid segment name for segment {SegmentId}: {Validation}", segmentId, error);
+            return new SegmentChangeResult.Invalid(error);
         }
 
-        return await WriteAsync("renamed", () => repository.RenameAsync(segmentId, trimmedName));
+        return await WriteAsync(SegmentWriteFailureReason.Rename, segmentId, () => repository.RenameAsync(segmentId, trimmedName));
     }
 
     public Task<SegmentChangeResult> DeleteAsync(Guid segmentId) =>
-        WriteAsync("deleted", () => repository.DeleteAsync(segmentId));
+        WriteAsync(SegmentWriteFailureReason.Delete, segmentId, () => repository.DeleteAsync(segmentId));
 
     public string? ValidateName(Guid sessionId, string name, Guid? segmentId = null)
     {
@@ -447,13 +451,13 @@ internal sealed class SegmentCoordinator(
 
     private static double Fraction(double current, int total) => total <= 0 ? 0 : Math.Clamp(current / total, 0, 1);
 
-    private async Task<SegmentChangeResult> WriteAsync(string action, Func<Task<SessionSegment?>> write)
+    private async Task<SegmentChangeResult> WriteAsync(SegmentWriteFailureReason reason, Guid segmentId, Func<Task<SessionSegment?>> write)
     {
         try
         {
             if (await backgroundTaskRunner.RunAsync(write) is not { } segment)
             {
-                return MissingSegment;
+                return new SegmentChangeResult.SegmentMissing();
             }
 
             await segmentStore.PublishSegmentsAsync(
@@ -463,8 +467,8 @@ internal sealed class SegmentCoordinator(
         }
         catch (Exception e)
         {
-            logger.Error(e, "Saved segment could not be {Action}", action);
-            return new SegmentChangeResult.Failed($"Saved segment could not be {action}: {e.Message}");
+            logger.Error(e, "Segment write failed for {SegmentId} during {Operation}", segmentId, reason);
+            return new SegmentChangeResult.Failed(reason, e.Message);
         }
     }
 

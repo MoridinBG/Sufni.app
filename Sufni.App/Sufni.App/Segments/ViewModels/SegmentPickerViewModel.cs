@@ -41,7 +41,8 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private readonly ISegmentCoordinator segmentCoordinator;
     private readonly IDialogService dialogService;
     private readonly Action<TelemetryTimeRange?> setAnalysisRange;
-    private readonly Action<string> reportError;
+    private readonly Action<FailurePresentation> reportError;
+    private readonly Action<string> reportNotification;
     private readonly IDisposable segmentsSubscription;
     private readonly IDisposable sessionStateSubscription;
     private IReadOnlyCollection<SessionSegmentSnapshot> segments = [];
@@ -76,13 +77,15 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         ISegmentCoordinator segmentCoordinator,
         IDialogService dialogService,
         Action<TelemetryTimeRange?> setAnalysisRange,
-        Action<string> reportError)
+        Action<FailurePresentation> reportError,
+        Action<string> reportNotification)
     {
         this.sessionId = sessionId;
         this.segmentCoordinator = segmentCoordinator;
         this.dialogService = dialogService;
         this.setAnalysisRange = setAnalysisRange;
         this.reportError = reportError;
+        this.reportNotification = reportNotification;
         segmentsSubscription = segmentStore.Connect()
             .Filter(segment => segment.SessionId == sessionId)
             .ToCollection()
@@ -315,9 +318,20 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     private void Report(SegmentChangeResult result)
     {
-        if (result is SegmentChangeResult.Failed failed)
+        switch (result)
         {
-            reportError(failed.ErrorMessage);
+            case SegmentChangeResult.SessionMissing:
+                reportNotification("Session no longer exists.");
+                break;
+            case SegmentChangeResult.SegmentMissing:
+                reportNotification("Saved segment no longer exists.");
+                break;
+            case SegmentChangeResult.Invalid invalid:
+                reportError(new FailurePresentation(invalid.Message));
+                break;
+            case SegmentChangeResult.Failed failed:
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
         }
     }
 

@@ -298,6 +298,12 @@ failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
 optional diagnostic details. `FailurePresentation` supplies fixed summaries;
 no matching session and missing clips are notification states.
 
+Saved-segment changes return `SegmentChangeResult.Applied | SessionMissing |
+SegmentMissing | Invalid(Message) | Failed(reason, details)`. Missing entities
+produce notifications; validation remains a fixed message. Persistence/publication
+failures use `SegmentWriteFailureReason.Create | Rename | Delete` and expandable
+diagnostics.
+
 Strava connection returns `StravaConnectResult.Connected | ValidationFailed |
 MissingRequiredScope | RateLimited | Failed`. Segment fetch returns
 `StravaSegmentFetchResult.Loaded | NotConnected | MissingSessionTiming |
