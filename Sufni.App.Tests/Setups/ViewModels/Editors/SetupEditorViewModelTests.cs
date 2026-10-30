@@ -311,6 +311,9 @@ public class SetupEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
+        var sensor = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
+        sensor.Length = 150;
+        Assert.True(sensor.IsDirty);
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
             .Returns(new SetupSaveResult.Saved(11));
@@ -322,6 +325,8 @@ public class SetupEditorViewModelTests
             boardId,
             5);
         Assert.Equal(11, editor.BaselineUpdated);
+        Assert.False(sensor.IsDirty);
+        Assert.False(editor.IsDirty);
         shell.DidNotReceive().GoBack();
     }
 
@@ -396,6 +401,42 @@ public class SetupEditorViewModelTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Single(editor.ErrorMessages);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task TryPrepareClose_KeepsChanges_WhenSaveFailsOrConflictReloadIsDeclined(
+        bool sensorOnly,
+        bool conflict)
+    {
+        var bike = TestSnapshots.Bike();
+        bikesCache.AddOrUpdate(bike);
+        var snapshot = TestSnapshots.Setup(bikeId: bike.Id, boardId: Guid.NewGuid(), updated: 5) with
+        {
+            FrontSensorConfigurationJson = LinearForkConfigurationJson
+        };
+        var editor = CreateEditor(snapshot);
+        editor.LoadedCommand.Execute(null);
+        var sensor = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
+        if (sensorOnly) sensor.Length = 150;
+        else editor.Name = "Changed setup";
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        setupCoordinator.SaveAsync(Arg.Any<Setup>(), snapshot.BoardId, 5).Returns(
+            conflict
+                ? new SetupSaveResult.Conflict(snapshot with { Updated = 6 })
+                : new SetupSaveResult.Failed("disk full"));
+        dialogService.ShowCloseConfirmationAsync(true).Returns(PromptResult.Yes);
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+
+        Assert.False(await editor.TryPrepareCloseAsync());
+
+        Assert.True(editor.IsDirty);
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        Assert.Equal(5, editor.BaselineUpdated);
+        if (sensorOnly) Assert.True(sensor.IsDirty);
     }
 
     // ----- Delete -----

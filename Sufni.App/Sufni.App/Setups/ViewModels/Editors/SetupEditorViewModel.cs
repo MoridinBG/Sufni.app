@@ -280,9 +280,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     protected override async Task SaveImplementation()
     {
-        ForkSensorConfiguration?.Save();
-        ShockSensorConfiguration?.Save();
-
         var newSetup = new Setup(Id, Name ?? $"setup #{Id}")
         {
             BikeId = SelectedBike?.Id ?? Guid.Empty,
@@ -295,6 +292,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         switch (result)
         {
             case SetupSaveResult.Saved saved:
+                ForkSensorConfiguration?.Save();
+                ShockSensorConfiguration?.Save();
                 setup = newSetup;
                 setup.Updated = saved.NewBaselineUpdated;
                 originalBoardId = BoardId;

@@ -131,6 +131,7 @@ public partial class TabPageViewModelBase : ViewModelBase
         {
             case PromptResult.Yes:
                 await Save();
+                if (IsDirty) return false;
                 await PrepareCloseAsync();
                 return true;
             case PromptResult.No:

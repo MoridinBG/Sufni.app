@@ -388,7 +388,10 @@ provides the shared `IsDirty` machinery, the
 implementation, and the `OpenPreviousPageCommand` that delegates to
 `shell.GoBack()`. The `CloseCommand` flow uses
 `IDialogService.ShowCloseConfirmationAsync` to prompt for save / discard
-/ cancel before letting the shell close the tab.
+/ cancel before letting the shell close the tab. Choosing save closes only if
+the editor is clean afterward; a failed save or declined conflict reload keeps
+it open. Setup sensor baselines advance only after the coordinator reports
+`Saved`, so a failed sensor-only save remains dirty.
 
 `ViewModelBase` (`Shared/Base/ViewModelBase.cs`) extends
 `ObservableObject` and contributes the notification / error-message

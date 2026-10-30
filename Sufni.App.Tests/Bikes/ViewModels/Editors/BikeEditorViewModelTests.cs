@@ -542,6 +542,30 @@ public class BikeEditorViewModelTests
 
     // ----- Save (fork-only path) -----
 
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CloseCommand_KeepsEditorOpen_WhenSaveFailsOrConflictReloadIsDeclined(bool conflict)
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        editor.Name = "Changed bike";
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5).Returns(
+            conflict
+                ? new BikeSaveResult.Conflict(snapshot with { Updated = 6 })
+                : new BikeSaveResult.Failed("disk full"));
+        dialogService.ShowCloseConfirmationAsync(true).Returns(PromptResult.Yes);
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
+
+        await editor.CloseCommand.ExecuteAsync(null);
+
+        shell.DidNotReceive().Close(editor);
+        Assert.True(editor.IsDirty);
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        Assert.Equal(5, editor.BaselineUpdated);
+    }
+
     [AvaloniaFact]
     public async Task Save_OnForkOnlyBike_HappyPath_RoutesThroughCoordinator()
     {
