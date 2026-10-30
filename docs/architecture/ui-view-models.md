@@ -53,7 +53,8 @@ There are five kinds of view model in the presentation layer:
   and `MainPagesViewModel` compose the app shell for both platform
   lifetimes. `ShellRootViewModel` is the root data context for `MainWindow`
   and `MainView`; it exposes the selected layout profile, platform
-  capabilities, the primary page surface, and the shared workspace.
+  capabilities, startup state, shutdown availability, the deferred primary page
+  surface, and the shared workspace.
   `ShellWorkspaceViewModel` owns the logical tab collection, current tab,
   tab history, open/focus, background open, close, restore, back, and reorder
   behavior used by both compact and workspace presentations. `MainPagesViewModel`
@@ -63,16 +64,15 @@ There are five kinds of view model in the presentation layer:
   `IsRunning` / `IsPaired` / progress snapshot and forwards `SyncCompleted` /
   `SyncFailed` notifications to the active page, but it owns no workflows of
   its own. Compact and workspace shell views bind those mirrors differently,
-  but both read the same view models. The triggering of the initial store
-  refresh (`LoadDatabaseContent`) also lives here so the database load happens
-  exactly once after the shell is constructed.
+  but both read the same view models. `AppStartup` owns the initial store refresh
+  and invokes page creation only after database initialization and refresh succeed.
 
 - **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
   `PairedDeviceListViewModel`, `LiveDaqListViewModel`. Most take a
-  read-only store plus the matching coordinator and project the
+  read-only store and project the
   store's `Connect()` change stream through DynamicData into a typed
   `ReadOnlyObservableCollection` of row view models:
 

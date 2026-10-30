@@ -2,6 +2,7 @@ using Sufni.App.Shared.Views;
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -27,6 +28,8 @@ namespace Sufni.App;
 public partial class App : Application
 {
     private readonly PlatformRoot root;
+    private Task? shutdownRequest;
+    private bool shutdownComplete;
 
     public App(PlatformRoot root)
     {
@@ -87,6 +90,18 @@ public partial class App : Application
                     supportsTouchLongPressContextMenu);
                 HapticFeedbackBehavior.SetLongPressFeedback(mainWindow, longPressFeedback);
                 desktop.MainWindow = mainWindow;
+                mainWindow.Closing += async (_, args) =>
+                {
+                    if (shutdownComplete) return;
+                    args.Cancel = true;
+                    await RequestShutdownAsync();
+                };
+                desktop.ShutdownRequested += async (_, args) =>
+                {
+                    if (shutdownComplete) return;
+                    args.Cancel = true;
+                    await RequestShutdownAsync();
+                };
                 Services.GetRequiredService<IPlotZoomState>()
                     .SetSurface(mainWindow.FindControl<PlotZoomOverlayHost>("PlotZoomOverlay"));
                 fileService.SetTarget(TopLevel.GetTopLevel(mainWindow));
@@ -127,16 +142,7 @@ public partial class App : Application
                 break;
         }
 
-        shellRoot.QuitRequested += async (_, _) =>
-        {
-            await Services.GetRequiredService<IAppStartup>().StopAsync();
-            await ((ServiceProvider)Services).DisposeAsync();
-            LoggingBootstrapper.FlushAndClose();
-            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktopLifetime)
-                desktopLifetime.Shutdown();
-            else
-                Environment.Exit(0);
-        };
+        shellRoot.QuitRequested += async (_, _) => await RequestShutdownAsync();
 
         _ = shellRoot.StartAsync(() =>
         {
@@ -149,6 +155,33 @@ public partial class App : Application
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    private Task RequestShutdownAsync()
+    {
+        if (shutdownComplete) return Task.CompletedTask;
+        return shutdownRequest is { IsCompleted: false } ? shutdownRequest : shutdownRequest = ShutdownAsync();
+    }
+
+    private async Task ShutdownAsync()
+    {
+        // Finish the native close event before a synchronous drain can close the window again.
+        await Task.Yield();
+        var provider = (ServiceProvider)Services!;
+        if (!await provider.GetRequiredService<IAppShutdown>().RequestAsync(async () =>
+            {
+                await provider.DisposeAsync();
+                Services = null;
+            }, LoggingBootstrapper.FlushAndClose)) return;
+
+        shutdownComplete = true;
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
+        else
+            Environment.Exit(0);
+    }
+
+    public Task OnBackgroundAsync() => Services?.GetRequiredService<IAppShutdown>()
+        .OnBackgroundAsync(LoggingBootstrapper.Flush) ?? Task.CompletedTask;
 
     internal void InitializeForDesignModePreview()
     {

@@ -248,8 +248,8 @@ counts, and sizes when helpful.
 
 - `Flush` flushes the existing file sink to disk without replacing the logger;
   existing contextual loggers remain connected. `FlushAndClose` disposes the
-  logger at termination. Mobile lifecycle hooks use flush on background and
-  close on termination.
+  logger after ordered desktop shutdown. Mobile background flushes after pending
+  deletes finalize; termination closes the logger.
 - Structural database initialization errors are logged once by `AppStartup`;
   `DatabaseMigrationRunner` propagates them to that owner.
 

@@ -16,8 +16,16 @@ public sealed class TestViewModel : ViewModelBase
 
 public sealed class TestTabPageViewModel : TabPageViewModelBase
 {
-    public TestTabPageViewModel()
-        : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+    public bool WasClosed { get; private set; }
+    protected override bool CanSave() => IsDirty;
+    protected override Task CloseImplementation()
+    {
+        WasClosed = true;
+        return Task.CompletedTask;
+    }
+
+    public TestTabPageViewModel(IDialogService? dialogService = null)
+        : base(Substitute.For<IShellCoordinator>(), dialogService ?? Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
     {
     }
 }

@@ -95,7 +95,8 @@ Desktop heads register capabilities and services that mobile heads do not provid
 The workspace profile does not grant these capabilities by itself. For example, workspace profile on iOS must not expose the desktop sync server or mass-storage import.
 
 The server starts once through `AppStartup` at launch. Attaching either shell
-or the pairing view does not start it. Both profiles show the same blocking
+or the pairing view does not start it. `AppShutdown` stops and disposes it after
+work drains and pending deletes finalize. Both profiles show the same blocking
 startup failure/reset surface; reset requires relaunch.
 
 ## Mobile-Capable Surface
@@ -165,6 +166,10 @@ The places where platform behavior still differs are deliberately small:
 - **Session detail load**. `SessionDetailViewModel` uses the same local-only staged coordinator path in both profiles: `LoadDetailAsync(...)` publishes decoded telemetry first, then `LoadTrackAsync(...)` settles optional map/track data under the same active load token. Missing processed telemetry or recorded-source payloads surface as an incomplete-local-data screen state; sync is responsible for downloading those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
 - **Sync side**. Desktop-capable platforms can host the server; mobile-capable platforms pair and sync as clients. There is no peer-to-peer mode and no path that runs both on one device unless a future platform registers both capabilities deliberately.
 - **Platform-only actions**. Sync server actions, pairing client actions, mass-storage import, storage-provider import, and video playback are capability-gated. Haptics require a registered service; native windowing follows the application lifetime.
+- **Lifecycle**. Desktop main-window close and OS quit share the shell's ordered
+  shutdown and can be canceled by a dirty-editor/unsaved-capture prompt. Android
+  pause and iOS background finalize pending deletes and flush logs; they retain
+  open tabs. The iOS head holds a native background task during finalization.
 - **Dialogs**. `DialogService` shows generic prompts as standalone Avalonia `Window`s when the native lifetime has an owner window, and as in-tree overlays when the lifetime is single-view.
 - **Zoomed plot modal**. Double-clicking or double-tapping a plot opens the same live plot control in `PlotZoomOverlayHost`. Workspace profile shows a framed modal over a scrim; compact profile uses an edge-to-edge modal inside the safe area and rotates plot content in portrait-shaped windows. Escape close follows keyboard input capability, and single-view hosts participate in the hardware-back chain through `TryCloseTransientShellSurface`.
 - **Bike linkage editing**. `BikeEditorDesktopView` sets `BikeEditorViewModel.CanChangeRearSuspensionMode`, so the gate currently follows the workspace view rather than an input capability. Moving that behavior to an input capability remains adoption work.

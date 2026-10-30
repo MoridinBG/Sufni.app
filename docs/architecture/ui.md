@@ -119,6 +119,12 @@ server startup; retention and normalization jobs then run under startup ownershi
 Database reset archives the closed database and requires a new launch. See
 [Startup and database recovery](ui-workflows.md#startup-and-database-recovery).
 
+Desktop shutdown closes tabs through their close policy, cancels and awaits
+owned work, finalizes pending deletes, stops the server, disposes the provider,
+and closes logs. A canceled prompt aborts shutdown. Native window closing is
+held until this drain finishes. Mobile background finalizes pending deletes and
+flushes logs while retaining the current tabs.
+
 Thread ownership is explicit:
 
 - The UI thread is reserved for bound-property updates, `ObservableCollection` mutation, notifications, native picker interaction, and lightweight read-store lookups.

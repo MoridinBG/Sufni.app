@@ -42,7 +42,8 @@ sequenceDiagram
 
 `AppStartup` starts the server after the database and store refresh are ready,
 with pairing and inbound subscriptions already connected. Server startup is no
-longer driven by a view attaching.
+longer driven by a view attaching. `AppShutdown` stops advertising, stops Kestrel
+and disposes its application before disposing the shared service provider.
 
 All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 5`.
 Both the anonymous pairing group and the JWT-protected sync group reject missing

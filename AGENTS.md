@@ -351,8 +351,10 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   the desktop-only `SessionSyncApplier` / `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
-  `App.OnFrameworkInitializationCompleted` so the subscriptions wire
-  up before any sync, pairing, or telemetry arrival happens.
+  `App`'s startup page-activation callback so subscriptions wire up before
+  server startup or user-driven arrivals. `AppStartup` gates pages on schema
+  initialization and the first store refresh; `AppShutdown` owns close prompts,
+  work drainage, pending deletes, server stop and provider disposal.
   `SessionCoordinator` itself is a thin router over the session
   use-case classes (`SessionLoader` for reads, `SessionCommandService`
   for store-writing commands and recompute requests, the

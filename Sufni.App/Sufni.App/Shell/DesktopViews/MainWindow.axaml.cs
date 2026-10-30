@@ -45,7 +45,7 @@ public partial class MainWindow : Window
 
     private bool TryHandleRegisteredTabShortcut(Key key, KeyModifiers modifiers)
     {
-        if (DataContext is not ShellRootViewModel root)
+        if (DataContext is not ShellRootViewModel root || root.IsShuttingDown)
         {
             return false;
         }

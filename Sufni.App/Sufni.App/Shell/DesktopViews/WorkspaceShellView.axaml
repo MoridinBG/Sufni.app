@@ -22,7 +22,7 @@
     </UserControl.Resources>
 
     <Grid>
-    <Panel Name="ReadyContent" IsVisible="{Binding IsReady}">
+    <Panel Name="ReadyContent" IsVisible="{Binding IsReady}" IsEnabled="{Binding !IsShuttingDown}">
     <SplitView
         Name="RootSplitView"
         CompactPaneLength="{StaticResource SufniNavRailPaneCompactWidth}"
@@ -150,6 +150,6 @@
         </Grid>
     </SplitView>
     </Panel>
-    <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" />
+    <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" IsEnabled="{Binding !IsShuttingDown}" />
     </Grid>
 </UserControl>

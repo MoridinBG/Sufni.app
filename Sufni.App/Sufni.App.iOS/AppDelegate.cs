@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.iOS;
 using Foundation;
@@ -55,11 +56,31 @@ namespace Sufni.App.iOS
                 AppBuilder.Configure(() => new App(root)).UseiOS(this));
         }
 
+        private static async Task OnBackgroundAsync()
+        {
+            var application = UIApplication.SharedApplication;
+            var taskId = UIApplication.BackgroundTaskInvalid;
+            taskId = application.BeginBackgroundTask(() =>
+            {
+                if (taskId == UIApplication.BackgroundTaskInvalid) return;
+                application.EndBackgroundTask(taskId);
+                taskId = UIApplication.BackgroundTaskInvalid;
+            });
+            try
+            {
+                if (global::Sufni.App.App.Current is { } app) await app.OnBackgroundAsync();
+            }
+            finally
+            {
+                if (taskId != UIApplication.BackgroundTaskInvalid) application.EndBackgroundTask(taskId);
+            }
+        }
+
         private void InstallLifecycleObservers()
         {
             didEnterBackgroundObserver ??= NSNotificationCenter.DefaultCenter.AddObserver(
                 UIApplication.DidEnterBackgroundNotification,
-                _ => LoggingBootstrapper.Flush());
+                async _ => await OnBackgroundAsync());
 
             willTerminateObserver ??= NSNotificationCenter.DefaultCenter.AddObserver(
                 UIApplication.WillTerminateNotification,

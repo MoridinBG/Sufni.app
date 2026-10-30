@@ -665,6 +665,21 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
     }
 
+    public async Task StopAsync()
+    {
+        WebApplication? app;
+        lock (startGate)
+        {
+            app = application;
+            application = null;
+        }
+
+        StopAdvertising();
+        if (app is null) return;
+        try { await app.StopAsync(); }
+        finally { await app.DisposeAsync(); }
+    }
+
     private async Task StartCoreAsync()
     {
         WebApplication? app = null;

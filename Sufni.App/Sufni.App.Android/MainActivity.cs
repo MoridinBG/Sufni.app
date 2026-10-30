@@ -21,7 +21,7 @@ namespace Sufni.App.Android
             CurrentWindow = Window;
         }
 
-        protected override void OnPause()
+        protected override async void OnPause()
         {
             if (CurrentWindow == Window)
             {
@@ -29,6 +29,7 @@ namespace Sufni.App.Android
             }
 
             base.OnPause();
+            if (global::Sufni.App.App.Current is { } app) await app.OnBackgroundAsync();
         }
     }
 }

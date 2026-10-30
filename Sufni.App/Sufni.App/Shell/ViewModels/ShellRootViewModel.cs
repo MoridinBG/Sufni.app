@@ -13,6 +13,7 @@ namespace Sufni.App.Shell.ViewModels;
 public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
 {
     private readonly IAppStartup startup;
+    private readonly IAppShutdown shutdown;
     private readonly IDisposable startupSubscription;
     private readonly IPlotZoomState plotZoomState;
     private readonly IAppEnvironment appEnvironment;
@@ -21,6 +22,7 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
 
     public ShellRootViewModel(
         IAppStartup startup,
+        IAppShutdown shutdown,
         ShellWorkspaceViewModel workspace,
         IAppEnvironment appEnvironment,
         IPlotZoomState plotZoomState,
@@ -29,6 +31,8 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.startup = startup;
+        this.shutdown = shutdown;
+        shutdown.RunningChanged += OnShutdownChanged;
         startupSubscription = startup.Observe().Subscribe(value => StartupState = value);
         Workspace = workspace;
         this.appEnvironment = appEnvironment;
@@ -46,6 +50,9 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsReady), nameof(CanResetDatabase), nameof(CanQuit), nameof(StartupMessage), nameof(StartupDetails))]
     [NotifyCanExecuteChangedFor(nameof(ResetDatabaseCommand), nameof(QuitCommand))]
     public partial ShellStartupState StartupState { get; private set; } = new ShellStartupState.Starting();
+
+    public bool IsShuttingDown => shutdown.IsRunning;
+    private void OnShutdownChanged(object? sender, EventArgs args) => OnPropertyChanged(nameof(IsShuttingDown));
 
     public bool IsReady => StartupState is ShellStartupState.Ready;
     public bool CanResetDatabase => StartupState is ShellStartupState.Failed
@@ -75,6 +82,7 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         startupSubscription.Dispose();
+        shutdown.RunningChanged -= OnShutdownChanged;
         appEnvironment.PropertyChanged -= OnAppEnvironmentPropertyChanged;
     }
 

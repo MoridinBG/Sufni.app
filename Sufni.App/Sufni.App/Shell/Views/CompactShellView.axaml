@@ -27,7 +27,7 @@ mc:Ignorable="d">
     </UserControl.Resources>
 
     <Grid>
-    <Panel Name="ReadyContent" IsVisible="{Binding IsReady}">
+    <Panel Name="ReadyContent" IsVisible="{Binding IsReady}" IsEnabled="{Binding !IsShuttingDown}">
     <Panel>
     <DrawerPage
     Name="MainDrawerPage"
@@ -197,6 +197,6 @@ mc:Ignorable="d">
         </Border>
     </Panel>
     </Panel>
-    <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" />
+    <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" IsEnabled="{Binding !IsShuttingDown}" />
     </Grid>
 </UserControl>

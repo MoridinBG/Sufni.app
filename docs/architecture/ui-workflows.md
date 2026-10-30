@@ -76,6 +76,22 @@ waits for work that cannot yet be interrupted before the provider is disposed.
 Canceled processing cannot install a stale result. Bulk cancellation stops
 scheduling further sessions; fingerprints remain the checkpoint for later work.
 
+### Shutdown and mobile background
+
+`AppShutdown` closes background tabs first and the focused tab last, using each
+tab's `TryPrepareCloseAsync`. Dirty editors and unsaved captures retain their
+save/discard/cancel policy; Cancel stops the shutdown before work is canceled.
+After the tabs close, the shell cancels and awaits startup jobs, import, sync and
+recompute, finalizes pending deletes, stops/disposes the sync server, disposes
+the application provider, and flushes/closes logging. Concurrent quit requests
+join the same shutdown. The normal shell surface is disabled during the request.
+
+`App` intercepts both desktop `ShutdownRequested` and main-window `Closing`;
+the latter keeps the window present while close prompts run. Native shutdown is
+allowed only after the shell drain completes. Android pause and iOS background
+instead finalize pending deletes and flush logs without closing tabs or stopping
+other work. The iOS head requests a background execution window for that drain.
+
 ### Pending deletes
 
 `PendingDeletes` is the shell's application-lifetime owner of five-second undo
@@ -88,7 +104,7 @@ outcome to the owning list, including while that list is detached.
 
 The owner retains commits in flight so finalization waits for them without
 issuing the same delete twice. Pending intents are in-memory state and end with
-the process; shutdown/background finalization is the lifecycle integration point.
+the process; desktop shutdown and mobile background explicitly finalize them.
 `PendingDeleteEntryViewModel` forwards undo/dismiss intent and has no timer or
 commit callback. `ItemListViewModelBase` owns only the undo-bar projection and
 list feedback; hiding rows derives from the shell owner's current keys.
