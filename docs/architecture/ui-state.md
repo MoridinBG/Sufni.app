@@ -67,12 +67,14 @@ Each persisted writer interface additionally exposes:
   cancellation or load failure leaves the previously published state intact.
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
-- `PairedDeviceStore` is publish-only: its writer accepts prepared snapshots
-  or device ids to remove, and has no repository dependency.
+- `BikeStore` and `PairedDeviceStore` are publish-only: their writers accept prepared snapshots
+  or ids to remove, and have no repository dependencies. Bike save/cutoff/delete
+  persistence belongs to `BikeCoordinator`; save checks its snapshot baseline
+  once after analysis, before writing.
   `PairedDeviceCoordinator` persists an explicit unpair before removing the
   snapshot; server events already carry the persisted device snapshot.
 - Remaining semantic commit methods for local writes that belong to that aggregate
-  family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
+  family, for example `CommitSessionMetadataAsync`,
   `CommitTrackPatchAsync`, and
   `CommitLocalUnpairAsync`. These methods persist one aggregate family,
   re-read any database-computed snapshot fields, and publish the resulting
@@ -251,7 +253,7 @@ each slice's `Queries/` folder (e.g. `Bikes/Queries/`, `LiveDaq/Queries/`).
 `IBikeDependencyQuery.IsBikeInUseAsync(Guid)` (backed by
 `BikeDependencyQuery` over `ISynchronizableRepository<Setup>`) reports whether any
 setup currently references a bike. `BikeCoordinator.DeleteAsync` uses
-it to short-circuit deletes with `BikeDeleteOutcome.InUse`. The
+it to short-circuit deletes with `BikeDeleteResult.InUse`. The
 answer is sourced from the database, not from any list view model, so
 it does not depend on which screens the user has visited.
 

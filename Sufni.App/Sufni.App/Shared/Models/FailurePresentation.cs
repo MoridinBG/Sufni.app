@@ -46,4 +46,22 @@ public sealed record FailurePresentation
         PendingDeleteFailureReason.Delete => "The item could not be deleted. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(BikeSaveFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeSaveFailureReason.Save => "The bike could not be saved. Try again.",
+        BikeSaveFailureReason.Analysis => "The rear suspension could not be analyzed. Check the bike configuration.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(BikeDampingCutoffFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeDampingCutoffFailureReason.Save => "The damping cutoff could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(BikeDeleteFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeDeleteFailureReason.Delete => "The bike could not be deleted. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

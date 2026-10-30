@@ -64,12 +64,16 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
             try
             {
                 var removedBikeIds = new List<Guid>();
-                var changedBikeIds = new List<Guid>();
+                var changedBikes = new List<BikeSnapshot>();
                 var removedBikeCount = 0;
                 var upsertedBikeCount = 0;
                 foreach (var bike in e.Data.Bikes)
                 {
-                    var freshBike = await bikeRepository.GetAsync(bike.Id);
+                    var freshBike = await backgroundTaskRunner.RunAsync(async () =>
+                    {
+                        var row = await bikeRepository.GetAsync(bike.Id);
+                        return row is null ? null : BikeSnapshot.From(row);
+                    });
                     if (freshBike is null)
                     {
                         removedBikeIds.Add(bike.Id);
@@ -77,7 +81,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     }
                     else
                     {
-                        changedBikeIds.Add(freshBike.Id);
+                        changedBikes.Add(freshBike);
                         upsertedBikeCount++;
                     }
                 }
@@ -87,9 +91,9 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
                 }
 
-                if (changedBikeIds.Count > 0)
+                if (changedBikes.Count > 0)
                 {
-                    await bikeStoreWriter.PublishBikesChangedAsync(changedBikeIds);
+                    await bikeStoreWriter.PublishBikesChangedAsync(changedBikes);
                 }
 
                 var removedSetupCount = 0;

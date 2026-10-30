@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Bikes.Coordinators;
@@ -80,7 +81,7 @@ public class PendingDeletesTests
     {
         var key = new PendingDeleteKey.Bike(Guid.NewGuid());
         var bikes = TestCoordinatorSubstitutes.Bike();
-        bikes.DeleteAsync(key.Id).Returns(new BikeDeleteResult(BikeDeleteOutcome.InUse));
+        bikes.DeleteAsync(key.Id).Returns(new BikeDeleteResult.InUse());
         var shell = Substitute.For<IShellCoordinator>();
         using var owner = TestPendingDeletes.Create(bikes: bikes, shell: shell);
         PendingDeleteCompletion? result = null;

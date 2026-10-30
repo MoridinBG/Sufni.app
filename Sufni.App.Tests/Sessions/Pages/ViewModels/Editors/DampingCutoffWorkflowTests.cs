@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
@@ -12,7 +13,7 @@ namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
 public class DampingCutoffWorkflowTests
 {
     private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
-    private readonly List<string> errors = [];
+    private readonly List<FailurePresentation> errors = [];
     private bool canEditDampingSpeedCutoffs;
     private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
@@ -132,15 +133,18 @@ public class DampingCutoffWorkflowTests
         Assert.Single(errors);
     }
 
-    [Fact]
-    public async Task CommitAsync_Failed_RestoresPersistedCutoffsAndReportsError()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CommitAsync_Unsuccessful_RestoresPersistedCutoffs(bool missingBike)
     {
         var workflow = CreateWorkflow();
         var bikeId = Guid.NewGuid();
         var owner = new DampingSpeedCutoffOwner(bikeId, 7);
         bikeCoordinator.UpdateDampingSpeedCutoffAsync(
                 bikeId, owner.BaselineUpdated, SuspensionType.Rear, DampingSpeedCircuit.Compression, 500)
-            .Returns(new BikeDampingSpeedCutoffUpdateResult.Failed("disk full"));
+            .Returns(missingBike ? new BikeDampingSpeedCutoffUpdateResult.Missing()
+                : new BikeDampingSpeedCutoffUpdateResult.Failed(BikeDampingCutoffFailureReason.Save, "disk full"));
         workflow.ApplyContext(Cutoffs(), owner);
         workflow.Preview(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
 
@@ -148,6 +152,7 @@ public class DampingCutoffWorkflowTests
 
         Assert.Equal(Cutoffs(), dampingSpeedCutoffs);
         Assert.Equal(Cutoffs(), plotDampingSpeedCutoffs);
-        Assert.Single(errors);
+        Assert.Equal(!missingBike, workflow.CanEdit);
+        Assert.Equal(missingBike ? 0 : 1, errors.Count);
     }
 }

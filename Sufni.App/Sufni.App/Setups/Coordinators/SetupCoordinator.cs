@@ -146,7 +146,7 @@ public class SetupCoordinator(
 
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
-            await bikeStore.PublishBikesChangedAsync([payload.Bike.Id], cancellationToken);
+            await bikeStore.PublishBikesChangedAsync([bikeSnapshot]);
             await setupStore.PublishSetupsChangedAsync([payload.Setup.Id], cancellationToken);
 
             logger.Information(

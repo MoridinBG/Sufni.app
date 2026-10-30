@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using DynamicData;
@@ -45,7 +46,7 @@ public class BikeListViewModelTests
         Assert.Empty(viewModel.Items);
 
         bikeCache.Remove(snapshot.Id);
-        deleteTcs.SetResult(new BikeDeleteResult(BikeDeleteOutcome.Deleted));
+        deleteTcs.SetResult(new BikeDeleteResult.Deleted());
         await finalizeTask;
 
         Assert.Empty(viewModel.Items);
@@ -94,7 +95,7 @@ public class BikeListViewModelTests
 
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
         bikeCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new BikeDeleteResult(BikeDeleteOutcome.Failed, "boom"));
+            .Returns(new BikeDeleteResult.Failed(BikeDeleteFailureReason.Delete, "boom"));
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 

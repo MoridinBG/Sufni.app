@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using DynamicData;
 using NSubstitute;
@@ -26,7 +27,7 @@ public class PersistedStoreTests
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
 
     [Fact]
-    public async Task BikeStore_ReplacesSnapshots_AndCommitMutationsUpdateCache()
+    public async Task BikeStore_ReplacesSnapshots_AndPublicationsUpdateCache()
     {
         var bikeId = Guid.NewGuid();
         var bike = new Bike
@@ -36,12 +37,7 @@ public class PersistedStoreTests
             HeadAngle = 64,
             Updated = 7
         };
-        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
-        bikeRepository.GetAllAsync().Returns([bike]);
-        bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
-            Task.FromResult(callInfo.Arg<Bike>().Id));
-        bikeRepository.DeleteAsync(bikeId).Returns(Task.CompletedTask);
-        var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
+        var store = new BikeStore(new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.ReplaceAllAsync([BikeSnapshot.From(bike)]);
@@ -52,18 +48,16 @@ public class PersistedStoreTests
         Assert.Equal(snapshot, store.Get(bikeId));
 
         var updated = snapshot with { Name = "Enduro bike" };
-        var updateResult = await store.CommitBikeAsync(Bike.FromSnapshot(updated));
-        Assert.IsType<StoreMutationResult<BikeSnapshot>.Saved>(updateResult);
+        await store.PublishBikesChangedAsync([updated]);
         Assert.Equal(updated, store.Get(bikeId));
 
-        var deleteResult = await store.CommitBikeDeleteAsync(bikeId);
-        Assert.IsType<StoreDeleteResult<BikeSnapshot>.Deleted>(deleteResult);
+        await store.PublishBikesRemovedAsync([bikeId]);
         Assert.Empty(snapshots);
         Assert.Null(store.Get(bikeId));
     }
 
     [Fact]
-    public async Task BikeStore_CommitMutationsPublishUpdateAndRemoveChangesets()
+    public async Task BikeStore_PublicationsEmitUpdateAndRemoveChangesets()
     {
         var bikeId = Guid.NewGuid();
         var bike = new Bike
@@ -73,24 +67,19 @@ public class PersistedStoreTests
             HeadAngle = 64,
             Updated = 7
         };
-        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
-        bikeRepository.GetAllAsync().Returns([bike]);
-        bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
-            Task.FromResult(callInfo.Arg<Bike>().Id));
-        bikeRepository.DeleteAsync(bikeId).Returns(Task.CompletedTask);
-        var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
+        var store = new BikeStore(new StorePublication(UiThreadDispatcher));
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
         await store.ReplaceAllAsync([BikeSnapshot.From(bike)]);
-        await store.CommitBikeAsync(new Bike
+        await store.PublishBikesChangedAsync([BikeSnapshot.From(new Bike
         {
             Id = bikeId,
             Name = "Enduro bike",
             HeadAngle = 64,
             Updated = 8
-        });
-        await store.CommitBikeDeleteAsync(bikeId);
+        })]);
+        await store.PublishBikesRemovedAsync([bikeId]);
 
         Assert.Collection(
             changeSets,
@@ -109,10 +98,8 @@ public class PersistedStoreTests
             HeadAngle = 64,
             Updated = 7
         };
-        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
-        bikeRepository.GetAllAsync().Returns([bike]);
         var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
-        var store = new BikeStore(bikeRepository, new StorePublication(dispatcher));
+        var store = new BikeStore(new StorePublication(dispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.ReplaceAllAsync([BikeSnapshot.From(bike)]);
@@ -156,9 +143,7 @@ public class PersistedStoreTests
             ImageBytes = [1, 2, 3],
             Updated = 7
         };
-        var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
-        bikeRepository.GetAllAsync().Returns([first], [second]);
-        var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
+        var store = new BikeStore(new StorePublication(UiThreadDispatcher));
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 

@@ -1004,10 +1004,17 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 ErrorMessages.Add(new FailurePresentation("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff."));
                 break;
 
+            case BikeDampingSpeedCutoffUpdateResult.Missing:
+                dampingSpeedCutoffOwner = null;
+                OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
+                DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                break;
+
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
                 DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
                 PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                ErrorMessages.Add(new FailurePresentation($"Could not save damping cutoff: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

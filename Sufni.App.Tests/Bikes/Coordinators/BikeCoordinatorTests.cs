@@ -1,6 +1,7 @@
-using Avalonia.Headless.XUnit;
+using Microsoft.Extensions.Time.Testing;
+using Sufni.App.Tests.TestSupport.Persistence;
+using Sufni.App.Shared.Models;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
 
@@ -10,46 +11,28 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.Coordinators;
 
-public class BikeCoordinatorTests
+public class BikeCoordinatorTests : IDisposable
 {
-    private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
+    private readonly BikeStore bikeStore = new(new StorePublication(new InlineUiThreadDispatcher()));
+    private readonly InMemorySynchronizableRepository<Bike> repository = new(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9)));
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator();
 
-    public BikeCoordinatorTests()
+    public void Dispose() => bikeStore.Dispose();
+
+    private BikeCoordinator CreateCoordinator() =>
+        new(bikeStore, dependencyQuery, bikeEditorService, rearSuspensionValidator, repository, new InlineBackgroundTaskRunner());
+
+    private async Task SeedAsync(BikeSnapshot snapshot)
     {
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
-            .Returns(callInfo =>
-            {
-                var bike = callInfo.Arg<Bike>();
-                return Task.FromResult<StoreMutationResult<BikeSnapshot>>(
-                    new StoreMutationResult<BikeSnapshot>.Saved(BikeSnapshot.From(bike)));
-            });
-        bikeStore.CommitBikeDeleteAsync(Arg.Any<Guid>())
-            .Returns(Task.FromResult<StoreDeleteResult<BikeSnapshot>>(
-                new StoreDeleteResult<BikeSnapshot>.Deleted()));
+        repository.Seed(Bike.FromSnapshot(snapshot));
+        await bikeStore.PublishBikesChangedAsync([snapshot]);
     }
-
-    private BikeCoordinator CreateCoordinator()
-    {
-        BikeCoordinator? coordinator = null;
-        coordinator = new(
-            bikeStore,
-            dependencyQuery,
-            bikeEditorService,
-            rearSuspensionValidator);
-        return coordinator;
-    }
-
-    // ----- OpenCreateAsync -----
-
-    // ----- OpenEditAsync -----
 
     [Fact]
     public async Task ImportBikeAsync_NormalizesImportedBikeToNewDraft()
@@ -121,7 +104,7 @@ public class BikeCoordinatorTests
     public async Task SaveAsync_HappyPath_CommitsBike_AndReturnsSaved()
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
+        await SeedAsync(existing);
         var coordinator = CreateCoordinator();
 
         var bike = new Bike(existing.Id, "renamed")
@@ -136,17 +119,14 @@ public class BikeCoordinatorTests
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
-        await bikeStore.Received(1).CommitBikeAsync(
-            Arg.Is<Bike>(b =>
-                b.Id == existing.Id &&
-                b.Name == "renamed" &&
-                b.FrontWheelDiameterMm == 760 &&
-                b.RearWheelDiameterMm == 750 &&
-                b.ImageRotationDegrees == 13.5 &&
-                b.Updated == 7),
-            5);
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
-        Assert.Equal(7, saved.NewBaselineUpdated);
+        var persisted = (await repository.GetAsync(existing.Id))!;
+        Assert.Equal("renamed", persisted.Name);
+        Assert.Equal(760, persisted.FrontWheelDiameterMm);
+        Assert.Equal(750, persisted.RearWheelDiameterMm);
+        Assert.Equal(13.5, persisted.ImageRotationDegrees);
+        Assert.Equal(9, saved.NewBaselineUpdated);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
     }
 
@@ -154,7 +134,7 @@ public class BikeCoordinatorTests
     public async Task SaveAsync_ReturnsConflict_WhenStoreIsNewer_AndDoesNotPersist()
     {
         var current = TestSnapshots.Bike(updated: 10);
-        bikeStore.Get(current.Id).Returns(current);
+        await SeedAsync(current);
         var coordinator = CreateCoordinator();
 
         var bike = new Bike(current.Id, "stale edit") { HeadAngle = 65, ForkStroke = 160 };
@@ -163,24 +143,34 @@ public class BikeCoordinatorTests
 
         var conflict = Assert.IsType<BikeSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(current.Id))!), current);
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsFailed_WhenStoreCommitFails()
+    public async Task SaveAsync_ReturnsFailed_WhenPersistenceFails()
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
-            .Returns(Task.FromResult<StoreMutationResult<BikeSnapshot>>(
-                new StoreMutationResult<BikeSnapshot>.Failed("disk full")));
+        await SeedAsync(existing);
+        repository.WriteFailure = new IOException("disk full");
         var coordinator = CreateCoordinator();
 
         var bike = new Bike(existing.Id, "x") { HeadAngle = 65, ForkStroke = 160 };
 
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
-        Assert.IsType<BikeSaveResult.Failed>(result);
+        Assert.Equal(BikeSaveFailureReason.Save, Assert.IsType<BikeSaveResult.Failed>(result).Reason);
+        Assert.Equal(existing, bikeStore.Get(existing.Id));
+        Assert.Equal(existing, BikeSnapshot.From((await repository.GetAsync(existing.Id))!));
+    }
+
+    [Fact]
+    public async Task UpdateDampingSpeedCutoffAsync_ReturnsMissing_WhenBikeIsGone()
+    {
+        var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
+            Guid.NewGuid(), 5, SuspensionType.Front, DampingSpeedCircuit.Compression, 300);
+
+        Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Missing>(result);
+        Assert.Empty(await repository.GetAllAsync());
     }
 
     // ----- UpdateDampingSpeedCutoffAsync -----
@@ -195,15 +185,8 @@ public class BikeCoordinatorTests
             RearCompressionDampingCutoffMmPerSecond = 140,
             RearReboundDampingCutoffMmPerSecond = 150,
         };
-        bikeStore.Get(existing.Id).Returns(existing);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
-            .Returns(callInfo =>
-            {
-                var bike = callInfo.Arg<Bike>();
-                bike.Updated = 9;
-                return Task.FromResult<StoreMutationResult<BikeSnapshot>>(
-                    new StoreMutationResult<BikeSnapshot>.Saved(BikeSnapshot.From(bike)));
-            });
+        await SeedAsync(existing);
+
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             existing.Id,
@@ -218,21 +201,14 @@ public class BikeCoordinatorTests
         Assert.Equal(140, saved.Snapshot.RearCompressionDampingCutoffMmPerSecond);
         Assert.Equal(150, saved.Snapshot.RearReboundDampingCutoffMmPerSecond);
         Assert.Equal(9, saved.Snapshot.Updated);
-        await bikeStore.Received(1).CommitBikeAsync(
-            Arg.Is<Bike>(bike =>
-                bike.Id == existing.Id &&
-                bike.FrontCompressionDampingCutoffMmPerSecond == 240 &&
-                bike.FrontReboundDampingCutoffMmPerSecond == 130 &&
-                bike.RearCompressionDampingCutoffMmPerSecond == 140 &&
-                bike.RearReboundDampingCutoffMmPerSecond == 150),
-            5);
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
     }
 
     [Fact]
     public async Task UpdateDampingSpeedCutoffAsync_ClampsCommittedValue()
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
+        await SeedAsync(existing);
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             existing.Id,
@@ -243,17 +219,14 @@ public class BikeCoordinatorTests
 
         var saved = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(result);
         Assert.Equal(DampingSpeedCutoffs.MaximumMmPerSecond, saved.Snapshot.RearReboundDampingCutoffMmPerSecond);
-        await bikeStore.Received(1).CommitBikeAsync(
-            Arg.Is<Bike>(bike =>
-                bike.RearReboundDampingCutoffMmPerSecond == DampingSpeedCutoffs.MaximumMmPerSecond),
-            5);
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
     }
 
     [Fact]
     public async Task UpdateDampingSpeedCutoffAsync_ReturnsConflict_WhenStoreIsNewer()
     {
         var current = TestSnapshots.Bike(updated: 10);
-        bikeStore.Get(current.Id).Returns(current);
+        await SeedAsync(current);
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             current.Id,
@@ -264,17 +237,15 @@ public class BikeCoordinatorTests
 
         var conflict = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(current.Id))!), current);
     }
 
     [Fact]
-    public async Task UpdateDampingSpeedCutoffAsync_ReturnsFailed_WhenStoreCommitFails()
+    public async Task UpdateDampingSpeedCutoffAsync_ReturnsFailed_WhenPersistenceFails()
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
-        bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
-            .Returns(Task.FromResult<StoreMutationResult<BikeSnapshot>>(
-                new StoreMutationResult<BikeSnapshot>.Failed("disk full")));
+        await SeedAsync(existing);
+        repository.WriteFailure = new IOException("disk full");
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             existing.Id,
@@ -283,14 +254,16 @@ public class BikeCoordinatorTests
             DampingSpeedCircuit.Compression,
             300);
 
-        Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Failed>(result);
+        Assert.Equal(BikeDampingCutoffFailureReason.Save, Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Failed>(result).Reason);
+        Assert.Equal(existing, bikeStore.Get(existing.Id));
+        Assert.Equal(existing, BikeSnapshot.From((await repository.GetAsync(existing.Id))!));
     }
 
     [Fact]
     public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLinkageAnalysisIsUnavailable()
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
+        await SeedAsync(existing);
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(new BikeEditorAnalysisResult.Unavailable());
         var coordinator = CreateCoordinator();
@@ -311,14 +284,16 @@ public class BikeCoordinatorTests
 
         var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
         Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
     }
 
-    [Fact]
-    public async Task SaveAsync_WaitsForLinkageAnalysisBeforePersisting()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsync_ChecksForConflictsAfterAnalysisBeforePersisting(bool changedDuringAnalysis)
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
+        await SeedAsync(existing);
         var analysisCompletion = new TaskCompletionSource<BikeEditorAnalysisResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
@@ -343,27 +318,35 @@ public class BikeCoordinatorTests
                 Arg.Is<RearSuspensionSpec.Linkage>(rearSuspension => rearSuspension.Spec == linkage),
                 Arg.Any<CancellationToken>());
         Assert.False(saveTask.IsCompleted);
-        _ = bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
 
         var analysisResult = new BikeEditorAnalysisResult.Computed(
             new BikeAnalysisPresentationData(
                 new CoordinateList([0], [0]),
                 null));
+        var concurrent = existing with { Name = "concurrent edit", Updated = 10 };
+        if (changedDuringAnalysis) await SeedAsync(concurrent);
         analysisCompletion.SetResult(analysisResult);
-        var result = await saveTask;
+        var result = await saveTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        var saved = Assert.IsType<BikeSaveResult.Saved>(result);
-        Assert.Same(analysisResult, saved.AnalysisResult);
-        await bikeStore.Received(1).CommitBikeAsync(
-            Arg.Is<Bike>(committed => committed.Id == existing.Id),
-            5);
+        if (changedDuringAnalysis)
+        {
+            Assert.Equal(concurrent, Assert.IsType<BikeSaveResult.Conflict>(result).CurrentSnapshot);
+            Assert.Equal(concurrent, BikeSnapshot.From((await repository.GetAsync(existing.Id))!));
+        }
+        else
+        {
+            Assert.Same(analysisResult, Assert.IsType<BikeSaveResult.Saved>(result).AnalysisResult);
+            Assert.Equal("full sus", (await repository.GetAsync(existing.Id))!.Name);
+        }
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
     }
 
     [Fact]
     public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLeverageRatioShockStrokeDoesNotMatchCurveMax()
     {
         var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
+        await SeedAsync(existing);
         var coordinator = CreateCoordinator();
 
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
@@ -378,7 +361,7 @@ public class BikeCoordinatorTests
         await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(
             default!,
             Arg.Any<CancellationToken>());
-        await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
+        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
     }
 
     // ----- DeleteAsync -----
@@ -386,42 +369,50 @@ public class BikeCoordinatorTests
     [Fact]
     public async Task DeleteAsync_ReturnsInUse_WhenDependencyQueryReportsInUse()
     {
-        var id = Guid.NewGuid();
+        var initial = TestSnapshots.Bike(updated: 5);
+        await SeedAsync(initial);
+        var id = initial.Id;
         dependencyQuery.IsBikeInUseAsync(id).Returns(true);
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.DeleteAsync(id);
 
-        Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
-        await bikeStore.DidNotReceive().CommitBikeDeleteAsync(Arg.Any<Guid>());
+        Assert.IsType<BikeDeleteResult.InUse>(result);
+        Assert.NotNull(await repository.GetAsync(id));
+        Assert.Equal(initial, bikeStore.Get(id));
     }
 
     [Fact]
-    public async Task DeleteAsync_HappyPath_DeletesClosesAndRemovesFromStore()
+    public async Task DeleteAsync_RemovesPersistedAndPublishedBike()
     {
-        var id = Guid.NewGuid();
+        var initial = TestSnapshots.Bike(updated: 5);
+        await SeedAsync(initial);
+        var id = initial.Id;
         dependencyQuery.IsBikeInUseAsync(id).Returns(false);
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.DeleteAsync(id);
 
-        Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
-        await bikeStore.Received(1).CommitBikeDeleteAsync(id);
+        Assert.IsType<BikeDeleteResult.Deleted>(result);
+        Assert.Null(await repository.GetAsync(id));
+        Assert.Null(bikeStore.Get(id));
     }
 
     [Fact]
-    public async Task DeleteAsync_ReturnsFailed_WhenDatabaseDeleteThrows_AndDoesNotMutateStoreOrCloseTab()
+    public async Task DeleteAsync_ReturnsFailed_WhenPersistenceFails_AndKeepsPublishedBike()
     {
-        var id = Guid.NewGuid();
+        var initial = TestSnapshots.Bike(updated: 5);
+        await SeedAsync(initial);
+        var id = initial.Id;
         dependencyQuery.IsBikeInUseAsync(id).Returns(false);
-        bikeStore.CommitBikeDeleteAsync(id)
-            .Returns(Task.FromResult<StoreDeleteResult<BikeSnapshot>>(
-                new StoreDeleteResult<BikeSnapshot>.Failed("locked")));
+        repository.WriteFailure = new IOException("locked");
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.DeleteAsync(id);
 
-        Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
+        Assert.Equal(BikeDeleteFailureReason.Delete, Assert.IsType<BikeDeleteResult.Failed>(result).Reason);
+        Assert.NotNull(await repository.GetAsync(id));
+        Assert.Equal(initial, bikeStore.Get(id));
     }
 
 }

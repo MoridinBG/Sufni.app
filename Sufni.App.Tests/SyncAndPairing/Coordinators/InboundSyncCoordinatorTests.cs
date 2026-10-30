@@ -59,7 +59,7 @@ public class InboundSyncCoordinatorTests
         else
         {
             await bikeStore.Received(1).PublishBikesChangedAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+                Arg.Is<IReadOnlyCollection<BikeSnapshot>>(rows => rows.Count == 1 && rows.Single().Id == bikeId && rows.Single().Updated == 7),
                 Arg.Any<CancellationToken>());
         }
     }
@@ -127,7 +127,7 @@ public class InboundSyncCoordinatorTests
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
 
         await bikeStore.Received(1).PublishBikesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
+            Arg.Is<IReadOnlyCollection<BikeSnapshot>>(rows => rows.Count == 1 && rows.Single().Id == bikeId && rows.Single().Updated == 2),
             Arg.Any<CancellationToken>());
         await setupStore.Received(1).PublishSetupsChangedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),

@@ -1,106 +1,24 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
-using Sufni.App.Bikes.Models;
-using Sufni.App.SyncAndPairing.Services;
+
 namespace Sufni.App.Bikes.Stores;
 
-/// <summary>
-/// Single source of truth for "what bikes exist". Loaded once at startup
-/// and updated by coordinators via <see cref="IBikeStoreWriter"/>.
-/// Registered as a singleton behind both <see cref="IBikeStore"/> and
-/// <see cref="IBikeStoreWriter"/>.
-/// </summary>
-internal sealed class BikeStore(
-    ISynchronizableRepository<Bike> bikeRepository,
-    StorePublication publication)
-    : SourceCacheStoreBase<BikeSnapshot, Guid>(b => b.Id, publication), IBikeStoreWriter
+internal sealed class BikeStore(StorePublication publication)
+    : SourceCacheStoreBase<BikeSnapshot, Guid>(bike => bike.Id, publication), IBikeStoreWriter
 {
-    public async Task<StoreMutationResult<BikeSnapshot>> CommitBikeAsync(
-        Bike bike,
-        long? baselineUpdated = null)
-    {
-        if (baselineUpdated.HasValue)
-        {
-            var current = Get(bike.Id);
-            if (current is not null && current.Updated > baselineUpdated.Value)
-            {
-                return new StoreMutationResult<BikeSnapshot>.Conflict(current);
-            }
-        }
-
-        try
-        {
-            await bikeRepository.PutAsync(bike);
-            var snapshot = BikeSnapshot.From(bike);
-            await PublishSnapshotAsync(snapshot);
-            return new StoreMutationResult<BikeSnapshot>.Saved(snapshot);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<BikeSnapshot>.Failed(e.Message);
-        }
-    }
-
-    public async Task<StoreDeleteResult<BikeSnapshot>> CommitBikeDeleteAsync(
-        Guid bikeId)
-    {
-        var previous = Get(bikeId);
-
-        try
-        {
-            await bikeRepository.DeleteAsync(bikeId);
-            await PublishRemoveAsync(bikeId);
-            return new StoreDeleteResult<BikeSnapshot>.Deleted(previous);
-        }
-        catch (Exception e)
-        {
-            return new StoreDeleteResult<BikeSnapshot>.Failed(e.Message);
-        }
-    }
-
-    public async Task PublishBikesChangedAsync(
-        IReadOnlyCollection<Guid> bikeIds,
-        CancellationToken cancellationToken = default)
-    {
-        var snapshots = new List<BikeSnapshot>();
-        var removedIds = new List<Guid>();
-
-        foreach (var bikeId in bikeIds.Distinct())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var bike = await bikeRepository.GetAsync(bikeId);
-            if (bike is null)
-            {
-                removedIds.Add(bikeId);
-            }
-            else
-            {
-                snapshots.Add(BikeSnapshot.From(bike));
-            }
-        }
-
-        if (snapshots.Count > 0)
-        {
-            await PublishSnapshotsAsync(snapshots);
-        }
-
-        if (removedIds.Count > 0)
-        {
-            await PublishRemovalsAsync(removedIds);
-        }
-    }
-
-    public Task PublishBikesRemovedAsync(
-        IReadOnlyCollection<Guid> bikeIds,
-        CancellationToken cancellationToken = default)
+    public Task PublishBikesChangedAsync(IReadOnlyCollection<BikeSnapshot> snapshots, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return PublishRemovalsAsync(bikeIds.Distinct());
+        return PublishSnapshotsAsync(snapshots);
+    }
+
+    public Task PublishBikesRemovedAsync(IReadOnlyCollection<Guid> bikeIds, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return PublishRemovalsAsync(bikeIds);
     }
 }

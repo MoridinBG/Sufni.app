@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Models;
 using System.Threading.Tasks;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
@@ -21,7 +22,7 @@ internal sealed class DampingCutoffWorkflow(
     Action<DampingSpeedCutoffs> setDampingSpeedCutoffs,
     Action<DampingSpeedCutoffs> setPlotDampingSpeedCutoffs,
     IBikeCoordinator? bikeCoordinator,
-    Action<string> reportError)
+    Action<FailurePresentation> reportError)
 {
     private DampingSpeedCutoffOwner? owner;
     private DampingSpeedCutoffs persistedCutoffs = DampingSpeedCutoffs.Default;
@@ -98,13 +99,17 @@ internal sealed class DampingCutoffWorkflow(
                 ApplyContext(
                     conflict.CurrentSnapshot.DampingSpeedCutoffs,
                     new DampingSpeedCutoffOwner(conflict.CurrentSnapshot.Id, conflict.CurrentSnapshot.Updated));
-                reportError("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff.");
+                reportError(new FailurePresentation("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff."));
+                break;
+
+            case BikeDampingSpeedCutoffUpdateResult.Missing:
+                ApplyContext(persistedCutoffs, null);
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
                 setDampingSpeedCutoffs(persistedCutoffs);
                 setPlotDampingSpeedCutoffs(persistedCutoffs);
-                reportError($"Could not save damping cutoff: {failed.ErrorMessage}");
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

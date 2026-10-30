@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -554,7 +555,7 @@ public class BikeEditorViewModelTests
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5).Returns(
             conflict
                 ? new BikeSaveResult.Conflict(snapshot with { Updated = 6 })
-                : new BikeSaveResult.Failed("disk full"));
+                : new BikeSaveResult.Failed(BikeSaveFailureReason.Save, "disk full"));
         dialogService.ShowCloseConfirmationAsync(true).Returns(PromptResult.Yes);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
@@ -780,7 +781,7 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Failed("disk full"));
+            .Returns(new BikeSaveResult.Failed(BikeSaveFailureReason.Save, "disk full"));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -932,7 +933,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         bikeCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new BikeDeleteResult(BikeDeleteOutcome.Deleted));
+            .Returns(new BikeDeleteResult.Deleted());
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
@@ -947,7 +948,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         bikeCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new BikeDeleteResult(BikeDeleteOutcome.InUse));
+            .Returns(new BikeDeleteResult.InUse());
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
@@ -961,7 +962,7 @@ public class BikeEditorViewModelTests
         var snapshot = TestSnapshots.Bike();
         var editor = CreateEditor(snapshot);
         bikeCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new BikeDeleteResult(BikeDeleteOutcome.Failed, "locked"));
+            .Returns(new BikeDeleteResult.Failed(BikeDeleteFailureReason.Delete, "locked"));
 
         await editor.DeleteCommand.ExecuteAsync(true);
 

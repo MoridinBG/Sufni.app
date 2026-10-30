@@ -23,3 +23,7 @@ public enum PendingDeleteFailureReason
 {
     Delete
 }
+
+public enum BikeSaveFailureReason { Save, Analysis }
+public enum BikeDampingCutoffFailureReason { Save }
+public enum BikeDeleteFailureReason { Delete }

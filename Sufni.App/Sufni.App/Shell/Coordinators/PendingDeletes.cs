@@ -140,11 +140,12 @@ public sealed class PendingDeletes(
         {
             case PendingDeleteKey.Bike bike:
                 var bikeResult = await bikes.DeleteAsync(bike.Id);
-                return bikeResult.Outcome switch
+                return bikeResult switch
                 {
-                    BikeDeleteOutcome.Deleted => (null, new EditorKey.Bike(bike.Id)),
-                    BikeDeleteOutcome.InUse => (new FailurePresentation("Bike is referenced by a setup and cannot be deleted."), null),
-                    _ => (new FailurePresentation("Bike could not be deleted.", bikeResult.ErrorMessage), null)
+                    BikeDeleteResult.Deleted => (null, new EditorKey.Bike(bike.Id)),
+                    BikeDeleteResult.InUse => (new FailurePresentation("Bike is referenced by a setup and cannot be deleted."), null),
+                    BikeDeleteResult.Failed bikeFailure => (FailurePresentation.From(bikeFailure.Reason, bikeFailure.Details), null),
+                    _ => throw new ArgumentOutOfRangeException(nameof(bikeResult))
                 };
             case PendingDeleteKey.Setup setup:
                 var setupResult = await setups.DeleteAsync(setup.Id);

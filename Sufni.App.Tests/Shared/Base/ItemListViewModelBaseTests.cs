@@ -20,6 +20,8 @@ public class ItemListViewModelBaseTests
         await Assert.Single(viewModel.PendingDeletes).FinalizeDeleteCommand.ExecuteAsync(null);
 
         Assert.Empty(viewModel.PendingDeletes);
-        Assert.Single(viewModel.ErrorMessages);
+        var failure = Assert.Single(viewModel.ErrorMessages);
+        Assert.Equal("failure", failure.Details);
+        Assert.DoesNotContain("failure", failure.Summary);
     }
 }

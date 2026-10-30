@@ -10,14 +10,17 @@ using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Shared.Models;
+using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Bikes.Coordinators;
 
 internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
     IBikeDependencyQuery dependencyQuery,
     IBikeEditorService bikeEditorService,
-    IBikeRearSuspensionValidator rearSuspensionValidator)
+    IBikeRearSuspensionValidator rearSuspensionValidator,
+    ISynchronizableRepository<Bike> bikeRepository,
+    IBackgroundTaskRunner backgroundTaskRunner)
     : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
@@ -95,13 +98,6 @@ internal class BikeCoordinator(
     {
         logger.Information("Starting bike save for {BikeId}", bike.Id);
 
-        var current = bikeStore.Get(bike.Id);
-        if (current is not null && current.Updated > baselineUpdated)
-        {
-            logger.Warning("Bike save conflict for {BikeId}", bike.Id);
-            return new BikeSaveResult.Conflict(current);
-        }
-
         var validation = rearSuspensionValidator.ValidateForSave(BikeSnapshot.From(bike));
         if (validation is BikeRearSuspensionValidationResult.Invalid invalid)
         {
@@ -127,11 +123,7 @@ internal class BikeCoordinator(
                         return new BikeSaveResult.InvalidRearSuspension(RearSuspensionValidationMessages.ForSave(
                             new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable)));
                     case BikeEditorAnalysisResult.Failed failed:
-                        logger.Error(
-                            "Bike save failed during linkage analysis for {BikeId}: {ErrorMessage}",
-                            bike.Id,
-                            failed.ErrorMessage);
-                        return new BikeSaveResult.Failed(failed.ErrorMessage);
+                        return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, failed.ErrorMessage);
                 }
                 break;
 
@@ -140,11 +132,7 @@ internal class BikeCoordinator(
                 analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
                 if (analysisResult is BikeEditorAnalysisResult.Failed leverageRatioFailed)
                 {
-                    logger.Error(
-                        "Bike save failed during leverage ratio analysis for {BikeId}: {ErrorMessage}",
-                        bike.Id,
-                        leverageRatioFailed.ErrorMessage);
-                    return new BikeSaveResult.Failed(leverageRatioFailed.ErrorMessage);
+                    return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, leverageRatioFailed.ErrorMessage);
                 }
                 break;
 
@@ -154,31 +142,28 @@ internal class BikeCoordinator(
                     validRearSuspension.RearSuspension.GetType().Name);
         }
 
+        var current = bikeStore.Get(bike.Id);
+        if (current is not null && current.Updated > baselineUpdated)
+        {
+            logger.Warning("Bike save conflict for {BikeId}", bike.Id);
+            return new BikeSaveResult.Conflict(current);
+        }
+
         try
         {
-            var mutationResult = await bikeStore.CommitBikeAsync(bike, baselineUpdated);
-            switch (mutationResult)
+            var saved = await backgroundTaskRunner.RunAsync(async () =>
             {
-                case StoreMutationResult<BikeSnapshot>.Saved saved:
-                    logger.Information("Bike save completed for {BikeId}", bike.Id);
-                    return new BikeSaveResult.Saved(saved.Snapshot.Id, saved.Snapshot.Updated, analysisResult);
-
-                case StoreMutationResult<BikeSnapshot>.Conflict conflict:
-                    logger.Warning("Bike save conflict for {BikeId}", bike.Id);
-                    return new BikeSaveResult.Conflict(conflict.CurrentSnapshot);
-
-                case StoreMutationResult<BikeSnapshot>.Failed failed:
-                    logger.Error("Bike save failed for {BikeId}: {ErrorMessage}", bike.Id, failed.ErrorMessage);
-                    return new BikeSaveResult.Failed(failed.ErrorMessage);
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(mutationResult));
-            }
+                await bikeRepository.PutAsync(bike);
+                return BikeSnapshot.From(bike);
+            });
+            await bikeStore.PublishBikesChangedAsync([saved]);
+            logger.Information("Bike save completed for {BikeId}", bike.Id);
+            return new BikeSaveResult.Saved(saved.Id, saved.Updated, analysisResult);
         }
         catch (Exception e)
         {
             logger.Error(e, "Bike save failed for {BikeId}", bike.Id);
-            return new BikeSaveResult.Failed(e.Message);
+            return new BikeSaveResult.Failed(BikeSaveFailureReason.Save, e.Message);
         }
     }
 
@@ -199,7 +184,7 @@ internal class BikeCoordinator(
         if (current is null)
         {
             logger.Warning("Bike damping speed cutoff update failed because bike {BikeId} was not found", bikeId);
-            return new BikeDampingSpeedCutoffUpdateResult.Failed("Bike was not found.");
+            return new BikeDampingSpeedCutoffUpdateResult.Missing();
         }
 
         if (current.Updated > baselineUpdated)
@@ -221,32 +206,19 @@ internal class BikeCoordinator(
 
         try
         {
-            var mutationResult = await bikeStore.CommitBikeAsync(bike, baselineUpdated);
-            switch (mutationResult)
+            var saved = await backgroundTaskRunner.RunAsync(async () =>
             {
-                case StoreMutationResult<BikeSnapshot>.Saved saved:
-                    logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
-                    return new BikeDampingSpeedCutoffUpdateResult.Saved(saved.Snapshot);
-
-                case StoreMutationResult<BikeSnapshot>.Conflict conflict:
-                    logger.Warning("Bike damping speed cutoff update conflict for {BikeId}", bikeId);
-                    return new BikeDampingSpeedCutoffUpdateResult.Conflict(conflict.CurrentSnapshot);
-
-                case StoreMutationResult<BikeSnapshot>.Failed failed:
-                    logger.Error(
-                        "Bike damping speed cutoff update failed for {BikeId}: {ErrorMessage}",
-                        bikeId,
-                        failed.ErrorMessage);
-                    return new BikeDampingSpeedCutoffUpdateResult.Failed(failed.ErrorMessage);
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(mutationResult));
-            }
+                await bikeRepository.PutAsync(bike);
+                return BikeSnapshot.From(bike);
+            });
+            await bikeStore.PublishBikesChangedAsync([saved]);
+            logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
+            return new BikeDampingSpeedCutoffUpdateResult.Saved(saved);
         }
         catch (Exception e)
         {
             logger.Error(e, "Bike damping speed cutoff update failed for {BikeId}", bikeId);
-            return new BikeDampingSpeedCutoffUpdateResult.Failed(e.Message);
+            return new BikeDampingSpeedCutoffUpdateResult.Failed(BikeDampingCutoffFailureReason.Save, e.Message);
         }
     }
 
@@ -254,25 +226,23 @@ internal class BikeCoordinator(
     {
         logger.Information("Starting bike delete for {BikeId}", bikeId);
 
-        if (await dependencyQuery.IsBikeInUseAsync(bikeId))
+        try
         {
-            logger.Warning("Bike delete blocked because bike {BikeId} is in use", bikeId);
-            return new BikeDeleteResult(BikeDeleteOutcome.InUse);
+            if (await dependencyQuery.IsBikeInUseAsync(bikeId))
+            {
+                logger.Warning("Bike delete blocked because bike {BikeId} is in use", bikeId);
+                return new BikeDeleteResult.InUse();
+            }
+
+            await backgroundTaskRunner.RunAsync(() => bikeRepository.DeleteAsync(bikeId));
+            await bikeStore.PublishBikesRemovedAsync([bikeId]);
+            logger.Information("Bike delete completed for {BikeId}", bikeId);
+            return new BikeDeleteResult.Deleted();
         }
-
-        var deleteResult = await bikeStore.CommitBikeDeleteAsync(bikeId);
-        switch (deleteResult)
+        catch (Exception e)
         {
-            case StoreDeleteResult<BikeSnapshot>.Deleted:
-                logger.Information("Bike delete completed for {BikeId}", bikeId);
-                return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
-
-            case StoreDeleteResult<BikeSnapshot>.Failed failed:
-                logger.Error("Bike delete failed for {BikeId}: {ErrorMessage}", bikeId, failed.ErrorMessage);
-                return new BikeDeleteResult(BikeDeleteOutcome.Failed, failed.ErrorMessage);
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(deleteResult));
+            logger.Error(e, "Bike delete failed for {BikeId}", bikeId);
+            return new BikeDeleteResult.Failed(BikeDeleteFailureReason.Delete, e.Message);
         }
     }
 
@@ -309,10 +279,16 @@ public abstract record BikeSaveResult
     public sealed record Saved(Guid Id, long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
     public sealed record InvalidRearSuspension(string ErrorMessage) : BikeSaveResult;
-    public sealed record Failed(string ErrorMessage) : BikeSaveResult;
+    public sealed record Failed(BikeSaveFailureReason Reason, string? Details = null) : BikeSaveResult;
 }
 
-public sealed record BikeDeleteResult(BikeDeleteOutcome Outcome, string? ErrorMessage = null);
+public abstract record BikeDeleteResult
+{
+    private BikeDeleteResult() { }
+    public sealed record Deleted : BikeDeleteResult;
+    public sealed record InUse : BikeDeleteResult;
+    public sealed record Failed(BikeDeleteFailureReason Reason, string? Details = null) : BikeDeleteResult;
+}
 
 public abstract record BikeDampingSpeedCutoffUpdateResult
 {
@@ -320,12 +296,6 @@ public abstract record BikeDampingSpeedCutoffUpdateResult
 
     public sealed record Saved(BikeSnapshot Snapshot) : BikeDampingSpeedCutoffUpdateResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeDampingSpeedCutoffUpdateResult;
-    public sealed record Failed(string ErrorMessage) : BikeDampingSpeedCutoffUpdateResult;
-}
-
-public enum BikeDeleteOutcome
-{
-    Deleted,
-    InUse,
-    Failed
+    public sealed record Missing : BikeDampingSpeedCutoffUpdateResult;
+    public sealed record Failed(BikeDampingCutoffFailureReason Reason, string? Details = null) : BikeDampingSpeedCutoffUpdateResult;
 }

@@ -200,6 +200,15 @@ Result application must still enforce coherence after awaited work returns:
 completion carries `FailurePresentation`, retaining details for the error bar
 without putting exception text in the summary.
 
+Bike save returns `BikeSaveResult.Saved | Conflict | InvalidRearSuspension | Failed`.
+Its failure carries `BikeSaveFailureReason.Save | Analysis` and optional details.
+Cutoff updates return `BikeDampingSpeedCutoffUpdateResult.Saved | Conflict | Missing | Failed`
+with `BikeDampingCutoffFailureReason.Save`; a missing bike disables cutoff editing.
+Deletion returns `BikeDeleteResult.Deleted | InUse | Failed` with
+`BikeDeleteFailureReason.Delete`. These failures use fixed summaries and optional
+technical details. The bike coordinator persists changes and supplies prepared
+snapshots to its store; there are no bike store mutation results.
+
 Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | Failed`;
 alignment returns `VideoAlignmentResult.Updated | ClipMissing | Failed`. Their
 failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
@@ -226,13 +235,14 @@ Store writer APIs use the shared neutral
 Mutation results are `Saved` (published snapshot), `Conflict` (current snapshot),
 `Missing` or `Failed` (diagnostic text). Delete results are `Deleted` (optional
 previous snapshot) or `Failed` (diagnostic text). Workflow services and coordinators translate those neutral
-records into UI-facing results such as `BikeSaveResult`, `SessionSaveResult`,
+records into UI-facing results such as `SessionSaveResult`,
 and `LiveSessionSaveResult` instead of leaking store-specific contracts into
 editors.
 
 `SaveAsync` on the entity coordinators follows this pattern with
 `Saved(Id, NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
-`Failed(ErrorMessage)`. `BikeSaveResult.Saved` additionally carries
+`Failed(ErrorMessage)` on the remaining unmigrated session/setup flows.
+`BikeSaveResult.Saved` additionally carries
 a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
 to leverage-ratio recomputation without a second round-trip; the
 other `Saved` variants are payload-only. Editors pattern-match on

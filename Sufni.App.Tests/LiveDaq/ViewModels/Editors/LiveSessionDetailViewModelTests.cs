@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Reactive.Subjects;
@@ -338,8 +339,10 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [Fact]
-    public async Task DampingSpeedCutoffCommitFailure_RestoresPersistedCutoffsAndReportsError()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DampingSpeedCutoffCommitUnsuccessful_RestoresPersistedCutoffs(bool missingBike)
     {
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
         var bikeId = Guid.NewGuid();
@@ -351,7 +354,8 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 SuspensionType.Rear,
                 DampingSpeedCircuit.Rebound,
                 600)
-            .Returns(new BikeDampingSpeedCutoffUpdateResult.Failed("disk full"));
+            .Returns(missingBike ? new BikeDampingSpeedCutoffUpdateResult.Missing()
+                : new BikeDampingSpeedCutoffUpdateResult.Failed(BikeDampingCutoffFailureReason.Save, "disk full"));
         var context = CreateSessionContext(
             bikeId: bikeId,
             dampingSpeedCutoffs: initialCutoffs,
@@ -363,7 +367,8 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         Assert.Equal(initialCutoffs, editor.DampingSpeedCutoffs);
         Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
-        Assert.NotEmpty(editor.ErrorMessages);
+        Assert.Equal(!missingBike, editor.CanEditDampingSpeedCutoffs);
+        Assert.Equal(missingBike ? 0 : 1, editor.ErrorMessages.Count);
     }
 
     [Fact]

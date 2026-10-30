@@ -1625,7 +1625,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorActions.SetDampingSpeedCutoffs,
             SetPlotDampingSpeedCutoffs,
             bikeCoordinator,
-            message => ErrorMessages.Add(new FailurePresentation(message)));
+            ErrorMessages.Add);
         stalenessReconciler = new SessionStalenessReconciler(
             sessionCoordinator,
             dialogService,

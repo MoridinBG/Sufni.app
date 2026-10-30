@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
@@ -156,7 +157,7 @@ public class AppDataRefresherTests
             SegmentRepository.GetLiveAsync().Returns([Segment]);
             var dispatcher = new InlineUiThreadDispatcher();
             Publication = new StorePublication(dispatcher);
-            Bikes = new BikeStore(bikeRepository, Publication);
+            Bikes = new BikeStore(Publication);
             Setups = new SetupStore(setupRepository, boardRepository, Publication);
             Sessions = new SessionStore(sessionRepository, Substitute.For<ISessionTelemetryWriter>(), Publication);
             Sources = new RecordedSessionSourceStore(sourceRepository, Publication);

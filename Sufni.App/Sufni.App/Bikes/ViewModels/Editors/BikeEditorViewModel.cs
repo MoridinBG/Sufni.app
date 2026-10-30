@@ -872,7 +872,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 break;
 
             case BikeSaveResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Bike could not be saved: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -889,16 +889,16 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         }
 
         var result = await bikeCoordinator.DeleteAsync(Id);
-        switch (result.Outcome)
+        switch (result)
         {
-            case BikeDeleteOutcome.Deleted:
+            case BikeDeleteResult.Deleted:
                 await shell.CloseEditorAsync(new EditorKey.Bike(Id));
                 break;
-            case BikeDeleteOutcome.InUse:
+            case BikeDeleteResult.InUse:
                 ErrorMessages.Add(new FailurePresentation("Bike is referenced by a setup and cannot be deleted."));
                 break;
-            case BikeDeleteOutcome.Failed:
-                ErrorMessages.Add(new FailurePresentation($"Bike could not be deleted: {result.ErrorMessage}"));
+            case BikeDeleteResult.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
