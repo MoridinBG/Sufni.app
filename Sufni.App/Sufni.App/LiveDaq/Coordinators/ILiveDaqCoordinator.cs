@@ -8,7 +8,4 @@ public interface ILiveDaqCoordinator
 
     void Deactivate();
 
-    Task SelectAsync(string identityKey);
-
-    Task OpenSessionAsync(string identityKey);
 }

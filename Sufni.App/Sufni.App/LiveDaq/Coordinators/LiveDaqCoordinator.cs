@@ -9,11 +9,9 @@ using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Stores;
-using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.LiveDaq.Coordinators;
 
-// Reconciles discovery entries with known-board app data and routes row selection to
-// identity-keyed live preview tabs.
+// Reconciles discovery presence with known boards.
 public class LiveDaqCoordinator : ILiveDaqCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
@@ -21,9 +19,6 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
-    private readonly ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry;
-    private readonly ILiveSessionServiceFactory liveSessionServiceFactory;
-    private readonly Func<IEditorFactory> editorFactory;
 
     private readonly System.Threading.Lock reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
@@ -33,17 +28,11 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
     public LiveDaqCoordinator(
         ILiveDaqStoreWriter liveDaqStore,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
-        ILiveDaqCatalogService liveDaqCatalogService,
-        ILiveDaqSharedStreamRegistry liveDaqSharedStreamRegistry,
-        ILiveSessionServiceFactory liveSessionServiceFactory,
-        Func<IEditorFactory> editorFactory)
+        ILiveDaqCatalogService liveDaqCatalogService)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
-        this.liveDaqSharedStreamRegistry = liveDaqSharedStreamRegistry;
-        this.liveSessionServiceFactory = liveSessionServiceFactory;
-        this.editorFactory = editorFactory;
     }
 
     public void Activate()
@@ -95,66 +84,6 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
             catalogEntries = [];
             ReconcileLocked();
         }
-    }
-
-    public Task SelectAsync(string identityKey)
-    {
-        var snapshot = liveDaqStore.Get(identityKey);
-        if (snapshot is null)
-        {
-            logger.Verbose(
-                "Live DAQ selection ignored because no snapshot was found for {IdentityKey}",
-                identityKey);
-            return Task.CompletedTask;
-        }
-
-        logger.Information(
-            "Opening live DAQ detail for {IdentityKey} {BoardId} {Endpoint}",
-            snapshot.IdentityKey,
-            snapshot.BoardId,
-            snapshot.Endpoint);
-
-        editorFactory().OpenLiveDaqDetail(
-            snapshot,
-            liveDaqSharedStreamRegistry.GetOrCreate(snapshot));
-
-        return Task.CompletedTask;
-    }
-
-    public Task OpenSessionAsync(string identityKey)
-    {
-        var snapshot = liveDaqStore.Get(identityKey);
-        if (snapshot is null)
-        {
-            logger.Verbose(
-                "Live session opening ignored because no snapshot was found for {IdentityKey}",
-                identityKey);
-            return Task.CompletedTask;
-        }
-
-        var context = knownBoardsQuery.GetSessionContext(identityKey);
-        if (context is null)
-        {
-            logger.Verbose(
-                "Live session opening ignored because no session context was found for {IdentityKey}",
-                identityKey);
-            return Task.CompletedTask;
-        }
-
-        logger.Information(
-            "Opening live session detail for {IdentityKey} {BoardId} {Endpoint}",
-            snapshot.IdentityKey,
-            snapshot.BoardId,
-            snapshot.Endpoint);
-
-        editorFactory().OpenLiveSessionDetail(
-            snapshot.IdentityKey,
-            context,
-            liveSessionServiceFactory.Create(
-                context,
-                liveDaqSharedStreamRegistry.GetOrCreate(snapshot)));
-
-        return Task.CompletedTask;
     }
 
     // Reconciles the live DAQ snapshot state by merging known boards with current catalog entries

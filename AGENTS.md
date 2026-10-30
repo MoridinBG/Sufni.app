@@ -138,12 +138,11 @@ The layer roles are consistent across slices:
   stores. Persisted write workflows live in coordinators or session use-case
   services behind coordinators; sync appliers and transaction runners may use
   writer interfaces for publish-only post-persistence updates. Stores remain
-  the only owners of DynamicData cache mutation. Coordinators construct and
-  open editor view models only through `IEditorFactory` —
-  despite the name it is the editor *gateway*: the interface exposes only
-  open-or-focus (`Open*`) and close (`Close*`) operations, and view-model
-  creation is an implementation detail of the concrete `EditorFactory`.
-  No coordinator holds a view-model factory of its own.
+  the only owners of DynamicData cache mutation. `ShellWorkspaceCoordinator`
+  owns `IEditorFactory`; feature view models request editor keys through
+  `IShellCoordinator.OpenEditor` and close deleted editors through
+  `CloseEditorAsync`. The factory creates editors from current snapshots and
+  receives the shell at call time. Feature coordinators never navigate.
 - `<Slice>/Stores/` — shared read state, one per entity family (`BikeStore` in
   `Bikes/Stores/`, `SetupStore` in `Setups/Stores/`, `SessionStore` in `Sessions/`,
   etc.). Each store has an `IXxxStore` (read-only) interface for VMs/queries and an
@@ -324,8 +323,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   editor's `BaselineUpdated` for optimistic conflict detection at save
   time. Runtime-only stores (`LiveDaqStore`) omit `Updated` and
   `RefreshAsync()`.
-- **Coordinators** own feature workflows: open/save/delete, post-save
-  navigation, and synchronization-arrival handling. `SaveAsync` returns
+- **Coordinators** own feature workflows: save/delete and
+  synchronization-arrival handling. `SaveAsync` returns
   a sealed `Saved` / `Conflict` / `Failed` record so editors can prompt
   the user before reloading on conflict.
 - **MVVM** with CommunityToolkit.Mvvm source generators
@@ -333,7 +332,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   compiled bindings, view models contain no direct UI dependencies.
 - **Navigation** flows through `IShellCoordinator`, implemented by
   `ShellWorkspaceCoordinator` for the shared compact/workspace tab stack.
-  View models never poke at the shell view model directly.
+  It owns editor creation, focus, restoration and post-save `CompleteEdit`
+  navigation. View models never poke at the shell view model directly.
 - **Strategy pattern** for sensor calibrations: `ISensorConfiguration`
   with polymorphic JSON deserialization selected by a `Type`
   discriminator.

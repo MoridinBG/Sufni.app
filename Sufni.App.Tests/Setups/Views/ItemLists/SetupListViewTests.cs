@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -17,6 +18,7 @@ namespace Sufni.App.Tests.Setups.Views.ItemLists;
 [Collection("Ui")]
 public class SetupListViewTests
 {
+    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     [AvaloniaFact]
     public async Task SetupListView_RendersBoundRows_AndOpensSelectedSetup()
     {
@@ -25,9 +27,8 @@ public class SetupListViewTests
         var snapshot = TestSnapshots.Setup(name: "Race Setup");
         var store = new SetupStoreStub(snapshot);
         var coordinator = TestCoordinatorSubstitutes.Setup();
-        coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         var view = new SetupListView
         {
             DataContext = viewModel,
@@ -43,6 +44,6 @@ public class SetupListViewTests
         rowViewModel.OpenPageCommand.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        await coordinator.Received(1).OpenEditAsync(snapshot.Id);
+        shell.Received(1).OpenEditor(new EditorKey.Setup(snapshot.Id));
     }
 }

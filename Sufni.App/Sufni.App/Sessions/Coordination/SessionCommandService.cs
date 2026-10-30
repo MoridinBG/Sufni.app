@@ -13,7 +13,6 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
@@ -41,7 +40,6 @@ public sealed class SessionCommandService
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionPreferences sessionPreferences;
     private readonly ISessionRecomputeEngine recomputeEngine;
-    private readonly Func<IEditorFactory> editorFactory;
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
 
     public SessionCommandService(
@@ -55,7 +53,6 @@ public sealed class SessionCommandService
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionPreferences sessionPreferences,
         ISessionRecomputeEngine recomputeEngine,
-        Func<IEditorFactory> editorFactory,
         ISessionPersistenceTransactionRunner sessionPersistenceTransactions)
     {
         this.sessionStore = sessionStore;
@@ -68,7 +65,6 @@ public sealed class SessionCommandService
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sessionPreferences = sessionPreferences;
         this.recomputeEngine = recomputeEngine;
-        this.editorFactory = editorFactory;
         this.sessionPersistenceTransactions = sessionPersistenceTransactions;
     }
 
@@ -253,7 +249,6 @@ public sealed class SessionCommandService
             logger.Warning(e, "Failed to remove recorded-session preferences after deleting session {SessionId}", sessionId);
         }
 
-        await editorFactory().CloseSessionDetail(sessionId);
         await sessionStore.PublishSessionsRemovedAsync([sessionId]);
         logger.Information("Session delete completed for {SessionId}", sessionId);
         return new SessionDeleteResult(SessionDeleteOutcome.Deleted);

@@ -883,7 +883,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     {
         if (!IsInDatabase)
         {
-            if (navigateBack) OpenPreviousPage();
+            await shell.CloseEditorAsync(new EditorKey.Bike(Id));
             return;
         }
 
@@ -891,7 +891,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         switch (result.Outcome)
         {
             case BikeDeleteOutcome.Deleted:
-                if (navigateBack) OpenPreviousPage();
+                await shell.CloseEditorAsync(new EditorKey.Bike(Id));
                 break;
             case BikeDeleteOutcome.InUse:
                 ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");

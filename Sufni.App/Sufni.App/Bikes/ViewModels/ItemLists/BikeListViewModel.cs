@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -25,6 +26,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly IShellCoordinator shell;
     private readonly IBikeStore bikeStore;
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
@@ -49,11 +51,13 @@ public partial class BikeListViewModel : ItemListViewModelBase
         IBikeDependencyQuery dependencyQuery,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner backgroundTaskRunner,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShellCoordinator shell)
         : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.bikeStore = bikeStore;
         this.bikeCoordinator = bikeCoordinator;
+        this.shell = shell;
         this.dependencyQuery = dependencyQuery;
         bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>(bikeRowsSource);
     }
@@ -76,7 +80,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
         //      same Id/Name we already exposed on the row VM).
         subscriptions.Add(bikeStore.Connect()
             .TransformWithInlineUpdate(
-                snapshot => new BikeRowViewModel(snapshot, bikeCoordinator, RequestRowDelete, dependencyQuery),
+                snapshot => new BikeRowViewModel(snapshot, shell, RequestRowDelete, dependencyQuery),
                 (row, snapshot) => row.Update(snapshot))
             .DisposeMany()
             .Filter(filterSubject)
@@ -104,7 +108,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     protected override void AddImplementation()
     {
-        _ = bikeCoordinator.OpenCreateAsync();
+        shell.OpenEditor(new EditorKey.NewBike());
     }
 
     #endregion ItemListViewModelBase overrides
@@ -145,6 +149,9 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
         switch (result.Outcome)
         {
+            case BikeDeleteOutcome.Deleted:
+                await shell.CloseEditorAsync(new EditorKey.Bike(bikeId));
+                break;
             case BikeDeleteOutcome.InUse:
                 ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");
                 break;
@@ -159,10 +166,11 @@ public partial class BikeListViewModel : ItemListViewModelBase
     #region Commands
 
     [RelayCommand]
-    private async Task RowSelected(BikeRowViewModel? row)
+    private System.Threading.Tasks.Task RowSelected(BikeRowViewModel? row)
     {
-        if (row is null) return;
-        await bikeCoordinator.OpenEditAsync(row.Id);
+        if (row is null) return System.Threading.Tasks.Task.CompletedTask;
+        shell.OpenEditor(new EditorKey.Bike(row.Id));
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 
     #endregion Commands

@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Avalonia.Threading;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -208,7 +209,7 @@ public class SessionDetailViewModelTests
 
         await harness.DeleteAsync(editor);
 
-        harness.Shell.Received(1).GoBack();
+        await harness.Shell.Received(1).CloseEditorAsync(new EditorKey.Session(editor.Id));
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -578,15 +579,26 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Split_CallsCoordinatorAtClick_AndNotifiesWhenApplied()
+    public async Task Split_OpensBackgroundTabBeforeRecomputeCompletes()
     {
         var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
-        harness.SessionEditingCoordinator.SplitAsync(editor.Id, 3).Returns(new SessionEditResult.Applied());
+        var createdId = Guid.NewGuid();
+        var completion = new TaskCompletionSource<SessionEditResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.SessionEditingCoordinator.SplitAsync(editor.Id, 3, Arg.Any<IProgress<SessionEditProgress>>())
+            .Returns(call =>
+            {
+                call.Arg<IProgress<SessionEditProgress>>().Report(new SessionEditProgress(createdId));
+                return completion.Task;
+            });
 
-        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-split-here").Command)
+        var operation = ((IAsyncRelayCommand)FindSignalAction(editor, "session-split-here").Command)
             .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
 
-        await harness.SessionEditingCoordinator.Received(1).SplitAsync(editor.Id, 3);
+        harness.Shell.Received(1).OpenEditor(new EditorKey.Session(createdId), background: true);
+        Assert.False(operation.IsCompleted);
+        completion.SetResult(new SessionEditResult.Applied());
+        await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await harness.SessionEditingCoordinator.Received(1).SplitAsync(editor.Id, 3, Arg.Any<IProgress<SessionEditProgress>>());
         Assert.Contains("Session split.", editor.Notifications);
     }
 

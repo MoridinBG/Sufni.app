@@ -1,3 +1,6 @@
+using Sufni.App.Acquisition.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Shared.Base;
 using System;
 using System.Threading.Tasks;
 
@@ -44,18 +47,19 @@ internal sealed class EditorFactory(
     IMapViewModelFactory mapViewModelFactory,
     ISessionPreferences sessionPreferences,
     ISessionProcessedTelemetryReader processedTelemetryReader,
-    ILiveDaqCoordinator liveDaqCoordinator,
     IDaqManagementService daqManagementService,
     IFilesService filesService,
     ILiveDaqKnownBoardsQuery liveDaqKnownBoardsQuery,
     ILiveDaqStore liveDaqStore,
-    IShellCoordinator shell,
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
     IAppEnvironment appEnvironment,
     ILayoutProfileTransitionState layoutProfileTransitionState,
     IBackgroundTaskRunner backgroundTaskRunner,
-    Func<ImportSessionsViewModel> importSessionsResolver,
+    IImportSessionsCoordinator importSessionsCoordinator,
+    ITelemetryDataStoreService telemetryDataStoreService,
+    ILiveDaqSharedStreamRegistry sharedStreamRegistry,
+    ILiveSessionServiceFactory liveSessionServiceFactory,
     IVideoPaneFactory videoPaneFactory,
     ISessionEditingCoordinator sessionEditingCoordinator,
     ISegmentPickerFactory segmentPickerFactory,
@@ -64,30 +68,23 @@ internal sealed class EditorFactory(
     TimeProvider timeProvider,
     IUiTimerScheduler uiTimerScheduler) : IEditorFactory
 {
-    public void OpenNewBikeEditor(BikeSnapshot snapshot)
+    public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
-        var editor = CreateBikeEditor(snapshot, isNew: true);
-        editor.IsDirty = true;
-        shell.Open(editor);
-    }
+        EditorKey.NewBike => CreateBikeEditor(BikeSnapshot.From(new Bike(Guid.NewGuid(), "new bike")), true, shell),
+        EditorKey.Bike bike => bikeStore.Get(bike.Id) is { } snapshot ? CreateBikeEditor(snapshot, false, shell) : null,
+        EditorKey.NewSetup setup => CreateSetupEditor(setupCoordinator.CreateDraft(setup.SuggestedBoardId), true, shell),
+        EditorKey.Setup setup => setupStore.Get(setup.Id) is { } snapshot ? CreateSetupEditor(snapshot, false, shell) : null,
+        EditorKey.Session session => sessionStore.Get(session.Id) is { } snapshot ? CreateSessionDetail(snapshot, shell) : null,
+        EditorKey.ImportSessions => new ImportSessionsViewModel(
+            telemetryDataStoreService, filesService, shell, dialogService,
+            importSessionsCoordinator, setupStore, uiThreadDispatcher, timeProvider),
+        EditorKey.LiveDaq daq => liveDaqStore.Get(daq.IdentityKey) is { } snapshot
+            ? CreateLiveDaqDetail(snapshot, sharedStreamRegistry.GetOrCreate(snapshot), shell) : null,
+        EditorKey.LiveSession session => CreateLiveSession(session.IdentityKey, shell),
+        _ => throw new ArgumentOutOfRangeException(nameof(key))
+    };
 
-    public void OpenBikeEditor(BikeSnapshot snapshot)
-    {
-        shell.OpenOrFocus<BikeEditorViewModel>(
-            editor => editor.Id == snapshot.Id,
-            () => CreateBikeEditor(snapshot, isNew: false),
-            CreateBikeRestoreEntry(snapshot.Id));
-    }
-
-    public Task CloseBikeEditor(Guid bikeId)
-    {
-        return shell.CloseIfOpen<BikeEditorViewModel>(
-            editor => editor.Id == bikeId,
-            forgetRestoreHistory: true,
-            restoreKey: bikeId);
-    }
-
-    public BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew) =>
+    private BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew, IShellCoordinator shell) =>
         new(
             snapshot,
             isNew,
@@ -96,32 +93,9 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher,
-            timeProvider: timeProvider);
+            timeProvider: timeProvider) { IsDirty = isNew };
 
-    public void OpenNewSetupEditor(SetupSnapshot snapshot)
-    {
-        var editor = CreateSetupEditor(snapshot, isNew: true);
-        editor.IsDirty = true;
-        shell.Open(editor);
-    }
-
-    public void OpenSetupEditor(SetupSnapshot snapshot)
-    {
-        shell.OpenOrFocus<SetupEditorViewModel>(
-            editor => editor.Id == snapshot.Id,
-            () => CreateSetupEditor(snapshot, isNew: false),
-            CreateSetupRestoreEntry(snapshot.Id));
-    }
-
-    public Task CloseSetupEditor(Guid setupId)
-    {
-        return shell.CloseIfOpen<SetupEditorViewModel>(
-            editor => editor.Id == setupId,
-            forgetRestoreHistory: true,
-            restoreKey: setupId);
-    }
-
-    public SetupEditorViewModel CreateSetupEditor(SetupSnapshot snapshot, bool isNew) =>
+    private SetupEditorViewModel CreateSetupEditor(SetupSnapshot snapshot, bool isNew, IShellCoordinator shell) =>
         new(
             snapshot,
             isNew,
@@ -131,40 +105,9 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher,
-            timeProvider: timeProvider);
+            timeProvider: timeProvider) { IsDirty = isNew };
 
-    public void OpenImportSessions()
-    {
-        shell.OpenOrFocus<ImportSessionsViewModel>(
-            _ => true,
-            importSessionsResolver);
-    }
-
-    public void OpenSessionDetail(SessionSnapshot snapshot)
-    {
-        shell.OpenOrFocus<SessionDetailViewModel>(
-            editor => editor.Id == snapshot.Id,
-            () => CreateSessionDetail(snapshot),
-            CreateSessionDetailRestoreEntry(snapshot.Id));
-    }
-
-    public void OpenSessionDetailInBackground(SessionSnapshot snapshot)
-    {
-        shell.OpenInBackground<SessionDetailViewModel>(
-            editor => editor.Id == snapshot.Id,
-            () => CreateSessionDetail(snapshot),
-            CreateSessionDetailRestoreEntry(snapshot.Id));
-    }
-
-    public Task CloseSessionDetail(Guid sessionId)
-    {
-        return shell.CloseIfOpen<SessionDetailViewModel>(
-            editor => editor.Id == sessionId,
-            forgetRestoreHistory: true,
-            restoreKey: sessionId);
-    }
-
-    public SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot) =>
+    private SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot, IShellCoordinator shell) =>
         new(
             snapshot,
             sessionCoordinator,
@@ -188,41 +131,12 @@ internal sealed class EditorFactory(
             layoutProfileTransitionState,
             videoPaneFactory);
 
-    private ClosedTabRestoreEntry CreateBikeRestoreEntry(Guid bikeId) =>
-        ClosedTabRestoreEntry.For<BikeEditorViewModel>(
-            bikeId,
-            () => bikeStore.Get(bikeId) is { } snapshot
-                ? CreateBikeEditor(snapshot, isNew: false)
-                : null);
-
-    private ClosedTabRestoreEntry CreateSetupRestoreEntry(Guid setupId) =>
-        ClosedTabRestoreEntry.For<SetupEditorViewModel>(
-            setupId,
-            () => setupStore.Get(setupId) is { } snapshot
-                ? CreateSetupEditor(snapshot, isNew: false)
-                : null);
-
-    private ClosedTabRestoreEntry CreateSessionDetailRestoreEntry(Guid sessionId) =>
-        ClosedTabRestoreEntry.For<SessionDetailViewModel>(
-            sessionId,
-            () => sessionStore.Get(sessionId) is { } snapshot
-                ? CreateSessionDetail(snapshot)
-                : null);
-
-    public void OpenLiveDaqDetail(LiveDaqSnapshot snapshot, ILiveDaqSharedStream sharedStream)
-    {
-        shell.OpenOrFocus<LiveDaqDetailViewModel>(
-            detail => detail.IdentityKey == snapshot.IdentityKey,
-            () => CreateLiveDaqDetail(snapshot, sharedStream));
-    }
-
-    public LiveDaqDetailViewModel CreateLiveDaqDetail(
+    private LiveDaqDetailViewModel CreateLiveDaqDetail(
         LiveDaqSnapshot snapshot,
-        ILiveDaqSharedStream sharedStream) =>
+        ILiveDaqSharedStream sharedStream, IShellCoordinator shell) =>
         new(
             snapshot,
             sharedStream,
-            liveDaqCoordinator,
             daqManagementService,
             filesService,
             shell,
@@ -233,19 +147,18 @@ internal sealed class EditorFactory(
             timeProvider,
             uiTimerScheduler);
 
-    public void OpenLiveSessionDetail(
-        string identityKey,
-        LiveDaqSessionContext context,
-        ILiveSessionService liveSessionService)
+    private LiveSessionDetailViewModel? CreateLiveSession(string identityKey, IShellCoordinator shell)
     {
-        shell.OpenOrFocus<LiveSessionDetailViewModel>(
-            detail => detail.IdentityKey == identityKey,
-            () => CreateLiveSessionDetail(context, liveSessionService));
+        if (liveDaqStore.Get(identityKey) is not { } snapshot ||
+            liveDaqKnownBoardsQuery.GetSessionContext(identityKey) is not { } context) return null;
+
+        return CreateLiveSessionDetail(context,
+            liveSessionServiceFactory.Create(context, sharedStreamRegistry.GetOrCreate(snapshot)), shell);
     }
 
-    public LiveSessionDetailViewModel CreateLiveSessionDetail(
+    private LiveSessionDetailViewModel CreateLiveSessionDetail(
         LiveDaqSessionContext context,
-        ILiveSessionService liveSessionService) =>
+        ILiveSessionService liveSessionService, IShellCoordinator shell) =>
         new(
             context,
             liveSessionService,

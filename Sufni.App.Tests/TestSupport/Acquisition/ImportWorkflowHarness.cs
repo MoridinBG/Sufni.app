@@ -54,7 +54,6 @@ internal sealed class ImportWorkflowHarness
     public RecordingBackgroundTaskRunner BackgroundTaskRunner { get; } = new();
     public IDaqManagementService DaqManagementService { get; } = Substitute.For<IDaqManagementService>();
     public IRecordedSessionReprocessor Reprocessor { get; } = Substitute.For<IRecordedSessionReprocessor>();
-    public IEditorFactory EditorFactory { get; } = Substitute.For<IEditorFactory>();
     public ITelemetryDataStoreService TelemetryDataStoreService { get; } = Substitute.For<ITelemetryDataStoreService>();
     public IFilesService FilesService { get; } = Substitute.For<IFilesService>();
     public IShellCoordinator Shell { get; } = Substitute.For<IShellCoordinator>();
@@ -74,7 +73,6 @@ internal sealed class ImportWorkflowHarness
         BackgroundTaskRunner,
         DaqManagementService,
         Reprocessor,
-        EditorFactory,
         new InlineUiThreadDispatcher());
 
     public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
@@ -82,7 +80,6 @@ internal sealed class ImportWorkflowHarness
         FilesService,
         Shell,
         DialogService,
-        SetupCoordinator,
         ImportSessionsCoordinatorSubstitute,
         SetupStore,
         dispatcher ?? new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());

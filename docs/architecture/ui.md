@@ -42,7 +42,7 @@ or feature wording evolve:
   operations. Runtime-only stores own runtime publication for their own data.
 - A read graph owns a joined projection across stores and publishes derived state for screens that need more than one entity family.
 - A query answers a business question that crosses domains or requires derived reasoning; it does not own the shared collection.
-- A coordinator owns workflows with side effects, navigation decisions, and
+- A coordinator owns workflows with side effects and
   long-lived event subscriptions. It calls store writer APIs for persisted
   changes but does not mutate store caches directly; cross-aggregate writes
   live in workflow transaction runners or command services that publish store
@@ -103,7 +103,8 @@ graph TB
 Rules enforced by convention:
 
 - A view model may depend on coordinators, **read-only** stores, read graphs, queries, services, and other shell composition view models. It may not depend on another feature view model or on a store writer. Any remaining direct feature-VM dependency outside shell composition is technical debt, not a pattern to copy.
-- A coordinator may depend on services, **read/write** stores, other coordinators, queries, `IEditorFactory`, the shell coordinator, and dialogs. It may not depend on concrete view models; editor construction stays behind `IEditorFactory`. Despite the name, `IEditorFactory` is the editor *gateway*: it owns `Open*` (open-or-focus dedup) and `Close*` for every editor shell, including the import-sessions tab. View-model creation is an implementation detail of the concrete `EditorFactory` — the interface exposes no `Create*` members and no concrete view-model types.
+- Feature coordinators depend on services, **read/write** stores, other coordinators, queries and dialogs. They do not navigate or construct editors. `ShellWorkspaceCoordinator` alone owns `IEditorFactory`; view models send `EditorKey` requests through `IShellCoordinator`. The factory receives the shell in `CreateEditor` rather than its constructor, keeping composition acyclic.
+- The shell owns editor open/focus/restore/close and post-save navigation. Successful editors accept their baseline before requesting `CompleteEdit`; editor deletion closes the matching tab without an extra back step.
 - Dialogs are split across two seams on the same `DialogService` singleton: `IDialogService` is the prompt contract view models and coordinators consume (`Show*` methods only, no Avalonia types), while `IDialogHost` is the wiring contract `App` uses at startup to set the owner window, overlay host, and window-versus-overlay presentation mode.
 - A service or factory may depend on platform or infrastructure APIs and may create concrete datastores, own file-picker lifetime, and own background execution. View models ask services and factories to do this work; they do not `new` concrete infrastructure types.
 - A store may depend only on services. A read graph may depend on read-only stores and pure derivation services. A query may depend on services or read-only stores.

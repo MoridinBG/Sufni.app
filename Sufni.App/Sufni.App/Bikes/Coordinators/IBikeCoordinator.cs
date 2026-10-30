@@ -9,10 +9,6 @@ namespace Sufni.App.Bikes.Coordinators;
 
 public interface IBikeCoordinator
 {
-    Task OpenCreateAsync();
-
-    Task OpenEditAsync(Guid bikeId);
-
     Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
         RearSuspensionSpec rearSuspension,
         CancellationToken cancellationToken = default);

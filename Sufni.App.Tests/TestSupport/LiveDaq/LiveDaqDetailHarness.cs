@@ -101,7 +101,6 @@ internal sealed class LiveDaqDetailHarness
         return new LiveDaqDetailViewModel(
             currentCatalogSnapshot,
             SharedStream,
-            LiveDaqCoordinator,
             DaqManagementService,
             FilesService,
             Shell,

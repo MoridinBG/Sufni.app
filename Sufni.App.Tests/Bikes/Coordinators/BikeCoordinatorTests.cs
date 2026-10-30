@@ -21,11 +21,9 @@ public class BikeCoordinatorTests
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator();
-    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
     public BikeCoordinatorTests()
     {
-        editorFactory.CloseBikeEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         bikeStore.CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>())
             .Returns(callInfo =>
             {
@@ -45,48 +43,13 @@ public class BikeCoordinatorTests
             bikeStore,
             dependencyQuery,
             bikeEditorService,
-            rearSuspensionValidator,
-            () => editorFactory);
+            rearSuspensionValidator);
         return coordinator;
     }
 
     // ----- OpenCreateAsync -----
 
-    [Fact]
-    public async Task OpenCreateAsync_OpensNewEditor_ThroughFactory()
-    {
-        var coordinator = CreateCoordinator();
-        await coordinator.OpenCreateAsync();
-
-        editorFactory.Received(1).OpenNewBikeEditor(Arg.Is<BikeSnapshot>(snapshot =>
-            snapshot.Name == "new bike"));
-    }
-
     // ----- OpenEditAsync -----
-
-    [Fact]
-    public async Task OpenEditAsync_NoOp_WhenSnapshotMissing()
-    {
-        bikeStore.Get(Arg.Any<Guid>()).Returns((BikeSnapshot?)null);
-        var coordinator = CreateCoordinator();
-
-        await coordinator.OpenEditAsync(Guid.NewGuid());
-
-        editorFactory.DidNotReceive().OpenBikeEditor(Arg.Any<BikeSnapshot>());
-        editorFactory.DidNotReceive().OpenNewBikeEditor(Arg.Any<BikeSnapshot>());
-    }
-
-    [Fact]
-    public async Task OpenEditAsync_OpensEditor_ThroughFactory()
-    {
-        var snapshot = TestSnapshots.Bike();
-        bikeStore.Get(snapshot.Id).Returns(snapshot);
-        var coordinator = CreateCoordinator();
-
-        await coordinator.OpenEditAsync(snapshot.Id);
-
-        editorFactory.Received(1).OpenBikeEditor(snapshot);
-    }
 
     [Fact]
     public async Task ImportBikeAsync_NormalizesImportedBikeToNewDraft()
@@ -430,7 +393,6 @@ public class BikeCoordinatorTests
         var result = await coordinator.DeleteAsync(id);
 
         Assert.Equal(BikeDeleteOutcome.InUse, result.Outcome);
-        await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
         await bikeStore.DidNotReceive().CommitBikeDeleteAsync(Arg.Any<Guid>());
     }
 
@@ -445,7 +407,6 @@ public class BikeCoordinatorTests
 
         Assert.Equal(BikeDeleteOutcome.Deleted, result.Outcome);
         await bikeStore.Received(1).CommitBikeDeleteAsync(id);
-        await editorFactory.Received(1).CloseBikeEditor(id);
     }
 
     [Fact]
@@ -461,7 +422,6 @@ public class BikeCoordinatorTests
         var result = await coordinator.DeleteAsync(id);
 
         Assert.Equal(BikeDeleteOutcome.Failed, result.Outcome);
-        await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }
 
 }

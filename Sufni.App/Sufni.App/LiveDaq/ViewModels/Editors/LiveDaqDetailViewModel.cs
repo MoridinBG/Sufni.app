@@ -41,7 +41,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private readonly IUiTimerScheduler uiTimerScheduler;
     private readonly ILiveDaqSharedStream sharedStream;
-    private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly IDaqManagementService daqManagementService;
     private readonly IFilesService filesService;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
@@ -121,7 +120,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public LiveDaqDetailViewModel(
         LiveDaqSnapshot snapshot,
         ILiveDaqSharedStream sharedStream,
-        ILiveDaqCoordinator liveDaqCoordinator,
         IDaqManagementService daqManagementService,
         IFilesService filesService,
         IShellCoordinator shell,
@@ -142,7 +140,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         BikeName = snapshot.BikeName;
         Name = snapshot.DisplayName;
         this.sharedStream = sharedStream;
-        this.liveDaqCoordinator = liveDaqCoordinator;
         this.daqManagementService = daqManagementService;
         this.filesService = filesService;
         this.knownBoardsQuery = knownBoardsQuery;
@@ -231,9 +228,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     }
 
     [RelayCommand(CanExecute = nameof(CanStartSession))]
-    private async Task StartSession()
+    private System.Threading.Tasks.Task StartSession()
     {
-        await liveDaqCoordinator.OpenSessionAsync(IdentityKey);
+        shell.OpenEditor(new EditorKey.LiveSession(IdentityKey));
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]

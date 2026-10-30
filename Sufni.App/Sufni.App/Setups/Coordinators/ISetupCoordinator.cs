@@ -4,14 +4,13 @@ using System.Threading.Tasks;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Setups.Models;
+using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
 namespace Sufni.App.Setups.Coordinators;
 
 public interface ISetupCoordinator
 {
-    Task OpenCreateAsync(Guid? suggestedBoardId = null);
-
-    Task OpenEditAsync(Guid setupId);
+    SetupSnapshot CreateDraft(Guid? suggestedBoardId = null);
 
     Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated);
 

@@ -67,7 +67,7 @@ Tests configure these explicitly through service setup or test helpers rather th
 
 Both platform lifetimes use `ShellRootViewModel`, `ShellWorkspaceViewModel`, and `ShellWorkspaceCoordinator`.
 
-`ShellWorkspaceViewModel` owns the logical tab collection, selected tab, tab history, open/focus, background open, close, restore, back, and reorder behavior. `ShellWorkspaceCoordinator` is the single `IShellCoordinator` implementation; callers still use `Open`, `OpenOrFocus<T>`, `OpenInBackground<T>`, `Close`, `CloseIfOpen<T>`, and `GoBack()`.
+`ShellWorkspaceViewModel` owns the logical tab collection, selected tab, tab history, open/focus, background open, close, restore, back, and reorder behavior. `ShellWorkspaceCoordinator` is the single `IShellCoordinator` implementation; features use `OpenEditor(EditorKey, background)` and `CloseEditorAsync(EditorKey)`. The shell owns the editor factory, restoration and post-save `CompleteEdit`; non-editor surfaces retain `Open`, `Close` and `GoBack()`.
 
 The layout profile decides how that shared workspace is presented:
 

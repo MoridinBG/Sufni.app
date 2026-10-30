@@ -67,7 +67,7 @@ There are five kinds of view model in the presentation layer:
   refresh (`LoadDatabaseContent`) also lives here so the database load happens
   exactly once after the shell is constructed.
 
-- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. A reopened tab sees the same active batch.
+- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
@@ -102,7 +102,7 @@ There are five kinds of view model in the presentation layer:
   the cross-cutting search / date-filter / menu-item state and the
   `AddCommand` plumbing (it does not declare an `Items` property — there is
   nothing to shadow). Individual lists override `AddImplementation()` to
-  delegate to their coordinator.
+  request a new editor from the shell.
   `SessionListViewModel` follows the same projection shape but uses
   `IRecordedSessionProjection.ConnectSessions()` instead of
   `ISessionStore.Connect()`, so rows include processed-data presence,
@@ -119,8 +119,8 @@ There are five kinds of view model in the presentation layer:
   snapshot changes, plus an `IRelayCommand`-based open/delete surface
   inherited from `ListItemRowViewModelBase` (a single shared `x:DataType` for the
   `DeletableListItemButton` / `SwipeToDeleteButton` /
-  `PairedDeviceListItemButton` controls). Open and delete commands
-  route through the entity coordinator. `LiveDaqRowViewModel` is an
+  `PairedDeviceListItemButton` controls). Open commands route to the shell; delete intents go to the owning list
+  and entity coordinator. `LiveDaqRowViewModel` is an
   exception: it does not derive from `ListItemRowViewModelBase` because live DAQ
   rows are not deletable and use a custom row control with
   online/offline presentation.
@@ -136,9 +136,9 @@ There are five kinds of view model in the presentation layer:
   `SetupEditorViewModel`, `SessionDetailViewModel`,
   `LiveDaqDetailViewModel`, `LiveSessionDetailViewModel`. Constructed
   by `IEditorFactory` from a snapshot or live-session context, never by
-  another view model and never stored in a list. Entity coordinators
-  route open/focus/close requests through the factory instead of
-  referencing concrete editor view-model types.
+  another view model and never stored in a list. The shell owns the factory;
+  feature view models request `EditorKey` surfaces and deleted-editor closure
+  through `IShellCoordinator`. Coordinators return domain results.
   Persisted-entity editors keep the snapshot's `Updated` value as
   `BaselineUpdated` for optimistic conflict detection at save time,
   derive editable state from the snapshot in `ResetImplementation`,

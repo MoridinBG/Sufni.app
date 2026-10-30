@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -19,6 +20,7 @@ namespace Sufni.App.LiveDaq.ViewModels.ItemLists;
 // applies search filtering, and delegates browse lifecycle to the coordinator.
 public partial class LiveDaqListViewModel : ItemListViewModelBase
 {
+    private readonly IShellCoordinator shell;
     private readonly ILiveDaqStore liveDaqStore;
     private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly ObservableCollectionExtended<LiveDaqRowViewModel> liveDaqRowsSource = [];
@@ -33,11 +35,13 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
         ILiveDaqCoordinator liveDaqCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner backgroundTaskRunner,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShellCoordinator shell)
         : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.liveDaqStore = liveDaqStore;
         this.liveDaqCoordinator = liveDaqCoordinator;
+        this.shell = shell;
         liveDaqRows = new ReadOnlyObservableCollection<LiveDaqRowViewModel>(liveDaqRowsSource);
     }
 
@@ -96,10 +100,11 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
     }
 
     [RelayCommand]
-    private async System.Threading.Tasks.Task RowSelected(LiveDaqRowViewModel? row)
+    private System.Threading.Tasks.Task RowSelected(LiveDaqRowViewModel? row)
     {
-        if (row is null || !row.IsOnline) return;
+        if (row is null || !row.IsOnline) return System.Threading.Tasks.Task.CompletedTask;
 
-        await liveDaqCoordinator.SelectAsync(row.IdentityKey);
+        shell.OpenEditor(new EditorKey.LiveDaq(row.IdentityKey));
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 }

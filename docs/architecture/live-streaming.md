@@ -60,8 +60,8 @@ graph LR
     Coord --> Store
     Store --> ListVM
     ListVM --> RowVM
-    Coord -->|"OpenOrFocus"| DetailVM
-    Coord -. "OpenSessionAsync" .-> LiveSession["live-session.md"]
+    ListVM -->|"shell.OpenEditor"| DetailVM
+    DetailVM -. "shell.OpenEditor" .-> LiveSession["live-session.md"]
     Registry --> Shared
     Factory --> Client
     Client --> Reader
@@ -81,8 +81,8 @@ mDNS announcement
         -> DynamicData -> LiveDaqListViewModel -> LiveDaqRowViewModel -> UI
 
 User selects row
-  -> LiveDaqCoordinator.SelectAsync
-    -> shell.OpenOrFocus<LiveDaqDetailViewModel>
+  -> shell.OpenEditor(EditorKey.LiveDaq)
+    -> EditorFactory.CreateEditor(key, shell)
 
 Diagnostics tab loads
   -> LiveDaqSharedStream.AcquireLease()
@@ -98,8 +98,8 @@ Diagnostics tab loads
                 -> IUiTimerScheduler tick -> CreateSnapshot -> UI binding
 
 User presses Start Session
-  -> LiveDaqCoordinator.OpenSessionAsync
-    -> shell.OpenOrFocus<LiveSessionDetailViewModel>
+  -> shell.OpenEditor(EditorKey.LiveSession)
+    -> EditorFactory.CreateEditor(key, shell)
       -> handed off to live-session.md (capture / analysis / save)
 
 Tab closes
@@ -279,15 +279,16 @@ using the `TimeProvider` supplied to `LiveDaqSessionState` by the editor factory
 
 ## Coordinator
 
-`LiveDaqCoordinator` owns all store writes, browse lifecycle, and tab routing.
+`LiveDaqCoordinator` owns all store writes and browse lifecycle.
 
 **Activate / Deactivate** — called by `MainPagesViewModel` when the Live page becomes selected or deselected. On activate: acquires a browse lease, subscribes to catalog changes and known-board query changes, seeds the store with offline known boards. On deactivate: disposes all subscriptions and the browse lease, clears online state from the store.
 
 **Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with the catalog's protocol-qualified endpoint identity. The store is cleared and rebuilt on each reconciliation.
 
-**SelectAsync** — routes row selection through `shell.OpenOrFocus<LiveDaqDetailViewModel>` with an identity-key matcher. If a diagnostics tab for that DAQ already exists, it focuses it; otherwise it creates a new detail view model from the snapshot, the shared stream registry, the shared known-board query, `IDaqManagementService`, and `IFilesService`.
-
-**OpenSessionAsync** — resolves `LiveDaqSessionContext` for a known DAQ, gets the shared stream for that identity, and routes one `LiveSessionDetailViewModel` per identity through `shell.OpenOrFocus`. The coordinator remains a routing layer only; live capture accumulation and save happen below it (see [Live Session Recording](live-session.md)).
+Diagnostics and live-session opening belong to the shell. It deduplicates by
+`EditorKey.LiveDaq` or `EditorKey.LiveSession` before the factory reads the
+snapshot/context and acquires the shared stream or creates a capture service.
+Missing snapshots or session contexts produce no tab.
 
 ## View Models
 

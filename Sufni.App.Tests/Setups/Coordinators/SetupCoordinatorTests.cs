@@ -21,11 +21,9 @@ public class SetupCoordinatorTests
     private readonly ISetupPersistenceTransactionRunner setupPersistenceTransactions = Substitute.For<ISetupPersistenceTransactionRunner>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
-    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
     public SetupCoordinatorTests()
     {
-        editorFactory.CloseSetupEditor(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         setupPersistenceTransactions.SaveSetupAsync(
                 Arg.Any<Setup>(),
                 Arg.Any<Guid?>(),
@@ -53,76 +51,21 @@ public class SetupCoordinatorTests
             bikeStore,
             filesService,
             backgroundTaskRunner,
-            () => editorFactory,
             setupPersistenceTransactions);
         return coordinator;
     }
 
-    // ----- OpenCreateAsync -----
-
-    [Fact]
-    public async Task OpenCreateAsync_OpensNewEditor_ThroughFactory()
-    {
-        await CreateCoordinator().OpenCreateAsync();
-
-        editorFactory.Received(1).OpenNewSetupEditor(Arg.Is<SetupSnapshot>(snapshot =>
-            snapshot.Name == "new setup"));
-    }
-
-    [Fact]
-    public async Task OpenCreateAsync_HonoursSuggestedBoardId_WhenFree()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreateDraft_UsesSuggestedBoardOnlyWhenUnclaimed(bool claimed)
     {
         var boardId = Guid.NewGuid();
-        setupStore.FindByBoardId(boardId).Returns((SetupSnapshot?)null);
+        setupStore.FindByBoardId(boardId).Returns(claimed ? TestSnapshots.Setup(boardId: boardId) : null);
 
-        SetupSnapshot? captured = null;
-        editorFactory.When(factory => factory.OpenNewSetupEditor(Arg.Any<SetupSnapshot>()))
-            .Do(call => captured = call.Arg<SetupSnapshot>());
+        var draft = CreateCoordinator().CreateDraft(boardId);
 
-        await CreateCoordinator().OpenCreateAsync(boardId);
-
-        Assert.NotNull(captured);
-        Assert.Equal(boardId, captured!.BoardId);
-    }
-
-    [Fact]
-    public async Task OpenCreateAsync_DropsSuggestedBoardId_WhenAlreadyClaimed()
-    {
-        var boardId = Guid.NewGuid();
-        var existing = TestSnapshots.Setup(boardId: boardId);
-        setupStore.FindByBoardId(boardId).Returns(existing);
-
-        SetupSnapshot? captured = null;
-        editorFactory.When(factory => factory.OpenNewSetupEditor(Arg.Any<SetupSnapshot>()))
-            .Do(call => captured = call.Arg<SetupSnapshot>());
-
-        await CreateCoordinator().OpenCreateAsync(boardId);
-
-        Assert.NotNull(captured);
-        Assert.Null(captured!.BoardId);
-    }
-
-    // ----- OpenEditAsync -----
-
-    [Fact]
-    public async Task OpenEditAsync_NoOp_WhenSnapshotMissing()
-    {
-        setupStore.Get(Arg.Any<Guid>()).Returns((SetupSnapshot?)null);
-
-        await CreateCoordinator().OpenEditAsync(Guid.NewGuid());
-
-        editorFactory.DidNotReceive().OpenSetupEditor(Arg.Any<SetupSnapshot>());
-    }
-
-    [Fact]
-    public async Task OpenEditAsync_OpensEditor_ThroughFactory()
-    {
-        var snapshot = TestSnapshots.Setup();
-        setupStore.Get(snapshot.Id).Returns(snapshot);
-
-        await CreateCoordinator().OpenEditAsync(snapshot.Id);
-
-        editorFactory.Received(1).OpenSetupEditor(snapshot);
+        Assert.Equal(claimed ? null : (Guid?)boardId, draft.BoardId);
     }
 
     // ----- SaveAsync -----
@@ -281,7 +224,6 @@ public class SetupCoordinatorTests
             snapshot.Id,
             snapshot.BoardId,
             Arg.Any<CancellationToken>());
-        await editorFactory.Received(1).CloseSetupEditor(snapshot.Id);
         await setupStore.Received(1).PublishSetupsRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(snapshot.Id)),
             Arg.Any<CancellationToken>());
@@ -321,7 +263,6 @@ public class SetupCoordinatorTests
         await setupStore.DidNotReceive().PublishSetupsRemovedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
-        await editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }
 
 }

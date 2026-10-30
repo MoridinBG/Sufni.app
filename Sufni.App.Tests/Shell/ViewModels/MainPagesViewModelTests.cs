@@ -21,13 +21,14 @@ namespace Sufni.App.Tests.Shell.ViewModels;
 
 public class MainPagesViewModelTests
 {
+    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
     public void SelectedPrimaryIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
         var liveCoordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         var viewModel = MainPagesViewModelTestFactory.Create(livePage);
         var liveIndex = viewModel.PrimaryPages.IndexOf(
             viewModel.PrimaryPages.Single(page => page.Role == MainPrimaryPageRole.LiveDaqs));

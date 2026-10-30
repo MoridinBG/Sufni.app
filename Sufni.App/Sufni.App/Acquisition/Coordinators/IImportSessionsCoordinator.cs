@@ -8,8 +8,6 @@ namespace Sufni.App.Acquisition.Coordinators;
 
 public interface IImportSessionsCoordinator
 {
-    Task OpenAsync();
-
     SessionImportState State { get; }
 
     IObservable<SessionImportState> Observe();

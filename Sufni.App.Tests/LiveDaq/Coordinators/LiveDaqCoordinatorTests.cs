@@ -29,11 +29,6 @@ public class LiveDaqCoordinatorTests
     private readonly Dictionary<string, LiveDaqSnapshot> currentObservedState = [];
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
-    private readonly ILiveDaqSharedStreamRegistry sharedStreamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
-    private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
-    private readonly ILiveSessionServiceFactory liveSessionServiceFactory = Substitute.For<ILiveSessionServiceFactory>();
-    private readonly StubLiveSessionService liveSessionService = StubLiveSessionService.WithDefaultLiveStream();
-    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
     private readonly IDisposable browseLease = Substitute.For<IDisposable>();
@@ -44,21 +39,14 @@ public class LiveDaqCoordinatorTests
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
         catalogService.Observe().Returns(catalogEntries);
         catalogService.AcquireBrowse().Returns(browseLease);
-        sharedStream.RequestedConfiguration.Returns(LiveDaqStreamConfiguration.Default);
-        sharedStream.CurrentState.Returns(LiveDaqSharedStreamState.Empty);
-        sharedStreamRegistry.GetOrCreate(Arg.Any<LiveDaqSnapshot>()).Returns(sharedStream);
-        liveSessionServiceFactory.Create(Arg.Any<LiveDaqSessionContext>(), Arg.Any<ILiveDaqSharedStream>())
-            .Returns(liveSessionService);
+
     }
 
     private LiveDaqCoordinator CreateCoordinator() =>
         new(
             liveDaqStore,
             knownBoardsQuery,
-            catalogService,
-            sharedStreamRegistry,
-            liveSessionServiceFactory,
-            () => editorFactory);
+            catalogService);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
@@ -229,49 +217,6 @@ public class LiveDaqCoordinatorTests
         {
             Assert.Equal(2, state.Count);
         }
-    }
-
-    [Fact]
-    public async Task SelectAsync_OpensLiveDaqDetail_ThroughFactory()
-    {
-        var snapshot = new LiveDaqSnapshot(
-            IdentityKey: "board-1",
-            DisplayName: "Board 1",
-            BoardId: "board-1",
-            Host: "192.168.0.30",
-            Port: 7777,
-            IsOnline: true,
-            SetupName: "setup",
-            BikeName: "bike");
-        liveDaqStore.ReplaceAll([snapshot]);
-
-        await CreateCoordinator().SelectAsync(snapshot.IdentityKey);
-
-        sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
-        editorFactory.Received(1).OpenLiveDaqDetail(snapshot, sharedStream);
-    }
-
-    [Fact]
-    public async Task OpenSessionAsync_OpensLiveSessionDetail_ThroughFactory()
-    {
-        var snapshot = new LiveDaqSnapshot(
-            IdentityKey: "board-1",
-            DisplayName: "Board 1",
-            BoardId: "board-1",
-            Host: "192.168.0.30",
-            Port: 7777,
-            IsOnline: true,
-            SetupName: "setup",
-            BikeName: "bike");
-        liveDaqStore.ReplaceAll([snapshot]);
-        var context = CreateSessionContext(snapshot.IdentityKey, snapshot.DisplayName);
-        knownBoardsQuery.GetSessionContext(snapshot.IdentityKey).Returns(context);
-
-        await CreateCoordinator().OpenSessionAsync(snapshot.IdentityKey);
-
-        sharedStreamRegistry.Received(1).GetOrCreate(snapshot);
-        liveSessionServiceFactory.Received(1).Create(context, sharedStream);
-        editorFactory.Received(1).OpenLiveSessionDetail(snapshot.IdentityKey, context, liveSessionService);
     }
 
     private static LiveDaqSessionContext CreateSessionContext(string identityKey, string displayName)

@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Threading.Tasks;
 
@@ -12,7 +13,7 @@ namespace Sufni.App.Bikes.ViewModels.Rows;
 /// inside a list. Row view models are cheap, non-editable and refresh
 /// themselves via <see cref="Update"/> when the underlying snapshot
 /// changes. <see cref="OpenPage"/> routes through
-/// <see cref="IBikeCoordinator"/>; <see cref="UndoableDelete"/> hands
+/// <see cref="IShellCoordinator"/>; <see cref="UndoableDelete"/> hands
 /// the row back to the owning list view model via the
 /// <c>requestDelete</c> callback so the list can run its pending-delete
 /// undo window before finalizing.
@@ -23,7 +24,7 @@ namespace Sufni.App.Bikes.ViewModels.Rows;
 /// </summary>
 public sealed class BikeRowViewModel : ListItemRowViewModelBase, IDisposable
 {
-    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly IShellCoordinator shell;
     private readonly Action<BikeRowViewModel> requestDelete;
     private readonly IBikeDependencyQuery dependencyQuery;
     private readonly IDisposable changesSubscription;
@@ -32,11 +33,11 @@ public sealed class BikeRowViewModel : ListItemRowViewModelBase, IDisposable
 
     public BikeRowViewModel(
         BikeSnapshot snapshot,
-        IBikeCoordinator bikeCoordinator,
+        IShellCoordinator shell,
         Action<BikeRowViewModel> requestDelete,
         IBikeDependencyQuery dependencyQuery)
     {
-        this.bikeCoordinator = bikeCoordinator;
+        this.shell = shell;
         this.requestDelete = requestDelete;
         this.dependencyQuery = dependencyQuery;
         Update(snapshot);
@@ -64,9 +65,10 @@ public sealed class BikeRowViewModel : ListItemRowViewModelBase, IDisposable
         changesSubscription.Dispose();
     }
 
-    protected override async Task OpenPageAsync()
+    protected override Task OpenPageAsync()
     {
-        await bikeCoordinator.OpenEditAsync(Id);
+        shell.OpenEditor(new EditorKey.Bike(Id));
+        return Task.CompletedTask;
     }
 
     protected override void UndoableDelete()

@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -99,7 +100,7 @@ public class SetupEditorDesktopViewTests
         editBikeButton.Command!.Execute(editBikeButton.CommandParameter);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        await context.BikeCoordinator.Received(1).OpenEditAsync(bike.Id);
+        context.Shell.Received(1).OpenEditor(new EditorKey.Bike(bike.Id));
     }
 
     private static ContentControl AttachSelectedBikeTemplateHost(

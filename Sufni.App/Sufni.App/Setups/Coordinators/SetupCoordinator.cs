@@ -11,7 +11,6 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Editors;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Setups.Coordinators;
 
@@ -20,13 +19,12 @@ public class SetupCoordinator(
     IBikeStoreWriter bikeStore,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
-    Func<IEditorFactory> editorFactory,
     ISetupPersistenceTransactionRunner setupPersistenceTransactions)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
-    public Task OpenCreateAsync(Guid? suggestedBoardId = null)
+    public SetupSnapshot CreateDraft(Guid? suggestedBoardId = null)
     {
         // Honour the suggested board ID only if no other setup claims it.
         Guid? actualBoardId = null;
@@ -37,17 +35,7 @@ public class SetupCoordinator(
 
         var seed = new Setup(Guid.NewGuid(), "new setup");
         var snapshot = SetupSnapshot.From(seed, actualBoardId);
-        editorFactory().OpenNewSetupEditor(snapshot);
-        return Task.CompletedTask;
-    }
-
-    public Task OpenEditAsync(Guid setupId)
-    {
-        var snapshot = setupStore.Get(setupId);
-        if (snapshot is null) return Task.CompletedTask;
-
-        editorFactory().OpenSetupEditor(snapshot);
-        return Task.CompletedTask;
+        return snapshot;
     }
 
     public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
@@ -102,7 +90,6 @@ public class SetupCoordinator(
             return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
         }
 
-        await editorFactory().CloseSetupEditor(setupId);
         await setupStore.PublishSetupsRemovedAsync([setupId]);
 
         logger.Information("Setup delete completed for {SetupId}", setupId);

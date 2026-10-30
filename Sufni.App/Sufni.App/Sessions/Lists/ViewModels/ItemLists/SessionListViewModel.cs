@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -30,6 +31,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly IShellCoordinator shell;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ISessionVideoStore videoStore;
@@ -59,11 +61,13 @@ public partial class SessionListViewModel : ItemListViewModelBase
         ISessionVideoStore videoStore,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner backgroundTaskRunner,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShellCoordinator shell)
         : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;
+        this.shell = shell;
         this.videoStore = videoStore;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
     }
@@ -88,7 +92,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
                 entry => new SessionRowViewModel(
                     entry.Summary,
                     entry.LatestVideo,
-                    sessionCoordinator,
+                    shell,
                     RequestRowDelete,
                     RecalculateSessionAsync),
                 (row, entry) => row.Update(entry.Summary, entry.LatestVideo))
@@ -177,6 +181,9 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
         pendingDeleteIds.Remove(sessionId);
         RebuildFilter();
+
+        if (result.Outcome == SessionDeleteOutcome.Deleted)
+            await shell.CloseEditorAsync(new EditorKey.Session(sessionId));
 
         if (result.Outcome == SessionDeleteOutcome.Failed)
         {
@@ -286,10 +293,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
     #region Commands
 
     [RelayCommand]
-    private async Task RowSelected(SessionRowViewModel? row)
+    private System.Threading.Tasks.Task RowSelected(SessionRowViewModel? row)
     {
-        if (row is null) return;
-        await sessionCoordinator.OpenEditAsync(row.Id);
+        if (row is null) return System.Threading.Tasks.Task.CompletedTask;
+        shell.OpenEditor(new EditorKey.Session(row.Id));
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 
     #endregion Commands

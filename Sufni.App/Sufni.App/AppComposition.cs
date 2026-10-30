@@ -129,10 +129,7 @@ public static class AppComposition
         services.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
         services.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
         services.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
-        services.AddSingleton<Func<ImportSessionsViewModel>>(sp =>
-            () => sp.GetRequiredService<ImportSessionsViewModel>());
         services.AddSingleton<IEditorFactory, EditorFactory>();
-        services.AddSingleton<Func<IEditorFactory>>(sp => () => sp.GetRequiredService<IEditorFactory>());
         services.AddSingleton<BikeCoordinator>();
         services.AddSingleton<IBikeCoordinator>(sp => sp.GetRequiredService<BikeCoordinator>());
         services.AddSingleton<SetupStore>();
@@ -201,7 +198,6 @@ public static class AppComposition
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ISessionPreferences>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<ISessionPersistenceTransactionRunner>()));
         if (root.Capabilities.CanHostSyncServer)
         {
@@ -256,7 +252,6 @@ public static class AppComposition
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
-                sp.GetRequiredService<IEditorFactory>(),
                 sp.GetRequiredService<IUiThreadDispatcher>()));
         services.AddSingleton<IImportSessionsCoordinator>(sp =>
             sp.GetRequiredService<ImportSessionsCoordinator>());
@@ -264,7 +259,6 @@ public static class AppComposition
         services.AddSingleton<SessionListViewModel>();
         services.AddSingleton<LiveDaqListViewModel>();
         services.AddSingleton<PairedDeviceListViewModel>();
-        services.AddSingleton<ImportSessionsViewModel>();
         services.AddSingleton<SetupListViewModel>();
         services.AddSingleton<MainPagesViewModel>();
         services.AddSingleton<ShellWorkspaceViewModel>();

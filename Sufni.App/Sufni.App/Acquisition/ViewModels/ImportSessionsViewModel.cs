@@ -55,7 +55,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
     private readonly IFilesService filesService;
-    private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupStore setupStore;
     private readonly IDisposable importSubscription;
@@ -70,7 +69,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService,
-        ISetupCoordinator setupCoordinator,
         IImportSessionsCoordinator importSessionsCoordinator,
         ISetupStore setupStore,
         IUiThreadDispatcher uiThreadDispatcher,
@@ -80,7 +78,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         Name = "Import Sessions";
         this.telemetryDataStoreService = telemetryDataStoreService;
         this.filesService = filesService;
-        this.setupCoordinator = setupCoordinator;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.setupStore = setupStore;
 
@@ -328,7 +325,11 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task AddSetup() => await setupCoordinator.OpenCreateAsync(SelectedDataStore?.BoardId);
+    private Task AddSetup()
+    {
+        shell.OpenEditor(new EditorKey.NewSetup(SelectedDataStore?.BoardId));
+        return Task.CompletedTask;
+    }
 
     [RelayCommand]
     private void Loaded()
@@ -354,6 +355,14 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         TelemetryFiles.Clear();
         telemetryDataStoreService.ErrorOccurred -= OnDataStoreServiceError;
         telemetryDataStoreService.StopBrowse();
+    }
+
+    protected override Task CloseImplementation()
+    {
+        importSubscription.Dispose();
+        TelemetryDataStores.CollectionChanged -= OnTelemetryDataStoresCollectionChanged;
+        Unloaded();
+        return Task.CompletedTask;
     }
 
     private void OnDataStoreServiceError(object? sender, string message)

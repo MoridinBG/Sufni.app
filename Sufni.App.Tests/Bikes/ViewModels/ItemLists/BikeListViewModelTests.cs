@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using DynamicData;
 using NSubstitute;
@@ -12,6 +13,7 @@ namespace Sufni.App.Tests.Bikes.ViewModels.ItemLists;
 
 public class BikeListViewModelTests
 {
+    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
@@ -31,7 +33,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -64,7 +66,7 @@ public class BikeListViewModelTests
             TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
         Assert.Empty(viewModel.Items);
 
@@ -97,7 +99,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new BikeListViewModel(bikeStore, bikeCoordinator, dependencyQuery, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 

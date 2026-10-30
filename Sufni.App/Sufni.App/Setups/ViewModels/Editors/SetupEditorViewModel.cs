@@ -363,17 +363,18 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     #region Commands
 
     [RelayCommand]
-    private async Task EditBike(BikeSnapshot? bike)
+    private System.Threading.Tasks.Task EditBike(BikeSnapshot? bike)
     {
-        if (bike is null) return;
-        await bikeCoordinator.OpenEditAsync(bike.Id);
+        if (bike is null) return System.Threading.Tasks.Task.CompletedTask;
+        shell.OpenEditor(new EditorKey.Bike(bike.Id));
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 
     protected override async Task DeleteImplementation(bool navigateBack)
     {
         if (!IsInDatabase)
         {
-            if (navigateBack) OpenPreviousPage();
+            await shell.CloseEditorAsync(new EditorKey.Setup(Id));
             return;
         }
 
@@ -381,7 +382,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         switch (result.Outcome)
         {
             case SetupDeleteOutcome.Deleted:
-                if (navigateBack) OpenPreviousPage();
+                await shell.CloseEditorAsync(new EditorKey.Setup(Id));
                 break;
             case SetupDeleteOutcome.Failed:
                 ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");

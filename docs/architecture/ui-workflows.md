@@ -18,20 +18,20 @@ and are registered as singletons.
 
 | Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IShellCoordinator` (`ShellWorkspaceCoordinator`)                         | shared       | `Open` / `OpenOrFocus<T>` / `OpenInBackground<T>` / `Close` / `CloseIfOpen<T>` / `GoBack` — the only navigation surface; delegates to `ShellWorkspaceViewModel` in both layout profiles                                                                                                                                                                                                                                                                              |
-| `BikeCoordinator`                                                         | shared       | Open create/edit, save with conflict detection, delete (gated by `IBikeDependencyQuery`), and route bike-editor analysis/import/export/image requests through `IBikeEditorService`. Both interfaces expose neutral result records; image loading returns encoded bytes and a file name, leaving Avalonia bitmap decoding to the editor presentation edge                                                                                                                                                                              |
+| `IShellCoordinator` (`ShellWorkspaceCoordinator`)                         | shared       | `OpenEditor` / `CloseEditorAsync` / `CompleteEdit` / `Open` / `Close` / `GoBack` — the only navigation surface; delegates to `ShellWorkspaceViewModel` in both layout profiles                                                                                                                                                                                                                                                                              |
+| `BikeCoordinator`                                                         | shared       | Save with conflict detection, delete (gated by `IBikeDependencyQuery`), and route bike-editor analysis/import/export/image requests through `IBikeEditorService`. Both interfaces expose neutral result records; image loading returns encoded bytes and a file name, leaving Avalonia bitmap decoding to the editor presentation edge                                                                                                                                                                              |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete); setup creation accepts a suggested board id from the selected import source                                                                                                                                                                                                                                                                                                                             |
-| `SessionCoordinator`                                                      | shared       | Thin router over `SessionLoader` (reads) and `SessionCommandService` (writes): `OpenEditAsync` routes through `IEditorFactory`; telemetry-first detail loading and the later typed track-settling read both delegate to `SessionLoader`; save / delete / recompute requests delegate to `SessionCommandService`. It owns no event subscriptions and is not eagerly resolved                                                                                                                                                                                                                                                |
-| `ISessionEditingCoordinator` (`SessionEditingCoordinator`)                | shared       | Trim and split commands of recorded sessions: one transaction per command, then session, segment, and clip publication, recompute, and background open of a split's second part. See [Trim and split](#trim-and-split) |
+| `SessionCoordinator`                                                      | shared       | Thin router over `SessionLoader` (reads) and `SessionCommandService` (writes): telemetry-first detail loading and the later typed track-settling read both delegate to `SessionLoader`; save / delete / recompute requests delegate to `SessionCommandService`. It owns no event subscriptions and is not eagerly resolved                                                                                                                                                                                                                                                |
+| `ISessionEditingCoordinator` (`SessionEditingCoordinator`)                | shared       | Trim and split commands of recorded sessions: one transaction per command, then session, segment, and clip publication, recompute, and commit progress carrying the split's new session id. See [Trim and split](#trim-and-split) |
 | `ISegmentCoordinator` (`SegmentCoordinator`)                              | shared       | Saved-segment create, rename, and delete with the segment name rule; segment matching and comparison pages; Strava connect, reset, and segment fetch. The per-editor segments picker, comparison, and Strava connect dialog call it. See [segments.md](segments.md#store-and-coordinator) |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
-| `ImportSessionsCoordinator`                                               | shared       | Opens the import view, owns one active import task and replayed `SessionImportState` across tab lifetimes, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes changed session/source ids through store writer publish-only paths                                                                                                                                                                |
+| `ImportSessionsCoordinator`                                               | shared       | Owns one active import task and replayed `SessionImportState` across tab lifetimes, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes changed session/source ids through store writer publish-only paths                                                                                                                                                                |
 | `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, then refreshes all stores through `IAppDataRefresher`                                                                                                                                                                                                                                                                                    |
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, mirrors HTTP `PairedState` as `IsPaired`, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                     |
 | `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                                                                                                                                                                  |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and publishes incoming bike/setup ids through writer publish-only paths after the server merge has already persisted them, and refreshes the segment store when segments arrive. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                                                                                  |
 | `TrackCoordinator`                                                        | shared       | GPX import and **read-only** session-track loading: it resolves the linked full-track points through `IFullTrackPointReader` and the cached session-window polyline through `ISessionTrackReader`, keyed by `points_revision` and `track_projection_revision` respectively. When the cached session-window track is missing or misaligned it regenerates points in memory for display only — track association and cached-track persistence are owned by the processed-write path. The GPS-offset adjustment is its one remaining write, committed through `ISessionStoreWriter.CommitTrackPatchAsync`; the editor refreshes through the session watch like a recompute, with no pushed result |
-| `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation, and detail tab open/focus routing. It passes the selected snapshot and shared stream to `IEditorFactory`, which supplies the editor dependencies. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
+| `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation. The shell routes diagnostics and live-session editor keys; `EditorFactory` creates their shared-stream and capture dependencies only for a new tab. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
 The session workflow itself is split into four use-case classes beside the
 coordinator (all in `Sufni.App/Sufni.App/Sessions/Coordination/`, registered as
@@ -75,8 +75,10 @@ snapshot the command started from, so concurrent edits of one session do not
 need a lock. After the commit the coordinator publishes the changed sessions,
 requests their recompute with `RecomputeReason.SourceWindowChanged` before any
 other await (an open editor prompts for a recompute of a stale session unless
-one is already running), publishes the changed clips and segments, opens a split's second
-part in the background, and waits for the recomputes. Until a recompute
+one is already running), publishes the changed clips and segments, reports a `SessionEditProgress` with
+the created id, and waits for the recomputes. The editor routes that progress to
+`shell.OpenEditor(new EditorKey.Session(id), background: true)` before the
+coordinator completes. Until a recompute
 completes, the session shows as stale and then reloads, as after a built-in
 recalculate; edits do not use the operation overlay. The editor allows one edit
 at a time and enables a command only when every remaining part keeps at least
@@ -141,11 +143,10 @@ Shared registrations in `AppComposition`:
   `IRecordedSessionSourceStore` and `IRecordedSessionSourceStoreWriter`.
   Persisted writer interfaces expose semantic commit methods plus
   publish-only changed/removed batches; `LiveDaqStore` remains runtime-only.
-- **Coordinators**: every shared entity coordinator plus `SyncCoordinator`,
-  `ImportSessionsCoordinator`. The import coordinator opens its page through
-  `IEditorFactory`; `Func<ImportSessionsViewModel>` belongs to the editor factory.
-  It and `Func<IEditorFactory>` still break the editor/coordinator construction
-  cycle pending navigation-ownership adoption.
+- **Coordinators**: every shared entity coordinator plus `SyncCoordinator` and
+  `ImportSessionsCoordinator`. None depends on an editor factory or shell.
+  `ShellWorkspaceCoordinator` holds `IEditorFactory`; `CreateEditor(key, shell)`
+  receives its shell at call time. No `Func` cycle breakers remain.
 - **Queries, indexes, and read graphs**: `IBikeDependencyQuery`,
   `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`,
   `IProcessingDependencyHashIndex`, and `IRecordedSessionProjection`.
@@ -157,7 +158,7 @@ Shared registrations in `AppComposition`:
   `LiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
   unconditionally; `MainPagesViewModel` receives
   `LiveDaqListViewModel` as a required dependency on both shells.
-- **View models**: list view models, the import view model,
+- **View models**: list view models,
   `ShellWorkspaceViewModel`, `ShellRootViewModel`, and
   `MainPagesViewModel` as singletons. `MainPagesViewModel` receives
   platform-optional page view models such as pairing client/server surfaces
@@ -200,10 +201,12 @@ or service-discovery changes before the first refresh or arrival.
 
 ## Navigation
 
-Navigation is owned exclusively by `IShellCoordinator`. View models
-never poke at shell controls directly — they call `shell.Open(view)`,
-`shell.OpenOrFocus<T>(match, factory)`, `shell.OpenInBackground<T>(match, factory)`,
-`shell.Close(view)`, `shell.CloseIfOpen<T>(match)`, or `shell.GoBack()`.
+Navigation is owned exclusively by `IShellCoordinator`. Features use
+`OpenEditor(EditorKey, background)` and `CloseEditorAsync(EditorKey)`; the shell
+also exposes `Open`, `Close` and `GoBack` for its existing non-editor surfaces.
+Successful editors request `CompleteEdit` after accepting the saved baseline.
+It returns to the previous surface in compact layout and leaves workspace focus
+unchanged. Feature coordinators neither open nor close tabs.
 `GoBack()` returns `true` only when the shared workspace consumed the back
 request.
 
@@ -217,20 +220,23 @@ head-supplied `InputCapabilities.CommandModifier` (`Meta` / Cmd on macOS and
 iOS, `Control` on Windows, Linux, and Android); shared code does not inspect the OS. Native text editing, focus traversal,
 and control-internal keys stay local to their controls.
 
-`ShellWorkspaceCoordinator` translates every coordinator call into
-`ShellWorkspaceViewModel` operations. `OpenOrFocus<T>(match, create)` walks the
-open tab collection, reuses a matching tab when found, and otherwise creates a
-new tab through the caller-supplied factory. Persisted editors can also provide
-a closed-tab restore entry keyed by their entity id; closed history stores only
-that entry, and restore creates a fresh view model from the current store
-snapshot instead of reviving the closed instance. `OpenInBackground<T>(match,
-create)` uses the same dedupe/restoration behavior without selecting the tab.
-Transient, create-only, import, and live-session tabs do not provide restore
-entries and are therefore not restored after close. `Close` and
-`CloseIfOpen<T>` remove tabs through the tab page close path so dirty editors
-continue to run their close commands and unsaved-change prompts. `GoBack()`
-selects the previously focused tab when possible, otherwise clears the current
-detail surface and returns to the primary shell surface.
+`ShellWorkspaceCoordinator` matches editor keys against open tabs before calling
+`IEditorFactory.CreateEditor(key, shell)`. Reopening a key focuses its existing
+tab; a background request preserves current focus. The factory reads the current
+store snapshot and returns no editor for missing entities. It creates live
+stream/capture dependencies only after deduplication, so a second request does
+not create an unused capture service.
+
+Persisted bike, setup and session keys have closed-tab restore entries. Restore
+constructs a fresh editor from the current snapshot. New drafts, imports and
+live tabs have no restore entry. Successful deletion uses `CloseEditorAsync`,
+which performs tab cleanup and forgets its history, with no extra back step.
+Normal close runs `TryPrepareCloseAsync` before removing the tab.
+
+Import tabs are factory-created per open lifetime and dispose their run
+observation and datastore collection handler on final close. The coordinator
+retains the run and progress across those tab lifetimes. `GoBack` selects the
+previously focused tab or returns to the primary surface.
 
 `ShellRootViewModel` is the data context for both platform lifetimes. The
 layout profile controls presentation only:

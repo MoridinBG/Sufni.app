@@ -173,7 +173,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state and cache mutation; view models depend on read-only store interfaces; writer interfaces are used by coordinators, session use-case services behind coordinators, sync appliers, transaction runners, and composition. Read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own user-facing workflows, navigation, and long-lived event subscriptions; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and signal row hierarchy/expanded state, signal root-row height ratios, and desktop session-detail pane ratios are stored per session through app preferences.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state and cache mutation; view models depend on read-only store interfaces; writer interfaces are used by coordinators, session use-case services behind coordinators, sync appliers, transaction runners, and composition. Read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own user-facing workflows and long-lived event subscriptions; the shell owns navigation and editor creation; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and signal row hierarchy/expanded state, signal root-row height ratios, and desktop session-detail pane ratios are stored per session through app preferences.
 
 Presentation-layer topics:
 
@@ -275,10 +275,10 @@ mDNS announcement
         -> DynamicData -> LiveDaqListViewModel -> UI
 
 User selects row
-  -> LiveDaqCoordinator.SelectAsync
-    -> LiveDaqSharedStreamRegistry.GetOrCreate
-      -> IEditorFactory.OpenLiveDaqDetail -> shell.OpenOrFocus
-        -> new diagnostics editor acquires a shared-stream lease
+  -> shell.OpenEditor(EditorKey.LiveDaq)
+    -> deduplicate open tabs
+      -> EditorFactory.CreateEditor(key, shell)
+        -> shared stream lookup and diagnostics editor creation
 
 Diagnostics tab attaches
   -> shared stream uses ILiveDaqClientFactory for LiveDaqV2Client or LiveDaqV3Client

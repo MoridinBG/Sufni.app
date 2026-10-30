@@ -5,15 +5,13 @@ using Serilog;
 
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
 /// Runs the trim and split commands of recorded sessions. Each command commits
 /// in one transaction, publishes the changed sessions, segments, and video clips, and
-/// recomputes the affected sessions; a split also opens the new part in the
-/// background.
+/// recomputes the affected sessions. A split reports its new id after publication.
 /// </summary>
 public interface ISessionEditingCoordinator
 {
@@ -23,8 +21,11 @@ public interface ISessionEditingCoordinator
 
     Task<SessionEditResult> UndoTrimAsync(Guid sessionId);
 
-    Task<SessionEditResult> SplitAsync(Guid sessionId, double clickSeconds);
+    Task<SessionEditResult> SplitAsync(Guid sessionId, double clickSeconds, IProgress<SessionEditProgress>? progress = null);
 }
+
+/// <summary>A split has published its new session; recomputation is still owned by the command.</summary>
+public sealed record SessionEditProgress(Guid CreatedSessionId);
 
 public abstract record SessionEditResult
 {
@@ -44,8 +45,7 @@ internal sealed class SessionEditingCoordinator(
     ISessionVideoStoreWriter videoStore,
     ISessionSegmentStoreWriter segmentStore,
     ISessionPersistenceTransactionRunner transactions,
-    ISessionRecomputeEngine recomputeEngine,
-    Func<IEditorFactory> editorFactory) : ISessionEditingCoordinator
+    ISessionRecomputeEngine recomputeEngine) : ISessionEditingCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionEditingCoordinator>();
 
@@ -58,12 +58,13 @@ internal sealed class SessionEditingCoordinator(
     public Task<SessionEditResult> UndoTrimAsync(Guid sessionId) =>
         RunAsync(sessionId, transactions.UndoTrimAsync);
 
-    public Task<SessionEditResult> SplitAsync(Guid sessionId, double clickSeconds) =>
-        RunAsync(sessionId, session => transactions.SplitAsync(session, clickSeconds));
+    public Task<SessionEditResult> SplitAsync(Guid sessionId, double clickSeconds, IProgress<SessionEditProgress>? progress = null) =>
+        RunAsync(sessionId, session => transactions.SplitAsync(session, clickSeconds), progress);
 
     private async Task<SessionEditResult> RunAsync(
         Guid sessionId,
-        Func<SessionSnapshot, Task<SessionEditCommit>> commit)
+        Func<SessionSnapshot, Task<SessionEditCommit>> commit,
+        IProgress<SessionEditProgress>? progress = null)
     {
         if (sessionStore.Get(sessionId) is not { } session)
         {
@@ -98,9 +99,9 @@ internal sealed class SessionEditingCoordinator(
                 await segmentStore.PublishSegmentsAsync(committed.Segments);
             }
 
-            if (committed.CreatedSessionId is { } createdId && sessionStore.Get(createdId) is { } created)
+            if (committed.CreatedSessionId is { } createdId)
             {
-                editorFactory().OpenSessionDetailInBackground(created);
+                progress?.Report(new SessionEditProgress(createdId));
             }
 
             var results = await Task.WhenAll(recomputes);

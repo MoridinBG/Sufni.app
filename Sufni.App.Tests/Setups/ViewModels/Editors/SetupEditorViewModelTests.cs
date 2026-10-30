@@ -451,7 +451,7 @@ public class SetupEditorViewModelTests
         await editor.DeleteCommand.ExecuteAsync(true);
 
         await setupCoordinator.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        shell.Received(1).GoBack();
+        await shell.Received(1).CloseEditorAsync(new EditorKey.Setup(editor.Id));
     }
 
     [AvaloniaFact]
@@ -464,7 +464,7 @@ public class SetupEditorViewModelTests
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
-        shell.Received(1).GoBack();
+        await shell.Received(1).CloseEditorAsync(new EditorKey.Setup(editor.Id));
         Assert.Empty(editor.ErrorMessages);
     }
 
@@ -493,6 +493,6 @@ public class SetupEditorViewModelTests
 
         await editor.EditBikeCommand.ExecuteAsync(bike);
 
-        await bikeCoordinator.Received(1).OpenEditAsync(bike.Id);
+        shell.Received(1).OpenEditor(new EditorKey.Bike(bike.Id));
     }
 }

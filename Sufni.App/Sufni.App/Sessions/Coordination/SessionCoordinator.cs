@@ -9,7 +9,6 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Shell.Coordinators;
 using Sufni.Telemetry;
 namespace Sufni.App.Sessions.Coordination;
 
@@ -20,30 +19,15 @@ namespace Sufni.App.Sessions.Coordination;
 /// </summary>
 public class SessionCoordinator : ISessionCoordinator
 {
-    private readonly ISessionStoreWriter sessionStore;
     private readonly SessionLoader sessionLoader;
     private readonly SessionCommandService commandService;
-    private readonly Func<IEditorFactory> editorFactory;
 
     public SessionCoordinator(
-        ISessionStoreWriter sessionStore,
         SessionLoader sessionLoader,
-        SessionCommandService commandService,
-        Func<IEditorFactory> editorFactory)
+        SessionCommandService commandService)
     {
-        this.sessionStore = sessionStore;
         this.sessionLoader = sessionLoader;
         this.commandService = commandService;
-        this.editorFactory = editorFactory;
-    }
-
-    public Task OpenEditAsync(Guid sessionId)
-    {
-        var snapshot = sessionStore.Get(sessionId);
-        if (snapshot is null) return Task.CompletedTask;
-
-        editorFactory().OpenSessionDetail(snapshot);
-        return Task.CompletedTask;
     }
 
     public Task<SessionDetailLoadResult> LoadDetailAsync(

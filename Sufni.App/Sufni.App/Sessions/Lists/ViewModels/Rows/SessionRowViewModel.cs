@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -20,7 +21,7 @@ namespace Sufni.App.Sessions.Lists.ViewModels.Rows;
 /// </summary>
 public sealed class SessionRowViewModel : ListItemRowViewModelBase
 {
-    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly IShellCoordinator shell;
     private readonly Action<SessionRowViewModel> requestDelete;
     private readonly Func<SessionRowViewModel, Task> requestRecalculate;
 
@@ -97,11 +98,11 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
     public SessionRowViewModel(
         RecordedSessionSummary summary,
         SessionVideoSnapshot? latestVideo,
-        ISessionCoordinator sessionCoordinator,
+        IShellCoordinator shell,
         Action<SessionRowViewModel> requestDelete,
         Func<SessionRowViewModel, Task> requestRecalculate)
     {
-        this.sessionCoordinator = sessionCoordinator;
+        this.shell = shell;
         this.requestDelete = requestDelete;
         this.requestRecalculate = requestRecalculate;
         RecalculateCommand = new AsyncRelayCommand(RecalculateAsync, () => CanRecalculate);
@@ -139,9 +140,10 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         HasMissingVideo = latestVideo is { FileExists: false };
     }
 
-    protected override async Task OpenPageAsync()
+    protected override Task OpenPageAsync()
     {
-        await sessionCoordinator.OpenEditAsync(Id);
+        shell.OpenEditor(new EditorKey.Session(Id));
+        return Task.CompletedTask;
     }
 
     protected override void UndoableDelete()

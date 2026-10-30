@@ -511,7 +511,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                             Name = CreateDefaultName(Clock.GetLocalNow());
                         }
 
-                        await sessionCoordinator.OpenEditAsync(saved.SessionId);
+                        shell.OpenEditor(new EditorKey.Session(saved.SessionId));
                     }
                     catch (OperationCanceledException)
                     {

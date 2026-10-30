@@ -1,3 +1,11 @@
+using Sufni.App.Acquisition.ViewModels;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.LiveDaq.ViewModels.Editors;
+using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.LiveDaq;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -10,6 +18,106 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 public class ShellWorkspaceCoordinatorTests
 {
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
+
+    [Fact]
+    public async Task OpenEditor_DeduplicatesBackgroundTabs_AndRestoresCurrentSnapshot()
+    {
+        var workspace = CreateWorkspace();
+        var store = Substitute.For<ISessionStore>();
+        var original = TestSnapshots.Session(name: "original");
+        store.Get(original.Id).Returns(original);
+        var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
+            TestEditorFactories.Create(sessionStore: store));
+        var previous = new TestTabPageViewModel();
+        shell.Open(previous);
+        var key = new EditorKey.Session(original.Id);
+
+        shell.OpenEditor(key, background: true);
+        var editor = Assert.Single(workspace.Tabs.OfType<SessionDetailViewModel>());
+        Assert.Same(previous, workspace.CurrentTab);
+        shell.OpenEditor(key);
+        Assert.Same(editor, workspace.CurrentTab);
+        Assert.Equal(2, workspace.Tabs.Count);
+        await editor.CloseCommand.ExecuteAsync(null);
+        store.Get(original.Id).Returns(original with { Name = "updated", Updated = 42 });
+
+        workspace.Restore();
+
+        var restored = Assert.IsType<SessionDetailViewModel>(workspace.CurrentTab);
+        Assert.NotSame(editor, restored);
+        Assert.Equal("updated", restored.Name);
+        Assert.Equal(42, restored.BaselineUpdated);
+        await restored.PrepareCloseAsync();
+    }
+
+    [Fact]
+    public async Task CloseEditor_ForgetsDeletedEditor_WithoutNavigatingPastPreviousTab()
+    {
+        var workspace = CreateWorkspace();
+        var store = Substitute.For<ISessionStore>();
+        var snapshot = TestSnapshots.Session();
+        store.Get(snapshot.Id).Returns(snapshot);
+        var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
+            TestEditorFactories.Create(sessionStore: store));
+        var previous = new TestTabPageViewModel();
+        shell.Open(previous);
+        var key = new EditorKey.Session(snapshot.Id);
+        shell.OpenEditor(key);
+
+        await shell.CloseEditorAsync(key);
+        store.Get(snapshot.Id).Returns((SessionSnapshot?)null);
+        workspace.Restore();
+        shell.OpenEditor(key);
+
+        Assert.Same(previous, workspace.CurrentTab);
+        Assert.Equal([previous], workspace.Tabs);
+    }
+
+    [Fact]
+    public async Task OpenEditor_ImportReusesOpenTab_AndCreatesFreshTabAfterClose()
+    {
+        var workspace = CreateWorkspace();
+        var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
+            TestEditorFactories.Create());
+        var key = new EditorKey.ImportSessions();
+        shell.OpenEditor(key);
+        var first = Assert.IsType<ImportSessionsViewModel>(workspace.CurrentTab);
+        shell.OpenEditor(key);
+        Assert.Same(first, Assert.Single(workspace.Tabs));
+        await first.CloseCommand.ExecuteAsync(null);
+
+        shell.OpenEditor(key);
+
+        var reopened = Assert.IsType<ImportSessionsViewModel>(Assert.Single(workspace.Tabs));
+        Assert.NotSame(first, reopened);
+        await reopened.PrepareCloseAsync();
+    }
+
+    [Fact]
+    public async Task OpenEditor_LiveSessionReusesTabAndCaptureService()
+    {
+        var live = new LiveDaqDetailHarness();
+        var snapshot = LiveDaqDetailHarness.DefaultSnapshot();
+        live.LiveDaqStore.ReplaceAll([snapshot]);
+        var registry = Substitute.For<ILiveDaqSharedStreamRegistry>();
+        registry.GetOrCreate(snapshot).Returns(live.SharedStream);
+        var services = Substitute.For<ILiveSessionServiceFactory>();
+        services.Create(Arg.Any<Sufni.App.LiveDaq.Queries.LiveDaqSessionContext>(), live.SharedStream)
+            .Returns(_ => StubLiveSessionService.WithDefaultLiveStream());
+        var workspace = CreateWorkspace();
+        var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
+            TestEditorFactories.Create(liveDaqStore: live.LiveDaqStore, knownBoards: live.KnownBoardsQuery,
+                streamRegistry: registry, liveSessionFactory: services));
+        var key = new EditorKey.LiveSession(snapshot.IdentityKey);
+
+        shell.OpenEditor(key);
+        var first = Assert.IsType<LiveSessionDetailViewModel>(workspace.CurrentTab);
+        shell.OpenEditor(key);
+
+        Assert.Same(first, Assert.Single(workspace.Tabs));
+        services.Received(1).Create(Arg.Any<Sufni.App.LiveDaq.Queries.LiveDaqSessionContext>(), live.SharedStream);
+        await first.PrepareCloseAsync();
+    }
 
     // ----- Open -----
 
@@ -36,161 +144,6 @@ public class ShellWorkspaceCoordinatorTests
 
         Assert.Null(workspace.CurrentTab);
         Assert.Empty(workspace.Tabs);
-    }
-
-    // ----- OpenOrFocus -----
-
-    [Fact]
-    public void OpenOrFocus_ReusesExistingMatchingTab_AndDoesNotInvokeFactory()
-    {
-        var workspace = CreateWorkspace();
-        var existing = new TestTabPageViewModel(id: 1);
-        var other = new TestTabPageViewModel(id: 2);
-        workspace.OpenOrFocus(other);
-        workspace.OpenInBackground(existing);
-        var factoryInvoked = false;
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () =>
-            {
-                factoryInvoked = true;
-                return new TestTabPageViewModel(id: 1);
-            });
-
-        Assert.False(factoryInvoked);
-        Assert.Same(existing, workspace.CurrentTab);
-        Assert.Equal([other, existing], workspace.Tabs);
-    }
-
-    [Fact]
-    public void OpenOrFocus_InvokesFactory_AndFocusesNewInstance_WhenNoMatch()
-    {
-        var workspace = CreateWorkspace();
-        var newView = new TestTabPageViewModel();
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: _ => true,
-            create: () => newView);
-
-        Assert.Same(newView, workspace.CurrentTab);
-        Assert.Equal([newView], workspace.Tabs);
-    }
-
-    [Fact]
-    public void OpenOrFocus_RestoresMatchingClosedEntry_WithFreshInstance()
-    {
-        var workspace = CreateWorkspace();
-        var coordinator = CreateCoordinator(workspace);
-        var original = new TestTabPageViewModel(id: 1);
-        var restored = new TestTabPageViewModel(id: 1);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () => original,
-            restoreEntry: RestoreEntry(1, () => restored));
-        coordinator.Close(original);
-        var factoryInvoked = false;
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () =>
-            {
-                factoryInvoked = true;
-                return new TestTabPageViewModel(id: 1);
-            },
-            restoreEntry: RestoreEntry(1, () => restored));
-
-        Assert.False(factoryInvoked);
-        Assert.Same(restored, workspace.CurrentTab);
-        Assert.NotSame(original, workspace.CurrentTab);
-        Assert.Equal([restored], workspace.Tabs);
-    }
-
-    [Fact]
-    public void OpenOrFocus_PassesMatchPredicate_ThroughToTabsEnumerable()
-    {
-        var workspace = CreateWorkspace();
-        var firstTab = new TestTabPageViewModel(id: 1);
-        var secondTab = new TestTabPageViewModel(id: 2);
-        workspace.OpenOrFocus(firstTab);
-        workspace.OpenInBackground(secondTab);
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 2,
-            create: () => throw new InvalidOperationException("factory should not run"));
-
-        Assert.Same(secondTab, workspace.CurrentTab);
-    }
-
-    // ----- OpenInBackground -----
-
-    [Fact]
-    public void OpenInBackground_AddsNewTabWithoutOpeningIt_WhenNoMatch()
-    {
-        var workspace = CreateWorkspace();
-        var current = new TestTabPageViewModel(id: 1);
-        var newView = new TestTabPageViewModel(id: 2);
-        workspace.OpenOrFocus(current);
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenInBackground<TestTabPageViewModel>(
-            match: tab => tab.Id == 2,
-            create: () => newView);
-
-        Assert.Same(current, workspace.CurrentTab);
-        Assert.Equal([current, newView], workspace.Tabs);
-    }
-
-    [Fact]
-    public void OpenInBackground_RestoresMatchingClosedEntry_WithFreshInstance()
-    {
-        var workspace = CreateWorkspace();
-        var current = new TestTabPageViewModel(id: 1);
-        var original = new TestTabPageViewModel(id: 2);
-        var restored = new TestTabPageViewModel(id: 2);
-        workspace.OpenOrFocus(current);
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 2,
-            create: () => original,
-            restoreEntry: RestoreEntry(2, () => restored));
-        coordinator.Close(original);
-        var factoryInvoked = false;
-
-        coordinator.OpenInBackground<TestTabPageViewModel>(
-            match: tab => tab.Id == 2,
-            create: () =>
-            {
-                factoryInvoked = true;
-                return new TestTabPageViewModel(id: 2);
-            },
-            restoreEntry: RestoreEntry(2, () => restored));
-
-        Assert.False(factoryInvoked);
-        Assert.Same(current, workspace.CurrentTab);
-        Assert.NotSame(original, restored);
-        Assert.Equal([current, restored], workspace.Tabs);
-    }
-
-    [Fact]
-    public void OpenInBackground_DoesNothing_WhenMatchingTabIsAlreadyOpen()
-    {
-        var workspace = CreateWorkspace();
-        var existing = new TestTabPageViewModel();
-        workspace.OpenOrFocus(existing);
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenInBackground<TestTabPageViewModel>(
-            match: _ => true,
-            create: () => throw new InvalidOperationException("factory should not run"));
-
-        Assert.Same(existing, workspace.CurrentTab);
-        Assert.Equal([existing], workspace.Tabs);
     }
 
     // ----- Close -----
@@ -222,26 +175,6 @@ public class ShellWorkspaceCoordinatorTests
     }
 
     [Fact]
-    public void Close_RemembersRestoreEntry_WhenLayoutProfileIsWorkspace()
-    {
-        var workspace = CreateWorkspace();
-        var coordinator = CreateCoordinator(workspace);
-        var original = new TestTabPageViewModel(id: 1);
-        var restored = new TestTabPageViewModel(id: 1);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () => original,
-            restoreEntry: RestoreEntry(1, () => restored));
-        coordinator.Close(original);
-        workspace.Restore();
-
-        Assert.Same(restored, workspace.CurrentTab);
-        Assert.NotSame(original, workspace.CurrentTab);
-        Assert.Equal([restored], workspace.Tabs);
-    }
-
-    [Fact]
     public void Close_DoesNotRememberDirectOpenedTab()
     {
         var workspace = CreateWorkspace();
@@ -249,24 +182,6 @@ public class ShellWorkspaceCoordinatorTests
         var coordinator = CreateCoordinator(workspace);
 
         coordinator.Open(tab);
-        coordinator.Close(tab);
-        workspace.Restore();
-
-        Assert.Null(workspace.CurrentTab);
-        Assert.Empty(workspace.Tabs);
-    }
-
-    [Fact]
-    public void Close_DoesNotRememberClosedTab_WhenLayoutProfileIsCompact()
-    {
-        var workspace = CreateWorkspace();
-        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
-        var tab = new TestTabPageViewModel(id: 1);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: candidate => candidate.Id == 1,
-            create: () => tab,
-            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
         coordinator.Close(tab);
         workspace.Restore();
 
@@ -290,126 +205,6 @@ public class ShellWorkspaceCoordinatorTests
         Assert.DoesNotContain(previous, workspace.Tabs);
     }
 
-    // ----- CloseIfOpen -----
-
-    [Fact]
-    public async Task CloseIfOpen_ClosesMatchingTab_WhenPresent()
-    {
-        var workspace = CreateWorkspace();
-        var tab = new TestTabPageViewModel();
-        workspace.OpenOrFocus(tab);
-        var coordinator = CreateCoordinator(workspace);
-
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
-
-        Assert.Null(workspace.CurrentTab);
-        Assert.Empty(workspace.Tabs);
-    }
-
-    [Fact]
-    public async Task CloseIfOpen_RunsCloseCleanup_WhenPresent()
-    {
-        var workspace = CreateWorkspace();
-        var tab = new TestTabPageViewModel();
-        workspace.OpenOrFocus(tab);
-        var coordinator = CreateCoordinator(workspace);
-
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(_ => true);
-
-        Assert.Equal(1, tab.CloseCount);
-    }
-
-    [Fact]
-    public async Task CloseIfOpen_ForgetsRestoreHistory_WhenRequested()
-    {
-        var workspace = CreateWorkspace();
-        var closed = new TestTabPageViewModel(id: 1);
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () => closed,
-            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(
-            tab => tab.Id == 1,
-            forgetRestoreHistory: true,
-            restoreKey: 1);
-        var factoryInvoked = false;
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () =>
-            {
-                factoryInvoked = true;
-                return new TestTabPageViewModel(id: 1);
-            },
-            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
-
-        Assert.True(factoryInvoked);
-        Assert.NotSame(closed, workspace.CurrentTab);
-    }
-
-    [Fact]
-    public async Task CloseIfOpen_DoesNotRememberClosedTab_WhenLayoutProfileIsCompact()
-    {
-        var workspace = CreateWorkspace();
-        var closed = new TestTabPageViewModel(id: 1);
-        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () => closed,
-            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(tab => tab.Id == 1);
-        workspace.Restore();
-
-        Assert.Null(workspace.CurrentTab);
-        Assert.Empty(workspace.Tabs);
-    }
-
-    [Fact]
-    public async Task CloseIfOpen_ForgetsRestoreHistory_EvenWhenNoMatchingOpenTab()
-    {
-        var workspace = CreateWorkspace();
-        var closed = new TestTabPageViewModel(id: 1);
-        var coordinator = CreateCoordinator(workspace);
-
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () => closed,
-            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
-        coordinator.Close(closed);
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(
-            tab => tab.Id == 1,
-            forgetRestoreHistory: true,
-            restoreKey: 1);
-        var factoryInvoked = false;
-        coordinator.OpenOrFocus<TestTabPageViewModel>(
-            match: tab => tab.Id == 1,
-            create: () =>
-            {
-                factoryInvoked = true;
-                return new TestTabPageViewModel(id: 1);
-            },
-            restoreEntry: RestoreEntry(1, () => new TestTabPageViewModel(id: 1)));
-
-        Assert.True(factoryInvoked);
-        Assert.NotSame(closed, workspace.CurrentTab);
-    }
-
-    [Fact]
-    public async Task CloseIfOpen_IsNoOp_WhenNoMatchingTab()
-    {
-        var workspace = CreateWorkspace();
-        var tab = new TestTabPageViewModel(id: 1);
-        workspace.OpenOrFocus(tab);
-        var coordinator = CreateCoordinator(workspace);
-
-        await coordinator.CloseIfOpen<TestTabPageViewModel>(candidate => candidate.Id == 2);
-
-        Assert.Same(tab, workspace.CurrentTab);
-        Assert.Equal([tab], workspace.Tabs);
-    }
-
     [Theory]
     [InlineData(UiLayoutProfile.Compact)]
     [InlineData(UiLayoutProfile.Workspace)]
@@ -422,7 +217,7 @@ public class ShellWorkspaceCoordinatorTests
         workspace.OpenOrFocus(editor);
         var environment = Substitute.For<IAppEnvironment>();
         environment.LayoutProfile.Returns(UiLayoutProfile.Workspace);
-        var coordinator = new ShellWorkspaceCoordinator(workspace, environment);
+        var coordinator = new ShellWorkspaceCoordinator(workspace, environment, Substitute.For<IEditorFactory>());
         environment.LayoutProfile.Returns(profile);
 
         coordinator.CompleteEdit();
@@ -519,15 +314,10 @@ public class ShellWorkspaceCoordinatorTests
 
     private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher, timeProvider: new FakeTimeProvider());
 
-    private static ClosedTabRestoreEntry RestoreEntry(
-        int id,
-        Func<TestTabPageViewModel?> restore) =>
-        ClosedTabRestoreEntry.For(id, restore);
-
     private static ShellWorkspaceCoordinator CreateCoordinator(
         ShellWorkspaceViewModel workspace,
         UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
-        new(workspace, CreateEnvironment(layoutProfile));
+        new(workspace, CreateEnvironment(layoutProfile), Substitute.For<IEditorFactory>());
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(

@@ -19,12 +19,12 @@
 
 ## Overview
 
-The live-session slice runs in its own dedicated tab opened from the Live primary page through `LiveDaqCoordinator.OpenSessionAsync`. It is built on top of the per-identity `LiveDaqSharedStream` — the same transport the diagnostics tab uses — but layers per-tab capture, Telemetry Signals display, statistics, and a save path on top. One `LiveSessionDetailViewModel` and one `ILiveSessionService` exist per open live-session tab, and both are scoped to the lifetime of that tab.
+The live-session slice runs in its own dedicated tab opened from the Live primary page through `shell.OpenEditor(new EditorKey.LiveSession(identityKey))`. It is built on top of the per-identity `LiveDaqSharedStream` — the same transport the diagnostics tab uses — but layers per-tab capture, Telemetry Signals display, statistics, and a save path on top. One `LiveSessionDetailViewModel` and one `ILiveSessionService` exist per open live-session tab, and both are scoped to the lifetime of that tab.
 
 The recording side is decoupled from the transport in three ways:
 
 1. The shared stream owns connection, frame parsing, fan-out, and disconnect. Capture, signal batches, statistics, and save live in `ILiveSessionService` and never touch the socket directly.
-2. The session-coordinator path is the only persistence surface. The live DAQ coordinator does not write `Session` rows; it just routes the tab.
+2. The session-coordinator path is the only persistence surface. The live DAQ coordinator does not write `Session` rows; the shell routes the tab.
 3. The live-session view model holds no transport state of its own — it consumes `ILiveSessionService` snapshots and signal batches and forwards user choices back through `SessionPreferences`.
 
 ```mermaid
@@ -104,7 +104,7 @@ The live-session service holds a configuration lock on the shared stream for the
 
 ## Capture Service
 
-`ILiveSessionService` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/ILiveSessionService.cs`) is the per-tab recording surface. `LiveSessionServiceFactory` (`ILiveSessionServiceFactory`) builds one instance per `LiveDaqCoordinator.OpenSessionAsync` call, giving it a `LiveDaqSessionContext` (identity, bike data, calibration), the per-identity `ILiveDaqSharedStream`, the shared `ISessionPresentationService`, an `IBackgroundTaskRunner`, a freshly built `ILiveSignalPipeline`, and an injected `TimeProvider` for analysis cadence and pressure quiet periods. The implementation in `LiveSessionService` runs three coordinated activities behind one lock plus a separate display-queue lock.
+`ILiveSessionService` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/ILiveSessionService.cs`) is the per-tab recording surface. `LiveSessionServiceFactory` (`ILiveSessionServiceFactory`) builds one instance per new live-session tab after shell deduplication, giving it a `LiveDaqSessionContext` (identity, bike data, calibration), the per-identity `ILiveDaqSharedStream`, the shared `ISessionPresentationService`, an `IBackgroundTaskRunner`, a freshly built `ILiveSignalPipeline`, and an injected `TimeProvider` for analysis cadence and pressure quiet periods. The implementation in `LiveSessionService` runs three coordinated activities behind one lock plus a separate display-queue lock.
 
 ### Lifecycle and Attachment
 
@@ -240,15 +240,15 @@ LiveSessionDetailViewModel.SaveImplementation
        -> LiveSessionSaveResult.Saved(SessionId, Updated)
             | LiveSessionSaveResult.Failed(ErrorMessage)
   -> on Saved: liveSessionService.ResetCaptureAsync
-              + sessionCoordinator.OpenEditAsync(savedId)
+              + shell.OpenEditor(new EditorKey.Session(savedId))
   -> on Failed: append to ErrorMessages
 ```
 
 `SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, temperature data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
 
-`SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `sessionCoordinator.OpenEditAsync`.
+`SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `shell.OpenEditor`.
 
-`OperationCanceledException` is rethrown out of `SaveLiveCaptureAsync` — typical-failure paths (database errors, telemetry build failures) are swallowed into `LiveSessionSaveResult.Failed`. The view model also surfaces a "Live session was saved, but post-save cleanup failed" message when the post-save reset or `OpenEditAsync` throws after `Saved` has already been observed, so a partial post-save failure does not lose the saved row.
+`OperationCanceledException` is rethrown out of `SaveLiveCaptureAsync` — typical-failure paths (database errors, telemetry build failures) are swallowed into `LiveSessionSaveResult.Failed`. The view model also surfaces a "Live session was saved, but post-save cleanup failed" message when the post-save reset or `OpenEditor` throws after `Saved` has already been observed, so a partial post-save failure does not lose the saved row.
 
 ## Design Decisions
 

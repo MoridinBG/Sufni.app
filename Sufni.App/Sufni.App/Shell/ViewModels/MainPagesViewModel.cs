@@ -27,7 +27,6 @@ namespace Sufni.App.Shell.ViewModels;
 public partial class MainPagesViewModel : ViewModelBase
 {
     private readonly IAppDataRefresher appDataRefresher;
-    private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IVideoCoordinator videoCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
@@ -58,7 +57,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
     #endregion
 
-    public ImportSessionsViewModel ImportSessionsPage { get; init; }
     public BikeListViewModel BikesPage { get; init; }
     public SetupListViewModel SetupsPage { get; init; }
     public SessionListViewModel SessionsPage { get; init; }
@@ -90,7 +88,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel(
         IAppDataRefresher appDataRefresher,
-        IImportSessionsCoordinator importSessionsCoordinator,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
@@ -103,7 +100,6 @@ public partial class MainPagesViewModel : ViewModelBase
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
         LiveDaqListViewModel liveDaqsPage,
-        ImportSessionsViewModel importSessionsPage,
         PairedDeviceListViewModel pairedDevicesPage,
         IUiThreadDispatcher uiThreadDispatcher,
         IVideoCoordinator videoCoordinator,
@@ -113,7 +109,6 @@ public partial class MainPagesViewModel : ViewModelBase
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.appDataRefresher = appDataRefresher;
-        this.importSessionsCoordinator = importSessionsCoordinator;
         this.trackCoordinator = trackCoordinator;
         this.videoCoordinator = videoCoordinator;
         this.syncCoordinator = syncCoordinator;
@@ -127,7 +122,6 @@ public partial class MainPagesViewModel : ViewModelBase
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
         LiveDaqsPage = liveDaqsPage;
-        ImportSessionsPage = importSessionsPage;
         PairedDevicesPage = pairedDevicesPage;
         PairingClientPage = pairingClientPage;
         PairingServerViewModel = pairingServerViewModel;
@@ -332,7 +326,11 @@ public partial class MainPagesViewModel : ViewModelBase
     private bool CanOpenImport() => CanImportSessions;
 
     [RelayCommand(CanExecute = nameof(CanOpenImport))]
-    private async Task OpenImport() => await importSessionsCoordinator.OpenAsync();
+    private Task OpenImport()
+    {
+        shell.OpenEditor(new EditorKey.ImportSessions());
+        return Task.CompletedTask;
+    }
 
     private bool CanOpenGpsTracks() => CanImportGpsTracks;
 

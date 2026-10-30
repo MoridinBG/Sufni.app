@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Threading.Tasks;
 
@@ -11,14 +12,14 @@ namespace Sufni.App.Setups.ViewModels.Rows;
 /// inside a list. Row view models are cheap, non-editable and refresh
 /// themselves via <see cref="Update"/> when the underlying snapshot
 /// changes. <see cref="OpenPage"/> routes through
-/// <see cref="ISetupCoordinator"/>; <see cref="UndoableDelete"/> hands
+/// <see cref="IShellCoordinator"/>; <see cref="UndoableDelete"/> hands
 /// the row back to the owning list view model via the
 /// <c>requestDelete</c> callback so the list can run its pending-delete
 /// undo window before finalizing.
 /// </summary>
 public sealed class SetupRowViewModel : ListItemRowViewModelBase
 {
-    private readonly ISetupCoordinator setupCoordinator;
+    private readonly IShellCoordinator shell;
     private readonly Action<SetupRowViewModel> requestDelete;
 
     public Guid Id { get; private set; }
@@ -31,10 +32,10 @@ public sealed class SetupRowViewModel : ListItemRowViewModelBase
 
     public SetupRowViewModel(
         SetupSnapshot snapshot,
-        ISetupCoordinator setupCoordinator,
+        IShellCoordinator shell,
         Action<SetupRowViewModel> requestDelete)
     {
-        this.setupCoordinator = setupCoordinator;
+        this.shell = shell;
         this.requestDelete = requestDelete;
         Update(snapshot);
     }
@@ -48,9 +49,10 @@ public sealed class SetupRowViewModel : ListItemRowViewModelBase
         IsComplete = true;
     }
 
-    protected override async Task OpenPageAsync()
+    protected override Task OpenPageAsync()
     {
-        await setupCoordinator.OpenEditAsync(Id);
+        shell.OpenEditor(new EditorKey.Setup(Id));
+        return Task.CompletedTask;
     }
 
     protected override void UndoableDelete()

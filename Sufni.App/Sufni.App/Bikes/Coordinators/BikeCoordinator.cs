@@ -9,7 +9,6 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Stores;
 namespace Sufni.App.Bikes.Coordinators;
@@ -18,28 +17,10 @@ internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
     IBikeDependencyQuery dependencyQuery,
     IBikeEditorService bikeEditorService,
-    IBikeRearSuspensionValidator rearSuspensionValidator,
-    Func<IEditorFactory> editorFactory)
+    IBikeRearSuspensionValidator rearSuspensionValidator)
     : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
-
-    public Task OpenCreateAsync()
-    {
-        var seed = new Bike(Guid.NewGuid(), "new bike");
-        var snapshot = BikeSnapshot.From(seed);
-        editorFactory().OpenNewBikeEditor(snapshot);
-        return Task.CompletedTask;
-    }
-
-    public Task OpenEditAsync(Guid bikeId)
-    {
-        var snapshot = bikeStore.Get(bikeId);
-        if (snapshot is null) return Task.CompletedTask;
-
-        editorFactory().OpenBikeEditor(snapshot);
-        return Task.CompletedTask;
-    }
 
     public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
         RearSuspensionSpec rearSuspension,
@@ -283,7 +264,6 @@ internal class BikeCoordinator(
         switch (deleteResult)
         {
             case StoreDeleteResult<BikeSnapshot>.Deleted:
-                await editorFactory().CloseBikeEditor(bikeId);
                 logger.Information("Bike delete completed for {BikeId}", bikeId);
                 return new BikeDeleteResult(BikeDeleteOutcome.Deleted);
 

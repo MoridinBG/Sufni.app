@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using DynamicData;
 using NSubstitute;
@@ -11,6 +12,7 @@ namespace Sufni.App.Tests.Setups.ViewModels.ItemLists;
 
 public class SetupListViewModelTests
 {
+    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
@@ -22,11 +24,11 @@ public class SetupListViewModelTests
 
         setupStore.Connect().Returns(setupCache.Connect());
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
         viewModel.AddCommand.Execute(null);
 
-        _ = setupCoordinator.Received(1).OpenCreateAsync(null);
+        shell.Received(1).OpenEditor(new EditorKey.NewSetup());
     }
 
     [Fact]
@@ -44,7 +46,7 @@ public class SetupListViewModelTests
         var deleteTcs = new TaskCompletionSource<SetupDeleteResult>();
         setupCoordinator.DeleteAsync(snapshot.Id).Returns(deleteTcs.Task);
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -76,7 +78,7 @@ public class SetupListViewModelTests
             setupStore,
             TestCoordinatorSubstitutes.Setup(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
         Assert.Empty(viewModel.Items);
 
@@ -107,7 +109,7 @@ public class SetupListViewModelTests
         setupCoordinator.DeleteAsync(snapshot.Id)
             .Returns(new SetupDeleteResult(SetupDeleteOutcome.Failed, "boom"));
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 

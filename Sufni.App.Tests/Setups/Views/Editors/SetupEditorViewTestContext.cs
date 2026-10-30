@@ -34,7 +34,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         bikeStore.Connect().Returns(bikesCache.Connect());
     }
 
-    public IBikeCoordinator BikeCoordinator => bikeCoordinator;
+    public IShellCoordinator Shell => shell;
 
     public BikeSnapshot AddBike(string name = "test bike")
     {

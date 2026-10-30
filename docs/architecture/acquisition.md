@@ -63,8 +63,8 @@ state carries running counts, immutable per-file events, and the completed resul
 or run failure. New tabs replay this state, so closing a tab does not cancel a
 batch or allow another batch to start. The next run replaces the retained state.
 The busy overlay follows coordinator state even when its command did not start
-the run. The import view model remains a singleton until the shell navigation
-migration supplies its factory-created tab lifetime.
+the run. The factory creates a fresh import view model for each new tab; closing
+it releases its run observation and datastore collection handler.
 
 The import workflow is staged once the user starts a batch from the selected
 datastore. One producer reads source bytes serially and feeds a bounded channel.

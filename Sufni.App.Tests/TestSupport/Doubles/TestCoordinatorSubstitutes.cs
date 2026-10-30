@@ -1,5 +1,7 @@
 global using Sufni.App.Tests.TestSupport;
 
+using Sufni.App.Tests.TestSupport.Fixtures;
+
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,8 +30,6 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<IBikeCoordinator>();
 
-        coordinator.OpenCreateAsync().Returns(Task.CompletedTask);
-        coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
         coordinator.LoadImageAsync(Arg.Any<CancellationToken>())
@@ -48,13 +48,13 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<ISetupCoordinator>();
 
-        coordinator.OpenCreateAsync(Arg.Any<Guid?>()).Returns(Task.CompletedTask);
-        coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.ImportSetupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SetupImportResult>(new SetupImportResult.Canceled()));
         coordinator.ExportSetupAsync(Arg.Any<Setup>(), Arg.Any<Bike>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SetupExportResult>(new SetupExportResult.Canceled()));
 
+        coordinator.CreateDraft(Arg.Any<Guid?>()).Returns(call =>
+            TestSnapshots.Setup(boardId: call.Arg<Guid?>()));
         return coordinator;
     }
 
@@ -72,7 +72,6 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<ISessionCoordinator>();
 
-        coordinator.OpenEditAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         coordinator.LoadTrackAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<TelemetryData>(),
@@ -90,8 +89,6 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<ILiveDaqCoordinator>();
 
-        coordinator.SelectAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
-        coordinator.OpenSessionAsync(Arg.Any<string>()).Returns(Task.CompletedTask);
 
         return coordinator;
     }
@@ -100,7 +97,6 @@ internal static class TestCoordinatorSubstitutes
     {
         var coordinator = Substitute.For<IImportSessionsCoordinator>();
 
-        coordinator.OpenAsync().Returns(Task.CompletedTask);
         coordinator.State.Returns(new SessionImportState.Idle());
         coordinator.Observe().Returns(System.Reactive.Linq.Observable.Return<SessionImportState>(new SessionImportState.Idle()));
 

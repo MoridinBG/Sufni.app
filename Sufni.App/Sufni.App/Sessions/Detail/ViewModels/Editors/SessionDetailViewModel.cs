@@ -1328,7 +1328,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         CanSplitFromPlotContext(context)
             ? RunSessionEditAsync(
                 "Session split.",
-                () => sessionEditingCoordinator.SplitAsync(Id, context!.ClickSeconds))
+                () => sessionEditingCoordinator.SplitAsync(Id, context!.ClickSeconds,
+                    new UiThreadProgress<SessionEditProgress>(UiThreadDispatcher,
+                        progress => shell.OpenEditor(new EditorKey.Session(progress.CreatedSessionId), background: true))))
             : Task.CompletedTask;
 
     private Task UndoTrimFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
@@ -2351,7 +2353,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         switch (result.Outcome)
         {
             case SessionDeleteOutcome.Deleted:
-                if (navigateBack) OpenPreviousPage();
+                await shell.CloseEditorAsync(new EditorKey.Session(Id));
                 break;
             case SessionDeleteOutcome.Failed:
                 ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");

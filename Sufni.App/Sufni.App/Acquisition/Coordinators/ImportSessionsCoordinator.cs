@@ -21,7 +21,6 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Infrastructure;
@@ -41,17 +40,10 @@ public class ImportSessionsCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
-    IEditorFactory editorFactory,
     IUiThreadDispatcher dispatcher) : IImportSessionsCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
     private static readonly int ImportProcessDop = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
-
-    public Task OpenAsync()
-    {
-        editorFactory.OpenImportSessions();
-        return Task.CompletedTask;
-    }
 
     private readonly BehaviorSubject<SessionImportState> state = new(new SessionImportState.Idle());
     private Task? activeRun;

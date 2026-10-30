@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -20,6 +21,7 @@ namespace Sufni.App.Tests.Bikes.Views.ItemLists;
 [Collection("Ui")]
 public class BikeListViewTests
 {
+    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     [AvaloniaFact]
     public async Task BikeListView_RendersBoundRows_AndOpensSelectedBike()
     {
@@ -28,12 +30,11 @@ public class BikeListViewTests
         var snapshot = TestSnapshots.Bike(name: "Trail Bike");
         var store = new BikeStoreStub(snapshot);
         var coordinator = TestCoordinatorSubstitutes.Bike();
-        coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
         dependencyQuery.IsBikeInUse(snapshot.Id).Returns(false);
         dependencyQuery.Changes.Returns(Observable.Return(Unit.Default));
 
-        var viewModel = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         var view = new BikeListView
         {
             DataContext = viewModel,
@@ -49,7 +50,7 @@ public class BikeListViewTests
         rowViewModel.OpenPageCommand.Execute(null);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        await coordinator.Received(1).OpenEditAsync(snapshot.Id);
+        shell.Received(1).OpenEditor(new EditorKey.Bike(snapshot.Id));
     }
 
     [AvaloniaFact]
@@ -64,7 +65,7 @@ public class BikeListViewTests
 
         var view = new BikeListView
         {
-            DataContext = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider()),
+            DataContext = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell),
         };
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);

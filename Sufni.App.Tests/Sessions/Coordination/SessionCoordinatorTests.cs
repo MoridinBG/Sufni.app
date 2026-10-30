@@ -43,7 +43,6 @@ public class SessionCoordinatorTests
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
-    private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
 
     public SessionCoordinatorTests()
@@ -53,24 +52,12 @@ public class SessionCoordinatorTests
         sessionPreferences.RemoveRecordedAsync(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
-        editorFactory.CloseSessionDetail(Arg.Any<Guid>()).Returns(Task.CompletedTask);
         sessionPersistenceTransactions.DeleteSessionAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<Guid?>(),
                 Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(true);
-    }
-
-    [Fact]
-    public async Task OpenEditAsync_OpensSessionDetail_ThroughFactory()
-    {
-        var snapshot = TestSnapshots.Session();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-
-        await CreateCoordinator().OpenEditAsync(snapshot.Id);
-
-        editorFactory.Received(1).OpenSessionDetail(snapshot);
     }
 
     [Fact]
@@ -295,7 +282,6 @@ public class SessionCoordinatorTests
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
             Arg.Any<CancellationToken>());
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
-        await editorFactory.Received(1).CloseSessionDetail(id);
         await sessionStore.Received(1).PublishSessionsRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
             Arg.Any<CancellationToken>());
@@ -454,10 +440,8 @@ public class SessionCoordinatorTests
 
     private SessionCoordinator CreateCoordinator() =>
         new(
-            sessionStore,
             CreateLoader(),
-            CreateCommandService(),
-            () => editorFactory);
+            CreateCommandService());
 
     private SessionCommandService CreateCommandService() =>
         new(
@@ -471,7 +455,6 @@ public class SessionCoordinatorTests
             backgroundTaskRunner,
             sessionPreferences,
             recomputeEngine,
-            () => editorFactory,
             sessionPersistenceTransactions);
 
     private void SetLocalTelemetry(Guid sessionId, TelemetryData? telemetry)

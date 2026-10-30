@@ -11,8 +11,6 @@ namespace Sufni.App.Sessions.Coordination;
 
 public interface ISessionCoordinator
 {
-    Task OpenEditAsync(Guid sessionId);
-
     Task<SessionDetailLoadResult> LoadDetailAsync(
         Guid sessionId,
         IProgress<SessionDetailLoadProgress> progress,

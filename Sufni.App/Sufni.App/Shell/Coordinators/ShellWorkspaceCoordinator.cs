@@ -1,3 +1,8 @@
+using Sufni.App.Acquisition.ViewModels;
+using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Setups.ViewModels.Editors;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.LiveDaq.ViewModels.Editors;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,9 +15,56 @@ namespace Sufni.App.Shell.Coordinators;
 
 public sealed class ShellWorkspaceCoordinator(
     ShellWorkspaceViewModel workspace,
-    IAppEnvironment appEnvironment) : IShellCoordinator
+    IAppEnvironment appEnvironment,
+    IEditorFactory editorFactory) : IShellCoordinator
 {
     private bool ShouldRememberClosedTabs => appEnvironment.LayoutProfile == UiLayoutProfile.Workspace;
+
+    public void OpenEditor(EditorKey key, bool background = false)
+    {
+        var existing = workspace.Tabs.FirstOrDefault(tab => Matches(key, tab));
+        if (existing is not null)
+        {
+            if (!background) workspace.OpenOrFocus(existing, CreateRestoreEntry(key));
+            return;
+        }
+
+        var restoreEntry = CreateRestoreEntry(key);
+        var restored = restoreEntry is null ? null
+            : workspace.TakeTabHistory(restoreEntry.TabType, restoreEntry.Key)?.Restore();
+        if ((restored ?? editorFactory.CreateEditor(key, this)) is { } editor)
+            OpenTab(editor, restoreEntry, background);
+    }
+
+    public async Task CloseEditorAsync(EditorKey key)
+    {
+        if (CreateRestoreEntry(key) is { } restoreEntry)
+            workspace.ForgetTabHistory(restoreEntry.TabType, restoreEntry.Key);
+        if (workspace.Tabs.FirstOrDefault(tab => Matches(key, tab)) is { } editor)
+        {
+            await editor.PrepareCloseAsync();
+            workspace.CloseTab(editor, rememberForRestore: false);
+        }
+    }
+
+    private ClosedTabRestoreEntry? CreateRestoreEntry(EditorKey key) => key switch
+    {
+        EditorKey.Bike bike => new(typeof(BikeEditorViewModel), bike.Id, () => editorFactory.CreateEditor(key, this)),
+        EditorKey.Setup setup => new(typeof(SetupEditorViewModel), setup.Id, () => editorFactory.CreateEditor(key, this)),
+        EditorKey.Session session => new(typeof(SessionDetailViewModel), session.Id, () => editorFactory.CreateEditor(key, this)),
+        _ => null
+    };
+
+    private static bool Matches(EditorKey key, TabPageViewModelBase tab) => (key, tab) switch
+    {
+        (EditorKey.Bike keyBike, BikeEditorViewModel bike) => keyBike.Id == bike.Id,
+        (EditorKey.Setup keySetup, SetupEditorViewModel setup) => keySetup.Id == setup.Id,
+        (EditorKey.Session keySession, SessionDetailViewModel session) => keySession.Id == session.Id,
+        (EditorKey.ImportSessions, ImportSessionsViewModel) => true,
+        (EditorKey.LiveDaq keyDaq, LiveDaqDetailViewModel daq) => keyDaq.IdentityKey == daq.IdentityKey,
+        (EditorKey.LiveSession keyLive, LiveSessionDetailViewModel live) => keyLive.IdentityKey == live.IdentityKey,
+        _ => false
+    };
 
     public void Open(ViewModelBase view)
     {
@@ -22,83 +74,11 @@ public sealed class ShellWorkspaceCoordinator(
         }
     }
 
-    public void OpenOrFocus<T>(
-        Func<T, bool> match,
-        Func<T> create,
-        ClosedTabRestoreEntry? restoreEntry = null)
-        where T : ViewModelBase
-    {
-        ArgumentNullException.ThrowIfNull(match);
-        ArgumentNullException.ThrowIfNull(create);
-
-        var existing = workspace.Tabs.OfType<T>().FirstOrDefault(match);
-        if (existing is TabPageViewModelBase existingTab)
-        {
-            workspace.OpenOrFocus(existingTab, restoreEntry);
-            return;
-        }
-
-        if (TryRestoreFromHistory(restoreEntry, create) is { } restoredTab)
-        {
-            OpenTab(restoredTab, restoreEntry, background: false);
-            return;
-        }
-
-        OpenTab(create(), restoreEntry, background: false);
-    }
-
-    public void OpenInBackground<T>(
-        Func<T, bool> match,
-        Func<T> create,
-        ClosedTabRestoreEntry? restoreEntry = null)
-        where T : ViewModelBase
-    {
-        ArgumentNullException.ThrowIfNull(match);
-        ArgumentNullException.ThrowIfNull(create);
-
-        if (workspace.Tabs.OfType<T>().Any(match))
-        {
-            return;
-        }
-
-        if (TryRestoreFromHistory(restoreEntry, create) is { } restoredTab)
-        {
-            OpenTab(restoredTab, restoreEntry, background: true);
-            return;
-        }
-
-        OpenTab(create(), restoreEntry, background: true);
-    }
-
     public void Close(ViewModelBase view)
     {
         if (view is TabPageViewModelBase tab)
         {
             workspace.CloseTab(tab, ShouldRememberClosedTabs);
-        }
-    }
-
-    public async Task CloseIfOpen<T>(
-        Func<T, bool> match,
-        bool forgetRestoreHistory = false,
-        object? restoreKey = null)
-        where T : ViewModelBase
-    {
-        ArgumentNullException.ThrowIfNull(match);
-
-        var existing = workspace.Tabs.OfType<T>().FirstOrDefault(match);
-        if (forgetRestoreHistory && restoreKey is not null)
-        {
-            workspace.ForgetTabHistory(typeof(T), restoreKey);
-        }
-
-        if (existing is TabPageViewModelBase tab)
-        {
-            await tab.PrepareCloseAsync();
-            var rememberForRestore =
-                !forgetRestoreHistory &&
-                ShouldRememberClosedTabs;
-            workspace.CloseTab(tab, rememberForRestore);
         }
     }
 
@@ -131,22 +111,4 @@ public sealed class ShellWorkspaceCoordinator(
         workspace.OpenOrFocus(tab, restoreEntry);
     }
 
-    private TabPageViewModelBase? TryRestoreFromHistory<T>(
-        ClosedTabRestoreEntry? restoreEntry,
-        Func<T> fallbackCreate)
-        where T : ViewModelBase
-    {
-        if (restoreEntry is null)
-        {
-            return null;
-        }
-
-        var closedEntry = workspace.TakeTabHistory(restoreEntry.TabType, restoreEntry.Key);
-        if (closedEntry is null)
-        {
-            return null;
-        }
-
-        return closedEntry.Restore() ?? fallbackCreate() as TabPageViewModelBase;
-    }
 }

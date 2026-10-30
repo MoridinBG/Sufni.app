@@ -263,7 +263,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         await editor.SaveCommand.ExecuteAsync(null);
 
         await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
-        await sessionCoordinator.Received(1).OpenEditAsync(savedId);
+        shell.Received(1).OpenEditor(new EditorKey.Session(savedId));
         Assert.Contains(
             editor.ErrorMessages,
             message => message.Contains("app state could not be refreshed", StringComparison.Ordinal));

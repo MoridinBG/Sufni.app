@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.Globalization;
 using DynamicData;
@@ -14,6 +15,7 @@ namespace Sufni.App.Tests.Sessions.Lists.ViewModels.ItemLists;
 
 public class SessionListViewModelTests
 {
+    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
@@ -187,7 +189,7 @@ public class SessionListViewModelTests
                 TestCoordinatorSubstitutes.Session(),
                 VideoFixture.CreateEmptyStore(),
                 UiThreadDispatcher,
-                backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+                backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
             Assert.Empty(viewModel.Items);
             Assert.Empty(viewModel.DateGroups);
@@ -562,7 +564,7 @@ public class SessionListViewModelTests
         }
     }
 
-    private static SessionListViewModel CreateLoadedViewModel(
+    private SessionListViewModel CreateLoadedViewModel(
         IRecordedSessionProjection projection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
@@ -573,7 +575,7 @@ public class SessionListViewModelTests
             sessionCoordinator,
             videoStore ?? VideoFixture.CreateEmptyStore(),
             uiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         return viewModel;
     }

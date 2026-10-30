@@ -54,7 +54,6 @@ internal static class MainPagesViewModelTestFactory
         PairingServerViewModel? pairingServerViewModel = null)
     {
         appDataRefresher ??= Substitute.For<IAppDataRefresher>();
-        var importSessionsCoordinator = TestCoordinatorSubstitutes.ImportSessions();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
@@ -77,7 +76,6 @@ internal static class MainPagesViewModelTestFactory
 
         return new MainPagesViewModel(
             appDataRefresher,
-            importSessionsCoordinator,
             trackCoordinator,
             syncCoordinator,
             shell,
@@ -86,11 +84,10 @@ internal static class MainPagesViewModelTestFactory
             appEnvironment,
             layoutProfileTransitionState ?? new LayoutProfileTransitionState(),
             uiPreferences,
-            CreateBikeListPage(),
-            CreateSessionListPage(),
-            CreateSetupListPage(),
-            liveDaqsPage ?? CreateLiveDaqListPage(),
-            CreateImportSessionsPage(shell, importSessionsCoordinator),
+            CreateBikeListPage(shell),
+            CreateSessionListPage(shell),
+            CreateSetupListPage(shell),
+            liveDaqsPage ?? CreateLiveDaqListPage(shell),
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
             videoCoordinator ?? Substitute.For<IVideoCoordinator>(),
@@ -105,21 +102,21 @@ internal static class MainPagesViewModelTestFactory
         InputCapabilities? input = null) =>
         TestAppEnvironment.Create(layoutProfile, capabilities, input);
 
-    private static BikeListViewModel CreateBikeListPage() =>
+    private static BikeListViewModel CreateBikeListPage(IShellCoordinator shell) =>
         new(
             new BikeStoreStub(),
             TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
-    private static SessionListViewModel CreateSessionListPage() =>
+    private static SessionListViewModel CreateSessionListPage(IShellCoordinator shell) =>
         new(
             CreateRecordedSessionProjection(),
             TestCoordinatorSubstitutes.Session(),
             VideoFixture.CreateEmptyStore(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
@@ -129,11 +126,11 @@ internal static class MainPagesViewModelTestFactory
         return projection;
     }
 
-    private static SetupListViewModel CreateSetupListPage() =>
-        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+    private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell) =>
+        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
-    private static LiveDaqListViewModel CreateLiveDaqListPage() =>
-        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+    private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
+        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
         new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
@@ -141,22 +138,4 @@ internal static class MainPagesViewModelTestFactory
     private static PairedDeviceCoordinator CreatePairedDeviceCoordinator() =>
         new(Substitute.For<IPairedDeviceStoreWriter>(), new InlineUiThreadDispatcher());
 
-    private static ImportSessionsViewModel CreateImportSessionsPage(
-        IShellCoordinator shell,
-        IImportSessionsCoordinator importSessionsCoordinator)
-    {
-        var telemetryDataStoreService = Substitute.For<ITelemetryDataStoreService>();
-        telemetryDataStoreService.DataStores.Returns(new ObservableCollection<ITelemetryDataStore>());
-
-        return new ImportSessionsViewModel(
-            telemetryDataStoreService,
-            Substitute.For<IFilesService>(),
-            shell,
-            Substitute.For<IDialogService>(),
-            TestCoordinatorSubstitutes.Setup(),
-            importSessionsCoordinator,
-            Substitute.For<ISetupStore>(),
-            UiThreadDispatcher,
-            timeProvider: new FakeTimeProvider());
-    }
 }

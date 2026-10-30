@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -24,6 +25,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly IShellCoordinator shell;
     private readonly ISetupStore setupStore;
     private readonly ISetupCoordinator setupCoordinator;
     private readonly ObservableCollectionExtended<SetupRowViewModel> setupRowsSource = [];
@@ -46,11 +48,13 @@ public partial class SetupListViewModel : ItemListViewModelBase
         ISetupCoordinator setupCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IBackgroundTaskRunner backgroundTaskRunner,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShellCoordinator shell)
         : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;
+        this.shell = shell;
         setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>(setupRowsSource);
     }
 
@@ -66,7 +70,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
         subscriptions.Add(setupStore.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
-                snapshot => new SetupRowViewModel(snapshot, setupCoordinator, RequestRowDelete),
+                snapshot => new SetupRowViewModel(snapshot, shell, RequestRowDelete),
                 (row, snapshot) => row.Update(snapshot))
             .Bind(setupRowsSource)
             .Subscribe());
@@ -92,7 +96,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     protected override void AddImplementation()
     {
-        _ = setupCoordinator.OpenCreateAsync();
+        shell.OpenEditor(new EditorKey.NewSetup());
     }
 
     #endregion ItemListViewModelBase overrides
@@ -131,6 +135,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
         pendingDeleteIds.Remove(setupId);
         RebuildFilter();
 
+        if (result.Outcome == SetupDeleteOutcome.Deleted)
+            await shell.CloseEditorAsync(new EditorKey.Setup(setupId));
+
         if (result.Outcome == SetupDeleteOutcome.Failed)
         {
             ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
@@ -142,10 +149,11 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #region Commands
 
     [RelayCommand]
-    private async Task RowSelected(SetupRowViewModel? row)
+    private System.Threading.Tasks.Task RowSelected(SetupRowViewModel? row)
     {
-        if (row is null) return;
-        await setupCoordinator.OpenEditAsync(row.Id);
+        if (row is null) return System.Threading.Tasks.Task.CompletedTask;
+        shell.OpenEditor(new EditorKey.Setup(row.Id));
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 
     #endregion Commands

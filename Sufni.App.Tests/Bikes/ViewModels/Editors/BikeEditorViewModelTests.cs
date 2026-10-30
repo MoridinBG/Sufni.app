@@ -923,7 +923,7 @@ public class BikeEditorViewModelTests
         await editor.DeleteCommand.ExecuteAsync(true);
 
         await bikeCoordinator.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        shell.Received(1).GoBack();
+        await shell.Received(1).CloseEditorAsync(new EditorKey.Bike(editor.Id));
     }
 
     [AvaloniaFact]
@@ -937,7 +937,7 @@ public class BikeEditorViewModelTests
         await editor.DeleteCommand.ExecuteAsync(true);
 
         await bikeCoordinator.Received(1).DeleteAsync(snapshot.Id);
-        shell.Received(1).GoBack();
+        await shell.Received(1).CloseEditorAsync(new EditorKey.Bike(editor.Id));
         Assert.Empty(editor.ErrorMessages);
     }
 
