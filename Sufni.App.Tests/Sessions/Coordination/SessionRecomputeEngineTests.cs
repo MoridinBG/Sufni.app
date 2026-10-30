@@ -103,6 +103,36 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
+    public async Task Stop_WaitsForDisplacedProcessingWithoutLettingItCommit()
+    {
+        var id = Guid.NewGuid();
+        ConfigureRecomputable(id);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<RecordedSessionReprocessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
+            Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            if (++calls != 1) return Task.FromResult(ReprocessResult(TelemetryProcessingOptions.Default));
+            entered.SetResult();
+            return release.Task;
+        });
+        using var engine = CreateEngine();
+        var displaced = engine.RequestRecomputeAsync(id, RecomputeReason.RecomputeAll);
+        await entered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.IsType<SessionRecomputeResult.Recomputed>(await engine.RequestRecomputeAsync(id, RecomputeReason.StaleOnOpen));
+
+        var stop = engine.StopAsync();
+        Assert.False(stop.IsCompleted);
+        release.SetResult(ReprocessResult(TelemetryProcessingOptions.Default));
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsType<SessionRecomputeResult.Superseded>(await displaced);
+        await sessionTelemetryWriter.Received(1).UpdateProcessedDerivedDataAsync(Arg.Any<Session>(),
+            Arg.Any<ProcessedTelemetryPayload>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+    }
+
+    [Fact]
     public async Task RequestRecomputeAsync_CancelAndReplace_SupersedesFirst_CommitsOnce_WithLaterOption()
     {
         var sessionId = Guid.NewGuid();

@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.SyncAndPairing.Coordinators;
@@ -18,5 +19,6 @@ public interface ISyncCoordinator
     event EventHandler<SyncCompletedEventArgs>? SyncCompleted;
     event EventHandler<SyncFailedEventArgs>? SyncFailed;
 
-    Task SyncAllAsync();
+    Task SyncAllAsync(CancellationToken cancellationToken = default);
+    Task StopAsync();
 }

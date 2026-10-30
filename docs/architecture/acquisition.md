@@ -31,6 +31,12 @@ graph LR
     Coord --> TelemetryFile["ITelemetryFile"]
 ```
 
+Shutdown cancellation stops import intake and cancels a source read in progress.
+Files already queued finish processing and persistence, then their store
+publication and acknowledgement complete before the coordinator's `StopAsync`
+returns. The batch remains owned by the coordinator throughout this drain;
+closing its tab does not cancel it. There is no user-facing cancel action.
+
 ### Interfaces
 
 **`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`.

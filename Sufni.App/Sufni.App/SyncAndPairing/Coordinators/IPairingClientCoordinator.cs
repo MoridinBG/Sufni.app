@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
@@ -58,7 +59,7 @@ public interface IPairingClientCoordinator
     void StartBrowsing();
     void StopBrowsing();
 
-    Task<string?> ResolveServerUrlAsync(TimeSpan timeout);
+    Task<string?> ResolveServerUrlAsync(TimeSpan timeout, CancellationToken cancellationToken = default);
     Task<RequestPairingResult> RequestPairingAsync(string? displayName);
     Task<ConfirmPairingResult> ConfirmPairingAsync(string? displayName, string pin);
     Task<UnpairResult> UnpairAsync();

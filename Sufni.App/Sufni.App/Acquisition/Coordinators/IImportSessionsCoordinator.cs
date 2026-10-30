@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Models;
@@ -14,5 +15,8 @@ public interface IImportSessionsCoordinator
 
     Task ImportAsync(
         IReadOnlyList<ITelemetryFile> files,
-        Guid setupId);
+        Guid setupId,
+        CancellationToken cancellationToken = default);
+
+    Task StopAsync();
 }

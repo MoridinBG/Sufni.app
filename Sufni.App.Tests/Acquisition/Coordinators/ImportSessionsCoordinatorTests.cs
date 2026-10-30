@@ -410,6 +410,45 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("recovered", Assert.Single(completed.Result.Imported).Name);
     }
 
+    [Fact]
+    public async Task Stop_CancelsIntake_AndWaitsForQueuedImportsToPublishAndAcknowledge()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        using var coordinator = harness.CreateCoordinator();
+        var processing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
+            Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            processing.SetResult();
+            await release.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            return ImportWorkflowHarness.CreateReprocessResult(call.Arg<RecordedSessionDomainSnapshot>(), call.Arg<RecordedSessionSource>());
+        });
+        var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = CreateTelemetryFile("queued", shouldBeImported: true);
+        var second = CreateTelemetryFile("reading", shouldBeImported: true);
+        var third = CreateTelemetryFile("unread", shouldBeImported: true);
+        second.ReadSourceAsync(Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            reading.SetResult();
+            return new TaskCompletionSource<TelemetryFileSource>().Task.WaitAsync(call.Arg<CancellationToken>());
+        });
+        var run = coordinator.ImportAsync([first, second, third], setup.Id);
+        await Task.WhenAll(reading.Task, processing.Task).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        var stop = coordinator.StopAsync();
+        Assert.False(stop.IsCompleted);
+        release.SetResult();
+        await Task.WhenAll(run, stop).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
+        Assert.Equal("queued", Assert.Single(result.Imported).Name);
+        Assert.Empty(result.Failures);
+        await first.Received(1).OnImported();
+        await third.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+    }
+
     private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>
         new(endpoint, id, $"{id:00000}.SST",
             DateTimeOffset.FromUnixTimeSeconds(111 + id), TimeSpan.FromSeconds(6))

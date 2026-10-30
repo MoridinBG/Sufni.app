@@ -1,6 +1,9 @@
 using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using System.Threading;
+using System.Collections.Generic;
+using System.Linq;
 using Serilog;
 
 using Sufni.App.Shell.Coordinators;
@@ -8,7 +11,7 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-public class SyncCoordinator : ISyncCoordinator
+public class SyncCoordinator : ISyncCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
     private static readonly TimeSpan ServerDiscoveryTimeout = TimeSpan.FromSeconds(5);
@@ -24,6 +27,11 @@ public class SyncCoordinator : ISyncCoordinator
     private readonly TimeSpan finalInboundActivityIdleGrace;
     private readonly TimeProvider timeProvider;
 
+    private readonly CancellationTokenSource shutdown = new();
+    private readonly HashSet<Task> idleTasks = [];
+    private readonly IDisposable? pairedStateSubscription;
+    private readonly ISynchronizationServerService? synchronizationServer;
+    private Task? activeRun;
     private bool isRunning;
     private bool outboundSyncRunning;
     private bool inboundSyncRunning;
@@ -44,7 +52,7 @@ public class SyncCoordinator : ISyncCoordinator
     }
 
     public bool IsPaired => pairingClientCoordinator?.IsPaired ?? false;
-    public bool CanSync => !IsRunning && IsPaired;
+    public bool CanSync => !shutdown.IsCancellationRequested && !IsRunning && IsPaired;
     public SynchronizationProgressSnapshot? Progress
     {
         get => progress;
@@ -75,6 +83,7 @@ public class SyncCoordinator : ISyncCoordinator
         TimeSpan? finalInboundActivityIdleGrace = null)
     {
         this.appDataRefresher = appDataRefresher;
+        synchronizationServer = synchronizationServerService;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -85,8 +94,8 @@ public class SyncCoordinator : ISyncCoordinator
 
         if (pairingClientCoordinator is not null)
         {
-            _ = pairingClientCoordinator.PairedState.Subscribe(_ => PublishPairedStateChangeOnUiThread());
-            pairingClientCoordinator.PairingConfirmed += (_, _) => _ = SyncAllAsync();
+            pairedStateSubscription = pairingClientCoordinator.PairedState.Subscribe(_ => PublishPairedStateChangeOnUiThread());
+            pairingClientCoordinator.PairingConfirmed += OnPairingConfirmed;
         }
 
         if (synchronizationServerService is not null)
@@ -96,8 +105,43 @@ public class SyncCoordinator : ISyncCoordinator
         }
     }
 
-    public async Task SyncAllAsync()
+    public async Task SyncAllAsync(CancellationToken cancellationToken = default)
     {
+        var run = await uiThreadDispatcher.InvokeAsync<Task>(() =>
+        {
+            if (!CanSync) return Task.CompletedTask;
+            activeRun = SyncCoreAsync(cancellationToken);
+            return activeRun;
+        });
+        await run;
+    }
+
+    private void OnPairingConfirmed(object? sender, EventArgs args) => _ = SyncAllAsync();
+
+    public async Task StopAsync()
+    {
+        await shutdown.CancelAsync();
+        var work = await uiThreadDispatcher.InvokeAsync(() =>
+            idleTasks.Concat(activeRun is null ? [] : new[] { activeRun }).ToArray());
+        await Task.WhenAll(work);
+    }
+
+    public void Dispose()
+    {
+        pairedStateSubscription?.Dispose();
+        if (pairingClientCoordinator is not null) pairingClientCoordinator.PairingConfirmed -= OnPairingConfirmed;
+        if (synchronizationServer is not null)
+        {
+            synchronizationServer.SyncActivityStarted -= OnSyncActivityStarted;
+            synchronizationServer.SyncActivityEnded -= OnSyncActivityEnded;
+        }
+        shutdown.Dispose();
+    }
+
+    private async Task SyncCoreAsync(CancellationToken cancellationToken)
+    {
+        using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
+        var token = runCancellation.Token;
         if (!CanSync)
         {
             logger.Verbose("Sync request ignored because synchronization is unavailable");
@@ -117,7 +161,7 @@ public class SyncCoordinator : ISyncCoordinator
                     TotalSteps: 8,
                     IsDeterminate: true);
 
-                var serverUrl = await pairingClientCoordinator.ResolveServerUrlAsync(ServerDiscoveryTimeout);
+                var serverUrl = await pairingClientCoordinator.ResolveServerUrlAsync(ServerDiscoveryTimeout, token);
                 if (serverUrl is null)
                 {
                     SyncFailed?.Invoke(this, new SyncFailedEventArgs("Sync failed: no server discovered"));
@@ -127,7 +171,7 @@ public class SyncCoordinator : ISyncCoordinator
 
             logger.Verbose("Running remote synchronization phases");
             var result = await backgroundTaskRunner.RunAsync(() =>
-                synchronizationClientService!.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress)));
+                synchronizationClientService!.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress), token));
 
             logger.Verbose("Refreshing local stores after synchronization");
             Progress = new SynchronizationProgressSnapshot(
@@ -141,6 +185,11 @@ public class SyncCoordinator : ISyncCoordinator
             var completionMessage = GetCompletionMessage(result);
             logger.Information("Synchronization completed: {CompletionMessage}", completionMessage);
             SyncCompleted?.Invoke(this, new SyncCompletedEventArgs(completionMessage));
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // Already committed phases still need to reach the shared read state.
+            await RefreshStateOnUiThreadAsync();
         }
         catch (Exception e)
         {
@@ -216,6 +265,7 @@ public class SyncCoordinator : ISyncCoordinator
     {
         uiThreadDispatcher.Post(() =>
         {
+            if (shutdown.IsCancellationRequested) return;
             inboundIdleGeneration++;
             inboundActivityDepth++;
             SetInboundSyncRunning(true);
@@ -227,6 +277,7 @@ public class SyncCoordinator : ISyncCoordinator
     {
         uiThreadDispatcher.Post(() =>
         {
+            if (shutdown.IsCancellationRequested) return;
             if (inboundActivityDepth > 0)
             {
                 inboundActivityDepth--;
@@ -250,13 +301,25 @@ public class SyncCoordinator : ISyncCoordinator
             return;
         }
 
-        _ = ClearInboundActivityAfterDelayAsync(generation, idleGrace);
+        var task = ClearInboundActivityAfterDelayAsync(generation, idleGrace);
+        idleTasks.Add(task);
+        _ = RemoveIdleTaskAsync(task);
     }
 
     private async Task ClearInboundActivityAfterDelayAsync(int generation, TimeSpan idleGrace)
     {
-        await Task.Delay(idleGrace, timeProvider);
-        await uiThreadDispatcher.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
+        try
+        {
+            await Task.Delay(idleGrace, timeProvider, shutdown.Token);
+            await uiThreadDispatcher.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
+        }
+        catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
+    }
+
+    private async Task RemoveIdleTaskAsync(Task task)
+    {
+        await task;
+        await uiThreadDispatcher.InvokeAsync(() => idleTasks.Remove(task));
     }
 
     private void ClearInboundActivityIfIdle(int generation)

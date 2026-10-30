@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -53,7 +54,8 @@ public interface ISessionRecomputeEngine
     /// </summary>
     Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
         RecomputeReason reason,
-        IProgress<SessionRecomputeAllProgress>? progress = null);
+        IProgress<SessionRecomputeAllProgress>? progress = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// True from the moment a request is accepted (synchronously, before any
@@ -61,9 +63,10 @@ public interface ISessionRecomputeEngine
     /// reads it to avoid prompting for a recompute the user just triggered.
     /// </summary>
     bool IsActive(Guid sessionId);
+    Task StopAsync();
 }
 
-public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
+public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<SessionRecomputeEngine>();
     private static readonly int RecomputeAllMaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
@@ -85,6 +88,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
     private readonly System.Threading.Lock stateGate = new();
     private readonly Dictionary<Guid, Run> runs = new();
     private long sequence;
+    private readonly CancellationTokenSource shutdown = new();
+    private readonly HashSet<Task> activeTasks = [];
 
     public SessionRecomputeEngine(
         ISessionStoreWriter sessionStore,
@@ -126,6 +131,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
 
         lock (stateGate)
         {
+            shutdown.Token.ThrowIfCancellationRequested();
             // Cancel-and-replace: the previous run for this id (if any) loses its
             // commit at guard (i); install this run as the current one. IsActive is
             // already true here — before any await — because the entry now exists.
@@ -134,9 +140,10 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 oldRun.Cts.Cancel();
             }
 
-            cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, shutdown.Token);
             seq = ++sequence;
             runs[sessionId] = new Run(cts, seq, tcs.Task);
+            activeTasks.Add(tcs.Task);
         }
 
         // Run the body off the lock; the TaskCompletionSource is what the map holds
@@ -170,6 +177,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
             {
                 lock (stateGate)
                 {
+                    activeTasks.Remove(tcs.Task);
                     if (runs.TryGetValue(sessionId, out var current) && current.Seq == seq)
                     {
                         runs.Remove(sessionId);
@@ -181,11 +189,47 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         }
     }
 
-    public async Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
+    public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
         RecomputeReason reason,
-        IProgress<SessionRecomputeAllProgress>? progress = null)
+        IProgress<SessionRecomputeAllProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
+        lock (stateGate)
+        {
+            shutdown.Token.ThrowIfCancellationRequested();
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
+            var task = RecomputeAllAsync(reason, progress, cancellation.Token);
+            activeTasks.Add(task);
+            _ = ReleaseAsync(task, cancellation);
+            return task;
+        }
+    }
+
+    private async Task ReleaseAsync(Task task, CancellationTokenSource cancellation)
+    {
+        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        lock (stateGate) activeTasks.Remove(task);
+        cancellation.Dispose();
+    }
+
+    public async Task StopAsync()
+    {
+        await shutdown.CancelAsync();
+        Task[] tasks;
+        lock (stateGate) tasks = activeTasks.ToArray();
+        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
+    public void Dispose() => shutdown.Dispose();
+
+    private async Task<SessionRecomputeAllResult> RecomputeAllAsync(
+        RecomputeReason reason,
+        IProgress<SessionRecomputeAllProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         await processingOptionCache.HydrateAsync();
+        cancellationToken.ThrowIfCancellationRequested();
         var ids = await sessionRepository.GetActiveSessionIdsAsync();
 
         logger.Information("Starting recompute-all for {SessionCount} sessions ({Reason})", ids.Count, reason);
@@ -198,10 +242,10 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
 
         progress?.Report(new SessionRecomputeAllProgress(0, ids.Count));
 
-        var options = new ParallelOptions { MaxDegreeOfParallelism = RecomputeAllMaxDegreeOfParallelism };
-        await Parallel.ForEachAsync(ids, options, async (id, _) =>
+        var options = new ParallelOptions { MaxDegreeOfParallelism = RecomputeAllMaxDegreeOfParallelism, CancellationToken = cancellationToken };
+        await Parallel.ForEachAsync(ids, options, async (id, token) =>
         {
-            var result = await RequestRecomputeAsync(id, reason);
+            var result = await RequestRecomputeAsync(id, reason, token);
             switch (result)
             {
                 case SessionRecomputeResult.Recomputed:

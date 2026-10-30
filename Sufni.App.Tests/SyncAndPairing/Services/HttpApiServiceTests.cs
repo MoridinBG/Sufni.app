@@ -433,6 +433,28 @@ public class HttpApiServiceTests
         await secureStorage.Received(1).SetStringAsync("RefreshToken", "refresh-2");
     }
 
+    [Fact]
+    public async Task SessionDownloadCancellation_StopsTheHttpRequestAndKeepsPairing()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
+        var service = CreateService(CreateSecureStorage(), (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh)
+                return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2")));
+            started.SetResult();
+            return new TaskCompletionSource<HttpResponseMessage>().Task.WaitAsync(token);
+        });
+        using var cancellation = new CancellationTokenSource();
+        var download = service.GetSessionPsstAsync(Guid.NewGuid(), cancellation.Token);
+        await started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await cancellation.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(await service.IsPairedAsync());
+    }
+
     private HttpApiService CreateService(
         ISecureStorage secureStorage,
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync)

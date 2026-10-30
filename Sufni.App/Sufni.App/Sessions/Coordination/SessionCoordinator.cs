@@ -57,8 +57,9 @@ public class SessionCoordinator : ISessionCoordinator
         commandService.RequestRecomputeAsync(sessionId, reason);
 
     public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
-        IProgress<SessionRecomputeAllProgress>? progress = null) =>
-        commandService.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, progress);
+        IProgress<SessionRecomputeAllProgress>? progress = null,
+        CancellationToken cancellationToken = default) =>
+        commandService.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, progress, cancellationToken);
 
     public bool IsRecomputeActive(Guid sessionId) => commandService.IsRecomputeActive(sessionId);
 

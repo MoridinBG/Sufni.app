@@ -47,26 +47,30 @@ public class ImportSessionsCoordinator(
 
     private readonly BehaviorSubject<SessionImportState> state = new(new SessionImportState.Idle());
     private Task? activeRun;
+    private readonly CancellationTokenSource shutdown = new();
 
     public SessionImportState State => state.Value;
 
     public IObservable<SessionImportState> Observe() => state.AsObservable();
 
-    public async Task ImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId)
+    public async Task ImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId, CancellationToken cancellationToken = default)
     {
         var run = await dispatcher.InvokeAsync<Task>(() =>
         {
             if (activeRun is { IsCompleted: false }) return activeRun;
 
+            shutdown.Token.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             state.OnNext(new SessionImportState.Running(0, 0, []));
-            activeRun = RunImportAsync(files.ToArray(), setupId);
+            activeRun = RunImportAsync(files.ToArray(), setupId, cancellationToken);
             return activeRun;
         });
         await run;
     }
 
-    private async Task RunImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId)
+    private async Task RunImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId, CancellationToken cancellationToken)
     {
+        using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
         logger.Information(
             "Starting session import for {FileCount} files and setup {SetupId}",
             files.Count,
@@ -76,7 +80,7 @@ public class ImportSessionsCoordinator(
         {
             var progress = new UiThreadProgress<SessionImportEvent>(dispatcher, ReportProgress);
             var result = await backgroundTaskRunner.RunAsync(
-                () => ImportCoreAsync(files, setupId, progress));
+                () => ImportCoreAsync(files, setupId, progress, runCancellation.Token));
 
             logger.Information(
                 "Session import completed with {ImportedCount} imported sessions and {FailureCount} failures",
@@ -84,6 +88,10 @@ public class ImportSessionsCoordinator(
                 result.Failures.Count);
             await dispatcher.InvokeAsync(() =>
                 state.OnNext(new SessionImportState.Completed(result, State.Events)));
+        }
+        catch (OperationCanceledException) when (runCancellation.IsCancellationRequested)
+        {
+            await dispatcher.InvokeAsync(() => state.OnNext(new SessionImportState.Idle()));
         }
         catch (Exception e)
         {
@@ -101,12 +109,24 @@ public class ImportSessionsCoordinator(
             : running with { Events = running.Events.Add(message) });
     }
 
-    public void Dispose() => state.Dispose();
+    public async Task StopAsync()
+    {
+        await shutdown.CancelAsync();
+        var run = await dispatcher.InvokeAsync<Task?>(() => activeRun);
+        if (run is not null) await run;
+    }
+
+    public void Dispose()
+    {
+        shutdown.Dispose();
+        state.Dispose();
+    }
 
     private async Task<SessionImportResult> ImportCoreAsync(
         IReadOnlyList<ITelemetryFile> files,
         Guid setupId,
-        IProgress<SessionImportEvent>? progress)
+        IProgress<SessionImportEvent>? progress,
+        CancellationToken cancellationToken)
     {
         var imported = new List<SessionSnapshot>();
         var failures = new List<SessionImportFailure>();
@@ -129,7 +149,7 @@ public class ImportSessionsCoordinator(
             {
                 var endpoint = networkFiles[0].EndPoint;
                 batchSession = await daqManagementService.OpenSessionAsync(
-                    endpoint.Address.ToString(), endpoint.Port);
+                    endpoint.Address.ToString(), endpoint.Port, cancellationToken);
                 foreach (var networkFile in networkFiles)
                 {
                     networkFile.AttachSession(batchSession);
@@ -210,6 +230,7 @@ public class ImportSessionsCoordinator(
             {
                 foreach (var telemetryFile in files)
                 {
+                    if (cancellationToken.IsCancellationRequested) break;
                     if (telemetryFile.ShouldBeImported is false)
                     {
                         continue;
@@ -236,9 +257,13 @@ public class ImportSessionsCoordinator(
                     try
                     {
                         logger.Verbose("Reading source data for {FileName}", telemetryFile.Name);
-                        telemetrySource = await telemetryFile.ReadSourceAsync();
+                        telemetrySource = await telemetryFile.ReadSourceAsync(cancellationToken);
                         await channel.Writer.WriteAsync((telemetryFile, telemetrySource));
                         telemetrySource = null;
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        break;
                     }
                     catch (Exception e)
                     {
@@ -310,6 +335,7 @@ public class ImportSessionsCoordinator(
                 }
             }
 
+            // Shutdown stops intake; queued files finish persistence, publication and acknowledgement.
             var consumerTasks = Enumerable.Range(0, ImportProcessDop)
                 .Select(_ => RunConsumerAsync())
                 .ToArray();

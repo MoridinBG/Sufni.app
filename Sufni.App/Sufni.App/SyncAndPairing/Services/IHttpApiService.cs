@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
@@ -16,12 +17,12 @@ public interface IHttpApiService
     public Task ConfirmPairingAsync(string deviceId, string? displayName, string pin);
     public Task UnpairAsync(string deviceId);
     public Task<bool> IsPairedAsync();
-    public Task<SynchronizationData> PullSyncAsync(long since = 0);
-    public Task PushSyncAsync(SynchronizationData syncData);
-    public Task<List<Guid>> GetIncompleteSessionIdsAsync();
-    public Task<SessionBlobPayload?> GetSessionPsstAsync(Guid id);
-    public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint);
-    public Task<List<Guid>> GetIncompleteSessionSourceIdsAsync();
-    public Task<RecordedSessionSourcePayload?> GetRecordedSessionSourceAsync(Guid id);
-    public Task PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source);
+    public Task<SynchronizationData> PullSyncAsync(long since = 0, CancellationToken cancellationToken = default);
+    public Task PushSyncAsync(SynchronizationData syncData, CancellationToken cancellationToken = default);
+    public Task<List<Guid>> GetIncompleteSessionIdsAsync(CancellationToken cancellationToken = default);
+    public Task<SessionBlobPayload?> GetSessionPsstAsync(Guid id, CancellationToken cancellationToken = default);
+    public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint, CancellationToken cancellationToken = default);
+    public Task<List<Guid>> GetIncompleteSessionSourceIdsAsync(CancellationToken cancellationToken = default);
+    public Task<RecordedSessionSourcePayload?> GetRecordedSessionSourceAsync(Guid id, CancellationToken cancellationToken = default);
+    public Task PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source, CancellationToken cancellationToken = default);
 }

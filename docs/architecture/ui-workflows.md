@@ -70,6 +70,12 @@ cancellation token into recompute and leaves its marker unwritten on interruptio
 `PairedDeviceCoordinator`, `PairingClientCoordinator`, `PairingServerCoordinator`
 and `SyncCoordinator` are resolved at page activation, before server startup.
 
+Recompute requests and bulk recompute accept cancellation. The engine retains
+all outstanding tasks, including displaced per-session runs, so `StopAsync`
+waits for work that cannot yet be interrupted before the provider is disposed.
+Canceled processing cannot install a stale result. Bulk cancellation stops
+scheduling further sessions; fingerprints remain the checkpoint for later work.
+
 ### Pending deletes
 
 `PendingDeletes` is the shell's application-lifetime owner of five-second undo

@@ -73,8 +73,9 @@ public sealed class SessionCommandService
 
     public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
         RecomputeReason reason,
-        IProgress<SessionRecomputeAllProgress>? progress = null) =>
-        recomputeEngine.RequestRecomputeAllAsync(reason, progress);
+        IProgress<SessionRecomputeAllProgress>? progress = null,
+        CancellationToken cancellationToken = default) =>
+        recomputeEngine.RequestRecomputeAllAsync(reason, progress, cancellationToken);
 
     public bool IsRecomputeActive(Guid sessionId) => recomputeEngine.IsActive(sessionId);
 

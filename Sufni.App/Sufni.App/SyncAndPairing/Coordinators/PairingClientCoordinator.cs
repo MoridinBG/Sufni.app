@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -233,9 +234,9 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         serviceDiscovery.StopBrowse();
     }
 
-    public async Task<string?> ResolveServerUrlAsync(TimeSpan timeout)
+    public async Task<string?> ResolveServerUrlAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        await Initialization;
+        await Initialization.WaitAsync(cancellationToken);
 
         if (!IsPaired)
         {
@@ -257,10 +258,9 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             StartBrowsing();
             browseStarted = true;
 
-            var completed = await Task.WhenAny(resolution.Task, Task.Delay(timeout, timeProvider));
-            var resolvedServerUrl = completed == resolution.Task
-                ? await resolution.Task
-                : null;
+            string? resolvedServerUrl;
+            try { resolvedServerUrl = await resolution.Task.WaitAsync(timeout, timeProvider, cancellationToken); }
+            catch (TimeoutException) { return null; }
 
             if (resolvedServerUrl is not null)
             {

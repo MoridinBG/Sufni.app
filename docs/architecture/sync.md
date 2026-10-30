@@ -82,6 +82,15 @@ the framework's lifetime validation.
 
 ## Client
 
+Outbound sync accepts cancellation through server discovery, transfer loops and
+HTTP sends/body reads. A canceled run is neutral, and the coordinator refreshes
+already committed data before its stop operation completes. Source transfers
+publish committed sources even if another transfer is canceled. The shared token
+refresh is allowed to finish and persist rotated credentials before a canceled
+caller exits; cancellation does not abandon a credential rotation midway.
+The sync coordinator retains its active run and idle tasks for shutdown and
+releases its event subscriptions on disposal.
+
 The client samples push cutoffs through its injected clock. `HttpApiService`
 uses that clock for certificate validity and the 30-second token-refresh margin.
 

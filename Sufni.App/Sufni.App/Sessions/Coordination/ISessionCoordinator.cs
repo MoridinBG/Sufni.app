@@ -38,7 +38,8 @@ public interface ISessionCoordinator
     /// supplied, <paramref name="progress"/> is reported as sessions finish.
     /// </summary>
     Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
-        IProgress<SessionRecomputeAllProgress>? progress = null);
+        IProgress<SessionRecomputeAllProgress>? progress = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// True while a recompute for this session is in flight. The staleness
