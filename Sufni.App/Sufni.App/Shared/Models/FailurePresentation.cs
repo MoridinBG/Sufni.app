@@ -88,4 +88,22 @@ public sealed record FailurePresentation
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 
+    public static FailurePresentation From(SessionSaveFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionSaveFailureReason.Save => "The session could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(SessionEditFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionEditFailureReason.Edit => "The session could not be edited. Try again.",
+        SessionEditFailureReason.Rejected => "The session edit could not be applied. Reload the session and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(GpsOffsetFailureReason reason, string? details = null) => new(reason switch
+    {
+        GpsOffsetFailureReason.Save => "GPS alignment could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

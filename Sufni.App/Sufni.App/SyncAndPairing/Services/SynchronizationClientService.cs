@@ -10,7 +10,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Sessions.Processing.Services;
 namespace Sufni.App.SyncAndPairing.Services;
 
 public class SynchronizationClientService : ISynchronizationClientService
@@ -21,6 +21,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionStoreWriter sessionStore;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
@@ -37,11 +38,13 @@ public class SynchronizationClientService : ISynchronizationClientService
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ISessionTelemetryWriter sessionTelemetryWriter)
     {
         this.syncDataStore = syncDataStore;
         this.sessionRepository = sessionRepository;
         this.sessionStore = sessionStore;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
@@ -202,14 +205,28 @@ public class SynchronizationClientService : ISynchronizationClientService
             return false;
         }
 
-        var result = targetGeneration is null
-            ? await sessionStore.CommitPsstSwapAsync(id, transfer.Data, transfer.Fingerprint)
-            : await sessionStore.CommitPsstSwapAsync(
-                id,
-                transfer.Data,
-                transfer.Fingerprint,
-                targetGeneration);
-        return result is StoreMutationResult<SessionSnapshot>.Saved;
+        try
+        {
+            if (await sessionRepository.GetSessionAsync(id) is null) return false;
+            if (targetGeneration is null)
+                await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
+            else
+                await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint, targetGeneration);
+
+            var fresh = await sessionRepository.GetSessionAsync(id);
+            if (fresh is null)
+            {
+                await sessionStore.PublishSessionsRemovedAsync([id]);
+                return false;
+            }
+            await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
+            return true;
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            logger.Error(e, "Downloaded session data could not be applied for {SessionId}", id);
+            return false;
+        }
     }
 
     private async Task PushIncompleteSessionSources(CancellationToken cancellationToken)

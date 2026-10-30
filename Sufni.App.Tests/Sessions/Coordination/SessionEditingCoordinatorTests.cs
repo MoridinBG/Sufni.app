@@ -1,8 +1,11 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Video.Models;
@@ -12,6 +15,7 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionEditingCoordinatorTests
 {
+    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionVideoStoreWriter videoStore = Substitute.For<ISessionVideoStoreWriter>();
     private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
@@ -22,6 +26,7 @@ public class SessionEditingCoordinatorTests
     public SessionEditingCoordinatorTests()
     {
         sessionStore.Get(session.Id).Returns(session);
+        sessionRepository.GetSessionAsync(session.Id).Returns(new Session(session.Id, session.Name, "", null));
         recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
             .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed(1)));
     }
@@ -32,6 +37,7 @@ public class SessionEditingCoordinatorTests
         var part2 = TestSnapshots.Session(id: Guid.NewGuid());
         var clip = new SessionVideoClip { Id = Guid.NewGuid(), SessionId = part2.Id };
         sessionStore.Get(part2.Id).Returns(part2);
+        sessionRepository.GetSessionAsync(part2.Id).Returns(new Session(part2.Id, part2.Name, "", null));
         transactions.SplitAsync(session, 3).Returns(new SessionEditCommit.Committed([session.Id, part2.Id], [clip], [], part2.Id));
 
         var completion = new TaskCompletionSource<SessionRecomputeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -47,7 +53,7 @@ public class SessionEditingCoordinatorTests
 
         Assert.Equal(new SessionEditResult.Applied(), result);
         await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { session.Id, part2.Id })),
+            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Select(snapshot => snapshot.Id).SequenceEqual(new[] { session.Id, part2.Id })),
             Arg.Any<CancellationToken>());
         await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoClip>>(clips => clips.Single() == clip));
         await recomputeEngine.Received(1).RequestRecomputeAsync(session.Id, RecomputeReason.SourceWindowChanged);
@@ -62,9 +68,9 @@ public class SessionEditingCoordinatorTests
 
         var result = await CreateCoordinator().TrimUntilEndAsync(session.Id, 4);
 
-        Assert.Equal(new SessionEditResult.Failed("Session changed while editing."), result);
+        Assert.Equal(SessionEditFailureReason.Rejected, Assert.IsType<SessionEditResult.Failed>(result).Reason);
         await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
             Arg.Any<CancellationToken>());
         await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
@@ -78,7 +84,7 @@ public class SessionEditingCoordinatorTests
 
         var result = await CreateCoordinator().UndoTrimAsync(session.Id);
 
-        Assert.Equal(new SessionEditResult.Applied("Session could not be recomputed: source is corrupt"), result);
+        Assert.NotNull(Assert.IsType<SessionEditResult.Applied>(result).RecomputeError);
     }
 
     [Fact]
@@ -86,9 +92,9 @@ public class SessionEditingCoordinatorTests
     {
         var result = await CreateCoordinator().TrimFromBeginningAsync(Guid.NewGuid(), 2);
 
-        Assert.Equal(new SessionEditResult.Failed("Session is missing."), result);
+        Assert.Equal(new SessionEditResult.Missing(), result);
     }
 
     private SessionEditingCoordinator CreateCoordinator() =>
-        new(sessionStore, videoStore, segmentStore, transactions, recomputeEngine);
+        new(sessionStore, videoStore, segmentStore, transactions, recomputeEngine, sessionRepository, new InlineBackgroundTaskRunner());
 }

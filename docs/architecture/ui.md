@@ -238,18 +238,19 @@ pattern-match on known cases instead of relying on bool flags, `null`,
 or magic strings. This convention applies to both coordinator and
 service contracts when the caller's next step differs by outcome.
 
-Store writer APIs use the shared neutral
-`StoreMutationResult<TSnapshot>` and `StoreDeleteResult<TSnapshot>` records.
-Mutation results are `Saved` (published snapshot), `Conflict` (current snapshot),
-`Missing` or `Failed` (diagnostic text). Delete results are `Deleted` (optional
-previous snapshot) or `Failed` (diagnostic text). Workflow services and coordinators translate those neutral
-records into UI-facing results such as `SessionSaveResult`,
-and `LiveSessionSaveResult` instead of leaking store-specific contracts into
-editors.
+Store writer APIs publish prepared facts and return no business results.
+Persistence errors propagate to workflow owners; stores neither catch exceptions
+nor return mutation-result unions.
 
-`SaveAsync` on the entity coordinators follows this pattern with
-`Saved(Id, NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
-`Failed(ErrorMessage)` on the remaining unmigrated session flows.
+`SessionSaveResult` is `Saved(Id, NewBaselineUpdated) | Conflict(CurrentSnapshot) |
+Missing | Failed(reason, details)`, with `SessionSaveFailureReason.Save`.
+`SessionEditResult` is `Applied(RecomputeError?) | Missing | Failed(reason, details)`;
+`SessionEditFailureReason` distinguishes `Edit` from `Rejected`. Missing sessions
+show notification state and cannot complete a save or close a dirty editor.
+GPS alignment returns `GpsOffsetResult.Applied | NoMatchingTrack | SessionMissing |
+Failed(reason, details)` with `GpsOffsetFailureReason.Save`. Unavailability is
+shown as a notification; persistence failures retain technical details.
+
 `BikeSaveResult.Saved` additionally carries
 a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
 to leverage-ratio recomputation without a second round-trip; the

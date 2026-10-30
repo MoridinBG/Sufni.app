@@ -138,7 +138,8 @@ The layer roles are consistent across slices:
   stores. Persisted write workflows live in coordinators or session use-case
   services behind coordinators; sync appliers and transaction runners may use
   writer interfaces for publish-only post-persistence updates. Stores remain
-  the only owners of DynamicData cache mutation. `ShellWorkspaceCoordinator`
+  the only owners of DynamicData cache mutation. Stores have no repository
+  dependencies; their writer interfaces accept prepared snapshots/removals. `ShellWorkspaceCoordinator`
   owns `IEditorFactory`; feature view models request editor keys through
   `IShellCoordinator.OpenEditor` and close deleted editors through
   `CloseEditorAsync`. The factory creates editors from current snapshots and

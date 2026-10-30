@@ -29,11 +29,9 @@ repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`,
 `Get(key)`, watch helpers, and UI-thread-dispatched protected publication
 methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
 `PublishRemovalsAsync`, and `ReplaceAllAsync`). `StorePublication` owns their shared UI dispatcher and batch boundary.
-Each store keeps its own
-read/write interfaces, persistence semantics, and domain-specific lookups. Raw cache
-mutation stays inside the store; writer interfaces expose semantic commit
-methods for local writes and publish-only methods for already-persisted external
-changes.
+Each store keeps its domain-specific lookups and read/write interfaces. Cache
+mutation stays inside stores; persistence, conflict checks and snapshot loading
+belong to the requesting workflow. No store has a repository dependency.
 Startup and post-sync refresh are coordinated by `IAppDataRefresher`. `LiveDaqStore` remains separate
 because it is runtime-only and publishes `ReplaceAll(...)` rather than
 loading persisted rows.
@@ -67,25 +65,18 @@ Each persisted writer interface additionally exposes:
   cancellation or load failure leaves the previously published state intact.
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
-- `BikeStore`, `SetupStore`, `RecordedSessionSourceStore` and `PairedDeviceStore` are publish-only: their writers accept prepared snapshots
-  or ids to remove, and have no repository dependencies. Bike save/cutoff/delete
-  persistence belongs to `BikeCoordinator`; save checks its snapshot baseline
-  once after analysis, before writing. `SetupCoordinator` publishes the setup
-  and resolved board association returned from its transaction inputs; inbound
-  sync prepares setup snapshots from persisted rows and board associations.
-  `PairedDeviceCoordinator` persists an explicit unpair before removing the
-  snapshot; server events already carry the persisted device snapshot.
-- Remaining semantic commit methods for local writes that belong to that aggregate
-  family, for example `CommitSessionMetadataAsync`,
-  `CommitTrackPatchAsync`, and `CommitPsstSwapAsync`. These methods persist one aggregate family,
-  re-read any database-computed snapshot fields, and publish the resulting
-  snapshot through the store. Commit operations do not cancel between persistence
-  and publication. Track alignment retains a caller cancellation check before
-  persistence; other current commit callers supply no cancellation token.
-- Publish-only batch methods such as `PublishSessionsChangedAsync` and
-  `PublishSessionsRemovedAsync`. Sync appliers, server events, and
-  transaction runners call these after persistence has already changed; the
-  methods re-read or remove cache entries without writing repositories.
+- Metadata publication methods accept prepared snapshots or ids to remove.
+  `BikeCoordinator`, `SetupCoordinator`, `SessionCommandService`,
+  `TrackCoordinator` and `PairedDeviceCoordinator` own their respective writes.
+  Import, live save and recompute publish snapshots returned by persistence;
+  sync prepares snapshots after applying transferred data. A committed write
+  finishes publication without checking cancellation between those steps.
+- Bike save checks its snapshot baseline once after analysis, before writing;
+  session metadata save has one check in its command service. Missing sessions
+  are workflow outcomes, not store results. Stores have no mutation-result union.
+- Server sync appliers prepare authoritative changed snapshots off-thread and
+  publish removals when a requested persisted row no longer exists. Source
+  publication contains only metadata; payload reads use the source repository.
 
 Snapshots are immutable records, not view models. Snapshots for
 editor-backed persisted entities such as bikes, setups, and sessions

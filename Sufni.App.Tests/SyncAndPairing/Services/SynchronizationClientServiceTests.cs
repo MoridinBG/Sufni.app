@@ -214,7 +214,7 @@ public class SynchronizationClientServiceTests
         // The pull cursor stays back so the next run re-derives and retries the swap;
         // advancing it would strand the swap permanently (BLOB writes do not bump updated).
         Assert.IsType<SynchronizationRunResult.Completed>(result);
-        await sessionStore.DidNotReceive().CommitPsstSwapAsync(
+        await harness.SessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
             Arg.Any<Guid>(),
             Arg.Any<byte[]>(),
             Arg.Any<string?>());
@@ -249,18 +249,11 @@ public class SynchronizationClientServiceTests
                 target,
                 targetGeneration)]);
         httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionBlobPayload(target, [1, 2, 3]));
-        sessionStore
-            .CommitPsstSwapAsync(
-                sessionId,
-                Arg.Any<byte[]>(),
-                target,
-                targetGeneration)
-            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: sessionId))));
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
 
         await CreateService().SyncAll();
 
-        await sessionStore.Received(1).CommitPsstSwapAsync(
+        await harness.SessionTelemetryWriter.Received(1).SwapSessionPsstAsync(
             sessionId,
             Arg.Any<byte[]>(),
             target,
@@ -297,10 +290,8 @@ public class SynchronizationClientServiceTests
             return fillDownload.Task;
         });
         httpApiService.GetSessionPsstAsync(swapId).Returns(new SessionBlobPayload(swapTarget, [1, 2, 3]));
-        sessionStore
-            .CommitPsstSwapAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>())
-            .Returns(callInfo => Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                new StoreMutationResult<SessionSnapshot>.Saved(TestSnapshots.Session(id: callInfo.Arg<Guid>()))));
+        sessionRepository.GetSessionAsync(fillId).Returns(new Session(fillId, "fill", "", null));
+        sessionRepository.GetSessionAsync(swapId).Returns(new Session(swapId, "swap", "", null));
 
         var syncTask = CreateService().SyncAll();
 

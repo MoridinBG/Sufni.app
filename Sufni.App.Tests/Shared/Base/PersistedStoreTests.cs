@@ -23,8 +23,6 @@ namespace Sufni.App.Tests.Shared.Base;
 public class PersistedStoreTests
 {
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
-    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
 
     [Fact]
     public async Task BikeStore_ReplacesSnapshots_AndPublicationsUpdateCache()
@@ -188,8 +186,7 @@ public class PersistedStoreTests
             HasProcessedData = true,
             Updated = 11
         };
-        sessionRepository.GetSessionsAsync().Returns([session]);
-        var store = new SessionStore(sessionRepository, sessionTelemetryWriter, new StorePublication(UiThreadDispatcher));
+        var store = new SessionStore(new StorePublication(UiThreadDispatcher));
         using var snapshotsSubscription = store.Connect().Bind(out var snapshots).Subscribe();
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
@@ -202,22 +199,19 @@ public class PersistedStoreTests
             Updated = 12
         };
         var updated = SessionSnapshot.From(updatedSession);
-        sessionRepository.GetSessionAsync(sessionId).Returns(updatedSession);
-        await store.PublishSessionsChangedAsync([sessionId], cancellationToken: TestContext.Current.CancellationToken);
+        await store.PublishSessionsChangedAsync([updated], cancellationToken: TestContext.Current.CancellationToken);
 
         var committedSession = new Session(sessionId, "Night run", "desc", null, 100)
         {
             HasProcessedData = true,
             Updated = 13
         };
-        sessionRepository.PutSessionAsync(committedSession).Returns(Task.FromResult(sessionId));
-        sessionRepository.GetSessionAsync(sessionId).Returns(committedSession);
-        var commitResult = await store.CommitSessionMetadataAsync(committedSession, updated.Updated);
-        var committed = Assert.IsType<StoreMutationResult<SessionSnapshot>.Saved>(commitResult);
+        var committed = SessionSnapshot.From(committedSession);
+        await store.PublishSessionsChangedAsync([committed]);
 
         var snapshot = Assert.Single(snapshots);
-        Assert.Equal(committed.Snapshot, snapshot);
-        Assert.Equal(committed.Snapshot, store.Get(sessionId));
+        Assert.Equal(committed, snapshot);
+        Assert.Equal(committed, store.Get(sessionId));
         Assert.Equal(3, watched.Count);
         Assert.Equal("Morning run", watched[0].Name);
         Assert.Equal("Evening run", watched[1].Name);

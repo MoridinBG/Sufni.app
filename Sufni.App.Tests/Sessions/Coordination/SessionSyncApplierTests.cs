@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using NSubstitute;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Sessions.Coordination;
@@ -12,6 +13,7 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionSyncApplierTests
 {
+    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
@@ -23,8 +25,9 @@ public class SessionSyncApplierTests
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         var dispatcher = new ManualUiThreadDispatcher();
-        _ = new SessionSyncApplier(sessionStore, sourceStore, dispatcher, sourceRepository, new InlineBackgroundTaskRunner(), sync);
+        _ = new SessionSyncApplier(sessionStore, sourceStore, dispatcher, sourceRepository, sessionRepository, new InlineBackgroundTaskRunner(), sync);
         var sessionId = Guid.NewGuid();
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(sessionId).Returns(RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(sessionId)));
 
         if (recordedSource)
@@ -32,7 +35,7 @@ public class SessionSyncApplierTests
         else
             sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
 
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<Guid>>(), Arg.Any<CancellationToken>());
+        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<SessionSnapshot>>(), Arg.Any<CancellationToken>());
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(), Arg.Any<CancellationToken>());
         await dispatcher.DrainAsync();
 
@@ -42,7 +45,7 @@ public class SessionSyncApplierTests
                 Arg.Any<CancellationToken>());
         else
             await sessionStore.Received(1).PublishSessionsChangedAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
+                Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(sessionId)),
                 Arg.Any<CancellationToken>());
     }
 
@@ -51,8 +54,9 @@ public class SessionSyncApplierTests
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         var dispatcher = new ManualUiThreadDispatcher();
-        _ = new SessionSyncApplier(sessionStore, sourceStore, dispatcher, sourceRepository, new InlineBackgroundTaskRunner(), sync);
+        _ = new SessionSyncApplier(sessionStore, sourceStore, dispatcher, sourceRepository, sessionRepository, new InlineBackgroundTaskRunner(), sync);
         var liveId = Guid.NewGuid();
+        sessionRepository.GetSessionAsync(liveId).Returns(new Session(liveId, "current", "", null));
         var deletedId = Guid.NewGuid();
         var data = new SynchronizationData
         {
@@ -70,7 +74,7 @@ public class SessionSyncApplierTests
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(deletedId)),
             Arg.Any<CancellationToken>());
         await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(liveId)),
+            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(liveId)),
             Arg.Any<CancellationToken>());
     }
 

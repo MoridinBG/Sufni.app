@@ -233,16 +233,13 @@ accompanies a watched write is restored or replaced by the SQLite-owned value.
 These values are excluded from JSON/sync contracts; they are local
 cache/read-coherence keys, not conflict versions.
 
-Repositories do not publish UI state. The reactive boundary above SQLite is the
-store writer layer: single-aggregate commit methods call repositories, re-read
-the persisted snapshot when needed, and publish through the store cache;
-publish-only writer methods re-read or remove cache entries after another owner
-has already changed persistence. Cross-aggregate workflows such as setup import,
-session delete, and processed-session save run all SQL rows in one
-`RunInTransactionAsync` callback, then publish each affected store only after
-the transaction commits. Sync merge and server endpoint handlers likewise change
-SQLite first; inbound coordinators, appliers, or `IAppDataRefresher` then
-use publish-only writer paths to reflect those already-persisted rows.
+Repositories do not publish UI state. Workflow owners persist, prepare any
+fresh database-computed snapshot fields, then publish through store writer
+interfaces. Stores do not depend on repositories, perform writes, or classify
+failures. Metadata save, GPS alignment and downloaded processed-data application
+are owned by their session/track/sync workflows. Cross-aggregate SQL still runs
+inside one `RunInTransactionAsync` callback before publication; sync endpoints
+persist first and inbound appliers prepare and publish the resulting snapshots.
 
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 

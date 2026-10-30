@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,165 +7,25 @@ using DynamicData;
 using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Sessions.Services;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
 namespace Sufni.App.Sessions.Store;
 
-/// <summary>
-/// Single source of truth for "what sessions exist" (metadata only —
-/// the psst blob lives in the database, not here). Loaded once at
-/// startup and updated by coordinators via
-/// <see cref="ISessionStoreWriter"/>.
-/// </summary>
-internal sealed class SessionStore(
-    ISessionRepository sessionRepository,
-    ISessionTelemetryWriter sessionTelemetryWriter,
-    StorePublication publication)
-    : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id, publication), ISessionStoreWriter
+/// <summary>Shared session metadata; telemetry and source payloads remain in repositories.</summary>
+internal sealed class SessionStore(StorePublication publication)
+    : SourceCacheStoreBase<SessionSnapshot, Guid>(session => session.Id, publication), ISessionStoreWriter
 {
     public IObservable<SessionSnapshot> Watch(Guid id) =>
-        WatchCore(id)
-            .Where(c => c.Reason is ChangeReason.Add or ChangeReason.Update)
-            .Select(c => c.Current);
+        WatchCore(id).Where(change => change.Reason is ChangeReason.Add or ChangeReason.Update)
+            .Select(change => change.Current);
 
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
-        Session session,
-        long? baselineUpdated = null)
-    {
-        if (baselineUpdated.HasValue)
-        {
-            var current = Get(session.Id);
-            if (current is not null && current.Updated > baselineUpdated.Value)
-            {
-                return new StoreMutationResult<SessionSnapshot>.Conflict(current);
-            }
-        }
-
-        try
-        {
-            await sessionRepository.PutSessionAsync(session);
-            return await PublishFreshSessionAsync(session.Id);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
-    }
-
-    public Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint) =>
-        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation: null);
-
-    public Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint,
-        SessionProcessedGeneration generation) =>
-        CommitPsstSwapCoreAsync(sessionId, data, fingerprint, generation);
-
-    private async Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapCoreAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint,
-        SessionProcessedGeneration? generation)
-    {
-        try
-        {
-            if (generation is null)
-            {
-                await sessionTelemetryWriter.SwapSessionPsstAsync(sessionId, data, fingerprint);
-            }
-            else
-            {
-                await sessionTelemetryWriter.SwapSessionPsstAsync(
-                    sessionId,
-                    data,
-                    fingerprint,
-                    generation);
-            }
-
-            return await PublishFreshSessionAsync(sessionId);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
-    }
-
-    public async Task<StoreMutationResult<SessionSnapshot>> CommitTrackPatchAsync(
-        Guid sessionId,
-        List<TrackPoint> points,
-        double? gpsOffsetSeconds = null,
-        CancellationToken cancellationToken = default)
+    public Task PublishSessionsChangedAsync(IReadOnlyCollection<SessionSnapshot> snapshots, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
-        try
-        {
-            await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, points, gpsOffsetSeconds);
-            return await PublishFreshSessionAsync(sessionId);
-        }
-        catch (Exception e)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Failed(e.Message);
-        }
+        return PublishSnapshotsAsync(snapshots);
     }
 
-    public async Task PublishSessionsChangedAsync(
-        IReadOnlyCollection<Guid> sessionIds,
-        CancellationToken cancellationToken = default)
-    {
-        var snapshots = new List<SessionSnapshot>();
-        var removedIds = new List<Guid>();
-
-        foreach (var sessionId in sessionIds.Distinct())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var session = await sessionRepository.GetSessionAsync(sessionId);
-            if (session is null)
-            {
-                removedIds.Add(sessionId);
-            }
-            else
-            {
-                snapshots.Add(SessionSnapshot.From(session));
-            }
-        }
-
-        if (snapshots.Count > 0)
-        {
-            await PublishSnapshotsAsync(snapshots);
-        }
-
-        if (removedIds.Count > 0)
-        {
-            await PublishRemovalsAsync(removedIds);
-        }
-    }
-
-    public Task PublishSessionsRemovedAsync(
-        IReadOnlyCollection<Guid> sessionIds,
-        CancellationToken cancellationToken = default)
+    public Task PublishSessionsRemovedAsync(IReadOnlyCollection<Guid> sessionIds, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return PublishRemovalsAsync(sessionIds.Distinct());
+        return PublishRemovalsAsync(sessionIds);
     }
-
-    private async Task<StoreMutationResult<SessionSnapshot>> PublishFreshSessionAsync(Guid sessionId)
-    {
-        var fresh = await sessionRepository.GetSessionAsync(sessionId);
-        if (fresh is null)
-        {
-            return new StoreMutationResult<SessionSnapshot>.Missing("Session disappeared after save.");
-        }
-
-        var snapshot = SessionSnapshot.From(fresh);
-        await PublishSnapshotAsync(snapshot);
-        return new StoreMutationResult<SessionSnapshot>.Saved(snapshot);
-    }
-
 }

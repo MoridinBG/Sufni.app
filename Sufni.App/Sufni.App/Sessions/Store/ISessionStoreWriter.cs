@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Shared.Stores;
 
 namespace Sufni.App.Sessions.Store;
 
@@ -18,33 +15,11 @@ public interface ISessionStoreWriter : ISessionStore
 {
     /// <summary>
     /// Replace the published contents with prepared snapshots.
-    /// contents.
     /// </summary>
     Task ReplaceAllAsync(IReadOnlyList<SessionSnapshot> snapshots);
 
-    Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
-        Session session,
-        long? baselineUpdated = null);
-
-    Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint);
-
-    Task<StoreMutationResult<SessionSnapshot>> CommitPsstSwapAsync(
-        Guid sessionId,
-        byte[] data,
-        string? fingerprint,
-        SessionProcessedGeneration generation);
-
-    Task<StoreMutationResult<SessionSnapshot>> CommitTrackPatchAsync(
-        Guid sessionId,
-        List<TrackPoint> points,
-        double? gpsOffsetSeconds = null,
-        CancellationToken cancellationToken = default);
-
     Task PublishSessionsChangedAsync(
-        IReadOnlyCollection<Guid> sessionIds,
+        IReadOnlyCollection<SessionSnapshot> snapshots,
         CancellationToken cancellationToken = default);
 
     Task PublishSessionsRemovedAsync(

@@ -424,7 +424,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             }
 
             var snapshot = SessionSnapshot.From(fresh);
-            await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
+            await sessionStore.PublishSessionsChangedAsync([snapshot]);
 
             await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, fresh.FullTrack, sessionId);
 

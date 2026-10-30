@@ -1182,9 +1182,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             telemetry,
             newOffsetSeconds);
 
-        if (!applied)
+        switch (applied)
         {
-            ErrorMessages.Add(new FailurePresentation("GPS offset could not be applied: no matching track segment was found."));
+            case GpsOffsetResult.NoMatchingTrack:
+                Notifications.Add("GPS offset could not be applied: no matching track segment was found.");
+                break;
+            case GpsOffsetResult.SessionMissing:
+                Notifications.Add("The session is no longer available.");
+                break;
+            case GpsOffsetResult.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
         }
 
         // One-way: on success the store upsert drives the refreshed track and
@@ -1356,8 +1364,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             case SessionEditResult.Applied:
                 Notifications.Add(appliedMessage);
                 break;
+            case SessionEditResult.Missing:
+                Notifications.Add("The session is no longer available.");
+                break;
             case SessionEditResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation(failed.ErrorMessage));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -2242,8 +2253,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 }
                 break;
 
+            case SessionSaveResult.Missing:
+                Notifications.Add("The session is no longer available.");
+                break;
             case SessionSaveResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Session could not be saved: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

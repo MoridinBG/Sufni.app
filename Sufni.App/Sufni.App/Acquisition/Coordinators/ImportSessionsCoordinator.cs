@@ -370,12 +370,12 @@ public class ImportSessionsCoordinator(
             failures.AddRange(failuresQueue);
 
             var publicationSucceeded = true;
-            var importedSessionIds = committedEntries.Select(entry => entry.Snapshot.Id).ToArray();
-            if (importedSessionIds.Length > 0)
+            var importedSnapshots = committedEntries.Select(entry => entry.Snapshot).ToArray();
+            if (importedSnapshots.Length > 0)
             {
                 try
                 {
-                    await sessionStore.PublishSessionsChangedAsync(importedSessionIds);
+                    await sessionStore.PublishSessionsChangedAsync(importedSnapshots);
                     await sourceStore.PublishSourcesChangedAsync(committedEntries.Select(entry => entry.Source).ToArray());
                 }
                 catch (Exception e)

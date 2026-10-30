@@ -12,7 +12,9 @@ using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Shared.Models;
+using Sufni.App.Sessions.Processing.Services;
+using Serilog;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.MapsAndTracks.Coordinators;
@@ -25,8 +27,10 @@ public class TrackCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     ISessionTrackReader sessionTrackReader,
-    IFullTrackPointReader fullTrackPointReader) : ITrackCoordinator
+    IFullTrackPointReader fullTrackPointReader,
+    ISessionTelemetryWriter sessionTelemetryWriter) : ITrackCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<TrackCoordinator>();
     private const double DefaultMediaColumnWidth = 400.0;
 
     public async Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default)
@@ -53,16 +57,24 @@ public class TrackCoordinator(
             cancellationToken);
     }
 
-    public Task<bool> UpdateSessionGpsOffsetAsync(
+    public async Task<GpsOffsetResult> UpdateSessionGpsOffsetAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,
         double gpsOffsetSeconds,
         CancellationToken cancellationToken = default)
     {
-        return backgroundTaskRunner.RunAsync(
-            () => UpdateSessionGpsOffsetCoreAsync(sessionId, fullTrackId, telemetryData, gpsOffsetSeconds, cancellationToken),
-            cancellationToken);
+        try
+        {
+            return await backgroundTaskRunner.RunAsync(
+                () => UpdateSessionGpsOffsetCoreAsync(sessionId, fullTrackId, telemetryData, gpsOffsetSeconds, cancellationToken),
+                cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            logger.Error(e, "GPS alignment failed for {SessionId}", sessionId);
+            return new GpsOffsetResult.Failed(GpsOffsetFailureReason.Save, e.Message);
+        }
     }
 
     private async Task<GpxImportResult> ImportGpxCoreAsync(
@@ -153,7 +165,7 @@ public class TrackCoordinator(
             DefaultMediaColumnWidth);
     }
 
-    private async Task<bool> UpdateSessionGpsOffsetCoreAsync(
+    private async Task<GpsOffsetResult> UpdateSessionGpsOffsetCoreAsync(
         Guid sessionId,
         Guid? fullTrackId,
         TelemetryData telemetryData,
@@ -167,7 +179,7 @@ public class TrackCoordinator(
         var resolvedFullTrackId = fullTrackId;
         if (resolvedFullTrackId is null)
         {
-            return false;
+            return new GpsOffsetResult.NoMatchingTrack();
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -175,27 +187,30 @@ public class TrackCoordinator(
         var fullTrack = await trackEntityRepository.GetAsync(resolvedFullTrackId.Value);
         if (fullTrack is null)
         {
-            return false;
+            return new GpsOffsetResult.NoMatchingTrack();
         }
 
         var normalizedOffset = SessionTrackProjection.NormalizeGpsOffsetSeconds(gpsOffsetSeconds);
         var trackPoints = SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetryData, normalizedOffset);
         if (trackPoints.Count == 0)
         {
-            return false;
+            return new GpsOffsetResult.NoMatchingTrack();
         }
 
-        // One-way persist: CommitTrackPatchAsync writes the offset and cached
-        // polyline without an optimistic-concurrency guard and without touching the
-        // processed BLOB or its fingerprint, so it cannot false-conflict. Publishing
-        // the refreshed snapshot lets the session-detail watch reaction refresh the
-        // track and baseline like a recompute — no result is pushed to the editor.
-        var result = await sessionStore.CommitTrackPatchAsync(
-            sessionId,
-            trackPoints,
-            normalizedOffset,
-            cancellationToken);
-        return result is StoreMutationResult<SessionSnapshot>.Saved;
+        if (await sessionRepository.GetSessionAsync(sessionId) is null)
+            return new GpsOffsetResult.SessionMissing();
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await sessionTelemetryWriter.PatchSessionTrackAsync(sessionId, trackPoints, normalizedOffset);
+        var fresh = await sessionRepository.GetSessionAsync(sessionId);
+        if (fresh is null)
+        {
+            await sessionStore.PublishSessionsRemovedAsync([sessionId]);
+            return new GpsOffsetResult.SessionMissing();
+        }
+
+        await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
+        return new GpsOffsetResult.Applied();
     }
 
     private static List<TrackPoint> AsList(IReadOnlyList<TrackPoint> points)
@@ -219,3 +234,12 @@ public class TrackCoordinator(
 }
 
 public sealed record GpxImportResult(int ImportedCount, int AlreadyImportedCount);
+
+public abstract record GpsOffsetResult
+{
+    private GpsOffsetResult() { }
+    public sealed record Applied : GpsOffsetResult;
+    public sealed record NoMatchingTrack : GpsOffsetResult;
+    public sealed record SessionMissing : GpsOffsetResult;
+    public sealed record Failed(GpsOffsetFailureReason Reason, string? Details = null) : GpsOffsetResult;
+}

@@ -1,6 +1,7 @@
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using System;
+using Sufni.App.Shared.Models;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -73,7 +74,8 @@ public abstract record SessionSaveResult
 
     public sealed record Saved(Guid Id, long NewBaselineUpdated) : SessionSaveResult;
     public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionSaveResult;
-    public sealed record Failed(string ErrorMessage) : SessionSaveResult;
+    public sealed record Missing : SessionSaveResult;
+    public sealed record Failed(SessionSaveFailureReason Reason, string? Details = null) : SessionSaveResult;
 }
 
 public abstract record LiveSessionSaveResult

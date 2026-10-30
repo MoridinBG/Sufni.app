@@ -2,6 +2,9 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Store;
@@ -37,7 +40,8 @@ public abstract record SessionEditResult
     /// </summary>
     public sealed record Applied(string? RecomputeError = null) : SessionEditResult;
 
-    public sealed record Failed(string ErrorMessage) : SessionEditResult;
+    public sealed record Missing : SessionEditResult;
+    public sealed record Failed(SessionEditFailureReason Reason, string? Details = null) : SessionEditResult;
 }
 
 internal sealed class SessionEditingCoordinator(
@@ -45,7 +49,9 @@ internal sealed class SessionEditingCoordinator(
     ISessionVideoStoreWriter videoStore,
     ISessionSegmentStoreWriter segmentStore,
     ISessionPersistenceTransactionRunner transactions,
-    ISessionRecomputeEngine recomputeEngine) : ISessionEditingCoordinator
+    ISessionRecomputeEngine recomputeEngine,
+    ISessionRepository sessionRepository,
+    IBackgroundTaskRunner backgroundTaskRunner) : ISessionEditingCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionEditingCoordinator>();
 
@@ -68,20 +74,27 @@ internal sealed class SessionEditingCoordinator(
     {
         if (sessionStore.Get(sessionId) is not { } session)
         {
-            return new SessionEditResult.Failed("Session is missing.");
+            return new SessionEditResult.Missing();
         }
 
         try
         {
-            var outcome = await commit(session);
+            var outcome = await backgroundTaskRunner.RunAsync(() => commit(session));
             if (outcome is SessionEditCommit.Rejected rejected)
             {
-                return new SessionEditResult.Failed(rejected.Message);
+                return new SessionEditResult.Failed(SessionEditFailureReason.Rejected, rejected.Message);
             }
 
             var committed = (SessionEditCommit.Committed)outcome;
 
-            await sessionStore.PublishSessionsChangedAsync(committed.SessionIds);
+            var snapshots = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var rows = await Task.WhenAll(committed.SessionIds.Select(sessionRepository.GetSessionAsync));
+                return rows.OfType<Sufni.App.Sessions.Models.Session>().Select(SessionSnapshot.From).ToArray();
+            });
+            var removedIds = committed.SessionIds.Except(snapshots.Select(snapshot => snapshot.Id)).ToArray();
+            if (removedIds.Length > 0) await sessionStore.PublishSessionsRemovedAsync(removedIds);
+            await sessionStore.PublishSessionsChangedAsync(snapshots);
             // Requested before any other await: the publish queues a projection
             // update, and an open editor prompts for a recompute of a stale session
             // unless one is already running.
@@ -110,7 +123,7 @@ internal sealed class SessionEditingCoordinator(
         catch (Exception e)
         {
             logger.Error(e, "Session edit failed for {SessionId}", sessionId);
-            return new SessionEditResult.Failed(e.Message);
+            return new SessionEditResult.Failed(SessionEditFailureReason.Edit, e.Message);
         }
     }
 

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using System.IO;
 using Sufni.App.Tests.TestSupport.Async;
@@ -39,7 +40,7 @@ public class ImportSessionsCoordinatorTests
         var sessionsPublished = false;
         var sourcesPublished = false;
         harness.SessionStore.PublishSessionsChangedAsync(
-                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
@@ -87,7 +88,7 @@ public class ImportSessionsCoordinatorTests
                 RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload).SequenceEqual(new byte[] { 1, 2, 3 }) &&
                 RecordedSessionSourceHash.Matches(source)));
         await harness.SessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
+            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(imported.Id)),
             Arg.Any<CancellationToken>());
         await harness.SourceStore.Received(1).PublishSourcesChangedAsync(
             Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(imported.Id)),
@@ -117,7 +118,7 @@ public class ImportSessionsCoordinatorTests
         else
         {
             harness.SessionStore.PublishSessionsChangedAsync(
-                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
                     Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("session publish failed"));
         }

@@ -15,6 +15,7 @@ public sealed class SessionSyncApplier
 
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IRecordedSessionSourceRepository sourceRepository;
+    private readonly ISessionRepository sessionRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionStoreWriter sessionStore;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
@@ -24,6 +25,7 @@ public sealed class SessionSyncApplier
         IRecordedSessionSourceStoreWriter sourceStore,
         IUiThreadDispatcher uiThreadDispatcher,
         IRecordedSessionSourceRepository sourceRepository,
+        ISessionRepository sessionRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISynchronizationServerService? synchronizationServer = null)
     {
@@ -31,6 +33,7 @@ public sealed class SessionSyncApplier
         this.sourceStore = sourceStore;
         this.uiThreadDispatcher = uiThreadDispatcher;
         this.sourceRepository = sourceRepository;
+        this.sessionRepository = sessionRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
 
         if (synchronizationServer is not null)
@@ -81,8 +84,26 @@ public sealed class SessionSyncApplier
 
         if (changes.Count > 0)
         {
-            await sessionStore.PublishSessionsChangedAsync(changes);
+            await PublishSessionsAsync(changes);
         }
+    }
+
+    private async Task PublishSessionsAsync(IReadOnlyCollection<Guid> ids)
+    {
+        var (snapshots, removed) = await backgroundTaskRunner.RunAsync(async () =>
+        {
+            var snapshots = new List<SessionSnapshot>();
+            var removed = new List<Guid>();
+            foreach (var id in ids)
+            {
+                var row = await sessionRepository.GetSessionAsync(id);
+                if (row is null) removed.Add(id);
+                else snapshots.Add(SessionSnapshot.From(row));
+            }
+            return (snapshots, removed);
+        });
+        if (removed.Count > 0) await sessionStore.PublishSessionsRemovedAsync(removed);
+        if (snapshots.Count > 0) await sessionStore.PublishSessionsChangedAsync(snapshots);
     }
 
     private async void OnSessionDataArrived(object? sender, SessionDataArrivedEventArgs e)
@@ -101,7 +122,7 @@ public sealed class SessionSyncApplier
     {
         logger.Verbose("Applying inbound session data for {SessionId}", e.SessionId);
 
-        await sessionStore.PublishSessionsChangedAsync([e.SessionId]);
+        await PublishSessionsAsync([e.SessionId]);
     }
 
     private async void OnSessionSourceDataArrived(object? sender, SessionDataArrivedEventArgs e)

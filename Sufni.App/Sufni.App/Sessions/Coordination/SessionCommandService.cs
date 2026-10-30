@@ -16,7 +16,7 @@ using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
@@ -95,33 +95,26 @@ public sealed class SessionCommandService
 
         try
         {
-            var commit = await sessionStore.CommitSessionMetadataAsync(session, baselineUpdated);
-            if (commit is StoreMutationResult<SessionSnapshot>.Conflict conflict)
+            var fresh = await backgroundTaskRunner.RunAsync(async () =>
             {
-                logger.Warning("Session save conflict for {SessionId}", session.Id);
-                return new SessionSaveResult.Conflict(conflict.CurrentSnapshot);
+                await sessionRepository.PutSessionAsync(session);
+                return await sessionRepository.GetSessionAsync(session.Id);
+            });
+            if (fresh is null)
+            {
+                await sessionStore.PublishSessionsRemovedAsync([session.Id]);
+                return new SessionSaveResult.Missing();
             }
 
-            if (commit is not StoreMutationResult<SessionSnapshot>.Saved savedResult)
-            {
-                var message = commit switch
-                {
-                    StoreMutationResult<SessionSnapshot>.Missing missing => missing.ErrorMessage,
-                    StoreMutationResult<SessionSnapshot>.Failed failed => failed.ErrorMessage,
-                    _ => "Session save failed"
-                };
-                logger.Error("Session save failed for {SessionId}: {ErrorMessage}", session.Id, message);
-                return new SessionSaveResult.Failed(message);
-            }
-
-            var saved = savedResult.Snapshot;
+            var saved = SessionSnapshot.From(fresh);
+            await sessionStore.PublishSessionsChangedAsync([saved]);
             logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Id, saved.Updated);
         }
         catch (Exception e)
         {
             logger.Error(e, "Session save failed for {SessionId}", session.Id);
-            return new SessionSaveResult.Failed(e.Message);
+            return new SessionSaveResult.Failed(SessionSaveFailureReason.Save, e.Message);
         }
     }
 
@@ -182,7 +175,7 @@ public sealed class SessionCommandService
             string? publicationWarning = null;
             try
             {
-                await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
+                await sessionStore.PublishSessionsChangedAsync([snapshot]);
                 await sourceStore.PublishSourcesChangedAsync([sourceSnapshot]);
             }
             catch (Exception e)

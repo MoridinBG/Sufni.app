@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
 using Sufni.App.Shell.Coordinators;
 using Avalonia.Threading;
@@ -216,19 +217,25 @@ public class SessionDetailViewModelTests
         harness.Shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
     }
 
-    [AvaloniaFact]
-    public async Task Save_OnFailed_AppendsErrorMessage()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Save_Unsuccessful_KeepsDraftAndDistinguishesMissingSession(bool missing)
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(updated: 5);
         var editor = harness.CreateLoadedRecordedSession(snapshot);
         editor.Name = "renamed";
         harness.SessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
-            .Returns(new SessionSaveResult.Failed("disk full"));
+            .Returns(missing ? new SessionSaveResult.Missing() : new SessionSaveResult.Failed(SessionSaveFailureReason.Save, "disk full"));
 
         await harness.SaveAsync(editor);
 
-        Assert.Single(editor.ErrorMessages);
+        Assert.True(editor.IsDirty);
+        Assert.Equal(5, editor.BaselineUpdated);
+        Assert.Equal(missing ? 0 : 1, editor.ErrorMessages.Count);
+        Assert.Equal(missing ? 1 : 0, editor.Notifications.Count);
+        harness.Shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
     }
 
     [AvaloniaFact]
@@ -640,7 +647,7 @@ public class SessionDetailViewModelTests
     {
         var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
         harness.SessionEditingCoordinator.TrimUntilEndAsync(editor.Id, 4)
-            .Returns(new SessionEditResult.Failed("Session changed while editing."));
+            .Returns(new SessionEditResult.Failed(SessionEditFailureReason.Rejected, "Session changed while editing."));
 
         await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
             .ExecuteAsync(CreatePlotContext(clickSeconds: 4));

@@ -1,5 +1,8 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
+using Microsoft.Extensions.Time.Testing;
+using Sufni.App.Tests.TestSupport.Persistence;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -60,59 +63,66 @@ public class SessionCoordinatorTests
             .Returns(true);
     }
 
-    [Fact]
-    public async Task SaveAsync_HappyPath_CommitsThroughStore()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsync_PublishesPersistedMetadata_OnlyWhenPersistenceSucceeds(bool fail)
     {
-        var existing = TestSnapshots.Session(updated: 5);
-        sessionStore.Get(existing.Id).Returns(existing);
-        var session = new Session(existing.Id, "renamed", "", null) { Updated = 7 };
-        var savedSnapshot = SessionSnapshot.From(new Session(existing.Id, "renamed", "", null)
+        var existing = TestSnapshots.Session(updated: 5) with { HasProcessedData = true, DurationSeconds = 120 };
+        var repository = new InMemorySessionRepository(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(7)));
+        repository.Seed(existing);
+        if (fail) repository.WriteFailure = new IOException("disk full");
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync([existing]);
+        var session = new Session(existing.Id, "renamed", "", null);
+
+        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(session, 5);
+
+        var persisted = (await repository.Repository.GetSessionAsync(existing.Id))!;
+        if (fail)
         {
-            Updated = 7,
-            HasProcessedData = true,
-        });
-        sessionStore
-            .CommitSessionMetadataAsync(session, 5)
-            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                new StoreMutationResult<SessionSnapshot>.Saved(savedSnapshot)));
-
-        var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
-
-        await sessionStore.Received(1).CommitSessionMetadataAsync(session, 5);
-        var saved = Assert.IsType<SessionSaveResult.Saved>(result);
-        Assert.Equal(7, saved.NewBaselineUpdated);
+            Assert.Equal(SessionSaveFailureReason.Save, Assert.IsType<SessionSaveResult.Failed>(result).Reason);
+            Assert.Equal(existing, store.Get(existing.Id));
+            Assert.Equal(existing, SessionSnapshot.From(persisted));
+        }
+        else
+        {
+            Assert.Equal(7, Assert.IsType<SessionSaveResult.Saved>(result).NewBaselineUpdated);
+            Assert.Equal("renamed", persisted.Name);
+            Assert.Equal(120, persisted.DurationSeconds);
+            Assert.True(persisted.HasProcessedData);
+            Assert.Equal(SessionSnapshot.From(persisted), store.Get(existing.Id));
+        }
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsConflict_WhenStoreIsNewer()
+    public async Task SaveAsync_ReturnsConflictWithoutOverwritingNewerState()
     {
         var current = TestSnapshots.Session(updated: 10);
-        sessionStore.Get(current.Id).Returns(current);
-        var session = new Session(current.Id, "stale", "", null);
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        repository.Seed(current);
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync([current]);
 
-        var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
+        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(new Session(current.Id, "stale", "", null), 5);
 
-        var conflict = Assert.IsType<SessionSaveResult.Conflict>(result);
-        Assert.Same(current, conflict.CurrentSnapshot);
-        await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
-            Arg.Any<Session>(),
-            Arg.Any<long?>());
+        Assert.Equal(current, Assert.IsType<SessionSaveResult.Conflict>(result).CurrentSnapshot);
+        Assert.Equal(current, store.Get(current.Id));
+        Assert.Equal(current, SessionSnapshot.From((await repository.Repository.GetSessionAsync(current.Id))!));
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsFailed_WhenCommitFails()
+    public async Task SaveAsync_WhenSessionDisappearsAfterPersistence_ReturnsMissingAndRemovesPublishedRow()
     {
         var existing = TestSnapshots.Session(updated: 5);
-        sessionStore.Get(existing.Id).Returns(existing);
-        var session = new Session(existing.Id, "x", "", null);
-        sessionStore
-            .CommitSessionMetadataAsync(session, 5)
-            .Returns(Task.FromResult<StoreMutationResult<SessionSnapshot>>(
-                new StoreMutationResult<SessionSnapshot>.Failed("disk full")));
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync([existing]);
+        sessionRepository.GetSessionAsync(existing.Id).Returns((Session?)null);
 
-        var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
+        var result = await CreateCoordinator(store).SaveAsync(existing.ToMetadataEntity(), 5);
 
-        Assert.IsType<SessionSaveResult.Failed>(result);
+        Assert.IsType<SessionSaveResult.Missing>(result);
+        Assert.Null(store.Get(existing.Id));
     }
 
     [Fact]
@@ -172,7 +182,7 @@ public class SessionCoordinatorTests
             Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(session.Id)),
             Arg.Any<CancellationToken>());
         await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
+            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(session.Id)),
             Arg.Any<CancellationToken>());
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
@@ -216,7 +226,7 @@ public class SessionCoordinatorTests
         else
         {
             sessionStore.PublishSessionsChangedAsync(
-                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
                     Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("session publish failed"));
         }
@@ -255,7 +265,7 @@ public class SessionCoordinatorTests
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
         await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
             Arg.Any<CancellationToken>());
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
             Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
@@ -438,15 +448,15 @@ public class SessionCoordinatorTests
             trackCoordinator,
             domainQuery);
 
-    private SessionCoordinator CreateCoordinator() =>
+    private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
         new(
             CreateLoader(),
-            CreateCommandService());
+            CreateCommandService(store, repository));
 
-    private SessionCommandService CreateCommandService() =>
+    private SessionCommandService CreateCommandService(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
         new(
-            sessionStore,
-            sessionRepository,
+            store ?? sessionStore,
+            repository ?? sessionRepository,
             sessionTelemetryWriter,
             setupRepository,
             bikeRepository,

@@ -32,3 +32,7 @@ public enum SetupSaveFailureReason { Save }
 public enum SetupImportFailureReason { Import }
 public enum SetupExportFailureReason { Export }
 public enum SetupDeleteFailureReason { Delete }
+
+public enum SessionSaveFailureReason { Save }
+public enum SessionEditFailureReason { Edit, Rejected }
+public enum GpsOffsetFailureReason { Save }
