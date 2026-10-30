@@ -210,13 +210,13 @@ There are five kinds of view model in the presentation layer:
   `ProcessingPreferenceWorkflow` owns the confirm-recompute-persist flow that
   runs when a processing preference change is committed. The editor constructs
   these collaborators and delegates; it no longer owns those flows. Session
-  detail loading uses one local-only `SessionCoordinator.LoadDetailAsync` path;
+  detail loading uses one local-only `ISessionLoader.LoadDetailAsync` path;
   inactive-tab deferral is supplied
   by `EditorFactory` for both profiles and evaluated against current tab activity. Collaborators reach the
   editor through the `ISessionOperationGateway` contract rather than delegate
   bundles.
   Recorded-session loading publishes decoded telemetry first through
-  `SessionCoordinator.LoadDetailAsync` / `SessionLoader.LoadDetailAsync`, then
+  `ISessionLoader.LoadDetailAsync`, then
   awaits `LoadTrackAsync` under the same active load token and augments the
   loaded state only if that generation is still current. This lets built-in
   telemetry Signals become ready while the map and track-backed rows are still

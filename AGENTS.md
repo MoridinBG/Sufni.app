@@ -356,11 +356,11 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   server startup or user-driven arrivals. `AppStartup` gates pages on schema
   initialization and the first store refresh; `AppShutdown` owns close prompts,
   work drainage, pending deletes, server stop and provider disposal.
-  `SessionCoordinator` itself is a thin router over the session
-  use-case classes (`SessionLoader` for reads, `SessionCommandService`
-  for store-writing commands and recompute requests, the
-  `SessionRecomputeEngine` it drives, and `SessionSyncApplier`) — see
-  [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
+  `SessionCoordinator` owns metadata save, processing-option changes, live-capture
+  save and deletion. Recorded editors use `ISessionLoader` for staged reads;
+  lists and staleness prompts call `ISessionRecomputeEngine` directly. The engine
+  owns recompute liveness and commit guards; `SessionSyncApplier` owns inbound
+  publication — see [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),
 starting from [Layered Architecture](docs/architecture/ui.md#layered-architecture)

@@ -82,6 +82,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     #region Private fields
 
     private readonly ISessionCoordinator sessionCoordinator;
+    private readonly ISessionLoader sessionLoader;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
@@ -687,7 +688,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             var progress = new SessionLoadProgressReporter(
                 update => PublishSessionLoadProgress(update, mapExpected, currentSnapshot, token));
-            var result = await sessionCoordinator.LoadDetailAsync(Id, progress, token);
+            var result = await sessionLoader.LoadDetailAsync(Id, progress, token);
             if (token.IsCancellationRequested)
             {
                 return;
@@ -708,7 +709,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 return;
             }
 
-            var trackResult = await sessionCoordinator.LoadTrackAsync(
+            var trackResult = await sessionLoader.LoadTrackAsync(
                 Id,
                 loaded.Data.TelemetryPresentation.TelemetryData,
                 progress,
@@ -1411,6 +1412,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     internal SessionDetailViewModel(
         SessionSnapshot snapshot,
         ISessionCoordinator sessionCoordinator,
+        ISessionLoader sessionLoader,
+        ISessionRecomputeEngine recomputeEngine,
         ITrackCoordinator trackCoordinator,
         ISessionStore sessionStore,
         IRecordedSessionProjection recordedSessionProjection,
@@ -1435,6 +1438,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
+        this.sessionLoader = sessionLoader;
         this.sessionOperationRunner = sessionOperationRunner;
         this.trackCoordinator = trackCoordinator;
         this.bikeCoordinator = bikeCoordinator;
@@ -1652,7 +1656,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             bikeCoordinator,
             ErrorMessages.Add);
         stalenessReconciler = new SessionStalenessReconciler(
-            sessionCoordinator,
+            recomputeEngine,
             dialogService,
             this);
         processingPreferenceWorkflow = new ProcessingPreferenceWorkflow(

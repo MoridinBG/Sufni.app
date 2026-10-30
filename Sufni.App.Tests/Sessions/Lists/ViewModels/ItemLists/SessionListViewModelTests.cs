@@ -122,7 +122,7 @@ public class SessionListViewModelTests
     }
 
     [Fact]
-    public async Task RecalculateRow_CallsCoordinatorWithSummaryUpdatedBaseline()
+    public async Task RecalculateRow_RequestsRecomputeForSelectedSession()
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
@@ -133,17 +133,17 @@ public class SessionListViewModelTests
                 staleness: new SessionStaleness.DependencyHashChanged());
             sessionCache.AddOrUpdate(summary);
 
-            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
+            var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
+            recomputeEngine.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
-            var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
             var row = Assert.Single(viewModel.Items);
 
             Assert.True(row.RecalculateCommand.CanExecute(null));
             await row.RecalculateCommand.ExecuteAsync(null);
 
-            await sessionCoordinator.Received(1)
+            await recomputeEngine.Received(1)
                 .RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList);
             Assert.Empty(viewModel.ErrorMessages);
         }
@@ -201,7 +201,7 @@ public class SessionListViewModelTests
                 timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
             var viewModel = new SessionListViewModel(
                 projection,
-                TestCoordinatorSubstitutes.Session(),
+                TestCoordinatorSubstitutes.RecomputeEngine(),
                 VideoFixture.CreateEmptyStore(),
                 UiThreadDispatcher,
                 pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
@@ -242,11 +242,11 @@ public class SessionListViewModelTests
                 staleness: new SessionStaleness.DependencyHashChanged());
             sessionCache.AddOrUpdate(summary);
 
-            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
+            var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
+            recomputeEngine.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
                 .Returns(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "boom"));
 
-            var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
             await viewModel.Items[0].RecalculateCommand.ExecuteAsync(null);
 
             Assert.NotEmpty(viewModel.ErrorMessages);
@@ -265,17 +265,17 @@ public class SessionListViewModelTests
                 staleness: new SessionStaleness.Current());
             sessionCache.AddOrUpdate(summary);
 
-            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
+            var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
+            recomputeEngine.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
-            var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
             var row = Assert.Single(viewModel.Items);
 
             Assert.True(row.RecalculateCommand.CanExecute(null));
             await row.RecalculateCommand.ExecuteAsync(null);
 
-            await sessionCoordinator.Received(1)
+            await recomputeEngine.Received(1)
                 .RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList);
         }
     }
@@ -583,11 +583,12 @@ public class SessionListViewModelTests
         IRecordedSessionProjection projection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        ISessionVideoStore? videoStore = null)
+        ISessionVideoStore? videoStore = null,
+        ISessionRecomputeEngine? recomputeEngine = null)
     {
         var viewModel = new SessionListViewModel(
             projection,
-            sessionCoordinator,
+            recomputeEngine ?? TestCoordinatorSubstitutes.RecomputeEngine(),
             videoStore ?? VideoFixture.CreateEmptyStore(),
             uiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());

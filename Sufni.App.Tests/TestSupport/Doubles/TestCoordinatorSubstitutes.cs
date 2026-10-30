@@ -68,21 +68,27 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static ISessionCoordinator Session()
-    {
-        var coordinator = Substitute.For<ISessionCoordinator>();
+    public static ISessionCoordinator Session() => Substitute.For<ISessionCoordinator>();
 
-        coordinator.LoadTrackAsync(
+    public static ISessionLoader SessionLoader()
+    {
+        var loader = Substitute.For<ISessionLoader>();
+        loader.LoadTrackAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<TelemetryData>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(new SessionDetailTrackLoadResult.Loaded(
                 new SessionTrackPresentationData(null, null, null, null)));
-        coordinator.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
-            .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
+        return loader;
+    }
 
-        return coordinator;
+    public static ISessionRecomputeEngine RecomputeEngine()
+    {
+        var engine = Substitute.For<ISessionRecomputeEngine>();
+        engine.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
+            .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
+        return engine;
     }
 
     public static ILiveDaqCoordinator LiveDaq()

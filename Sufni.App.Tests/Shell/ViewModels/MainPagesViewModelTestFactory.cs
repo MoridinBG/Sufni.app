@@ -96,7 +96,7 @@ internal static class MainPagesViewModelTestFactory
     private static SessionListViewModel CreateSessionListPage(IShellCoordinator shell, IShellActions feedback) =>
         new(
             CreateRecordedSessionProjection(),
-            TestCoordinatorSubstitutes.Session(),
+            TestCoordinatorSubstitutes.RecomputeEngine(),
             VideoFixture.CreateEmptyStore(),
             UiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);

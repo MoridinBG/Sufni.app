@@ -39,6 +39,8 @@ internal sealed class EditorFactory(
     ISetupCoordinator setupCoordinator,
     ISetupStore setupStore,
     ISessionCoordinator sessionCoordinator,
+    ISessionLoader sessionLoader,
+    ISessionRecomputeEngine recomputeEngine,
     ITrackCoordinator trackCoordinator,
     ISessionStore sessionStore,
     IRecordedSessionProjection recordedSessionProjection,
@@ -109,6 +111,8 @@ internal sealed class EditorFactory(
         new(
             snapshot,
             sessionCoordinator,
+            sessionLoader,
+            recomputeEngine,
             trackCoordinator,
             sessionStore,
             recordedSessionProjection,

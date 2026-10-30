@@ -1,64 +1,70 @@
-using Serilog;
-using Sufni.App.Sessions.Services;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
-
 using System;
-using Sufni.App.Shared.Models;
 using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
+using Sufni.Telemetry;
 
+using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.Telemetry;
+using Sufni.App.Setups.Models;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.Sessions.Coordination;
 
-/// <summary>
-/// Owns processing-option changes and routes recorded-session reads and commands.
-/// </summary>
-public class SessionCoordinator : ISessionCoordinator
+/// <summary>Owns session metadata, processing-option, live-save and delete workflows.</summary>
+public sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
+
+    private readonly IUiThreadDispatcher dispatcher;
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionRecomputeEngine recomputeEngine;
+    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ISynchronizableRepository<Setup> setupRepository;
+    private readonly ISynchronizableRepository<Bike> bikeRepository;
+    private readonly IRecordedSessionSourceStoreWriter sourceStore;
+    private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly IUiThreadDispatcher dispatcher;
-    private readonly SessionLoader sessionLoader;
-    private readonly SessionCommandService commandService;
+    private readonly ISessionPreferences sessionPreferences;
+    private readonly ISessionRecomputeEngine recomputeEngine;
+    private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
 
     public SessionCoordinator(
-        SessionLoader sessionLoader,
-        SessionCommandService commandService,
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
-        ISessionRecomputeEngine recomputeEngine,
+        ISessionTelemetryWriter sessionTelemetryWriter,
+        ISynchronizableRepository<Setup> setupRepository,
+        ISynchronizableRepository<Bike> bikeRepository,
+        IRecordedSessionSourceStoreWriter sourceStore,
+        IRecordedSessionReprocessor recordedSessionReprocessor,
         IBackgroundTaskRunner backgroundTaskRunner,
+        ISessionPreferences sessionPreferences,
+        ISessionRecomputeEngine recomputeEngine,
+        ISessionPersistenceTransactionRunner sessionPersistenceTransactions,
         IUiThreadDispatcher dispatcher)
     {
+        this.dispatcher = dispatcher;
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
-        this.recomputeEngine = recomputeEngine;
+        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.setupRepository = setupRepository;
+        this.bikeRepository = bikeRepository;
+        this.sourceStore = sourceStore;
+        this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        this.dispatcher = dispatcher;
-        this.sessionLoader = sessionLoader;
-        this.commandService = commandService;
+        this.sessionPreferences = sessionPreferences;
+        this.recomputeEngine = recomputeEngine;
+        this.sessionPersistenceTransactions = sessionPersistenceTransactions;
     }
-
-    public Task<SessionDetailLoadResult> LoadDetailAsync(
-        Guid sessionId,
-        IProgress<SessionDetailLoadProgress> progress,
-        CancellationToken cancellationToken = default)
-        => sessionLoader.LoadDetailAsync(sessionId, progress, cancellationToken);
-
-    public Task<SessionDetailTrackLoadResult> LoadTrackAsync(
-        Guid sessionId,
-        TelemetryData telemetryData,
-        IProgress<SessionDetailLoadProgress> progress,
-        CancellationToken cancellationToken = default)
-        => sessionLoader.LoadTrackAsync(sessionId, telemetryData, progress, cancellationToken);
 
     public async Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds)
     {
@@ -98,28 +104,168 @@ public class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
-        commandService.SaveAsync(session, baselineUpdated);
+    public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
+    {
+        logger.Information("Starting session save for {SessionId}", session.Id);
 
-    public Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
+        // Optimistic concurrency is the in-memory store-snapshot compare, not a
+        // SQL WHERE updated=? guard: the store's last-seen Updated is the editor's
+        // baseline, so a newer store snapshot means an external edit landed first.
+        var current = sessionStore.Get(session.Id);
+        if (current is not null && current.Updated > baselineUpdated)
+        {
+            logger.Warning("Session save conflict for {SessionId}", session.Id);
+            return new SessionSaveResult.Conflict(current);
+        }
+
+        if (current is not null) session.VelocityFilterWindowMilliseconds = current.VelocityFilterWindowMilliseconds;
+
+        try
+        {
+            var fresh = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                await sessionRepository.PutSessionAsync(session);
+                return await sessionRepository.GetSessionAsync(session.Id);
+            });
+            if (fresh is null)
+            {
+                await sessionStore.PublishSessionsRemovedAsync([session.Id]);
+                return new SessionSaveResult.Missing();
+            }
+
+            var saved = SessionSnapshot.From(fresh);
+            await sessionStore.PublishSessionsChangedAsync([saved]);
+            logger.Information("Session save completed for {SessionId}", session.Id);
+            return new SessionSaveResult.Saved(saved.Id, saved.Updated);
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Session save failed for {SessionId}", session.Id);
+            return new SessionSaveResult.Failed(SessionSaveFailureReason.Save, e.Message);
+        }
+    }
+
+    public async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
         Session session,
         LiveSessionCapturePackage capture,
         SessionPreferences preferences,
         CancellationToken cancellationToken = default)
-        => commandService.SaveLiveCaptureAsync(session, capture, preferences, cancellationToken);
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
 
-    public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason) =>
-        commandService.RequestRecomputeAsync(sessionId, reason);
+        logger.Information("Starting live session save for {SessionId}", session.Id);
 
-    public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
-        IProgress<SessionRecomputeAllProgress>? progress = null,
-        CancellationToken cancellationToken = default) =>
-        commandService.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, progress, cancellationToken);
+        try
+        {
+            var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
+            var setup = await setupRepository.GetAsync(capture.Context.SetupId)
+                        ?? throw new InvalidOperationException("Setup is missing.");
+            var bike = await bikeRepository.GetAsync(setup.BikeId)
+                       ?? throw new InvalidOperationException("Bike is missing.");
+            var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+            var bikeSnapshot = BikeSnapshot.From(bike);
+            var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+            var sessionSnapshot = SessionSnapshot.From(session);
+            var input = new RecordedSessionDerivationInput(
+                sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload);
 
-    public bool IsRecomputeActive(Guid sessionId) => commandService.IsRecomputeActive(sessionId);
+            var reprocessResult = await backgroundTaskRunner.RunAsync(
+                () => recordedSessionReprocessor.ReprocessAsync(input, cancellationToken),
+                cancellationToken);
 
-    public Task<SessionDeleteResult> DeleteAsync(Guid sessionId) =>
-        commandService.DeleteAsync(sessionId);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
+                return new LiveSessionSaveResult.ProcessingFailed(failure.Reason, failure.Details);
+            var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
+            var fresh = await sessionTelemetryWriter.PutProcessedSessionAsync(
+                session, processed.ProcessedTelemetry, processed.GeneratedFullTrack, source);
+
+            var snapshot = SessionSnapshot.From(fresh);
+            try
+            {
+                await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
+            }
+            catch (Exception e)
+            {
+                logger.Warning(e, "Failed to update recorded-session preferences after saving session {SessionId}", session.Id);
+            }
+
+            string? publicationWarning = null;
+            try
+            {
+                await sessionStore.PublishSessionsChangedAsync([snapshot]);
+                await sourceStore.PublishSourcesChangedAsync([sourceSnapshot]);
+            }
+            catch (Exception e)
+            {
+                publicationWarning = $"Live session was saved, but app state could not be refreshed: {e.Message}";
+                logger.Warning(e, "Failed to publish live session state after saving session {SessionId}", session.Id);
+            }
+
+            logger.Information("Live session save completed for {SessionId}", session.Id);
+            return new LiveSessionSaveResult.Saved(
+                snapshot.Id,
+                snapshot.Updated,
+                publicationWarning);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Live session save failed for {SessionId}", session.Id);
+            return new LiveSessionSaveResult.Failed(LiveSessionSaveFailureReason.Save, e.Message);
+        }
+    }
+
+    public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
+    {
+        logger.Information("Starting session delete for {SessionId}", sessionId);
+
+        try
+        {
+            var session = await sessionRepository.GetSessionAsync(sessionId);
+            var trackId = session?.FullTrack;
+            var shouldDeleteTrack = false;
+
+            if (trackId.HasValue)
+            {
+                shouldDeleteTrack = !await sessionRepository.HasOtherActiveSessionWithFullTrackAsync(
+                    trackId.Value,
+                    sessionId);
+            }
+
+            var sourceDeleted = await sessionPersistenceTransactions.DeleteSessionAsync(
+                sessionId,
+                trackId,
+                shouldDeleteTrack);
+
+            if (sourceDeleted)
+            {
+                await sourceStore.PublishSourcesRemovedAsync([sessionId]);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.Error(e, "Session delete failed for {SessionId}", sessionId);
+            return new SessionDeleteResult.Failed(SessionDeleteFailureReason.Delete, e.Message);
+        }
+
+        try
+        {
+            await sessionPreferences.RemoveRecordedAsync(sessionId);
+        }
+        catch (Exception e)
+        {
+            logger.Warning(e, "Failed to remove recorded-session preferences after deleting session {SessionId}", sessionId);
+        }
+
+        await sessionStore.PublishSessionsRemovedAsync([sessionId]);
+        logger.Information("Session delete completed for {SessionId}", sessionId);
+        return new SessionDeleteResult.Deleted();
+    }
 }
 
 public abstract record SessionSaveResult

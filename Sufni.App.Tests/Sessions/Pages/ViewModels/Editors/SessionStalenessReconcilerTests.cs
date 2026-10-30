@@ -18,14 +18,14 @@ public class SessionStalenessReconcilerTests
         var sessionId = Guid.NewGuid();
         var harness = new ReconcilerHarness(sessionId);
         harness.ChoosePromptButton("Recompute");
-        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+        harness.RecomputeEngine.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
             .Returns(new SessionRecomputeResult.Recomputed(12));
 
         await harness.Reconciler.HandleStalenessAsync(
             Domain(TestSnapshots.Session(id: sessionId, updated: 5, name: "stale"), new SessionStaleness.DependencyHashChanged()),
             RecomputeReason.StaleOnOpen);
 
-        await harness.SessionCoordinator.Received(1).RequestRecomputeAsync(sessionId, RecomputeReason.StaleOnOpen);
+        await harness.RecomputeEngine.Received(1).RequestRecomputeAsync(sessionId, RecomputeReason.StaleOnOpen);
         // A successful recompute drives the editor through the store/watch reaction,
         // not the prompter; the prompter surfaces no error and applies no snapshot.
         Assert.Empty(harness.Errors);
@@ -39,7 +39,7 @@ public class SessionStalenessReconcilerTests
         var harness = new ReconcilerHarness(sessionId);
         harness.ChoosePromptButton("Recompute all");
         harness.RunProgressWorkInline();
-        harness.SessionCoordinator.RequestRecomputeAllAsync(Arg.Any<IProgress<SessionRecomputeAllProgress>>())
+        harness.RecomputeEngine.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, Arg.Any<IProgress<SessionRecomputeAllProgress>>())
             .Returns(new SessionRecomputeAllResult(Total: 3, Recomputed: 3, Superseded: 0, NotRecomputable: 0, Failed: 0));
 
         await harness.Reconciler.HandleStalenessAsync(
@@ -51,8 +51,8 @@ public class SessionStalenessReconcilerTests
         await harness.DialogService.Received(1).ShowProgressAsync(
             Arg.Any<string>(),
             Arg.Any<Func<IProgress<DialogProgress>, Task<SessionRecomputeAllResult>>>());
-        await harness.SessionCoordinator.Received(1).RequestRecomputeAllAsync(Arg.Any<IProgress<SessionRecomputeAllProgress>>());
-        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        await harness.RecomputeEngine.Received(1).RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, Arg.Any<IProgress<SessionRecomputeAllProgress>>());
+        await harness.RecomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
         Assert.Empty(harness.Errors);
     }
 
@@ -62,7 +62,7 @@ public class SessionStalenessReconcilerTests
         var harness = new ReconcilerHarness();
         harness.ChoosePromptButton("Recompute all");
         harness.RunProgressWorkInline();
-        harness.SessionCoordinator.RequestRecomputeAllAsync(Arg.Any<IProgress<SessionRecomputeAllProgress>>())
+        harness.RecomputeEngine.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, Arg.Any<IProgress<SessionRecomputeAllProgress>>())
             .Returns(new SessionRecomputeAllResult(Total: 4, Recomputed: 2, Superseded: 0, NotRecomputable: 1, Failed: 1));
 
         await harness.Reconciler.HandleStalenessAsync(
@@ -82,7 +82,7 @@ public class SessionStalenessReconcilerTests
             Domain(TestSnapshots.Session(updated: 5), new SessionStaleness.DependencyHashChanged()),
             RecomputeReason.StaleOnOpen);
 
-        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        await harness.RecomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
         Assert.Empty(harness.Errors);
     }
 
@@ -91,14 +91,14 @@ public class SessionStalenessReconcilerTests
     {
         var sessionId = Guid.NewGuid();
         var harness = new ReconcilerHarness(sessionId);
-        harness.SessionCoordinator.IsRecomputeActive(sessionId).Returns(true);
+        harness.RecomputeEngine.IsActive(sessionId).Returns(true);
 
         await harness.Reconciler.HandleStalenessAsync(
             Domain(TestSnapshots.Session(id: sessionId, updated: 5), new SessionStaleness.DependencyHashChanged()),
             RecomputeReason.DependencyChanged);
 
         await harness.DialogService.DidNotReceive().ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
-        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        await harness.RecomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class SessionStalenessReconcilerTests
         var sessionId = Guid.NewGuid();
         var harness = new ReconcilerHarness(sessionId);
         harness.ChoosePromptButton("Recompute");
-        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+        harness.RecomputeEngine.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
             .Returns(processing
                 ? new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.InvalidCalibration, "boom")
                 : (SessionRecomputeResult)new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "boom"));
@@ -158,7 +158,7 @@ public class SessionStalenessReconcilerTests
         var sessionId = Guid.NewGuid();
         var harness = new ReconcilerHarness(sessionId);
         harness.ChoosePromptButton("Recompute");
-        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+        harness.RecomputeEngine.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
             .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource(ProcessedStateStale: true)));
 
         await harness.Reconciler.HandleStalenessAsync(
@@ -174,7 +174,7 @@ public class SessionStalenessReconcilerTests
         var sessionId = Guid.NewGuid();
         var harness = new ReconcilerHarness(sessionId);
         harness.ChoosePromptButton("Recompute");
-        harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
+        harness.RecomputeEngine.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
             .Returns(new SessionRecomputeResult.Recomputed(12));
         var domain = Domain(
             TestSnapshots.Session(id: sessionId, updated: 5, name: "stale"),
@@ -216,7 +216,7 @@ public class SessionStalenessReconcilerTests
             RecomputeReason.StaleOnOpen);
 
         await harness.DialogService.Received(2).ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
-        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        await harness.RecomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     [Fact]
@@ -251,7 +251,7 @@ public class SessionStalenessReconcilerTests
             RecomputeReason.StaleOnOpen);
 
         await harness.DialogService.Received(2).ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
-        await harness.SessionCoordinator.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        await harness.RecomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
     }
 
     private static RecordedSessionDomainSnapshot Domain(
@@ -269,7 +269,7 @@ public class SessionStalenessReconcilerTests
 
     private sealed class ReconcilerHarness
     {
-        public ISessionCoordinator SessionCoordinator { get; } = Substitute.For<ISessionCoordinator>();
+        public ISessionRecomputeEngine RecomputeEngine { get; } = Substitute.For<ISessionRecomputeEngine>();
         public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
         public TestSessionOperationGateway Gateway { get; } = new();
         public List<FailurePresentation> Errors => Gateway.Errors;
@@ -278,7 +278,7 @@ public class SessionStalenessReconcilerTests
         public ReconcilerHarness(Guid? sessionId = null)
         {
             Gateway.SessionId = sessionId ?? Guid.NewGuid();
-            Reconciler = new SessionStalenessReconciler(SessionCoordinator, DialogService, Gateway);
+            Reconciler = new SessionStalenessReconciler(RecomputeEngine, DialogService, Gateway);
         }
 
         // Resolves the recompute prompt as if the user clicked the button with the

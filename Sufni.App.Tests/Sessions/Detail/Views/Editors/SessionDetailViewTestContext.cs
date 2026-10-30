@@ -34,6 +34,8 @@ namespace Sufni.App.Tests.Sessions.Detail.Views.Editors;
 internal sealed class SessionDetailViewTestContext
 {
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
+    private readonly ISessionLoader sessionLoader = TestCoordinatorSubstitutes.SessionLoader();
+    private readonly ISessionRecomputeEngine recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionProjection recordedSessionProjection = Substitute.For<IRecordedSessionProjection>();
@@ -109,7 +111,7 @@ internal sealed class SessionDetailViewTestContext
     {
         snapshot ??= CreateTelemetryLightSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+        sessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: false);
@@ -131,7 +133,7 @@ internal sealed class SessionDetailViewTestContext
     {
         snapshot ??= CreateTelemetryBearingSnapshot();
         ConfigureStores(snapshot);
-        sessionCoordinator.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+        sessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
 
         ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: true);
@@ -162,6 +164,8 @@ internal sealed class SessionDetailViewTestContext
         var editor = new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
+            sessionLoader,
+            recomputeEngine,
             trackCoordinator,
             sessionStore,
             recordedSessionProjection,

@@ -36,14 +36,11 @@ public class SessionCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
-    private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions = Substitute.For<ISessionPersistenceTransactionRunner>();
-    private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-    private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly ISessionRecomputeEngine recomputeEngine = Substitute.For<ISessionRecomputeEngine>();
@@ -402,152 +399,7 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsTelemetryBeforeTrackLoad()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, telemetry);
-        var progress = new RecordingProgress<SessionDetailLoadProgress>();
-
-        var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, progress, cancellationToken: TestContext.Current.CancellationToken);
-
-        var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
-        Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
-        Assert.Equal(snapshot.FullTrackId, loaded.Data.TelemetryPresentation.FullTrackId);
-        Assert.Null(loaded.Data.TelemetryPresentation.FullTrackPoints);
-        Assert.Null(loaded.Data.TelemetryPresentation.TrackPoints);
-        Assert.Null(loaded.Data.TelemetryPresentation.MediaColumnWidth);
-        Assert.Equal(DampingSpeedCutoffs.Default, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
-        Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
-        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid?>(),
-            Arg.Any<TelemetryData>(),
-            Arg.Any<CancellationToken>());
-        Assert.Equal(
-            [
-                SessionDetailLoadStage.LoadingTelemetryData,
-                SessionDetailLoadStage.CheckingLocalData,
-            ],
-            progress.Reports.Select(report => report.Stage));
-    }
-
-    [Fact]
-    public async Task LoadTrackAsync_ReturnsTrackData()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var trackData = new SessionTrackPresentationData(
-            Guid.NewGuid(),
-            [new TrackPoint(1, 1, 1, 0)],
-            [new TrackPoint(2, 2, 2, 0)],
-            400.0);
-
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .Returns(trackData);
-        var progress = new RecordingProgress<SessionDetailLoadProgress>();
-
-        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
-
-        var loaded = Assert.IsType<SessionDetailTrackLoadResult.Loaded>(result);
-        Assert.Same(trackData, loaded.Data);
-        Assert.Equal(
-            [
-                SessionDetailLoadStage.LoadingMapData,
-                SessionDetailLoadStage.FinalizingSessionData,
-            ],
-            progress.Reports.Select(report => report.Stage));
-    }
-
-    [Fact]
-    public async Task LoadTrackAsync_ReturnsFailed_WhenTrackLoadThrows()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("track failed"));
-        var progress = new RecordingProgress<SessionDetailLoadProgress>();
-
-        var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.IsType<SessionDetailTrackLoadResult.Failed>(result);
-        Assert.Equal(
-            [SessionDetailLoadStage.LoadingMapData],
-            progress.Reports.Select(report => report.Stage));
-    }
-
-    [Fact]
-    public async Task LoadTrackAsync_PropagatesCancellation()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: true);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, cancellation.Token)
-            .Returns(Task.FromCanceled<SessionTrackPresentationData>(cancellation.Token));
-        var progress = new RecordingProgress<SessionDetailLoadProgress>();
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellation.Token));
-
-        Assert.Equal(
-            [SessionDetailLoadStage.LoadingMapData],
-            progress.Reports.Select(report => report.Stage));
-    }
-
-    [Fact]
-    public async Task LoadDetailAsync_ReturnsIncompleteLocalData_WhenTelemetryMissing()
-    {
-        var snapshot = TestSnapshots.Session(hasProcessedData: false);
-        sessionStore.Get(snapshot.Id).Returns(snapshot);
-        SetLocalTelemetry(snapshot.Id, null);
-        var progress = new RecordingProgress<SessionDetailLoadProgress>();
-
-        var result = await CreateCoordinator().LoadDetailAsync(
-            snapshot.Id,
-            progress, cancellationToken: TestContext.Current.CancellationToken);
-
-        var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
-        Assert.Equal(snapshot.Id, incomplete.SessionId);
-        Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
-        Assert.False(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
-        Assert.Equal(
-            [
-                SessionDetailLoadStage.LoadingTelemetryData,
-                SessionDetailLoadStage.CheckingLocalData,
-            ],
-            progress.Reports.Select(report => report.Stage));
-        await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<Guid?>(),
-            Arg.Any<TelemetryData>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    private SessionLoader CreateLoader() =>
-        new(
-            sessionStore,
-            processedTelemetryReader,
-            trackCoordinator,
-            domainQuery);
-
     private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
-        new(
-            CreateLoader(),
-            CreateCommandService(store, repository),
-            store ?? sessionStore,
-            repository ?? sessionRepository,
-            recomputeEngine,
-            backgroundTaskRunner,
-            new InlineUiThreadDispatcher());
-
-    private SessionCommandService CreateCommandService(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
         new(
             store ?? sessionStore,
             repository ?? sessionRepository,
@@ -559,13 +411,8 @@ public class SessionCoordinatorTests
             backgroundTaskRunner,
             sessionPreferences,
             recomputeEngine,
-            sessionPersistenceTransactions);
-
-    private void SetLocalTelemetry(Guid sessionId, TelemetryData? telemetry)
-    {
-        processedTelemetryReader.Set(sessionId, telemetry);
-    }
-
+            sessionPersistenceTransactions,
+            new InlineUiThreadDispatcher());
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

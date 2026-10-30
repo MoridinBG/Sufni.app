@@ -171,7 +171,7 @@ public static class AppComposition
         services.AddSingleton<IRecordedSessionSourceSyncQuery, RecordedSessionSourceSyncQuery>();
         services.AddSingleton<TrackCoordinator>();
         services.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
-        services.AddSingleton<SessionLoader>(sp => new SessionLoader(
+        services.AddSingleton<ISessionLoader>(sp => new SessionLoader(
             sp.GetRequiredService<ISessionStore>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
             sp.GetRequiredService<ITrackCoordinator>(),
@@ -188,18 +188,6 @@ public static class AppComposition
             sp.GetRequiredService<IRecordedSessionSourceRepository>()));
         services.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
         services.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
-        services.AddSingleton<SessionCommandService>(sp => new SessionCommandService(
-            sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
-            sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
-            sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
-            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IRecordedSessionReprocessor>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<ISessionPersistenceTransactionRunner>()));
         if (root.Capabilities.CanHostSyncServer)
         {
             services.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(

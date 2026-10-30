@@ -68,7 +68,7 @@ Each persisted writer interface additionally exposes:
 - Publication methods accept prepared snapshots or ids to remove. Segment
   publication combines changes and removals in one cache update; video
   workflows perform file-presence checks before passing their snapshots.
-  `BikeCoordinator`, `SetupCoordinator`, `SessionCommandService`,
+  `BikeCoordinator`, `SetupCoordinator`, `SessionCoordinator`,
   `TrackCoordinator` and `PairedDeviceCoordinator` own their respective writes.
   Import, live save and recompute publish snapshots returned by persistence;
   sync prepares snapshots after applying transferred data. A committed write
@@ -172,7 +172,7 @@ the track without a discard prompt.
 Recompute and GPS-offset adjustment are one-way: they persist and upsert
 the session store, and the refresh reaches the editor through this same
 watch reaction rather than a pushed result.
-`ISessionCoordinator.RequestRecomputeAsync(sessionId, reason)` is
+`ISessionRecomputeEngine.RequestRecomputeAsync(sessionId, reason)` is
 baseline-free — the `SessionRecomputeEngine` owns serialization and
 liveness — and the staleness prompter is forward-only: on a stale,
 recomputable session it confirms and requests a recompute (suppressed

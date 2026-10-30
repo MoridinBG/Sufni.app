@@ -86,7 +86,7 @@ public class SessionDetailViewModelTests
         Assert.False(prompted.Task.IsCompleted);
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.RetainedSessionIds);
         Assert.Empty(harness.ProcessedTelemetryReader.ReleasedSessionIds);
-        await harness.SessionCoordinator.Received(1).LoadDetailAsync(snapshot.Id,
+        await harness.SessionLoader.Received(1).LoadDetailAsync(snapshot.Id,
             Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>());
 
         editor.SetTabActive(true);
@@ -107,7 +107,7 @@ public class SessionDetailViewModelTests
         var editor = harness.CreateLoadedRecordedSession(
             snapshot,
             harness.CreateLoadedResult(telemetry));
-        harness.SessionCoordinator.LoadTrackAsync(
+        harness.SessionLoader.LoadTrackAsync(
                 snapshot.Id,
                 telemetry,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
@@ -145,7 +145,7 @@ public class SessionDetailViewModelTests
         var editor = harness.CreateLoadedRecordedSession(
             snapshot,
             harness.CreateLoadedResult(telemetry));
-        harness.SessionCoordinator.LoadTrackAsync(
+        harness.SessionLoader.LoadTrackAsync(
                 snapshot.Id,
                 telemetry,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
@@ -177,7 +177,7 @@ public class SessionDetailViewModelTests
         var editor = harness.CreateLoadedRecordedSession(
             snapshot,
             harness.CreateLoadedResult(telemetry));
-        harness.SessionCoordinator.LoadTrackAsync(
+        harness.SessionLoader.LoadTrackAsync(
                 snapshot.Id,
                 telemetry,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
@@ -274,7 +274,7 @@ public class SessionDetailViewModelTests
         var editor = harness.CreateLoadedRecordedSession(
             snapshot,
             loadResult: IncompleteResult(snapshot.Id));
-        harness.SessionCoordinator.LoadDetailAsync(
+        harness.SessionLoader.LoadDetailAsync(
                 snapshot.Id,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
@@ -310,7 +310,7 @@ public class SessionDetailViewModelTests
             snapshot,
             harness.CreateLoadedResult(firstTelemetry),
             watch.AsObservable());
-        harness.SessionCoordinator.LoadDetailAsync(
+        harness.SessionLoader.LoadDetailAsync(
                 snapshot.Id,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
@@ -320,7 +320,7 @@ public class SessionDetailViewModelTests
                 2 => Task.FromResult<SessionDetailLoadResult>(harness.CreateLoadedResult(latestTelemetry)),
                 _ => throw new InvalidOperationException("Unexpected load request."),
             });
-        harness.SessionCoordinator.LoadTrackAsync(
+        harness.SessionLoader.LoadTrackAsync(
                 snapshot.Id,
                 Arg.Any<TelemetryData>(),
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
@@ -370,7 +370,7 @@ public class SessionDetailViewModelTests
             snapshot,
             harness.CreateLoadedResult(initialTelemetry),
             watch.AsObservable());
-        harness.SessionCoordinator.LoadDetailAsync(
+        harness.SessionLoader.LoadDetailAsync(
                 snapshot.Id,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
@@ -540,7 +540,7 @@ public class SessionDetailViewModelTests
         Assert.Equal("dirty draft", editor.DescriptionText);
         Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
         Assert.Same(oldTelemetry, editor.CurrentTelemetryData);
-        await harness.SessionCoordinator.Received(1).LoadDetailAsync(
+        await harness.SessionLoader.Received(1).LoadDetailAsync(
             snapshot.Id,
             Arg.Any<IProgress<SessionDetailLoadProgress>>(),
             Arg.Any<CancellationToken>());
@@ -567,7 +567,7 @@ public class SessionDetailViewModelTests
             snapshot,
             harness.CreateLoadedResult(oldTelemetry),
             watch.AsObservable());
-        harness.SessionCoordinator.LoadDetailAsync(
+        harness.SessionLoader.LoadDetailAsync(
                 snapshot.Id,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
@@ -591,7 +591,7 @@ public class SessionDetailViewModelTests
 
         await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, freshTelemetry));
 
-        await harness.SessionCoordinator.Received(2).LoadDetailAsync(
+        await harness.SessionLoader.Received(2).LoadDetailAsync(
             snapshot.Id,
             Arg.Any<IProgress<SessionDetailLoadProgress>>(),
             Arg.Any<CancellationToken>());

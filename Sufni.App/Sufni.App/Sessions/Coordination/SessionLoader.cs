@@ -12,7 +12,21 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Coordination;
 
-public sealed class SessionLoader
+public interface ISessionLoader
+{
+    Task<SessionDetailLoadResult> LoadDetailAsync(
+        Guid sessionId,
+        IProgress<SessionDetailLoadProgress> progress,
+        CancellationToken cancellationToken = default);
+
+    Task<SessionDetailTrackLoadResult> LoadTrackAsync(
+        Guid sessionId,
+        TelemetryData telemetryData,
+        IProgress<SessionDetailLoadProgress> progress,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class SessionLoader : ISessionLoader
 {
     private static readonly ILogger logger = Log.ForContext<SessionLoader>();
 
@@ -48,7 +62,7 @@ public sealed class SessionLoader
 
             logger.Verbose("Loading local telemetry data for session {SessionId}", sessionId);
             progress.Report(SessionDetailLoadProgress.LoadingTelemetryData);
-            var telemetryData = await LoadTelemetryDataAsync(sessionId, cancellationToken);
+            var telemetryData = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
             progress.Report(SessionDetailLoadProgress.CheckingLocalData);
             var recordedSourceMissingOrHashMismatch = IsRecordedSourceMissingOrHashMismatch(domain);
             if (telemetryData is null || recordedSourceMissingOrHashMismatch)
@@ -140,7 +154,4 @@ public sealed class SessionLoader
             ? (DampingSpeedCutoffs.Default, null)
             : (bike.DampingSpeedCutoffs, new DampingSpeedCutoffOwner(bike.Id, bike.Updated));
     }
-
-    private Task<TelemetryData?> LoadTelemetryDataAsync(Guid sessionId, CancellationToken cancellationToken) =>
-        processedTelemetryReader.GetAsync(sessionId, cancellationToken);
 }

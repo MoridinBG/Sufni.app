@@ -54,6 +54,8 @@ internal sealed class SessionDetailHarness
     }
 
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
+    public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
+    public ISessionRecomputeEngine RecomputeEngine { get; } = TestCoordinatorSubstitutes.RecomputeEngine();
     public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
     public IRecordedSessionProjection RecordedSessionProjection { get; } = Substitute.For<IRecordedSessionProjection>();
     public ISessionPresentationService SessionPresentationService { get; } = Substitute.For<ISessionPresentationService>();
@@ -121,7 +123,7 @@ internal sealed class SessionDetailHarness
                         TrackPoints = null,
                         MediaColumnWidth = null,
                     }));
-            SessionCoordinator.LoadTrackAsync(
+            SessionLoader.LoadTrackAsync(
                     snapshot.Id,
                     presentation.TelemetryData,
                     Arg.Any<IProgress<SessionDetailLoadProgress>>(),
@@ -134,7 +136,7 @@ internal sealed class SessionDetailHarness
                         presentation.MediaColumnWidth)));
         }
 
-        SessionCoordinator.LoadDetailAsync(
+        SessionLoader.LoadDetailAsync(
                 snapshot.Id,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
@@ -170,6 +172,8 @@ internal sealed class SessionDetailHarness
         var editor = new SessionDetailViewModel(
             snapshot,
             SessionCoordinator,
+            SessionLoader,
+            RecomputeEngine,
             trackCoordinator,
             SessionStore,
             RecordedSessionProjection,

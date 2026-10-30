@@ -25,7 +25,7 @@ internal sealed class SessionStalenessReconciler
     private const string RecomputeAllChoiceId = "recompute-all";
     private const string CancelChoiceId = "cancel";
 
-    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly IDialogService dialogService;
     private readonly ISessionOperationGateway gateway;
     private bool recomputePromptRunning;
@@ -33,11 +33,11 @@ internal sealed class SessionStalenessReconciler
     private bool reportedNotRecomputableStale;
 
     public SessionStalenessReconciler(
-        ISessionCoordinator sessionCoordinator,
+        ISessionRecomputeEngine recomputeEngine,
         IDialogService dialogService,
         ISessionOperationGateway gateway)
     {
-        this.sessionCoordinator = sessionCoordinator;
+        this.recomputeEngine = recomputeEngine;
         this.dialogService = dialogService;
         this.gateway = gateway;
     }
@@ -47,7 +47,7 @@ internal sealed class SessionStalenessReconciler
         // Suppress the prompt for a recompute the user just triggered: the request
         // flips engine.IsActive(id) true synchronously before any await, and both
         // the projection emission and the request run on the UI thread.
-        if (sessionCoordinator.IsRecomputeActive(gateway.SessionId))
+        if (recomputeEngine.IsActive(gateway.SessionId))
         {
             return;
         }
@@ -113,7 +113,7 @@ internal sealed class SessionStalenessReconciler
                     return;
             }
 
-            var result = await sessionCoordinator.RequestRecomputeAsync(gateway.SessionId, reason);
+            var result = await recomputeEngine.RequestRecomputeAsync(gateway.SessionId, reason);
             switch (result)
             {
                 case SessionRecomputeResult.NotRecomputable:
@@ -153,7 +153,7 @@ internal sealed class SessionStalenessReconciler
                     progress.Report(new DialogProgress(
                         report.Total == 0 ? 1 : (double)report.Completed / report.Total,
                         $"{report.Completed} of {report.Total} sessions")));
-                return sessionCoordinator.RequestRecomputeAllAsync(relay);
+                return recomputeEngine.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, relay);
             });
 
         // Skipped (not-recomputable) sessions are an expected outcome of a bulk
