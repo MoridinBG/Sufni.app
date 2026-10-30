@@ -851,6 +851,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 EvaluateDirtiness();
 
                 NotifyDeleteCommandStateChanged();
+                shell.CompleteEdit();
                 break;
 
             case BikeSaveResult.Conflict conflict:

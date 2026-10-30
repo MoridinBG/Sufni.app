@@ -2246,6 +2246,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 BaselineUpdated = saved.NewBaselineUpdated;
                 metadataConflictPending = false;
                 IsDirty = false;
+                shell.CompleteEdit();
                 break;
 
             case SessionSaveResult.Conflict conflict:

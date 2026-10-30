@@ -200,8 +200,6 @@ public static class AppComposition
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<IShellCoordinator>(),
-            sp.GetRequiredService<IAppEnvironment>(),
             sp.GetRequiredService<ISessionRecomputeEngine>(),
             sp.GetRequiredService<Func<IEditorFactory>>(),
             sp.GetRequiredService<ISessionPersistenceTransactionRunner>()));

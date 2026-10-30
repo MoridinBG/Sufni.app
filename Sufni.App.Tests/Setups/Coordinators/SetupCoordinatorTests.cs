@@ -21,7 +21,6 @@ public class SetupCoordinatorTests
     private readonly ISetupPersistenceTransactionRunner setupPersistenceTransactions = Substitute.For<ISetupPersistenceTransactionRunner>();
     private readonly IFilesService filesService = Substitute.For<IFilesService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
-    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
 
     public SetupCoordinatorTests()
@@ -46,7 +45,7 @@ public class SetupCoordinatorTests
             .Returns(Task.CompletedTask);
     }
 
-    private SetupCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace)
+    private SetupCoordinator CreateCoordinator()
     {
         SetupCoordinator? coordinator = null;
         coordinator = new(
@@ -54,8 +53,6 @@ public class SetupCoordinatorTests
             bikeStore,
             filesService,
             backgroundTaskRunner,
-            shell,
-            CreateEnvironment(layoutProfile),
             () => editorFactory,
             setupPersistenceTransactions);
         return coordinator;
@@ -148,24 +145,8 @@ public class SetupCoordinatorTests
         await setupStore.Received(1).PublishSetupsChangedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(existing.Id)),
             Arg.Any<CancellationToken>());
-        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SetupSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
-    }
-
-    [Fact]
-    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
-    {
-        var existing = TestSnapshots.Setup(updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
-        var setup = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId, Updated = 7 };
-
-        await CreateCoordinator(UiLayoutProfile.Compact).SaveAsync(
-            setup,
-            boardId: existing.BoardId,
-            baselineUpdated: 5);
-
-        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -261,7 +242,6 @@ public class SetupCoordinatorTests
         await setupStore.DidNotReceive().PublishSetupsChangedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -284,7 +264,6 @@ public class SetupCoordinatorTests
         await setupStore.DidNotReceive().PublishSetupsChangedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
-        shell.DidNotReceive().GoBack();
     }
 
     // ----- DeleteAsync -----
@@ -345,19 +324,4 @@ public class SetupCoordinatorTests
         await editorFactory.DidNotReceive().CloseSetupEditor(Arg.Any<Guid>());
     }
 
-    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
-        new AppEnvironment(
-            LayoutProfile: layoutProfile,
-            Capabilities: new AppCapabilities(
-                CanHostSyncServer: true,
-                CanPairAsClient: true,
-                SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                CanPlayVideo: false),
-            Input: new InputCapabilities(
-                HasPointer: true,
-                HasTouch: true,
-                HasKeyboard: true,
-                SupportsLongPressContextMenu: true,
-                CommandModifier: CommandModifier.Control));
 }

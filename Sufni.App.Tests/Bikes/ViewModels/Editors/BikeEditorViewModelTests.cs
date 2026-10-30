@@ -561,6 +561,7 @@ public class BikeEditorViewModelTests
         await editor.CloseCommand.ExecuteAsync(null);
 
         shell.DidNotReceive().Close(editor);
+        shell.DidNotReceive().CompleteEdit();
         Assert.True(editor.IsDirty);
         Assert.True(editor.SaveCommand.CanExecute(null));
         Assert.Equal(5, editor.BaselineUpdated);
@@ -591,6 +592,7 @@ public class BikeEditorViewModelTests
                 b.ImageRotationDegrees == 0),
             5);
         Assert.Equal(11, editor.BaselineUpdated);
+        shell.Received(1).CompleteEdit();
         Assert.Empty(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
     }

@@ -5,9 +5,9 @@
 ## Coordinators
 
 Coordinators own feature workflows. They are the only layer view models call
-for persisted write workflows, the only layer that decides post-save
-navigation (e.g. pop the page on mobile), and the only layer that subscribes to
-synchronization events. Single-aggregate persistence and cache publication live
+for persisted write workflows and the only layer that subscribes to
+synchronization events. Successful editors request `IShellCoordinator.CompleteEdit`;
+the shell alone applies post-save back navigation in the compact profile. Single-aggregate persistence and cache publication live
 on store writer APIs; cross-aggregate writes are owned by workflow transaction
 runners or command services and publish affected stores only after the SQLite
 transaction commits. Coordinators never mutate store caches directly. They live

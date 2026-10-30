@@ -439,6 +439,8 @@ public class EditorFactoryTests
             return Task.CompletedTask;
         }
 
+        public void CompleteEdit() { }
+
         public bool GoBack()
         {
             return false;

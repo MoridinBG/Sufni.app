@@ -104,6 +104,14 @@ public sealed class ShellWorkspaceCoordinator(
 
     public bool GoBack() => workspace.GoBack();
 
+    public void CompleteEdit()
+    {
+        if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+        {
+            workspace.GoBack();
+        }
+    }
+
     private void OpenTab(
         ViewModelBase view,
         ClosedTabRestoreEntry? restoreEntry,

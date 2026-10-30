@@ -20,8 +20,6 @@ public class SetupCoordinator(
     IBikeStoreWriter bikeStore,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
-    IShellCoordinator shell,
-    IAppEnvironment appEnvironment,
     Func<IEditorFactory> editorFactory,
     ISetupPersistenceTransactionRunner setupPersistenceTransactions)
     : ISetupCoordinator
@@ -78,11 +76,6 @@ public class SetupCoordinator(
 
             var saved = SetupSnapshot.From(setup, boardId);
             await setupStore.PublishSetupsChangedAsync([setup.Id]);
-            if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
-            {
-                _ = shell.GoBack();
-            }
-
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Updated);
         }

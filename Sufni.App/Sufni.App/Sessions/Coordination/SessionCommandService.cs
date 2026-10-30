@@ -40,8 +40,6 @@ public sealed class SessionCommandService
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionPreferences sessionPreferences;
-    private readonly IShellCoordinator shell;
-    private readonly IAppEnvironment appEnvironment;
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly Func<IEditorFactory> editorFactory;
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
@@ -56,8 +54,6 @@ public sealed class SessionCommandService
         IRecordedSessionReprocessor recordedSessionReprocessor,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionPreferences sessionPreferences,
-        IShellCoordinator shell,
-        IAppEnvironment appEnvironment,
         ISessionRecomputeEngine recomputeEngine,
         Func<IEditorFactory> editorFactory,
         ISessionPersistenceTransactionRunner sessionPersistenceTransactions)
@@ -71,8 +67,6 @@ public sealed class SessionCommandService
         this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sessionPreferences = sessionPreferences;
-        this.shell = shell;
-        this.appEnvironment = appEnvironment;
         this.recomputeEngine = recomputeEngine;
         this.editorFactory = editorFactory;
         this.sessionPersistenceTransactions = sessionPersistenceTransactions;
@@ -124,11 +118,6 @@ public sealed class SessionCommandService
             }
 
             var saved = savedResult.Snapshot;
-            if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
-            {
-                _ = shell.GoBack();
-            }
-
             logger.Information("Session save completed for {SessionId}", session.Id);
             return new SessionSaveResult.Saved(saved.Updated);
         }

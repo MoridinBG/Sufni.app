@@ -17,8 +17,6 @@ namespace Sufni.App.Bikes.Coordinators;
 internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
     IBikeDependencyQuery dependencyQuery,
-    IShellCoordinator shell,
-    IAppEnvironment appEnvironment,
     IBikeEditorService bikeEditorService,
     IBikeRearSuspensionValidator rearSuspensionValidator,
     Func<IEditorFactory> editorFactory)
@@ -181,11 +179,6 @@ internal class BikeCoordinator(
             switch (mutationResult)
             {
                 case StoreMutationResult<BikeSnapshot>.Saved saved:
-                    if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
-                    {
-                        _ = shell.GoBack();
-                    }
-
                     logger.Information("Bike save completed for {BikeId}", bike.Id);
                     return new BikeSaveResult.Saved(saved.Snapshot.Updated, analysisResult);
 

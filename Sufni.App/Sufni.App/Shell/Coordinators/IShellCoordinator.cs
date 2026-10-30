@@ -56,4 +56,7 @@ public interface IShellCoordinator
     /// request.
     /// </summary>
     bool GoBack();
+
+    /// <summary>Apply post-save navigation for a successfully saved editor.</summary>
+    void CompleteEdit();
 }

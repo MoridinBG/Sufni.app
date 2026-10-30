@@ -325,6 +325,7 @@ public class SetupEditorViewModelTests
             boardId,
             5);
         Assert.Equal(11, editor.BaselineUpdated);
+        shell.Received(1).CompleteEdit();
         Assert.False(sensor.IsDirty);
         Assert.False(editor.IsDirty);
         shell.DidNotReceive().GoBack();

@@ -39,7 +39,6 @@ public class SessionCoordinatorTests
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions = Substitute.For<ISessionPersistenceTransactionRunner>();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
-    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
@@ -93,7 +92,6 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
         await sessionStore.Received(1).CommitSessionMetadataAsync(session, 5);
-        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<SessionSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
     }
@@ -112,7 +110,6 @@ public class SessionCoordinatorTests
         await sessionStore.DidNotReceive().CommitSessionMetadataAsync(
             Arg.Any<Session>(),
             Arg.Any<long?>());
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -129,7 +126,6 @@ public class SessionCoordinatorTests
         var result = await CreateCoordinator().SaveAsync(session, baselineUpdated: 5);
 
         Assert.IsType<SessionSaveResult.Failed>(result);
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -456,14 +452,14 @@ public class SessionCoordinatorTests
             trackCoordinator,
             domainQuery);
 
-    private SessionCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+    private SessionCoordinator CreateCoordinator() =>
         new(
             sessionStore,
             CreateLoader(),
-            CreateCommandService(layoutProfile),
+            CreateCommandService(),
             () => editorFactory);
 
-    private SessionCommandService CreateCommandService(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
+    private SessionCommandService CreateCommandService() =>
         new(
             sessionStore,
             sessionRepository,
@@ -474,8 +470,6 @@ public class SessionCoordinatorTests
             reprocessor,
             backgroundTaskRunner,
             sessionPreferences,
-            shell,
-            CreateEnvironment(layoutProfile),
             recomputeEngine,
             () => editorFactory,
             sessionPersistenceTransactions);
@@ -485,21 +479,6 @@ public class SessionCoordinatorTests
         processedTelemetryReader.Set(sessionId, telemetry);
     }
 
-    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
-        new AppEnvironment(
-            LayoutProfile: layoutProfile,
-            Capabilities: new AppCapabilities(
-                CanHostSyncServer: true,
-                CanPairAsClient: true,
-                SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                CanPlayVideo: false),
-            Input: new InputCapabilities(
-                HasPointer: true,
-                HasTouch: true,
-                HasKeyboard: true,
-                SupportsLongPressContextMenu: true,
-                CommandModifier: CommandModifier.Control));
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

@@ -146,6 +146,23 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Save_CompletesEdit_AfterAcceptingSavedBaseline()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession(updated: 5);
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        editor.Name = "renamed";
+        harness.SessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
+            .Returns(new SessionSaveResult.Saved(11));
+
+        await harness.SaveAsync(editor);
+
+        Assert.Equal(11, editor.BaselineUpdated);
+        Assert.False(editor.IsDirty);
+        harness.Shell.Received(1).CompleteEdit();
+    }
+
+    [AvaloniaFact]
     public async Task Save_OnConflict_PromptsUser_AndReloadsWhenAccepted()
     {
         var harness = new SessionDetailHarness();
@@ -162,6 +179,7 @@ public class SessionDetailViewModelTests
 
         Assert.Equal("remote-updated", editor.Name);
         Assert.Equal(12, editor.BaselineUpdated);
+        harness.Shell.DidNotReceive().CompleteEdit();
     }
 
     [AvaloniaFact]

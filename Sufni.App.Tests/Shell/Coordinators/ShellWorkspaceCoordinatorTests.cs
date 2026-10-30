@@ -410,6 +410,27 @@ public class ShellWorkspaceCoordinatorTests
         Assert.Equal([tab], workspace.Tabs);
     }
 
+    [Theory]
+    [InlineData(UiLayoutProfile.Compact)]
+    [InlineData(UiLayoutProfile.Workspace)]
+    public void CompleteEdit_UsesCurrentLayoutProfile(UiLayoutProfile profile)
+    {
+        var workspace = CreateWorkspace();
+        var previous = new TestTabPageViewModel(id: 1);
+        var editor = new TestTabPageViewModel(id: 2);
+        workspace.OpenOrFocus(previous);
+        workspace.OpenOrFocus(editor);
+        var environment = Substitute.For<IAppEnvironment>();
+        environment.LayoutProfile.Returns(UiLayoutProfile.Workspace);
+        var coordinator = new ShellWorkspaceCoordinator(workspace, environment);
+        environment.LayoutProfile.Returns(profile);
+
+        coordinator.CompleteEdit();
+
+        Assert.Same(profile == UiLayoutProfile.Compact ? previous : editor, workspace.CurrentTab);
+        Assert.Equal([previous, editor], workspace.Tabs);
+    }
+
     // ----- GoBack -----
 
     [Fact]

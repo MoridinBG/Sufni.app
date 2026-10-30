@@ -145,7 +145,9 @@ There are five kinds of view model in the presentation layer:
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
   `SaveResult.Conflict` they prompt the user via
   `IDialogService.ShowConfirmationAsync` and rebuild from the
-  conflict's current snapshot. Persisted-entity editors share the
+  conflict's current snapshot. After accepting a successful save baseline,
+  editors call `IShellCoordinator.CompleteEdit`; the shell returns to the
+  previous surface in compact layout and keeps the current tab in workspace layout. Persisted-entity editors share the
   `TabPageViewModelBase` command surface, which is the single
   `x:DataType` used by the shared `CommonButtonLine` editor button
   strip. `LiveDaqDetailViewModel` and

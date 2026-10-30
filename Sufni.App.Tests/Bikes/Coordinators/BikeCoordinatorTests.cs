@@ -19,7 +19,6 @@ public class BikeCoordinatorTests
 {
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
-    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator();
     private readonly IEditorFactory editorFactory = Substitute.For<IEditorFactory>();
@@ -39,14 +38,12 @@ public class BikeCoordinatorTests
                 new StoreDeleteResult<BikeSnapshot>.Deleted()));
     }
 
-    private BikeCoordinator CreateCoordinator(UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace)
+    private BikeCoordinator CreateCoordinator()
     {
         BikeCoordinator? coordinator = null;
         coordinator = new(
             bikeStore,
             dependencyQuery,
-            shell,
-            CreateEnvironment(layoutProfile),
             bikeEditorService,
             rearSuspensionValidator,
             () => editorFactory);
@@ -185,31 +182,9 @@ public class BikeCoordinatorTests
                 b.ImageRotationDegrees == 13.5 &&
                 b.Updated == 7),
             5);
-        shell.DidNotReceive().GoBack();
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
         Assert.Equal(7, saved.NewBaselineUpdated);
         Assert.IsType<BikeEditorAnalysisResult.Unavailable>(saved.AnalysisResult);
-    }
-
-    [Fact]
-    public async Task SaveAsync_OnCompact_NavigatesBackAfterSave()
-    {
-        var existing = TestSnapshots.Bike(updated: 5);
-        bikeStore.Get(existing.Id).Returns(existing);
-        var coordinator = CreateCoordinator(UiLayoutProfile.Compact);
-
-        var bike = new Bike(existing.Id, "renamed")
-        {
-            HeadAngle = 65,
-            ForkStroke = 160,
-            FrontWheelDiameterMm = 760,
-            RearWheelDiameterMm = 750,
-            Updated = 7,
-        };
-
-        await coordinator.SaveAsync(bike, baselineUpdated: 5);
-
-        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -226,7 +201,6 @@ public class BikeCoordinatorTests
         var conflict = Assert.IsType<BikeSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
         await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -244,7 +218,6 @@ public class BikeCoordinatorTests
         var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
 
         Assert.IsType<BikeSaveResult.Failed>(result);
-        shell.DidNotReceive().GoBack();
     }
 
     // ----- UpdateDampingSpeedCutoffAsync -----
@@ -290,7 +263,6 @@ public class BikeCoordinatorTests
                 bike.RearCompressionDampingCutoffMmPerSecond == 140 &&
                 bike.RearReboundDampingCutoffMmPerSecond == 150),
             5);
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -330,7 +302,6 @@ public class BikeCoordinatorTests
         var conflict = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
         await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -350,7 +321,6 @@ public class BikeCoordinatorTests
             300);
 
         Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Failed>(result);
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -379,7 +349,6 @@ public class BikeCoordinatorTests
         var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
         Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
         await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
-        shell.DidNotReceive().GoBack();
     }
 
     [Fact]
@@ -391,7 +360,7 @@ public class BikeCoordinatorTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(_ => analysisCompletion.Task);
-        var coordinator = CreateCoordinator(UiLayoutProfile.Compact);
+        var coordinator = CreateCoordinator();
         var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(existing.Id, "full sus")
         {
@@ -412,7 +381,6 @@ public class BikeCoordinatorTests
                 Arg.Any<CancellationToken>());
         Assert.False(saveTask.IsCompleted);
         _ = bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
-        shell.DidNotReceive().GoBack();
 
         var analysisResult = new BikeEditorAnalysisResult.Computed(
             new BikeAnalysisPresentationData(
@@ -426,7 +394,6 @@ public class BikeCoordinatorTests
         await bikeStore.Received(1).CommitBikeAsync(
             Arg.Is<Bike>(committed => committed.Id == existing.Id),
             5);
-        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -449,7 +416,6 @@ public class BikeCoordinatorTests
             default!,
             Arg.Any<CancellationToken>());
         await bikeStore.DidNotReceive().CommitBikeAsync(Arg.Any<Bike>(), Arg.Any<long?>());
-        shell.DidNotReceive().GoBack();
     }
 
     // ----- DeleteAsync -----
@@ -498,19 +464,4 @@ public class BikeCoordinatorTests
         await editorFactory.DidNotReceive().CloseBikeEditor(Arg.Any<Guid>());
     }
 
-    private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
-        new AppEnvironment(
-            LayoutProfile: layoutProfile,
-            Capabilities: new AppCapabilities(
-                CanHostSyncServer: true,
-                CanPairAsClient: true,
-                SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                CanPlayVideo: false),
-            Input: new InputCapabilities(
-                HasPointer: true,
-                HasTouch: true,
-                HasKeyboard: true,
-                SupportsLongPressContextMenu: true,
-                CommandModifier: CommandModifier.Control));
 }
