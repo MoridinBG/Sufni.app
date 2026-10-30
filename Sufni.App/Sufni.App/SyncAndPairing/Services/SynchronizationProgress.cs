@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Models;
 
 namespace Sufni.App.SyncAndPairing.Services;
 
@@ -39,6 +40,10 @@ public sealed record SynchronizationActivityEventArgs(SynchronizationProgressSna
 
 public abstract record SynchronizationRunResult
 {
+    private SynchronizationRunResult() { }
+
+    public sealed record Failed(SyncFailureReason Reason, string? Details = null) : SynchronizationRunResult;
+
     public sealed record Completed : SynchronizationRunResult;
 
     public sealed record IncompleteLocalData(

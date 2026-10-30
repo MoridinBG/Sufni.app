@@ -36,3 +36,5 @@ public enum SetupDeleteFailureReason { Delete }
 public enum SessionSaveFailureReason { Save }
 public enum SessionEditFailureReason { Edit, Rejected }
 public enum GpsOffsetFailureReason { Save }
+
+public enum SyncFailureReason { Synchronize, ProtocolMismatch }

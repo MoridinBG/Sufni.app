@@ -217,6 +217,13 @@ Canceled | Failed`. Failures carry the corresponding `SetupSaveFailureReason.Sav
 `SetupExportFailureReason.Export` plus optional details. Import publication failure
 still reports failure after the transaction has committed.
 
+`SynchronizationRunResult` is `Completed | IncompleteLocalData | Failed(reason, details)`.
+Completeness verification still owns the incomplete counts. The client workflow
+logs run failures once and returns `SyncFailureReason.Synchronize | ProtocolMismatch`;
+the coordinator forwards the reason without re-logging. Discovery without an
+endpoint raises `ServerUnavailable`, displayed as a notification. Progress and
+completion `Message` values remain ordinary text.
+
 Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | Failed`;
 alignment returns `VideoAlignmentResult.Updated | ClipMissing | Failed`. Their
 failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with

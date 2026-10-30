@@ -202,3 +202,18 @@ Failure leaves the published device present and returns a typed reason with
 optional diagnostic details. Server pairing/unpairing events publish their
 already-persisted snapshots/removals without another database read. The
 coordinator releases its server subscriptions when the application is disposed.
+
+### Run failures and unavailable servers
+
+The client workflow returns `SynchronizationRunResult.Failed(reason, details)`
+when a phase throws, logging the cause once with the peer identity. HTTP 426 is
+classified as `ProtocolMismatch`; other phase failures are `Synchronize`.
+`Completed` and `IncompleteLocalData` still come from the existing completeness
+verification. Cancellation remains neutral and committed source transfers still
+publish from the transfer drain.
+
+`SyncCoordinator` forwards typed failures to shell feedback without another log.
+It retains the existing refresh-on-success policy; cancellation also refreshes
+already-committed data. No discovered endpoint produces `ServerUnavailable`
+notification state, with no client run or refresh. The shell shows fixed failure
+summaries with optional details while keeping progress/completion text unchanged.

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using Sufni.App.Shared.Models;
 using NSubstitute.ExceptionExtensions;
 using System.Reactive.Subjects;
 
@@ -230,7 +231,7 @@ public class SyncCoordinatorTests
     }
 
     [Fact]
-    public async Task SyncAllAsync_WhenNoServerEndpointIsDiscovered_ReportsFailureClearsProgressAndHasNoSideEffects()
+    public async Task SyncAllAsync_WhenNoServerEndpointIsDiscovered_ReportsUnavailableClearsProgressAndHasNoSideEffects()
     {
         SetPairingState(true);
         pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
@@ -238,12 +239,15 @@ public class SyncCoordinatorTests
         var coordinator = CreateCoordinator();
         var events = new List<SynchronizationProgressSnapshot?>();
         var failed = 0;
+        var unavailable = 0;
         coordinator.ProgressChanged += (_, _) => events.Add(coordinator.Progress);
         coordinator.SyncFailed += (_, _) => failed++;
+        coordinator.ServerUnavailable += (_, _) => unavailable++;
 
         await coordinator.SyncAllAsync();
 
-        Assert.Equal(1, failed);
+        Assert.Equal(0, failed);
+        Assert.Equal(1, unavailable);
         Assert.Contains(events, e => e?.Phase == SynchronizationPhase.ResolvingServer);
         Assert.Null(events.Last());
         Assert.Null(coordinator.Progress);
@@ -255,10 +259,10 @@ public class SyncCoordinatorTests
     // ----- SyncAllAsync failure -----
 
     [Fact]
-    public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenSyncThrows()
+    public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenRunFails()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("boom"));
+        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(new SynchronizationRunResult.Failed(SyncFailureReason.Synchronize, "boom"));
         var coordinator = CreateCoordinator();
 
         var failed = 0;

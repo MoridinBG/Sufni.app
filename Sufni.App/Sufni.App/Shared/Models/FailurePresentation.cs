@@ -106,4 +106,10 @@ public sealed record FailurePresentation
         GpsOffsetFailureReason.Save => "GPS alignment could not be saved. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SyncFailureReason reason, string? details = null) => new(reason switch
+    {
+        SyncFailureReason.Synchronize => "Synchronization could not be completed. Check the connection and try again.",
+        SyncFailureReason.ProtocolMismatch => "The devices use different sync versions. Update both devices to the same app version.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

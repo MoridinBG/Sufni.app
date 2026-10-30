@@ -18,6 +18,7 @@ public interface ISyncCoordinator
     event EventHandler? ProgressChanged;
     event EventHandler<SyncCompletedEventArgs>? SyncCompleted;
     event EventHandler<SyncFailedEventArgs>? SyncFailed;
+    event EventHandler? ServerUnavailable;
 
     Task SyncAllAsync(CancellationToken cancellationToken = default);
     Task StopAsync();

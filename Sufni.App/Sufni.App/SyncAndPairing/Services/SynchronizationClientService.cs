@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -362,8 +363,11 @@ public class SynchronizationClientService : ISynchronizationClientService
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (System.Exception exception)
         {
-            logger.Error(exception, "Synchronization client run failed");
-            throw;
+            logger.Error(exception, "Synchronization client run failed for {Peer}", httpApiService.ServerUrl);
+            var reason = exception is System.Net.Http.HttpRequestException { StatusCode: System.Net.HttpStatusCode.UpgradeRequired }
+                ? SyncFailureReason.ProtocolMismatch
+                : SyncFailureReason.Synchronize;
+            return new SynchronizationRunResult.Failed(reason, exception.Message);
         }
     }
 

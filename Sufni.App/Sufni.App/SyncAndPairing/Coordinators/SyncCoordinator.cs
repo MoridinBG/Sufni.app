@@ -5,6 +5,7 @@ using System.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using Serilog;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -70,6 +71,7 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
     public event EventHandler? ProgressChanged;
     public event EventHandler<SyncCompletedEventArgs>? SyncCompleted;
     public event EventHandler<SyncFailedEventArgs>? SyncFailed;
+    public event EventHandler? ServerUnavailable;
 
     public SyncCoordinator(
         IAppDataRefresher appDataRefresher,
@@ -164,7 +166,7 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
                 var serverUrl = await pairingClientCoordinator.ResolveServerUrlAsync(ServerDiscoveryTimeout, token);
                 if (serverUrl is null)
                 {
-                    SyncFailed?.Invoke(this, new SyncFailedEventArgs("Sync failed: no server discovered"));
+                    ServerUnavailable?.Invoke(this, EventArgs.Empty);
                     return;
                 }
             }
@@ -172,6 +174,12 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
             logger.Verbose("Running remote synchronization phases");
             var result = await backgroundTaskRunner.RunAsync(() =>
                 synchronizationClientService!.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress), token));
+
+            if (result is SynchronizationRunResult.Failed failed)
+            {
+                SyncFailed?.Invoke(this, new SyncFailedEventArgs(failed.Reason, failed.Details));
+                return;
+            }
 
             logger.Verbose("Refreshing local stores after synchronization");
             Progress = new SynchronizationProgressSnapshot(
@@ -193,8 +201,8 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
         }
         catch (Exception e)
         {
-            logger.Error(e, "Synchronization failed");
-            SyncFailed?.Invoke(this, new SyncFailedEventArgs($"Sync failed: {e.Message}"));
+            logger.Error(e, "Synchronization failed during {Phase}", Progress?.Phase);
+            SyncFailed?.Invoke(this, new SyncFailedEventArgs(SyncFailureReason.Synchronize, e.Message));
         }
         finally
         {
@@ -421,4 +429,4 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
 }
 
 public sealed record SyncCompletedEventArgs(string Message);
-public sealed record SyncFailedEventArgs(string ErrorMessage);
+public sealed record SyncFailedEventArgs(SyncFailureReason Reason, string? Details = null);

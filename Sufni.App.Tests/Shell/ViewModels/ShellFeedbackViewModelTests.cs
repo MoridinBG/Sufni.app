@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
@@ -8,6 +9,18 @@ namespace Sufni.App.Tests.Shell.ViewModels;
 
 public class ShellFeedbackViewModelTests
 {
+    [Fact]
+    public void MissingServer_ShowsNotificationWithoutFailure()
+    {
+        var sync = TestCoordinatorSubstitutes.Sync();
+        using var feedback = TestShellFeedback.Create(sync);
+
+        sync.ServerUnavailable += Raise.Event();
+
+        Assert.Single(feedback.Notifications);
+        Assert.Empty(feedback.ErrorMessages);
+    }
+
     [Fact]
     public void VideoWithoutMatchingSession_ShowsNotificationInsteadOfFailure()
     {
@@ -53,7 +66,7 @@ public class ShellFeedbackViewModelTests
     {
         var sync = TestCoordinatorSubstitutes.Sync();
         using var feedback = TestShellFeedback.Create(sync);
-        sync.SyncFailed += Raise.Event<EventHandler<SyncFailedEventArgs>>(sync, new SyncFailedEventArgs("failed"));
+        sync.SyncFailed += Raise.Event<EventHandler<SyncFailedEventArgs>>(sync, new SyncFailedEventArgs(SyncFailureReason.Synchronize, "failed"));
         Assert.Single(feedback.ErrorMessages);
 
         sync.SyncCompleted += Raise.Event<EventHandler<SyncCompletedEventArgs>>(sync, new SyncCompletedEventArgs("complete"));

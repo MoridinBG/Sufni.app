@@ -1,5 +1,6 @@
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -99,16 +100,18 @@ public class SynchronizationClientServiceTests
             45);
     }
 
-    [Fact]
-    public async Task SyncAll_DoesNotAdvanceEitherCursor_WhenPushFails()
+    [Theory]
+    [InlineData(System.Net.HttpStatusCode.InternalServerError, SyncFailureReason.Synchronize)]
+    [InlineData(System.Net.HttpStatusCode.UpgradeRequired, SyncFailureReason.ProtocolMismatch)]
+    public async Task SyncAll_DoesNotAdvanceEitherCursor_WhenPushFails(System.Net.HttpStatusCode status, SyncFailureReason expected)
     {
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PushSyncAsync(Arg.Any<SynchronizationData>())
-            .Returns(Task.FromException(new InvalidOperationException("push failed")));
+            .Returns(Task.FromException(new HttpRequestException("push failed", null, status)));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
+        Assert.Equal(expected, Assert.IsType<SynchronizationRunResult.Failed>(await CreateService().SyncAll()).Reason);
 
         await syncDataStore.DidNotReceive().UpdateLastPushTimeAsync(
             Arg.Any<string?>(),
@@ -456,7 +459,7 @@ public class SynchronizationClientServiceTests
             recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
                 .Returns(Task.FromException(new InvalidOperationException("database busy")));
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
+            Assert.Equal(SyncFailureReason.Synchronize, Assert.IsType<SynchronizationRunResult.Failed>(await CreateService().SyncAll()).Reason);
 
             await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
                 Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),

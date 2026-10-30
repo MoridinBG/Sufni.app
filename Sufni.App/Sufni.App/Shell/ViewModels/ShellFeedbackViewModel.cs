@@ -34,6 +34,7 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
         sync.CanSyncChanged += OnCanSyncChanged;
         sync.SyncCompleted += OnSyncCompleted;
         sync.SyncFailed += OnSyncFailed;
+        sync.ServerUnavailable += OnServerUnavailable;
     }
 
     public IAsyncRelayCommand SyncCommand { get; }
@@ -64,7 +65,10 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
     });
 
     private void OnSyncFailed(object? sender, SyncFailedEventArgs args) =>
-        UiThreadDispatcher.Post(() => ErrorMessages.Add(new FailurePresentation(args.ErrorMessage)));
+        UiThreadDispatcher.Post(() => ErrorMessages.Add(FailurePresentation.From(args.Reason, args.Details)));
+
+    private void OnServerUnavailable(object? sender, EventArgs args) =>
+        UiThreadDispatcher.Post(() => Notifications.Add("No sync server is available. Try again when the server is running."));
 
     public void ShowGpxResult(GpxImportResult result)
     {
@@ -106,6 +110,7 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
         sync.CanSyncChanged -= OnCanSyncChanged;
         sync.SyncCompleted -= OnSyncCompleted;
         sync.SyncFailed -= OnSyncFailed;
+        sync.ServerUnavailable -= OnServerUnavailable;
         ClearNotificationsCommand.Execute(null);
     }
 }
