@@ -177,7 +177,9 @@ baseline-free — the `SessionRecomputeEngine` owns serialization and
 liveness — and the staleness prompter is forward-only: on a stale,
 recomputable session it confirms and requests a recompute (suppressed
 while a recompute the user just triggered is in flight), surfacing only
-the unrecomputable/failed outcomes.
+the unrecomputable/failed outcomes. Missing raw sources are reported once even
+when the available processed data is otherwise current; missing setup/bike inputs
+have their own message. Neither condition blocks opening available telemetry.
 
 Recorded-session analysis result state is scoped to an open
 `SessionDetailViewModel`. The editor creates one

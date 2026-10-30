@@ -73,7 +73,7 @@ public class SessionDetailDesktopViewTests
                 snapshot.Id,
                 new MissingSessionData(
                     ProcessedTelemetryBlob: true,
-                    RecordedSourceMissingOrHashMismatch: false)));
+                    RecordedSourceMissing: false)));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
         var incompleteText = mounted.View.FindControl<TextBlock>("ScreenIncompleteText");

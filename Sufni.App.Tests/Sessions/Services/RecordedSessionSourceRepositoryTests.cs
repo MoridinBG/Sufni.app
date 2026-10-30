@@ -3,6 +3,7 @@ using Sufni.App.Infrastructure;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Tests.TestSupport.Persistence;
@@ -10,6 +11,28 @@ namespace Sufni.App.Tests.Sessions.Services;
 
 public class RecordedSessionSourceRepositoryTests
 {
+    [Fact]
+    public async Task PutRecordedSessionSourceAsync_KeepsFirstContent_AndReturnsItsSnapshot()
+    {
+        using var temp = new TempDatabase();
+        await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+        IRecordedSessionSourceRepository repository = new RecordedSessionSourceRepository(context);
+        var original = PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid());
+        var replacement = PersistenceTestData.CreateRecordedSessionSource(original.SessionId);
+        replacement.SourceName = "replacement.SST";
+        replacement.Payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(new byte[] { 9, 8, 7 });
+        replacement.SourceHash = RecordedSessionSourceHash.ComputeImportedSst([9, 8, 7]);
+        await repository.PutRecordedSessionSourceAsync(original);
+
+        var retained = await repository.PutRecordedSessionSourceAsync(replacement);
+
+        Assert.Equal(RecordedSessionSourceSnapshot.From(original), retained);
+        var stored = await repository.GetRecordedSessionSourceAsync(original.SessionId);
+        Assert.Equal(original.Payload, stored!.Payload);
+        Assert.Equal(original.SourceName, stored.SourceName);
+        Assert.Equal(original.SourceHash, stored.SourceHash);
+    }
+
     [Fact]
     public async Task PutRecordedSessionSourceAsync_RoundTripsSourceAndMissingSourceIds()
     {
@@ -78,28 +101,21 @@ public class RecordedSessionSourceRepositoryTests
     [InlineData(MissingRecordedSourceCase.DirectHashMismatch)]
     [InlineData(MissingRecordedSourceCase.DirectNullFingerprintHash)]
     [InlineData(MissingRecordedSourceCase.DerivationWindowSourceHashMismatch)]
-    public async Task GetSessionIdsMissingRecordedSourceAsync_FindsMissingSourceStates(
+    public async Task GetSessionIdsMissingRecordedSourceAsync_DoesNotRequestReplacement_WhenFingerprintDiffers(
         MissingRecordedSourceCase scenario)
     {
         using var tempDatabase = new TempDatabase("source-missing-states.db");
         var databasePath = tempDatabase.DatabasePath;
 
         var database = new TestPersistenceHarness(databasePath);
-        var (expectedMissingIds, expectedPresentIds) = await SeedMissingRecordedSourceScenarioAsync(
+        await SeedMissingRecordedSourceScenarioAsync(
             database,
             scenario);
 
         var sourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
 
-        foreach (var id in expectedPresentIds)
-        {
-            Assert.DoesNotContain(id, sourceIds);
-        }
-
-        foreach (var id in expectedMissingIds)
-        {
-            Assert.Contains(id, sourceIds);
-        }
+        Assert.Empty(sourceIds);
+        Assert.Empty(await database.GetMissingRecordingSourceIdsAsync());
     }
 
     [Fact]
@@ -198,7 +214,7 @@ public class RecordedSessionSourceRepositoryTests
 
     }
 
-    private static async Task<(Guid[] MissingIds, Guid[] PresentIds)> SeedMissingRecordedSourceScenarioAsync(
+    private static async Task SeedMissingRecordedSourceScenarioAsync(
         TestPersistenceHarness database,
         MissingRecordedSourceCase scenario)
     {
@@ -210,7 +226,7 @@ public class RecordedSessionSourceRepositoryTests
             {
                 ProcessingFingerprintJson = """{"SourceHash":null}"""
             }, source);
-            return ([sessionId], []);
+            return;
         }
 
         if (scenario == MissingRecordedSourceCase.DerivationWindowSourceHashMismatch)
@@ -248,7 +264,7 @@ public class RecordedSessionSourceRepositoryTests
                 WindowEndSeconds = 2
             });
 
-            return ([staleDerivedSessionId], [matchingDerivedSessionId]);
+            return;
         }
 
         var matchingSessionId = Guid.NewGuid();
@@ -266,7 +282,7 @@ public class RecordedSessionSourceRepositoryTests
             ProcessingFingerprintJson = $$"""{"SourceHash":"{{expectedStaleHash}}"}"""
         }, directStaleSource);
 
-        return ([staleSessionId], [matchingSessionId]);
+
     }
 
     public enum MissingRecordedSourceCase

@@ -64,15 +64,14 @@ public sealed class SessionLoader : ISessionLoader
             progress.Report(SessionDetailLoadProgress.LoadingTelemetryData);
             var telemetryData = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
             progress.Report(SessionDetailLoadProgress.CheckingLocalData);
-            var recordedSourceMissingOrHashMismatch = IsRecordedSourceMissingOrHashMismatch(domain);
-            if (telemetryData is null || recordedSourceMissingOrHashMismatch)
+            if (telemetryData is null)
             {
                 logger.Warning("Session detail load found incomplete local data for {SessionId}", sessionId);
                 return new SessionDetailLoadResult.IncompleteLocalData(
                     sessionId,
                     new MissingSessionData(
                         ProcessedTelemetryBlob: telemetryData is null,
-                        RecordedSourceMissingOrHashMismatch: recordedSourceMissingOrHashMismatch));
+                        RecordedSourceMissing: domain?.Staleness is SessionStaleness.MissingRawSource));
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -132,18 +131,6 @@ public sealed class SessionLoader : ISessionLoader
             logger.Error(e, "Session track load failed for {SessionId}", sessionId);
             return new SessionDetailTrackLoadResult.Failed(e.Message);
         }
-    }
-
-    private static bool IsRecordedSourceMissingOrHashMismatch(RecordedSessionDomainSnapshot? domain)
-    {
-        if (domain is null)
-        {
-            return false;
-        }
-
-        return RecordedSessionSourceCompleteness.IsSourceMissingOrHashMismatch(
-            domain.Source?.SourceHash,
-            domain.PersistedFingerprint);
     }
 
     private static (DampingSpeedCutoffs Cutoffs, DampingSpeedCutoffOwner? Owner) ResolveDampingSpeedCutoffContext(

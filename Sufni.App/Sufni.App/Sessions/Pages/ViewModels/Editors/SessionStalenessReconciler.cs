@@ -30,7 +30,7 @@ internal sealed class SessionStalenessReconciler
     private readonly ISessionOperationGateway gateway;
     private bool recomputePromptRunning;
     private string? promptedRecomputeSignature;
-    private bool reportedNotRecomputableStale;
+    private bool reportedUnavailableInputs;
 
     public SessionStalenessReconciler(
         ISessionRecomputeEngine recomputeEngine,
@@ -52,6 +52,12 @@ internal sealed class SessionStalenessReconciler
             return;
         }
 
+        if (domain.Staleness is SessionStaleness.MissingRawSource)
+        {
+            ReportUnavailableInputs(domain.Staleness);
+            return;
+        }
+
         if (!domain.Staleness.IsStale)
         {
             promptedRecomputeSignature = null;
@@ -64,7 +70,7 @@ internal sealed class SessionStalenessReconciler
             return;
         }
 
-        ReportNotRecomputableStale();
+        ReportUnavailableInputs(domain.Staleness);
     }
 
     private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain, RecomputeReason reason)
@@ -116,8 +122,8 @@ internal sealed class SessionStalenessReconciler
             var result = await recomputeEngine.RequestRecomputeAsync(gateway.SessionId, reason);
             switch (result)
             {
-                case SessionRecomputeResult.NotRecomputable:
-                    ReportNotRecomputableStale();
+                case SessionRecomputeResult.NotRecomputable unavailable:
+                    ReportUnavailableInputs(unavailable.Reason);
                     break;
 
                 case SessionRecomputeResult.ProcessingFailed failed:
@@ -164,15 +170,17 @@ internal sealed class SessionStalenessReconciler
         }
     }
 
-    private void ReportNotRecomputableStale()
+    private void ReportUnavailableInputs(SessionStaleness reason)
     {
-        if (reportedNotRecomputableStale)
+        if (reportedUnavailableInputs)
         {
             return;
         }
 
-        reportedNotRecomputableStale = true;
-        gateway.AddError(new FailurePresentation("Session is stale and cannot be recomputed until the source recording is restored."));
+        reportedUnavailableInputs = true;
+        gateway.AddError(new FailurePresentation(reason is SessionStaleness.MissingDependencies
+            ? "Session cannot be recomputed until its missing setup or bike is restored."
+            : "The source recording is unavailable. Existing processed data can still be viewed."));
     }
 
     private static string RecomputePromptTitle(RecordedSessionDomainSnapshot domain) =>

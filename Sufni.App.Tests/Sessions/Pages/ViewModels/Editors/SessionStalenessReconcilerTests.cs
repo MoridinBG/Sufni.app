@@ -114,13 +114,17 @@ public class SessionStalenessReconcilerTests
         Assert.Empty(harness.Errors);
     }
 
-    [Fact]
-    public async Task HandleStalenessAsync_ReportsStaleOnce_WhenNotRecomputable()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HandleStalenessAsync_ReportsUnavailableInputsOnce(bool missingSource)
     {
         var harness = new ReconcilerHarness();
         var domain = Domain(
             TestSnapshots.Session(updated: 5),
-            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false));
+            missingSource
+                ? new SessionStaleness.MissingRawSource()
+                : new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false));
 
         await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
         await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);

@@ -808,7 +808,7 @@ public class SessionDetailViewModelTests
             sessionId,
             new MissingSessionData(
                 ProcessedTelemetryBlob: true,
-                RecordedSourceMissingOrHashMismatch: false));
+                RecordedSourceMissing: false));
 
     private static SessionInsightsResult CreateAnalysisResult() =>
         new(

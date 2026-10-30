@@ -141,7 +141,9 @@ Source identity uses SHA-256 of the uncompressed SST bytes; the filename and
 compression representation do not affect it. Live-source identity hashes the
 normalized payload with `Metadata.SourceName` cleared, excluding the setup's
 display name while retaining captured samples and timing. Stored payloads and
-names remain unchanged. The one-time `session-domain-ownership` migration
+names remain unchanged. Sources are write-once: a processed fingerprint with a
+different source hash is stale, and never authorizes replacing the captured source.
+The one-time `session-domain-ownership` migration
 rewrites existing hashes in place, preserving duplicate imports and all
 session/source ids and derivation-window references.
 

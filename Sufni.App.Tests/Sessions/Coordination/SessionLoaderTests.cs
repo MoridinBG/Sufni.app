@@ -4,6 +4,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
@@ -20,6 +21,30 @@ public class SessionLoaderTests
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LoadDetailAsync_OpensProcessedData_WhenSourceIsAbsentOrFingerprintDiffers(bool sourcePresent)
+    {
+        var snapshot = TestSnapshots.Session(hasProcessedData: true);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var source = sourcePresent
+            ? new RecordedSessionSourceSnapshot(snapshot.Id, RecordedSessionSourceKind.ImportedSst, "source.SST", 1, "captured")
+            : null;
+        var persisted = new ProcessingFingerprint(4, 6, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "older-source");
+        domainQuery.Get(snapshot.Id).Returns(new RecordedSessionDomainSnapshot(
+            snapshot, null, null, null, persisted, source,
+            sourcePresent ? new SessionStaleness.DependencyHashChanged() : new SessionStaleness.MissingRawSource(),
+            DerivedChangeKind.Initial));
+        sessionStore.Get(snapshot.Id).Returns(snapshot);
+        processedTelemetryReader.Set(snapshot.Id, telemetry);
+
+        var result = await CreateLoader().LoadDetailAsync(snapshot.Id, new RecordingProgress<SessionDetailLoadProgress>(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(telemetry, Assert.IsType<SessionDetailLoadResult.Loaded>(result).Data.TelemetryPresentation.TelemetryData);
+    }
 
     [Fact]
     public async Task LoadDetailAsync_ReturnsTelemetryBeforeTrackLoad()
@@ -135,7 +160,7 @@ public class SessionLoaderTests
         var incomplete = Assert.IsType<SessionDetailLoadResult.IncompleteLocalData>(result);
         Assert.Equal(snapshot.Id, incomplete.SessionId);
         Assert.True(incomplete.Missing.ProcessedTelemetryBlob);
-        Assert.False(incomplete.Missing.RecordedSourceMissingOrHashMismatch);
+        Assert.False(incomplete.Missing.RecordedSourceMissing);
         Assert.Equal(
             [
                 SessionDetailLoadStage.LoadingTelemetryData,

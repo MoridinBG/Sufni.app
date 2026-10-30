@@ -127,7 +127,7 @@ public readonly record struct SessionPresentationDimensions(int Width, int Heigh
 
 public sealed record MissingSessionData(
     bool ProcessedTelemetryBlob,
-    bool RecordedSourceMissingOrHashMismatch);
+    bool RecordedSourceMissing);
 
 public sealed record SessionDetailData(SessionTelemetryPresentationData TelemetryPresentation);
 

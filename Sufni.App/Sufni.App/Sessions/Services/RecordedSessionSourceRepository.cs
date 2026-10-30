@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using SQLite;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Services;
 
@@ -23,7 +21,7 @@ public interface IRecordedSessionSourceRepository
 
     /// <summary>
     /// Recording-source ids that live sessions need but this device does not
-    /// hold, or holds with a hash that differs from the session fingerprint.
+    /// hold. A fingerprint mismatch makes processed data stale, not its source missing.
     /// </summary>
     Task<List<Guid>> GetMissingRecordingSourceIdsAsync();
 
@@ -36,7 +34,7 @@ public interface IRecordedSessionSourceRepository
     /// </summary>
     Task<List<Guid>> GetReferencedSourceSessionIdsAsync();
 
-    Task PutRecordedSessionSourceAsync(RecordedSessionSource source);
+    Task<RecordedSessionSourceSnapshot> PutRecordedSessionSourceAsync(RecordedSessionSource source);
 
     /// <summary>
     /// Deletes, in one transaction, the source rows whose session row is gone and
@@ -48,7 +46,6 @@ public interface IRecordedSessionSourceRepository
 internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext connectionContext)
     : IRecordedSessionSourceRepository
 {
-    private const string SessionProcessingFingerprintColumn = "session_processing_fingerprint";
     private const string ReferencedSourceSessionIdsSql = """
                                                          SELECT DISTINCT source_session_id AS session_id
                                                          FROM session
@@ -57,7 +54,7 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
                                                            AND source_session_id <> id
                                                          """;
     private const string PutRecordedSessionSourceSql = """
-                                                       INSERT OR REPLACE INTO session_recording_source (
+                                                       INSERT INTO session_recording_source (
                                                            session_id,
                                                            source_kind,
                                                            source_name,
@@ -66,6 +63,7 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
                                                            payload
                                                        )
                                                        VALUES (?, ?, ?, ?, ?, ?)
+                                                       ON CONFLICT(session_id) DO NOTHING
                                                        """;
 
     public async Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id)
@@ -109,22 +107,14 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
     private async Task<IEnumerable<SessionSourceStatusRow>> GetSessionsMissingRecordedSourceAsync()
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        var sourceHashRows = await connection.QueryAsync<RecordedSessionSourceHashRow>(
-            "SELECT session_id, source_hash FROM session_recording_source");
-        var sourceHashesBySessionId = sourceHashRows.ToDictionary(row => row.SessionId, row => row.SourceHash);
-        var rows = await connection.QueryAsync<SessionSourceStatusRow>(
-            $"""
-             SELECT id, source_session_id, {SessionProcessingFingerprintColumn}
-             FROM session
-             WHERE deleted IS null
-             """);
-        return rows.Where(row =>
-        {
-            sourceHashesBySessionId.TryGetValue(row.SourceSessionId ?? row.Id, out var sourceHash);
-            return RecordedSessionSourceCompleteness.IsSourceMissingOrHashMismatch(
-                sourceHash,
-                TryReadProcessingFingerprint(row.ProcessingFingerprintJson));
-        });
+        return await connection.QueryAsync<SessionSourceStatusRow>(
+            """
+            SELECT session.id, session.source_session_id
+            FROM session
+            LEFT JOIN session_recording_source source
+              ON source.session_id = COALESCE(session.source_session_id, session.id)
+            WHERE session.deleted IS NULL AND source.session_id IS NULL
+            """);
     }
 
     public async Task<List<Guid>> GetSourceBackedSessionIdsAsync()
@@ -142,12 +132,16 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         return [.. rows.Select(row => row.SessionId)];
     }
 
-    public async Task PutRecordedSessionSourceAsync(RecordedSessionSource source)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        ValidateRecordedSessionSource(source);
-        await connection.ExecuteAsync(PutRecordedSessionSourceSql, CreatePutRecordedSessionSourceValues(source));
-    }
+    public Task<RecordedSessionSourceSnapshot> PutRecordedSessionSourceAsync(RecordedSessionSource source) =>
+        connectionContext.RunInTransactionAsync(connection =>
+        {
+            PutRecordedSessionSourceInTransaction(connection, source);
+            return connection.Query<RecordedSessionSourceSnapshotRow>(
+                """
+                SELECT session_id, source_kind, source_name, schema_version, source_hash
+                FROM session_recording_source WHERE session_id = ?
+                """, source.SessionId).Single().ToSnapshot();
+        });
 
     public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
         connectionContext.RunInTransactionAsync<IReadOnlyList<Guid>>(connection =>
@@ -227,36 +221,10 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
         }
     }
 
-    private static ProcessingFingerprint? TryReadProcessingFingerprint(string? processingFingerprintJson)
-    {
-        if (string.IsNullOrWhiteSpace(processingFingerprintJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            return AppJson.Deserialize<ProcessingFingerprint>(processingFingerprintJson);
-        }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException)
-        {
-            return null;
-        }
-    }
-
     private sealed class SourceSessionIdRow
     {
         [Column("session_id")]
         public Guid SessionId { get; set; }
-    }
-
-    private sealed class RecordedSessionSourceHashRow
-    {
-        [Column("session_id")]
-        public Guid SessionId { get; set; }
-
-        [Column("source_hash")]
-        public string SourceHash { get; set; } = null!;
     }
 
     private sealed class RecordedSessionSourceSnapshotRow
@@ -291,8 +259,5 @@ internal sealed class RecordedSessionSourceRepository(SqliteConnectionContext co
 
         [Column("source_session_id")]
         public Guid? SourceSessionId { get; set; }
-
-        [Column("session_processing_fingerprint")]
-        public string? ProcessingFingerprintJson { get; set; }
     }
 }

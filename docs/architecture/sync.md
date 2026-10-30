@@ -135,8 +135,8 @@ run.
 Source sync runs after metadata sync so both sides know which
 session ids and derivation windows exist before asking for missing source
 payloads. Source rows are transferred through the incomplete-source endpoints
-when a side has no source row or when its local source hash no longer matches
-the `SourceHash` stored in the session's processing fingerprint. For derived
+when a side has no source row. A mismatch with the processed fingerprint marks
+the derived data stale; it never requests replacement of an existing source. For derived
 sessions, the query does not ask for a source under the derived session id; it
 uses the session row's `source_session_id` and also asks for any referenced
 source ids that are absent locally. Push uses the
@@ -147,7 +147,8 @@ advertised source hash before persisting. Imported payloads are decompressed for
 hashing; live payloads are normalized without their setup display name. A hash
 mismatch or malformed compressed/JSON payload is an item-level skip that
 leaves the source pending for a future run, while a failure from the repository
-put itself propagates and fails the run. The pull watermark has already advanced
+put itself propagates and fails the run. Source writes retain existing captured
+content, and publication uses the snapshot returned by persistence. The pull watermark has already advanced
 after metadata and processed-BLOB swaps; source completeness is retried
 independently from the missing-source queries rather than by replaying metadata.
 

@@ -280,9 +280,8 @@ public class SynchronizationClientService : ISynchronizationClientService
                         return;
                     }
 
-                    var stored = FromPayload(source);
-                    await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(stored);
-                    committedSources.Add(RecordedSessionSourceSnapshot.From(stored));
+                    var stored = await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
+                    committedSources.Add(stored);
                     Interlocked.Increment(ref downloadedCount);
                 }
             });

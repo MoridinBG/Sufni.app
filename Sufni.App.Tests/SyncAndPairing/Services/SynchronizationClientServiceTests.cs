@@ -433,6 +433,7 @@ public class SynchronizationClientServiceTests
 
     [Theory]
     [InlineData(PulledRecordedSourceOutcome.Persisted)]
+    [InlineData(PulledRecordedSourceOutcome.ExistingSource)]
     [InlineData(PulledRecordedSourceOutcome.InvalidHash)]
     [InlineData(PulledRecordedSourceOutcome.InvalidSstPayload)]
     [InlineData(PulledRecordedSourceOutcome.InvalidLivePayload)]
@@ -463,10 +464,18 @@ public class SynchronizationClientServiceTests
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
         httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+        var storedSnapshot = RecordedSessionSourceSnapshot.From(source);
+        if (outcome == PulledRecordedSourceOutcome.ExistingSource)
+        {
+            storedSnapshot = RecordedSessionSourceSnapshot.From(SyncTestServerHarness.CreateRecordedSource([1, 3, 5]))
+                with { SessionId = source.SessionId };
+            recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
+                .Returns(storedSnapshot);
+        }
         if (outcome == PulledRecordedSourceOutcome.RepositoryFailure)
         {
             recordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
-                .Returns(Task.FromException(new InvalidOperationException("database busy")));
+                .Returns(Task.FromException<RecordedSessionSourceSnapshot>(new InvalidOperationException("database busy")));
 
             Assert.Equal(SyncFailureReason.Synchronize, Assert.IsType<SynchronizationRunResult.Failed>(await CreateService().SyncAll()).Reason);
 
@@ -484,7 +493,7 @@ public class SynchronizationClientServiceTests
 
         await CreateService().SyncAll();
 
-        if (outcome == PulledRecordedSourceOutcome.Persisted)
+        if (outcome is PulledRecordedSourceOutcome.Persisted or PulledRecordedSourceOutcome.ExistingSource)
         {
             await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
                 saved.SessionId == source.SessionId &&
@@ -494,7 +503,7 @@ public class SynchronizationClientServiceTests
                 saved.SourceHash == source.SourceHash &&
                 saved.Payload.SequenceEqual(source.Payload)));
             await sourceStore.Received(1).PublishSourcesChangedAsync(
-                Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(source.SessionId)),
+                Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(snapshots => snapshots.Count == 1 && snapshots.Single() == storedSnapshot),
                 Arg.Any<CancellationToken>());
             return;
         }
@@ -541,6 +550,7 @@ public class SynchronizationClientServiceTests
     public enum PulledRecordedSourceOutcome
     {
         Persisted,
+        ExistingSource,
         InvalidHash,
         InvalidSstPayload,
         InvalidLivePayload,

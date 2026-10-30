@@ -465,7 +465,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             missingParts.Add("processed telemetry");
         }
 
-        if (missing.RecordedSourceMissingOrHashMismatch)
+        if (missing.RecordedSourceMissing)
         {
             missingParts.Add("recorded source");
         }
