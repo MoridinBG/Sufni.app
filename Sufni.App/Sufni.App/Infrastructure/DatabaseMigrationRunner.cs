@@ -43,6 +43,11 @@ internal sealed class DatabaseMigrationRunner(
             await EnsureBikeRearSuspensionColumnAsync();
             await DropSessionCacheTableAsync();
             await coreMigrations.EnsureTableAsync();
+            await coreMigrations.ApplyAsync("database-incarnation", transaction =>
+            {
+                transaction.Execute("CREATE TABLE database_identity (id INTEGER PRIMARY KEY CHECK (id = 1), db_incarnation TEXT NOT NULL)");
+                transaction.Execute("INSERT INTO database_identity (id, db_incarnation) VALUES (1, ?)", Guid.NewGuid().ToString());
+            });
             await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
             await EnsureSessionBlobSwapRequestColumnsAsync();
             await EnsureSessionBlobSwapRequestIntegrityAsync();

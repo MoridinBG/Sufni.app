@@ -21,6 +21,33 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
+    [Fact]
+    public async Task Initialization_AssignsExistingDatabaseAnIdentity_AndPreservesItAcrossLaunches()
+    {
+        using var temp = new TempDatabase();
+        var bike = new Bike(Guid.NewGuid(), "existing bike");
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Bike>();
+            legacy.Insert(bike);
+        }
+
+        string incarnation;
+        await using (var first = PersistenceTestData.CreateConnectionContext(temp.DatabasePath))
+        {
+            await first.Initialization;
+            incarnation = await first.Connection.ExecuteScalarAsync<string>(
+                "SELECT db_incarnation FROM database_identity");
+            Assert.NotEqual(Guid.Empty, Guid.Parse(incarnation));
+        }
+
+        await using var next = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+        await next.Initialization;
+        Assert.Equal(incarnation, await next.Connection.ExecuteScalarAsync<string>(
+            "SELECT db_incarnation FROM database_identity"));
+        Assert.Equal(bike.Name, (await next.Connection.FindAsync<Bike>(bike.Id)).Name);
+    }
+
     public enum ProcessedSessionFingerprintCase
     {
         MissingLegacyFingerprint,

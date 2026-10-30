@@ -97,7 +97,8 @@ public static class AppComposition
         services.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         services.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
-                root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>()));
+                root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>()));
+        services.AddSingleton<IStartupDatabase>(sp => sp.GetRequiredService<SqliteConnectionContext>());
         services.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         services.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         services.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();

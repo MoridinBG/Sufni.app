@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using SQLite;
 
@@ -23,6 +24,18 @@ internal sealed class CoreMigrationStore(SQLiteAsyncConnection connection)
     public Task MarkAppliedAsync(string migrationId) => connection.ExecuteAsync(
         "INSERT OR IGNORE INTO core_migration (id) VALUES (?)",
         migrationId);
+
+    public Task ApplyAsync(string migrationId, Action<SQLiteConnection> migrate) =>
+        connection.RunInTransactionAsync(transaction =>
+        {
+            if (transaction.ExecuteScalar<int>("SELECT COUNT(*) FROM core_migration WHERE id = ?", migrationId) != 0)
+            {
+                return;
+            }
+
+            migrate(transaction);
+            transaction.Execute("INSERT INTO core_migration (id) VALUES (?)", migrationId);
+        });
 
     private sealed class CoreMigrationRow
     {

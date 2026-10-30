@@ -157,14 +157,32 @@ erDiagram
         int expires
     }
 
+    database_identity {
+        int id PK
+        text db_incarnation
+    }
+
     core_migration {
         text id PK
     }
 ```
 
+`database_identity` has one row (`id = 1`). The `database-incarnation`
+core migration assigns its random `db_incarnation` once, including on existing
+databases. Normal launches preserve it; creating a fresh database assigns a new
+identity. Sync will use this identity to distinguish database resets.
+
+`IStartupDatabase` exposes initialization and the reset file operation on the
+connection context. Reset waits for initialization to settle, closes the
+connection, and moves every remaining database/WAL/SHM file into a timestamped
+sibling archive directory. SQLite may checkpoint and remove its sidecars on
+close. The archive is retained; a separate connection creates the replacement
+through the normal migration path and closes it. The existing context and its
+consumers are not reinitialized; the replacement requires a new launch.
+
 ## SQLite Persistence Repositories
 
-`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives the database path from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and repairs duplicate track ranges.
+`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives the database path from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner` through the background runner, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and repairs duplicate track ranges.
 
 The connection context supplies the injected clock to startup migrations.
 Repositories and transaction runners receive `TimeProvider` for authored writes,
