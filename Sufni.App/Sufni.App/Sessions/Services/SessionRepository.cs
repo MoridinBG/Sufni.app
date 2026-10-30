@@ -246,7 +246,7 @@ internal sealed class SessionRepository(
                          deleted IS NULL
                      ORDER BY timestamp DESC
                      """;
-        return await connection.QueryAsync<Session>(query);
+        return [.. await connection.QueryAsync<SessionMetadataRow>(query)];
     }
 
     public async Task<Session?> GetSessionAsync(Guid id)
@@ -261,7 +261,7 @@ internal sealed class SessionRepository(
                      WHERE
                          deleted IS NULL AND id = ?
                      """;
-        var sessions = await connection.QueryAsync<Session>(query, id);
+        var sessions = await connection.QueryAsync<SessionMetadataRow>(query, id);
         return sessions.Count == 1 ? sessions[0] : null;
     }
 
@@ -779,7 +779,7 @@ internal sealed class SessionRepository(
         [Column("id")]
         public Guid Id { get; set; }
 
-        [Column("has_data")]
+        [Column("processed_data_available")]
         public bool HasData { get; set; }
 
         [Column("processed_telemetry_revision")]

@@ -12,6 +12,6 @@ internal static class SessionSqlProjection
                                             CASE
                                                WHEN data IS NOT NULL THEN 1
                                                ELSE 0
-                                            END AS has_data
+                                            END AS processed_data_available
                                             """;
 }

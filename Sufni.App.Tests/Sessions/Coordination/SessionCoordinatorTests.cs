@@ -283,7 +283,7 @@ public class SessionCoordinatorTests
         var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
         {
             Updated = 9,
-            HasProcessedData = true,
+            ProcessedData = [],
         };
         SeedLiveCaptureDependencies(capture);
         sessionTelemetryWriter
@@ -350,7 +350,7 @@ public class SessionCoordinatorTests
         var fresh = new Session(session.Id, session.Name, session.Description, session.Setup)
         {
             Updated = 9,
-            HasProcessedData = true,
+            ProcessedData = [],
         };
         SeedLiveCaptureDependencies(capture);
         sessionTelemetryWriter

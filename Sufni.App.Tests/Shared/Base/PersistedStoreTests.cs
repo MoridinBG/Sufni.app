@@ -183,7 +183,7 @@ public class PersistedStoreTests
         var sessionId = Guid.NewGuid();
         var session = new Session(sessionId, "Morning run", "desc", null, 100)
         {
-            HasProcessedData = true,
+            ProcessedData = [],
             Updated = 11
         };
         var store = new SessionStore(new StorePublication(UiThreadDispatcher));
@@ -195,7 +195,7 @@ public class PersistedStoreTests
         await store.PublishSessionsRemovedAsync([sessionId], cancellationToken: TestContext.Current.CancellationToken);
         var updatedSession = new Session(sessionId, "Evening run", "desc", null, 100)
         {
-            HasProcessedData = true,
+            ProcessedData = [],
             Updated = 12
         };
         var updated = SessionSnapshot.From(updatedSession);
@@ -203,7 +203,7 @@ public class PersistedStoreTests
 
         var committedSession = new Session(sessionId, "Night run", "desc", null, 100)
         {
-            HasProcessedData = true,
+            ProcessedData = [],
             Updated = 13
         };
         var committed = SessionSnapshot.From(committedSession);

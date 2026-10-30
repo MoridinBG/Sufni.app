@@ -11,7 +11,8 @@ namespace Sufni.App.Infrastructure;
 /// <summary>
 /// Shared persistence helpers for the SQLite repositories and the merge
 /// engine: table-name resolution, existence checks, and validated
-/// insert/update entry points.
+/// insert/update entry points. Writes use the declared entity schema, excluding
+/// columns that exist only on a read projection.
 /// </summary>
 internal static class PersistenceGuards
 {
@@ -46,7 +47,7 @@ internal static class PersistenceGuards
         T entity) where T : new()
     {
         ValidateEntityForPersistence(entity);
-        return connection.InsertAsync(entity);
+        return connection.InsertAsync(entity, typeof(T));
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
@@ -56,7 +57,7 @@ internal static class PersistenceGuards
         T entity) where T : new()
     {
         ValidateEntityForPersistence(entity);
-        return connection.Insert(entity);
+        return connection.Insert(entity, typeof(T));
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
@@ -66,7 +67,7 @@ internal static class PersistenceGuards
         T entity) where T : new()
     {
         ValidateEntityForPersistence(entity);
-        return connection.UpdateAsync(entity);
+        return connection.UpdateAsync(entity, typeof(T));
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
@@ -76,7 +77,7 @@ internal static class PersistenceGuards
         T entity) where T : new()
     {
         ValidateEntityForPersistence(entity);
-        return connection.Update(entity);
+        return connection.Update(entity, typeof(T));
     }
 
     public static void ValidateEntityForPersistence<T>(T entity) where T : new()

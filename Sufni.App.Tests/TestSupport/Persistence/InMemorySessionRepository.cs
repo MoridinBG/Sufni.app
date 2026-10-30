@@ -16,8 +16,8 @@ internal sealed class InMemorySessionRepository
     public InMemorySessionRepository(TimeProvider clock)
     {
         Repository.GetSessionAsync(Arg.Any<Guid>()).Returns(call =>
-            snapshots.GetValueOrDefault(call.Arg<Guid>())?.ToMetadataEntity());
-        Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => snapshot.ToMetadataEntity()).ToList());
+            ToEntity(snapshots.GetValueOrDefault(call.Arg<Guid>())));
+        Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());
         Repository.GetSessionTrackAsync(Arg.Any<Guid>()).Returns(call => tracks.GetValueOrDefault(call.Arg<Guid>()));
         Repository.UpdateSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>())
             .Returns(call =>
@@ -45,7 +45,7 @@ internal sealed class InMemorySessionRepository
             var id = call.Arg<Guid>();
             return snapshots.GetValueOrDefault(id)?.VelocityFilterWindowMilliseconds == call.ArgAt<int>(1)
                 ? SetWindow(id, call.ArgAt<int?>(2))
-                : Task.FromResult(snapshots.GetValueOrDefault(id)?.ToMetadataEntity());
+                : Task.FromResult(ToEntity(snapshots.GetValueOrDefault(id)));
         });
 
         Task<Session?> SetWindow(Guid id, int? window)
@@ -54,7 +54,7 @@ internal sealed class InMemorySessionRepository
             if (!snapshots.TryGetValue(id, out var current)) return Task.FromResult<Session?>(null);
             var saved = current with { VelocityFilterWindowMilliseconds = window, Updated = clock.GetUtcNow().ToUnixTimeSeconds() };
             snapshots[id] = saved;
-            return Task.FromResult<Session?>(saved.ToMetadataEntity());
+            return Task.FromResult<Session?>(ToEntity(saved));
         }
 
         Repository.PutSessionAsync(Arg.Any<Session>()).Returns(call =>
@@ -82,6 +82,15 @@ internal sealed class InMemorySessionRepository
             snapshots[draft.Id] = saved;
             return Task.FromResult(draft.Id);
         });
+    }
+
+    private static Session? ToEntity(SessionSnapshot? snapshot)
+    {
+        if (snapshot is null) return null;
+        var entity = snapshot.ToMetadataEntity();
+        // This fake models BLOB presence without retaining telemetry bytes.
+        entity.ProcessedData = snapshot.HasProcessedData ? [] : null;
+        return entity;
     }
 
     public void Seed(SessionSnapshot snapshot) => snapshots[snapshot.Id] = snapshot;

@@ -11,9 +11,6 @@ namespace Sufni.App.Sessions.Models;
 [Table("session")]
 public class Session : Synchronizable
 {
-    private byte[]? processedData;
-    private bool hasProcessedData;
-
     // Just to satisfy sql-net-pcl's parameterless constructor requirement
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
     public Session() { }
@@ -124,18 +121,7 @@ public class Session : Synchronizable
 
     [JsonIgnore]
     [Column("data")]
-    // Local processed-cache blob. When the blob is loaded on this model,
-    // availability is derived from it so a stale has_data column cannot hide
-    // readable telemetry.
-    public byte[]? ProcessedData
-    {
-        get => processedData;
-        set
-        {
-            processedData = value;
-            hasProcessedData = value is not null;
-        }
-    }
+    public byte[]? ProcessedData { get; set; }
 
     [JsonPropertyName("front_springrate")]
     [Column("front_springrate")]
@@ -178,10 +164,6 @@ public class Session : Synchronizable
     public uint? RearHighSpeedRebound { get; set; }
 
     [JsonIgnore]
-    [Column("has_data")]
-    public bool HasProcessedData
-    {
-        get => processedData is not null || hasProcessedData;
-        set => hasProcessedData = value;
-    }
+    [Ignore]
+    public virtual bool HasProcessedData => ProcessedData is not null;
 }

@@ -295,7 +295,7 @@ internal sealed class SynchronizationMergeEngine(
             .ToListAsync();
     }
 
-    private static Task<List<Session>> GetChangedSessionsAsync(
+    private static async Task<List<Session>> GetChangedSessionsAsync(
         SQLiteAsyncConnection connection,
         long sinceExclusive,
         long upperInclusive)
@@ -309,12 +309,12 @@ internal sealed class SynchronizationMergeEngine(
                          (updated > ? AND updated <= ?)
                          OR (deleted IS NOT NULL AND deleted > ? AND deleted <= ?)
                      """;
-        return connection.QueryAsync<Session>(
+        return [.. await connection.QueryAsync<SessionMetadataRow>(
             query,
             sinceExclusive,
             upperInclusive,
             sinceExclusive,
-            upperInclusive);
+            upperInclusive)];
     }
 
     private static void ApplyRemoteEntity<

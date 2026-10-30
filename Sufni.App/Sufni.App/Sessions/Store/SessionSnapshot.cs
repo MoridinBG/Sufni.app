@@ -113,7 +113,6 @@ public static class SessionSnapshotExtensions
             AscentMeters = snapshot.AscentMeters,
             DescentMeters = snapshot.DescentMeters,
             FullTrack = snapshot.FullTrackId,
-            HasProcessedData = snapshot.HasProcessedData,
             ProcessingFingerprintJson = snapshot.ProcessingFingerprintJson,
             GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
             ProcessedTelemetryRevision = snapshot.ProcessedTelemetryRevision,

@@ -88,7 +88,8 @@ metadata-only snapshots that are not edited through that flow, such as
 `LiveDaqSnapshot`, `PairedDeviceSnapshot`, and
 `RecordedSessionSourceSnapshot`, do not expose an editor baseline.
 
-`SessionSnapshot` is metadata-only: it carries `HasProcessedData`,
+`SessionSnapshot` is metadata-only: it carries `HasProcessedData` derived by the
+repository's SQL metadata projection (no BLOB load or persisted availability flag),
 `ProcessingFingerprintJson`, and the nullable list-summary metrics
 (`DurationSeconds`, `DistanceMeters`, `AscentMeters`, `DescentMeters`),
 but not the MessagePack telemetry BLOB and not the raw recorded source.

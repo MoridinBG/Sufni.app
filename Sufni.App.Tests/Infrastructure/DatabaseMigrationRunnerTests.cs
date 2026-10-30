@@ -21,6 +21,38 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Initialization_RemovesAvailabilityColumn_AndReadsActualBlobPresence(bool hasBlob)
+    {
+        using var temp = new TempDatabase();
+        var id = Guid.NewGuid();
+        var bytes = hasBlob ? PersistenceTestData.CreateTelemetryBlob(30) : null;
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.Execute("ALTER TABLE session ADD COLUMN has_data INTEGER NOT NULL DEFAULT 0");
+            legacy.Insert(new Session(id, "ride", "notes", null, 100) { ProcessedData = bytes, Updated = 42 });
+            legacy.Execute("UPDATE session SET has_data = ? WHERE id = ?", !hasBlob, id);
+        }
+
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+            await context.Initialization;
+            var columns = await context.Connection.GetTableInfoAsync("session");
+            Assert.DoesNotContain(columns, column => column.Name == "has_data");
+            var repository = new SessionRepository(context, new ProcessingFingerprintService(), PersistenceTestData.CreateTimeProvider());
+            var metadata = (await repository.GetSessionAsync(id))!;
+            Assert.Equal(hasBlob, metadata.HasProcessedData);
+            Assert.Null(metadata.ProcessedData);
+            Assert.Equal("notes", metadata.Description);
+            Assert.Equal(42, metadata.Updated);
+            Assert.Equal(bytes, await repository.GetSessionRawPsstAsync(id));
+        }
+    }
+
     [Fact]
     public async Task Initialization_RewritesSourceHashes_WithoutMergingDuplicatesOrChangingSplitReferences()
     {
@@ -671,7 +703,7 @@ public class DatabaseMigrationRunnerTests
 
         using var connection = new SQLiteConnection(tempDatabase.DatabasePath);
         connection.Execute(
-            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, track, timestamp, duration_seconds, gps_offset_seconds, full_track_id, processed_telemetry_revision, track_projection_revision, updated, deleted, has_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 99, 99, ?, NULL, 1)",
+            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, track, timestamp, duration_seconds, gps_offset_seconds, full_track_id, processed_telemetry_revision, track_projection_revision, updated, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 99, 99, ?, NULL)",
             sessionId, "session", string.Empty, new byte[] { 1 }, "a", points, 100, 1.0, 0.0, trackId, 10);
         connection.Execute(
             "INSERT INTO track (id, points, start_time, end_time, points_revision, updated, deleted) VALUES (?, ?, 100, 100, 99, ?, NULL)",
@@ -707,7 +739,7 @@ public class DatabaseMigrationRunnerTests
         using (var connection = new SQLiteConnection(databasePath))
         {
             connection.Execute(
-                "INSERT INTO session (id, name, description, data, processed_telemetry_revision, track_projection_revision, updated, deleted, has_data) VALUES (?, ?, ?, ?, 0, 0, 10, NULL, 1)",
+                "INSERT INTO session (id, name, description, data, processed_telemetry_revision, track_projection_revision, updated, deleted) VALUES (?, ?, ?, ?, 0, 0, 10, NULL)",
                 sessionId, "session", string.Empty, new byte[] { 1 });
             connection.Execute("DROP TRIGGER session_processed_revision_after_update");
             connection.Execute(
@@ -740,7 +772,7 @@ public class DatabaseMigrationRunnerTests
 
         using var connection = new SQLiteConnection(tempDatabase.DatabasePath);
         connection.Execute(
-            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, processed_telemetry_revision, track_projection_revision, updated, deleted, has_data) VALUES (?, ?, ?, ?, ?, 0, 0, 10, NULL, 1)",
+            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, processed_telemetry_revision, track_projection_revision, updated, deleted) VALUES (?, ?, ?, ?, ?, 0, 0, 10, NULL)",
             sessionId, "session", string.Empty, new byte[] { 1 }, "a");
         var before = connection.ExecuteScalar<long>("SELECT total_changes()");
 

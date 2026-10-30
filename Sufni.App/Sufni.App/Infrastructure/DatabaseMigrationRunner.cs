@@ -71,6 +71,8 @@ internal sealed class DatabaseMigrationRunner(
 
     private Task MigrateSessionDomainAsync() => coreMigrations.ApplyAsync("session-domain-ownership", transaction =>
     {
+        if (transaction.GetTableInfo("session").Any(column => column.Name == "has_data"))
+            transaction.Execute("ALTER TABLE session DROP COLUMN has_data");
         foreach (var source in transaction.Table<RecordedSessionSource>())
             transaction.Execute("UPDATE session_recording_source SET source_hash = ? WHERE session_id = ?",
                 RecordedSessionSourceHash.Compute(source.SourceKind, source.Payload), source.SessionId);

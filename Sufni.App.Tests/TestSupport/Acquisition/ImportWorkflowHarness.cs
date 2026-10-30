@@ -146,7 +146,6 @@ internal sealed class ImportWorkflowHarness
                 session.ProcessedData = payload.Data;
                 session.ProcessingFingerprintJson = payload.FingerprintJson;
                 session.FullTrack = track?.Id;
-                session.HasProcessedData = session.ProcessedData is not null;
                 session.Updated = 10;
                 return Task.FromResult(session);
             });

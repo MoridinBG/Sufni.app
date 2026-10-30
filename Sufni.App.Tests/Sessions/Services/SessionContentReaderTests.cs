@@ -306,7 +306,7 @@ public class SessionContentReaderTests
             FullTrack = fullTrackId,
             DurationSeconds = 2.0,
             GpsOffsetSeconds = 0.5,
-            HasProcessedData = true,
+            ProcessedData = [],
             TrackProjectionRevision = 12,
         };
         var fullTrackPoints = new List<TrackPoint>

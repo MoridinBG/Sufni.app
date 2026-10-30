@@ -8,7 +8,7 @@ namespace Sufni.App.Tests.Sessions.Store;
 public class SessionSnapshotMappingTests
 {
     [Fact]
-    public void ToMetadataEntity_RoundTripsEveryMappedSnapshotField_WithoutPayloads()
+    public void ToMetadataEntity_PreservesMetadataWithoutClaimingPayloadAvailability()
     {
         var snapshot = new SessionSnapshot(
             Id: Guid.NewGuid(),
@@ -41,7 +41,7 @@ public class SessionSnapshotMappingTests
 
         Assert.Null(entity.ProcessedData);
         Assert.Null(entity.Track);
-        Assert.Equal(snapshot, roundTrip);
+        Assert.Equal(snapshot with { HasProcessedData = false }, roundTrip);
     }
 
     [Fact]
