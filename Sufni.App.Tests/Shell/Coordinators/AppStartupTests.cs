@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using NSubstitute;
 using SQLite;

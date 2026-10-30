@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
@@ -65,9 +66,7 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
     public string LogPath => startup.LogPath;
     public string StartupMessage => StartupState switch
     {
-        ShellStartupState.Failed { Reason: StartupFailureReason.Database } => "The database could not be opened. Reset it to start with an empty database; your current database will be archived.",
-        ShellStartupState.Failed { Reason: StartupFailureReason.Reset } => "The database could not be reset. See the log for details.",
-        ShellStartupState.Failed => "The application could not start. See the log for details.",
+        ShellStartupState.Failed failed => FailurePresentation.From(failed.Reason, failed.Details).Summary,
         ShellStartupState.RelaunchRequired => "The database was reset. Quit and relaunch the application to continue.",
         _ => "Starting…"
     };

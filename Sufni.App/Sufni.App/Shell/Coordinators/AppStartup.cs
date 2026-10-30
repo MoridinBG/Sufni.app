@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,7 +54,7 @@ internal sealed class AppStartup(
                 catch (Exception exception)
                 {
                     // The server boundary has already logged its startup failure.
-                    await PublishAsync(new ShellStartupState.Failed(reason, exception.ToString()));
+                    await PublishAsync(new ShellStartupState.Failed(reason, exception.Message));
                     return;
                 }
             }
@@ -66,7 +67,7 @@ internal sealed class AppStartup(
         catch (Exception exception)
         {
             logger.Error(exception, "Application startup failed during {Phase}", reason);
-            await PublishAsync(new ShellStartupState.Failed(reason, exception.ToString()));
+            await PublishAsync(new ShellStartupState.Failed(reason, exception.Message));
         }
     }
 
@@ -90,7 +91,7 @@ internal sealed class AppStartup(
         catch (Exception exception)
         {
             logger.Error(exception, "Database reset failed");
-            await PublishAsync(new ShellStartupState.Failed(StartupFailureReason.Reset, exception.ToString()));
+            await PublishAsync(new ShellStartupState.Failed(StartupFailureReason.Reset, exception.Message));
             return new DatabaseResetResult.Failed();
         }
     }

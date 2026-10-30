@@ -195,6 +195,12 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+Failure-policy adoption has started with startup: `StartupFailureReason`
+(`Database`, `Startup`, `Reset`) is mapped by shared `FailurePresentation` to a
+fixed summary. Diagnostic details remain separate and appear in the startup
+screen's expander. Other flows below still use their current result shapes
+until their failure-policy migration lands.
+
 Operations with multiple semantically distinct outcomes return a sealed
 record hierarchy with a private constructor so callers must
 pattern-match on known cases instead of relying on bool flags, `null`,

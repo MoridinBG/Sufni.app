@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Threading.Tasks;
 
@@ -21,8 +22,6 @@ public abstract record ShellStartupState
     public sealed record Failed(StartupFailureReason Reason, string Details) : ShellStartupState;
     public sealed record RelaunchRequired(string ArchiveDirectory) : ShellStartupState;
 }
-
-public enum StartupFailureReason { Database, Startup, Reset }
 
 public abstract record DatabaseResetResult
 {
