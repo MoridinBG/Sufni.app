@@ -116,7 +116,6 @@ internal class BikeCoordinator(
                 switch (analysisResult)
                 {
                     case BikeEditorAnalysisResult.Unsolvable:
-                        logger.Warning("Bike save blocked because linkage was invalid for {BikeId}", bike.Id);
                         return new BikeSaveResult.InvalidRearSuspension(RearSuspensionValidationMessages.ForSave(
                             new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable)));
                     case BikeEditorAnalysisResult.Failed failed:
