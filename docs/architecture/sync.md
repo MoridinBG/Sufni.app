@@ -148,14 +148,12 @@ put itself propagates and fails the run. The pull watermark has already advanced
 after metadata and processed-BLOB swaps; source completeness is retried
 independently from the missing-source queries rather than by replaying metadata.
 
-Local write flows use semantic store commit methods when the app itself owns
-the write intent. Sync apply is different: `SynchronizationMergeEngine`, the
-session-data endpoints, and the recorded-source endpoints persist or merge rows
-first, then the app reflects those rows through publish-only store writer
-methods or a full `IAppDataRefresher.RefreshAsync()` run.
-Publish-only methods never write repositories; they re-read changed ids or
-remove deleted ids from the cache so sync/server application does not duplicate
-the persistence operation.
+Local workflow owners persist and prepare snapshots for publish-only stores.
+For sync, `SynchronizationMergeEngine`, the session-data endpoints, and the
+recorded-source endpoints persist or merge rows first. Inbound coordinators and
+`SessionSyncApplier` then load the authoritative snapshots and publish changes or
+removals, or use a full `IAppDataRefresher.RefreshAsync()` run. Stores never read
+or write repositories, so publication does not duplicate the persistence operation.
 
 ### Processed-BLOB coherence (download-then-swap)
 

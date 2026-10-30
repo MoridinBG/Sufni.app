@@ -43,16 +43,17 @@ These boundaries are the invariants worth preserving even if type names
 or feature wording evolve:
 
 - A view model owns screen state, command flow, and binding-friendly projection.
-- A persisted store owns shared read state for one entity family plus the
-  writer surface for that family's single-aggregate commit and publish-only
-  operations. Runtime-only stores own runtime publication for their own data.
+- A persisted store owns shared read state for one entity family and publishes
+  prepared snapshots/removals through its writer interface. It does not persist
+  or load repository data. Runtime-only stores own runtime publication for their
+  own data.
 - A read graph owns a joined projection across stores and publishes derived state for screens that need more than one entity family.
 - A query answers a business question that crosses domains or requires derived reasoning; it does not own the shared collection.
 - A coordinator owns workflows with side effects and
-  long-lived event subscriptions. It calls store writer APIs for persisted
-  changes but does not mutate store caches directly; cross-aggregate writes
-  live in workflow transaction runners or command services that publish store
-  state only after the SQLite transaction commits.
+  long-lived event subscriptions. It persists through services and supplies
+  prepared snapshots to store writers without mutating caches directly.
+  Cross-aggregate writes live in workflow transaction runners or command services
+  that publish store state only after the SQLite transaction commits.
 - A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution. Infrastructure-facing contracts stay presentation-neutral: for example, the bike editor service and coordinator return image bytes and neutral result records, while Avalonia image decoding stays in the bike editor's presentation objects.
 - Screen-scoped caches belong to the screen that owns their lifecycle. Recorded-session analysis uses a per-open-session result state for cancellation and cached records, backed by a shared stateless analysis computer.
 
@@ -103,7 +104,6 @@ graph TB
     Coords --> Services
     Graphs --> Stores
     Queries --> Services
-    Stores --> Services
 ```
 
 Rules enforced by convention:
@@ -113,7 +113,7 @@ Rules enforced by convention:
 - The shell owns editor open/focus/restore/close and post-save navigation. Successful editors accept their baseline before requesting `CompleteEdit`; editor deletion closes the matching tab without an extra back step.
 - Dialogs are split across two seams on the same `DialogService` singleton: `IDialogService` is the prompt contract view models and coordinators consume (`Show*` methods only, no Avalonia types), while `IDialogHost` is the wiring contract `App` uses at startup to set the owner window, overlay host, and window-versus-overlay presentation mode.
 - A service or factory may depend on platform or infrastructure APIs and may create concrete datastores, own file-picker lifetime, and own background execution. View models ask services and factories to do this work; they do not `new` concrete infrastructure types.
-- A store may depend only on services. A read graph may depend on read-only stores and pure derivation services. A query may depend on services or read-only stores.
+- Stores depend on publication infrastructure, not repositories or domain services. A read graph may depend on read-only stores and pure derivation services. A query may depend on services or read-only stores.
 - Controls in `Views/Controls/` and `DesktopViews/Controls/` resolve nothing from the DI container — parent views supply everything via bindings or attached behaviours.
 
 ## Threading & Lifecycle
@@ -317,14 +317,17 @@ Server launch returns `ServerStartResult.Started | Failed(reason, details)` with
 `ServerStartFailureReason.Start`. The shell maps failure to the blocking
 `StartupFailureReason.Server` state without logging the same failure again.
 
-Failure-policy adoption has started with startup: `StartupFailureReason`
-(`Database`, `Startup`, `Server`, `Reset`) is mapped by shared `FailurePresentation` to a
-fixed summary. Diagnostic details remain separate and appear in the startup
-screen's expander. Shared error bars also accept summary/detail presentations
-and expose optional details through a collapsed expander. Video failures use
-that presentation; the remaining string-based producers still require migration.
-Other flows below still use their current result shapes
-until their failure-policy migration lands.
+`FailurePresentation` maps closed reasons to fixed summaries and keeps diagnostic
+details separate. Startup uses `StartupFailureReason.Database | Startup | Server |
+Reset`; its blocking screen and shared error bars expose details through a
+collapsed expander. Cancellation remains neutral, and outer layers do not log
+an already-classified failure again.
+
+Failure-policy migration is incomplete in the current code: live capture and
+management, acquisition listing/folder selection, recorded preferences and
+analysis/reconciliation, session/track loading, and segment comparison still
+have presentation-owned catches or string failure payloads. Their current
+ownership is described in the corresponding subsystem documents.
 
 Operations with multiple semantically distinct outcomes return a sealed
 record hierarchy with a private constructor so callers must
