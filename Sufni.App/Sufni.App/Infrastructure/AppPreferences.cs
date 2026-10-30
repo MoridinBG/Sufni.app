@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -33,7 +34,7 @@ public sealed class AppPreferences : IAppPreferences
     private readonly Subject<PreferenceValueChange<MapPreferencesValue>> mapPreferencesSubject = new();
     private readonly Subject<PreferenceValueChange<SufniThemeMode>> themePreferencesSubject = new();
     private readonly object recordedPreferenceSubjectsGate = new();
-    private readonly Dictionary<Guid, Subject<PreferenceValueChange<SessionPreferences>>> recordedPreferenceSubjects = [];
+    private readonly Dictionary<Guid, RecordedPreferenceWatch> recordedPreferenceSubjects = [];
 
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
@@ -134,18 +135,50 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private Subject<PreferenceValueChange<SessionPreferences>> GetRecordedPreferenceSubject(Guid sessionId)
-    {
-        lock (recordedPreferenceSubjectsGate)
+    private IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedPreferences(Guid sessionId) =>
+        Observable.Create<PreferenceValueChange<SessionPreferences>>(async observer =>
         {
-            if (!recordedPreferenceSubjects.TryGetValue(sessionId, out var subject))
+            await gate.WaitAsync();
+            try
             {
-                subject = new Subject<PreferenceValueChange<SessionPreferences>>();
-                recordedPreferenceSubjects[sessionId] = subject;
+                RecordedPreferenceWatch watch;
+                IDisposable subscription;
+                lock (recordedPreferenceSubjectsGate)
+                {
+                    if (!recordedPreferenceSubjects.TryGetValue(sessionId, out watch!))
+                    {
+                        watch = new RecordedPreferenceWatch();
+                        recordedPreferenceSubjects.Add(sessionId, watch);
+                    }
+                    watch.Subscribers++;
+                    subscription = watch.Subject.Subscribe(observer);
+                    // The document gate keeps initial replay adjacent to subscription.
+                    observer.OnNext(new PreferenceValueChange<SessionPreferences>(
+                        document.Session.GetRecorded(sessionId), PreferenceChangeOrigin.SyncApply, false));
+                }
+                return Disposable.Create(() =>
+                {
+                    subscription.Dispose();
+                    lock (recordedPreferenceSubjectsGate)
+                    {
+                        if (--watch.Subscribers == 0)
+                        {
+                            recordedPreferenceSubjects.Remove(sessionId);
+                            watch.Subject.Dispose();
+                        }
+                    }
+                });
             }
+            finally
+            {
+                gate.Release();
+            }
+        });
 
-            return subject;
-        }
+    private sealed class RecordedPreferenceWatch
+    {
+        public Subject<PreferenceValueChange<SessionPreferences>> Subject { get; } = new();
+        public int Subscribers;
     }
 
     private Guid[] GetObservedRecordedSessionIds()
@@ -163,16 +196,11 @@ public sealed class AppPreferences : IAppPreferences
     {
         foreach (var (sessionId, value) in recordedChanges)
         {
-            Subject<PreferenceValueChange<SessionPreferences>>? subject;
             lock (recordedPreferenceSubjectsGate)
             {
-                recordedPreferenceSubjects.TryGetValue(sessionId, out subject);
+                if (recordedPreferenceSubjects.TryGetValue(sessionId, out var watch))
+                    watch.Subject.OnNext(new PreferenceValueChange<SessionPreferences>(value, origin, advancesSyncClock));
             }
-
-            subject?.OnNext(new PreferenceValueChange<SessionPreferences>(
-                value,
-                origin,
-                advancesSyncClock));
         }
     }
 
@@ -468,19 +496,8 @@ public sealed class AppPreferences : IAppPreferences
 
         public IObservable<SessionPreferences> ObserveRecorded(Guid sessionId)
         {
-            return ObserveRecordedChanges(sessionId)
+            return owner.ObserveRecordedPreferences(sessionId)
                 .Select(change => change.Value)
-                .DistinctUntilChanged();
-        }
-
-        private IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedChanges(Guid sessionId)
-        {
-            return Observable
-                .FromAsync(async () => new PreferenceValueChange<SessionPreferences>(
-                    await GetRecordedAsync(sessionId),
-                    PreferenceChangeOrigin.SyncApply,
-                    AdvancesSyncClock: false))
-                .Concat(owner.GetRecordedPreferenceSubject(sessionId))
                 .DistinctUntilChanged();
         }
 

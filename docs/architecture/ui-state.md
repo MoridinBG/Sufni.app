@@ -210,6 +210,10 @@ A session removal clears its summary and completes its watch synchronously in
 the source commit's dispatcher turn, without waiting for pending evaluation.
 Watches are subscription-scoped: the first subscriber creates a replay subject,
 and the last subscriber releases it. Resubscribing replays the latest domain.
+Per-session preference streams in `AppPreferences` use the same subscription
+lifetime: no subject exists solely because an observable was requested or a tab
+used to be open. Initial preference replay and subscription registration share
+the document gate, so a committed preference update cannot fall between them.
 
 A source change also queues every session whose `source_session_id` points
 at that source. Setup or bike changes first update

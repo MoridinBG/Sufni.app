@@ -1078,6 +1078,36 @@ public class AppPreferencesTests
     }
 
     [Fact]
+    public async Task ObserveRecorded_ReusesObservableAfterLastUnsubscribe_WithoutInterruptingOtherObservers()
+    {
+        using var directory = new TempDirectory();
+        var preferences = TestAppPreferences.Load(CreatePreferencesPath(directory));
+        var id = Guid.NewGuid();
+        var observable = preferences.Session.ObserveRecorded(id);
+        var closed = new List<SessionPreferences>();
+        var initial = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (observable.Subscribe(value => { closed.Add(value); initial.TrySetResult(); }))
+            await initial.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await preferences.Session.UpdateRecordedAsync(id, current => current with
+        {
+            Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag }
+        });
+        var reopened = new List<SessionPreferences>();
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var retained = observable.Subscribe(value => { reopened.Add(value); ready.TrySetResult(); });
+        await ready.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        var other = await observable.FirstAsync().ToTask().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await preferences.Session.RemoveRecordedAsync(id);
+
+        Assert.Single(closed);
+        Assert.Equal(TravelDistributionMode.DynamicSag, other.Analysis.TravelDistributionMode);
+        Assert.Equal(other, reopened[0]);
+        Assert.Equal(SessionPreferences.Default, reopened[1]);
+        Assert.Equal(2, reopened.Count);
+    }
+
+    [Fact]
     public async Task ObserveRecorded_DistinctUntilChanged_SquashesIdenticalRefresh()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
