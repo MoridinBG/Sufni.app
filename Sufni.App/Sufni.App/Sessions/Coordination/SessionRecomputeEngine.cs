@@ -8,6 +8,7 @@ using Serilog;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -54,7 +55,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
 
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ITrackRepository trackQueries;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
@@ -75,7 +76,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     public SessionRecomputeEngine(
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
+        ITrackRepository trackQueries,
         ISynchronizableRepository<Track> trackEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
         IRecordedSessionSourceStoreWriter sourceStore,
@@ -85,7 +86,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
-        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.trackQueries = trackQueries;
         this.trackEntityRepository = trackEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sourceStore = sourceStore;
@@ -140,7 +141,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 // Start this run immediately. The displaced run may still be inside
                 // the synchronous telemetry pipeline, but it is no longer current
                 // and will no-op at guard (i) before persistence.
-                var result = await RecomputeAsync(sessionId, seq, cts.Token).ConfigureAwait(false);
+                var result = await backgroundTaskRunner.RunAsync(
+                    () => RecomputeAsync(sessionId, seq, cts.Token), cts.Token).ConfigureAwait(false);
                 tcs.SetResult(result);
             }
             catch (OperationCanceledException)
@@ -178,7 +180,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         {
             shutdown.Token.ThrowIfCancellationRequested();
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
-            var task = RecomputeAllAsync(progress, cancellation.Token);
+            var task = backgroundTaskRunner.RunAsync(
+                () => RecomputeAllAsync(progress, cancellation.Token), cancellation.Token);
             activeTasks.Add(task);
             _ = ReleaseAsync(task, cancellation);
             return task;
@@ -327,17 +330,11 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 }
             }
 
-            var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(
-                    RecordedSessionDerivationInput.Create(domain.Session, domain.Setup!, domain.Bike!, source),
-                    cancellationToken),
-                cancellationToken);
+            var reprocessResult = await recordedSessionReprocessor.ReprocessAsync(
+                RecordedSessionDerivationInput.Create(domain.Session, domain.Setup!, domain.Bike!, source), cancellationToken);
 
-            // A superseding request cannot interrupt the synchronous pipeline above
-            // (BackgroundTaskRunner.RunAsync is Task.Run(work, ct); ReprocessAsync
-            // checks the token once at entry then runs token-less
-            // TelemetryData.FromRecording). Cancellation bounds correctness, not
-            // CPU/latency: re-check it before doing any persistence work.
+            // Synchronous processing cannot be interrupted; cancellation must still
+            // prevent the completed generation from reaching persistence.
             cancellationToken.ThrowIfCancellationRequested();
 
             if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
@@ -354,23 +351,22 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             var previousFullTrack = previousFullTrackId.HasValue
                 ? await trackEntityRepository.GetAsync(previousFullTrackId.Value)
                 : null;
-            Track? newFullTrack = null;
-
-            if (processed.GeneratedFullTrack is null)
+            var generation = processed.Generation;
+            var generatedTrack = generation.TrackPoints is { Count: > 0 } points
+                ? new Track { Points = points.ToList() } : null;
+            var newFullTrack = generatedTrack is not null &&
+                               (previousFullTrack is null || !TrackContentHash.PointsEqual(previousFullTrack, generatedTrack))
+                ? generatedTrack : null;
+            var fullTrackId = newFullTrack?.Id ?? previousFullTrackId;
+            if (newFullTrack is null)
             {
-                persisted.FullTrack = previousFullTrackId;
-                persisted.Track = null;
+                if (fullTrackId is null && persisted.Timestamp is { } timestamp)
+                    fullTrackId = await trackQueries.FindTrackContainingTimestampAsync(timestamp);
+                var track = previousFullTrack ?? (fullTrackId is { } trackId
+                    ? await trackEntityRepository.GetAsync(trackId) : null);
+                if (track is not null) generation = generation.WithTrackWindow(track, SessionSnapshot.From(persisted));
             }
-            else if (previousFullTrack is not null &&
-                     TrackContentHash.PointsEqual(previousFullTrack, processed.GeneratedFullTrack))
-            {
-                persisted.FullTrack = previousFullTrackId;
-            }
-            else
-            {
-                newFullTrack = processed.GeneratedFullTrack;
-                persisted.Track = null;
-            }
+            var prepared = generation.CreateSession(SessionSnapshot.From(persisted), fullTrackId);
 
             // A newer explicit request owns the result; the transaction separately
             // checks all persisted inputs, including the processing option.
@@ -383,11 +379,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             // DB-input part of F_in inside the write transaction and returns null on
             // a passive setup/bike/source change. Re-enqueue by looping
             // with freshly read inputs rather than surfacing a neutral result.
-            var fresh = await sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(
-                persisted,
-                processed.ProcessedTelemetry,
-                newFullTrack,
-                processed.Fingerprint);
+            var fresh = await sessionRepository.UpdateProcessedDerivedDataAsync(
+                prepared, newFullTrack, processed.Fingerprint);
             if (fresh is null)
             {
                 logger.Information("Recorded session recompute for {SessionId} re-enqueued after a passive input change", sessionId);

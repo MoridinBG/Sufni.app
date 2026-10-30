@@ -37,8 +37,7 @@ public interface IRecordedSessionReprocessor
         CancellationToken cancellationToken = default);
 }
 
-// Result of a reprocess pass: processed telemetry, an optional regenerated
-// track, and the fingerprint for the exact inputs that produced the cache.
+// Telemetry and its serialized form are produced together, without a decode on the write path.
 public sealed record ProcessedTelemetryPayload(
     TelemetryData TelemetryData,
     byte[] Data,
@@ -48,8 +47,7 @@ public abstract record RecordedSessionReprocessResult
 {
     private RecordedSessionReprocessResult() { }
     public sealed record Processed(
-        ProcessedTelemetryPayload ProcessedTelemetry,
-        Track? GeneratedFullTrack,
+        ProcessedGeneration Generation,
         ProcessingFingerprint Fingerprint) : RecordedSessionReprocessResult;
     public sealed record Failed(SessionProcessingFailureReason Reason, string? Details = null) : RecordedSessionReprocessResult;
 }

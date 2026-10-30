@@ -56,12 +56,12 @@ public class RecordedSessionReprocessorTests
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
-        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
         Assert.Equal("compressed-source.SST", telemetryData.Metadata.SourceName);
         Assert.Equal(3, telemetryData.Metadata.Version);
         Assert.NotEmpty(telemetryData.Front.Travel);
-        Assert.Equal(telemetryData.BinaryForm, result.ProcessedTelemetry.Data);
-        Assert.Equal(AppJson.Serialize(result.Fingerprint), result.ProcessedTelemetry.FingerprintJson);
+        Assert.Equal(telemetryData.BinaryForm, result.Generation.ProcessedTelemetry.Data);
+        Assert.Equal(AppJson.Serialize(result.Fingerprint), result.Generation.ProcessedTelemetry.FingerprintJson);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class RecordedSessionReprocessorTests
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
-        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
 
         Assert.Equal(1_700_000_001, telemetryData.Metadata.Timestamp);
         Assert.Equal(0.2, telemetryData.Metadata.Duration, precision: 6);
@@ -186,11 +186,11 @@ public class RecordedSessionReprocessorTests
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
-        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
         Assert.Equal("live", telemetryData.Metadata.SourceName);
         Assert.NotEmpty(telemetryData.Front.Travel);
-        Assert.NotNull(result.GeneratedFullTrack);
-        Assert.Single(result.GeneratedFullTrack.Points);
+        Assert.NotNull(result.Generation.TrackPoints);
+        Assert.Single(result.Generation.TrackPoints);
         Assert.Equal(22.0, Assert.Single(telemetryData.TemperatureAverages).TemperatureCelsius);
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
@@ -223,8 +223,8 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
         Assert.Equal(original.Fingerprint.VelocityFilterWindowMilliseconds, result.Fingerprint.VelocityFilterWindowMilliseconds);
         Assert.Equal(original.Fingerprint.DerivationWindow, result.Fingerprint.DerivationWindow);
-        Assert.True(result.ProcessedTelemetry.TelemetryData.Front.Travel.Max() > original.ProcessedTelemetry.TelemetryData.Front.Travel.Max());
-        Assert.Equal(AppJson.Serialize(result.Fingerprint), result.ProcessedTelemetry.FingerprintJson);
+        Assert.True(result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel.Max() > original.Generation.ProcessedTelemetry.TelemetryData.Front.Travel.Max());
+        Assert.Equal(AppJson.Serialize(result.Fingerprint), result.Generation.ProcessedTelemetry.FingerprintJson);
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public class RecordedSessionReprocessorTests
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
-        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
 
         Assert.Equal(1_700_000_001, telemetryData.Metadata.Timestamp);
         Assert.Equal(0.2, telemetryData.Metadata.Duration, precision: 6);
@@ -367,10 +367,10 @@ public class RecordedSessionReprocessorTests
             .GetProperty("imu_data")
             .GetProperty(nameof(RawImuData.Records));
         Assert.Equal(0, sourceImuRecords.GetArrayLength());
-        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
         Assert.Equal(5, telemetryData.Metadata.Version);
         Assert.True(telemetryData.Front.HasGaps);
-        var persistedTelemetry = TelemetryData.FromBinary(result.ProcessedTelemetry.Data);
+        var persistedTelemetry = TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data);
         Assert.NotNull(persistedTelemetry.ImuData);
         Assert.Empty(persistedTelemetry.ImuData.Records);
         Assert.Single(persistedTelemetry.ImuData.Segments);
@@ -410,11 +410,11 @@ public class RecordedSessionReprocessorTests
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
-        var telemetryData = result.ProcessedTelemetry.TelemetryData;
+        var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
         Assert.Equal(4, telemetryData.Metadata.Version);
         Assert.NotEmpty(telemetryData.Front.Travel);
         Assert.False(telemetryData.Front.HasGaps);
-        var persistedTelemetry = TelemetryData.FromBinary(result.ProcessedTelemetry.Data);
+        var persistedTelemetry = TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data);
         Assert.NotNull(persistedTelemetry.ImuData);
         Assert.Empty(persistedTelemetry.ImuData.Records);
         var segment = Assert.Single(persistedTelemetry.ImuData.Segments);
@@ -434,9 +434,9 @@ public class RecordedSessionReprocessorTests
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(JsonValueKind.Null, sourceDocument.RootElement.GetProperty("temperature_data").ValueKind);
-        Assert.NotEmpty(result.ProcessedTelemetry.TelemetryData.Front.Travel);
-        Assert.Empty(result.ProcessedTelemetry.TelemetryData.TemperatureAverages);
-        Assert.Empty(TelemetryData.FromBinary(result.ProcessedTelemetry.Data).TemperatureAverages);
+        Assert.NotEmpty(result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel);
+        Assert.Empty(result.Generation.ProcessedTelemetry.TelemetryData.TemperatureAverages);
+        Assert.Empty(TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data).TemperatureAverages);
     }
 
     [Fact]
@@ -455,9 +455,9 @@ public class RecordedSessionReprocessorTests
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
-        Assert.NotEmpty(result.ProcessedTelemetry.TelemetryData.Front.Travel);
-        Assert.Empty(result.ProcessedTelemetry.TelemetryData.TemperatureAverages);
-        Assert.Empty(TelemetryData.FromBinary(result.ProcessedTelemetry.Data).TemperatureAverages);
+        Assert.NotEmpty(result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel);
+        Assert.Empty(result.Generation.ProcessedTelemetry.TelemetryData.TemperatureAverages);
+        Assert.Empty(TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data).TemperatureAverages);
     }
 
     [Fact]
@@ -562,7 +562,7 @@ public class RecordedSessionReprocessorTests
             input, TestContext.Current.CancellationToken));
 
         Assert.Equal(1, result.Fingerprint.CalibrationVersion);
-        var telemetry = result.ProcessedTelemetry.TelemetryData;
+        var telemetry = result.Generation.ProcessedTelemetry.TelemetryData;
         Assert.Equal(64, telemetry.Front.Travel.Length);
         Assert.Equal(64, telemetry.Rear.Travel.Length);
         Assert.All(telemetry.Front.Travel, travel => Assert.Equal(40.00976800976801, travel, precision: 8));
@@ -594,8 +594,8 @@ public class RecordedSessionReprocessorTests
         else
         {
             var processed = Assert.IsType<RecordedSessionReprocessResult.Processed>(result);
-            Assert.True(processed.ProcessedTelemetry.TelemetryData.Front.Present);
-            Assert.False(processed.ProcessedTelemetry.TelemetryData.Rear.Present);
+            Assert.True(processed.Generation.ProcessedTelemetry.TelemetryData.Front.Present);
+            Assert.False(processed.Generation.ProcessedTelemetry.TelemetryData.Rear.Present);
         }
     }
 

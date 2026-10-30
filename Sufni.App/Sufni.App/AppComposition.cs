@@ -179,7 +179,7 @@ public static class AppComposition
         services.AddSingleton<ISessionRecomputeEngine>(sp => new SessionRecomputeEngine(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
+            sp.GetRequiredService<ITrackRepository>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
@@ -228,7 +228,8 @@ public static class AppComposition
         services.AddSingleton<ISyncCoordinator>(sp => sp.GetRequiredService<SyncCoordinator>());
         services.AddSingleton<ImportSessionsCoordinator>(sp =>
             new ImportSessionsCoordinator(
-                sp.GetRequiredService<ISessionTelemetryWriter>(),
+                sp.GetRequiredService<ISessionRepository>(),
+                sp.GetRequiredService<ITrackRepository>(),
                 sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
                 sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
                 sp.GetRequiredService<ISessionStoreWriter>(),

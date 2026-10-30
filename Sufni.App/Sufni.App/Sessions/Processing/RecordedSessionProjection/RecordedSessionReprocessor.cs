@@ -18,7 +18,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// <summary>
 /// Rebuilds processed telemetry from a persisted recorded raw source.
 /// It decodes the source payload, reconstructs the bike processing context,
-/// generates any GPS-backed full track, and returns the matching fingerprint.
+/// projects GPS points and summary metrics, and returns the matching fingerprint.
 /// </summary>
 internal sealed class RecordedSessionReprocessor(
     IProcessingFingerprintService fingerprintService,
@@ -64,8 +64,8 @@ internal sealed class RecordedSessionReprocessor(
             return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Failed(reason, e.Message));
         }
 
-        var fullTrack = telemetryData.GpsData is { Length: > 0 }
-            ? Track.FromGpsRecords(telemetryData.GpsData)
+        var points = telemetryData.GpsData is { Length: > 0 }
+            ? GpsTrackPointProjection.ProjectAll(telemetryData.GpsData)
             : null;
         var fingerprint = fingerprintService.CreateCurrent(
             input.Session,
@@ -79,7 +79,7 @@ internal sealed class RecordedSessionReprocessor(
             telemetryData.BinaryForm,
             fingerprintJson);
 
-        return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Processed(processedTelemetry, fullTrack, fingerprint));
+        return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Processed(ProcessedGeneration.Create(processedTelemetry, points), fingerprint));
     }
 
     private static TelemetryData ReprocessImportedSst(

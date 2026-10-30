@@ -12,6 +12,8 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
+using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Store;
@@ -46,7 +48,8 @@ internal sealed class ImportWorkflowHarness
 
     public BehaviorSubject<SessionImportState> ImportState { get; } = new(new SessionImportState.Idle());
 
-    public ISessionTelemetryWriter SessionTelemetryWriter { get; } = Substitute.For<ISessionTelemetryWriter>();
+    public ISessionRepository SessionRepository { get; } = Substitute.For<ISessionRepository>();
+    public ITrackRepository TrackRepository { get; } = Substitute.For<ITrackRepository>();
     public ISynchronizableRepository<Setup> SetupRepository { get; } = Substitute.For<ISynchronizableRepository<Setup>>();
     public ISynchronizableRepository<Bike> BikeRepository { get; } = Substitute.For<ISynchronizableRepository<Bike>>();
     public ISessionStoreWriter SessionStore { get; } = Substitute.For<ISessionStoreWriter>();
@@ -65,7 +68,8 @@ internal sealed class ImportWorkflowHarness
     public SourceCache<SetupSnapshot, Guid> SetupCache { get; } = new(s => s.Id);
 
     public ImportSessionsCoordinator CreateCoordinator() => new(
-        SessionTelemetryWriter,
+        SessionRepository,
+        TrackRepository,
         SetupRepository,
         BikeRepository,
         SessionStore,
@@ -111,11 +115,10 @@ internal sealed class ImportWorkflowHarness
             DependencyHash: "dependency",
             SourceHash: input.Source.SourceHash);
         return new RecordedSessionReprocessResult.Processed(
-            new ProcessedTelemetryPayload(
+            ProcessedGeneration.Create(new ProcessedTelemetryPayload(
                 data,
                 data.BinaryForm,
-                AppJson.Serialize(fingerprint)),
-            generatedFullTrack,
+                AppJson.Serialize(fingerprint)), generatedFullTrack?.Points),
             fingerprint);
     }
 
@@ -132,19 +135,15 @@ internal sealed class ImportWorkflowHarness
 
     private void ConfigureDefaultWriter()
     {
-        SessionTelemetryWriter
+        SessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .Returns(callInfo =>
             {
                 var session = callInfo.ArgAt<Session>(0);
-                var payload = callInfo.ArgAt<ProcessedTelemetryPayload>(1);
-                var track = callInfo.ArgAt<Track?>(2);
-                session.ProcessedData = payload.Data;
-                session.ProcessingFingerprintJson = payload.FingerprintJson;
+                var track = callInfo.ArgAt<Track?>(1);
                 session.FullTrack = track?.Id;
                 session.Updated = 10;
                 return Task.FromResult(session);

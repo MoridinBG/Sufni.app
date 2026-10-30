@@ -374,12 +374,6 @@ public class SessionProcessedTelemetryReaderTests
         public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
             throw new NotSupportedException();
 
-        public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
-            Track fullTrack,
-            long? timestamp,
-            double? durationSeconds,
-            double gpsOffsetSeconds = 0) =>
-            throw new NotSupportedException();
     }
 
     private sealed class FailingThenSuccessfulTelemetryProcessor(TelemetryData telemetryData) : ISessionTelemetryProcessor
@@ -400,11 +394,5 @@ public class SessionProcessedTelemetryReaderTests
         public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
             throw new NotSupportedException();
 
-        public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
-            Track fullTrack,
-            long? timestamp,
-            double? durationSeconds,
-            double gpsOffsetSeconds = 0) =>
-            throw new NotSupportedException();
     }
 }

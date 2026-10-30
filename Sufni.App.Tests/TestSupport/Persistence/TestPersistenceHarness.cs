@@ -36,7 +36,7 @@ internal sealed class TestPersistenceHarness
         trackRepository = new TrackRepository(context);
         sessionRepository = new SessionRepository(context, fingerprintService, this.timeProvider);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
-        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, trackRepository, sessionTelemetryProcessor);
+        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService, this.timeProvider);
     }
@@ -131,13 +131,13 @@ internal sealed class TestPersistenceHarness
         Session session,
         Track? newFullTrack,
         RecordedSessionSource? source) =>
-        sessionTelemetryWriter.PutProcessedSessionAsync(session, CreatePayload(session), newFullTrack, source);
+        sessionRepository.PutProcessedSessionAsync(PrepareGeneration(session, newFullTrack), newFullTrack, source);
 
     public Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
         Track? newFullTrack,
         ProcessingFingerprint expectedInputFingerprint) =>
-        sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(session, CreatePayload(session), newFullTrack, expectedInputFingerprint);
+        sessionRepository.UpdateProcessedDerivedDataAsync(PrepareGeneration(session, newFullTrack), newFullTrack, expectedInputFingerprint);
 
     public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
         sessionTelemetryWriter.PatchSessionPsstAsync(id, data, fingerprint);
@@ -212,6 +212,10 @@ internal sealed class TestPersistenceHarness
 
     public Task MergeAllAsync(SynchronizationData data) =>
         syncDataStore.MergeAllAsync(data);
+
+    private Session PrepareGeneration(Session session, Track? newFullTrack) =>
+        ProcessedGeneration.Create(CreatePayload(session), session.Track ?? newFullTrack?.Points)
+            .CreateSession(SessionSnapshot.From(session), newFullTrack?.Id ?? session.FullTrack);
 
     private ProcessedTelemetryPayload CreatePayload(Session session)
     {

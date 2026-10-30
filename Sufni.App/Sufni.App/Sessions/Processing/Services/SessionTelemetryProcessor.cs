@@ -12,12 +12,6 @@ internal interface ISessionTelemetryProcessor
     TelemetryData ReadProcessedTelemetryData(byte[] processedData);
 
     SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points);
-
-    List<TrackPoint>? GenerateSessionTrackFromFullTrack(
-        Track fullTrack,
-        long? timestamp,
-        double? durationSeconds,
-        double gpsOffsetSeconds = 0);
 }
 
 internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
@@ -43,26 +37,4 @@ internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
         double? durationSeconds,
         IReadOnlyList<TrackPoint>? points) =>
         SessionSummaryMetricsCalculator.Calculate(durationSeconds, points);
-
-    public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
-        Track fullTrack,
-        long? timestamp,
-        double? durationSeconds,
-        double gpsOffsetSeconds = 0)
-    {
-        if (!timestamp.HasValue ||
-            durationSeconds is not { } duration ||
-            !double.IsFinite(duration) ||
-            duration <= 0 ||
-            !fullTrack.HasPoints)
-        {
-            return null;
-        }
-
-        var normalizedOffset = double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
-        var start = timestamp.Value + normalizedOffset;
-        var end = start + (int)Math.Ceiling(duration);
-        var points = fullTrack.GenerateSessionTrack(start, end);
-        return points.Count == 0 ? null : points;
-    }
 }

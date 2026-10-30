@@ -17,7 +17,9 @@ using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
@@ -33,7 +35,8 @@ namespace Sufni.App.Acquisition.Coordinators;
 /// persists both the canonical raw source and the derived session data.
 /// </summary>
 public class ImportSessionsCoordinator(
-    ISessionTelemetryWriter sessionTelemetryWriter,
+    ISessionRepository sessionRepository,
+    ITrackRepository trackRepository,
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Bike> bikeRepository,
     ISessionStoreWriter sessionStore,
@@ -322,11 +325,19 @@ public class ImportSessionsCoordinator(
                             var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
 
                             logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
-                            var persisted = await sessionTelemetryWriter.PutProcessedSessionAsync(
-                                session,
-                                processed.ProcessedTelemetry,
-                                processed.GeneratedFullTrack,
-                                source);
+                            var generation = processed.Generation;
+                            var newTrack = generation.TrackPoints is { Count: > 0 } points
+                                ? new Track { Points = points.ToList() } : null;
+                            var fullTrackId = newTrack?.Id;
+                            if (newTrack is null && session.Timestamp is { } timestamp)
+                            {
+                                fullTrackId = await trackRepository.FindTrackContainingTimestampAsync(timestamp);
+                                if (fullTrackId is { } trackId &&
+                                    (await trackRepository.GetTracksByIdsAsync([trackId])).FirstOrDefault() is { } track)
+                                    generation = generation.WithTrackWindow(track, SessionSnapshot.From(session));
+                            }
+                            var prepared = generation.CreateSession(SessionSnapshot.From(session), fullTrackId);
+                            var persisted = await sessionRepository.PutProcessedSessionAsync(prepared, newTrack, source);
 
                             var snapshot = SessionSnapshot.From(persisted);
                             committedImports.Add((telemetryFile, snapshot, RecordedSessionSourceSnapshot.From(source)));

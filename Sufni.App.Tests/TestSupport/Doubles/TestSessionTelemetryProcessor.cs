@@ -32,10 +32,4 @@ internal sealed class TestSessionTelemetryProcessor : ISessionTelemetryProcessor
     public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
         real.ComputeSummaryMetrics(durationSeconds, points);
 
-    public List<TrackPoint>? GenerateSessionTrackFromFullTrack(
-        Track fullTrack,
-        long? timestamp,
-        double? durationSeconds,
-        double gpsOffsetSeconds = 0) =>
-        real.GenerateSessionTrackFromFullTrack(fullTrack, timestamp, durationSeconds, gpsOffsetSeconds);
 }

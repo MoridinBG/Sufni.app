@@ -37,7 +37,7 @@ public class SessionCoordinatorTests
     private readonly InMemorySynchronizableRepository<Track> trackRepository = new(new FakeTimeProvider());
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
+    private readonly Sufni.App.MapsAndTracks.Services.ITrackRepository trackQueries = Substitute.For<Sufni.App.MapsAndTracks.Services.ITrackRepository>();
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions = Substitute.For<ISessionPersistenceTransactionRunner>();
@@ -269,8 +269,39 @@ public class SessionCoordinatorTests
         Assert.Equal(SessionProcessingFailureReason.NoTravelData, Assert.IsType<LiveSessionSaveResult.ProcessingFailed>(result).Reason);
         Assert.Null(store.Get(session.Id));
         Assert.Null(await repository.Repository.GetSessionAsync(session.Id));
-        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(), Arg.Any<ProcessedTelemetryPayload>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
+        await sessionRepository.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
+    }
+
+    [Fact]
+    public async Task SaveLiveCaptureAsync_AssociatesStoredTrack_AndPublishesPreparedGeneration()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        SeedLiveCaptureDependencies(capture);
+        var timestamp = capture.TelemetryCapture.Metadata.Timestamp;
+        var track = new Track
+        {
+            Points = Enumerable.Range(0, 4).Select(index => new TrackPoint(timestamp + index, index, index, 100 + index * 4)).ToList()
+        };
+        trackRepository.Seed(track);
+        trackQueries.FindTrackContainingTimestampAsync(timestamp).Returns(track.Id);
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var session = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, timestamp);
+
+        var result = await CreateCoordinator(store, repository.Repository).SaveLiveCaptureAsync(
+            session, capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
+
+        var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
+        var persisted = (await repository.Repository.GetSessionAsync(saved.SessionId))!;
+        Assert.Equal(track.Id, persisted.FullTrack);
+        Assert.True(persisted.DistanceMeters > 0);
+        Assert.Equal(capture.TelemetryCapture.Metadata.Duration, persisted.DurationSeconds);
+        Assert.Equal(SessionSnapshot.From(persisted), store.Get(saved.SessionId));
+        Assert.Equal(timestamp, (await repository.Repository.GetSessionTrackAsync(saved.SessionId))![0].Time);
+        var bytes = await repository.Repository.GetSessionRawPsstAsync(saved.SessionId);
+        Assert.NotNull(bytes);
+        Assert.Equal(capture.TelemetryCapture.Metadata.Duration, TelemetryData.FromBinary(bytes).Metadata.Duration);
     }
 
     [Fact]
@@ -284,15 +315,14 @@ public class SessionCoordinatorTests
             ProcessedData = [],
         };
         SeedLiveCaptureDependencies(capture);
-        sessionTelemetryWriter
+        sessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .Returns(callInfo =>
             {
-                var savedTrack = callInfo.ArgAt<Track?>(2);
+                var savedTrack = callInfo.ArgAt<Track?>(1);
                 fresh.FullTrack = savedTrack?.Id;
                 return Task.FromResult(fresh);
             });
@@ -305,11 +335,8 @@ public class SessionCoordinatorTests
                 domain.Bike!.Id == capture.Context.BikeId &&
                 domain.Source!.SourceKind == RecordedSessionSourceKind.LiveCapture && domain.Source.SessionId == session.Id &&
                 domain.Source.SourceHash == RecordedSessionSourceHash.Compute(domain.Source.SourceKind, domain.Payload.ToArray())), Arg.Any<CancellationToken>());
-        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
-            Arg.Is<Session>(saved => saved.Id == session.Id),
-            Arg.Is<ProcessedTelemetryPayload>(payload =>
-                payload.Data.Length > 0 &&
-                payload.FingerprintJson != null),
+        await sessionRepository.Received(1).PutProcessedSessionAsync(
+            Arg.Is<Session>(saved => saved.Id == session.Id && saved.ProcessedData!.Length > 0 && saved.ProcessingFingerprintJson != null),
             Arg.Is<Track>(track =>
                 track.Points.Count == 1 &&
                 track.Points[0].FixMode == 3 &&
@@ -351,10 +378,9 @@ public class SessionCoordinatorTests
             ProcessedData = [],
         };
         SeedLiveCaptureDependencies(capture);
-        sessionTelemetryWriter
+        sessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .Returns(fresh);
@@ -382,9 +408,8 @@ public class SessionCoordinatorTests
         Assert.Equal(session.Id, saved.SessionId);
         Assert.NotNull(saved.PublicationWarning);
         Assert.Contains("saved", saved.PublicationWarning, StringComparison.OrdinalIgnoreCase);
-        await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
+        await sessionRepository.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(savedSession => savedSession.Id == session.Id),
-            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
     }
@@ -395,10 +420,9 @@ public class SessionCoordinatorTests
         var capture = CreateLiveCapturePackage(withGps: false);
         var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
         SeedLiveCaptureDependencies(capture);
-        sessionTelemetryWriter
+        sessionRepository
             .PutProcessedSessionAsync(
                 Arg.Any<Session>(),
-                Arg.Any<ProcessedTelemetryPayload>(),
                 Arg.Any<Track?>(),
                 Arg.Any<RecordedSessionSource?>())
             .ThrowsAsync(new InvalidOperationException("disk full"));
@@ -473,7 +497,7 @@ public class SessionCoordinatorTests
         new(
             store ?? sessionStore,
             repository ?? sessionRepository,
-            sessionTelemetryWriter,
+            trackQueries,
             setupRepository,
             bikeRepository,
             sourceStore,
@@ -573,11 +597,10 @@ public class SessionCoordinatorTests
                     DependencyHash: "dependency",
                     SourceHash: source.SourceHash);
                 return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Processed(
-                    new ProcessedTelemetryPayload(
+                    ProcessedGeneration.Create(new ProcessedTelemetryPayload(
                         telemetryData,
                         telemetryData.BinaryForm,
-                        AppJson.Serialize(fingerprint)),
-                    fullTrack,
+                        AppJson.Serialize(fingerprint)), fullTrack?.Points),
                     fingerprint));
             });
     }

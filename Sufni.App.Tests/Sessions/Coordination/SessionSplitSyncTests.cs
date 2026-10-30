@@ -43,12 +43,11 @@ public class SessionSplitSyncTests
         Assert.Equal(new RecordedSessionDerivationWindow(session.Id, 5, null), part2.DerivationWindow);
         Assert.Equal(100, part2.VelocityFilterWindowMilliseconds);
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(CreateInput(part2, setup, bike, source), TestContext.Current.CancellationToken));
-        Assert.Equal(5, result.ProcessedTelemetry.TelemetryData.Metadata.Duration, precision: 3);
-        Assert.Equal(500, result.ProcessedTelemetry.TelemetryData.Front.Travel.Length);
-        Assert.NotNull(await target.SessionTelemetryWriter.UpdateProcessedDerivedDataAsync(
-            (await target.GetSessionAsync(part2.Id))!,
-            result.ProcessedTelemetry,
-            result.GeneratedFullTrack,
+        Assert.Equal(5, result.Generation.ProcessedTelemetry.TelemetryData.Metadata.Duration, precision: 3);
+        Assert.Equal(500, result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel.Length);
+        Assert.NotNull(await target.SessionRepository.UpdateProcessedDerivedDataAsync(
+            result.Generation.CreateSession(part2, fullTrackId: null),
+            newFullTrack: null,
             result.Fingerprint));
     }
 
@@ -73,10 +72,9 @@ public class SessionSplitSyncTests
         await database.PutAsync(setup);
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(CreateInput(SessionSnapshot.From(session), setup, bike, source), TestContext.Current.CancellationToken));
-        var persisted = await database.SessionTelemetryWriter.PutProcessedSessionAsync(
-            session,
-            result.ProcessedTelemetry,
-            result.GeneratedFullTrack,
+        var persisted = await database.SessionRepository.PutProcessedSessionAsync(
+            result.Generation.CreateSession(SessionSnapshot.From(session), fullTrackId: null),
+            newFullTrack: null,
             source);
         return (persisted, setup, bike, source);
     }

@@ -207,7 +207,7 @@ internal sealed class SessionContentReader(
             Id = fullTrackId,
             Points = fullTrackPoints as List<TrackPoint> ?? fullTrackPoints.ToList(),
         };
-        return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(
+        return SessionTrackProjection.GenerateSessionTrack(
             fullTrack,
             session.Timestamp,
             session.DurationSeconds,

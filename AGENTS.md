@@ -158,8 +158,8 @@ The layer roles are consistent across slices:
   - SQLite persistence (`SqliteConnectionContext`, `DatabaseMigrationRunner`),
     `IDialogService` (view models' prompt contract; its `IDialogHost` wiring facet is
     used only by `App`), and `IFilesService` → `Infrastructure/`.
-  - `ISessionTelemetryWriter` (pre-persistence telemetry validation and
-    summary-metric/session-window derivation) → `Sessions/Processing/Services/`;
+  - `ISessionTelemetryWriter` (incoming sync telemetry validation and writes) →
+    `Sessions/Processing/Services/`;
     `ISessionRepository` → `Sessions/Services/`.
   - `ITelemetryDataStoreService` → `Acquisition/Services/`.
   - `IHttpApiService`, `ISynchronizationClientService` → `SyncAndPairing/Services/`
@@ -277,10 +277,10 @@ SQLite via `sqlite-net-pcl`, async, WAL enabled. `SqliteConnectionContext`
 owns the shared connection and initialization gate; `DatabaseMigrationRunner`
 owns startup schema work and cleanup; aggregate repositories expose the
 persistence operations and store the values they are given.
-`SessionTelemetryWriter` sits in front of `ISessionRepository` for
-processed-data writes and owns the domain computation that precedes them:
-telemetry validation, summary-metric derivation, and session-window track
-association/generation. The database file location is platform-specific app
+`RecordedSessionReprocessor` produces pure `ProcessedGeneration` values with
+telemetry, GPS points and summary metrics. Import, live-save and recompute owners
+resolve track association and persist those values through `ISessionRepository`.
+`SessionTelemetryWriter` currently handles incoming sync fills/swaps only. The database file location is platform-specific app
 data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
 etc.).
 

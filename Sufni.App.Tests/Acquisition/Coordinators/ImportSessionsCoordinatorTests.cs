@@ -43,8 +43,8 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("ride", failure.FileName);
         Assert.Equal(failure, Assert.Single(completed.Events.OfType<SessionImportEvent.Failed>()).Failure);
         await file.DidNotReceive().OnImported();
-        await harness.SessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(), Arg.Any<ProcessedTelemetryPayload>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
+        await harness.SessionRepository.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
     }
 
     [Fact]
@@ -99,12 +99,11 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("ride-01", imported.Name);
         Assert.Equal("morning lap", imported.Description);
         Assert.Equal(new DateTimeOffset(startTime).ToUnixTimeSeconds(), imported.Timestamp);
-        await harness.SessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
+        await harness.SessionRepository.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(session =>
                 session.Name == "ride-01" &&
                 session.Description == "morning lap" &&
                 session.Setup == setup.Id),
-            Arg.Any<ProcessedTelemetryPayload>(),
             null,
             Arg.Is<RecordedSessionSource>(source =>
                 source.SourceKind == RecordedSessionSourceKind.ImportedSst &&
@@ -282,10 +281,9 @@ public class ImportSessionsCoordinatorTests
         }
         else
         {
-            harness.SessionTelemetryWriter
+            harness.SessionRepository
                 .PutProcessedSessionAsync(
                     Arg.Is<Session>(session => session.Name == "broken"),
-                    Arg.Any<ProcessedTelemetryPayload>(),
                     Arg.Any<Track?>(),
                     Arg.Any<RecordedSessionSource?>())
                 .ThrowsAsync(new InvalidOperationException("persistence"));
@@ -298,9 +296,8 @@ public class ImportSessionsCoordinatorTests
         var failure = Assert.Single(result.Failures);
         Assert.Equal("broken", failure.FileName);
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await harness.SessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
+        await harness.SessionRepository.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(session => session.Name == "ok"),
-            Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<RecordedSessionSource?>());
         Assert.Throws<ObjectDisposedException>(() => goodSource.SstBytes);

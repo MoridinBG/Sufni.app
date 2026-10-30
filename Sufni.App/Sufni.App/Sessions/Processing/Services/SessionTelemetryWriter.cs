@@ -1,43 +1,14 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 namespace Sufni.App.Sessions.Processing.Services;
 
-/// <summary>
-/// Owns the domain computation that precedes session persistence: telemetry
-/// validation, summary-metric derivation, and session-window track
-/// association/generation. Persists through <see cref="ISessionRepository"/>,
-/// which stores values as given.
-/// </summary>
+/// <summary>Validates and persists incoming synchronized telemetry generations.</summary>
 public interface ISessionTelemetryWriter
 {
-    Task<Session> PutProcessedSessionAsync(
-        Session session,
-        ProcessedTelemetryPayload payload,
-        Track? newFullTrack,
-        RecordedSessionSource? source);
-
-    /// <summary>
-    /// Derived-only processed write used by the recompute engine. Prepares the
-    /// session (summary metrics + cached session-window track) and delegates to
-    /// <see cref="ISessionRepository.UpdateProcessedDerivedDataAsync"/>, which
-    /// re-checks the DB-input fingerprint inside the write transaction and returns
-    /// null on a passive dependency change (the engine re-enqueues).
-    /// </summary>
-    Task<Session?> UpdateProcessedDerivedDataAsync(
-        Session session,
-        ProcessedTelemetryPayload payload,
-        Track? newFullTrack,
-        ProcessingFingerprint expectedInputFingerprint);
-
     /// <summary>
     /// Hub upload sink for a synced processed BLOB. The uploaded
     /// <paramref name="fingerprint"/> must ordinal-match the row's stored
@@ -62,34 +33,12 @@ public interface ISessionTelemetryWriter
         byte[] data,
         string? fingerprint,
         SessionProcessedGeneration generation);
-
 }
 
 internal sealed class SessionTelemetryWriter(
     ISessionRepository sessionRepository,
-    ITrackRepository trackRepository,
     ISessionTelemetryProcessor sessionTelemetryProcessor) : ISessionTelemetryWriter
 {
-    public async Task<Session> PutProcessedSessionAsync(
-        Session session,
-        ProcessedTelemetryPayload payload,
-        Track? newFullTrack,
-        RecordedSessionSource? source)
-    {
-        await PrepareProcessedSessionAsync(session, payload, newFullTrack);
-        return await sessionRepository.PutProcessedSessionAsync(session, newFullTrack, source);
-    }
-
-    public async Task<Session?> UpdateProcessedDerivedDataAsync(
-        Session session,
-        ProcessedTelemetryPayload payload,
-        Track? newFullTrack,
-        ProcessingFingerprint expectedInputFingerprint)
-    {
-        await PrepareProcessedSessionAsync(session, payload, newFullTrack);
-        return await sessionRepository.UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint);
-    }
-
     public async Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint)
     {
         var current = await sessionRepository.GetSessionAsync(id)
@@ -148,73 +97,5 @@ internal sealed class SessionTelemetryWriter(
             hasTrackPoints ? metrics.DescentMeters : current.DescentMeters);
 
         await sessionRepository.UpdateSessionPsstAsync(id, data, fingerprint, finalMetrics);
-    }
-
-    private async Task PrepareProcessedSessionAsync(
-        Session session,
-        ProcessedTelemetryPayload payload,
-        Track? newFullTrack)
-    {
-        var telemetryData = payload.TelemetryData;
-        session.ProcessedData = payload.Data;
-        session.ProcessingFingerprintJson = payload.FingerprintJson;
-
-        if (newFullTrack is null && session.FullTrack is null && session.Timestamp.HasValue)
-        {
-            session.FullTrack = await trackRepository.FindTrackContainingTimestampAsync(session.Timestamp.Value);
-        }
-
-        var durationSeconds = telemetryData.Metadata?.Duration ?? session.DurationSeconds;
-        var points = await ResolveMetricTrackPointsAsync(session, newFullTrack, durationSeconds);
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
-
-        // Persist the cached session-window polyline at derivation time so import,
-        // live-save, and recompute all store the `track` column directly.
-        if (points is not null)
-        {
-            session.Track = points.ToList();
-        }
-
-        session.DurationSeconds = metrics.DurationSeconds;
-        session.DistanceMeters = metrics.DistanceMeters;
-        session.AscentMeters = metrics.AscentMeters;
-        session.DescentMeters = metrics.DescentMeters;
-    }
-
-    private async Task<IReadOnlyList<TrackPoint>?> ResolveMetricTrackPointsAsync(
-        Session session,
-        Track? newFullTrack,
-        double? durationSeconds)
-    {
-        if (session.Track is { Count: > 0 })
-        {
-            return session.Track;
-        }
-
-        if (newFullTrack?.Points is { Count: > 0 } generatedPoints)
-        {
-            return generatedPoints;
-        }
-
-        if (!session.FullTrack.HasValue ||
-            !session.Timestamp.HasValue ||
-            durationSeconds is not { } duration ||
-            !double.IsFinite(duration) ||
-            duration <= 0)
-        {
-            return null;
-        }
-
-        var tracks = await trackRepository.GetTracksByIdsAsync([session.FullTrack.Value]);
-        if (tracks.Count == 0)
-        {
-            return null;
-        }
-
-        return sessionTelemetryProcessor.GenerateSessionTrackFromFullTrack(
-            tracks[0],
-            session.Timestamp,
-            durationSeconds,
-            session.GpsOffsetSeconds);
     }
 }

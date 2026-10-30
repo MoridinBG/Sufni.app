@@ -10,6 +10,7 @@ internal sealed class InMemorySessionRepository
 {
     private readonly Dictionary<Guid, SessionSnapshot> snapshots = [];
     private readonly Dictionary<Guid, List<TrackPoint>> tracks = [];
+    private readonly Dictionary<Guid, byte[]> telemetry = [];
     public ISessionRepository Repository { get; } = Substitute.For<ISessionRepository>();
     public Exception? WriteFailure { get; set; }
 
@@ -19,6 +20,22 @@ internal sealed class InMemorySessionRepository
             ToEntity(snapshots.GetValueOrDefault(call.Arg<Guid>())));
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());
         Repository.GetSessionTrackAsync(Arg.Any<Guid>()).Returns(call => tracks.GetValueOrDefault(call.Arg<Guid>()));
+        Repository.GetSessionRawPsstAsync(Arg.Any<Guid>()).Returns(call => telemetry.GetValueOrDefault(call.Arg<Guid>()));
+        Repository.PutProcessedSessionAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>())
+            .Returns(call =>
+            {
+                if (WriteFailure is { } failure) return Task.FromException<Session>(failure);
+                var session = call.Arg<Session>();
+                var snapshot = SessionSnapshot.From(session) with
+                {
+                    Updated = clock.GetUtcNow().ToUnixTimeSeconds(),
+                    FullTrackId = call.Arg<Track?>()?.Id ?? session.FullTrack
+                };
+                snapshots[session.Id] = snapshot;
+                if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
+                if (session.Track is { } points) tracks[session.Id] = [.. points];
+                return Task.FromResult(ToEntity(snapshot)!);
+            });
         Repository.UpdateSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>())
             .Returns(call =>
             {

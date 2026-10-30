@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using Sufni.App.MapsAndTracks.Services;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -30,7 +32,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     private readonly ISynchronizableRepository<Track> trackRepository;
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ITrackRepository trackQueries;
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
@@ -43,7 +45,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
+        ITrackRepository trackQueries,
         ISynchronizableRepository<Setup> setupRepository,
         ISynchronizableRepository<Bike> bikeRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
@@ -61,7 +63,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         this.trackRepository = trackRepository;
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
-        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.trackQueries = trackQueries;
         this.setupRepository = setupRepository;
         this.bikeRepository = bikeRepository;
         this.sourceStore = sourceStore;
@@ -202,57 +204,69 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 
         try
         {
-            var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
-            var setup = await setupRepository.GetAsync(capture.Context.SetupId)
-                        ?? throw new InvalidOperationException("Setup is missing.");
-            var bike = await bikeRepository.GetAsync(setup.BikeId)
-                       ?? throw new InvalidOperationException("Bike is missing.");
-            var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
-            var bikeSnapshot = BikeSnapshot.From(bike);
-            var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-            var sessionSnapshot = SessionSnapshot.From(session);
-            var input = new RecordedSessionDerivationInput(
-                sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload);
-
-            var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(input, cancellationToken),
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
-                return new LiveSessionSaveResult.ProcessingFailed(failure.Reason, failure.Details);
-            var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
-            var fresh = await sessionTelemetryWriter.PutProcessedSessionAsync(
-                session, processed.ProcessedTelemetry, processed.GeneratedFullTrack, source);
-
-            var snapshot = SessionSnapshot.From(fresh);
-            try
+            return await backgroundTaskRunner.RunAsync<LiveSessionSaveResult>(async () =>
             {
-                await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
-            }
-            catch (Exception e)
-            {
-                logger.Warning(e, "Failed to update recorded-session preferences after saving session {SessionId}", session.Id);
-            }
+                var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
+                var setup = await setupRepository.GetAsync(capture.Context.SetupId)
+                            ?? throw new InvalidOperationException("Setup is missing.");
+                var bike = await bikeRepository.GetAsync(setup.BikeId)
+                           ?? throw new InvalidOperationException("Bike is missing.");
+                var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+                var bikeSnapshot = BikeSnapshot.From(bike);
+                var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+                var sessionSnapshot = SessionSnapshot.From(session);
+                var input = new RecordedSessionDerivationInput(
+                    sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload);
 
-            string? publicationWarning = null;
-            try
-            {
-                await sessionStore.PublishSessionsChangedAsync([snapshot]);
-                await sourceStore.PublishSourcesChangedAsync([sourceSnapshot]);
-            }
-            catch (Exception e)
-            {
-                publicationWarning = $"Live session was saved, but app state could not be refreshed: {e.Message}";
-                logger.Warning(e, "Failed to publish live session state after saving session {SessionId}", session.Id);
-            }
+                var reprocessResult = await recordedSessionReprocessor.ReprocessAsync(input, cancellationToken);
 
-            logger.Information("Live session save completed for {SessionId}", session.Id);
-            return new LiveSessionSaveResult.Saved(
-                snapshot.Id,
-                snapshot.Updated,
-                publicationWarning);
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
+                    return new LiveSessionSaveResult.ProcessingFailed(failure.Reason, failure.Details);
+                var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
+                var generation = processed.Generation;
+                var newTrack = generation.TrackPoints is { Count: > 0 } points
+                    ? new Track { Points = points.ToList() } : null;
+                var fullTrackId = newTrack?.Id ?? session.FullTrack;
+                if (newTrack is null)
+                {
+                    if (fullTrackId is null && session.Timestamp is { } timestamp)
+                        fullTrackId = await trackQueries.FindTrackContainingTimestampAsync(timestamp);
+                    if (fullTrackId is { } trackId && await trackRepository.GetAsync(trackId) is { } track)
+                        generation = generation.WithTrackWindow(track, sessionSnapshot);
+                }
+                var prepared = generation.CreateSession(sessionSnapshot, fullTrackId);
+                var fresh = await sessionRepository.PutProcessedSessionAsync(prepared, newTrack, source);
+
+                var snapshot = SessionSnapshot.From(fresh);
+                try
+                {
+                    await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
+                }
+                catch (Exception e)
+                {
+                    logger.Warning(e, "Failed to update recorded-session preferences after saving session {SessionId}", session.Id);
+                }
+
+                string? publicationWarning = null;
+                try
+                {
+                    await sessionStore.PublishSessionsChangedAsync([snapshot]);
+                    await sourceStore.PublishSourcesChangedAsync([sourceSnapshot]);
+                }
+                catch (Exception e)
+                {
+                    publicationWarning = $"Live session was saved, but app state could not be refreshed: {e.Message}";
+                    logger.Warning(e, "Failed to publish live session state after saving session {SessionId}", session.Id);
+                }
+
+                logger.Information("Live session save completed for {SessionId}", session.Id);
+                return new LiveSessionSaveResult.Saved(
+                    snapshot.Id,
+                    snapshot.Updated,
+                    publicationWarning);
+            }, cancellationToken);
         }
         catch (OperationCanceledException)
         {
