@@ -173,6 +173,12 @@ Topics in [architecture/processing.md](architecture/processing.md):
 
 ## UI Architecture
 
+`ShellFeedbackViewModel` owns global sync, GPX and video feedback independently
+of the selected page. Both layout profiles render the same feedback bar, and
+one shell dispatcher handler sends unexpected UI failures there. List view models
+own their menus and session import intent; feature views do not reach into a
+parent shell to invoke import.
+
 `AppStartup` gates page creation on schema initialization and the first store
 refresh, then initializes tile layers and starts the capable head's sync server.
 Both shells render structural failures as a blocking screen with a log location

@@ -18,7 +18,7 @@ internal static class ShellRootViewModelTestFactory
     {
         var startup = Substitute.For<IAppStartup>();
         startup.Observe().Returns(Observable.Return<ShellStartupState>(new ShellStartupState.Ready()));
-        return new ShellRootViewModel(startup, Substitute.For<IAppShutdown>(), workspace, appEnvironment, plotZoomState, uiThreadDispatcher, timeProvider)
+        return new ShellRootViewModel(startup, Substitute.For<IAppShutdown>(), pages.Feedback, workspace, appEnvironment, plotZoomState, uiThreadDispatcher, timeProvider)
         {
             Pages = pages
         };

@@ -60,12 +60,14 @@ There are five kinds of view model in the presentation layer:
   behavior used by both compact and workspace presentations. `MainPagesViewModel`
   is the only place that holds references to multiple primary page view models
   at once; this is the explicit "view composition" carve-out from the
-  no-VM-on-VM rule. It keeps observable mirrors of `SyncCoordinator`'s
-  `IsRunning` / `IsPaired` / progress snapshot and forwards `SyncCompleted` /
-  `SyncFailed` notifications to the active page, but it owns no workflows of
-  its own. Compact and workspace shell views bind those mirrors differently,
-  but both read the same view models. `AppStartup` owns the initial store refresh
-  and invokes page creation only after database initialization and refresh succeed.
+  no-VM-on-VM rule. It delegates GPX/video intents to coordinators and sends
+  their results to `ShellFeedbackViewModel`; it holds no global feedback state.
+  `ShellFeedbackViewModel` is the single app-lifetime projection of sync
+  availability, pairing state and progress, and owns global sync/GPX/video
+  notifications and errors. Both shells render its `ShellFeedbackBar`, so
+  changing primary pages does not relocate or hide a result. `AppStartup` owns
+  the initial store refresh and invokes page creation only after initialization
+  and refresh succeed.
 
 - **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupStore.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
 
@@ -109,7 +111,10 @@ There are five kinds of view model in the presentation layer:
   staleness, raw-source availability, and summary metrics without each
   row doing its own store lookups. It keeps the flat `Items` collection
   for compatibility and exposes `DateGroups` as the grouped list surface
-  used by the desktop sidebar and mobile pull-menu scroll view.
+  used by the desktop sidebar and mobile pull-menu scroll view. Each list
+  constructs its own menu items. `IShellActions` supplies the shared sync
+  command and import availability; the session list owns `OpenImportCommand`,
+  and its desktop view binds directly to it without finding a parent shell.
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,

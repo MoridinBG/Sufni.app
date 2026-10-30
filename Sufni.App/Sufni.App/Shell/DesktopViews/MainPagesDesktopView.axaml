@@ -186,7 +186,7 @@ mc:Ignorable="d">
                     <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}">
                         <Image.IsVisible>
                             <MultiBinding Converter="{x:Static BoolConverters.Or}">
-                                <Binding Path="!SyncInProgress" />
+                                <Binding Path="!Feedback.SyncInProgress" />
                                 <Binding Path="IsPairedDevicesListOpen" />
                             </MultiBinding>
                         </Image.IsVisible>
@@ -198,13 +198,13 @@ mc:Ignorable="d">
                     Foreground="{DynamicResource SufniAccentColor}">
                         <controls2:ActivityIndicator.IsActive>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="SyncInProgress" />
+                                <Binding Path="Feedback.SyncInProgress" />
                                 <Binding Path="!IsPairedDevicesListOpen" />
                             </MultiBinding>
                         </controls2:ActivityIndicator.IsActive>
                         <controls2:ActivityIndicator.IsVisible>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="SyncInProgress" />
+                                <Binding Path="Feedback.SyncInProgress" />
                                 <Binding Path="!IsPairedDevicesListOpen" />
                             </MultiBinding>
                         </controls2:ActivityIndicator.IsVisible>
@@ -223,7 +223,7 @@ mc:Ignorable="d">
                 <Button.IsVisible>
                     <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
                         <Binding Path="CanShowPairingClientActions" />
-                        <Binding Path="!IsPaired" />
+                        <Binding Path="!Feedback.IsPaired" />
                     </MultiBinding>
                 </Button.IsVisible>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link.svg}" />
@@ -238,7 +238,7 @@ mc:Ignorable="d">
                 <Button.IsVisible>
                     <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
                         <Binding Path="CanShowPairingClientActions" />
-                        <Binding Path="IsPaired" />
+                        <Binding Path="Feedback.IsPaired" />
                     </MultiBinding>
                 </Button.IsVisible>
                 <Image
@@ -257,7 +257,7 @@ mc:Ignorable="d">
                 <Button.IsVisible>
                     <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
                         <Binding Path="CanShowPairingClientActions" />
-                        <Binding Path="IsPaired" />
+                        <Binding Path="Feedback.IsPaired" />
                     </MultiBinding>
                 </Button.IsVisible>
                 <Image Width="18" Source="{SvgImage /Assets/fa-link-slash.svg}" />
@@ -335,13 +335,13 @@ mc:Ignorable="d">
             BusyMessageFontWeight="Bold"
             ConsumesInput="False"
             IndicatorForeground="{DynamicResource SufniAccentColor}"
-            IsActive="{Binding SyncInProgress}"
-            IsProgressIndeterminate="{Binding SyncProgressIsIndeterminate}"
-            IsVisible="{Binding SyncInProgress}"
-            Message="{Binding SyncProgressText}"
+            IsActive="{Binding Feedback.SyncInProgress}"
+            IsProgressIndeterminate="{Binding Feedback.SyncProgressIsIndeterminate}"
+            IsVisible="{Binding Feedback.SyncInProgress}"
+            Message="{Binding Feedback.SyncProgressText}"
             MessageForeground="{DynamicResource SufniAccentColor}"
-            ProgressValue="{Binding SyncProgressValue}"
-            ShowProgress="{Binding SyncInProgress}"
+            ProgressValue="{Binding Feedback.SyncProgressValue}"
+            ShowProgress="{Binding Feedback.SyncInProgress}"
             ShowTint="True"
             TintBackground="{DynamicResource SufniSelectionSurfaceSubtle}"
             TintOpacity="0.85"

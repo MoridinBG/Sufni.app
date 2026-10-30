@@ -61,15 +61,16 @@ internal static class MainPagesViewModelTestFactory
             themeService.IsSystemThemeAvailable.Returns(false);
         }
         appEnvironment ??= CreateAppEnvironment();
+        var feedback = TestShellFeedback.Create(syncCoordinator, appEnvironment);
         return new MainPagesViewModel(
             trackCoordinator,
-            syncCoordinator,
+            feedback,
             shell,
             themeService,
             appEnvironment,
-            CreateBikeListPage(shell),
-            CreateSessionListPage(shell),
-            CreateSetupListPage(shell),
+            CreateBikeListPage(shell, feedback),
+            CreateSessionListPage(shell, feedback),
+            CreateSetupListPage(shell, feedback),
             liveDaqsPage ?? CreateLiveDaqListPage(shell),
             CreatePairedDeviceListPage(),
             UiThreadDispatcher,
@@ -85,20 +86,20 @@ internal static class MainPagesViewModelTestFactory
         InputCapabilities? input = null) =>
         TestAppEnvironment.Create(layoutProfile, capabilities, input);
 
-    private static BikeListViewModel CreateBikeListPage(IShellCoordinator shell) =>
+    private static BikeListViewModel CreateBikeListPage(IShellCoordinator shell, IShellActions feedback) =>
         new(
             new BikeStoreStub(),
             Substitute.For<IBikeDependencyQuery>(),
             UiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
-    private static SessionListViewModel CreateSessionListPage(IShellCoordinator shell) =>
+    private static SessionListViewModel CreateSessionListPage(IShellCoordinator shell, IShellActions feedback) =>
         new(
             CreateRecordedSessionProjection(),
             TestCoordinatorSubstitutes.Session(),
             VideoFixture.CreateEmptyStore(),
             UiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
@@ -108,8 +109,8 @@ internal static class MainPagesViewModelTestFactory
         return projection;
     }
 
-    private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell) =>
-        new(new SetupStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+    private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell, IShellActions feedback) =>
+        new(new SetupStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
         new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);

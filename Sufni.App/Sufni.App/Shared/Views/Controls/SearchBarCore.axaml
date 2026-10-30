@@ -80,7 +80,7 @@ mc:Ignorable="d">
         Classes="embedded">
             <Button.IsVisible>
                 <MultiBinding Converter="{x:Static BoolConverters.And}">
-                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].MainPages.IsPaired" />
+                    <Binding FallbackValue="{x:False}" Path="$parent[v:MainPagesViewBase].MainPages.Feedback.IsPaired" />
                     <Binding Path="!#CloseButton.IsVisible" />
                 </MultiBinding>
             </Button.IsVisible>

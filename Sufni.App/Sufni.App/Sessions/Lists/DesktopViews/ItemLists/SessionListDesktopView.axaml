@@ -8,8 +8,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:shared="clr-namespace:Sufni.App.Shared.Views.Overlays"
-    xmlns:v="clr-namespace:Sufni.App.Shell.Views"
-    xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
     xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
     xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
     d:DesignHeight="600"
@@ -42,7 +40,8 @@
             Margin="10,25,10,0"
             VerticalAlignment="Top"
             Classes="embedded"
-            Command="{Binding $parent[v:MainPagesViewBase].((vm:MainPagesViewModel)DataContext).OpenImportCommand}">
+            Name="ImportButton"
+            Command="{Binding OpenImportCommand}">
             <Image
                 Width="18"
                 Margin="0,0,30,0"

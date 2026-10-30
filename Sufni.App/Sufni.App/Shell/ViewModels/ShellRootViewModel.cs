@@ -23,6 +23,7 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
     public ShellRootViewModel(
         IAppStartup startup,
         IAppShutdown shutdown,
+        ShellFeedbackViewModel feedback,
         ShellWorkspaceViewModel workspace,
         IAppEnvironment appEnvironment,
         IPlotZoomState plotZoomState,
@@ -31,6 +32,7 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.startup = startup;
+        Feedback = feedback;
         this.shutdown = shutdown;
         shutdown.RunningChanged += OnShutdownChanged;
         startupSubscription = startup.Observe().Subscribe(value => StartupState = value);
@@ -50,6 +52,8 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsReady), nameof(CanResetDatabase), nameof(CanQuit), nameof(StartupMessage), nameof(StartupDetails))]
     [NotifyCanExecuteChangedFor(nameof(ResetDatabaseCommand), nameof(QuitCommand))]
     public partial ShellStartupState StartupState { get; private set; } = new ShellStartupState.Starting();
+
+    public ShellFeedbackViewModel Feedback { get; }
 
     public bool IsShuttingDown => shutdown.IsRunning;
     private void OnShutdownChanged(object? sender, EventArgs args) => OnPropertyChanged(nameof(IsShuttingDown));

@@ -218,6 +218,11 @@ Shared registrations in `AppComposition`:
   `LiveDaqCoordinator`, `LiveDaqListViewModel`. All registered
   unconditionally; `MainPagesViewModel` receives
   `LiveDaqListViewModel` as a required dependency on both shells.
+- **Global feedback/actions**: `ShellFeedbackViewModel` is a singleton shared
+  by the root and primary-page composition. `IShellActions` exposes its sync
+  command and import availability to lists without exposing another feature's
+  view model. `ShellDispatcherExceptionHandler` is resolved once by `App` and
+  releases its dispatcher subscription when the provider is disposed.
 - **View models**: list view models,
   `ShellWorkspaceViewModel`, `ShellRootViewModel`, and
   `MainPagesViewModel` as singletons. `MainPagesViewModel` receives

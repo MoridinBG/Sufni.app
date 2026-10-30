@@ -19,6 +19,20 @@ public class SessionListViewModelTests
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
+    public async Task OpenImportCommand_RequestsTheImportEditorThroughTheShell()
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        using (var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher))
+        {
+            Assert.True(viewModel.OpenImportCommand.CanExecute(null));
+            await viewModel.OpenImportCommand.ExecuteAsync(null);
+
+            shell.Received(1).OpenEditor(new EditorKey.ImportSessions());
+        }
+    }
+
+    [Fact]
     public async Task FinalizeDelete_KeepsSessionHidden_WhileDeleteInProgress()
     {
         var (projection, sessionCache) = CreateProjection();
@@ -189,7 +203,7 @@ public class SessionListViewModelTests
                 TestCoordinatorSubstitutes.Session(),
                 VideoFixture.CreateEmptyStore(),
                 UiThreadDispatcher,
-                pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+                pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
 
             Assert.Empty(viewModel.Items);
             Assert.Empty(viewModel.DateGroups);
@@ -575,7 +589,7 @@ public class SessionListViewModelTests
             sessionCoordinator,
             videoStore ?? VideoFixture.CreateEmptyStore(),
             uiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         return viewModel;
     }

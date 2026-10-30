@@ -14,6 +14,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:syncvm="clr-namespace:Sufni.App.SyncAndPairing.ViewModels"
 xmlns:viewconverters="clr-namespace:Sufni.App.Shared.Views.Converters"
+xmlns:shellControls="clr-namespace:Sufni.App.Shell.Views.Controls"
 xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
 xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
 d:DesignHeight="600"
@@ -58,7 +59,7 @@ mc:Ignorable="d">
             </ContentControl>
         </DrawerPage.Header>
         <DrawerPage.Drawer>
-            <controls:SidePanel
+            <shellControls:SidePanel
             Name="MenuPanel"
             Grid.Row="0"
             Grid.RowSpan="2"
@@ -127,13 +128,13 @@ mc:Ignorable="d">
             BusyMessageFontWeight="Bold"
             ConsumesInput="False"
             IndicatorForeground="{DynamicResource SufniAccentColor}"
-            IsActive="{Binding SyncInProgress}"
-            IsProgressIndeterminate="{Binding SyncProgressIsIndeterminate}"
-            IsVisible="{Binding SyncInProgress}"
-            Message="{Binding SyncProgressText}"
+            IsActive="{Binding Feedback.SyncInProgress}"
+            IsProgressIndeterminate="{Binding Feedback.SyncProgressIsIndeterminate}"
+            IsVisible="{Binding Feedback.SyncInProgress}"
+            Message="{Binding Feedback.SyncProgressText}"
             MessageForeground="{DynamicResource SufniAccentColor}"
-            ProgressValue="{Binding SyncProgressValue}"
-            ShowProgress="{Binding SyncInProgress}"
+            ProgressValue="{Binding Feedback.SyncProgressValue}"
+            ShowProgress="{Binding Feedback.SyncInProgress}"
             ShowTint="True"
             TintBackground="{DynamicResource SufniSelectionSurfaceSubtle}"
             TintOpacity="0.85"
@@ -198,5 +199,7 @@ mc:Ignorable="d">
     </Panel>
     </Panel>
     <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" IsEnabled="{Binding !IsShuttingDown}" />
+    <shellViews:ShellFeedbackBar Name="ShellFeedback" DataContext="{Binding Feedback}"
+        Margin="12" MaxWidth="650" HorizontalAlignment="Center" VerticalAlignment="Bottom" />
     </Grid>
 </UserControl>

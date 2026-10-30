@@ -33,7 +33,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -65,7 +65,7 @@ public class BikeListViewModelTests
             bikeStore,
             Substitute.For<IBikeDependencyQuery>(),
             UiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(bikes: TestCoordinatorSubstitutes.Bike(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(bikes: TestCoordinatorSubstitutes.Bike(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
 
         Assert.Empty(viewModel.Items);
 
@@ -98,7 +98,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 

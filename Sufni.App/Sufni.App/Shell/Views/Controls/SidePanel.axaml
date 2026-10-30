@@ -1,5 +1,5 @@
 <UserControl
-x:Class="Sufni.App.Shared.Views.Controls.SidePanel"
+x:Class="Sufni.App.Shell.Views.Controls.SidePanel"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:converters="using:Avalonia.Data.Converters"
@@ -98,7 +98,7 @@ mc:Ignorable="d">
             <MenuItem.IsVisible>
                 <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
                     <Binding Path="CanShowPairingClientActions" />
-                    <Binding Path="IsPaired" />
+                    <Binding Path="Feedback.IsPaired" />
                 </MultiBinding>
             </MenuItem.IsVisible>
             <MenuItem.Icon>
@@ -116,7 +116,7 @@ mc:Ignorable="d">
             <MenuItem.IsVisible>
                 <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
                     <Binding Path="CanShowPairingClientActions" />
-                    <Binding Path="!IsPaired" />
+                    <Binding Path="!Feedback.IsPaired" />
                 </MultiBinding>
             </MenuItem.IsVisible>
             <MenuItem.Icon>
@@ -131,7 +131,7 @@ mc:Ignorable="d">
             <MenuItem.IsVisible>
                 <MultiBinding Converter="{x:Static converters:BoolConverters.And}">
                     <Binding Path="CanShowPairingClientActions" />
-                    <Binding Path="IsPaired" />
+                    <Binding Path="Feedback.IsPaired" />
                 </MultiBinding>
             </MenuItem.IsVisible>
             <MenuItem.Icon>

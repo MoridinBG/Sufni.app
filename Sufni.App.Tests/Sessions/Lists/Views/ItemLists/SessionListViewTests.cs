@@ -29,6 +29,35 @@ public class SessionListViewTests
 {
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     [AvaloniaFact]
+    public async Task DesktopImportButton_UsesTheListCommandWithoutAParentShellView()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        using var cache = new SourceCache<RecordedSessionSummary, Guid>(summary => summary.Id);
+        var projection = Substitute.For<IRecordedSessionProjection>();
+        projection.ConnectSessions().Returns(cache.Connect());
+        var coordinator = TestCoordinatorSubstitutes.Session();
+        using var pending = TestPendingDeletes.Create(sessions: coordinator, shell: shell);
+        using var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(),
+            new InlineUiThreadDispatcher(), pending, new FakeTimeProvider(), shell, TestShellFeedback.Create());
+        var view = new SessionListDesktopView { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        try
+        {
+            var button = view.FindControl<Button>("ImportButton")!;
+            Assert.True(button.Command!.CanExecute(null));
+            button.Command.Execute(null);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            shell.Received(1).OpenEditor(new EditorKey.ImportSessions());
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task SessionListView_RendersDateFilterBar_AndOpensSelectedSession()
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -47,7 +76,7 @@ public class SessionListViewTests
         projection.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
 
-        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -95,7 +124,7 @@ public class SessionListViewTests
             projection,
             TestCoordinatorSubstitutes.Session(),
             videoStore,
-            new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+            new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -129,7 +158,7 @@ public class SessionListViewTests
         coordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList)
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
-        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -174,7 +203,7 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -216,7 +245,7 @@ public class SessionListViewTests
             projection,
             TestCoordinatorSubstitutes.Session(),
             videoStore,
-            new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+            new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -256,7 +285,7 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,

@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
@@ -49,7 +50,8 @@ public partial class BikeListViewModel : ItemListViewModelBase
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
-        IShellCoordinator shell)
+        IShellCoordinator shell,
+        IShellActions shellActions)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.bikeStore = bikeStore;
@@ -57,6 +59,8 @@ public partial class BikeListViewModel : ItemListViewModelBase
         this.dependencyQuery = dependencyQuery;
         bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>(bikeRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Bike>(pendingDeletes);
+        MenuItems.Add(new("sync", shellActions.SyncCommand));
+        MenuItems.Add(new("add", AddCommand));
     }
 
     #endregion Constructors

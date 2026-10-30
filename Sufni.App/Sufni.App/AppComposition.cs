@@ -265,6 +265,9 @@ public static class AppComposition
         services.AddSingleton<IAppStartup, AppStartup>();
         services.AddSingleton<IPendingDeletes, PendingDeletes>();
         services.AddSingleton<IAppShutdown, AppShutdown>();
+        services.AddSingleton<ShellFeedbackViewModel>();
+        services.AddSingleton<Sufni.App.Shell.Behaviors.ShellDispatcherExceptionHandler>();
+        services.AddSingleton<IShellActions>(sp => sp.GetRequiredService<ShellFeedbackViewModel>());
         services.AddSingleton<MainPagesViewModel>();
         services.AddSingleton<ShellWorkspaceViewModel>();
         services.AddSingleton<ShellRootViewModel>();

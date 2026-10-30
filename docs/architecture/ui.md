@@ -33,6 +33,12 @@ available inside that presentation.
 
 ## Architectural Invariants
 
+Global sync, GPX and video feedback belongs to `ShellFeedbackViewModel`, rendered
+by one feedback bar in the active shell. Feature-local editor/list messages keep
+their own lifetimes. A single app-owned `ShellDispatcherExceptionHandler` logs
+unexpected dispatcher exceptions and routes a generic message to the same shell
+feedback owner; ordinary flows retain their own outcomes.
+
 These boundaries are the invariants worth preserving even if type names
 or feature wording evolve:
 

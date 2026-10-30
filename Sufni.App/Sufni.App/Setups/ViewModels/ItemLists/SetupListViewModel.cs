@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
@@ -46,13 +47,16 @@ public partial class SetupListViewModel : ItemListViewModelBase
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
-        IShellCoordinator shell)
+        IShellCoordinator shell,
+        IShellActions shellActions)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.setupStore = setupStore;
         this.shell = shell;
         setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>(setupRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Setup>(pendingDeletes);
+        MenuItems.Add(new("sync", shellActions.SyncCommand));
+        MenuItems.Add(new("add", AddCommand));
     }
 
     #endregion Constructors

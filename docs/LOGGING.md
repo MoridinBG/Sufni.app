@@ -255,6 +255,9 @@ counts, and sizes when helpful.
 
 - Do not run parallel app and framework logging pipelines.
 - Avalonia framework logs are forwarded into Serilog.
+- The shell owns one dispatcher unhandled-exception subscription. It logs the
+  exception once and shows a generic message through global shell feedback; it
+  is disposed with the application provider.
 - Avalonia framework logs are filtered to `Warning` and above.
 - Broad framework `Information` logging is out of scope.
 

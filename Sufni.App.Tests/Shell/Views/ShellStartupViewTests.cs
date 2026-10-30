@@ -30,7 +30,7 @@ public class ShellStartupViewTests
             states.OnNext(new ShellStartupState.RelaunchRequired("archive"));
             return Task.FromResult<DatabaseResetResult>(new DatabaseResetResult.Reset("archive"));
         });
-        using var root = new ShellRootViewModel(startup, Substitute.For<IAppShutdown>(),
+        using var root = new ShellRootViewModel(startup, Substitute.For<IAppShutdown>(), TestShellFeedback.Create(),
             new ShellWorkspaceViewModel(new InlineUiThreadDispatcher(), new FakeTimeProvider()),
             TestAppEnvironment.Create(profile), Substitute.For<IPlotZoomState>(),
             new InlineUiThreadDispatcher(), new FakeTimeProvider());

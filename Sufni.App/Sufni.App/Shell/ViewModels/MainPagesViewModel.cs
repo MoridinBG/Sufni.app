@@ -28,7 +28,6 @@ public partial class MainPagesViewModel : ViewModelBase
 {
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IVideoCoordinator videoCoordinator;
-    private readonly ISyncCoordinator syncCoordinator;
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
     private readonly IAppEnvironment appEnvironment;
@@ -37,11 +36,6 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Observable properties
 
     [ObservableProperty] public partial int SelectedPrimaryIndex { get; set; }
-    [ObservableProperty] public partial bool SyncInProgress { get; set; }
-    [ObservableProperty] public partial string SyncProgressText { get; set; } = string.Empty;
-    [ObservableProperty] public partial double SyncProgressValue { get; set; }
-    [ObservableProperty] public partial bool SyncProgressIsIndeterminate { get; set; } = true;
-    [ObservableProperty] public partial bool IsPaired { get; set; }
     [ObservableProperty] public partial bool IsDrawerOpen { get; set; }
     [ObservableProperty] public partial bool IsPairedDevicesListOpen { get; set; }
     [ObservableProperty] public partial SufniThemeMode CurrentThemeMode { get; set; }
@@ -52,6 +46,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     #endregion
 
+    public ShellFeedbackViewModel Feedback { get; }
     public BikeListViewModel BikesPage { get; init; }
     public SetupListViewModel SetupsPage { get; init; }
     public SessionListViewModel SessionsPage { get; init; }
@@ -61,9 +56,7 @@ public partial class MainPagesViewModel : ViewModelBase
     public PairingServerViewModel? PairingServerViewModel { get; init; }
     public ObservableCollection<MainPrimaryPageViewModel> PrimaryPages { get; } = [];
     public ViewModelBase SelectedPrimaryPageContent => GetSelectedPrimaryPage();
-    public bool CanImportSessions =>
-        appEnvironment.Capabilities.SupportsMassStorageImport ||
-        appEnvironment.Capabilities.SupportsStorageProviderImport;
+    public bool CanImportSessions => Feedback.CanImportSessions;
     public bool CanImportGpsTracks => appEnvironment.Capabilities.SupportsStorageProviderImport;
     public bool CanOpenVideos => appEnvironment.Capabilities.CanPlayVideo;
     public bool CanHostSyncServer => appEnvironment.Capabilities.CanHostSyncServer;
@@ -83,7 +76,7 @@ public partial class MainPagesViewModel : ViewModelBase
 
     public MainPagesViewModel(
         ITrackCoordinator trackCoordinator,
-        ISyncCoordinator syncCoordinator,
+        ShellFeedbackViewModel feedback,
         IShellCoordinator shell,
         IThemeService themeService,
         IAppEnvironment appEnvironment,
@@ -101,7 +94,7 @@ public partial class MainPagesViewModel : ViewModelBase
     {
         this.trackCoordinator = trackCoordinator;
         this.videoCoordinator = videoCoordinator;
-        this.syncCoordinator = syncCoordinator;
+        Feedback = feedback;
         this.shell = shell;
         this.themeService = themeService;
         this.appEnvironment = appEnvironment;
@@ -139,66 +132,13 @@ public partial class MainPagesViewModel : ViewModelBase
             LiveDaqsPage));
         activePrimaryPage = GetSelectedPrimaryPageDescriptor();
 
-        BikesPage.MenuItems.Add(new("sync", SyncCommand));
-        BikesPage.MenuItems.Add(new("add", BikesPage.AddCommand));
-        SetupsPage.MenuItems.Add(new("sync", SyncCommand));
-        SetupsPage.MenuItems.Add(new("add", SetupsPage.AddCommand));
-        SessionsPage.MenuItems.Add(new("sync", SyncCommand));
-        SessionsPage.MenuItems.Add(new("import", OpenImportCommand));
-
-        syncCoordinator.SyncCompleted += OnSyncCompleted;
-        syncCoordinator.SyncFailed += OnSyncFailed;
-        syncCoordinator.IsRunningChanged += OnSyncIsRunningChanged;
-        syncCoordinator.IsPairedChanged += OnSyncIsPairedChanged;
-        syncCoordinator.CanSyncChanged += OnSyncCanSyncChanged;
-        syncCoordinator.ProgressChanged += OnSyncProgressChanged;
-
         themeService.ThemeChanged += OnThemeChanged;
 
-        // Seed the mirrors from the coordinator's current state in case
-        // any of them already changed before construction (e.g. the
-        // pairing-client coordinator's startup IsPairedAsync probe).
-        SyncInProgress = syncCoordinator.IsRunning;
-        IsPaired = syncCoordinator.IsPaired;
-        SyncProgressState();
         SyncThemeState();
         SelectedLayoutProfile = appEnvironment.LayoutProfile;
         SyncLayoutProfileState();
         appEnvironment.PropertyChanged += OnAppEnvironmentPropertyChanged;
 
-    }
-
-    private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)
-    {
-        var currentPage = GetSelectedPrimaryPage();
-        currentPage.Notifications.Add(e.Message);
-        currentPage.ErrorMessages.Clear();
-    }
-
-    private void OnSyncFailed(object? sender, SyncFailedEventArgs e)
-    {
-        GetSelectedPrimaryPage().ErrorMessages.Add(e.ErrorMessage);
-    }
-
-    private void OnSyncIsRunningChanged(object? sender, EventArgs e)
-    {
-        SyncInProgress = syncCoordinator.IsRunning;
-        SyncProgressState();
-    }
-
-    private void OnSyncIsPairedChanged(object? sender, EventArgs e)
-    {
-        IsPaired = syncCoordinator.IsPaired;
-    }
-
-    private void OnSyncCanSyncChanged(object? sender, EventArgs e)
-    {
-        SyncCommand.NotifyCanExecuteChanged();
-    }
-
-    private void OnSyncProgressChanged(object? sender, EventArgs e)
-    {
-        SyncProgressState();
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -252,29 +192,12 @@ public partial class MainPagesViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedPrimaryPageContent));
     }
 
-    private void SyncProgressState()
-    {
-        var currentProgress = syncCoordinator.Progress;
-        SyncProgressText = currentProgress?.Message ?? (SyncInProgress ? "Syncing" : string.Empty);
-        SyncProgressValue = currentProgress?.Fraction ?? 0;
-        SyncProgressIsIndeterminate = currentProgress is null || !currentProgress.IsDeterminate;
-    }
-
     #endregion
 
     #region Commands
 
-    private bool CanSync()
-    {
-        return (appEnvironment.Capabilities.CanHostSyncServer || appEnvironment.Capabilities.CanPairAsClient) &&
-               syncCoordinator.CanSync;
-    }
-
-    [RelayCommand(CanExecute = nameof(CanSync))]
-    private async Task Sync()
-    {
-        await syncCoordinator.SyncAllAsync();
-    }
+    public IAsyncRelayCommand SyncCommand => Feedback.SyncCommand;
+    public IAsyncRelayCommand OpenImportCommand => SessionsPage.OpenImportCommand;
 
     [RelayCommand]
     private void OpenDrawer()
@@ -300,22 +223,13 @@ public partial class MainPagesViewModel : ViewModelBase
         shell.Open(view);
     }
 
-    private bool CanOpenImport() => CanImportSessions;
-
-    [RelayCommand(CanExecute = nameof(CanOpenImport))]
-    private Task OpenImport()
-    {
-        shell.OpenEditor(new EditorKey.ImportSessions());
-        return Task.CompletedTask;
-    }
-
     private bool CanOpenGpsTracks() => CanImportGpsTracks;
 
     [RelayCommand(CanExecute = nameof(CanOpenGpsTracks))]
     private async Task OpenGpsTracks()
     {
         var result = await trackCoordinator.ImportGpxAsync();
-        PublishGpxImportResult(result);
+        Feedback.ShowGpxResult(result);
     }
 
     private bool CanOpenVideo() => CanOpenVideos;
@@ -324,19 +238,7 @@ public partial class MainPagesViewModel : ViewModelBase
     private async Task OpenVideo()
     {
         var result = await videoCoordinator.ImportAsync();
-        var currentPage = GetSelectedPrimaryPage();
-        switch (result)
-        {
-            case VideoImportResult.Linked { SessionCount: 1 }:
-                currentPage.Notifications.Add("Linked video to 1 recorded session.");
-                break;
-            case VideoImportResult.Linked linked:
-                currentPage.Notifications.Add($"Linked video to {linked.SessionCount} recorded sessions.");
-                break;
-            case VideoImportResult.Failed failed:
-                currentPage.ErrorMessages.Add(failed.ErrorMessage);
-                break;
-        }
+        Feedback.ShowVideoResult(result);
     }
 
     [RelayCommand]
@@ -410,30 +312,4 @@ public partial class MainPagesViewModel : ViewModelBase
             _ => SufniThemeMode.Dark
         };
 
-    private void PublishGpxImportResult(GpxImportResult result)
-    {
-        if (result.ImportedCount == 0 && result.AlreadyImportedCount == 0)
-        {
-            return;
-        }
-
-        var currentPage = GetSelectedPrimaryPage();
-        if (result.ImportedCount > 0 && result.AlreadyImportedCount > 0)
-        {
-            currentPage.Notifications.Add(
-                $"Imported {result.ImportedCount} GPX track(s); skipped {result.AlreadyImportedCount} already imported track(s).");
-            return;
-        }
-
-        if (result.ImportedCount > 0)
-        {
-            currentPage.Notifications.Add($"Imported {result.ImportedCount} GPX track(s).");
-            return;
-        }
-
-        currentPage.Notifications.Add(
-            result.AlreadyImportedCount == 1
-                ? "GPX track is already imported."
-                : $"{result.AlreadyImportedCount} GPX tracks are already imported.");
-    }
 }

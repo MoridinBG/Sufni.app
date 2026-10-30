@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Sufni.App.Shared.Views.Controls
+namespace Sufni.App.Shell.Views.Controls
 {
     public partial class SidePanel : UserControl
     {

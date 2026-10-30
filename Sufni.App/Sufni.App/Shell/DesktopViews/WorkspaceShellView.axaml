@@ -151,5 +151,7 @@
     </SplitView>
     </Panel>
     <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" IsEnabled="{Binding !IsShuttingDown}" />
+    <shellViews:ShellFeedbackBar Name="ShellFeedback" DataContext="{Binding Feedback}"
+        Margin="12" MaxWidth="650" HorizontalAlignment="Center" VerticalAlignment="Bottom" />
     </Grid>
 </UserControl>

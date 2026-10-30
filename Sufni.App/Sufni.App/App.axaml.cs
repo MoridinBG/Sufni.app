@@ -80,6 +80,7 @@ public partial class App : Application
             : hapticFeedback.LongPress;
 
         var shellRoot = Services.GetRequiredService<ShellRootViewModel>();
+        _ = Services.GetRequiredService<ShellDispatcherExceptionHandler>();
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:

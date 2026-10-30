@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
@@ -32,6 +33,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IShellCoordinator shell;
+    private readonly IShellActions shellActions;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ISessionVideoStore videoStore;
@@ -61,15 +63,19 @@ public partial class SessionListViewModel : ItemListViewModelBase
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
-        IShellCoordinator shell)
+        IShellCoordinator shell,
+        IShellActions shellActions)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;
         this.shell = shell;
+        this.shellActions = shellActions;
         this.videoStore = videoStore;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Session>(pendingDeletes);
+        MenuItems.Add(new("sync", shellActions.SyncCommand));
+        MenuItems.Add(new("import", OpenImportCommand));
     }
 
     #endregion Constructors
@@ -155,6 +161,15 @@ public partial class SessionListViewModel : ItemListViewModelBase
         {
             RebuildFilter();
         }
+    }
+
+    private bool CanOpenImport() => shellActions.CanImportSessions;
+
+    [RelayCommand(CanExecute = nameof(CanOpenImport))]
+    private Task OpenImport()
+    {
+        shell.OpenEditor(new EditorKey.ImportSessions());
+        return Task.CompletedTask;
     }
 
     private void RequestRowDelete(SessionRowViewModel row) =>

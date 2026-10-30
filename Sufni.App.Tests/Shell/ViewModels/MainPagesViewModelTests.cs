@@ -127,11 +127,12 @@ public class MainPagesViewModelTests
         await viewModel.OpenGpsTracksCommand.ExecuteAsync(null);
 
         Assert.Empty(viewModel.SessionsPage.Notifications);
-        Assert.Single(viewModel.BikesPage.Notifications);
+        Assert.Single(viewModel.Feedback.Notifications);
+        Assert.Empty(viewModel.BikesPage.Notifications);
     }
 
     [Fact]
-    public async Task OpenVideoCommand_AddsNotificationToSelectedPage_WhenVideoIsLinked()
+    public async Task OpenVideoCommand_AddsShellNotification_WhenVideoIsLinked()
     {
         var videoCoordinator = Substitute.For<IVideoCoordinator>();
         videoCoordinator.ImportAsync(Arg.Any<CancellationToken>()).Returns(new VideoImportResult.Linked(2));
@@ -141,7 +142,8 @@ public class MainPagesViewModelTests
         await viewModel.OpenVideoCommand.ExecuteAsync(null);
 
         Assert.Empty(viewModel.SessionsPage.Notifications);
-        Assert.Equal(["Linked video to 2 recorded sessions."], viewModel.BikesPage.Notifications);
+        Assert.Single(viewModel.Feedback.Notifications);
+        Assert.Empty(viewModel.BikesPage.Notifications);
     }
 
     [Fact]
@@ -153,7 +155,8 @@ public class MainPagesViewModelTests
 
         await viewModel.OpenVideoCommand.ExecuteAsync(null);
 
-        Assert.Equal(["no sessions"], viewModel.SessionsPage.ErrorMessages);
+        Assert.Single(viewModel.Feedback.ErrorMessages);
+        Assert.Empty(viewModel.SessionsPage.ErrorMessages);
     }
 
     [Fact]
@@ -214,43 +217,5 @@ public class MainPagesViewModelTests
         Assert.Equal(SufniThemeMode.Dark, viewModel.EffectiveThemeMode);
         Assert.Equal(SufniThemeMode.Dark, viewModel.NextThemeMode);
     }
-
-    [Fact]
-    public void SyncProgressState_MirrorsCoordinatorProgress()
-    {
-        var server = new TestSynchronizationServerService();
-        var syncCoordinator = CreateSyncCoordinator(server);
-        var viewModel = MainPagesViewModelTestFactory.Create(syncCoordinator: syncCoordinator);
-        var progress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.ReceivingChanges,
-            "Receiving remote changes",
-            CurrentStep: 0,
-            TotalSteps: 0,
-            IsDeterminate: false);
-
-        server.RaiseSyncActivityStarted(progress);
-
-        Assert.True(viewModel.SyncInProgress);
-        Assert.Equal("Receiving remote changes", viewModel.SyncProgressText);
-        Assert.Equal(1.0 / 6, viewModel.SyncProgressValue, precision: 6);
-        Assert.False(viewModel.SyncProgressIsIndeterminate);
-
-        server.RaiseSyncActivityEnded(progress);
-
-        Assert.False(viewModel.SyncInProgress);
-        Assert.Equal(string.Empty, viewModel.SyncProgressText);
-        Assert.Equal(0, viewModel.SyncProgressValue);
-    }
-
-    private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
-        new(
-            Substitute.For<IAppDataRefresher>(),
-            synchronizationClientService: null,
-            pairingClientCoordinator: null,
-            synchronizationServerService: server,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero,
-            uiThreadDispatcher: new InlineUiThreadDispatcher(),
-            timeProvider: new FakeTimeProvider());
 
 }
