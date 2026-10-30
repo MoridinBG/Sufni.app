@@ -48,7 +48,7 @@ public class SessionSplitSyncTests
         Assert.NotNull(await target.SessionRepository.UpdateProcessedDerivedDataAsync(
             result.Generation.CreateSession(part2, fullTrackId: null),
             newFullTrack: null,
-            result.Fingerprint));
+            (await target.GetProcessingInputBundleAsync(part2.Id))!));
     }
 
     private async Task<(Session Session, Setup Setup, Bike Bike, RecordedSessionSource Source)> SeedProcessedSessionAsync(

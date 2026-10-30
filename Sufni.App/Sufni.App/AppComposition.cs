@@ -185,7 +185,8 @@ public static class AppComposition
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
-            sp.GetRequiredService<IRecordedSessionSourceRepository>()));
+            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
+            sp.GetRequiredService<IProcessingFingerprintService>()));
         services.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
         services.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
         if (root.Capabilities.CanHostSyncServer)

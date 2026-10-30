@@ -39,6 +39,7 @@ internal sealed record ProcessingDependencyInputs(
     {
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(bike);
+        var rearSuspension = RearSuspensionJsonCodec.Deserialize(bike.RearSuspensionJson);
 
         return new ProcessingDependencyInputs(
             Setup: new SetupPayload(
@@ -51,9 +52,9 @@ internal sealed record ProcessingDependencyInputs(
                 bike.HeadAngle,
                 bike.ForkStroke,
                 bike.ShockStroke,
-                bike.Kind,
-                LinkagePayload.FromRearSuspension(bike.RearSuspension),
-                LeverageRatioPayload.FromRearSuspension(bike.RearSuspension)));
+                rearSuspension.Kind,
+                LinkagePayload.FromRearSuspension(rearSuspension),
+                LeverageRatioPayload.FromRearSuspension(rearSuspension)));
     }
 
     internal sealed record SetupPayload(

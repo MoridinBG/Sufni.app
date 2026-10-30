@@ -1,6 +1,7 @@
 using Sufni.App.Tests.TestSupport.Async;
 using System.Threading;
 using NSubstitute;
+using NSubstitute.Extensions;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -41,7 +42,8 @@ public class SessionRecomputeEngineTests
         sourceStore,
         domainQuery,
         reprocessor,
-        sourceRepository);
+        sourceRepository,
+        new ProcessingFingerprintService());
 
 
     // Wires a recomputable session: a current-schema domain, a present source whose
@@ -66,6 +68,7 @@ public class SessionRecomputeEngineTests
             DerivedChangeKind.None);
 
         domainQuery.Get(sessionId).Returns(domain);
+        sessionRepository.GetProcessingInputBundleAsync(sessionId).Returns(_ => TestDerivationInputs.DatabaseInputs(domainQuery.Get(sessionId)!));
         sourceRepository.GetRecordedSessionSourceAsync(sessionId).Returns(source);
         var persisted = new Session(sessionId, "session", "desc", setupId, 100)
         {
@@ -76,23 +79,15 @@ public class SessionRecomputeEngineTests
             .UpdateProcessedDerivedDataAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
-                Arg.Any<ProcessingFingerprint>())
+                Arg.Any<SessionProcessingInputBundle>())
             .Returns(callInfo => callInfo.Arg<Session>());
         return persisted;
     }
 
-    private static RecordedSessionReprocessResult ReprocessResult(TelemetryProcessingOptions options)
+    private static RecordedSessionReprocessResult ReprocessResult(RecordedSessionDerivationInput input)
     {
         var telemetryData = TestTelemetryData.CreateProcessed();
-        var fingerprint = new ProcessingFingerprint(
-            3,
-            3,
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            1,
-            "dep",
-            "src",
-            options.ClampedVelocityFilterWindowMilliseconds);
+        var fingerprint = new ProcessingFingerprintService().CreateCurrent(input.Session, input.Setup, input.Bike, input.Source);
         return new RecordedSessionReprocessResult.Processed(
             ProcessedGeneration.Create(new ProcessedTelemetryPayload(telemetryData, telemetryData.BinaryForm, AppJson.Serialize(fingerprint)), null),
             fingerprint);
@@ -133,7 +128,7 @@ public class SessionRecomputeEngineTests
         Assert.Equal(existing, SessionSnapshot.From((await repository.Repository.GetSessionAsync(id))!));
         Assert.False(engine.IsActive(id));
         await sessionRepository.DidNotReceive().UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<SessionProcessingInputBundle>());
     }
 
     [Fact]
@@ -144,9 +139,12 @@ public class SessionRecomputeEngineTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<RecordedSessionReprocessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        RecordedSessionDerivationInput firstInput = null!;
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            if (++calls != 1) return Task.FromResult(ReprocessResult(TelemetryProcessingOptions.Default));
+            var input = call.Arg<RecordedSessionDerivationInput>();
+            if (++calls != 1) return Task.FromResult(ReprocessResult(input));
+            firstInput = input;
             entered.SetResult();
             return release.Task;
         });
@@ -157,11 +155,11 @@ public class SessionRecomputeEngineTests
 
         var stop = engine.StopAsync();
         Assert.False(stop.IsCompleted);
-        release.SetResult(ReprocessResult(TelemetryProcessingOptions.Default));
+        release.SetResult(ReprocessResult(firstInput));
         await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.IsType<SessionRecomputeResult.Superseded>(await displaced);
-        await sessionRepository.Received(1).UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
+        await sessionRepository.Received(1).UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<SessionProcessingInputBundle>());
     }
 
     [Fact]
@@ -181,10 +179,10 @@ public class SessionRecomputeEngineTests
             .UpdateProcessedDerivedDataAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
-                Arg.Any<ProcessingFingerprint>())
+                Arg.Any<SessionProcessingInputBundle>())
             .Returns(callInfo =>
             {
-                committedFingerprint = callInfo.Arg<ProcessingFingerprint>();
+                committedFingerprint = AppJson.Deserialize<ProcessingFingerprint>(callInfo.Arg<Session>().ProcessingFingerprintJson!);
                 return callInfo.Arg<Session>();
             });
 
@@ -192,20 +190,22 @@ public class SessionRecomputeEngineTests
         var secondReprocessStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstReprocessGate = new TaskCompletionSource<RecordedSessionReprocessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reprocessCalls = 0;
+        RecordedSessionDerivationInput firstInput = null!;
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var options = callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions;
+                var input = callInfo.ArgAt<RecordedSessionDerivationInput>(0);
                 var callNumber = Interlocked.Increment(ref reprocessCalls);
                 if (callNumber == 1)
                 {
+                    firstInput = input;
                     firstReprocessStarted.TrySetResult();
                     return firstReprocessGate.Task;
                 }
 
                 secondReprocessStarted.TrySetResult();
-                return Task.FromResult(ReprocessResult(options));
+                return Task.FromResult(ReprocessResult(input));
             });
 
         var engine = CreateEngine();
@@ -230,7 +230,7 @@ public class SessionRecomputeEngineTests
         Assert.IsType<SessionRecomputeResult.Recomputed>(secondResult);
 
         // Release the (now superseded) first reprocess so it reaches its still-current check.
-        firstReprocessGate.SetResult(ReprocessResult(new TelemetryProcessingOptions(100)));
+        firstReprocessGate.SetResult(ReprocessResult(firstInput));
         var firstResult = await firstTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Superseded>(firstResult);
@@ -238,7 +238,7 @@ public class SessionRecomputeEngineTests
         await sessionRepository.Received(1).UpdateProcessedDerivedDataAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
-            Arg.Any<ProcessingFingerprint>());
+            Arg.Any<SessionProcessingInputBundle>());
         Assert.NotNull(committedFingerprint);
         Assert.Equal(250, committedFingerprint!.VelocityFilterWindowMilliseconds);
         Assert.False(engine.IsActive(sessionId));
@@ -253,7 +253,7 @@ public class SessionRecomputeEngineTests
         ConfigureRecomputable(secondId);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
 
         var engine = CreateEngine();
         var firstTask = engine.RequestRecomputeAsync(firstId);
@@ -266,13 +266,38 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
+    public async Task RequestRecomputeAsync_Rederives_WhenPersistedInputsAdvanceBeyondTheCapturedDomain()
+    {
+        var id = Guid.NewGuid();
+        ConfigureRecomputable(id);
+        var captured = domainQuery.Get(id)!;
+        var changed = captured with { Bike = captured.Bike! with { HeadAngle = captured.Bike.HeadAngle + 1 } };
+        sessionRepository.Configure().GetProcessingInputBundleAsync(id).Returns(_ =>
+        {
+            domainQuery.Get(id).Returns(changed);
+            return TestDerivationInputs.DatabaseInputs(changed);
+        });
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(call => ReprocessResult(call.Arg<RecordedSessionDerivationInput>()));
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var engine = CreateEngine(store);
+
+        var result = await engine.RequestRecomputeAsync(id).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsType<SessionRecomputeResult.Recomputed>(result);
+        var expected = new ProcessingFingerprintService().CreateCurrent(
+            changed.Session, changed.Setup!, changed.Bike!, changed.Source!);
+        Assert.Equal(expected, AppJson.Deserialize<ProcessingFingerprint>(store.Get(id)!.ProcessingFingerprintJson!));
+    }
+
+    [Fact]
     public async Task RequestRecomputeAsync_ReEnqueues_WhenDerivedWriteRollsBackOnPassiveInputChange()
     {
         var sessionId = Guid.NewGuid();
         var persisted = ConfigureRecomputable(sessionId);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
         // The in-transaction DB-input re-check rolls back once (passive dependency
         // change), then succeeds: the engine self-heals by looping, not by surfacing a
         // neutral result.
@@ -280,7 +305,7 @@ public class SessionRecomputeEngineTests
             .UpdateProcessedDerivedDataAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
-                Arg.Any<ProcessingFingerprint>())
+                Arg.Any<SessionProcessingInputBundle>())
             .Returns((Session?)null, persisted);
 
         var result = await CreateEngine()
@@ -291,7 +316,7 @@ public class SessionRecomputeEngineTests
         await sessionRepository.Received(2).UpdateProcessedDerivedDataAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
-            Arg.Any<ProcessingFingerprint>());
+            Arg.Any<SessionProcessingInputBundle>());
         await reprocessor.Received(2).ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>());
     }
 
@@ -323,6 +348,7 @@ public class SessionRecomputeEngineTests
             new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         domainQuery.Get(sessionId).Returns(domain);
+        sessionRepository.GetProcessingInputBundleAsync(sessionId).Returns(TestDerivationInputs.DatabaseInputs(domain));
         sourceRepository.GetRecordedSessionSourceAsync(sourceSessionId).Returns(source);
         var persisted = new Session(sessionId, "derived", "desc", setupId, 100)
         {
@@ -331,12 +357,12 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetSessionAsync(sessionId).Returns(persisted);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
         sessionRepository
             .UpdateProcessedDerivedDataAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
-                Arg.Any<ProcessingFingerprint>())
+                Arg.Any<SessionProcessingInputBundle>())
             .Returns(callInfo => callInfo.Arg<Session>());
 
         var result = await CreateEngine()
@@ -373,7 +399,7 @@ public class SessionRecomputeEngineTests
         await sessionRepository.DidNotReceive().UpdateProcessedDerivedDataAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
-            Arg.Any<ProcessingFingerprint>());
+            Arg.Any<SessionProcessingInputBundle>());
         Assert.False(engine.IsActive(sessionId));
     }
 
@@ -408,7 +434,7 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id, currentId, missingId]);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
 
         var engine = CreateEngine();
         var summary = await engine
@@ -423,7 +449,7 @@ public class SessionRecomputeEngineTests
         await sessionRepository.Received(2).UpdateProcessedDerivedDataAsync(
             Arg.Any<Session>(),
             Arg.Any<Track?>(),
-            Arg.Any<ProcessingFingerprint>());
+            Arg.Any<SessionProcessingInputBundle>());
         Assert.False(engine.IsActive(firstId));
         Assert.False(engine.IsActive(secondId));
     }
@@ -437,7 +463,7 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetActiveSessionIdsAsync().Returns([liveId]);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
 
         var summary = await CreateEngine()
             .RequestRecomputeAllAsync()
@@ -459,7 +485,7 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstId, secondId]);
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
 
         // A synchronous sink records every report deterministically: the engine
         // reports before each parallel body returns, and ForEachAsync awaits them all.

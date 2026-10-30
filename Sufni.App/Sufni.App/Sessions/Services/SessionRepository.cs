@@ -66,16 +66,14 @@ public interface ISessionRepository
     /// Derived-only processed write used by the recompute engine. Writes only the
     /// derived columns (data, fingerprint, summary metrics, cached track,
     /// full_track_id), optionally inserting a new full track, and never touches
-    /// user-authored metadata. Inside one transaction it re-reads the row and
-    /// recomputes the DB-resident part of the fingerprint; if it no longer matches
-    /// <paramref name="expectedInputFingerprint"/> (a passive setup/bike/source
-    /// change raced the run) it rolls back and returns null. The session's
-    /// velocity-filter option is part of this transaction-time comparison.
+    /// user-authored metadata. In the transaction it compares current database
+    /// inputs with <paramref name="expectedInputs"/> captured and validated by
+    /// the caller. A changed or missing input rolls back the write and returns null.
     /// </summary>
     Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
         Track? newFullTrack,
-        ProcessingFingerprint expectedInputFingerprint);
+        SessionProcessingInputBundle expectedInputs);
 
     Task UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics);
 
@@ -100,7 +98,6 @@ public sealed record SessionPsstPayloadMetadata(
 
 internal sealed class SessionRepository(
     SqliteConnectionContext connectionContext,
-    IProcessingFingerprintService fingerprintService,
     TimeProvider timeProvider) : ISessionRepository
 {
     private sealed class RollbackWithoutResultException : Exception
@@ -444,17 +441,15 @@ internal sealed class SessionRepository(
     public async Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
         Track? newFullTrack,
-        ProcessingFingerprint expectedInputFingerprint)
+        SessionProcessingInputBundle expectedInputs)
     {
         try
         {
             await connectionContext.RunInTransactionAsync(connection =>
             {
-                // Coherence guard: re-check the DB-resident inputs that produced
-                // the reprocess against the freshly read row, inside the write
-                // transaction. A mismatch means a passive setup/bike/source change
-                // raced this run, so roll back and return null (the engine re-enqueues).
-                if (!CurrentDatabaseInputsMatch(connection, session.Id, expectedInputFingerprint))
+                // The owner validated this input snapshot before entering the transaction.
+                // Reject a dependency edit that landed after that validation.
+                if (!CurrentDatabaseInputsMatch(connection, session.Id, expectedInputs))
                 {
                     throw new RollbackWithoutResultException();
                 }
@@ -495,14 +490,13 @@ internal sealed class SessionRepository(
                ?? throw new InvalidOperationException($"Session {session.Id} was not found after derived-data persistence.");
     }
 
-    private bool CurrentDatabaseInputsMatch(
+    private static bool CurrentDatabaseInputsMatch(
         SQLiteConnection connection,
         Guid sessionId,
-        ProcessingFingerprint expectedInputFingerprint)
+        SessionProcessingInputBundle expectedInputs)
     {
         var input = GetProcessingInputBundle(connection, sessionId);
-        return input is not null &&
-               expectedInputFingerprint.MatchesDatabaseInputs(fingerprintService.CreateCurrentDatabaseInputs(input));
+        return input is not null && input == expectedInputs;
     }
 
     private static SessionProcessingInputBundle? GetProcessingInputBundle(SQLiteConnection connection, Guid sessionId)
@@ -890,7 +884,7 @@ internal sealed class SessionRepository(
                     HeadAngle,
                     ForkStroke,
                     ShockStroke,
-                    rearSuspension),
+                    RearSuspensionJson!),
                 new RecordedSessionSourceSnapshot(
                     SourceSessionId,
                     sourceKind,

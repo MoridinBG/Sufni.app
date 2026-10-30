@@ -34,7 +34,7 @@ internal sealed class TestPersistenceHarness
         context = PersistenceTestData.CreateConnectionContext(databasePath, this.timeProvider);
         var fingerprintService = new ProcessingFingerprintService();
         trackRepository = new TrackRepository(context);
-        sessionRepository = new SessionRepository(context, fingerprintService, this.timeProvider);
+        sessionRepository = new SessionRepository(context, this.timeProvider);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
         sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
@@ -136,8 +136,8 @@ internal sealed class TestPersistenceHarness
     public Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
         Track? newFullTrack,
-        ProcessingFingerprint expectedInputFingerprint) =>
-        sessionRepository.UpdateProcessedDerivedDataAsync(PrepareGeneration(session, newFullTrack), newFullTrack, expectedInputFingerprint);
+        SessionProcessingInputBundle expectedInputs) =>
+        sessionRepository.UpdateProcessedDerivedDataAsync(PrepareGeneration(session, newFullTrack), newFullTrack, expectedInputs);
 
     public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
         sessionTelemetryWriter.PatchSessionPsstAsync(id, data, fingerprint);

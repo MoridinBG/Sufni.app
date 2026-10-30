@@ -172,42 +172,46 @@ public class SessionRepositoryTests
         Assert.Equal("renamed", loaded.Name);
     }
 
-    [Fact]
-    public async Task UpdateProcessedDerivedDataAsync_ReturnsNullAndRollsBack_WhenDatabaseInputsDoNotMatch()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdateProcessedDerivedDataAsync_RollsBack_WhenInputsChangeAfterCapture(bool calibrationChange)
     {
-        using var tempDatabase = new TempDatabase("processed-derived-data-rollback.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var bike = new Bike(Guid.NewGuid(), "bike") { HeadAngle = 64 };
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = bike.Id };
+        await database.PutAsync(bike);
+        await database.PutAsync(setup);
+        var original = new Session(Guid.NewGuid(), "ride", "notes", setup.Id, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+        var source = PersistenceTestData.CreateRecordedSessionSource(original.Id);
+        await database.PutProcessedSessionAsync(original, null, source);
+        var expected = (await database.GetProcessingInputBundleAsync(original.Id))!;
+        if (calibrationChange)
+        {
+            bike.HeadAngle = 65;
+            await database.PutAsync(bike);
+        }
+        else
+        {
+            await database.SessionRepository.SetProcessingOptionAsync(original.Id, 100);
+        }
+        var before = (await database.GetSessionAsync(original.Id))!;
         var newTrack = PersistenceTestData.CreateFullTrack();
-
-        var database = new TestPersistenceHarness(databasePath);
-        // The session has no resolvable setup/source, so the in-transaction
-        // DB-input fingerprint re-check cannot match the expected inputs. The
-        // derived-only write must roll back: stale processed data is not written
-        // and the new full track is not inserted.
-        var original = new Session(sessionId, "original", "desc", null, 100)
+        var recomputed = new Session(original.Id, "stale draft", "", setup.Id, 100)
         {
-            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
-            ProcessingFingerprintJson = """{"schemaVersion":1}"""
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(66)
         };
-        var persisted = await database.PutProcessedSessionAsync(original, newFullTrack: null, source: null);
-        var originalRaw = await database.GetSessionRawPsstAsync(sessionId);
 
-        var recomputed = new Session(sessionId, "recomputed", "desc", null, 100)
-        {
-            ProcessedData = PersistenceTestData.CreateTelemetryBlob(66),
-            ProcessingFingerprintJson = """{"schemaVersion":3}"""
-        };
-        var expectedInputFingerprint = new ProcessingFingerprint(
-            3, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source-hash");
-
-        var result = await database.UpdateProcessedDerivedDataAsync(recomputed, newTrack, expectedInputFingerprint);
+        var result = await database.UpdateProcessedDerivedDataAsync(recomputed, newTrack, expected);
 
         Assert.Null(result);
-        var current = await database.GetSessionAsync(sessionId);
-        Assert.NotNull(current);
-        Assert.Equal(persisted.Updated, current!.Updated);
-        Assert.Equal(originalRaw, await database.GetSessionRawPsstAsync(sessionId));
+        var current = (await database.GetSessionAsync(original.Id))!;
+        Assert.Equal(before.Updated, current.Updated);
+        Assert.Equal(original.ProcessedData, await database.GetSessionRawPsstAsync(original.Id));
         Assert.Null(await database.GetAsync<Track>(newTrack.Id));
     }
 
@@ -261,7 +265,7 @@ public class SessionRepositoryTests
         var result = await database.UpdateProcessedDerivedDataAsync(
             recomputed,
             newFullTrack: null,
-            fingerprint);
+            (await database.GetProcessingInputBundleAsync(sessionId))!);
 
         Assert.NotNull(result);
         Assert.Equal(66, result!.DurationSeconds);
@@ -281,7 +285,7 @@ public class SessionRepositoryTests
         var fingerprintService = new ProcessingFingerprintService();
         const int updateCount = 16;
         const int putCount = 16;
-        var updateCases = new List<(Guid SessionId, Guid SetupId, ProcessingFingerprint Fingerprint)>();
+        var updateCases = new List<(Guid SessionId, Guid SetupId, ProcessingFingerprint Fingerprint, SessionProcessingInputBundle Inputs)>();
         var putCases = new List<(Session Session, Track Track, RecordedSessionSource Source)>();
 
         for (var i = 0; i < updateCount; i++)
@@ -306,7 +310,7 @@ public class SessionRepositoryTests
             await database.PutAsync(bike);
             await database.PutAsync(setup);
             await database.PutProcessedSessionAsync(session, PersistenceTestData.CreateFullTrack(), source);
-            updateCases.Add((sessionId, setup.Id, fingerprint));
+            updateCases.Add((sessionId, setup.Id, fingerprint, (await database.GetProcessingInputBundleAsync(sessionId))!));
         }
 
         for (var i = 0; i < putCount; i++)
@@ -343,7 +347,7 @@ public class SessionRepositoryTests
                 var updated = await database.UpdateProcessedDerivedDataAsync(
                     recomputed,
                     newTrack,
-                    updateCase.Fingerprint);
+                    updateCase.Inputs);
                 Assert.NotNull(updated);
                 return (updateCase.SessionId, newTrack.Id);
             }));

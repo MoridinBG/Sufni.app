@@ -1,6 +1,5 @@
 using System;
 
-using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
@@ -21,10 +20,7 @@ public sealed record BikeProcessingInput(
     double HeadAngle,
     double? ForkStroke,
     double? ShockStroke,
-    RearSuspensionSpec RearSuspension)
-{
-    public RearSuspensionKind Kind => RearSuspension.Kind;
-}
+    string RearSuspensionJson);
 
 public sealed record SessionProcessingInputBundle(
     SessionProcessingInput Session,

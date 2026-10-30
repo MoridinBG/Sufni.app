@@ -613,7 +613,7 @@ internal sealed class SynchronizationMergeEngine(
                 new SetupProcessingInput(
                     setup.Id, setup.BikeId, setup.FrontSensorConfigurationJson, setup.RearSensorConfigurationJson),
                 new BikeProcessingInput(
-                    bike.Id, bike.HeadAngle, bike.ForkStroke, bike.ShockStroke, bike.RearSuspension),
+                    bike.Id, bike.HeadAngle, bike.ForkStroke, bike.ShockStroke, bike.RearSuspensionJson),
                 RecordedSessionSourceSnapshot.From(sources[0])));
         }
         catch (InvalidOperationException)

@@ -56,6 +56,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
     private readonly ITrackRepository trackQueries;
+    private readonly IProcessingFingerprintService fingerprintService;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
@@ -82,11 +83,13 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionReprocessor recordedSessionReprocessor,
-        IRecordedSessionSourceRepository sourceRepository)
+        IRecordedSessionSourceRepository sourceRepository,
+        IProcessingFingerprintService fingerprintService)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
         this.trackQueries = trackQueries;
+        this.fingerprintService = fingerprintService;
         this.trackEntityRepository = trackEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sourceStore = sourceStore;
@@ -347,6 +350,10 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 return new SessionRecomputeResult.Missing();
             }
 
+            var expectedInputs = await sessionRepository.GetProcessingInputBundleAsync(sessionId);
+            if (expectedInputs is null || fingerprintService.CreateCurrentDatabaseInputs(expectedInputs) != processed.Fingerprint)
+                continue;
+
             var previousFullTrackId = persisted.FullTrack;
             var previousFullTrack = previousFullTrackId.HasValue
                 ? await trackEntityRepository.GetAsync(previousFullTrackId.Value)
@@ -375,12 +382,10 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 return new SessionRecomputeResult.Superseded();
             }
 
-            // Commit guard (ii): UpdateProcessedDerivedDataAsync re-checks the
-            // DB-input part of F_in inside the write transaction and returns null on
-            // a passive setup/bike/source change. Re-enqueue by looping
-            // with freshly read inputs rather than surfacing a neutral result.
+            // The transaction rejects inputs changed after the fingerprint check;
+            // a passive change retries from the current domain snapshots.
             var fresh = await sessionRepository.UpdateProcessedDerivedDataAsync(
-                prepared, newFullTrack, processed.Fingerprint);
+                prepared, newFullTrack, expectedInputs);
             if (fresh is null)
             {
                 logger.Information("Recorded session recompute for {SessionId} re-enqueued after a passive input change", sessionId);

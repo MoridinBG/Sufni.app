@@ -43,7 +43,7 @@ public class DatabaseMigrationRunnerTests
             await context.Initialization;
             var columns = await context.Connection.GetTableInfoAsync("session");
             Assert.DoesNotContain(columns, column => column.Name == "has_data");
-            var repository = new SessionRepository(context, new ProcessingFingerprintService(), PersistenceTestData.CreateTimeProvider());
+            var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider());
             var metadata = (await repository.GetSessionAsync(id))!;
             Assert.Equal(hasBlob, metadata.HasProcessedData);
             Assert.Null(metadata.ProcessedData);
