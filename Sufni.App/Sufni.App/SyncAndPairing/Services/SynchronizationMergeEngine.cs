@@ -520,17 +520,8 @@ internal sealed class SynchronizationMergeEngine(
         MergeSessionMetadata(connection, session, existing, now);
     }
 
-    // Records (or clears) a hub-side push-swap request for a deferred, held-BLOB row.
-    // It asks a client to upload a newer BLOB when the synced metadata advertises a
-    // current-schema fingerprint that matches the hub's CURRENT database inputs while
-    // the held BLOB's fingerprint does not. That is regression-safe (it never targets a
-    // stale client BLOB) and an option-only difference does not trigger a swap (both
-    // would match the DB inputs), so devices with different processing options do not
-    // ping-pong; that dimension self-heals through each device's own recompute-on-open.
-    // Exception: when the recorded source has not synced yet the hub cannot compute its
-    // current inputs, so it records the accepted target as-is rather than drop the
-    // metadata delta — the upload is still match-checked, so a non-matching BLOB is
-    // ignored and the held BLOB is preserved until a matching one arrives.
+    // Hold an accepted target when its source has not arrived yet; otherwise
+    // accept only the complete current-input fingerprint, including the session option.
     private void UpdateSessionBlobSwapRequest(
         SQLiteConnection connection,
         Session incoming,
@@ -554,8 +545,8 @@ internal sealed class SynchronizationMergeEngine(
 
         var currentDatabaseInputs = TryComputeCurrentDatabaseInputs(connection, incoming, incomingFingerprint);
         if (currentDatabaseInputs is not null &&
-            incomingFingerprint.MatchesDatabaseInputs(currentDatabaseInputs) &&
-            !heldFingerprint.MatchesDatabaseInputs(currentDatabaseInputs))
+            incomingFingerprint == currentDatabaseInputs &&
+            heldFingerprint != currentDatabaseInputs)
         {
             RecordSessionBlobSwapRequest(connection, incoming);
             return;

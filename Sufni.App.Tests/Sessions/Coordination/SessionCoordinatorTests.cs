@@ -269,10 +269,8 @@ public class SessionCoordinatorTests
             session, capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         Assert.Equal(SessionProcessingFailureReason.NoTravelData, Assert.IsType<LiveSessionSaveResult.ProcessingFailed>(result).Reason);
-        Assert.Null(store.Get(session.Id));
-        Assert.Null(await repository.Repository.GetSessionAsync(session.Id));
-        await sessionRepository.DidNotReceive().ImportProcessedSessionAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource>());
+        Assert.Empty(await repository.Repository.GetSessionsAsync());
+        Assert.Null(store.Get(RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId));
     }
 
     [Fact]
@@ -338,7 +336,8 @@ public class SessionCoordinatorTests
         SeedLiveCaptureDependencies(capture);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         using var store = new SessionStore(publication);
-        var coordinator = CreateCoordinator(store, repository.Repository);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var coordinator = CreateCoordinator(store, repository.Repository, sources);
         var original = new Session(Guid.NewGuid(), "original", "notes", capture.Context.SetupId);
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveLiveCaptureAsync(
             original, capture, SessionPreferences.Default));
@@ -352,147 +351,83 @@ public class SessionCoordinatorTests
         Assert.Equal(saved.SessionId, repeated.SessionId);
         Assert.Equal(before, store.Get(repeated.SessionId));
         Assert.Single(await repository.Repository.GetSessionsAsync());
-        await sourceStore.Received(2).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(sources => sources.Single().SourceName == "live"),
-            Arg.Any<CancellationToken>());
+        Assert.Equal("live", sources.Get(saved.SessionId)!.SourceName);
     }
 
     [Fact]
-    public async Task SaveLiveCaptureAsync_PersistsTrackSessionAndPublishesFreshSnapshots()
+    public async Task SaveLiveCaptureAsync_PersistsGpsAndPublishesSessionAndSource()
     {
         var capture = CreateLiveCapturePackage(withGps: true);
-        var expectedId = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId;
-        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
-        var fresh = new Session(expectedId, session.Name, session.Description, session.Setup)
-        {
-            Updated = 9,
-            ProcessedData = [],
-        };
         SeedLiveCaptureDependencies(capture);
-        sessionRepository
-            .ImportProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource>())
-            .Returns(callInfo =>
-            {
-                var savedTrack = callInfo.ArgAt<Track?>(1);
-                fresh.FullTrack = savedTrack?.Id;
-                return Task.FromResult(new SessionImportCommitResult(
-                    fresh, RecordedSessionSourceSnapshot.From(callInfo.Arg<RecordedSessionSource>()), false));
-            });
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var expectedSource = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture);
+        var draft = new Session(Guid.NewGuid(), "live session", "notes", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
-
-        await reprocessor.Received(1).ReprocessAsync(Arg.Is<RecordedSessionDerivationInput>(domain =>
-                domain.Session.Id == expectedId &&
-                domain.Setup!.Id == capture.Context.SetupId &&
-                domain.Bike!.Id == capture.Context.BikeId &&
-                domain.Source!.SourceKind == RecordedSessionSourceKind.LiveCapture && domain.Source.SessionId == expectedId &&
-                domain.Source.SourceHash == RecordedSessionSourceHash.Compute(domain.Source.SourceKind, domain.Payload.ToArray())), Arg.Any<CancellationToken>());
-        await sessionRepository.Received(1).ImportProcessedSessionAsync(
-            Arg.Is<Session>(saved => saved.Id == expectedId && saved.ProcessedData!.Length > 0 && saved.ProcessingFingerprintJson != null),
-            Arg.Is<Track>(track =>
-                track.Points.Count == 1 &&
-                track.Points[0].FixMode == 3 &&
-                track.Points[0].Satellites == 12 &&
-                track.Points[0].Epe2d == 0.5f &&
-                track.Points[0].Epe3d == 0.8f),
-            Arg.Is<RecordedSessionSource>(source =>
-                source.SessionId == expectedId &&
-                source.SourceKind == RecordedSessionSourceKind.LiveCapture &&
-                source.SourceName == "live"));
-        await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(expectedId)),
-            Arg.Any<CancellationToken>());
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(expectedId)),
-            Arg.Any<CancellationToken>());
+        var result = await CreateCoordinator(sessions, repository.Repository, sources).SaveLiveCaptureAsync(
+            draft, capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
-        Assert.Equal(expectedId, saved.SessionId);
-        Assert.Equal(9, saved.Updated);
+        Assert.Equal(expectedSource.SessionId, saved.SessionId);
+        var persisted = (await repository.Repository.GetSessionAsync(saved.SessionId))!;
+        Assert.Equal(SessionSnapshot.From(persisted), sessions.Get(saved.SessionId));
+        Assert.Equal(RecordedSessionSourceSnapshot.From(expectedSource), sources.Get(saved.SessionId));
+        Assert.NotNull(persisted.FullTrack);
+        Assert.NotEmpty((await repository.Repository.GetSessionRawPsstAsync(saved.SessionId))!);
+        var point = Assert.Single((await repository.Repository.GetSessionTrackAsync(saved.SessionId))!);
+        Assert.Equal((byte?)3, point.FixMode);
+        Assert.Equal((byte?)12, point.Satellites);
+        Assert.Equal(0.5f, point.Epe2d);
+        Assert.Equal(0.8f, point.Epe3d);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SaveLiveCaptureAsync_ReturnsSavedWithWarning_WhenPostCommitPublicationFails(
-        bool sourcePublicationFails)
+    public async Task SaveLiveCaptureAsync_ReturnsSavedWithWarning_WhenPostCommitPublicationFails(bool sourcePublicationFails)
     {
         var capture = CreateLiveCapturePackage(withGps: false);
-        var expectedId = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId;
-        var session = new Session(
-            Guid.NewGuid(),
-            "live session",
-            "desc",
-            capture.Context.SetupId,
-            capture.TelemetryCapture.Metadata.Timestamp);
-        var fresh = new Session(expectedId, session.Name, session.Description, session.Setup)
-        {
-            Updated = 9,
-            ProcessedData = [],
-        };
         SeedLiveCaptureDependencies(capture);
-        sessionRepository
-            .ImportProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource>())
-            .Returns(call => new SessionImportCommitResult(
-                fresh, RecordedSessionSourceSnapshot.From(call.Arg<RecordedSessionSource>()), false));
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
         if (sourcePublicationFails)
-        {
-            sourceStore.PublishSourcesChangedAsync(
-                    Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
-                    Arg.Any<CancellationToken>())
-                .ThrowsAsync(new InvalidOperationException("source publish failed"));
-        }
+            sourceStore.PublishSourcesChangedAsync(Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(), Arg.Any<CancellationToken>())
+                .ThrowsAsync(new IOException("source publication failed"));
         else
-        {
-            sessionStore.PublishSessionsChangedAsync(
-                    Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
-                    Arg.Any<CancellationToken>())
-                .ThrowsAsync(new InvalidOperationException("session publish failed"));
-        }
+            sessionStore.PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<SessionSnapshot>>(), Arg.Any<CancellationToken>())
+                .ThrowsAsync(new IOException("session publication failed"));
+        var coordinator = CreateCoordinator(sourcePublicationFails ? sessions : sessionStore, repository.Repository,
+            sourcePublicationFails ? sourceStore : sources);
+        var draft = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(
-            session,
-            capture,
-            SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await coordinator.SaveLiveCaptureAsync(draft, capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
-        Assert.Equal(expectedId, saved.SessionId);
         Assert.NotNull(saved.PublicationWarning);
-        Assert.Contains("saved", saved.PublicationWarning, StringComparison.OrdinalIgnoreCase);
-        await sessionRepository.Received(1).ImportProcessedSessionAsync(
-            Arg.Is<Session>(savedSession => savedSession.Id == expectedId),
-            Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource>());
+        Assert.Equal("notes", (await repository.Repository.GetSessionAsync(saved.SessionId))!.Description);
+        Assert.NotEmpty((await repository.Repository.GetSessionRawPsstAsync(saved.SessionId))!);
     }
 
     [Fact]
     public async Task SaveLiveCaptureAsync_ReturnsFailed_WhenProcessedPersistenceThrows()
     {
         var capture = CreateLiveCapturePackage(withGps: false);
-        var session = new Session(Guid.NewGuid(), "live session", "desc", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
         SeedLiveCaptureDependencies(capture);
-        sessionRepository
-            .ImportProcessedSessionAsync(
-                Arg.Any<Session>(),
-                Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource>())
-            .ThrowsAsync(new InvalidOperationException("disk full"));
+        var repository = new InMemorySessionRepository(new FakeTimeProvider()) { WriteFailure = new IOException("disk full") };
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var draft = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
 
-        var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator(sessions, repository.Repository, sources).SaveLiveCaptureAsync(
+            draft, capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
-            Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
-            Arg.Any<CancellationToken>());
-        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
-            Arg.Any<CancellationToken>());
+        Assert.Empty(await repository.Repository.GetSessionsAsync());
+        var id = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId;
+        Assert.Null(sessions.Get(id));
+        Assert.Null(sources.Get(id));
     }
 
     [Fact]

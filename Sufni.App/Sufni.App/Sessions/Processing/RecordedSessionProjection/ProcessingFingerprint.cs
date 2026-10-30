@@ -21,7 +21,4 @@ public sealed record ProcessingFingerprint(
     int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     RecordedSessionDerivationWindow? DerivationWindow = null,
-    int CalibrationVersion = 0)
-{
-    public bool MatchesDatabaseInputs(ProcessingFingerprint other) => this == other;
-}
+    int CalibrationVersion = 0);

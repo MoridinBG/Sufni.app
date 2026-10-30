@@ -149,41 +149,6 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
-    public void MatchesDatabaseInputs_ReturnsFalse_WhenOnlyDerivationWindowDiffers()
-    {
-        var context = CreateContext();
-        var withoutWindow = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-        var withWindow = service.CreateCurrent(
-            WithWindow(context.Session, new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 2)),
-            context.Setup,
-            context.Bike,
-            context.Source);
-
-        Assert.False(withoutWindow.MatchesDatabaseInputs(withWindow));
-        Assert.False(withWindow.MatchesDatabaseInputs(withoutWindow));
-    }
-
-    [Fact]
-    public void MatchesDatabaseInputs_RejectsEarlierCalibrationVersion()
-    {
-        var context = CreateContext();
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-
-        Assert.False(current.MatchesDatabaseInputs(current with { CalibrationVersion = 0 }));
-    }
-
-    [Fact]
-    public void MatchesDatabaseInputs_RejectsChangedVelocityFilterWindow()
-    {
-        var context = CreateContext();
-        var defaultOptions = service.CreateCurrent(context.Session with { VelocityFilterWindowMilliseconds = 25 }, context.Setup, context.Bike, context.Source);
-        var changedOptions = defaultOptions with { VelocityFilterWindowMilliseconds = 100 };
-
-        Assert.False(defaultOptions.MatchesDatabaseInputs(changedOptions));
-        Assert.False(changedOptions.MatchesDatabaseInputs(defaultOptions));
-    }
-
-    [Fact]
     public void EvaluateState_ReturnsCurrent_WhenPersistedFingerprintMatchesDerivationWindow()
     {
         var context = CreateContext();

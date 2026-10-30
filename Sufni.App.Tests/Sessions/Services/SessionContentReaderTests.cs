@@ -14,7 +14,6 @@ public class SessionContentReaderTests
     private readonly ISessionTrackReader sessionTrackReader = Substitute.For<ISessionTrackReader>();
     private readonly IFullTrackPointReader fullTrackPointReader = Substitute.For<IFullTrackPointReader>();
     private readonly ITrackRepository trackRepository = Substitute.For<ITrackRepository>();
-    private readonly TestSessionTelemetryProcessor telemetryProcessor = new();
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
 
     private SessionContentReader CreateReader() =>
@@ -23,7 +22,6 @@ public class SessionContentReaderTests
             sessionTrackReader,
             fullTrackPointReader,
             trackRepository,
-            telemetryProcessor,
             processedTelemetryReader);
 
     [Fact]

@@ -33,7 +33,6 @@ internal sealed class SessionContentReader(
     ISessionTrackReader sessionTrackReader,
     IFullTrackPointReader fullTrackPointReader,
     ITrackRepository trackRepository,
-    ISessionTelemetryProcessor sessionTelemetryProcessor,
     ISessionProcessedTelemetryReader processedTelemetryReader) : ISessionContentReader
 {
     public async Task<IReadOnlyList<SessionCatalogItem>> GetSessionsAsync(

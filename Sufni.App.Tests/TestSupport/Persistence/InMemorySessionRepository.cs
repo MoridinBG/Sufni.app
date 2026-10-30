@@ -12,11 +12,15 @@ internal sealed class InMemorySessionRepository
     private readonly Dictionary<Guid, List<TrackPoint>> tracks = [];
     private readonly Dictionary<Guid, byte[]> telemetry = [];
     private readonly Dictionary<Guid, RecordedSessionSourceSnapshot> sources = [];
+    private readonly Dictionary<Guid, SessionBlobSwap> swaps = [];
     public ISessionRepository Repository { get; } = Substitute.For<ISessionRepository>();
+    public ISessionBlobSwapRequestStore SwapRequests { get; } = Substitute.For<ISessionBlobSwapRequestStore>();
     public Exception? WriteFailure { get; set; }
 
     public InMemorySessionRepository(TimeProvider clock)
     {
+        SwapRequests.GetRequestAsync(Arg.Any<Guid>()).Returns(call => swaps.GetValueOrDefault(call.Arg<Guid>()));
+        SwapRequests.GetRequestedSessionIdsAsync().Returns(_ => swaps.Keys.ToList());
         Repository.GetSessionAsync(Arg.Any<Guid>()).Returns(call =>
             ToEntity(snapshots.GetValueOrDefault(call.Arg<Guid>())));
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());
@@ -49,6 +53,47 @@ internal sealed class InMemorySessionRepository
             if (session.Track is { } points) tracks[session.Id] = [.. points];
             return ToEntity(snapshot)!;
         }
+        Repository.UpdateSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
+                Arg.Any<SessionSummaryMetrics>(), Arg.Any<SessionProcessedWriteGuard>())
+            .Returns(call => CommitTransferred(call.Arg<Guid>(), call.Arg<byte[]>(), call.Arg<string?>(),
+                call.Arg<SessionSummaryMetrics>(), call.Arg<SessionProcessedWriteGuard>(), null));
+        Repository.UpdateSessionProcessedGenerationAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
+                Arg.Any<SessionProcessedGeneration>(), Arg.Any<SessionProcessedWriteGuard>())
+            .Returns(call =>
+            {
+                var generation = call.Arg<SessionProcessedGeneration>();
+                return CommitTransferred(call.Arg<Guid>(), call.Arg<byte[]>(), call.Arg<string?>(),
+                    new SessionSummaryMetrics(generation.DurationSeconds, generation.DistanceMeters, generation.AscentMeters, generation.DescentMeters),
+                    call.Arg<SessionProcessedWriteGuard>(), generation);
+            });
+
+        Task<bool> CommitTransferred(Guid id, byte[] bytes, string? fingerprint, SessionSummaryMetrics metrics,
+            SessionProcessedWriteGuard expected, SessionProcessedGeneration? generation)
+        {
+            if (WriteFailure is { } failure) return Task.FromException<bool>(failure);
+            if (!snapshots.TryGetValue(id, out var current) || current.ProcessingFingerprintJson != expected.Fingerprint ||
+                current.ProcessedTelemetryRevision != expected.Revision || swaps.GetValueOrDefault(id)?.TargetFingerprint != expected.PendingSwapFingerprint)
+                return Task.FromResult(false);
+            var changed = !telemetry.TryGetValue(id, out var held) || !held.SequenceEqual(bytes) || fingerprint != current.ProcessingFingerprintJson;
+            var saved = current with
+            {
+                HasProcessedData = true, ProcessingFingerprintJson = fingerprint,
+                ProcessedTelemetryRevision = current.ProcessedTelemetryRevision + (changed ? 1 : 0),
+                DurationSeconds = metrics.DurationSeconds, DistanceMeters = metrics.DistanceMeters,
+                AscentMeters = metrics.AscentMeters, DescentMeters = metrics.DescentMeters
+            };
+            if (generation is not null)
+            {
+                saved = saved with { FullTrackId = generation.FullTrackId };
+                if (generation.Track is { } points) tracks[id] = points.ToList();
+                else tracks.Remove(id);
+            }
+            snapshots[id] = saved;
+            telemetry[id] = bytes;
+            swaps.Remove(id);
+            return Task.FromResult(true);
+        }
+
         Repository.UpdateSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>())
             .Returns(call =>
             {
@@ -124,4 +169,13 @@ internal sealed class InMemorySessionRepository
     }
 
     public void Seed(SessionSnapshot snapshot) => snapshots[snapshot.Id] = snapshot;
+
+    public void Seed(Session session)
+    {
+        Seed(SessionSnapshot.From(session));
+        if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
+        if (session.Track is { } points) tracks[session.Id] = [.. points];
+    }
+
+    public void SeedSwap(SessionBlobSwap swap) => swaps[swap.SessionId] = swap;
 }

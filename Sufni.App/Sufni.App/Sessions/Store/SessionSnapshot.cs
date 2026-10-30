@@ -8,8 +8,7 @@ namespace Sufni.App.Sessions.Store;
 /// <summary>
 /// Immutable view of a session as currently known to the store.
 /// Telemetry data (the psst blob) and full track points are not part
-/// of the snapshot — they are loaded on demand by the editor via
-/// <see cref="Services.ISessionRepository"/>. The
+/// of the snapshot — editor readers load them on demand. The
 /// <see cref="HasProcessedData"/> flag is the discriminator the
 /// editor uses to detect "telemetry just became available, reload it"
 /// transitions on a <c>Watch</c> emission.
