@@ -6,6 +6,7 @@ using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors.BikeEditorParts;
 
+// Uses Avalonia bitmap decoding for image layout.
 [Collection("Ui")]
 public class BikeImageCanvasViewModelTests
 {

@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Time.Testing;
-using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using NSubstitute;
 
 using Sufni.App.SyncAndPairing.Coordinators;
@@ -21,7 +19,6 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Video.Coordinators;
 namespace Sufni.App.Tests.Shell.ViewModels;
 
-[Collection("Ui")]
 public class MainPagesViewModelTests
 {
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
@@ -302,8 +299,8 @@ public class MainPagesViewModelTests
         Assert.Equal(SufniThemeMode.Dark, viewModel.NextThemeMode);
     }
 
-    [AvaloniaFact]
-    public async Task SyncProgressState_MirrorsCoordinatorProgress()
+    [Fact]
+    public void SyncProgressState_MirrorsCoordinatorProgress()
     {
         var server = new TestSynchronizationServerService();
         var syncCoordinator = CreateSyncCoordinator(server);
@@ -316,7 +313,6 @@ public class MainPagesViewModelTests
             IsDeterminate: false);
 
         server.RaiseSyncActivityStarted(progress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         Assert.True(viewModel.SyncInProgress);
         Assert.Equal("Receiving remote changes", viewModel.SyncProgressText);
@@ -324,7 +320,6 @@ public class MainPagesViewModelTests
         Assert.False(viewModel.SyncProgressIsIndeterminate);
 
         server.RaiseSyncActivityEnded(progress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         Assert.False(viewModel.SyncInProgress);
         Assert.Equal(string.Empty, viewModel.SyncProgressText);

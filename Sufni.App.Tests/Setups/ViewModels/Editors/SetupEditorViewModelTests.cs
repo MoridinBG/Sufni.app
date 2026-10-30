@@ -1,6 +1,6 @@
+using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
-using Avalonia.Headless.XUnit;
 using DynamicData;
 using NSubstitute;
 
@@ -19,6 +19,7 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
 namespace Sufni.App.Tests.Setups.ViewModels.Editors;
 
+// Setup linkage previews currently construct JointViewModel's shared Avalonia brushes.
 [Collection("Ui")]
 public class SetupEditorViewModelTests
 {

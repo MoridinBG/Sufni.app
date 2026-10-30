@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
@@ -9,7 +8,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Labs.Controls.Base.Pan;
-using Avalonia.Threading;
+using Sufni.App.Shared.Views;
 
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Behaviors;
@@ -31,6 +30,7 @@ public partial class PullableMenuScrollViewer : UserControl
         Property = MarginProperty,
         Easing = new CubicEaseOut(),
     };
+    private IDisposable? pullTransitionCompletion;
     private double totalPulled;
     private double sameDirectionTotalScrolled;
     private int? selectedIndex;
@@ -66,6 +66,12 @@ public partial class PullableMenuScrollViewer : UserControl
     {
         base.OnLoaded(e);
         Container.Margin = new Thickness(0, -PullMenu.Bounds.Height - 20, 0, 0);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        ClearPullTransitions();
+        base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)
@@ -310,16 +316,16 @@ public partial class PullableMenuScrollViewer : UserControl
         Container.Margin = new Thickness(0, -PullMenu.Bounds.Height - 20, 0, 0);
         Scroll.Height = Bounds.Height - TopContainer.Bounds.Height;
 
-        _ = ClearPullTransitionsAfterDelayAsync();
+        pullTransitionCompletion?.Dispose();
+        pullTransitionCompletion = UiTimers.GetScheduler(this).ScheduleOnce(
+            TimeSpan.FromMilliseconds(200), ClearPullTransitions);
     }
 
-    private async Task ClearPullTransitionsAfterDelayAsync()
+    private void ClearPullTransitions()
     {
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            Scroll.Transitions!.Clear();
-            Container.Transitions!.Clear();
-        });
+        pullTransitionCompletion?.Dispose();
+        pullTransitionCompletion = null;
+        Scroll.Transitions!.Clear();
+        Container.Transitions!.Clear();
     }
 }

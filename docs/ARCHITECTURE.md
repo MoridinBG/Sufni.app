@@ -286,7 +286,7 @@ Diagnostics tab attaches
   -> receive loop handles control frames and queues telemetry
     -> parse loop -> publish loop -> shared stream fan-out
       -> LiveDaqSessionState.ApplyFrame
-      -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+      -> IUiTimerScheduler tick -> CreateSnapshot -> UI binding
 
 Last lease released
   -> shared stream disconnects and registry evicts it

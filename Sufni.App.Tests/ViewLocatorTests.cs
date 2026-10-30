@@ -7,6 +7,7 @@ using Sufni.App.Tests.TestSupport.Harness;
 
 namespace Sufni.App.Tests;
 
+// Creates Avalonia views through the real template registry.
 [Collection("Ui")]
 public class ViewLocatorTests
 {

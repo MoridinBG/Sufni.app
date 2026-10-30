@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Reactive.Subjects;
 using Avalonia;
-using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using NSubstitute;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
@@ -30,7 +28,6 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 
-[Collection("Ui")]
 public class LiveSessionDetailViewModelTests : IDisposable
 {
     private readonly ManualUiTimerScheduler uiTimers;
@@ -90,7 +87,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         signalBatches.Dispose();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task LoadedCommand_AttachesCaptureWithoutStartingForegroundProjection_WhenInactive()
     {
         var editor = CreateEditor(isTabActive: false);
@@ -104,7 +101,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         await liveSessionService.DidNotReceive().DisposeAsync();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TabDeactivation_StopsForegroundProjection_AndReactivationAppliesCurrentSnapshot()
     {
         var editor = CreateEditor();
@@ -134,7 +131,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.Same(telemetryData, editor.TelemetryData);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task CloseAfterDeactivation_DisposesCaptureServiceExactlyOnce()
     {
         var editor = CreateEditor();
@@ -147,7 +144,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SnapshotUpdate_ProjectsTelemetryTrackAndSaveState()
     {
         var editor = CreateEditor();
@@ -159,7 +156,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
             new(2, 3, 4, 5),
         };
 
-        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData, trackPoints));
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData, trackPoints));
 
         Assert.Same(telemetryData, editor.TelemetryData);
         Assert.Equal(currentSnapshot.Controls.SessionHeader!.SessionStartUtc.LocalDateTime, editor.Timestamp);
@@ -168,26 +165,26 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.True(editor.ResetCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SnapshotUpdate_UsesWaitingMapState_WhenExpectedTrackHasNoPoints()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        await PublishSnapshotAsync(CreateSnapshot(canSave: false, trackPoints: []));
+        PublishSnapshot(CreateSnapshot(canSave: false, trackPoints: []));
 
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SaveCommand_RefreshesAutomaticNameUsingLocalClock()
     {
         time.SetLocalTimeZone(TimeZoneInfo.Utc);
         time.SetUtcNow(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
         Assert.Equal("Live Session 02-01-2026 03:04:05", editor.Name);
         time.Advance(TimeSpan.FromMinutes(2));
 
@@ -198,12 +195,12 @@ public class LiveSessionDetailViewModelTests : IDisposable
             capturePackage, Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SaveCommand_UsesCustomNamePreferencesAndResetsLiveCapture()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
 
         editor.Name = "Morning lap";
         editor.DescriptionText = "first lap";
@@ -218,7 +215,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
         editor.SignalsWorkspace.SignalLayoutPreferences = signalLayout;
 
         await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         await liveSessionService.Received(1).PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>());
         await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
@@ -245,7 +241,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SaveCommand_ResetsCaptureAndReportsWarning_WhenCommittedSavePublicationFails()
     {
         var savedId = Guid.NewGuid();
@@ -260,12 +256,11 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 "Live session was saved, but app state could not be refreshed: publish failed"));
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-        await PublishSnapshotAsync(CreateSnapshot(
+        PublishSnapshot(CreateSnapshot(
             canSave: true,
             telemetryData: TestTelemetryData.CreateProcessed()));
 
         await editor.SaveCommand.ExecuteAsync(null);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
         await sessionCoordinator.Received(1).OpenEditAsync(savedId);
@@ -275,12 +270,12 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-        await PublishSnapshotAsync(CreateSnapshot(
+        PublishSnapshot(CreateSnapshot(
             canSave: true,
             telemetryData: TestTelemetryData.CreateProcessed(),
             trackPoints:
@@ -303,7 +298,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.False(editor.ResetCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task DampingSpeedCutoffCommit_PersistsThroughBikeCoordinator()
     {
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
@@ -345,7 +340,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task DampingSpeedCutoffCommitFailure_RestoresPersistedCutoffsAndReportsError()
     {
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
@@ -373,7 +368,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Bake_SecondSnapshot_CancelsInFlightTokenAndIgnoresStaleResult()
     {
         var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>(
@@ -417,7 +412,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
 
-        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
         await firstBakeStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var secondBakeApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -430,12 +425,12 @@ public class LiveSessionDetailViewModelTests : IDisposable
             }
         };
 
-        await PublishSnapshotAsync(CreateSnapshot(
+        PublishSnapshot(CreateSnapshot(
             canSave: true,
             telemetryData: TestTelemetryData.CreateProcessed(),
             captureRevision: 2));
         firstBakeGate.SetResult(firstData);
-        await WaitForUiRefreshAsync();
+        RefreshUi();
         if (editor.SpringPage.FrontTravelDistribution != secondData.FrontTravelDistribution)
         {
             await secondBakeApplied.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
@@ -477,11 +472,11 @@ public class LiveSessionDetailViewModelTests : IDisposable
         return editor;
     }
 
-    private async Task PublishSnapshotAsync(LiveSessionPresentationSnapshot snapshot)
+    private void PublishSnapshot(LiveSessionPresentationSnapshot snapshot)
     {
         currentSnapshot = snapshot;
         snapshots.OnNext(snapshot);
-        await WaitForUiRefreshAsync();
+        RefreshUi();
     }
 
     private static LiveSessionPresentationSnapshot CreateSnapshot(
@@ -573,13 +568,12 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 MissingFinalStatus: false));
     }
 
-    private async Task WaitForUiRefreshAsync()
+    private void RefreshUi()
     {
         if (uiTimers.HasScheduledTimers)
         {
             uiTimers.FireAll();
         }
 
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 }

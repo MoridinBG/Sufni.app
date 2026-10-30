@@ -5,6 +5,7 @@ using Sufni.App.Bikes.ViewModels.LinkageEditing;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.ViewModels.LinkageEditing;
 
+// Linkage parts currently own Avalonia brushes.
 [Collection("Ui")]
 public class LinkageEditorViewModelTests
 {

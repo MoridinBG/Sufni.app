@@ -30,6 +30,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
+// Includes Avalonia video doubles and dispatcher-driven editor updates.
 [Collection("Ui")]
 public class SessionDetailViewModelTests
 {

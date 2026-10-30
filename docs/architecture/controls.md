@@ -16,4 +16,4 @@ back, `ShellRootViewModel.TryCloseTransientShellSurface()` asks
 `IPlotZoomState` to collapse the zoom modal before closing the drawer or
 navigating back.
 
-Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; it does not reach into the child swipe control's visual tree.
+Mobile swipe/delete keeps the Avalonia Labs `Swipe` workaround inside `SwipeToDeleteGestureAdapter`, local to `SwipeToDeleteButton`. `PullableMenuScrollViewer` owns only the pull-menu gesture and transition behavior; its 200 ms completion uses the inherited UI scheduler and is cancelled on detach; it does not reach into the child swipe control's visual tree.

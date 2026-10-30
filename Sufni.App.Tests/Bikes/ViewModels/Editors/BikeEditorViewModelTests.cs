@@ -19,6 +19,7 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 
+// Constructs linkage parts with Avalonia brushes and image resources.
 [Collection("Ui")]
 public class BikeEditorViewModelTests
 {

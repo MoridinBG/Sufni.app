@@ -6,6 +6,7 @@ using Sufni.App.Tests.TestSupport.Harness;
 
 namespace Sufni.App.Tests.Shell;
 
+// Exercises routed feedback on a mounted Avalonia tree.
 [Collection("Ui")]
 public class HapticFeedbackBehaviorTests
 {

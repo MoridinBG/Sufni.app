@@ -1,5 +1,4 @@
 using Avalonia;
-using Avalonia.Headless.XUnit;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Stores;
@@ -7,7 +6,6 @@ using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.ViewModels.Editors.BikeEditorParts;
 
-[Collection("Ui")]
 public class BikeWheelGeometryViewModelTests
 {
     private static BikeSnapshot SnapshotWithWheels() => TestSnapshots.Bike() with
@@ -20,7 +18,7 @@ public class BikeWheelGeometryViewModelTests
         RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
     };
 
-    [AvaloniaFact]
+    [Fact]
     public void ApplySnapshot_CopiesWheelInputs_AndMatchesSnapshot()
     {
         var snapshot = SnapshotWithWheels();
@@ -37,7 +35,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.False(viewModel.HasChangesComparedTo(snapshot));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SettingFrontWheelRimAndTire_ComputesDiameter_AndPreservesInputs()
     {
         var viewModel = new BikeWheelGeometryViewModel();
@@ -51,7 +49,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.Equal($"29\" (622mm) / {2.4:0.00}\"", viewModel.FrontWheelDisplayText);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void RimSizeOptions_UseBikeEditorDisplayNames()
     {
         var viewModel = new BikeWheelGeometryViewModel();
@@ -61,7 +59,7 @@ public class BikeWheelGeometryViewModelTests
             option.DisplayName == "27.5\" (584mm)");
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SettingFrontWheelDiameterManually_ClearsDerivedRimAndTireState()
     {
         var viewModel = new BikeWheelGeometryViewModel
@@ -77,7 +75,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.Equal(700, viewModel.FrontWheelDiameter);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void RemoveFrontWheelCommand_ClearsFrontWheelInputs()
     {
         var viewModel = new BikeWheelGeometryViewModel
@@ -97,7 +95,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.False(viewModel.RemoveFrontWheelCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void RemoveRearWheelCommand_ClearsRearWheelInputs()
     {
         var viewModel = new BikeWheelGeometryViewModel
@@ -117,7 +115,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.False(viewModel.RemoveRearWheelCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void RefreshDerived_ComputesWheelCircleMetrics_FromCentersAndScale()
     {
         var viewModel = new BikeWheelGeometryViewModel
@@ -136,7 +134,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.Equal(375, viewModel.RearWheelCircleDiameter);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void TryComputeGroundAlignmentDelta_ReturnsNull_WhenInputsAreIncomplete()
     {
         var viewModel = new BikeWheelGeometryViewModel();
@@ -146,7 +144,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.Null(delta);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void HasChangesComparedTo_ReturnsTrue_WhenWheelInputChanges()
     {
         var snapshot = SnapshotWithWheels();

@@ -6,6 +6,7 @@ using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Infrastructure;
 
 // Application initialization loads Avalonia resources.
+// Loads the application XAML and Avalonia resources.
 [Collection("Ui")]
 public class SmokeTests
 {

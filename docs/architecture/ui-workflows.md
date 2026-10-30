@@ -96,7 +96,10 @@ snapshot supplies the first-frame theme and layout profile, and seeds runtime
 `AppPreferences` without another read. Each head chooses the default layout and
 app-data directory. Paths reach persistence, logging and certificate storage
 through the root. `TimeProvider.System` is registered once; preferences use the
-injected clock. Other clock seams are still being adopted.
+injected clock, as do live cadence, pairing/sync, persistence timestamps, video,
+Strava and notification/undo expiry. `IUiTimerScheduler` supplies UI cadence: view
+models receive it through constructors, while main/dialog roots provide the
+inherited `UiTimers.Scheduler` property for XAML-created controls.
 
 Shared registrations in `AppComposition`:
 
@@ -105,7 +108,8 @@ Shared registrations in `AppComposition`:
   registrations. Single-view lifetimes host the shell in `MainView` and wire
   native back requests to the shared shell root.
 - **Services**: `IBackgroundTaskRunner`,
-  `IUiThreadDispatcher`, `IDaqManagementService`, `ITelemetryDataStoreService`,
+  `IUiThreadDispatcher`, `IUiTimerScheduler`, `IDaqDriveProbe`,
+  `IDaqManagementService`, `ITelemetryDataStoreService`,
   SQLite repository interfaces, `ISyncDataStore`,
   `IFilesService`, `ITileLayerService`,
   `IMapViewModelFactory`, `ISessionTrackReader`, `IFullTrackPointReader`,

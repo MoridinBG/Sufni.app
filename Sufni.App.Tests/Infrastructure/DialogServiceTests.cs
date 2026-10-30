@@ -9,6 +9,7 @@ using Sufni.App.MapsAndTracks.Views;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Infrastructure;
 
+// Opens real headless windows and overlays.
 [Collection("Ui")]
 public class DialogServiceTests
 {

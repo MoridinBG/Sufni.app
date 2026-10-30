@@ -4,6 +4,7 @@ using Avalonia.Styling;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Tests.Infrastructure.Theming;
 
+// Mutates Application.Current resources and theme variants.
 [Collection("Ui")]
 public class SufniThemeTests
 {
