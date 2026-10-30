@@ -49,8 +49,9 @@ internal static class PersistenceTestData
     public static FakeTimeProvider CreateTimeProvider() =>
         new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
 
-    public static SqliteConnectionContext CreateConnectionContext(string databasePath, TimeProvider? timeProvider = null) =>
-        new(databasePath, timeProvider ?? CreateTimeProvider(), new InlineBackgroundTaskRunner());
+    public static SqliteConnectionContext CreateConnectionContext(string databasePath, TimeProvider? timeProvider = null,
+        IReadOnlyDictionary<Guid, int>? legacyProcessingWindows = null) =>
+        new(databasePath, timeProvider ?? CreateTimeProvider(), new InlineBackgroundTaskRunner(), legacyProcessingWindows ?? new Dictionary<Guid, int>());
 }
 
 internal sealed class TableColumnInfo

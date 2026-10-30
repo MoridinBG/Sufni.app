@@ -39,6 +39,10 @@ public class Session : Synchronizable
     [Column("setup_id")]
     public Guid? Setup { get; set; }
 
+    [JsonPropertyName("velocity_filter_window_ms"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [Column("velocity_filter_window_ms")]
+    public int? VelocityFilterWindowMilliseconds { get; set; }
+
     [JsonPropertyName("timestamp"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [Column("timestamp")]
     public long? Timestamp { get; set; }

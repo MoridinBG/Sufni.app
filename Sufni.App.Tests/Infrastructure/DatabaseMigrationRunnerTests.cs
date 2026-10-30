@@ -22,6 +22,43 @@ namespace Sufni.App.Tests.Infrastructure;
 public class DatabaseMigrationRunnerTests
 {
     [Fact]
+    public async Task Initialization_CopiesLegacyFilterOptionOnce_WithoutChangingSessionContent()
+    {
+        using var temp = new TempDatabase();
+        var sessionId = Guid.NewGuid();
+        var bytes = PersistenceTestData.CreateTelemetryBlob(30);
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.Insert(new Session(sessionId, "existing", "notes", null, 100)
+            {
+                ProcessedData = bytes,
+                Updated = 42
+            });
+            legacy.Execute("ALTER TABLE session DROP COLUMN velocity_filter_window_ms");
+        }
+
+        await using (var first = PersistenceTestData.CreateConnectionContext(temp.DatabasePath,
+                         legacyProcessingWindows: new Dictionary<Guid, int> { [sessionId] = 100 }))
+        {
+            await first.Initialization;
+            var row = await first.Connection.FindAsync<Session>(sessionId);
+            Assert.Equal(100, row.VelocityFilterWindowMilliseconds);
+            Assert.Equal(bytes, row.ProcessedData);
+            Assert.Equal("notes", row.Description);
+            Assert.Equal(42, row.Updated);
+            await first.Connection.ExecuteAsync("UPDATE session SET velocity_filter_window_ms = 250 WHERE id = ?", sessionId);
+        }
+
+        await using var second = PersistenceTestData.CreateConnectionContext(temp.DatabasePath,
+            legacyProcessingWindows: new Dictionary<Guid, int> { [sessionId] = 100 });
+        await second.Initialization;
+        Assert.Equal(250, (await second.Connection.FindAsync<Session>(sessionId)).VelocityFilterWindowMilliseconds);
+        Assert.Equal(1, await second.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM core_migration WHERE id = 'session-domain-ownership'"));
+    }
+
+    [Fact]
     public async Task Initialization_AssignsExistingDatabaseAnIdentity_AndPreservesItAcrossLaunches()
     {
         using var temp = new TempDatabase();

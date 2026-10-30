@@ -20,7 +20,7 @@ internal sealed class SessionPersistenceTransactionRunner(
 {
     private const string EditableSessionProjection = """
                                                      SELECT
-                                                         id, name, description, setup_id, timestamp, gps_offset_seconds,
+                                                         id, name, description, setup_id, timestamp, gps_offset_seconds, velocity_filter_window_ms,
                                                          source_session_id, window_start_seconds, window_end_seconds,
                                                          previous_window_start_seconds, previous_window_end_seconds,
                                                          front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
@@ -141,6 +141,7 @@ internal sealed class SessionPersistenceTransactionRunner(
 
             var part2 = new Session(Guid.NewGuid(), $"{row.Name} (2)", row.Description, row.Setup, row.Timestamp)
             {
+                VelocityFilterWindowMilliseconds = row.VelocityFilterWindowMilliseconds,
                 GpsOffsetSeconds = row.GpsOffsetSeconds,
                 SourceSessionId = window.Source,
                 WindowStartSeconds = split,

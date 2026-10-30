@@ -27,7 +27,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private readonly IRecordedSessionSourceStore sourceStore;
     private readonly IProcessingDependencyHashIndex dependencyHashIndex;
     private readonly IProcessingFingerprintService fingerprintService;
-    private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionProjectionScheduler scheduler;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, Guid?> sessionToSetup = [];
@@ -47,7 +46,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex,
-        IRecordedSessionProcessingOptionCache processingOptionCache,
         IUiThreadDispatcher uiThreadDispatcher)
         : this(
             sessionStore,
@@ -56,7 +54,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             sourceStore,
             fingerprintService,
             dependencyHashIndex,
-            processingOptionCache,
             new UiThreadRecordedSessionProjectionScheduler(uiThreadDispatcher))
     {
     }
@@ -68,7 +65,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         IRecordedSessionSourceStore sourceStore,
         IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex,
-        IRecordedSessionProcessingOptionCache processingOptionCache,
         IRecordedSessionProjectionScheduler scheduler)
     {
         this.sessionStore = sessionStore;
@@ -77,7 +73,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         this.sourceStore = sourceStore;
         this.dependencyHashIndex = dependencyHashIndex;
         this.fingerprintService = fingerprintService;
-        this.processingOptionCache = processingOptionCache;
         this.scheduler = scheduler;
 
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
@@ -85,9 +80,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
         subscriptions.Add(dependencyHashIndex.Connect().Subscribe(ApplyDependencyHashChanges));
 
-        // Preference->projection edge: a processing-option change re-evaluates the
-        // affected session so EvaluateState re-runs with the new option.
-        subscriptions.Add(processingOptionCache.OptionChanged.Subscribe(QueueRecompute));
     }
 
     public IObservable<IChangeSet<RecordedSessionSummary, Guid>> ConnectSessions() => summaries.Connect();
@@ -449,7 +441,6 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     source,
                     fingerprintService,
                     dependencyHash,
-                    processingOptionCache.Get(session.Id),
                     changeKind);
                 domains[session.Id] = domain;
                 summaries.AddOrUpdate(new RecordedSessionSummary(

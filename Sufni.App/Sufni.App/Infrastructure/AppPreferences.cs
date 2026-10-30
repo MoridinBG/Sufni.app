@@ -34,7 +34,6 @@ public sealed class AppPreferences : IAppPreferences
     private readonly Subject<PreferenceValueChange<SufniThemeMode>> themePreferencesSubject = new();
     private readonly object recordedPreferenceSubjectsGate = new();
     private readonly Dictionary<Guid, Subject<PreferenceValueChange<SessionPreferences>>> recordedPreferenceSubjects = [];
-    private readonly Subject<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> allRecordedPreferencesSubject = new();
 
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
@@ -121,16 +120,10 @@ public sealed class AppPreferences : IAppPreferences
                 next.Theme.GetMode(),
                 PreferenceChangeOrigin.SyncApply,
                 advancesSyncClock: false);
-            var recordedPreferences = next.Session.ToModelDictionary();
             var recordedChanges = GetObservedRecordedSessionIds()
-                .Select(sessionId => (
-                    sessionId,
-                    recordedPreferences.TryGetValue(sessionId, out var value)
-                        ? value
-                        : SessionPreferences.Default))
+                .Select(sessionId => (sessionId, next.Session.GetRecorded(sessionId)))
                 .ToArray();
             PublishRecordedPreferenceChanges(
-                recordedPreferences,
                 PreferenceChangeOrigin.SyncApply,
                 advancesSyncClock: false,
                 recordedChanges);
@@ -164,7 +157,6 @@ public sealed class AppPreferences : IAppPreferences
     }
 
     private void PublishRecordedPreferenceChanges(
-        IReadOnlyDictionary<Guid, SessionPreferences> allRecorded,
         PreferenceChangeOrigin origin,
         bool advancesSyncClock,
         params (Guid SessionId, SessionPreferences Value)[] recordedChanges)
@@ -182,12 +174,6 @@ public sealed class AppPreferences : IAppPreferences
                 origin,
                 advancesSyncClock));
         }
-
-        allRecordedPreferencesSubject.OnNext(
-            new PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>(
-                allRecorded,
-                origin,
-                advancesSyncClock));
     }
 
     private void PublishMapPreferenceChange(
@@ -239,19 +225,19 @@ public sealed class AppPreferences : IAppPreferences
     {
         if (!File.Exists(filePath))
         {
-            return new AppPreferencesDocument().Normalize(CurrentVersion);
+            return new AppPreferencesDocument();
         }
 
         try
         {
             using var stream = File.OpenRead(filePath);
             var document = JsonSerializer.Deserialize<AppPreferencesDocument>(stream, JsonOptions);
-            return document?.Normalize(CurrentVersion) ?? new AppPreferencesDocument().Normalize(CurrentVersion);
+            return document ?? new AppPreferencesDocument();
         }
         catch (JsonException ex)
         {
             logger.Warning(ex, "Failed to read app preferences JSON at {PreferencesPath}; using defaults", filePath);
-            return new AppPreferencesDocument().Normalize(CurrentVersion);
+            return new AppPreferencesDocument();
         }
     }
 
@@ -434,12 +420,6 @@ public sealed class AppPreferences : IAppPreferences
             return owner.ReadAsync(document => document.Session.GetRecorded(sessionId));
         }
 
-        public Task<IReadOnlyDictionary<Guid, SessionPreferences>> GetAllRecordedAsync()
-        {
-            return owner.ReadAsync<IReadOnlyDictionary<Guid, SessionPreferences>>(document =>
-                document.Session.ToModelDictionary());
-        }
-
         public async Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update)
         {
             ArgumentNullException.ThrowIfNull(update);
@@ -455,7 +435,6 @@ public sealed class AppPreferences : IAppPreferences
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
-                    next.Session.ToModelDictionary(),
                     PreferenceChangeOrigin.LocalWrite,
                     advancesSyncClock: true,
                     (sessionId, updated));
@@ -477,35 +456,9 @@ public sealed class AppPreferences : IAppPreferences
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
-                    next.Session.ToModelDictionary(),
                     PreferenceChangeOrigin.LocalWrite,
                     advancesSyncClock: true,
                     (sessionId, SessionPreferences.Default));
-            }
-            finally
-            {
-                owner.gate.Release();
-            }
-        }
-
-        public async Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId)
-        {
-            await owner.gate.WaitAsync();
-            try
-            {
-                var next = owner.CloneDocument();
-                // Reset only Processing to the default; the session's other
-                // preferences (signal display, analysis, signal layout, layout) are preserved.
-                var current = next.Session.GetRecorded(sessionId);
-                var reset = current with { Processing = new SessionProcessingPreferences() };
-                next.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(reset);
-                await owner.WriteDocumentCoreAsync(next);
-                owner.document = next;
-                owner.PublishRecordedPreferenceChanges(
-                    next.Session.ToModelDictionary(),
-                    PreferenceChangeOrigin.LocalNoSyncClockWrite,
-                    advancesSyncClock: false,
-                    (sessionId, reset));
             }
             finally
             {
@@ -529,68 +482,6 @@ public sealed class AppPreferences : IAppPreferences
                     AdvancesSyncClock: false))
                 .Concat(owner.GetRecordedPreferenceSubject(sessionId))
                 .DistinctUntilChanged();
-        }
-
-        public IObservable<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> ObserveAllRecordedChanges()
-        {
-            return Observable
-                .FromAsync(async () => new PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>(
-                    await GetAllRecordedAsync(),
-                    PreferenceChangeOrigin.SyncApply,
-                    AdvancesSyncClock: false))
-                .Concat(owner.allRecordedPreferencesSubject)
-                .DistinctUntilChanged(AllRecordedPreferenceChangeComparer.Instance);
-        }
-
-        private sealed class AllRecordedPreferenceChangeComparer :
-            IEqualityComparer<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>
-        {
-            public static readonly AllRecordedPreferenceChangeComparer Instance = new();
-
-            public bool Equals(
-                PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>? previous,
-                PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>? current)
-            {
-                if (ReferenceEquals(previous, current))
-                {
-                    return true;
-                }
-
-                if (previous is null || current is null)
-                {
-                    return false;
-                }
-
-                return previous.Origin == current.Origin &&
-                    previous.AdvancesSyncClock == current.AdvancesSyncClock &&
-                    RecordedPreferenceDictionariesEqual(previous.Value, current.Value);
-            }
-
-            public int GetHashCode(PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>> change)
-            {
-                return HashCode.Combine(change.Origin, change.AdvancesSyncClock);
-            }
-
-            private static bool RecordedPreferenceDictionariesEqual(
-                IReadOnlyDictionary<Guid, SessionPreferences> previous,
-                IReadOnlyDictionary<Guid, SessionPreferences> current)
-            {
-                if (previous.Count != current.Count)
-                {
-                    return false;
-                }
-
-                foreach (var (sessionId, previousPreferences) in previous)
-                {
-                    if (!current.TryGetValue(sessionId, out var currentPreferences) ||
-                        previousPreferences != currentPreferences)
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
         }
 
         private static string SessionKey(Guid sessionId) => sessionId.ToString("D");
@@ -834,7 +725,6 @@ public sealed class AppPreferences : IAppPreferences
             return new SessionPreferences(
                 signalDisplay: SignalDisplay?.ToModel() ?? Plots?.ToModel() ?? new SignalDisplayPreferences(),
                 analysis: Analysis?.ToModel() ?? Statistics?.ToModel() ?? new AnalysisPreferences(),
-                processing: Processing?.ToModel() ?? new SessionProcessingPreferences(),
                 signalLayout: SignalLayout?.ToModel() ?? Graph?.ToModel() ?? SignalLayoutPreferences.Default,
                 layout: Layout?.ToModel() ?? SessionLayoutPreferences.Default);
         }
@@ -849,7 +739,6 @@ public sealed class AppPreferences : IAppPreferences
             {
                 SignalDisplay = signalDisplay,
                 Analysis = analysis,
-                Processing = SessionProcessingPreferencesDocument.FromModel(preferences.Processing),
                 SignalLayout = signalLayout,
                 Layout = SessionLayoutPreferencesDocument.FromModel(preferences.Layout),
             };
@@ -961,20 +850,6 @@ public sealed class AppPreferences : IAppPreferences
     {
         public int? VelocityFilterWindowMilliseconds { get; set; }
 
-        public SessionProcessingPreferences ToModel()
-        {
-            return new SessionProcessingPreferences(
-                VelocityFilterWindowMilliseconds ??
-                TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds);
-        }
-
-        public static SessionProcessingPreferencesDocument FromModel(SessionProcessingPreferences preferences)
-        {
-            return new SessionProcessingPreferencesDocument
-            {
-                VelocityFilterWindowMilliseconds = preferences.VelocityFilterWindowMilliseconds,
-            };
-        }
     }
 
     internal sealed class SignalLayoutPreferencesDocument

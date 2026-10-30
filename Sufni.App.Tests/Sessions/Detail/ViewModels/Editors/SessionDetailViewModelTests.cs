@@ -38,6 +38,18 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class SessionDetailViewModelTests
 {
     [AvaloniaFact]
+    public async Task LoadedSession_ProjectsTheFilterOptionFromTheSessionRow()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = TestSnapshots.Session(hasProcessedData: true) with { VelocityFilterWindowMilliseconds = 100 };
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+
+        await harness.LoadAsync(editor);
+
+        Assert.Equal(100, editor.PreferencesPage.VelocityFilterWindowMilliseconds);
+    }
+
+    [AvaloniaFact]
     public async Task LoadedSession_ExposesWorkspaceSurfaces()
     {
         var harness = new SessionDetailHarness();

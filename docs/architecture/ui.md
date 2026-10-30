@@ -121,7 +121,7 @@ Rules enforced by convention:
 `AppStartup` awaits database initialization and the first coherent store refresh
 before primary pages are created. Both shells render a blocking startup/failure
 surface until readiness. Tile-layer initialization and subscription wiring precede
-server startup; retention and normalization jobs then run under startup ownership.
+server startup; retention work then runs under startup ownership.
 Database reset archives the closed database and requires a new launch. See
 [Startup and database recovery](ui-workflows.md#startup-and-database-recovery).
 
@@ -206,7 +206,7 @@ calibration calculation failure, no usable travel, and invalid travel data.
 Typed failures are forwarded without another log or persistence attempt.
 
 `SessionRecomputeResult` is `Recomputed | Superseded | NotRecomputable | Missing |
-Failed | ProcessingFailed`. Generic failures carry `SessionRecomputeFailureReason.Recompute`;
+Failed | ProcessingFailed`. Generic failures carry `SessionRecomputeFailureReason.Recompute | ProcessingOption`;
 processing failures retain the processing reason. Missing sessions are skipped in
 bulk recompute. `SessionEditResult.Applied` can carry the typed recompute failure
 after the edit commits, keeping diagnostics separate through the editor gateway.

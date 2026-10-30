@@ -16,6 +16,25 @@ internal sealed class InMemorySessionRepository
         Repository.GetSessionAsync(Arg.Any<Guid>()).Returns(call =>
             snapshots.GetValueOrDefault(call.Arg<Guid>())?.ToMetadataEntity());
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => snapshot.ToMetadataEntity()).ToList());
+        Repository.SetProcessingOptionAsync(Arg.Any<Guid>(), Arg.Any<int>()).Returns(call =>
+            SetWindow(call.Arg<Guid>(), call.ArgAt<int>(1)));
+        Repository.RestoreProcessingOptionAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int?>()).Returns(call =>
+        {
+            var id = call.Arg<Guid>();
+            return snapshots.GetValueOrDefault(id)?.VelocityFilterWindowMilliseconds == call.ArgAt<int>(1)
+                ? SetWindow(id, call.ArgAt<int?>(2))
+                : Task.FromResult(snapshots.GetValueOrDefault(id)?.ToMetadataEntity());
+        });
+
+        Task<Session?> SetWindow(Guid id, int? window)
+        {
+            if (WriteFailure is { } failure) return Task.FromException<Session?>(failure);
+            if (!snapshots.TryGetValue(id, out var current)) return Task.FromResult<Session?>(null);
+            var saved = current with { VelocityFilterWindowMilliseconds = window, Updated = clock.GetUtcNow().ToUnixTimeSeconds() };
+            snapshots[id] = saved;
+            return Task.FromResult<Session?>(saved.ToMetadataEntity());
+        }
+
         Repository.PutSessionAsync(Arg.Any<Session>()).Returns(call =>
         {
             if (WriteFailure is { } failure) return Task.FromException<Guid>(failure);

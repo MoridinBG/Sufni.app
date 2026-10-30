@@ -78,12 +78,8 @@ public class ProcessingFingerprintServiceTests
         const string dependencyHash = "precomputed-dependency-hash";
 
         var current = service.CreateCurrent(
-            context.Session,
-            context.Setup,
-            context.Bike,
-            context.Source,
-            dependencyHash,
-            new TelemetryProcessingOptions(100));
+            context.Session with { VelocityFilterWindowMilliseconds = 100 },
+            context.Setup, context.Bike, context.Source, dependencyHash);
 
         Assert.Equal(dependencyHash, current.DependencyHash);
         Assert.Equal(100, current.VelocityFilterWindowMilliseconds);
@@ -132,17 +128,15 @@ public class ProcessingFingerprintServiceTests
         var context = CreateContext();
         // Persisted fingerprint produced at the 25 ms default option.
         var persisted = service.CreateCurrent(
-            context.Session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(25));
+            context.Session with { VelocityFilterWindowMilliseconds = 25 }, context.Setup, context.Bike, context.Source);
         var session = context.Session with
         {
             HasProcessedData = true,
             ProcessingFingerprintJson = AppJson.Serialize(persisted)
         };
 
-        // Same DB inputs (setup/bike/source/versions), only the velocity-filter window
-        // changed: the stored BLOB is now stale and recomputable.
         var changed = service.EvaluateState(
-            session, context.Setup, context.Bike, context.Source, dependencyHash: null, new TelemetryProcessingOptions(100)).Staleness;
+            session with { VelocityFilterWindowMilliseconds = 100 }, context.Setup, context.Bike, context.Source, dependencyHash: null).Staleness;
         Assert.IsType<SessionStaleness.DependencyHashChanged>(changed);
         Assert.True(changed.IsStale);
         Assert.True(changed.CanRecompute);
@@ -150,7 +144,7 @@ public class ProcessingFingerprintServiceTests
         // Reverting to the option the BLOB was produced with re-evaluates as current,
         // proving the option is the only difference above.
         var unchanged = service.EvaluateState(
-            session, context.Setup, context.Bike, context.Source, dependencyHash: null, new TelemetryProcessingOptions(25)).Staleness;
+            session with { VelocityFilterWindowMilliseconds = 25 }, context.Setup, context.Bike, context.Source, dependencyHash: null).Staleness;
         Assert.IsType<SessionStaleness.Current>(unchanged);
     }
 
@@ -179,14 +173,14 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
-    public void MatchesDatabaseInputs_IgnoresVelocityFilterWindow()
+    public void MatchesDatabaseInputs_RejectsChangedVelocityFilterWindow()
     {
         var context = CreateContext();
-        var defaultOptions = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source, new TelemetryProcessingOptions(25));
+        var defaultOptions = service.CreateCurrent(context.Session with { VelocityFilterWindowMilliseconds = 25 }, context.Setup, context.Bike, context.Source);
         var changedOptions = defaultOptions with { VelocityFilterWindowMilliseconds = 100 };
 
-        Assert.True(defaultOptions.MatchesDatabaseInputs(changedOptions));
-        Assert.True(changedOptions.MatchesDatabaseInputs(defaultOptions));
+        Assert.False(defaultOptions.MatchesDatabaseInputs(changedOptions));
+        Assert.False(changedOptions.MatchesDatabaseInputs(defaultOptions));
     }
 
     [Fact]

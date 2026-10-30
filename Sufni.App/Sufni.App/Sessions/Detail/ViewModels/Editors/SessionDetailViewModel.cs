@@ -1656,7 +1656,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             dialogService,
             this);
         processingPreferenceWorkflow = new ProcessingPreferenceWorkflow(
-            recordedPreferenceStore,
+            sessionStore,
             PreferencesPage,
             sessionCoordinator,
             this);
@@ -1745,6 +1745,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             if (state.Session is { } snapshot)
             {
                 ApplyRuntimeSessionState(snapshot);
+                if (previous.Session?.VelocityFilterWindowMilliseconds != snapshot.VelocityFilterWindowMilliseconds)
+                    PreferencesPage.ApplyProcessingOptions(snapshot.ProcessingOptions);
             }
 
         }
@@ -1995,7 +1997,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         try
         {
             ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
-            PreferencesPage.ApplyProcessingPreferences(preferences.Processing);
             PublishEditorInput(preferenceReplayInput, preferences);
         }
         finally

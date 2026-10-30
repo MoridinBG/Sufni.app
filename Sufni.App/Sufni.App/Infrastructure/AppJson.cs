@@ -107,7 +107,6 @@ internal static class AppJson
 [JsonSerializable(typeof(SessionPreferences))]
 [JsonSerializable(typeof(SignalDisplayPreferences))]
 [JsonSerializable(typeof(AnalysisPreferences))]
-[JsonSerializable(typeof(SessionProcessingPreferences))]
 [JsonSerializable(typeof(SignalLayoutPreferences))]
 [JsonSerializable(typeof(SignalLayoutRowPreferences))]
 [JsonSerializable(typeof(SessionLayoutPreferences))]

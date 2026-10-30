@@ -93,6 +93,8 @@ public sealed class SessionCommandService
             return new SessionSaveResult.Conflict(current);
         }
 
+        if (current is not null) session.VelocityFilterWindowMilliseconds = current.VelocityFilterWindowMilliseconds;
+
         try
         {
             var fresh = await backgroundTaskRunner.RunAsync(async () =>
@@ -130,7 +132,6 @@ public sealed class SessionCommandService
 
         try
         {
-            var processingOptions = preferences.Processing.ToTelemetryProcessingOptions();
             var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
             var setup = await setupRepository.GetAsync(capture.Context.SetupId)
                         ?? throw new InvalidOperationException("Setup is missing.");
@@ -141,7 +142,7 @@ public sealed class SessionCommandService
             var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
             var sessionSnapshot = SessionSnapshot.From(session);
             var input = new RecordedSessionDerivationInput(
-                sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload, processingOptions);
+                sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload);
 
             var reprocessResult = await backgroundTaskRunner.RunAsync(
                 () => recordedSessionReprocessor.ReprocessAsync(input, cancellationToken),

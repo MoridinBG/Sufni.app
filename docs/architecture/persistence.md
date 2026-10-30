@@ -20,6 +20,7 @@ erDiagram
         text name
         text description
         int timestamp
+        int velocity_filter_window_ms
         real duration_seconds
         real distance_meters
         real ascent_meters
@@ -195,12 +196,11 @@ Bike rows include presentation-owned damping speed cutoffs for front/rear compre
 
 Startup migration ensures bike rows use the single `rear_suspension` union JSON column. Legacy schemas with `rear_suspension_kind`, `linkage`, and/or `leverage_ratio` are backfilled into `RearSuspensionSpec` JSON, linkage shock stroke is reconciled against the bike-level `shock_stroke` column, draft rows preserve the selected mode when the payload is missing or unparseable, and the legacy columns are dropped after backfill.
 
-Startup schema migration no longer backfills `session_processing_fingerprint`.
-Legacy processed rows are normalized by `ProcessingOptionsResetMigration`, the
-post-initialization pass that recomputes source-backed sessions through the
-normal recompute engine when needed. New source, derivation-window, or
-dependency-hash mismatches remain stale so recompute can surface real
-derived-data changes.
+The `session-domain-ownership` migration copies the launch snapshot's legacy
+processing options into nullable `session.velocity_filter_window_ms`, without
+changing authored timestamps or processed data. Its marker prevents later launches
+from replaying old preferences over a newly authored option. Runtime preferences
+and startup jobs no longer reset or recompute processing options.
 
 Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
 
@@ -252,7 +252,7 @@ persist first and inbound appliers prepare and publish the resulting snapshots.
 
 - `PutSessionAsync()` — updates user-authored session metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates. Metadata SQL does not name the multi-megabyte `data` BLOB or cached `track` JSON at all, so those processed-write-owned payloads, their fingerprint/linkage, and their local revisions remain untouched. Soft-deleted-row reuse still restores the complete supplied aggregate through its dedicated insert/reuse path.
 - `PutProcessedSessionAsync(session, newFullTrack, source)` — persists a processed session in one lock-held `RunInTransactionAsync` callback. It writes a new full `Track` when supplied, stamps `session.full_track_id`, writes all session metadata plus `data`, `session_processing_fingerprint`, and the summary-metric values already set on the session, and optionally inserts/replaces the matching `RecordedSessionSource`. If any write fails, the session, full-track, and source write roll back together.
-- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one lock-held transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. When the expected fingerprint carries a derivation window, the source row is resolved by `DerivationWindow.SourceSessionId` rather than by the session id. The preference-stored processing option is deliberately **not** re-checked here — it is not a DB column and is guarded by the recompute engine's commit-time check. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
+- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputFingerprint)` — the derived-only write used by recorded-session recompute. In one lock-held transaction it re-reads the row, recomputes the **DB-input** part of the processing fingerprint from the freshly read setup/bike/source/version state, and compares it to `expectedInputFingerprint`; on a mismatch (a passive dependency change) it rolls back and returns `null`. When the expected fingerprint carries a derivation window, the source row is resolved by `DerivationWindow.SourceSessionId` rather than by the session id. The velocity-filter option is included in the same transaction-time fingerprint comparison. On a match it writes **only** the derived columns (`data`, `session_processing_fingerprint`, the four summary metrics, cached `track`, `full_track_id`), optionally inserts `newFullTrack`, stamps `updated`, and never touches user-metadata columns, returning the fresh row.
 - `UpdateSessionPsstAsync(id, data, fingerprintJson, metrics)` — the legacy/fill write path: overwrites the BLOB-bound pair (`data` and `session_processing_fingerprint`) plus supplied summary metrics on a non-deleted row, with **no `updated` bump** so a sync swap/fill creates no metadata-sync feedback edge; the values arrive pre-validated/pre-computed from `SessionTelemetryWriter`
 - `UpdateSessionProcessedGenerationAsync(id, data, fingerprintJson, generation)` — the generation-aware swap path. One SQLite `UPDATE` replaces `data`, fingerprint, all four summary metrics, `full_track_id`, normalized `gps_offset_seconds`, and cached `track` together, again without an `updated` bump. The caller validates the transferred MessagePack before this statement, so an invalid payload cannot partially install metadata from the target generation.
 - `UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds?)` — replaces the cached session-window `track` JSON and the supplied summary metrics, optionally updates the per-session GPS offset, and stamps `updated`; callers that omit the offset preserve the existing `gps_offset_seconds`

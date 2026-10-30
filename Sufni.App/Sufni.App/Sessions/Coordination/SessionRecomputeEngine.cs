@@ -77,7 +77,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceRepository sourceRepository;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
@@ -99,7 +98,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         ISessionTelemetryWriter sessionTelemetryWriter,
         ISynchronizableRepository<Track> trackEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
-        IRecordedSessionProcessingOptionCache processingOptionCache,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionReprocessor recordedSessionReprocessor,
@@ -110,7 +108,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         this.sessionTelemetryWriter = sessionTelemetryWriter;
         this.trackEntityRepository = trackEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        this.processingOptionCache = processingOptionCache;
         this.sourceStore = sourceStore;
         this.sourceRepository = sourceRepository;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
@@ -232,7 +229,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await processingOptionCache.HydrateAsync();
         cancellationToken.ThrowIfCancellationRequested();
         var ids = await sessionRepository.GetActiveSessionIdsAsync();
 
@@ -353,13 +349,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 }
             }
 
-            // Capture the current option for this run; a superseding run captures
-            // its own input before the commit-time coherence check.
-            var processingOptions = processingOptionCache.Get(sessionId);
-
             var reprocessResult = await backgroundTaskRunner.RunAsync(
                 () => recordedSessionReprocessor.ReprocessAsync(
-                    RecordedSessionDerivationInput.Create(domain.Session, domain.Setup!, domain.Bike!, source, processingOptions),
+                    RecordedSessionDerivationInput.Create(domain.Session, domain.Setup!, domain.Bike!, source),
                     cancellationToken),
                 cancellationToken);
 
@@ -402,11 +394,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 persisted.Track = null;
             }
 
-            // Commit guard (i): a newer explicit request supersedes this run. The
-            // option lives in ISessionPreferences (not a DB column), so this
-            // still-current / cancellation check — not the transaction — is what
-            // guards an option change. Abort without writing; the newer run
-            // owns the result.
+            // A newer explicit request owns the result; the transaction separately
+            // checks all persisted inputs, including the processing option.
             if (cancellationToken.IsCancellationRequested || !IsCurrent(sessionId, seq))
             {
                 return new SessionRecomputeResult.Superseded();

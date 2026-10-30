@@ -59,7 +59,7 @@ Each persisted writer interface additionally exposes:
 
 - `ReplaceAllAsync(snapshots)` — replace cache contents with snapshots prepared
   by the requesting workflow. Stores do not load full refreshes. `AppDataRefresher`
-  hydrates processing options, loads all seven families through repositories and
+  loads all seven families through repositories and
   constructs their snapshots off-thread, then publishes them inside one shared
   UI-thread batch. Concurrent full-refresh requests share the active run; a
   cancellation or load failure leaves the previously published state intact.
@@ -129,8 +129,7 @@ architecture.
 
 `IRecordedSessionProjection` is the read-side projection for recorded
 session screens. It subscribes to `ISessionStore`, `ISetupStore`,
-`IRecordedSessionSourceStore`, `IProcessingDependencyHashIndex`, and
-`IRecordedSessionProcessingOptionCache`; the dependency hash index owns
+`IRecordedSessionSourceStore` and `IProcessingDependencyHashIndex`; the dependency hash index owns
 the processing-relevant setup/bike store edge. The projection joins
 current session/setup/bike/source snapshots from stores (the derivation
 window is part of the session snapshot), evaluates processing staleness, and publishes two reactive surfaces:
@@ -209,8 +208,7 @@ the projection. It parses the persisted fingerprint JSON from
 `SessionSnapshot`, computes the current fingerprint from session,
 setup, bike, recorded-source snapshots, a cached setup/bike dependency hash
 from `IProcessingDependencyHashIndex`, and the session's clamped
-velocity-filter processing option (read from an app-wide cache that re-hydrates
-after each sync apply), and the session's optional derivation window, then
+velocity-filter processing option (derived from the session snapshot's nullable column), and the session's optional derivation window, then
 classifies staleness as:
 
 - `Current` — processed data matches the recorded source and current
@@ -227,7 +225,10 @@ classifies staleness as:
   whether the processed BLOB/fingerprint is known to be stale even
   though the app cannot repair it until the source is restored.
 
-Once the processing fingerprint began recording the velocity-filter option, every pre-existing fingerprint reads as legacy — stale and recomputable. A one-time, per-device startup pass (`ProcessingOptionsResetMigration`) resets each source-backed session's stored option to the 25 ms default and recomputes it through the recompute engine, so the stored fingerprint records the option it was produced with and the session stops being stale. The pass runs off the UI thread, is tracked in `core_migration` so it runs once, and is resumable: an interrupted run leaves the marker unwritten and retries on the next launch. Source-less sessions cannot be recomputed and are left untouched, surfacing through the not-recomputable staleness state. The projection still reports stale for new source/dependency/option/window mismatches after the marker exists.
+Processing-option changes arrive through the session store and invalidate the
+same projection as other session inputs. There is no preference-backed option
+cache or hydration gate. Startup copies legacy preference values once into the
+session row; it does not reset options or automatically recompute old results.
 
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
 the current session/setup/bike/source snapshots synchronously from

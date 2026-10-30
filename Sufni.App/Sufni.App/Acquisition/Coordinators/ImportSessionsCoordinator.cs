@@ -311,7 +311,7 @@ public class ImportSessionsCoordinator(
                                 timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds());
 
                             var input = RecordedSessionDerivationInput.Create(
-                                SessionSnapshot.From(session), setupSnapshot, bikeSnapshot, source, TelemetryProcessingOptions.Default);
+                                SessionSnapshot.From(session), setupSnapshot, bikeSnapshot, source);
                             logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
                             var reprocessResult = await reprocessor.ReprocessAsync(input);
                             if (reprocessResult is RecordedSessionReprocessResult.Failed failure)

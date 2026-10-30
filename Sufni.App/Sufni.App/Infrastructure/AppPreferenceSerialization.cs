@@ -25,7 +25,6 @@ internal sealed class SessionPreferencesJsonConverter : JsonConverter<SessionPre
         SignalDisplayPreferences? signalDisplay = null;
         AnalysisPreferences? legacyAnalysis = null;
         AnalysisPreferences? analysis = null;
-        SessionProcessingPreferences? processing = null;
         SignalLayoutPreferences? legacySignalLayout = null;
         SignalLayoutPreferences? signalLayout = null;
         SessionLayoutPreferences? layout = null;
@@ -37,7 +36,6 @@ internal sealed class SessionPreferencesJsonConverter : JsonConverter<SessionPre
                 return new SessionPreferences(
                     signalDisplay: signalDisplay ?? legacySignalDisplay,
                     analysis: analysis ?? legacyAnalysis,
-                    processing: processing,
                     signalLayout: signalLayout ?? legacySignalLayout,
                     layout: layout);
             }
@@ -62,9 +60,6 @@ internal sealed class SessionPreferencesJsonConverter : JsonConverter<SessionPre
                     break;
                 case "analysis":
                     analysis = ReadNullable<AnalysisPreferences>(ref reader, options);
-                    break;
-                case "processing":
-                    processing = ReadNullable<SessionProcessingPreferences>(ref reader, options);
                     break;
                 case "graph":
                     legacySignalLayout = ReadNullable<SignalLayoutPreferences>(ref reader, options);
@@ -92,9 +87,6 @@ internal sealed class SessionPreferencesJsonConverter : JsonConverter<SessionPre
 
         writer.WritePropertyName("analysis");
         JsonSerializer.Serialize(writer, value.Analysis, options);
-
-        writer.WritePropertyName("processing");
-        JsonSerializer.Serialize(writer, value.Processing, options);
 
         writer.WritePropertyName("signal_layout");
         JsonSerializer.Serialize(writer, value.SignalLayout, options);

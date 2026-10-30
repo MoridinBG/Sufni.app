@@ -21,7 +21,8 @@ namespace Sufni.App.Infrastructure;
 internal sealed class DatabaseMigrationRunner(
     string databasePath,
     SQLiteAsyncConnection connection,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IReadOnlyDictionary<Guid, int> legacyProcessingWindows)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
     private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment"];
@@ -51,6 +52,7 @@ internal sealed class DatabaseMigrationRunner(
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-video");
         await MigrateSessionDerivationWindowsAsync();
+        await MigrateSessionDomainAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
         await DropSchemaVersionTableAsync();
 
@@ -66,6 +68,12 @@ internal sealed class DatabaseMigrationRunner(
             cleanupSummary.Bikes,
             cleanupSummary.PairedDevices);
     }
+
+    private Task MigrateSessionDomainAsync() => coreMigrations.ApplyAsync("session-domain-ownership", transaction =>
+    {
+        foreach (var (sessionId, window) in legacyProcessingWindows)
+            transaction.Execute("UPDATE session SET velocity_filter_window_ms = ? WHERE id = ? AND velocity_filter_window_ms IS NULL", window, sessionId);
+    });
 
     private async Task CreateTablesAsync()
     {

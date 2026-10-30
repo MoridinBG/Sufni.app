@@ -9,7 +9,6 @@ namespace Sufni.App.Infrastructure;
 public enum PreferenceChangeOrigin
 {
     LocalWrite,
-    LocalNoSyncClockWrite,
     SyncApply
 }
 
@@ -57,24 +56,8 @@ public interface ISessionPreferences
 {
     Task<SessionPreferences> GetRecordedAsync(Guid sessionId);
 
-    // Bulk read of every recorded session's preferences from the single in-memory
-    // preferences document. Used to hydrate the processing-option cache for all
-    // sessions (list rows, the startup projection sweep, the migration), not just open
-    // ones. Sessions absent from the document fall back to defaults at read time.
-    Task<IReadOnlyDictionary<Guid, SessionPreferences>> GetAllRecordedAsync();
-
     Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update);
     Task RemoveRecordedAsync(Guid sessionId);
 
-    // Resets only the processing option for a recorded session to the default,
-    // writing WITHOUT advancing the synced preferences document's clock. Used by
-    // the one-time startup normalization so a local reset does not win
-    // whole-document last-writer-wins sync and overwrite peers' unrelated map,
-    // theme, layout, or plot preferences.
-    Task ResetRecordedProcessingToDefaultLocallyAsync(Guid sessionId);
-
-    // Replays the current value and emits local writes, local no-sync-clock
-    // writes, and remote sync applies.
     IObservable<SessionPreferences> ObserveRecorded(Guid sessionId);
-    IObservable<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> ObserveAllRecordedChanges();
 }

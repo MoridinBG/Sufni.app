@@ -57,6 +57,9 @@ public interface ISessionRepository
 
     Task<Guid> PutSessionAsync(Session session);
 
+    Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds);
+    Task<Session?> RestoreProcessingOptionAsync(Guid id, int expectedWindowMilliseconds, int? previousWindowMilliseconds);
+
     Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source);
 
     /// <summary>
@@ -66,8 +69,8 @@ public interface ISessionRepository
     /// user-authored metadata. Inside one transaction it re-reads the row and
     /// recomputes the DB-resident part of the fingerprint; if it no longer matches
     /// <paramref name="expectedInputFingerprint"/> (a passive setup/bike/source
-    /// change raced the run) it rolls back and returns null. The preference-stored
-    /// processing option is not re-checked here — the engine guards it.
+    /// change raced the run) it rolls back and returns null. The session's
+    /// velocity-filter option is part of this transaction-time comparison.
     /// </summary>
     Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,
@@ -110,6 +113,7 @@ internal sealed class SessionRepository(
                                                                      setup_id,
                                                                      description,
                                                                      timestamp,
+                                                                     velocity_filter_window_ms,
                                                                      duration_seconds,
                                                                      distance_meters,
                                                                       ascent_meters,
@@ -135,6 +139,7 @@ internal sealed class SessionRepository(
                                                              setup_id=?,
                                                              description=?,
                                                              timestamp=?,
+                                                             velocity_filter_window_ms=?,
                                                              duration_seconds=?,
                                                              distance_meters=?,
                                                              ascent_meters=?,
@@ -159,6 +164,7 @@ internal sealed class SessionRepository(
                                                                 setup_id=?,
                                                                 description=?,
                                                                 timestamp=?,
+                                                                velocity_filter_window_ms=?,
                                                                 gps_offset_seconds=?,
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
@@ -211,6 +217,7 @@ internal sealed class SessionRepository(
                                                     SELECT
                                                         s.id AS session_id,
                                                         s.setup_id AS setup_id,
+                                                        s.velocity_filter_window_ms AS velocity_filter_window_ms,
                                                         s.source_session_id AS window_source_session_id,
                                                         s.window_start_seconds AS window_start_seconds,
                                                         s.window_end_seconds AS window_end_seconds,
@@ -395,6 +402,24 @@ internal sealed class SessionRepository(
         return sessions.Count == 1 ? sessions[0].Track : null;
     }
 
+    public async Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync(
+            "UPDATE session SET velocity_filter_window_ms = ?, updated = ? WHERE id = ? AND deleted IS NULL",
+            windowMilliseconds, timeProvider.GetUtcNow().ToUnixTimeSeconds(), id);
+        return await GetSessionAsync(id);
+    }
+
+    public async Task<Session?> RestoreProcessingOptionAsync(Guid id, int expectedWindowMilliseconds, int? previousWindowMilliseconds)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync(
+            "UPDATE session SET velocity_filter_window_ms = ?, updated = ? WHERE id = ? AND deleted IS NULL AND velocity_filter_window_ms = ?",
+            previousWindowMilliseconds, timeProvider.GetUtcNow().ToUnixTimeSeconds(), id, expectedWindowMilliseconds);
+        return await GetSessionAsync(id);
+    }
+
     public async Task<Guid> PutSessionAsync(Session session)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -436,8 +461,6 @@ internal sealed class SessionRepository(
                 // the reprocess against the freshly read row, inside the write
                 // transaction. A mismatch means a passive setup/bike/source change
                 // raced this run, so roll back and return null (the engine re-enqueues).
-                // The preference-stored processing option is not a DB column and is
-                // guarded by the engine's commit-time still-current check instead.
                 if (!CurrentDatabaseInputsMatch(connection, session.Id, expectedInputFingerprint))
                 {
                     throw new RollbackWithoutResultException();
@@ -688,6 +711,7 @@ internal sealed class SessionRepository(
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.VelocityFilterWindowMilliseconds,
         session.DurationSeconds,
         session.DistanceMeters,
         session.AscentMeters,
@@ -738,6 +762,7 @@ internal sealed class SessionRepository(
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.VelocityFilterWindowMilliseconds,
         NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
@@ -787,6 +812,9 @@ internal sealed class SessionRepository(
     {
         [Column("session_id")]
         public Guid SessionId { get; set; }
+
+        [Column("velocity_filter_window_ms")]
+        public int? VelocityFilterWindowMilliseconds { get; set; }
 
         [Column("setup_id")]
         public Guid SetupId { get; set; }
@@ -863,7 +891,8 @@ internal sealed class SessionRepository(
                     SetupId,
                     WindowSourceSessionId is { } sourceSessionId
                         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
-                        : null),
+                        : null,
+                    VelocityFilterWindowMilliseconds),
                 new SetupProcessingInput(
                     SetupId,
                     BikeId,

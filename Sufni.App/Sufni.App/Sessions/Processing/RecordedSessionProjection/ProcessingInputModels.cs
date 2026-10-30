@@ -7,7 +7,8 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 public sealed record SessionProcessingInput(
     Guid Id,
     Guid SetupId,
-    RecordedSessionDerivationWindow? DerivationWindow = null);
+    RecordedSessionDerivationWindow? DerivationWindow = null,
+    int? VelocityFilterWindowMilliseconds = null);
 
 public sealed record SetupProcessingInput(
     Guid Id,

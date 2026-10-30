@@ -97,7 +97,8 @@ public static class AppComposition
         services.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         services.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
-                root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>()));
+                root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>(),
+                root.LaunchPreferences.LegacyProcessingWindows));
         services.AddSingleton<IStartupDatabase>(sp => sp.GetRequiredService<SqliteConnectionContext>());
         services.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         services.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
@@ -163,7 +164,6 @@ public static class AppComposition
         services.AddSingleton<ISegmentComparisonFactory, SegmentComparisonFactory>();
         services.AddSingleton<IAppDataRefresher, AppDataRefresher>();
         services.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
-        services.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
         services.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
         services.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
         services.AddSingleton<IRecordedSessionProjection, RecordedSessionProjection>();
@@ -182,7 +182,6 @@ public static class AppComposition
             sp.GetRequiredService<ISessionTelemetryWriter>(),
             sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
@@ -213,14 +212,6 @@ public static class AppComposition
                 sp.GetRequiredService<ISynchronizationServerService>()));
         }
         services.AddSingleton<ISessionCoordinator, SessionCoordinator>();
-        services.AddSingleton<ProcessingOptionsResetMigration>(sp => new ProcessingOptionsResetMigration(
-            sp.GetRequiredService<SqliteConnectionContext>(),
-            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<IAppDataRefresher>(),
-            sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>()));
         services.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(
             sp.GetRequiredService<SqliteConnectionContext>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
@@ -265,7 +256,6 @@ public static class AppComposition
         services.AddSingleton<LiveDaqListViewModel>();
         services.AddSingleton<PairedDeviceListViewModel>();
         services.AddSingleton<SetupListViewModel>();
-        services.AddSingleton<IStartupJob>(sp => sp.GetRequiredService<ProcessingOptionsResetMigration>());
         services.AddSingleton<IStartupJob>(sp => sp.GetRequiredService<RecordedSessionSourceRetentionCleanup>());
         services.AddSingleton<IAppStartup, AppStartup>();
         services.AddSingleton<IPendingDeletes, PendingDeletes>();

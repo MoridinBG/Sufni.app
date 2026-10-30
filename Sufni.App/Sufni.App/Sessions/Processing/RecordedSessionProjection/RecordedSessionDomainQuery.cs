@@ -17,8 +17,7 @@ public sealed class RecordedSessionDomainQuery(
     IBikeStore bikeStore,
     IRecordedSessionSourceStore sourceStore,
     IProcessingFingerprintService fingerprintService,
-    IProcessingDependencyHashIndex dependencyHashIndex,
-    IRecordedSessionProcessingOptionCache processingOptionCache) : IRecordedSessionDomainQuery
+    IProcessingDependencyHashIndex dependencyHashIndex) : IRecordedSessionDomainQuery
 {
     public RecordedSessionDomainSnapshot? Get(Guid sessionId)
     {
@@ -35,7 +34,6 @@ public sealed class RecordedSessionDomainQuery(
                 sourceStore.Get(session.RecordingSourceSessionId),
                 fingerprintService,
                 setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
-                processingOptionCache.Get(session.Id),
                 DerivedChangeKind.None);
     }
 }
@@ -49,11 +47,10 @@ internal static class RecordedSessionDomainSnapshotFactory
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
-        TelemetryProcessingOptions options,
         DerivedChangeKind changeKind)
     {
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
-        return Create(session, setup, bike, source, fingerprintService, dependencyHash, options, changeKind);
+        return Create(session, setup, bike, source, fingerprintService, dependencyHash, changeKind);
     }
 
     public static RecordedSessionDomainSnapshot Create(
@@ -63,13 +60,12 @@ internal static class RecordedSessionDomainSnapshotFactory
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
         string? dependencyHash,
-        TelemetryProcessingOptions options,
         DerivedChangeKind changeKind)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
             : dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike);
-        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, effectiveDependencyHash, options);
+        var evaluation = fingerprintService.EvaluateState(session, setup, bike, source, effectiveDependencyHash);
 
         return new RecordedSessionDomainSnapshot(
             session,

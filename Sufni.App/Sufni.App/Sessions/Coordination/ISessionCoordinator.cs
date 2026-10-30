@@ -22,6 +22,8 @@ public interface ISessionCoordinator
         IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default);
 
+    Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds);
+
     Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated);
 
     Task<LiveSessionSaveResult> SaveLiveCaptureAsync(

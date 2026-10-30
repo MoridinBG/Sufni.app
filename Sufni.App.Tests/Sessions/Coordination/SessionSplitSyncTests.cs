@@ -41,7 +41,8 @@ public class SessionSplitSyncTests
 
         var part2 = SessionSnapshot.From((await target.GetSessionAsync(split.CreatedSessionId!.Value))!);
         Assert.Equal(new RecordedSessionDerivationWindow(session.Id, 5, null), part2.DerivationWindow);
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(CreateDomain(part2, setup, bike, source), source, TelemetryProcessingOptions.Default), TestContext.Current.CancellationToken));
+        Assert.Equal(100, part2.VelocityFilterWindowMilliseconds);
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(CreateInput(part2, setup, bike, source), TestContext.Current.CancellationToken));
         Assert.Equal(5, result.ProcessedTelemetry.TelemetryData.Metadata.Duration, precision: 3);
         Assert.Equal(500, result.ProcessedTelemetry.TelemetryData.Front.Travel.Length);
         Assert.NotNull(await target.SessionTelemetryWriter.UpdateProcessedDerivedDataAsync(
@@ -66,12 +67,12 @@ public class SessionSplitSyncTests
             FrontSensorConfigurationJson = SensorConfiguration.ToJson(
                 new LinearForkSensorConfiguration { Length = 140, Resolution = 12 })
         };
-        var session = new Session(Guid.NewGuid(), "ride", "", setup.Id, Timestamp) { DurationSeconds = DurationSeconds };
+        var session = new Session(Guid.NewGuid(), "ride", "", setup.Id, Timestamp) { DurationSeconds = DurationSeconds, VelocityFilterWindowMilliseconds = 100 };
         var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, CreateCapture());
         await database.PutAsync(bike);
         await database.PutAsync(setup);
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(CreateDomain(SessionSnapshot.From(session), setup, bike, source), source, TelemetryProcessingOptions.Default), TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(CreateInput(SessionSnapshot.From(session), setup, bike, source), TestContext.Current.CancellationToken));
         var persisted = await database.SessionTelemetryWriter.PutProcessedSessionAsync(
             session,
             result.ProcessedTelemetry,
@@ -80,20 +81,12 @@ public class SessionSplitSyncTests
         return (persisted, setup, bike, source);
     }
 
-    private static RecordedSessionDomainSnapshot CreateDomain(
+    private static RecordedSessionDerivationInput CreateInput(
         SessionSnapshot session,
         Setup setup,
         Bike bike,
         RecordedSessionSource source) =>
-        new(
-            session,
-            SetupSnapshot.From(setup, boardId: null),
-            BikeSnapshot.From(bike),
-            CurrentFingerprint: null,
-            PersistedFingerprint: null,
-            RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.MissingProcessedData(),
-            DerivedChangeKind.None);
+        RecordedSessionDerivationInput.Create(session, SetupSnapshot.From(setup, boardId: null), BikeSnapshot.From(bike), source);
 
     private static LiveTelemetryCapture CreateCapture() =>
         new(

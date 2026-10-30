@@ -27,9 +27,7 @@ public interface IRecordedSessionSourceRepository
     /// </summary>
     Task<List<Guid>> GetMissingRecordingSourceIdsAsync();
 
-    // Session ids that own a recorded-source row (ids only; the payload BLOBs
-    // are not loaded). Used by the startup normalization pass to find the
-    // source-backed sessions it can recompute.
+    // Session ids that own a recorded-source row, without loading payload BLOBs.
     Task<List<Guid>> GetSourceBackedSessionIdsAsync();
 
     /// <summary>

@@ -10,5 +10,7 @@ internal static class TestDerivationInputs
         RecordedSessionDomainSnapshot domain,
         RecordedSessionSource source,
         TelemetryProcessingOptions options) =>
-        RecordedSessionDerivationInput.Create(domain.Session, domain.Setup!, domain.Bike!, source, options);
+        RecordedSessionDerivationInput.Create(
+            domain.Session with { VelocityFilterWindowMilliseconds = options.ClampedVelocityFilterWindowMilliseconds },
+            domain.Setup!, domain.Bike!, source);
 }

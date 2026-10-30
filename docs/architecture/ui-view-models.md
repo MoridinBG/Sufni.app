@@ -354,37 +354,19 @@ Two pages diverge from that pattern:
   duplicated in the signal hierarchy preference: plot visibility remains
   the existing `SessionPlotPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
-- **`PreferencesPageViewModel`** owns the per-plot `Selected` and
-  `SelectedSmoothing` toggles plus a per-plot `Available` flag, and
-  exposes `CreatePlotPreferences()` / `ApplyPlotPreferences(...)` /
-  `ApplyPlotAvailability(...)` so the editor can round-trip through
-  `SessionPlotPreferences` without reaching into individual
-  `PlotPreferenceItemViewModel` instances. It also owns the
-  processing preference `VelocityFilterWindowMilliseconds` and emits a
-  commit event when the user finishes changing that slider; the
-  recorded editor forwards that commit to its
-  `ProcessingPreferenceWorkflow` collaborator, which confirms with the
-  user, recomputes, and persists processed telemetry with the new
-  `TelemetryProcessingOptions`. Both editors subscribe to
-  `PropertyChanged` on the plot rows in their constructor and react to
-  toggle/smoothing changes by re-applying preferences to the signals
-  workspace — the recorded editor re-applies plot selection over its
-  base presentation states, while the live editor calls
-  `LiveSessionSignalsWorkspaceViewModel.ApplyPlotPreferences`. The
-  recorded editor also persists changes through `ISessionPreferences`
-  (loaded on `Loaded`, written via `UpdateRecordedAsync`, observed as values
-  through `ObserveRecorded`) and folds
-  the analysis preferences (travel-distribution mode,
-  velocity-average mode, balance-displacement mode, target profile)
-  processing preferences, and desktop session-detail layout ratios
-  through the same persistence path. Desktop shell/media splitters write
-  normalized pane ratios into `SessionPreferences.Layout`; restoring
-  uses star sizing so a reopened session keeps the same shape when the
-  window size changes, while missing pane ratios reset the affected
-  group to defaults. The
-  live editor seeds those preferences for the new session through
-  `SessionCoordinator.SaveLiveCaptureAsync(...)` because there is no
-  persisted entity to write back to until the capture is saved.
+- **`PreferencesPageViewModel`** exposes each signal's availability and smoothing,
+  plus the velocity-filter slider and its commit event. Signal display preferences
+  use `CreateSignalDisplayPreferences`, `ApplySignalDisplayPreferences` and
+  `ApplySignalAvailability`. The recorded editor projects the filter from the
+  session row; `ProcessingPreferenceWorkflow` sends commits to
+  `ISessionCoordinator.SetProcessingOptionAsync` and displays the returned outcome.
+  The coordinator owns persistence, recompute and conditional rollback. Live save
+  puts the selected option on the new session.
+
+  Signal display, analysis modes, signal layout and pane ratios remain in
+  `SessionPreferences`, observed through `ISessionPreferences`. Desktop splitters
+  write normalized pane ratios; absent ratios use the layout defaults. Live save
+  seeds those preferences for the new session after persistence.
 
 `TabPageViewModelBase` (`Shared/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked

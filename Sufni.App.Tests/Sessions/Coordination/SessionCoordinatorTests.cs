@@ -68,7 +68,7 @@ public class SessionCoordinatorTests
     [InlineData(true)]
     public async Task SaveAsync_PublishesPersistedMetadata_OnlyWhenPersistenceSucceeds(bool fail)
     {
-        var existing = TestSnapshots.Session(updated: 5) with { HasProcessedData = true, DurationSeconds = 120 };
+        var existing = TestSnapshots.Session(updated: 5) with { HasProcessedData = true, DurationSeconds = 120, VelocityFilterWindowMilliseconds = 100 };
         var repository = new InMemorySessionRepository(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(7)));
         repository.Seed(existing);
         if (fail) repository.WriteFailure = new IOException("disk full");
@@ -90,9 +90,63 @@ public class SessionCoordinatorTests
             Assert.Equal(7, Assert.IsType<SessionSaveResult.Saved>(result).NewBaselineUpdated);
             Assert.Equal("renamed", persisted.Name);
             Assert.Equal(120, persisted.DurationSeconds);
+            Assert.Equal(100, persisted.VelocityFilterWindowMilliseconds);
             Assert.True(persisted.HasProcessedData);
             Assert.Equal(SessionSnapshot.From(persisted), store.Get(existing.Id));
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetProcessingOptionAsync_PublishesTheCommittedOption_AndRestoresItOnProcessingFailure(bool fails)
+    {
+        var clock = new FakeTimeProvider();
+        var repository = new InMemorySessionRepository(clock);
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var original = TestSnapshots.Session(hasProcessedData: true) with { VelocityFilterWindowMilliseconds = 50 };
+        repository.Seed(original);
+        await store.PublishSessionsChangedAsync([original]);
+        int? optionSeenDuringRecompute = null;
+        recomputeEngine.RequestRecomputeAsync(original.Id, RecomputeReason.ProcessingPreferenceChanged, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                optionSeenDuringRecompute = store.Get(original.Id)!.VelocityFilterWindowMilliseconds;
+                return Task.FromResult<SessionRecomputeResult>(fails
+                    ? new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.NoTravelData)
+                    : new SessionRecomputeResult.Recomputed(1));
+            });
+
+        var result = await CreateCoordinator(store, repository.Repository).SetProcessingOptionAsync(original.Id, 100);
+
+        Assert.Equal(100, optionSeenDuringRecompute);
+        Assert.Equal(fails ? 50 : 100, store.Get(original.Id)!.VelocityFilterWindowMilliseconds);
+        Assert.Equal(store.Get(original.Id)!.VelocityFilterWindowMilliseconds,
+            (await repository.Repository.GetSessionAsync(original.Id))!.VelocityFilterWindowMilliseconds);
+        Assert.True(store.Get(original.Id)!.HasProcessedData);
+        if (fails) Assert.IsType<SessionRecomputeResult.ProcessingFailed>(result);
+        else Assert.IsType<SessionRecomputeResult.Recomputed>(result);
+    }
+
+    [Fact]
+    public async Task SetProcessingOptionAsync_DoesNotRestoreOverANewerAuthoredOption()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var original = TestSnapshots.Session() with { VelocityFilterWindowMilliseconds = 50 };
+        repository.Seed(original);
+        await store.PublishSessionsChangedAsync([original]);
+        recomputeEngine.RequestRecomputeAsync(original.Id, RecomputeReason.ProcessingPreferenceChanged, Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                await repository.Repository.SetProcessingOptionAsync(original.Id, 250);
+                return (SessionRecomputeResult)new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute);
+            });
+
+        await CreateCoordinator(store, repository.Repository).SetProcessingOptionAsync(original.Id, 100);
+
+        Assert.Equal(250, store.Get(original.Id)!.VelocityFilterWindowMilliseconds);
+        Assert.Equal(250, (await repository.Repository.GetSessionAsync(original.Id))!.VelocityFilterWindowMilliseconds);
     }
 
     [Fact]
@@ -486,7 +540,12 @@ public class SessionCoordinatorTests
     private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
         new(
             CreateLoader(),
-            CreateCommandService(store, repository));
+            CreateCommandService(store, repository),
+            store ?? sessionStore,
+            repository ?? sessionRepository,
+            recomputeEngine,
+            backgroundTaskRunner,
+            new InlineUiThreadDispatcher());
 
     private SessionCommandService CreateCommandService(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
         new(

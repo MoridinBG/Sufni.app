@@ -481,6 +481,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 setup: SetupId,
                 timestamp: capture.TelemetryCapture.Metadata.Timestamp)
             {
+                VelocityFilterWindowMilliseconds = PreferencesPage.CreateProcessingOptions().ClampedVelocityFilterWindowMilliseconds,
                 FrontSpringRate = ForkSettings.SpringRate,
                 FrontHighSpeedCompression = ForkSettings.HighSpeedCompression,
                 FrontLowSpeedCompression = ForkSettings.LowSpeedCompression,
@@ -661,7 +662,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 SelectedBalanceDisplacementMode,
                 SelectedBalanceSpeedMode,
                 SelectedSessionInsightsTargetProfile),
-            PreferencesPage.CreateProcessingPreferences(),
             signalsWorkspace.SignalLayoutPreferences);
     }
 

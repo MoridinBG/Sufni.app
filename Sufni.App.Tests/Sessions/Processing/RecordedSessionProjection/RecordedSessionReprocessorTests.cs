@@ -568,8 +568,7 @@ public class RecordedSessionReprocessorTests
                 HeadAngle = 90, ForkStroke = 160, ShockStroke = 50,
                 RearSuspension = new RearSuspensionSpec.LeverageRatio(TestSnapshots.LeverageRatioCurve((0, 0), (50, 150)))
             },
-            source,
-            TelemetryProcessingOptions.Default);
+            source);
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await CreateReprocessor().ReprocessAsync(
             input, TestContext.Current.CancellationToken));

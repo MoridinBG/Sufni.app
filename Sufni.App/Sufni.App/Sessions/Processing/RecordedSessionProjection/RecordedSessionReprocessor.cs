@@ -72,8 +72,7 @@ internal sealed class RecordedSessionReprocessor(
             input.Setup,
             input.Bike,
             source,
-            bikeProcessingContext.DependencyHash,
-            processingOptions);
+            bikeProcessingContext.DependencyHash);
         var fingerprintJson = AppJson.Serialize(fingerprint);
         var processedTelemetry = new ProcessedTelemetryPayload(
             telemetryData,

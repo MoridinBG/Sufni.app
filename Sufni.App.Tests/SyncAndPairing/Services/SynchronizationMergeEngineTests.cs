@@ -593,6 +593,7 @@ public class SynchronizationMergeEngineTests
                     new Session(sessionId, "remote", "desc", null, 100)
                     {
                         ProcessingFingerprintJson = remoteFingerprint,
+                        VelocityFilterWindowMilliseconds = 100,
                         DurationSeconds = 80,
                         DistanceMeters = 20,
                         AscentMeters = 8,
@@ -608,6 +609,7 @@ public class SynchronizationMergeEngineTests
 
         var swap = Assert.Single(swaps);
         var afterMetadata = (await database.GetSessionAsync(sessionId))!;
+        Assert.Equal(100, afterMetadata.VelocityFilterWindowMilliseconds);
         Assert.Equal(held.ProcessingFingerprintJson, afterMetadata.ProcessingFingerprintJson);
         Assert.Equal(held.FullTrack, afterMetadata.FullTrack);
         Assert.Equal(held.GpsOffsetSeconds, afterMetadata.GpsOffsetSeconds);

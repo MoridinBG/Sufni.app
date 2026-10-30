@@ -17,16 +17,16 @@ public sealed record RecordedSessionDerivationInput(
     SetupSnapshot Setup,
     BikeSnapshot Bike,
     RecordedSessionSourceSnapshot Source,
-    ReadOnlyMemory<byte> Payload,
-    TelemetryProcessingOptions ProcessingOptions)
+    ReadOnlyMemory<byte> Payload)
 {
     public static RecordedSessionDerivationInput Create(
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
-        RecordedSessionSource source,
-        TelemetryProcessingOptions processingOptions) =>
-        new(session, setup, bike, RecordedSessionSourceSnapshot.From(source), source.Payload, processingOptions);
+        RecordedSessionSource source) =>
+        new(session, setup, bike, RecordedSessionSourceSnapshot.From(source), source.Payload);
+
+    public TelemetryProcessingOptions ProcessingOptions => Session.ProcessingOptions;
 }
 
 /// <summary>Derives telemetry and its fingerprint from one captured input.</summary>

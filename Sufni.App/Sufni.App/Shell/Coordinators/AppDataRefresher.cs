@@ -43,7 +43,6 @@ internal sealed class AppDataRefresher(
     IPairedDeviceRepository pairedDeviceRepository,
     ISessionVideoRepository videoRepository,
     ISessionSegmentRepository segmentRepository,
-    IRecordedSessionProcessingOptionCache processingOptionCache,
     IBackgroundTaskRunner backgroundTaskRunner,
     IUiThreadDispatcher dispatcher,
     StorePublication publication) : IAppDataRefresher
@@ -67,8 +66,6 @@ internal sealed class AppDataRefresher(
     {
         var snapshot = await backgroundTaskRunner.RunAsync(async () =>
         {
-            // Hydration precedes publication so the projection sees the saved options.
-            await processingOptionCache.HydrateAsync();
             cancellationToken.ThrowIfCancellationRequested();
             var bikes = await bikeRepository.GetAllAsync();
             var setups = await setupRepository.GetAllAsync();

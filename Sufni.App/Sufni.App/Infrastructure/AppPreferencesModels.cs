@@ -24,13 +24,11 @@ public sealed record SessionPreferences
     public SessionPreferences(
         SignalDisplayPreferences? signalDisplay = null,
         AnalysisPreferences? analysis = null,
-        SessionProcessingPreferences? processing = null,
         SignalLayoutPreferences? signalLayout = null,
         SessionLayoutPreferences? layout = null)
     {
         SignalDisplay = signalDisplay ?? new SignalDisplayPreferences();
         Analysis = analysis ?? new AnalysisPreferences();
-        Processing = processing ?? new SessionProcessingPreferences();
         SignalLayout = signalLayout ?? SignalLayoutPreferences.Default;
         Layout = layout ?? SessionLayoutPreferences.Default;
     }
@@ -40,9 +38,6 @@ public sealed record SessionPreferences
 
     [JsonPropertyName("analysis")]
     public AnalysisPreferences Analysis { get; init; } = new();
-
-    [JsonPropertyName("processing")]
-    public SessionProcessingPreferences Processing { get; init; } = new();
 
     [JsonPropertyName("signal_layout")]
     public SignalLayoutPreferences SignalLayout { get; init; } = SignalLayoutPreferences.Default;
@@ -73,15 +68,6 @@ public sealed record AnalysisPreferences(
     [property: JsonPropertyName("balance_displacement_mode")] BalanceDisplacementMode BalanceDisplacementMode = BalanceDisplacementMode.Zenith,
     [property: JsonPropertyName("balance_speed_mode")] BalanceSpeedMode BalanceSpeedMode = BalanceSpeedMode.Both,
     [property: JsonPropertyName("session_insights_target_profile")] SessionInsightsTargetProfile SessionInsightsTargetProfile = SessionInsightsTargetProfile.Trail);
-
-public sealed record SessionProcessingPreferences(
-    [property: JsonPropertyName("velocity_filter_window_ms")] int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds)
-{
-    public TelemetryProcessingOptions ToTelemetryProcessingOptions()
-    {
-        return new TelemetryProcessingOptions(VelocityFilterWindowMilliseconds);
-    }
-}
 
 public sealed record SignalLayoutPreferences
 {

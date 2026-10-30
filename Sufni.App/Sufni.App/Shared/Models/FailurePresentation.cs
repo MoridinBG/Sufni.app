@@ -178,6 +178,7 @@ public sealed record FailurePresentation
 
     public static FailurePresentation From(SessionRecomputeFailureReason reason, string? details = null) => new(reason switch
     {
+        SessionRecomputeFailureReason.ProcessingOption => "The processing option could not be changed. Try again.",
         SessionRecomputeFailureReason.Recompute => "The session could not be recomputed. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);

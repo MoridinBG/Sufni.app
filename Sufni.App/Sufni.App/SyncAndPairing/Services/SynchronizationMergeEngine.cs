@@ -61,6 +61,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                       setup_id,
                                                                       description,
                                                                       timestamp,
+                                                                      velocity_filter_window_ms,
                                                                       duration_seconds,
                                                                       distance_meters,
                                                                        ascent_meters,
@@ -87,6 +88,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                   setup_id=?,
                                                                   description=?,
                                                                   timestamp=?,
+                                                                  velocity_filter_window_ms=?,
                                                                   duration_seconds=?,
                                                                   distance_meters=?,
                                                                    ascent_meters=?,
@@ -120,6 +122,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                   setup_id=?,
                                                                   description=?,
                                                                   timestamp=?,
+                                                                  velocity_filter_window_ms=?,
                                                                   source_session_id=?,
                                                                   window_start_seconds=?,
                                                                   window_end_seconds=?,
@@ -605,7 +608,7 @@ internal sealed class SynchronizationMergeEngine(
         try
         {
             return fingerprintService.CreateCurrentDatabaseInputs(new SessionProcessingInputBundle(
-                new SessionProcessingInput(session.Id, setupId, SessionSnapshot.From(session).DerivationWindow),
+                new SessionProcessingInput(session.Id, setupId, SessionSnapshot.From(session).DerivationWindow, session.VelocityFilterWindowMilliseconds),
                 new SetupProcessingInput(
                     setup.Id, setup.BikeId, setup.FrontSensorConfigurationJson, setup.RearSensorConfigurationJson),
                 new BikeProcessingInput(
@@ -646,6 +649,7 @@ internal sealed class SynchronizationMergeEngine(
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.VelocityFilterWindowMilliseconds,
         session.DurationSeconds,
         session.DistanceMeters,
         session.AscentMeters,
@@ -684,6 +688,7 @@ internal sealed class SynchronizationMergeEngine(
         session.Setup,
         session.Description,
         session.Timestamp,
+        session.VelocityFilterWindowMilliseconds,
         session.SourceSessionId,
         session.WindowStartSeconds,
         session.WindowEndSeconds,
@@ -712,8 +717,7 @@ internal sealed class SynchronizationMergeEngine(
     // accepted remote fingerprint. Swaps only between two CURRENT-SCHEMA
     // fingerprints that differ, and never for a source-less row (it cannot
     // self-heal by recompute, so it keeps its only BLOB and only ever gains one
-    // through the data-null fill). A legacy fingerprint on either side defers to
-    // the one-time normalization pass.
+    // through the data-null fill). A legacy fingerprint waits for explicit recompute.
     private SessionBlobSwap? TryBuildSwap(
         SQLiteConnection connection,
         Session remoteSession,

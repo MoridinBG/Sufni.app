@@ -4,10 +4,7 @@ using SQLite;
 
 namespace Sufni.App.Infrastructure;
 
-// Single home for the `core_migration` marker table: which one-time, per-device
-// migrations have already run. Shared by the startup schema migrator (which
-// creates the table) and the one-time normalization pass (which reads/writes
-// markers after startup), so the table SQL lives in exactly one place.
+// Records completed startup schema migrations in the same transaction as their work.
 internal sealed class CoreMigrationStore(SQLiteAsyncConnection connection)
 {
     public Task EnsureTableAsync() => connection.ExecuteAsync(

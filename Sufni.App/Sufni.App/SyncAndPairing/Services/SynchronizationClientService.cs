@@ -188,7 +188,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         if (string.IsNullOrEmpty(targetFingerprint))
         {
-            // No current target (legacy / unfingerprinted): defer to the one-time normalization pass.
+            // No current target (legacy / unfingerprinted): wait for explicit recompute.
             return false;
         }
 

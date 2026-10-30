@@ -13,11 +13,36 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class AppPreferencesTests
 {
+    [Fact]
+    public async Task Launch_CapturesLegacyFilterForMigration_BeforeRuntimePreferencesDropIt()
+    {
+        using var temp = new TempDirectory("legacy-processing-preference");
+        var path = Path.Combine(temp.Path, "preferences.json");
+        var id = Guid.NewGuid();
+        await File.WriteAllTextAsync(path, $$"""
+            { "session": { "sessions": { "{{id:D}}": {
+                "processing": { "velocityFilterWindowMilliseconds": 100 }
+            } } } }
+            """, TestContext.Current.CancellationToken);
+        var launch = AppPreferences.ReadLaunchValues(path, UiLayoutProfile.Workspace);
+        var preferences = new AppPreferences(path, launch, new FakeTimeProvider());
+
+        await preferences.Session.UpdateRecordedAsync(id, value => value with
+        {
+            Analysis = value.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag }
+        });
+
+        Assert.Equal(100, launch.LegacyProcessingWindows[id]);
+        Assert.Equal(TravelDistributionMode.DynamicSag, (await preferences.Session.GetRecordedAsync(id)).Analysis.TravelDistributionMode);
+        using var saved = JsonDocument.Parse(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+        Assert.False(saved.RootElement.GetProperty("session").GetProperty("sessions").GetProperty(id.ToString("D"))
+            .TryGetProperty("processing", out _));
+    }
+
     public enum RecordedPreferencePersistenceCase
     {
         SignalDisplayVisibility,
         SignalSmoothing,
-        Processing,
         SignalLayoutHierarchy,
         LayoutAndPaneRatios,
     }
@@ -350,7 +375,6 @@ public class AppPreferencesTests
     [Theory]
     [InlineData(RecordedPreferencePersistenceCase.SignalDisplayVisibility)]
     [InlineData(RecordedPreferencePersistenceCase.SignalSmoothing)]
-    [InlineData(RecordedPreferencePersistenceCase.Processing)]
     [InlineData(RecordedPreferencePersistenceCase.SignalLayoutHierarchy)]
     [InlineData(RecordedPreferencePersistenceCase.LayoutAndPaneRatios)]
     public async Task SessionPreferences_UpdateRecorded_PersistsPreferenceCase(
@@ -1036,162 +1060,6 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task ObserveRecorded_PreservesAnalysis_WhenProcessingResets()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var sessionId = Guid.NewGuid();
-        var preferences = TestAppPreferences.Load(preferencesPath);
-
-        var initialEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var localEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var resetEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var emissions = 0;
-        using var subscription = preferences.Session.ObserveRecorded(sessionId)
-            .Subscribe(change =>
-            {
-                var emission = Interlocked.Increment(ref emissions);
-                if (emission == 1)
-                {
-                    initialEmission.TrySetResult(change);
-                }
-                else if (emission == 2)
-                {
-                    localEmission.TrySetResult(change);
-                }
-                else
-                {
-                    resetEmission.TrySetResult(change);
-                }
-            });
-
-        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        AssertDefaultSessionPreferences(initial);
-
-        await preferences.Session.UpdateRecordedAsync(sessionId, current =>
-            current with
-            {
-                Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
-                Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250),
-            });
-
-        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(TravelDistributionMode.DynamicSag, local.Analysis.TravelDistributionMode);
-        Assert.Equal(250, local.Processing.VelocityFilterWindowMilliseconds);
-
-        await preferences.Session.ResetRecordedProcessingToDefaultLocallyAsync(sessionId);
-
-        var reset = await resetEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(TravelDistributionMode.DynamicSag, reset.Analysis.TravelDistributionMode);
-        Assert.Equal(
-            TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
-            reset.Processing.VelocityFilterWindowMilliseconds);
-    }
-
-    [Fact]
-    public async Task ObserveAllRecordedChanges_ReplaysAndEmitsLocalWrites()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var sessionId = Guid.NewGuid();
-        var preferences = TestAppPreferences.Load(preferencesPath);
-
-        var initialEmission = new TaskCompletionSource<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var localEmission = new TaskCompletionSource<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var emissions = 0;
-        using var subscription = preferences.Session.ObserveAllRecordedChanges()
-            .Subscribe(change =>
-            {
-                if (Interlocked.Increment(ref emissions) == 1)
-                {
-                    initialEmission.TrySetResult(change);
-                }
-                else
-                {
-                    localEmission.TrySetResult(change);
-                }
-            });
-
-        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
-        Assert.False(initial.AdvancesSyncClock);
-        Assert.Empty(initial.Value);
-
-        await preferences.Session.UpdateRecordedAsync(sessionId, current =>
-            current with
-            {
-                Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
-            });
-
-        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
-        Assert.True(local.AdvancesSyncClock);
-        Assert.True(local.Value.TryGetValue(sessionId, out var stored));
-        Assert.Equal(TravelDistributionMode.DynamicSag, stored.Analysis.TravelDistributionMode);
-    }
-
-    [Fact]
-    public async Task ObserveAllRecordedChanges_DistinctUntilChanged_SquashesIdenticalRefresh()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var sessionId = Guid.NewGuid();
-        var preferences = TestAppPreferences.Load(preferencesPath);
-
-        var initialEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var firstStoredEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var duplicateEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var emissions = 0;
-        using var subscription = preferences.Session.ObserveAllRecordedChanges()
-            .Subscribe(_ =>
-            {
-                var emission = Interlocked.Increment(ref emissions);
-                if (emission == 1)
-                {
-                    initialEmission.TrySetResult();
-                }
-                else if (emission == 2)
-                {
-                    firstStoredEmission.TrySetResult();
-                }
-                else
-                {
-                    duplicateEmission.TrySetResult();
-                }
-            });
-        await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-
-        var stored = SessionPreferences.Default with
-        {
-            Analysis = SessionPreferences.Default.Analysis with
-            {
-                TravelDistributionMode = TravelDistributionMode.DynamicSag,
-            },
-        };
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 100,
-            Session = new SessionPreferencesSyncData
-            {
-                Sessions = { [sessionId] = stored },
-            },
-        });
-        await firstStoredEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 101,
-            Session = new SessionPreferencesSyncData
-            {
-                Sessions = { [sessionId] = stored },
-            },
-        });
-
-        await AssertDoesNotCompleteAsync(duplicateEmission.Task, TimeSpan.FromMilliseconds(100));
-        Assert.Equal(2, emissions);
-    }
-
-    [Fact]
     public async Task ApplySyncData_OverridesThemeMode_WhenIncomingUpdatedIsNewer()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
@@ -1346,18 +1214,6 @@ public class AppPreferencesTests
                     Assert.Equal("Light", signalDisplay.GetProperty("speedSmoothing").GetString());
                     Assert.Equal("Strong", signalDisplay.GetProperty("elevationSmoothing").GetString());
                     Assert.False(session.TryGetProperty("plots", out _));
-                }),
-
-            RecordedPreferencePersistenceCase.Processing => new RecordedPreferenceCase(
-                current => current with
-                {
-                    Processing = new SessionProcessingPreferences(VelocityFilterWindowMilliseconds: 250),
-                },
-                stored => Assert.Equal(250, stored.Processing.VelocityFilterWindowMilliseconds),
-                session =>
-                {
-                    var processing = session.GetProperty("processing");
-                    Assert.Equal(250, processing.GetProperty("velocityFilterWindowMilliseconds").GetInt32());
                 }),
 
             RecordedPreferencePersistenceCase.SignalLayoutHierarchy => CreateSignalLayoutHierarchyCase(),
@@ -1545,9 +1401,6 @@ public class AppPreferencesTests
         Assert.Equal(VelocityAverageMode.SampleAveraged, preferences.Analysis.VelocityAverageMode);
         Assert.Equal(BalanceDisplacementMode.Zenith, preferences.Analysis.BalanceDisplacementMode);
         Assert.Equal(SessionInsightsTargetProfile.Trail, preferences.Analysis.SessionInsightsTargetProfile);
-        Assert.Equal(
-            TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
-            preferences.Processing.VelocityFilterWindowMilliseconds);
         Assert.Equal(
             [SignalRowIds.Travel, SignalRowIds.Imu, SignalRowIds.Speed],
             preferences.SignalLayout.Rows.Select(row => row.RowId).ToArray());

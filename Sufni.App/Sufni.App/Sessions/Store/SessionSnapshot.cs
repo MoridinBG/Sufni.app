@@ -1,3 +1,4 @@
+using Sufni.Telemetry;
 using System;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
@@ -44,13 +45,17 @@ public sealed record SessionSnapshot(
     double WindowStartSeconds = 0,
     double? WindowEndSeconds = null,
     double? PreviousWindowStartSeconds = null,
-    double? PreviousWindowEndSeconds = null)
+    double? PreviousWindowEndSeconds = null,
+    int? VelocityFilterWindowMilliseconds = null)
 {
     public RecordedSessionDerivationWindow? DerivationWindow => SourceSessionId is { } sourceSessionId
         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
         : null;
 
     public Guid RecordingSourceSessionId => SourceSessionId ?? Id;
+
+    public TelemetryProcessingOptions ProcessingOptions => new(
+        VelocityFilterWindowMilliseconds ?? TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds);
 
     public bool CanUndoTrim => PreviousWindowStartSeconds is not null;
 
@@ -85,7 +90,8 @@ public sealed record SessionSnapshot(
         session.WindowStartSeconds,
         session.WindowEndSeconds,
         session.PreviousWindowStartSeconds,
-        session.PreviousWindowEndSeconds);
+        session.PreviousWindowEndSeconds,
+        session.VelocityFilterWindowMilliseconds);
 }
 
 public static class SessionSnapshotExtensions
@@ -101,6 +107,7 @@ public static class SessionSnapshotExtensions
             snapshot.SetupId,
             snapshot.Timestamp)
         {
+            VelocityFilterWindowMilliseconds = snapshot.VelocityFilterWindowMilliseconds,
             DurationSeconds = snapshot.DurationSeconds,
             DistanceMeters = snapshot.DistanceMeters,
             AscentMeters = snapshot.AscentMeters,

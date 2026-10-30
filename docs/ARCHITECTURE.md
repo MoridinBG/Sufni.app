@@ -153,6 +153,8 @@ content, preserves the usable side, and raises typed `TelemetryProcessingExcepti
 failures for unprocessable data. Channel presence is independent of stroke activity.
 Recorded derivation takes one captured input and stamps fingerprint schema v4,
 including the independent app calibration version, from the inputs it processes.
+The velocity-filter option is a nullable session column, copied once from legacy
+preferences at startup and changed through the session coordinator.
 
 `TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window on the session row lets a trimmed or split session derive from a source-absolute slice of another session's raw source.
 
@@ -190,7 +192,7 @@ refresh, then initializes tile layers and starts the capable head's sync server.
 Both shells render structural failures as a blocking screen with a log location
 and database reset. Reset archives the closed database and creates a new
 incarnation through normal migrations; continuing requires relaunch. Startup
-owns and cancels its post-readiness retention and normalization jobs.
+owns and cancels its post-readiness retention work.
 `AppShutdown` owns close prompts, work cancellation/drain, pending-delete
 finalization, server stop and provider disposal. Android pause and iOS
 background finalize pending deletes and flush logs while preserving tabs.

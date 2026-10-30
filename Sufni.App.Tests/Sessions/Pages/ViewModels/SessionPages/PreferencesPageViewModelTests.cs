@@ -38,7 +38,7 @@ public class PreferencesPageViewModelTests
     {
         var viewModel = new PreferencesPageViewModel();
 
-        viewModel.ApplyProcessingPreferences(new SessionProcessingPreferences(1_500));
+        viewModel.ApplyProcessingOptions(new Sufni.Telemetry.TelemetryProcessingOptions(1_500));
 
         Assert.Equal(TelemetryProcessingOptions.MaxVelocityFilterWindowMilliseconds, viewModel.VelocityFilterWindowMilliseconds);
         Assert.Equal("1000 ms", viewModel.VelocityFilterWindowDisplay);
@@ -72,6 +72,6 @@ public class PreferencesPageViewModelTests
         Assert.Equal("No filter", viewModel.VelocityFilterWindowDisplay);
         Assert.Equal(
             TelemetryProcessingOptions.MinVelocityFilterWindowMilliseconds,
-            viewModel.CreateProcessingPreferences().VelocityFilterWindowMilliseconds);
+            viewModel.CreateProcessingOptions().VelocityFilterWindowMilliseconds);
     }
 }

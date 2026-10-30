@@ -385,15 +385,13 @@ public class RecordedSessionProjectionTests
 
         public RecordedSessionProjectionModel CreateProjection(
             IProcessingFingerprintService fingerprintService,
-            IUiThreadDispatcher scheduler,
-            IRecordedSessionProcessingOptionCache? optionCache = null) => new(
+            IUiThreadDispatcher scheduler) => new(
             Sessions,
             Setups,
             Bikes,
             Sources,
             fingerprintService,
             DependencyHashIndex,
-            optionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
             new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
         public void Add(TestContext context)

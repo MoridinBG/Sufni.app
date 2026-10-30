@@ -72,7 +72,7 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
     {
         get
         {
-            var options = CreateProcessingPreferences().ToTelemetryProcessingOptions();
+            var options = CreateProcessingOptions();
             var milliseconds = options.ClampedVelocityFilterWindowMilliseconds;
             if (milliseconds == 0)
             {
@@ -112,27 +112,27 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
             ElevationSmoothing: ElevationSignal.SelectedSmoothing);
     }
 
-    public SessionProcessingPreferences CreateProcessingPreferences()
+    public TelemetryProcessingOptions CreateProcessingOptions()
     {
-        return new SessionProcessingPreferences((int)Math.Round(VelocityFilterWindowMilliseconds));
+        return new TelemetryProcessingOptions((int)Math.Round(VelocityFilterWindowMilliseconds));
     }
 
-    public void ApplyProcessingPreferences(SessionProcessingPreferences preferences)
+    public void ApplyProcessingOptions(TelemetryProcessingOptions options)
     {
-        var windowMilliseconds = preferences.ToTelemetryProcessingOptions().ClampedVelocityFilterWindowMilliseconds;
+        var windowMilliseconds = options.ClampedVelocityFilterWindowMilliseconds;
         VelocityFilterWindowMilliseconds = windowMilliseconds;
         committedVelocityFilterWindowMilliseconds = windowMilliseconds;
     }
 
     public void CommitProcessingPreferenceChange()
     {
-        var preferences = CreateProcessingPreferences();
-        if (preferences.VelocityFilterWindowMilliseconds == committedVelocityFilterWindowMilliseconds)
+        var options = CreateProcessingOptions();
+        if (options.ClampedVelocityFilterWindowMilliseconds == committedVelocityFilterWindowMilliseconds)
         {
             return;
         }
 
-        committedVelocityFilterWindowMilliseconds = preferences.VelocityFilterWindowMilliseconds;
+        committedVelocityFilterWindowMilliseconds = options.ClampedVelocityFilterWindowMilliseconds;
         ProcessingPreferenceChangeCommitted?.Invoke(this, EventArgs.Empty);
     }
 

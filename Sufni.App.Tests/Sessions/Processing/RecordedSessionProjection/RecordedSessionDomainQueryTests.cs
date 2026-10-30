@@ -18,12 +18,9 @@ public class RecordedSessionDomainQueryTests
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly IProcessingDependencyHashIndex dependencyHashIndex = Substitute.For<IProcessingDependencyHashIndex>();
     private readonly ProcessingFingerprintService fingerprintService = new();
-    private readonly IRecordedSessionProcessingOptionCache processingOptionCache =
-        Substitute.For<IRecordedSessionProcessingOptionCache>();
 
     public RecordedSessionDomainQueryTests()
     {
-        processingOptionCache.Get(Arg.Any<Guid>()).Returns(TelemetryProcessingOptions.Default);
     }
 
     [Fact]
@@ -116,8 +113,7 @@ public class RecordedSessionDomainQueryTests
                 context.Setup,
                 context.Bike,
                 context.Source,
-                "dependency",
-                Arg.Any<TelemetryProcessingOptions?>())
+                "dependency")
             .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
         sessionStore.Get(context.Session.Id).Returns(context.Session);
         setupStore.Get(context.Setup.Id).Returns(context.Setup);
@@ -130,8 +126,7 @@ public class RecordedSessionDomainQueryTests
             bikeStore,
             sourceStore,
             fingerprintService,
-            dependencyHashIndex,
-            processingOptionCache);
+            dependencyHashIndex);
 
         var domain = query.Get(context.Session.Id);
 
@@ -144,8 +139,7 @@ public class RecordedSessionDomainQueryTests
             context.Setup,
             context.Bike,
             context.Source,
-            "dependency",
-            Arg.Any<TelemetryProcessingOptions?>());
+            "dependency");
         fingerprintService.DidNotReceive().CreateCurrent(
             Arg.Any<SessionSnapshot>(),
             Arg.Any<SetupSnapshot>(),
@@ -224,8 +218,7 @@ public class RecordedSessionDomainQueryTests
         bikeStore,
         sourceStore,
         fingerprintService,
-        dependencyHashIndex,
-        processingOptionCache);
+        dependencyHashIndex);
 
     private TestContext CreateCurrentContext()
     {

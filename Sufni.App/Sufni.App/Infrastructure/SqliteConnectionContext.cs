@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Threading;
@@ -10,12 +11,15 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
 {
     private readonly string databasePath;
     private readonly TimeProvider timeProvider;
+    private readonly IReadOnlyDictionary<Guid, int> legacyProcessingWindows;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
 
     internal SqliteConnectionContext(
-        string databasePath, TimeProvider timeProvider, IBackgroundTaskRunner backgroundTaskRunner)
+        string databasePath, TimeProvider timeProvider, IBackgroundTaskRunner backgroundTaskRunner,
+        IReadOnlyDictionary<Guid, int> legacyProcessingWindows)
     {
         this.databasePath = databasePath;
+        this.legacyProcessingWindows = legacyProcessingWindows;
         this.timeProvider = timeProvider;
         this.backgroundTaskRunner = backgroundTaskRunner;
         Connection = new SQLiteAsyncConnection(databasePath);
@@ -27,7 +31,7 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
                 Directory.CreateDirectory(directory);
             }
 
-            await new DatabaseMigrationRunner(databasePath, Connection, timeProvider).RunAsync();
+            await new DatabaseMigrationRunner(databasePath, Connection, timeProvider, legacyProcessingWindows).RunAsync();
         });
     }
 
@@ -51,7 +55,7 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
         var freshConnection = new SQLiteAsyncConnection(databasePath);
         try
         {
-            await new DatabaseMigrationRunner(databasePath, freshConnection, timeProvider).RunAsync();
+            await new DatabaseMigrationRunner(databasePath, freshConnection, timeProvider, legacyProcessingWindows).RunAsync();
         }
         finally
         {

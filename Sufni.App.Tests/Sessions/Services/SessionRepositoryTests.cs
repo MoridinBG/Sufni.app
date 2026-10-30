@@ -17,6 +17,28 @@ namespace Sufni.App.Tests.Sessions.Services;
 public class SessionRepositoryTests
 {
     [Fact]
+    public async Task ProcessingOption_RollbackRequiresTheExpectedValue_AndPreservesTelemetry()
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(30),
+            VelocityFilterWindowMilliseconds = 50
+        };
+        await database.SessionRepository.PutProcessedSessionAsync(session, null, null);
+        await database.SessionRepository.SetProcessingOptionAsync(session.Id, 100);
+        await database.SessionRepository.SetProcessingOptionAsync(session.Id, 250);
+
+        var unchanged = await database.SessionRepository.RestoreProcessingOptionAsync(session.Id, 100, 50);
+        Assert.Equal(250, unchanged!.VelocityFilterWindowMilliseconds);
+        var restored = await database.SessionRepository.RestoreProcessingOptionAsync(session.Id, 250, 50);
+        Assert.Equal(50, restored!.VelocityFilterWindowMilliseconds);
+        Assert.Equal("notes", restored.Description);
+        Assert.Equal(session.ProcessedData, await database.SessionRepository.GetSessionRawPsstAsync(session.Id));
+    }
+
+    [Fact]
     public async Task PutProcessedSessionAsync_PersistsSummaryMetricsAsGiven_WithoutDerivation()
     {
         using var tempDatabase = new TempDatabase("processed-session-as-given.db");

@@ -1,3 +1,5 @@
+using Serilog;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using System;
@@ -14,19 +16,33 @@ using Sufni.Telemetry;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
-/// VM-facing entry point for recorded-session workflows. A thin router over
-/// <see cref="SessionLoader"/> (pure reads) and <see cref="SessionCommandService"/>
-/// (store-writing commands and recompute requests).
+/// Owns processing-option changes and routes recorded-session reads and commands.
 /// </summary>
 public class SessionCoordinator : ISessionCoordinator
 {
+    private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
+    private readonly ISessionStoreWriter sessionStore;
+    private readonly ISessionRepository sessionRepository;
+    private readonly ISessionRecomputeEngine recomputeEngine;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly IUiThreadDispatcher dispatcher;
     private readonly SessionLoader sessionLoader;
     private readonly SessionCommandService commandService;
 
     public SessionCoordinator(
         SessionLoader sessionLoader,
-        SessionCommandService commandService)
+        SessionCommandService commandService,
+        ISessionStoreWriter sessionStore,
+        ISessionRepository sessionRepository,
+        ISessionRecomputeEngine recomputeEngine,
+        IBackgroundTaskRunner backgroundTaskRunner,
+        IUiThreadDispatcher dispatcher)
     {
+        this.sessionStore = sessionStore;
+        this.sessionRepository = sessionRepository;
+        this.recomputeEngine = recomputeEngine;
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.dispatcher = dispatcher;
         this.sessionLoader = sessionLoader;
         this.commandService = commandService;
     }
@@ -43,6 +59,44 @@ public class SessionCoordinator : ISessionCoordinator
         IProgress<SessionDetailLoadProgress> progress,
         CancellationToken cancellationToken = default)
         => sessionLoader.LoadTrackAsync(sessionId, telemetryData, progress, cancellationToken);
+
+    public async Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds)
+    {
+        var window = new TelemetryProcessingOptions(windowMilliseconds).ClampedVelocityFilterWindowMilliseconds;
+        try
+        {
+            var previous = await backgroundTaskRunner.RunAsync(() => sessionRepository.GetSessionAsync(sessionId));
+            if (previous is null) return new SessionRecomputeResult.Missing();
+            if (SessionSnapshot.From(previous).ProcessingOptions.ClampedVelocityFilterWindowMilliseconds == window)
+                return await recomputeEngine.RequestRecomputeAsync(sessionId, RecomputeReason.ProcessingPreferenceChanged);
+
+            var saved = await backgroundTaskRunner.RunAsync(() => sessionRepository.SetProcessingOptionAsync(sessionId, window));
+            if (saved is null) return new SessionRecomputeResult.Missing();
+            Task<SessionRecomputeResult> recompute = null!;
+            await dispatcher.InvokeAsync(async () =>
+            {
+                await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(saved)]);
+                // Mark the request active before queued projection work can prompt.
+                recompute = recomputeEngine.RequestRecomputeAsync(sessionId, RecomputeReason.ProcessingPreferenceChanged);
+            });
+            var result = await recompute;
+            if (result is SessionRecomputeResult.Failed or SessionRecomputeResult.ProcessingFailed or
+                SessionRecomputeResult.NotRecomputable or SessionRecomputeResult.Missing)
+            {
+                var restored = await backgroundTaskRunner.RunAsync(() => sessionRepository.RestoreProcessingOptionAsync(
+                    sessionId, window, previous.VelocityFilterWindowMilliseconds));
+                if (restored is not null)
+                    await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(restored)]);
+            }
+            return result;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Processing option change failed for {SessionId}", sessionId);
+            return new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.ProcessingOption, exception.Message);
+        }
+    }
 
     public Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated) =>
         commandService.SaveAsync(session, baselineUpdated);

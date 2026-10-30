@@ -28,13 +28,11 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 public class AppDataRefresherTests
 {
     [Fact]
-    public async Task RefreshAsync_WaitsForHydrationAndAllReads_BeforeOneCoherentReplacement()
+    public async Task RefreshAsync_WaitsForAllReads_BeforeOneCoherentReplacement()
     {
         using var fixture = new Fixture();
         var oldBike = new Bike(Guid.NewGuid(), "removed");
         await fixture.Bikes.ReplaceAllAsync([BikeSnapshot.From(oldBike)]);
-        var hydration = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        fixture.Options.HydrateAsync().Returns(hydration.Task);
         var lastRead = new TaskCompletionSource<List<SessionSegment>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reachedLastRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.SegmentRepository.GetLiveAsync().Returns(_ =>
@@ -54,9 +52,7 @@ public class AppDataRefresherTests
             fixture.Bikes.Get(oldBike.Id) is null)));
 
         var refresh = fixture.Refresher.RefreshAsync(TestContext.Current.CancellationToken);
-        Assert.False(reachedLastRead.Task.IsCompleted);
         Assert.Empty(observed);
-        hydration.SetResult();
         await reachedLastRead.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Empty(observed);
         Assert.NotNull(fixture.Bikes.Get(oldBike.Id));
@@ -120,7 +116,6 @@ public class AppDataRefresherTests
         public Session Session { get; }
         public SessionVideoClip Clip { get; }
         public SessionSegment Segment { get; }
-        public IRecordedSessionProcessingOptionCache Options { get; } = Substitute.For<IRecordedSessionProcessingOptionCache>();
         public ISessionSegmentRepository SegmentRepository { get; } = Substitute.For<ISessionSegmentRepository>();
         public StorePublication Publication { get; }
         public BikeStore Bikes { get; }
@@ -166,7 +161,7 @@ public class AppDataRefresherTests
             Segments = new SessionSegmentStore(Publication);
             Refresher = new AppDataRefresher(Bikes, Setups, Sessions, Sources, Devices, Videos, Segments,
                 bikeRepository, setupRepository, boardRepository, sessionRepository, sourceRepository,
-                deviceRepository, videoRepository, SegmentRepository, Options, new InlineBackgroundTaskRunner(),
+                deviceRepository, videoRepository, SegmentRepository, new InlineBackgroundTaskRunner(),
                 dispatcher, Publication);
         }
 

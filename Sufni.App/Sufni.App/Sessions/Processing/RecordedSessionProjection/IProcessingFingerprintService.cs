@@ -16,30 +16,24 @@ public interface IProcessingFingerprintService
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
-        RecordedSessionSourceSnapshot source,
-        TelemetryProcessingOptions? options = null);
+        RecordedSessionSourceSnapshot source);
 
     ProcessingFingerprint CreateCurrent(
         SessionSnapshot session,
         SetupSnapshot setup,
         BikeSnapshot bike,
         RecordedSessionSourceSnapshot source,
-        string dependencyHash,
-        TelemetryProcessingOptions? options = null);
+        string dependencyHash);
 
     /// <summary>
-    /// Builds a fingerprint from the DB-resident processing inputs only (setup,
-    /// bike, source, versions), without the preference-stored processing option.
-    /// The in-transaction recompute coherence guard uses this together with
-    /// <see cref="ProcessingFingerprint.MatchesDatabaseInputs"/> because it cannot
-    /// read the option inside a SQLite transaction.
+    /// Builds a fingerprint from a transaction's captured processing inputs.
     /// </summary>
     ProcessingFingerprint CreateCurrentDatabaseInputs(SessionProcessingInputBundle input);
 
     /// <summary>
     /// The schema version stamped into fingerprints created by this build. The
     /// sync merge uses it to recognize current-schema fingerprints (a pre-current
-    /// or unparseable fingerprint is "legacy" and defers BLOB swaps to the one-time normalization pass).
+    /// or unparseable fingerprint is "legacy" and defers BLOB swaps until explicit recompute).
     /// </summary>
     int CurrentSchemaVersion { get; }
 
@@ -55,8 +49,7 @@ public interface IProcessingFingerprintService
         SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
-        string? dependencyHash,
-        TelemetryProcessingOptions? options = null);
+        string? dependencyHash);
 }
 
 /// <summary>
