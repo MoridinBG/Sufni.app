@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
@@ -495,7 +496,7 @@ public class ShellWorkspaceCoordinatorTests
         Assert.Empty(workspace.Tabs);
     }
 
-    private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher);
+    private static ShellWorkspaceViewModel CreateWorkspace() => new(TestDispatcher, timeProvider: new FakeTimeProvider());
 
     private static ClosedTabRestoreEntry RestoreEntry(
         int id,
@@ -526,7 +527,7 @@ public class ShellWorkspaceCoordinatorTests
     private sealed class TestTabPageViewModel : TabPageViewModelBase
     {
         public TestTabPageViewModel(int id = 0)
-            : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), TestDispatcher)
+            : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), TestDispatcher, timeProvider: new FakeTimeProvider())
         {
             Id = id;
         }
@@ -544,7 +545,7 @@ public class ShellWorkspaceCoordinatorTests
     private sealed class TestViewModel : ViewModelBase
     {
         public TestViewModel()
-            : base(TestDispatcher)
+            : base(TestDispatcher, timeProvider: new FakeTimeProvider())
         {
         }
     }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -32,7 +33,7 @@ public class BikeListViewTests
         dependencyQuery.IsBikeInUse(snapshot.Id).Returns(false);
         dependencyQuery.Changes.Returns(Observable.Return(Unit.Default));
 
-        var viewModel = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher());
+        var viewModel = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new BikeListView
         {
             DataContext = viewModel,
@@ -63,7 +64,7 @@ public class BikeListViewTests
 
         var view = new BikeListView
         {
-            DataContext = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher()),
+            DataContext = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider()),
         };
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);

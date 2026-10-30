@@ -21,8 +21,9 @@ public partial class TabPageViewModelBase : ViewModelBase
     protected TabPageViewModelBase(
         IShellCoordinator shell,
         IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.shell = shell;
         this.dialogService = dialogService;

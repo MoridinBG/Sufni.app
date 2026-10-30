@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 
 using Sufni.App.Shared.Base;
 namespace Sufni.App.Tests.Shared.Base;
@@ -29,7 +30,7 @@ public class ItemListViewModelBaseTests
     private sealed class TestItemListViewModel : ItemListViewModelBase
     {
         public TestItemListViewModel()
-            : base(new InlineUiThreadDispatcher())
+            : base(new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider())
         {
         }
 

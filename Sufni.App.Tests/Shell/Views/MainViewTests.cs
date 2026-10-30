@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using NSubstitute;
@@ -120,10 +121,10 @@ public class MainViewTests
 
         return new ShellRootViewModel(
             mainPages,
-            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher()),
+            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider()),
             environment,
             Substitute.For<IPlotZoomState>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>

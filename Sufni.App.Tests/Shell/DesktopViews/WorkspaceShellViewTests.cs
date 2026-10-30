@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System;
 using System.Linq;
 using Avalonia;
@@ -312,10 +313,11 @@ public class WorkspaceShellViewTests
 
         return new ShellRootViewModel(
             MainPagesViewModelTestFactory.Create(),
-            new ShellWorkspaceViewModel(TestDispatcher),
+            new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider()),
             environment,
             Substitute.For<IPlotZoomState>(),
-            TestDispatcher);
+            TestDispatcher,
+            timeProvider: new FakeTimeProvider());
     }
 
     private static async Task<MountedWorkspaceShellView> MountAsync(WorkspaceShellView view)

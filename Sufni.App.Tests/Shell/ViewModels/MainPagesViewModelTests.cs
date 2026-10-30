@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using NSubstitute;
@@ -29,7 +30,7 @@ public class MainPagesViewModelTests
     public void SelectedPrimaryIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
         var liveCoordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher);
+        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var viewModel = MainPagesViewModelTestFactory.Create(livePage);
         var liveIndex = viewModel.PrimaryPages.IndexOf(
             viewModel.PrimaryPages.Single(page => page.Role == MainPrimaryPageRole.LiveDaqs));
@@ -137,7 +138,7 @@ public class MainPagesViewModelTests
         var uiPreferences = Substitute.For<IUiPreferences>();
         uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
         var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
-        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher);
+        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher, timeProvider: new FakeTimeProvider());
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
         dialogService.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.Cancel);
@@ -166,7 +167,7 @@ public class MainPagesViewModelTests
         var uiPreferences = Substitute.For<IUiPreferences>();
         uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
         var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
-        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher);
+        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher, timeProvider: new FakeTimeProvider());
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
         dialogService.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.No);
@@ -347,7 +348,7 @@ public class MainPagesViewModelTests
             IShellCoordinator shell,
             IDialogService dialogService,
             bool dirty)
-            : base(shell, dialogService, MainPagesViewModelTests.UiThreadDispatcher)
+            : base(shell, dialogService, MainPagesViewModelTests.UiThreadDispatcher, timeProvider: new FakeTimeProvider())
         {
             underlyingDirty = dirty;
             IsDirty = dirty;

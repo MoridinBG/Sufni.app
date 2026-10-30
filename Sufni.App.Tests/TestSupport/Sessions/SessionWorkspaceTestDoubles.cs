@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NSubstitute;
@@ -272,7 +273,7 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
         tileLayerService.AvailableLayers.Returns([]);
         var dialogService = Substitute.For<IDialogService>();
-        return new MapViewModel(tileLayerService, dialogService, new InlineUiThreadDispatcher())
+        return new MapViewModel(tileLayerService, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints = trackPoints.ToList(),
             FullTrackPoints = [],

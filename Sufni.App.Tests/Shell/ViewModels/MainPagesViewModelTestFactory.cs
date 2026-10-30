@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
@@ -57,7 +58,7 @@ internal static class MainPagesViewModelTestFactory
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
-        workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher);
+        workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher, timeProvider: new FakeTimeProvider());
 
         appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         if (themeService is null)
@@ -94,7 +95,8 @@ internal static class MainPagesViewModelTestFactory
             UiThreadDispatcher,
             videoCoordinator ?? Substitute.For<IVideoCoordinator>(),
             pairingClientPage: pairingClientPage,
-            pairingServerViewModel: pairingServerViewModel);
+            pairingServerViewModel: pairingServerViewModel,
+            timeProvider: new FakeTimeProvider());
     }
 
     public static IAppEnvironment CreateAppEnvironment(
@@ -108,14 +110,16 @@ internal static class MainPagesViewModelTestFactory
             new BikeStoreStub(),
             TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
-            UiThreadDispatcher);
+            UiThreadDispatcher,
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
 
     private static SessionListViewModel CreateSessionListPage() =>
         new(
             CreateRecordedSessionProjection(),
             TestCoordinatorSubstitutes.Session(),
             VideoFixture.CreateEmptyStore(),
-            UiThreadDispatcher);
+            UiThreadDispatcher,
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
@@ -126,13 +130,13 @@ internal static class MainPagesViewModelTestFactory
     }
 
     private static SetupListViewModel CreateSetupListPage() =>
-        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher);
+        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
 
     private static LiveDaqListViewModel CreateLiveDaqListPage() =>
-        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher);
+        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
-        new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator(), UiThreadDispatcher);
+        new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
 
     private static PairedDeviceCoordinator CreatePairedDeviceCoordinator() =>
         new(Substitute.For<IPairedDeviceStoreWriter>());
@@ -152,6 +156,7 @@ internal static class MainPagesViewModelTestFactory
             TestCoordinatorSubstitutes.Setup(),
             importSessionsCoordinator,
             Substitute.For<ISetupStore>(),
-            UiThreadDispatcher);
+            UiThreadDispatcher,
+            timeProvider: new FakeTimeProvider());
     }
 }

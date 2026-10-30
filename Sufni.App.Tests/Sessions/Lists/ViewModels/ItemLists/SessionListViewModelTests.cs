@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Globalization;
 using DynamicData;
 using NSubstitute;
@@ -185,7 +186,8 @@ public class SessionListViewModelTests
                 projection,
                 TestCoordinatorSubstitutes.Session(),
                 VideoFixture.CreateEmptyStore(),
-                UiThreadDispatcher);
+                UiThreadDispatcher,
+                backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
 
             Assert.Empty(viewModel.Items);
             Assert.Empty(viewModel.DateGroups);
@@ -574,7 +576,8 @@ public class SessionListViewModelTests
             projection,
             sessionCoordinator,
             videoStore ?? VideoFixture.CreateEmptyStore(),
-            uiThreadDispatcher);
+            uiThreadDispatcher,
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         return viewModel;
     }

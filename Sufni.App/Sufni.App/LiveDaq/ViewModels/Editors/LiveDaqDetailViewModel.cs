@@ -129,7 +129,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         ILiveDaqStore liveDaqStore,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider)
-        : base(shell, dialogService, uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         sessionState = new LiveDaqSessionState(timeProvider);
         IdentityKey = snapshot.IdentityKey;

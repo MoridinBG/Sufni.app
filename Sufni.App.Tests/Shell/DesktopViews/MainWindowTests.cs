@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
@@ -264,10 +265,11 @@ public class MainWindowTests
 
         return new ShellRootViewModel(
             MainPagesViewModelTestFactory.Create(),
-            new ShellWorkspaceViewModel(TestDispatcher),
+            new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider()),
             environment,
             Substitute.For<IPlotZoomState>(),
-            TestDispatcher);
+            TestDispatcher,
+            timeProvider: new FakeTimeProvider());
     }
 }
 

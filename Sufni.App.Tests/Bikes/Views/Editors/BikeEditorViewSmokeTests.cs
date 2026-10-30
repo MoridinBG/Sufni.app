@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System;
 using System.Linq;
 using System.Reactive;
@@ -199,7 +200,7 @@ public class BikeEditorViewSmokeTests
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
         editor.CanChangeRearSuspensionMode = true;
         return editor;
     }

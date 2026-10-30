@@ -94,7 +94,8 @@ internal sealed class EditorFactory(
             bikeDependencyQuery,
             shell,
             dialogService,
-            uiThreadDispatcher);
+            uiThreadDispatcher,
+            timeProvider: timeProvider);
 
     public void OpenNewSetupEditor(SetupSnapshot snapshot)
     {
@@ -128,7 +129,8 @@ internal sealed class EditorFactory(
             setupCoordinator,
             shell,
             dialogService,
-            uiThreadDispatcher);
+            uiThreadDispatcher,
+            timeProvider: timeProvider);
 
     public void OpenImportSessions()
     {
@@ -180,6 +182,7 @@ internal sealed class EditorFactory(
             segmentPickerFactory,
             segmentComparisonFactory,
             sessionOperationRunner,
+            timeProvider,
             bikeCoordinator,
             layoutProfileTransitionState,
             videoPaneFactory);

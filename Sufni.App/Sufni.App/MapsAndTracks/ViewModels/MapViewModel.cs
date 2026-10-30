@@ -39,8 +39,9 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     public MapViewModel(
         ITileLayerService tileLayerService,
         IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.tileLayerService = tileLayerService;
         this.dialogService = dialogService;

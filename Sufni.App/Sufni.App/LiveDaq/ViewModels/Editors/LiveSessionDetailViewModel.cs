@@ -44,7 +44,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 {
     private readonly LiveSessionSignalsWorkspaceViewModel signalsWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
-    private readonly TimeProvider timeProvider;
     private readonly ILiveSessionService liveSessionService;
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
@@ -233,9 +232,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider,
         IBikeCoordinator? bikeCoordinator = null)
-        : base(shell, dialogService, uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.timeProvider = timeProvider;
         IdentityKey = context.IdentityKey;
         SetupId = context.SetupId;
         SetupName = context.SetupName;
@@ -256,7 +254,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var timeline = new SessionTimelineLinkViewModel();
         signalsWorkspace = new LiveSessionSignalsWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.SignalBatches);
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(mapViewModelFactory, timeline);
-        Name = CreateDefaultName(timeProvider.GetLocalNow());
+        Name = CreateDefaultName(Clock.GetLocalNow());
         LiveSignalsPage = new LiveSignalsPageViewModel(signalsWorkspace, mediaWorkspace);
         SpringPage = new SpringPageViewModel(this);
         DampingPage = new DampingPageViewModel(this);
@@ -470,7 +468,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         {
             var capture = await liveSessionService.PrepareCaptureForSaveAsync();
             var savedCaptureRevision = liveSessionService.Current.CaptureRevision;
-            var saveTime = timeProvider.GetLocalNow();
+            var saveTime = Clock.GetLocalNow();
             var sessionName = shouldRefreshAutoName ? CreateDefaultName(saveTime) : Name!;
             var session = new Session(
                 id: Guid.NewGuid(),
@@ -507,7 +505,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                         ResetCapturePresentation();
                         if (shouldRefreshAutoName)
                         {
-                            Name = CreateDefaultName(timeProvider.GetLocalNow());
+                            Name = CreateDefaultName(Clock.GetLocalNow());
                         }
 
                         await sessionCoordinator.OpenEditAsync(saved.SessionId);
@@ -1152,7 +1150,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             return null;
         }
 
-        var duration = timeProvider.GetUtcNow() - captureStartUtc.Value;
+        var duration = Clock.GetUtcNow() - captureStartUtc.Value;
         return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 

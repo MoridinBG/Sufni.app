@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using Avalonia;
 using NSubstitute;
@@ -185,6 +186,7 @@ internal sealed class SessionDetailHarness
             TestSegmentPickers.CreateFactory(SegmentStore, SegmentCoordinator, DialogService),
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
-            videoPaneFactory: VideoPaneFactory);
+            videoPaneFactory: VideoPaneFactory,
+            timeProvider: new FakeTimeProvider());
     }
 }

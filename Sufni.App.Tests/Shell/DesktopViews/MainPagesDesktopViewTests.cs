@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
 using System.Reactive.Linq;
 using Avalonia.Controls;
@@ -34,7 +35,7 @@ public class MainPagesDesktopViewTests
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
 
-        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
+        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider())
         {
             PairingPin = "123456",
             RequestingDisplayName = "Phone",
@@ -67,7 +68,7 @@ public class MainPagesDesktopViewTests
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
         pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
-        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
+        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider())
         {
             PairingPin = "123456",
             RequestingDisplayName = "Phone",
@@ -108,7 +109,7 @@ public class MainPagesDesktopViewTests
         var syncCoordinator = CreateSyncCoordinator(server);
         var viewModel = MainPagesViewModelTestFactory.Create(
             syncCoordinator: syncCoordinator,
-            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider()));
+            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider()));
         var view = new MainPagesDesktopView
         {
             DataContext = viewModel
@@ -272,7 +273,7 @@ public class MainPagesDesktopViewTests
             pairingClientCoordinator,
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
     private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>

@@ -1,5 +1,5 @@
 using Sufni.App.Infrastructure;
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -46,10 +46,11 @@ namespace Sufni.App.Shared.Base
 
         #region Constructors
 
-        protected ViewModelBase(IUiThreadDispatcher uiThreadDispatcher)
+        protected ViewModelBase(IUiThreadDispatcher uiThreadDispatcher, TimeProvider timeProvider)
         {
             ArgumentNullException.ThrowIfNull(uiThreadDispatcher);
             this.uiThreadDispatcher = uiThreadDispatcher;
+            Clock = timeProvider;
 
             Notifications.CollectionChanged += (_, args) =>
             {
@@ -61,6 +62,7 @@ namespace Sufni.App.Shared.Base
         #endregion Constructors
 
         protected IUiThreadDispatcher UiThreadDispatcher => uiThreadDispatcher;
+        protected TimeProvider Clock { get; }
 
         #region Commands
 
@@ -119,7 +121,7 @@ namespace Sufni.App.Shared.Base
         {
             try
             {
-                await Task.Delay(Timeout, cancellationToken);
+                await Task.Delay(TimeSpan.FromMilliseconds(Timeout), Clock, cancellationToken);
                 await uiThreadDispatcher.InvokeAsync(() =>
                 {
                     if (!IsPointerOverNotifications)

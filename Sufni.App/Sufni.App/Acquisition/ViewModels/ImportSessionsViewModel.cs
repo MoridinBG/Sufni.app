@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Collections.Generic;
@@ -67,8 +67,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         ISetupCoordinator setupCoordinator,
         IImportSessionsCoordinator importSessionsCoordinator,
         ISetupStore setupStore,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(shell, dialogService, uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
+        : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         Name = "Import Sessions";
         this.telemetryDataStoreService = telemetryDataStoreService;

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using DynamicData;
@@ -49,7 +50,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false)
     {
-        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher());
+        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
     public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)

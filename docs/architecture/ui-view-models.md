@@ -393,7 +393,12 @@ implementation, and the `OpenPreviousPageCommand` that delegates to
 `ViewModelBase` (`Shared/Base/ViewModelBase.cs`) extends
 `ObservableObject` and contributes the notification / error-message
 collections plus the 3-second auto-hide timer that pauses on pointer
-hover. Navigation surface belongs to `IShellCoordinator`, not
+hover. The base receives `TimeProvider` and `IUiThreadDispatcher`; its subclasses
+receive those dependencies through composition or their owning factories.
+Pending-delete entries also receive the clock and a required background runner
+for their five-second undo window. Primary-page descriptors are immutable
+wrappers around their content; they do not inherit notification state or create
+a dispatcher. Navigation surface belongs to `IShellCoordinator`, not
 `ViewModelBase`; small projection-only view models such as session
 pages, sensor-configuration rows, and linkage parts use
 `ObservableObject` directly when they do not need the shared

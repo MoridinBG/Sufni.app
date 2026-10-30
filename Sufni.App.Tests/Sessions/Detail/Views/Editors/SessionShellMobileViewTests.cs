@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using Avalonia;
@@ -137,7 +138,7 @@ public class SessionShellMobileViewTests
 internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionShellMobileWorkspace
 {
     public FakeShellHostViewModel()
-        : base(new InlineUiThreadDispatcher())
+        : base(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
     {
         Pages.CollectionChanged += OnPagesChanged;
     }

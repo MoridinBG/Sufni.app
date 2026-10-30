@@ -20,6 +20,7 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
     private readonly Action<PendingDeleteEntryViewModel> remove;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly TimeProvider timeProvider;
     private CancellationTokenSource? cts;
 
     public string Name { get; }
@@ -30,14 +31,16 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
         Action onUndone,
         Action<PendingDeleteEntryViewModel> remove,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        TimeProvider timeProvider)
     {
         Name = name;
         this.finalize = finalize;
         this.onUndone = onUndone;
         this.remove = remove;
         this.uiThreadDispatcher = uiThreadDispatcher;
-        this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.timeProvider = timeProvider;
     }
 
     public void StartTimer(int delayMs)
@@ -49,7 +52,7 @@ public partial class PendingDeleteEntryViewModel : ObservableObject
         {
             try
             {
-                await Task.Delay(delayMs, token);
+                await Task.Delay(TimeSpan.FromMilliseconds(delayMs), timeProvider, token);
             }
             catch (TaskCanceledException)
             {

@@ -107,9 +107,10 @@ public partial class MainPagesViewModel : ViewModelBase
         PairedDeviceListViewModel pairedDevicesPage,
         IUiThreadDispatcher uiThreadDispatcher,
         IVideoCoordinator videoCoordinator,
+        TimeProvider timeProvider,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
-        : base(uiThreadDispatcher)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.appDataRefresher = appDataRefresher;
         this.importSessionsCoordinator = importSessionsCoordinator;

@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
@@ -16,8 +17,9 @@ public sealed class ShellRootViewModel : ViewModelBase
         ShellWorkspaceViewModel workspace,
         IAppEnvironment appEnvironment,
         IPlotZoomState plotZoomState,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         Pages = pages;
         Workspace = workspace;

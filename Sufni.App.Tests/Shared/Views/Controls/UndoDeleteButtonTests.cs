@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -82,7 +83,7 @@ public class UndoDeleteButtonTests
 internal sealed class TestUndoItemListViewModel : ItemListViewModelBase
 {
     public TestUndoItemListViewModel()
-        : base(new InlineUiThreadDispatcher())
+        : base(new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider())
     {
     }
 

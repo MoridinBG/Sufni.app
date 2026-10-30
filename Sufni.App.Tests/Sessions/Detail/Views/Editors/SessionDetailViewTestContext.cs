@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System;
 using System.Reactive.Linq;
 using System.Threading;
@@ -176,7 +177,7 @@ internal sealed class SessionDetailViewTestContext
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(dialogService: dialogService),
             TestSegmentComparisons.CreateFactory(),
-            new SessionOperationRunner());
+            new SessionOperationRunner(), timeProvider: new FakeTimeProvider());
     }
 }
 

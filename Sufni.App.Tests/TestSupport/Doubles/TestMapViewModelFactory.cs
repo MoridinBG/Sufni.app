@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 using Sufni.App.MapsAndTracks.Services;
@@ -15,5 +16,5 @@ public sealed class TestMapViewModelFactory(ITileLayerService tileLayerService) 
     public MapViewModel Create() => new(
         tileLayerService,
         Substitute.For<IDialogService>(),
-        new InlineUiThreadDispatcher());
+        new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 }

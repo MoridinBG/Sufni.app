@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -212,7 +213,7 @@ public class CompactShellViewTests
         pairingServerCoordinator.StartServerAsync().Returns(Task.CompletedTask);
         var pairingServer = new PairingServerViewModel(
             pairingServerCoordinator,
-            new InlineUiThreadDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
+            new InlineUiThreadDispatcher(), new FakeTimeProvider())
         {
             PairingPin = "123456",
             RequestingId = "test-device",
@@ -251,10 +252,10 @@ public class CompactShellViewTests
 
         return new ShellRootViewModel(
             pages,
-            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher()),
+            new ShellWorkspaceViewModel(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider()),
             environment,
             Substitute.For<IPlotZoomState>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
     private static IAppEnvironment CreateMobileCompactEnvironment() =>

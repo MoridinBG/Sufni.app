@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
@@ -14,7 +15,7 @@ public class ShellRootViewModelTests
     public void Constructor_ExposesSharedShellStateAndEnvironment()
     {
         var pages = MainPagesViewModelTestFactory.Create();
-        var workspace = new ShellWorkspaceViewModel(TestDispatcher);
+        var workspace = new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider());
         var environment = new AppEnvironment(
             LayoutProfile: UiLayoutProfile.Workspace,
             Capabilities: new AppCapabilities(
@@ -32,7 +33,7 @@ public class ShellRootViewModelTests
 
         var plotZoomState = Substitute.For<IPlotZoomState>();
 
-        var root = new ShellRootViewModel(pages, workspace, environment, plotZoomState, TestDispatcher);
+        var root = new ShellRootViewModel(pages, workspace, environment, plotZoomState, TestDispatcher, timeProvider: new FakeTimeProvider());
 
         Assert.Same(pages, root.Pages);
         Assert.Same(workspace, root.Workspace);
@@ -146,9 +147,10 @@ public class ShellRootViewModelTests
 
         return new ShellRootViewModel(
             MainPagesViewModelTestFactory.Create(),
-            new ShellWorkspaceViewModel(TestDispatcher),
+            new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider()),
             environment,
             plotZoomState,
-            TestDispatcher);
+            TestDispatcher,
+            timeProvider: new FakeTimeProvider());
     }
 }

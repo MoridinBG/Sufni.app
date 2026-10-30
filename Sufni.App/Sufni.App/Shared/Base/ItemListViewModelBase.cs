@@ -48,10 +48,11 @@ public partial class ItemListViewModelBase : ViewModelBase
 
     public ItemListViewModelBase(
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
-        : base(uiThreadDispatcher)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
+        this.backgroundTaskRunner = backgroundTaskRunner;
     }
 
     #region Property change handlers
@@ -132,7 +133,8 @@ public partial class ItemListViewModelBase : ViewModelBase
             onUndone: onUndone,
             remove: e => PendingDeletes.Remove(e),
             UiThreadDispatcher,
-            backgroundTaskRunner);
+            backgroundTaskRunner,
+            timeProvider: Clock);
 
         PendingDeletes.Add(entry);
         entry.StartTimer(PendingDeleteWindowMs);

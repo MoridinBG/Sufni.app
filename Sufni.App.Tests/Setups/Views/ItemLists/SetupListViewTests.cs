@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -26,7 +27,7 @@ public class SetupListViewTests
         var coordinator = TestCoordinatorSubstitutes.Setup();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher());
+        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SetupListView
         {
             DataContext = viewModel,

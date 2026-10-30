@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -45,7 +46,7 @@ public class SessionListViewTests
         var coordinator = TestCoordinatorSubstitutes.Session();
         coordinator.OpenEditAsync(snapshot.Id).Returns(Task.CompletedTask);
 
-        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -93,7 +94,7 @@ public class SessionListViewTests
             projection,
             TestCoordinatorSubstitutes.Session(),
             videoStore,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -127,7 +128,7 @@ public class SessionListViewTests
         coordinator.RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList)
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
-        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, coordinator, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SessionListView
         {
             DataContext = viewModel,
@@ -172,7 +173,7 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -214,7 +215,7 @@ public class SessionListViewTests
             projection,
             TestCoordinatorSubstitutes.Session(),
             videoStore,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,
@@ -254,7 +255,7 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 
-        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher());
+        var viewModel = new SessionListViewModel(projection, TestCoordinatorSubstitutes.Session(), VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         var view = new SessionListDesktopView
         {
             DataContext = viewModel,

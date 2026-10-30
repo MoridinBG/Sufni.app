@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -31,7 +32,7 @@ public class LiveDaqListViewTests
             SetupName: "Race",
             BikeName: "Demo")]);
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher());
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(FindRowButtons(mounted.Control));

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using DynamicData;
 using NSubstitute;
@@ -83,7 +84,7 @@ internal sealed class ImportWorkflowHarness
         SetupCoordinator,
         ImportSessionsCoordinatorSubstitute,
         SetupStore,
-        new InlineUiThreadDispatcher());
+        new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 
     public (Setup Setup, Bike Bike) SeedSetupAndBike(double headAngle = 65.0)
     {

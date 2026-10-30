@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -174,7 +175,7 @@ public class PairingClientViewTests
             coordinator,
             shell,
             Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 
     private static async Task<MountedPairingClientView> MountAsync(PairingClientViewModel viewModel)
     {

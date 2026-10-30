@@ -43,8 +43,9 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
         IPairedDeviceStore pairedDeviceStore,
         IPairedDeviceCoordinator pairedDeviceCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
-        : base(uiThreadDispatcher, backgroundTaskRunner)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.pairedDeviceStore = pairedDeviceStore;
         this.pairedDeviceCoordinator = pairedDeviceCoordinator;

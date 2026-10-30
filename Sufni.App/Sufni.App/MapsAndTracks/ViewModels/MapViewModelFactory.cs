@@ -17,7 +17,8 @@ public interface IMapViewModelFactory
 internal sealed class MapViewModelFactory(
     ITileLayerService tileLayerService,
     IDialogService dialogService,
-    IUiThreadDispatcher uiThreadDispatcher) : IMapViewModelFactory
+    IUiThreadDispatcher uiThreadDispatcher,
+    System.TimeProvider timeProvider) : IMapViewModelFactory
 {
-    public MapViewModel Create() => new(tileLayerService, dialogService, uiThreadDispatcher);
+    public MapViewModel Create() => new(tileLayerService, dialogService, uiThreadDispatcher, timeProvider: timeProvider);
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -45,7 +46,7 @@ public class TabPageViewModelBaseTests
     private sealed class DirtyTrackingTabPageViewModel : TabPageViewModelBase
     {
         public DirtyTrackingTabPageViewModel()
-            : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
+            : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
         }
 

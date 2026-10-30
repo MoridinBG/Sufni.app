@@ -45,8 +45,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
         ISetupStore setupStore,
         ISetupCoordinator setupCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
-        : base(uiThreadDispatcher, backgroundTaskRunner)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.setupStore = setupStore;
         this.setupCoordinator = setupCoordinator;

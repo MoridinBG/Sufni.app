@@ -35,8 +35,9 @@ public partial class PairingClientViewModel : TabPageViewModelBase
         IPairingClientCoordinator coordinator,
         IShellCoordinator shell,
         IDialogService dialogService,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : base(shell, dialogService, uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
+        : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.coordinator = coordinator;
         Name = "Pair";

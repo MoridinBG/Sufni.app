@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -7,8 +8,8 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 
 public sealed class TestViewModel : ViewModelBase
 {
-    public TestViewModel()
-        : base(new InlineUiThreadDispatcher())
+    public TestViewModel(TimeProvider? timeProvider = null)
+        : base(new InlineUiThreadDispatcher(), timeProvider ?? new FakeTimeProvider())
     {
     }
 }
@@ -16,7 +17,7 @@ public sealed class TestViewModel : ViewModelBase
 public sealed class TestTabPageViewModel : TabPageViewModelBase
 {
     public TestTabPageViewModel()
-        : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
+        : base(Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
     {
     }
 }

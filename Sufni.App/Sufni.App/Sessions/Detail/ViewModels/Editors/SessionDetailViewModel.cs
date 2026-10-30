@@ -1404,10 +1404,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISegmentPickerFactory segmentPickerFactory,
         ISegmentComparisonFactory segmentComparisonFactory,
         ISessionOperationRunner sessionOperationRunner,
+        TimeProvider timeProvider,
         IBikeCoordinator? bikeCoordinator = null,
         ILayoutProfileTransitionState? layoutProfileTransitionState = null,
         IVideoPaneFactory? videoPaneFactory = null)
-        : base(shell, dialogService, uiThreadDispatcher)
+        : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;

@@ -58,8 +58,9 @@ public partial class SessionListViewModel : ItemListViewModelBase
         ISessionCoordinator sessionCoordinator,
         ISessionVideoStore videoStore,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner? backgroundTaskRunner = null)
-        : base(uiThreadDispatcher, backgroundTaskRunner)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        TimeProvider timeProvider)
+        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
     {
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;

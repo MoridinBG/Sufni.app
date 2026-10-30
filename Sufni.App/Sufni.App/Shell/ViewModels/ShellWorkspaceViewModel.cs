@@ -37,8 +37,8 @@ public partial class ShellWorkspaceViewModel : ViewModelBase, IShellWorkspaceHos
 
     public ObservableCollection<TabPageViewModelBase> Tabs { get; } = [];
 
-    public ShellWorkspaceViewModel(IUiThreadDispatcher uiThreadDispatcher)
-        : base(uiThreadDispatcher)
+    public ShellWorkspaceViewModel(IUiThreadDispatcher uiThreadDispatcher, TimeProvider timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
     }
 

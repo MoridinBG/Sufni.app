@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
 using DynamicData;
@@ -39,7 +40,7 @@ public class SetupEditorViewModelTests
     }
 
     private SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false) =>
-        new(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, uiThreadDispatcher);
+        new(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, uiThreadDispatcher, timeProvider: new FakeTimeProvider());
 
     private const string LinearForkConfigurationJson =
         "{\"type\":\"linear_fork\",\"length\":100,\"resolution\":12}";

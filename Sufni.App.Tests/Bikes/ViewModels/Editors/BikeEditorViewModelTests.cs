@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
 using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
@@ -34,7 +35,7 @@ public class BikeEditorViewModelTests
 
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool isDesktop = true)
     {
-        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher);
+        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher, timeProvider: new FakeTimeProvider());
         editor.CanChangeRearSuspensionMode = isDesktop;
         return editor;
     }

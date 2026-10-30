@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -261,7 +262,7 @@ public class CommonButtonLineTests
             Func<bool>? canDelete = null,
             IShellCoordinator? shell = null,
             IDialogService? dialogService = null)
-            : base(shell ?? Substitute.For<IShellCoordinator>(), dialogService ?? Substitute.For<IDialogService>(), new InlineUiThreadDispatcher())
+            : base(shell ?? Substitute.For<IShellCoordinator>(), dialogService ?? Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             this.onSave = onSave ?? (() => { });
             this.onReset = onReset ?? (() => { });
