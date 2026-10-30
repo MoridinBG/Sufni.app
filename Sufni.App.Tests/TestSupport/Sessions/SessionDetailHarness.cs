@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using Avalonia;
@@ -64,7 +65,7 @@ internal sealed class SessionDetailHarness
     public TestSessionProcessedTelemetryReader ProcessedTelemetryReader { get; } = new();
     public ISessionEditingCoordinator SessionEditingCoordinator { get; } = Substitute.For<ISessionEditingCoordinator>();
     public IVideoPaneFactory? VideoPaneFactory { get; set; }
-    public SessionSegmentStore SegmentStore { get; } = new(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher());
+    public SessionSegmentStore SegmentStore { get; } = new(Substitute.For<ISessionSegmentRepository>(), new StorePublication(new InlineUiThreadDispatcher()));
     public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
     public SessionOperationRunner OperationRunner { get; } = new();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();

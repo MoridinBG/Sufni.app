@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using Avalonia.Controls;
 using NSubstitute;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
@@ -120,12 +121,12 @@ internal sealed class VideoFixture : IDisposable
     }
 
     public static SessionVideoStore CreateEmptyStore() =>
-        new(Substitute.For<ISessionVideoRepository>(), new InlineUiThreadDispatcher());
+        new(Substitute.For<ISessionVideoRepository>(), new StorePublication(new InlineUiThreadDispatcher()));
 
     public async Task<SessionVideoStore> CreateStoreAsync(params SessionVideoClip[] clips)
     {
         Repository.GetLiveAsync().Returns([.. clips]);
-        var store = new SessionVideoStore(Repository, new InlineUiThreadDispatcher());
+        var store = new SessionVideoStore(Repository, new StorePublication(new InlineUiThreadDispatcher()));
         await store.RefreshAsync(TestContext.Current.CancellationToken);
         return store;
     }

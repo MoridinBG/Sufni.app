@@ -4,10 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Bikes.Stores;
 
@@ -19,8 +18,8 @@ namespace Sufni.App.Bikes.Stores;
 /// </summary>
 internal sealed class BikeStore(
     ISynchronizableRepository<Bike> bikeRepository,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<BikeSnapshot, Guid>(b => b.Id, uiThreadDispatcher), IBikeStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<BikeSnapshot, Guid>(b => b.Id, publication), IBikeStoreWriter
 {
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {

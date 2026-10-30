@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using System.Reactive.Linq;
 using NSubstitute;
 
@@ -15,7 +16,7 @@ internal static class TestSegmentPickers
         ISegmentCoordinator? segmentCoordinator = null,
         IDialogService? dialogService = null) =>
         new SegmentPickerFactory(
-            segmentStore ?? new SessionSegmentStore(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher()),
+            segmentStore ?? new SessionSegmentStore(Substitute.For<ISessionSegmentRepository>(), new StorePublication(new InlineUiThreadDispatcher())),
             segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>());
 

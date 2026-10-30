@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
@@ -64,6 +65,7 @@ public static class AppComposition
     {
         services.AddSingleton(root.Paths);
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<StorePublication>();
         services.AddSingleton<IUiTimerScheduler, DispatcherUiTimerScheduler>();
         services.AddSingleton<IAppEnvironment>(new AppEnvironment(
             root.LaunchPreferences.LayoutProfile, root.Capabilities, root.Input));

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 
 using Sufni.App.Video.Models;
@@ -12,8 +12,8 @@ namespace Sufni.App.Video.Stores;
 
 internal sealed class SessionVideoStore(
     ISessionVideoRepository repository,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<SessionVideoSnapshot, Guid>(snapshot => snapshot.Id, uiThreadDispatcher), ISessionVideoStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<SessionVideoSnapshot, Guid>(snapshot => snapshot.Id, publication), ISessionVideoStoreWriter
 {
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {

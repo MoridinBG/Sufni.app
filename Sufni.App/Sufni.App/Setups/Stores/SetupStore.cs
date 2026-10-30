@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Models;
@@ -14,8 +14,8 @@ namespace Sufni.App.Setups.Stores;
 internal sealed class SetupStore(
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Board> boardRepository,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<SetupSnapshot, Guid>(s => s.Id, uiThreadDispatcher), ISetupStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<SetupSnapshot, Guid>(s => s.Id, publication), ISetupStoreWriter
 {
     public SetupSnapshot? FindByBoardId(Guid boardId) =>
         Items.FirstOrDefault(s => s.BoardId == boardId);

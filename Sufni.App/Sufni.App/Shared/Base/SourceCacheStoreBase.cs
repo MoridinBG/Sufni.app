@@ -3,17 +3,31 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using DynamicData;
-using Sufni.App.Infrastructure;
+using System.Reactive.Linq;
+using Sufni.App.Shared.Stores;
 
 namespace Sufni.App.Shared.Base;
 
-public abstract class SourceCacheStoreBase<TSnapshot, TKey>(
-    Func<TSnapshot, TKey> keySelector,
-    IUiThreadDispatcher uiThreadDispatcher)
+public abstract class SourceCacheStoreBase<TSnapshot, TKey> : IDisposable
     where TSnapshot : class
     where TKey : notnull
 {
-    private readonly SourceCache<TSnapshot, TKey> source = new(keySelector);
+    private readonly SourceCache<TSnapshot, TKey> source;
+    private readonly StorePublication publication;
+    private readonly IDisposable publicationSubscription;
+
+    protected SourceCacheStoreBase(Func<TSnapshot, TKey> keySelector, StorePublication publication)
+    {
+        this.publication = publication;
+        source = new SourceCache<TSnapshot, TKey>(keySelector);
+        publicationSubscription = source.Connect().Subscribe(_ => publication.RecordChange(this));
+    }
+
+    public void Dispose()
+    {
+        publicationSubscription.Dispose();
+        source.Dispose();
+    }
 
     public IObservable<IChangeSet<TSnapshot, TKey>> Connect() => source.Connect();
 
@@ -51,14 +65,6 @@ public abstract class SourceCacheStoreBase<TSnapshot, TKey>(
         return MutateAsync(() => source.EditDiff(snapshotList, EqualityComparer<TSnapshot>.Default));
     }
 
-    private Task MutateAsync(Action mutation)
-    {
-        if (uiThreadDispatcher.CheckAccess())
-        {
-            mutation();
-            return Task.CompletedTask;
-        }
-
-        return uiThreadDispatcher.InvokeAsync(mutation);
-    }
+    private Task MutateAsync(Action mutation) =>
+        publication.MutateAsync(this, source.SuspendNotifications, mutation);
 }

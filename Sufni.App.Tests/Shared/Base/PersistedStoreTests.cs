@@ -41,7 +41,7 @@ public class PersistedStoreTests
         bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
             Task.FromResult(callInfo.Arg<Bike>().Id));
         bikeRepository.DeleteAsync(bikeId).Returns(Task.CompletedTask);
-        var store = new BikeStore(bikeRepository, UiThreadDispatcher);
+        var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -78,7 +78,7 @@ public class PersistedStoreTests
         bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
             Task.FromResult(callInfo.Arg<Bike>().Id));
         bikeRepository.DeleteAsync(bikeId).Returns(Task.CompletedTask);
-        var store = new BikeStore(bikeRepository, UiThreadDispatcher);
+        var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
@@ -112,7 +112,7 @@ public class PersistedStoreTests
         var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
         bikeRepository.GetAllAsync().Returns([bike]);
         var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
-        var store = new BikeStore(bikeRepository, dispatcher);
+        var store = new BikeStore(bikeRepository, new StorePublication(dispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -125,7 +125,7 @@ public class PersistedStoreTests
     public async Task SourceCacheStoreBase_PublishSnapshotAsync_DispatchesMutation_WhenOffUiThread()
     {
         var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
-        var store = new TestSourceCacheStore(dispatcher);
+        var store = new TestSourceCacheStore(new StorePublication(dispatcher));
         var snapshot = new TestSourceCacheSnapshot(Guid.NewGuid(), "Snapshot");
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
@@ -158,7 +158,7 @@ public class PersistedStoreTests
         };
         var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
         bikeRepository.GetAllAsync().Returns([first], [second]);
-        var store = new BikeStore(bikeRepository, UiThreadDispatcher);
+        var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
@@ -187,7 +187,7 @@ public class PersistedStoreTests
         var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
         setupRepository.GetAllAsync().Returns([setup]);
         boardRepository.GetAllAsync().Returns([board]);
-        var store = new SetupStore(setupRepository, boardRepository, UiThreadDispatcher);
+        var store = new SetupStore(setupRepository, boardRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -209,7 +209,7 @@ public class PersistedStoreTests
             Updated = 11
         };
         sessionRepository.GetSessionsAsync().Returns([session]);
-        var store = new SessionStore(sessionRepository, sessionTelemetryWriter, UiThreadDispatcher);
+        var store = new SessionStore(sessionRepository, sessionTelemetryWriter, new StorePublication(UiThreadDispatcher));
         using var snapshotsSubscription = store.Connect().Bind(out var snapshots).Subscribe();
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
@@ -252,7 +252,7 @@ public class PersistedStoreTests
         var pairedDeviceRepository = Substitute.For<IPairedDeviceRepository>();
         pairedDeviceRepository.GetPairedDevicesAsync().Returns([device]);
         pairedDeviceRepository.DeletePairedDeviceAsync("device-1").Returns(Task.CompletedTask);
-        var store = new PairedDeviceStore(pairedDeviceRepository, UiThreadDispatcher);
+        var store = new PairedDeviceStore(pairedDeviceRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -273,13 +273,87 @@ public class PersistedStoreTests
         Assert.Null(store.Get("device-1"));
     }
 
+    [Fact]
+    public async Task PublicationBatch_JoinedObserverSeesBothEditsAndRemoval_AfterStoreNotifications()
+    {
+        using var publication = new StorePublication(UiThreadDispatcher);
+        using var left = new TestSourceCacheStore(publication);
+        using var right = new TestSourceCacheStore(publication);
+        var leftId = Guid.NewGuid();
+        var removedId = Guid.NewGuid();
+        var rightId = Guid.NewGuid();
+        await left.PublishAsync(new(leftId, "old left"));
+        await left.PublishAsync(new(removedId, "removed"));
+        await right.PublishAsync(new(rightId, "old right"));
+        var pairs = new List<(string? Left, string? Removed, string? Right)>();
+        var joined = new List<(string? Left, string? Removed, string? Right)>();
+        var visibleAtCommit = new List<(string? Left, string? Removed, string? Right)>();
+        using var combined = left.Connect()
+            .Select(_ => (Name: left.Get(leftId)?.Name, Removed: left.Get(removedId)?.Name))
+            .CombineLatest(right.Connect().Select(_ => right.Get(rightId)?.Name),
+                (leftValues, rightValue) => (leftValues.Name, leftValues.Removed, rightValue))
+            .Subscribe(pairs.Add);
+        using var committed = publication.Committed
+            .Where(commit => commit.Stores.Contains(left) || commit.Stores.Contains(right))
+            .Subscribe(_ =>
+            {
+                joined.Add((left.Get(leftId)?.Name, left.Get(removedId)?.Name, right.Get(rightId)?.Name));
+                visibleAtCommit.Add(pairs.Last());
+            });
+
+        using (publication.BeginBatch())
+        {
+            await left.PublishAsync(new(leftId, "new left"));
+            await left.RemoveAsync(removedId);
+            await right.PublishAsync(new(rightId, "new right"));
+            Assert.Empty(joined);
+            Assert.Single(pairs);
+        }
+
+        Assert.Equal(("new left", null, "new right"), Assert.Single(joined));
+        Assert.Equal(joined, visibleAtCommit);
+        Assert.Equal(
+            [("old left", "removed", "old right"), ("new left", null, "old right"), ("new left", null, "new right")],
+            pairs);
+    }
+
+    [Fact]
+    public async Task PublicationCommit_IdentifiesChangedStore_AndSkipsEmptyRefreshBatch()
+    {
+        using var publication = new StorePublication(UiThreadDispatcher);
+        using var store = new TestSourceCacheStore(publication);
+        using var other = new TestSourceCacheStore(publication);
+        var snapshot = new TestSourceCacheSnapshot(Guid.NewGuid(), "Recorded");
+        var observed = new List<string?>();
+        using var subscription = publication.Committed.Subscribe(commit =>
+        {
+            Assert.Contains(store, commit.Stores);
+            Assert.DoesNotContain(other, commit.Stores);
+            observed.Add(store.Get(snapshot.Id)?.Name);
+        });
+
+        await store.PublishAsync(snapshot);
+        using (publication.BeginBatch())
+        {
+            await store.ReplaceAsync([snapshot]);
+            await other.RemoveAsync(Guid.NewGuid());
+        }
+        await store.RemoveAsync(snapshot.Id);
+
+        Assert.Equal(["Recorded", null], observed);
+    }
+
     private sealed record TestSourceCacheSnapshot(Guid Id, string Name);
 
-    private sealed class TestSourceCacheStore(IUiThreadDispatcher uiThreadDispatcher)
-        : SourceCacheStoreBase<TestSourceCacheSnapshot, Guid>(snapshot => snapshot.Id, uiThreadDispatcher)
+    private sealed class TestSourceCacheStore(StorePublication publication)
+        : SourceCacheStoreBase<TestSourceCacheSnapshot, Guid>(snapshot => snapshot.Id, publication)
     {
         public Task PublishAsync(TestSourceCacheSnapshot snapshot) =>
             PublishSnapshotAsync(snapshot);
+
+        public Task RemoveAsync(Guid id) => PublishRemoveAsync(id);
+
+        public Task ReplaceAsync(IEnumerable<TestSourceCacheSnapshot> snapshots) => ReplaceWithAsync(snapshots);
     }
 
     private static void AssertChange(

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using System.Reactive;
 using NSubstitute;
 
@@ -16,7 +17,7 @@ public class BikeDependencyQueryTests
 
     public BikeDependencyQueryTests()
     {
-        setupStore = new SetupStore(setupRepository, boardRepository, new InlineUiThreadDispatcher());
+        setupStore = new SetupStore(setupRepository, boardRepository, new StorePublication(new InlineUiThreadDispatcher()));
         boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board>()));
     }
 

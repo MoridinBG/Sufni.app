@@ -4,10 +4,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Shared.Stores;
 namespace Sufni.App.SyncAndPairing.Stores;
 
 /// <summary>
@@ -20,8 +19,8 @@ namespace Sufni.App.SyncAndPairing.Stores;
 /// </summary>
 internal sealed class PairedDeviceStore(
     IPairedDeviceRepository pairedDeviceRepository,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<PairedDeviceSnapshot, string>(s => s.DeviceId, uiThreadDispatcher), IPairedDeviceStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<PairedDeviceSnapshot, string>(s => s.DeviceId, publication), IPairedDeviceStoreWriter
 {
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {

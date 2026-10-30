@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using DynamicData;
 using NSubstitute;
 
@@ -14,7 +15,7 @@ public class RecordedSessionSourceStoreTests
     [Fact]
     public async Task PublishSourcesChangedAsync_ReReadsAndPublishesMetadataSnapshot()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
+        var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
         var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
@@ -36,7 +37,7 @@ public class RecordedSessionSourceStoreTests
     [Fact]
     public async Task RefreshAsync_ReplacesCachedMetadataFromDatabase()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
+        var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var removed = CreateSource(name: "removed.SST");
         var kept = CreateSource(name: "kept.SST");
@@ -57,7 +58,7 @@ public class RecordedSessionSourceStoreTests
     [Fact]
     public async Task PublishSourcesRemovedAsync_RemovesCachedSnapshot()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository, UiThreadDispatcher);
+        var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
         var source = CreateSource();
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)

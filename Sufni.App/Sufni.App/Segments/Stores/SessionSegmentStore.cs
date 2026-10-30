@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 
 using Sufni.App.Segments.Models;
@@ -12,8 +12,8 @@ namespace Sufni.App.Segments.Stores;
 
 internal sealed class SessionSegmentStore(
     ISessionSegmentRepository repository,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<SessionSegmentSnapshot, Guid>(snapshot => snapshot.Id, uiThreadDispatcher), ISessionSegmentStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<SessionSegmentSnapshot, Guid>(snapshot => snapshot.Id, publication), ISessionSegmentStoreWriter
 {
     public IReadOnlyList<SessionSegmentSnapshot> GetForSession(Guid sessionId) =>
         Items.Where(segment => segment.SessionId == sessionId).ToList();

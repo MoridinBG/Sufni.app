@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using NSubstitute;
 
 using Sufni.App.Segments.Models;
@@ -10,7 +11,7 @@ public class SessionSegmentStoreTests
     [Fact]
     public async Task PublishSegmentsAsync_RemovesDeletedSegments()
     {
-        var store = new SessionSegmentStore(Substitute.For<ISessionSegmentRepository>(), new InlineUiThreadDispatcher());
+        var store = new SessionSegmentStore(Substitute.For<ISessionSegmentRepository>(), new StorePublication(new InlineUiThreadDispatcher()));
         var sessionId = Guid.NewGuid();
         var kept = new SessionSegment { SessionId = sessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 };
         var deleted = new SessionSegment { SessionId = sessionId, Name = "deleted", StartSeconds = 2, EndSeconds = 3 };

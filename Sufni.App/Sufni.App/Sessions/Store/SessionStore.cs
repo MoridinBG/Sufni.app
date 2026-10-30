@@ -5,14 +5,13 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Shared.Stores;
 namespace Sufni.App.Sessions.Store;
 
 /// <summary>
@@ -24,8 +23,8 @@ namespace Sufni.App.Sessions.Store;
 internal sealed class SessionStore(
     ISessionRepository sessionRepository,
     ISessionTelemetryWriter sessionTelemetryWriter,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id, uiThreadDispatcher), ISessionStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<SessionSnapshot, Guid>(s => s.Id, publication), ISessionStoreWriter
 {
     public IObservable<SessionSnapshot> Watch(Guid id) =>
         WatchCore(id)

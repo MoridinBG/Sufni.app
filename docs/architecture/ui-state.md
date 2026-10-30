@@ -28,7 +28,8 @@ Persisted stores share
 repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`,
 `Get(key)`, watch helpers, and UI-thread-dispatched protected publication
 methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
-`PublishRemovalsAsync`, and `ReplaceWithAsync`). Each store keeps its own
+`PublishRemovalsAsync`, and `ReplaceWithAsync`). `StorePublication` owns their shared UI dispatcher and batch boundary.
+Each store keeps its own
 read/write interfaces, persistence semantics, and domain-specific lookups. Raw cache
 mutation stays inside the store; writer interfaces expose semantic commit
 methods for local writes and publish-only methods for already-persisted external
@@ -36,6 +37,19 @@ changes.
 Startup and post-sync refresh are coordinated by `IAppDataRefresher`. `LiveDaqStore` remains separate
 because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather
 than database refresh.
+
+`StorePublication.BeginBatch()` groups already-prepared cache edits on the UI
+thread. Stores defer their DynamicData notifications until the outer batch ends;
+then each store notifies and one shared `Committed` event identifies the stores
+that emitted changes. An individual publication opens an implicit batch, and an
+unchanged refresh or missing-key removal emits no commit. A batch is a publication
+boundary, not a persistence transaction: load and compute before entering it.
+
+Single-store subscriptions keep working. Joined consumers must derive from all
+current store values on the relevant commit; releasing per-store notifications
+in order does not make `CombineLatest` coherent. Existing projection consumers
+have not migrated to this commit signal yet. The base disposes its cache and
+commit-tracking subscription when its owning graph is disposed.
 
 Each persisted store read interface exposes:
 

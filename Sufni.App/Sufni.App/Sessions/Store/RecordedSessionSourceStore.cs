@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
@@ -17,8 +17,8 @@ namespace Sufni.App.Sessions.Store;
 /// </summary>
 internal sealed class RecordedSessionSourceStore(
     IRecordedSessionSourceRepository sourceRepository,
-    IUiThreadDispatcher uiThreadDispatcher)
-    : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(s => s.SessionId, uiThreadDispatcher), IRecordedSessionSourceStoreWriter
+    StorePublication publication)
+    : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(s => s.SessionId, publication), IRecordedSessionSourceStoreWriter
 {
     public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {

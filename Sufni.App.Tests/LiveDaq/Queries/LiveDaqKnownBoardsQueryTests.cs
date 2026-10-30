@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Stores;
 using System.Linq;
 using DynamicData;
 using NSubstitute;
@@ -25,8 +26,8 @@ public class LiveDaqKnownBoardsQueryTests
     public LiveDaqKnownBoardsQueryTests()
     {
         var uiThreadDispatcher = new InlineUiThreadDispatcher();
-        setupStore = new SetupStore(setupRepository, boardRepository, uiThreadDispatcher);
-        bikeStore = new BikeStore(bikeRepository, uiThreadDispatcher);
+        setupStore = new SetupStore(setupRepository, boardRepository, new StorePublication(uiThreadDispatcher));
+        bikeStore = new BikeStore(bikeRepository, new StorePublication(uiThreadDispatcher));
         bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
             Task.FromResult(callInfo.Arg<Bike>().Id));
     }
