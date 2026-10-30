@@ -195,6 +195,30 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+`RecordedSessionReprocessResult` is `Processed | Failed(reason, details)`.
+`SessionProcessingFailureReason` distinguishes invalid rear configuration,
+calibration calculation failure, no usable travel, and invalid travel data.
+Typed failures are forwarded without another log or persistence attempt.
+
+`SessionRecomputeResult` is `Recomputed | Superseded | NotRecomputable | Missing |
+Failed | ProcessingFailed`. Generic failures carry `SessionRecomputeFailureReason.Recompute`;
+processing failures retain the processing reason. Missing sessions are skipped in
+bulk recompute. `SessionEditResult.Applied` can carry the typed recompute failure
+after the edit commits, keeping diagnostics separate through the editor gateway.
+
+`LiveSessionSaveResult` is `Saved | Failed | ProcessingFailed`. Generic failures
+carry `LiveSessionSaveFailureReason.Save`; processing failures keep the capture
+available for retry and do not persist a session/source. `Saved` still carries
+its existing publication warning.
+
+`SessionImportResult` carries imported snapshots and typed per-file failures.
+`SessionImportFailure` is `OperationFailed | ProcessingFailed` with file identity
+and operation. `SessionImportFailureReason` covers import, invalid file,
+publication, trash, acknowledgement and batch failure. `SessionImportEvent` is
+`Imported | Failed | Progress`; failed events carry the same failure as the
+completed result. Import feedback adds the file name to the fixed summary and
+keeps technical details in the expander.
+
 `MapLayerWriteResult` is `Saved | Failed(reason, details)` with
 `MapLayerFailureReason.Add | Select`. Add failure leaves the catalog unchanged;
 selection failure preserves a newly saved layer and retains the previous
@@ -290,7 +314,7 @@ nor return mutation-result unions.
 
 `SessionSaveResult` is `Saved(Id, NewBaselineUpdated) | Conflict(CurrentSnapshot) |
 Missing | Failed(reason, details)`, with `SessionSaveFailureReason.Save`.
-`SessionEditResult` is `Applied(RecomputeError?) | Missing | Failed(reason, details)`;
+`SessionEditResult` is `Applied(RecomputeFailure?) | Missing | Failed(reason, details)`;
 `SessionEditFailureReason` distinguishes `Edit` from `Rejected`. Missing sessions
 show notification state and cannot complete a save or close a dirty editor.
 GPS alignment returns `GpsOffsetResult.Applied | NoMatchingTrack | SessionMissing |
@@ -308,13 +332,15 @@ the store's current snapshot — so a sync arrival or another tab's
 save during an edit cannot silently overwrite the user's changes.
 The live session path is deliberately separate:
 `SaveLiveCaptureAsync(...)` is create-only and returns
-`Saved(SessionId, Updated)` or `Failed(ErrorMessage)` because there
+`Saved(SessionId, Updated, PublicationWarning?)`, `Failed(reason, details)` or
+`ProcessingFailed(reason, details)` because there
 is no optimistic-concurrency baseline for an in-memory live capture.
 
 Recorded-session recompute follows the same explicit-result pattern but is
 **baseline-free**: `SessionCoordinator.RequestRecomputeAsync(sessionId, reason)`
 returns `Recomputed(NewBaselineUpdated)`, `Superseded`,
-`NotRecomputable(SessionStaleness)`, or `Failed(ErrorMessage)`, where
+`NotRecomputable(SessionStaleness)`, `Missing`, `Failed(reason, details)` or
+`ProcessingFailed(reason, details)`, where
 `RecomputeReason` records why the recompute was requested (logging only). The
 `SessionRecomputeEngine` owns per-session, cancel-and-replace serialization and
 recompute liveness, so a user's own recompute never false-conflicts: a run
@@ -332,8 +358,7 @@ before completion.
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
 and for small sealed event hierarchies such as `SessionImportEvent`
-(`Imported` / `ImportFailed` / `PublicationFailed` / `TrashFailed` /
-`Progress(Current, Total)`) when a long-running workflow streams
+(`Imported` / `Failed` / `Progress(Current, Total)`) when a long-running workflow streams
 progress back to the UI.
 
 ## Testing Boundaries

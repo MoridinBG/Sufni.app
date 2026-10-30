@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Threading.Tasks;
 
 using Sufni.App.Sessions.Coordination;
@@ -58,13 +59,21 @@ internal sealed class ProcessingPreferenceWorkflow(
             RecomputeReason.ProcessingPreferenceChanged);
         switch (result)
         {
+            case SessionRecomputeResult.ProcessingFailed failed:
+                gateway.AddError(FailurePresentation.From(failed.Reason, failed.Details));
+                await RevertAsync();
+                break;
+            case SessionRecomputeResult.Missing:
+                gateway.Notify("The session is no longer available.");
+                await RevertAsync();
+                break;
             case SessionRecomputeResult.Failed failed:
-                gateway.AddError($"Session could not be recomputed: {failed.ErrorMessage}");
+                gateway.AddError(FailurePresentation.From(failed.Reason, failed.Details));
                 await RevertAsync();
                 break;
 
             case SessionRecomputeResult.NotRecomputable:
-                gateway.AddError("Session is stale and cannot be recomputed until the source recording is restored.");
+                gateway.AddError(new FailurePresentation("Session is stale and cannot be recomputed until the source recording is restored."));
                 await RevertAsync();
                 break;
 

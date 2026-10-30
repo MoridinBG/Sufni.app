@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.Globalization;
@@ -243,7 +244,7 @@ public class SessionListViewModelTests
 
             var sessionCoordinator = TestCoordinatorSubstitutes.Session();
             sessionCoordinator.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
-                .Returns(new SessionRecomputeResult.Failed("boom"));
+                .Returns(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "boom"));
 
             var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
             await viewModel.Items[0].RecalculateCommand.ExecuteAsync(null);

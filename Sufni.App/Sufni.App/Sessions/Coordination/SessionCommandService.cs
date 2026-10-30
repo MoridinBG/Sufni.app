@@ -156,11 +156,11 @@ public sealed class SessionCommandService
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
+                return new LiveSessionSaveResult.ProcessingFailed(failure.Reason, failure.Details);
+            var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
             var fresh = await sessionTelemetryWriter.PutProcessedSessionAsync(
-                session,
-                reprocessResult.ProcessedTelemetry,
-                reprocessResult.GeneratedFullTrack,
-                source);
+                session, processed.ProcessedTelemetry, processed.GeneratedFullTrack, source);
 
             var snapshot = SessionSnapshot.From(fresh);
             try
@@ -197,7 +197,7 @@ public sealed class SessionCommandService
         catch (Exception e)
         {
             logger.Error(e, "Live session save failed for {SessionId}", session.Id);
-            return new LiveSessionSaveResult.Failed(e.Message);
+            return new LiveSessionSaveResult.Failed(LiveSessionSaveFailureReason.Save, e.Message);
         }
     }
 

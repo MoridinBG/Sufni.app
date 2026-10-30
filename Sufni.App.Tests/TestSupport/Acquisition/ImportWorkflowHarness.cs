@@ -111,7 +111,7 @@ internal sealed class ImportWorkflowHarness
             TrackProjectionVersion: 1,
             DependencyHash: "dependency",
             SourceHash: source.SourceHash);
-        return new RecordedSessionReprocessResult(
+        return new RecordedSessionReprocessResult.Processed(
             new ProcessedTelemetryPayload(
                 data,
                 data.BinaryForm,

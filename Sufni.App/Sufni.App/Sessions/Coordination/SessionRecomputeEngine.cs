@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -174,7 +175,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             catch (Exception e)
             {
                 logger.Error(e, "Recorded session recompute failed for {SessionId}", sessionId);
-                tcs.SetResult(new SessionRecomputeResult.Failed(e.Message));
+                tcs.SetResult(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, e.Message));
             }
             finally
             {
@@ -257,9 +258,11 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 case SessionRecomputeResult.Superseded:
                     Interlocked.Increment(ref superseded);
                     break;
+                case SessionRecomputeResult.Missing:
                 case SessionRecomputeResult.NotRecomputable:
                     Interlocked.Increment(ref notRecomputable);
                     break;
+                case SessionRecomputeResult.ProcessingFailed:
                 case SessionRecomputeResult.Failed:
                     Interlocked.Increment(ref failed);
                     break;
@@ -298,8 +301,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             var domain = recordedSessionDomainQuery.Get(sessionId);
             if (domain is null)
             {
-                logger.Warning("Recorded session recompute failed because session {SessionId} is missing", sessionId);
-                return new SessionRecomputeResult.Failed("Session is missing.");
+                return new SessionRecomputeResult.Missing();
             }
 
             if (!domain.Staleness.CanManualRecompute)
@@ -330,8 +332,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 domain = recordedSessionDomainQuery.Get(sessionId);
                 if (domain is null)
                 {
-                    logger.Warning("Recorded session recompute failed because session {SessionId} disappeared after source refresh", sessionId);
-                    return new SessionRecomputeResult.Failed("Session is missing.");
+                    return new SessionRecomputeResult.Missing();
                 }
 
                 if (!domain.Staleness.CanManualRecompute)
@@ -369,11 +370,14 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             // CPU/latency: re-check it before doing any persistence work.
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
+                return new SessionRecomputeResult.ProcessingFailed(failure.Reason, failure.Details);
+            var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
+
             var persisted = await sessionRepository.GetSessionAsync(sessionId);
             if (persisted is null)
             {
-                logger.Warning("Recorded session recompute failed because session {SessionId} disappeared before persistence", sessionId);
-                return new SessionRecomputeResult.Failed("Session is missing.");
+                return new SessionRecomputeResult.Missing();
             }
 
             var previousFullTrackId = persisted.FullTrack;
@@ -382,19 +386,19 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 : null;
             Track? newFullTrack = null;
 
-            if (reprocessResult.GeneratedFullTrack is null)
+            if (processed.GeneratedFullTrack is null)
             {
                 persisted.FullTrack = previousFullTrackId;
                 persisted.Track = null;
             }
             else if (previousFullTrack is not null &&
-                     TrackContentHash.PointsEqual(previousFullTrack, reprocessResult.GeneratedFullTrack))
+                     TrackContentHash.PointsEqual(previousFullTrack, processed.GeneratedFullTrack))
             {
                 persisted.FullTrack = previousFullTrackId;
             }
             else
             {
-                newFullTrack = reprocessResult.GeneratedFullTrack;
+                newFullTrack = processed.GeneratedFullTrack;
                 persisted.Track = null;
             }
 
@@ -414,9 +418,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             // with freshly read inputs rather than surfacing a neutral result.
             var fresh = await sessionTelemetryWriter.UpdateProcessedDerivedDataAsync(
                 persisted,
-                reprocessResult.ProcessedTelemetry,
+                processed.ProcessedTelemetry,
                 newFullTrack,
-                reprocessResult.Fingerprint);
+                processed.Fingerprint);
             if (fresh is null)
             {
                 logger.Information("Recorded session recompute for {SessionId} re-enqueued after a passive input change", sessionId);

@@ -126,6 +126,28 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task SaveLiveCaptureAsync_ProcessingFailure_DoesNotPersistOrPublishCapture()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        SeedLiveCaptureDependencies(capture);
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
+                Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.NoTravelData));
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        var session = new Session(Guid.NewGuid(), "capture", "", capture.Context.SetupId);
+
+        var result = await CreateCoordinator(store, repository.Repository).SaveLiveCaptureAsync(
+            session, capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
+
+        Assert.Equal(SessionProcessingFailureReason.NoTravelData, Assert.IsType<LiveSessionSaveResult.ProcessingFailed>(result).Reason);
+        Assert.Null(store.Get(session.Id));
+        Assert.Null(await repository.Repository.GetSessionAsync(session.Id));
+        await sessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(), Arg.Any<ProcessedTelemetryPayload>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
+    }
+
+    [Fact]
     public async Task SaveLiveCaptureAsync_PersistsTrackSessionAndPublishesFreshSnapshots()
     {
         var capture = CreateLiveCapturePackage(withGps: true);
@@ -563,7 +585,7 @@ public class SessionCoordinatorTests
                     TrackProjectionVersion: 1,
                     DependencyHash: "dependency",
                     SourceHash: source.SourceHash);
-                return Task.FromResult(new RecordedSessionReprocessResult(
+                return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Processed(
                     new ProcessedTelemetryPayload(
                         telemetryData,
                         telemetryData.BinaryForm,

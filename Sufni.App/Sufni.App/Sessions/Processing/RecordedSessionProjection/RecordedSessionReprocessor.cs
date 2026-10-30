@@ -1,4 +1,6 @@
 using System;
+using Serilog;
+using Sufni.App.Shared.Models;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -22,6 +24,8 @@ internal sealed class RecordedSessionReprocessor(
     ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory)
     : IRecordedSessionReprocessor
 {
+    private static readonly ILogger logger = Log.ForContext<RecordedSessionReprocessor>();
+
     public Task<RecordedSessionReprocessResult> ReprocessAsync(
         RecordedSessionDomainSnapshot domain,
         RecordedSessionSource source,
@@ -50,14 +54,31 @@ internal sealed class RecordedSessionReprocessor(
         }
 
         var bikeProcessingContext = bikeProcessingContextFactory.Create(domain.Setup, domain.Bike);
+        if (bikeProcessingContext.RearFailure is { } calibrationFailure)
+            return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Failed(
+                calibrationFailure.Reason == RearCalibrationFailureReason.Configuration
+                    ? SessionProcessingFailureReason.InvalidCalibration : SessionProcessingFailureReason.Calibration,
+                calibrationFailure.Details));
         var bikeData = bikeProcessingContext.BikeData;
 
-        var telemetryData = source.SourceKind switch
+        TelemetryData telemetryData;
+        try
         {
-            RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.Session.DerivationWindow),
-            RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.Session.DerivationWindow),
-            _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
-        };
+            telemetryData = source.SourceKind switch
+            {
+                RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.Session.DerivationWindow),
+                RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.Session.DerivationWindow),
+                _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
+            };
+        }
+        catch (TelemetryProcessingException e)
+        {
+            logger.Warning(e, "Processing failed for session {SessionId}, source {SourceName}: {Reason}",
+                domain.Session.Id, source.SourceName, e.Reason);
+            var reason = e.Reason == TelemetryProcessingFailureReason.NoTravelData
+                ? SessionProcessingFailureReason.NoTravelData : SessionProcessingFailureReason.InvalidRecording;
+            return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Failed(reason, e.Message));
+        }
 
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
@@ -84,7 +105,7 @@ internal sealed class RecordedSessionReprocessor(
             telemetryData.BinaryForm,
             fingerprintJson);
 
-        return Task.FromResult(new RecordedSessionReprocessResult(processedTelemetry, fullTrack, fingerprint));
+        return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Processed(processedTelemetry, fullTrack, fingerprint));
     }
 
     private static bool CanReuseCurrentFingerprint(

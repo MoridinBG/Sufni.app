@@ -244,7 +244,8 @@ LiveSessionDetailViewModel.SaveImplementation
        8. sessionStore.Upsert(snapshot)
        9. recordedSessionSourceStore.Upsert(source snapshot)
        -> LiveSessionSaveResult.Saved(SessionId, Updated)
-            | LiveSessionSaveResult.Failed(ErrorMessage)
+            | LiveSessionSaveResult.Failed(Reason, Details)
+            | LiveSessionSaveResult.ProcessingFailed(Reason, Details)
   -> on Saved: liveSessionService.ResetCaptureAsync
               + shell.OpenEditor(new EditorKey.Session(savedId))
   -> on Failed: append to ErrorMessages
@@ -254,7 +255,7 @@ LiveSessionDetailViewModel.SaveImplementation
 
 `SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `shell.OpenEditor`.
 
-`OperationCanceledException` is rethrown out of `SaveLiveCaptureAsync` — typical-failure paths (database errors, telemetry build failures) are swallowed into `LiveSessionSaveResult.Failed`. The view model also surfaces a "Live session was saved, but post-save cleanup failed" message when the post-save reset or `OpenEditor` throws after `Saved` has already been observed, so a partial post-save failure does not lose the saved row.
+`OperationCanceledException` is rethrown out of `SaveLiveCaptureAsync` — database failures return `LiveSessionSaveResult.Failed(reason, details)`, while typed calibration/telemetry failures return `ProcessingFailed(reason, details)` without persisting or clearing the capture. These typed outcomes are not logged again by their callers. The view model also surfaces a "Live session was saved, but post-save cleanup failed" message when the post-save reset or `OpenEditor` throws after `Saved` has already been observed, so a partial post-save failure does not lose the saved row.
 
 ## Design Decisions
 

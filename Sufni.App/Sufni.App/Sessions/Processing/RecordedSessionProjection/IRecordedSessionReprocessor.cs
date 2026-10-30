@@ -1,6 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
@@ -29,7 +30,12 @@ public sealed record ProcessedTelemetryPayload(
     byte[] Data,
     string? FingerprintJson);
 
-public sealed record RecordedSessionReprocessResult(
-    ProcessedTelemetryPayload ProcessedTelemetry,
-    Track? GeneratedFullTrack,
-    ProcessingFingerprint Fingerprint);
+public abstract record RecordedSessionReprocessResult
+{
+    private RecordedSessionReprocessResult() { }
+    public sealed record Processed(
+        ProcessedTelemetryPayload ProcessedTelemetry,
+        Track? GeneratedFullTrack,
+        ProcessingFingerprint Fingerprint) : RecordedSessionReprocessResult;
+    public sealed record Failed(SessionProcessingFailureReason Reason, string? Details = null) : RecordedSessionReprocessResult;
+}

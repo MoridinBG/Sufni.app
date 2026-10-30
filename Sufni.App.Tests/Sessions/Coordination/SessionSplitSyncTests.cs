@@ -40,10 +40,10 @@ public class SessionSplitSyncTests
 
         var part2 = SessionSnapshot.From((await target.GetSessionAsync(split.CreatedSessionId!.Value))!);
         Assert.Equal(new RecordedSessionDerivationWindow(session.Id, 5, null), part2.DerivationWindow);
-        var result = await reprocessor.ReprocessAsync(
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(
             CreateDomain(part2, setup, bike, source),
             source,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken));
         Assert.Equal(5, result.ProcessedTelemetry.TelemetryData.Metadata.Duration, precision: 3);
         Assert.Equal(500, result.ProcessedTelemetry.TelemetryData.Front.Travel.Length);
         Assert.NotNull(await target.SessionTelemetryWriter.UpdateProcessedDerivedDataAsync(
@@ -73,10 +73,10 @@ public class SessionSplitSyncTests
         await database.PutAsync(bike);
         await database.PutAsync(setup);
 
-        var result = await reprocessor.ReprocessAsync(
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(
             CreateDomain(SessionSnapshot.From(session), setup, bike, source),
             source,
-            TestContext.Current.CancellationToken);
+            TestContext.Current.CancellationToken));
         var persisted = await database.SessionTelemetryWriter.PutProcessedSessionAsync(
             session,
             result.ProcessedTelemetry,

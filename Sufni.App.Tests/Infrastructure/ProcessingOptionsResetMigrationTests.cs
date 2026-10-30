@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Collections.Generic;
 using NSubstitute;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -164,7 +165,7 @@ public class ProcessingOptionsResetMigrationTests
         else
         {
             recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
-                .Returns(new SessionRecomputeResult.Failed("bad source"));
+                .Returns(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "bad source"));
         }
 
         await CreateMigration(context).RunAsync();

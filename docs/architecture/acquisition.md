@@ -68,6 +68,10 @@ is running joins it. State publications cross the injected UI dispatcher; the
 state carries running counts, immutable per-file events, and the completed result
 or run failure. New tabs replay this state, so closing a tab does not cancel a
 batch or allow another batch to start. The next run replaces the retained state.
+Per-file failures retain their filename, operation, closed reason and diagnostic
+details. Processing failures bypass persistence and acknowledgement, while other
+files continue. Publication and acknowledgement failures remain distinct from
+processing failure. The view renders fixed summaries with expandable details.
 The busy overlay follows coordinator state even when its command did not start
 the run. The factory creates a fresh import view model for each new tab; closing
 it releases its run observation and datastore collection handler.

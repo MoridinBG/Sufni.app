@@ -80,11 +80,11 @@ public class SessionEditingCoordinatorTests
     {
         transactions.UndoTrimAsync(session).Returns(new SessionEditCommit.Committed([session.Id], [], []));
         recomputeEngine.RequestRecomputeAsync(session.Id, RecomputeReason.SourceWindowChanged)
-            .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Failed("source is corrupt")));
+            .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "source is corrupt")));
 
         var result = await CreateCoordinator().UndoTrimAsync(session.Id);
 
-        Assert.NotNull(Assert.IsType<SessionEditResult.Applied>(result).RecomputeError);
+        Assert.NotNull(Assert.IsType<SessionEditResult.Applied>(result).RecomputeFailure);
     }
 
     [Fact]

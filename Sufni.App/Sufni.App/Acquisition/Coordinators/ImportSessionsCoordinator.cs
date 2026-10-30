@@ -1,4 +1,5 @@
 using System.Reactive.Linq;
+using Sufni.App.Shared.Models;
 using System.Reactive.Subjects;
 using System;
 using System.Collections.Concurrent;
@@ -97,7 +98,7 @@ public class ImportSessionsCoordinator(
         {
             logger.Error(e, "Session import failed for setup {SetupId}", setupId);
             await dispatcher.InvokeAsync(() =>
-                state.OnNext(new SessionImportState.Failed(e.Message, State.Events)));
+                state.OnNext(new SessionImportState.Failed(SessionImportFailureReason.Batch, e.Message, State.Events)));
         }
     }
 
@@ -209,21 +210,21 @@ public class ImportSessionsCoordinator(
                 }
             }
 
+            void ReportFailure(SessionImportFailure failure)
+            {
+                failuresQueue.Enqueue(failure);
+                Report(new SessionImportEvent.Failed(failure));
+            }
+
             void AddFailure(ITelemetryFile telemetryFile, Exception e, SessionImportFailureOperation operation)
             {
-                failuresQueue.Enqueue(new SessionImportFailure(telemetryFile.Name, e.Message, operation));
-                switch (operation)
+                var reason = operation switch
                 {
-                    case SessionImportFailureOperation.Import:
-                        Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, e.Message));
-                        break;
-                    case SessionImportFailureOperation.Trash:
-                        Report(new SessionImportEvent.TrashFailed(telemetryFile.Name, e.Message));
-                        break;
-                    case SessionImportFailureOperation.Publish:
-                        Report(new SessionImportEvent.PublicationFailed(telemetryFile.Name, e.Message));
-                        break;
-                }
+                    SessionImportFailureOperation.Trash => SessionImportFailureReason.Trash,
+                    SessionImportFailureOperation.Publish => SessionImportFailureReason.Publish,
+                    _ => SessionImportFailureReason.Import
+                };
+                ReportFailure(new SessionImportFailure.OperationFailed(telemetryFile.Name, operation, reason, e.Message));
             }
 
             async Task RunProducerAsync()
@@ -296,11 +297,8 @@ public class ImportSessionsCoordinator(
                                     "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
                                     telemetryFile.Name,
                                     malformedMessage);
-                                failuresQueue.Enqueue(new SessionImportFailure(
-                                    telemetryFile.Name,
-                                    malformedMessage,
-                                    SessionImportFailureOperation.Import));
-                                Report(new SessionImportEvent.ImportFailed(telemetryFile.Name, malformedMessage));
+                                ReportFailure(new SessionImportFailure.OperationFailed(telemetryFile.Name,
+                                    SessionImportFailureOperation.Import, SessionImportFailureReason.InvalidFile, malformedMessage));
                                 continue;
                             }
 
@@ -315,12 +313,18 @@ public class ImportSessionsCoordinator(
                             var domain = CreateImportDomain(session, setupSnapshot, bikeSnapshot, source);
                             logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
                             var reprocessResult = await reprocessor.ReprocessAsync(domain, source);
+                            if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
+                            {
+                                ReportFailure(new SessionImportFailure.ProcessingFailed(telemetryFile.Name, failure.Reason, failure.Details));
+                                continue;
+                            }
+                            var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
 
                             logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
                             var persisted = await sessionTelemetryWriter.PutProcessedSessionAsync(
                                 session,
-                                reprocessResult.ProcessedTelemetry,
-                                reprocessResult.GeneratedFullTrack,
+                                processed.ProcessedTelemetry,
+                                processed.GeneratedFullTrack,
                                 source);
 
                             var snapshot = SessionSnapshot.From(persisted);
@@ -384,11 +388,10 @@ public class ImportSessionsCoordinator(
                     logger.Warning(e, "Failed to publish imported session store updates");
                     foreach (var entry in committedEntries)
                     {
-                        failures.Add(new SessionImportFailure(
-                            entry.File.Name,
-                            e.Message,
-                            SessionImportFailureOperation.Publish));
-                        Report(new SessionImportEvent.PublicationFailed(entry.File.Name, e.Message));
+                        var failure = new SessionImportFailure.OperationFailed(entry.File.Name,
+                            SessionImportFailureOperation.Publish, SessionImportFailureReason.Publish, e.Message);
+                        failures.Add(failure);
+                        Report(new SessionImportEvent.Failed(failure));
                     }
                 }
             }
@@ -405,11 +408,10 @@ public class ImportSessionsCoordinator(
                     catch (Exception e)
                     {
                         logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", entry.File.Name);
-                        failures.Add(new SessionImportFailure(
-                            entry.File.Name,
-                            e.Message,
-                            SessionImportFailureOperation.Import));
-                        Report(new SessionImportEvent.ImportFailed(entry.File.Name, e.Message));
+                        var failure = new SessionImportFailure.OperationFailed(entry.File.Name,
+                            SessionImportFailureOperation.Import, SessionImportFailureReason.Acknowledge, e.Message);
+                        failures.Add(failure);
+                        Report(new SessionImportEvent.Failed(failure));
                     }
                 }
             }
@@ -456,18 +458,27 @@ public enum SessionImportFailureOperation
     Trash,
 }
 
-public sealed record SessionImportFailure(
-    string FileName,
-    string ErrorMessage,
-    SessionImportFailureOperation Operation);
+public abstract record SessionImportFailure
+{
+    private SessionImportFailure(string fileName, SessionImportFailureOperation operation)
+    {
+        FileName = fileName;
+        Operation = operation;
+    }
+    public string FileName { get; }
+    public SessionImportFailureOperation Operation { get; }
+
+    public sealed record OperationFailed(string FileName, SessionImportFailureOperation Operation,
+        SessionImportFailureReason Reason, string? Details = null) : SessionImportFailure(FileName, Operation);
+    public sealed record ProcessingFailed(string FileName, SessionProcessingFailureReason Reason,
+        string? Details = null) : SessionImportFailure(FileName, SessionImportFailureOperation.Import);
+}
 
 public abstract record SessionImportEvent
 {
     private SessionImportEvent() { }
 
     public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
-    public sealed record ImportFailed(string FileName, string ErrorMessage) : SessionImportEvent;
-    public sealed record PublicationFailed(string FileName, string ErrorMessage) : SessionImportEvent;
-    public sealed record TrashFailed(string FileName, string ErrorMessage) : SessionImportEvent;
+    public sealed record Failed(SessionImportFailure Failure) : SessionImportEvent;
     public sealed record Progress(int Current, int Total) : SessionImportEvent;
 }

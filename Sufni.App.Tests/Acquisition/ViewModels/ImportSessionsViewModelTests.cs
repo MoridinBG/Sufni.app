@@ -61,7 +61,7 @@ public class ImportSessionsViewModelTests
             .Returns(
                 Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { initialFile }),
                 Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { refreshedFile }));
-        var failure = new SessionImportFailure("broken.SST", "boom", SessionImportFailureOperation.Import);
+        var failure = new SessionImportFailure.OperationFailed("broken.SST", SessionImportFailureOperation.Import, SessionImportFailureReason.Import, "boom");
         var capturedProgressText = new List<string>();
         var viewModel = harness.CreateViewModel();
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
@@ -74,7 +74,7 @@ public class ImportSessionsViewModelTests
                 harness.ImportState.OnNext(new SessionImportState.Completed(
                     new SessionImportResult([TestSnapshots.Session(name: "lap")], [failure]),
                     [new SessionImportEvent.Imported(TestSnapshots.Session(name: "lap")),
-                     new SessionImportEvent.ImportFailed(failure.FileName, failure.ErrorMessage)]));
+                     new SessionImportEvent.Failed(failure)]));
                 return Task.CompletedTask;
             });
 
@@ -108,10 +108,8 @@ public class ImportSessionsViewModelTests
                 Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]),
                 Task.FromResult<IReadOnlyList<ITelemetryFile>>([]));
         var imported = TestSnapshots.Session(name: "lap");
-        var failure = new SessionImportFailure(
-            "lap",
-            "publish failed",
-            SessionImportFailureOperation.Publish);
+        var failure = new SessionImportFailure.OperationFailed(
+            "lap", SessionImportFailureOperation.Publish, SessionImportFailureReason.Publish, "publish failed");
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
                 setup.Id)
@@ -119,7 +117,7 @@ public class ImportSessionsViewModelTests
             {
                 harness.ImportState.OnNext(new SessionImportState.Completed(
                     new SessionImportResult([imported], [failure]),
-                    [new SessionImportEvent.PublicationFailed(failure.FileName, failure.ErrorMessage)]));
+                    [new SessionImportEvent.Failed(failure)]));
                 return Task.CompletedTask;
             });
         var viewModel = harness.CreateViewModel();
@@ -252,6 +250,23 @@ public class ImportSessionsViewModelTests
         harness.TelemetryDataStoreService.DiscoveryIssueReported += Raise.Event<EventHandler<DataStoreDiscoveryIssue>>(
             harness.TelemetryDataStoreService, new DataStoreDiscoveryIssue.DaqUnavailable());
         Assert.Single(vm.Notifications);
+    }
+
+    [Fact]
+    public void ProcessingFailure_ReportsFileWithSeparateDiagnostics()
+    {
+        var harness = new ImportWorkflowHarness();
+        var vm = harness.CreateViewModel();
+        const string details = "calibration diagnostic";
+        var failure = new SessionImportFailure.ProcessingFailed("ride.SST", SessionProcessingFailureReason.InvalidCalibration, details);
+
+        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([], [failure]),
+            [new SessionImportEvent.Failed(failure)]));
+
+        var error = Assert.Single(vm.ErrorMessages);
+        Assert.Contains("ride.SST", error.Summary);
+        Assert.DoesNotContain(details, error.Summary);
+        Assert.Equal(details, error.Details);
     }
 
     [Fact]

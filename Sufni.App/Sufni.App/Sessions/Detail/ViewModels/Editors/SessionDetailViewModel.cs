@@ -1358,8 +1358,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         switch (await edit())
         {
-            case SessionEditResult.Applied { RecomputeError: { } recomputeError }:
-                ErrorMessages.Add(new FailurePresentation(recomputeError));
+            case SessionEditResult.Applied { RecomputeFailure: SessionRecomputeResult.Failed failed }:
+                ShowRecomputeFailure(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
+            case SessionEditResult.Applied { RecomputeFailure: SessionRecomputeResult.ProcessingFailed failed }:
+                ShowRecomputeFailure(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
+            case SessionEditResult.Applied { RecomputeFailure: SessionRecomputeResult.Missing }:
+                Notifications.Add("The session is no longer available.");
+                break;
+            case SessionEditResult.Applied { RecomputeFailure: SessionRecomputeResult.NotRecomputable }:
+                Notifications.Add("The edit was applied, but the session cannot be recomputed until its source and dependencies are available.");
                 break;
             case SessionEditResult.Applied:
                 Notifications.Add(appliedMessage);
@@ -1371,12 +1380,16 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
+        void ShowRecomputeFailure(FailurePresentation failure) =>
+            ErrorMessages.Add(new FailurePresentation($"The edit was applied. {failure.Summary}", failure.Details));
     }
 
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
-    void ISessionOperationGateway.AddError(string message) => ErrorMessages.Add(new FailurePresentation(message));
+    void ISessionOperationGateway.AddError(FailurePresentation failure) => ErrorMessages.Add(failure);
+
+    void ISessionOperationGateway.Notify(string message) => Notifications.Add(message);
 
     Guid ISessionOperationGateway.SessionId => Id;
 

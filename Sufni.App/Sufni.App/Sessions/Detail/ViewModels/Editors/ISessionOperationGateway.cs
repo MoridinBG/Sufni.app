@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Models;
 using System.Threading.Tasks;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
@@ -23,5 +24,6 @@ internal interface ISessionOperationGateway
     void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
     void CancelDampingSpeedCutoffPreview();
     Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond);
-    void AddError(string message);
+    void AddError(FailurePresentation failure);
+    void Notify(string message);
 }

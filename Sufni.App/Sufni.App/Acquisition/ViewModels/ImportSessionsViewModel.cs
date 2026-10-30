@@ -172,14 +172,14 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 case SessionImportEvent.Imported imported:
                     Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
                     break;
-                case SessionImportEvent.ImportFailed failed:
-                    ErrorMessages.Add(new FailurePresentation($"Could not import {failed.FileName}: {failed.ErrorMessage}"));
-                    break;
-                case SessionImportEvent.PublicationFailed failed:
-                    ErrorMessages.Add(new FailurePresentation($"{failed.FileName} was imported, but app state could not be refreshed; the source was left unacknowledged: {failed.ErrorMessage}"));
-                    break;
-                case SessionImportEvent.TrashFailed failed:
-                    ErrorMessages.Add(new FailurePresentation($"Could not trash {failed.FileName}: {failed.ErrorMessage}"));
+                case SessionImportEvent.Failed failed:
+                    var presentation = failed.Failure switch
+                    {
+                        SessionImportFailure.OperationFailed operation => FailurePresentation.From(operation.Reason, operation.Details),
+                        SessionImportFailure.ProcessingFailed processing => FailurePresentation.From(processing.Reason, processing.Details),
+                        _ => throw new ArgumentOutOfRangeException(nameof(message))
+                    };
+                    ErrorMessages.Add(new FailurePresentation($"{failed.Failure.FileName}: {presentation.Summary}", presentation.Details));
                     break;
             }
         }
@@ -192,7 +192,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 if (SelectedDataStore is { } dataStore) _ = RefreshAfterImportAsync(dataStore);
                 break;
             case SessionImportState.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Import failed: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

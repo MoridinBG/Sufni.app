@@ -135,7 +135,9 @@ need a lock. After the commit the coordinator publishes the changed sessions,
 requests their recompute with `RecomputeReason.SourceWindowChanged` before any
 other await (an open editor prompts for a recompute of a stale session unless
 one is already running), publishes the changed clips and segments, reports a `SessionEditProgress` with
-the created id, and waits for the recomputes. The editor routes that progress to
+the created id, and waits for the recomputes. An applied edit retains a typed recompute failure
+when rebuilding cannot finish; the editor presents its reason and separate
+diagnostics without treating the committed edit as failed. The editor routes that progress to
 `shell.OpenEditor(new EditorKey.Session(id), background: true)` before the
 coordinator completes. Until a recompute
 completes, the session shows as stale and then reloads, as after a built-in

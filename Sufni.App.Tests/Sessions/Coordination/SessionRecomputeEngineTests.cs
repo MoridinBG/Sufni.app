@@ -4,6 +4,9 @@ using NSubstitute;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
+using Microsoft.Extensions.Time.Testing;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
@@ -30,9 +33,9 @@ public class SessionRecomputeEngineTests
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
 
-    private SessionRecomputeEngine CreateEngine() => new(
-        sessionStore,
-        sessionRepository,
+    private SessionRecomputeEngine CreateEngine(ISessionStoreWriter? store = null, ISessionRepository? repository = null) => new(
+        store ?? sessionStore,
+        repository ?? sessionRepository,
         sessionTelemetryWriter,
         trackEntityRepository,
         new InlineBackgroundTaskRunner(),
@@ -98,10 +101,49 @@ public class SessionRecomputeEngineTests
             "dep",
             "src",
             options.ClampedVelocityFilterWindowMilliseconds);
-        return new RecordedSessionReprocessResult(
+        return new RecordedSessionReprocessResult.Processed(
             new ProcessedTelemetryPayload(telemetryData, telemetryData.BinaryForm, AppJson.Serialize(fingerprint)),
             GeneratedFullTrack: null,
             fingerprint);
+    }
+
+    [Fact]
+    public async Task RecomputeAllAsync_SkipsSessionThatDisappeared_AfterEnumeration()
+    {
+        var id = Guid.NewGuid();
+        sessionRepository.GetActiveSessionIdsAsync().Returns([id]);
+        using var engine = CreateEngine();
+
+        var result = await engine.RequestRecomputeAllAsync(RecomputeReason.ManualFromList, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, result.Total);
+        Assert.Equal(1, result.NotRecomputable);
+        Assert.Equal(0, result.Failed);
+        Assert.False(engine.IsActive(id));
+    }
+
+    [Fact]
+    public async Task RequestRecomputeAsync_ProcessingFailure_PreservesPublishedAndPersistedSession()
+    {
+        var id = Guid.NewGuid();
+        var existing = SessionSnapshot.From(ConfigureRecomputable(id));
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        repository.Seed(existing);
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync([existing]);
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
+                Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.InvalidCalibration, "calibration diagnostic"));
+        using var engine = CreateEngine(store, repository.Repository);
+
+        var result = await engine.RequestRecomputeAsync(id, RecomputeReason.ManualFromList);
+
+        Assert.Equal(SessionProcessingFailureReason.InvalidCalibration, Assert.IsType<SessionRecomputeResult.ProcessingFailed>(result).Reason);
+        Assert.Equal(existing, store.Get(id));
+        Assert.Equal(existing, SessionSnapshot.From((await repository.Repository.GetSessionAsync(id))!));
+        Assert.False(engine.IsActive(id));
+        await sessionTelemetryWriter.DidNotReceive().UpdateProcessedDerivedDataAsync(
+            Arg.Any<Session>(), Arg.Any<ProcessedTelemetryPayload>(), Arg.Any<Track?>(), Arg.Any<ProcessingFingerprint>());
     }
 
     [Fact]

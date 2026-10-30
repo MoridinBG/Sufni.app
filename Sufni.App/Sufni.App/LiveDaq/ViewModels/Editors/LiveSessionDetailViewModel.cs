@@ -524,8 +524,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     }
                     break;
 
+                case LiveSessionSaveResult.ProcessingFailed failed:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
                 case LiveSessionSaveResult.Failed failed:
-                    ErrorMessages.Add(new FailurePresentation($"Live session could not be saved: {failed.ErrorMessage}"));
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                     break;
             }
         }

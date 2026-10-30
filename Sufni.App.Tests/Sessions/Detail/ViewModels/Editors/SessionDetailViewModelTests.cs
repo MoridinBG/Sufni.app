@@ -657,6 +657,23 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task TrimUntilEnd_WhenAppliedButProcessingFails_PreservesDiagnosticDetails()
+    {
+        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
+        const string details = "calibration diagnostic";
+        harness.SessionEditingCoordinator.TrimUntilEndAsync(editor.Id, 4)
+            .Returns(new SessionEditResult.Applied(new SessionRecomputeResult.ProcessingFailed(
+                SessionProcessingFailureReason.InvalidCalibration, details)));
+
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 4));
+
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal(details, failure.Details);
+        Assert.DoesNotContain(details, failure.Summary);
+    }
+
+    [AvaloniaFact]
     public async Task WindowEdits_KeepFiveSamplesInEveryRemainingPart()
     {
         var (_, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));

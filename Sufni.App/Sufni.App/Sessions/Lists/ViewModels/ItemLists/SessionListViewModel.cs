@@ -189,8 +189,14 @@ public partial class SessionListViewModel : ItemListViewModelBase
                 ErrorMessages.Add(new FailurePresentation("Session cannot be recalculated in its current state."));
                 break;
 
+            case SessionRecomputeResult.Missing:
+                Notifications.Add("The session is no longer available.");
+                break;
+            case SessionRecomputeResult.ProcessingFailed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
             case SessionRecomputeResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Session could not be recalculated: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

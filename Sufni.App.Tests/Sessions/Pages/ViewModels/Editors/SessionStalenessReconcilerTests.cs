@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
@@ -68,7 +69,7 @@ public class SessionStalenessReconcilerTests
             Domain(TestSnapshots.Session(updated: 5), new SessionStaleness.DependencyHashChanged()),
             RecomputeReason.StaleOnOpen);
 
-        Assert.Contains(harness.Errors, error => error.Contains("could not be recomputed", StringComparison.OrdinalIgnoreCase));
+        Assert.Single(harness.Errors);
     }
 
     [Fact]
@@ -125,24 +126,30 @@ public class SessionStalenessReconcilerTests
         await harness.Reconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
 
         var error = Assert.Single(harness.Errors);
-        Assert.Contains("stale", error, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(error.Summary));
         await harness.DialogService.DidNotReceive().ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>());
     }
 
-    [Fact]
-    public async Task HandleStalenessAsync_SurfacesError_WhenRecomputeFails()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HandleStalenessAsync_SurfacesError_WhenRecomputeFails(bool processing)
     {
         var sessionId = Guid.NewGuid();
         var harness = new ReconcilerHarness(sessionId);
         harness.ChoosePromptButton("Recompute");
         harness.SessionCoordinator.RequestRecomputeAsync(sessionId, Arg.Any<RecomputeReason>())
-            .Returns(new SessionRecomputeResult.Failed("boom"));
+            .Returns(processing
+                ? new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.InvalidCalibration, "boom")
+                : (SessionRecomputeResult)new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "boom"));
 
         await harness.Reconciler.HandleStalenessAsync(
             Domain(TestSnapshots.Session(id: sessionId, updated: 5), new SessionStaleness.DependencyHashChanged()),
             RecomputeReason.StaleOnOpen);
 
-        Assert.Contains(harness.Errors, error => error.Contains("boom", StringComparison.Ordinal));
+        var failure = Assert.Single(harness.Errors);
+        Assert.Equal("boom", failure.Details);
+        Assert.DoesNotContain("boom", failure.Summary);
     }
 
     [Fact]
@@ -158,7 +165,7 @@ public class SessionStalenessReconcilerTests
             Domain(TestSnapshots.Session(id: sessionId, updated: 5), new SessionStaleness.DependencyHashChanged()),
             RecomputeReason.StaleOnOpen);
 
-        Assert.Contains(harness.Errors, error => error.Contains("stale", StringComparison.OrdinalIgnoreCase));
+        Assert.Single(harness.Errors);
     }
 
     [Fact]
@@ -265,7 +272,7 @@ public class SessionStalenessReconcilerTests
         public ISessionCoordinator SessionCoordinator { get; } = Substitute.For<ISessionCoordinator>();
         public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
         public TestSessionOperationGateway Gateway { get; } = new();
-        public List<string> Errors => Gateway.Errors;
+        public List<FailurePresentation> Errors => Gateway.Errors;
         public SessionStalenessReconciler Reconciler { get; }
 
         public ReconcilerHarness(Guid? sessionId = null)

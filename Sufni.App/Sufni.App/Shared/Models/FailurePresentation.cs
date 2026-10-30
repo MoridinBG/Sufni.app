@@ -166,4 +166,35 @@ public sealed record FailurePresentation
         MapLayerFailureReason.Select => "The map layer selection could not be saved. Select the layer again to retry.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SessionProcessingFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionProcessingFailureReason.InvalidCalibration => "The recording could not be processed. Check the setup's rear sensor and the bike's suspension configuration.",
+        SessionProcessingFailureReason.Calibration => "The rear calibration could not be calculated. Try processing the recording again.",
+        SessionProcessingFailureReason.NoTravelData => "The recording has no usable calibrated travel channel. Check the sensors and setup.",
+        SessionProcessingFailureReason.InvalidRecording => "The travel data could not be processed. Check the source recording.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(SessionRecomputeFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionRecomputeFailureReason.Recompute => "The session could not be recomputed. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(LiveSessionSaveFailureReason reason, string? details = null) => new(reason switch
+    {
+        LiveSessionSaveFailureReason.Save => "The live session could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(SessionImportFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionImportFailureReason.Import => "The recording could not be imported. Check the source and try again.",
+        SessionImportFailureReason.InvalidFile => "The recording cannot be imported because its SST data is invalid.",
+        SessionImportFailureReason.Publish => "The recording was imported, but app state could not be refreshed. The source was left unacknowledged.",
+        SessionImportFailureReason.Trash => "The recording could not be moved to trash. Check the source and try again.",
+        SessionImportFailureReason.Acknowledge => "The recording was imported, but the source could not be marked as imported.",
+        SessionImportFailureReason.Batch => "The import could not be completed. Check the setup and source, then try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

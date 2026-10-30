@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Globalization;
 using System.Threading.Tasks;
@@ -119,8 +120,14 @@ internal sealed class SessionStalenessReconciler
                     ReportNotRecomputableStale();
                     break;
 
+                case SessionRecomputeResult.ProcessingFailed failed:
+                    gateway.AddError(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+                case SessionRecomputeResult.Missing:
+                    gateway.Notify("The session is no longer available.");
+                    break;
                 case SessionRecomputeResult.Failed failed:
-                    gateway.AddError($"Session could not be recomputed: {failed.ErrorMessage}");
+                    gateway.AddError(FailurePresentation.From(failed.Reason, failed.Details));
                     break;
 
                 // Recomputed: the engine's store upsert drives the editor through the
@@ -153,7 +160,7 @@ internal sealed class SessionStalenessReconciler
         // recompute, so only hard failures are surfaced to the user.
         if (gateway.IsViewLoaded && summary.Failed > 0)
         {
-            gateway.AddError($"{summary.Failed} of {summary.Total} sessions could not be recomputed.");
+            gateway.AddError(new FailurePresentation($"{summary.Failed} of {summary.Total} sessions could not be recomputed."));
         }
     }
 
@@ -165,7 +172,7 @@ internal sealed class SessionStalenessReconciler
         }
 
         reportedNotRecomputableStale = true;
-        gateway.AddError("Session is stale and cannot be recomputed until the source recording is restored.");
+        gateway.AddError(new FailurePresentation("Session is stale and cannot be recomputed until the source recording is restored."));
     }
 
     private static string RecomputePromptTitle(RecordedSessionDomainSnapshot domain) =>

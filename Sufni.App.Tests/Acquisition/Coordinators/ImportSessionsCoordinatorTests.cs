@@ -24,6 +24,30 @@ namespace Sufni.App.Tests.Acquisition.Coordinators;
 public class ImportSessionsCoordinatorTests
 {
     [Fact]
+    public async Task ImportAsync_ProcessingFailure_KeepsSourceUnacknowledgedAndReportsReason()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var file = CreateTelemetryFile(name: "ride", shouldBeImported: true,
+            source: new TelemetryFileSource("ride.SST", [1, 2, 3]));
+        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<CancellationToken>())
+            .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.InvalidCalibration, "calibration diagnostic"));
+        using var coordinator = harness.CreateCoordinator();
+
+        await coordinator.ImportAsync([file], setup.Id, TestContext.Current.CancellationToken);
+
+        var completed = Assert.IsType<SessionImportState.Completed>(coordinator.State);
+        Assert.Empty(completed.Result.Imported);
+        var failure = Assert.IsType<SessionImportFailure.ProcessingFailed>(Assert.Single(completed.Result.Failures));
+        Assert.Equal(SessionProcessingFailureReason.InvalidCalibration, failure.Reason);
+        Assert.Equal("ride", failure.FileName);
+        Assert.Equal(failure, Assert.Single(completed.Events.OfType<SessionImportEvent.Failed>()).Failure);
+        await file.DidNotReceive().OnImported();
+        await harness.SessionTelemetryWriter.DidNotReceive().PutProcessedSessionAsync(
+            Arg.Any<Session>(), Arg.Any<ProcessedTelemetryPayload>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
+    }
+
+    [Fact]
     public async Task ImportAsync_ImportsSourcePublishesStoresBeforeAcknowledgementAndReportsProgress()
     {
         var harness = new ImportWorkflowHarness();
@@ -136,7 +160,7 @@ public class ImportSessionsCoordinatorTests
         await file.DidNotReceive().OnImported();
         Assert.Contains(
             coordinator.State.Events,
-            importEvent => importEvent is SessionImportEvent.PublicationFailed { FileName: "ride" });
+            importEvent => importEvent is SessionImportEvent.Failed { Failure: SessionImportFailure.OperationFailed { FileName: "ride", Reason: SessionImportFailureReason.Publish } });
         Assert.DoesNotContain(coordinator.State.Events, importEvent => importEvent is SessionImportEvent.Imported);
     }
 
@@ -224,7 +248,7 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<CancellationToken>());
         Assert.Throws<ObjectDisposedException>(() => rejectedSource.SstBytes);
         Assert.Throws<ObjectDisposedException>(() => importableSource.SstBytes);
-        Assert.Contains(coordinator.State.Events, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
+        Assert.Contains(coordinator.State.Events, e => e is SessionImportEvent.Failed { Failure.FileName: "bad" });
     }
 
     [Theory]

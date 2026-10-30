@@ -35,10 +35,10 @@ public abstract record SessionEditResult
     private SessionEditResult() { }
 
     /// <summary>
-    /// The edit is committed. <paramref name="RecomputeError"/> is set when an
+    /// The edit is committed. <paramref name="RecomputeFailure"/> is set when an
     /// affected session could not be recomputed afterwards.
     /// </summary>
-    public sealed record Applied(string? RecomputeError = null) : SessionEditResult;
+    public sealed record Applied(SessionRecomputeResult? RecomputeFailure = null) : SessionEditResult;
 
     public sealed record Missing : SessionEditResult;
     public sealed record Failed(SessionEditFailureReason Reason, string? Details = null) : SessionEditResult;
@@ -121,7 +121,7 @@ internal sealed class SessionEditingCoordinator(
             }
 
             var results = await Task.WhenAll(recomputes);
-            return new SessionEditResult.Applied(DescribeRecomputeError(results));
+            return new SessionEditResult.Applied(DescribeRecomputeFailure(results));
         }
         catch (Exception e)
         {
@@ -130,13 +130,6 @@ internal sealed class SessionEditingCoordinator(
         }
     }
 
-    private static string? DescribeRecomputeError(SessionRecomputeResult[] results) =>
-        results.Select(result => result switch
-            {
-                SessionRecomputeResult.Failed failed => $"Session could not be recomputed: {failed.ErrorMessage}",
-                SessionRecomputeResult.NotRecomputable =>
-                    "Session cannot be recomputed until the source recording is restored.",
-                _ => null,
-            })
-            .FirstOrDefault(message => message is not null);
+    private static SessionRecomputeResult? DescribeRecomputeFailure(SessionRecomputeResult[] results) =>
+        results.FirstOrDefault(result => result is not (SessionRecomputeResult.Recomputed or SessionRecomputeResult.Superseded));
 }

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Acquisition.Coordinators;
 
@@ -17,6 +18,7 @@ public abstract record SessionImportState(ImmutableList<SessionImportEvent> Even
         ImmutableList<SessionImportEvent> Events) : SessionImportState(Events);
 
     public sealed record Failed(
-        string ErrorMessage,
+        SessionImportFailureReason Reason,
+        string? Details,
         ImmutableList<SessionImportEvent> Events) : SessionImportState(Events);
 }

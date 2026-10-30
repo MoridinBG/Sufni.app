@@ -86,7 +86,8 @@ public abstract record LiveSessionSaveResult
         Guid SessionId,
         long Updated,
         string? PublicationWarning = null) : LiveSessionSaveResult;
-    public sealed record Failed(string ErrorMessage) : LiveSessionSaveResult;
+    public sealed record Failed(LiveSessionSaveFailureReason Reason, string? Details = null) : LiveSessionSaveResult;
+    public sealed record ProcessingFailed(SessionProcessingFailureReason Reason, string? Details = null) : LiveSessionSaveResult;
 }
 
 /// <summary>
@@ -107,7 +108,9 @@ public abstract record SessionRecomputeResult
     /// </summary>
     public sealed record Superseded : SessionRecomputeResult;
     public sealed record NotRecomputable(SessionStaleness Reason) : SessionRecomputeResult;
-    public sealed record Failed(string ErrorMessage) : SessionRecomputeResult;
+    public sealed record Missing : SessionRecomputeResult;
+    public sealed record Failed(SessionRecomputeFailureReason Reason, string? Details = null) : SessionRecomputeResult;
+    public sealed record ProcessingFailed(SessionProcessingFailureReason Reason, string? Details = null) : SessionRecomputeResult;
 }
 
 /// <summary>

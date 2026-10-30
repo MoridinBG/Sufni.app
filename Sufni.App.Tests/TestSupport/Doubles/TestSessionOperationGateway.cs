@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.Shared.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 
@@ -15,7 +16,7 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
     public bool IsViewLoaded { get; set; } = true;
     public bool DeferDomainHandling { get; set; }
     public List<SessionSnapshot> AppliedSnapshots { get; } = [];
-    public List<string> Errors { get; } = [];
+    public List<FailurePresentation> Errors { get; } = [];
     public int LoadRequestCount { get; private set; }
     public int SessionInsightsRequestCount { get; private set; }
     public List<(SuspensionType Side, DampingSpeedCircuit Circuit, double Cutoff)> CutoffPreviews { get; } = [];
@@ -56,5 +57,7 @@ internal sealed class TestSessionOperationGateway : ISessionOperationGateway
 
     public void RequestSessionInsights() => SessionInsightsRequestCount++;
 
-    public void AddError(string message) => Errors.Add(message);
+    public void AddError(FailurePresentation failure) => Errors.Add(failure);
+    public List<string> Notifications { get; } = [];
+    public void Notify(string message) => Notifications.Add(message);
 }

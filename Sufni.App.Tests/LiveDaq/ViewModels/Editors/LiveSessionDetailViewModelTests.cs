@@ -242,6 +242,29 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveCommand_ProcessingFailure_PreservesCaptureForRetryAndSeparatesDetails()
+    {
+        const string details = "calibration diagnostic";
+        sessionCoordinator.SaveLiveCaptureAsync(Arg.Any<Session>(), Arg.Any<LiveSessionCapturePackage>(),
+                Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveSessionSaveResult.ProcessingFailed(SessionProcessingFailureReason.InvalidCalibration, details));
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: telemetry));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        Assert.Same(telemetry, editor.TelemetryData);
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal(details, failure.Details);
+        Assert.DoesNotContain(details, failure.Summary);
+        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
+        shell.DidNotReceive().OpenEditor(Arg.Any<EditorKey>(), Arg.Any<bool>());
+    }
+
+    [Fact]
     public async Task SaveCommand_ResetsCaptureAndReportsWarning_WhenCommittedSavePublicationFails()
     {
         var savedId = Guid.NewGuid();
