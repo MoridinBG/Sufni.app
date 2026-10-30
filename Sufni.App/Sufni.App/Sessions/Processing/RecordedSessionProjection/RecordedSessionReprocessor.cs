@@ -10,6 +10,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -83,22 +84,12 @@ internal sealed class RecordedSessionReprocessor(
         var fullTrack = telemetryData.GpsData is { Length: > 0 }
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
-        var fingerprint = CanReuseCurrentFingerprint(domain.CurrentFingerprint, processingOptions, domain.Session.DerivationWindow)
-            ? domain.CurrentFingerprint!
-            : domain.DependencyHash is { } dependencyHash
-                ? fingerprintService.CreateCurrent(
-                    domain.Session,
-                    domain.Setup,
-                    domain.Bike,
-                    domain.Source,
-                    dependencyHash,
-                    processingOptions)
-                : fingerprintService.CreateCurrent(
-                    domain.Session,
-                    domain.Setup,
-                    domain.Bike,
-                    domain.Source,
-                    processingOptions);
+        var fingerprint = fingerprintService.CreateCurrent(
+            domain.Session,
+            domain.Setup,
+            domain.Bike,
+            RecordedSessionSourceSnapshot.From(source),
+            processingOptions);
         var fingerprintJson = AppJson.Serialize(fingerprint);
         var processedTelemetry = new ProcessedTelemetryPayload(
             telemetryData,
@@ -107,14 +98,6 @@ internal sealed class RecordedSessionReprocessor(
 
         return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Processed(processedTelemetry, fullTrack, fingerprint));
     }
-
-    private static bool CanReuseCurrentFingerprint(
-        ProcessingFingerprint? fingerprint,
-        TelemetryProcessingOptions processingOptions,
-        RecordedSessionDerivationWindow? window) =>
-        fingerprint?.VelocityFilterWindowMilliseconds ==
-        processingOptions.ClampedVelocityFilterWindowMilliseconds &&
-        fingerprint.DerivationWindow == window;
 
     private static TelemetryData ReprocessImportedSst(
         RecordedSessionSource source,
