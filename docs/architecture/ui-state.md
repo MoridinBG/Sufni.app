@@ -129,8 +129,10 @@ architecture.
 ## Recorded Session Projection
 
 `IRecordedSessionProjection` is the read-side projection for recorded
-session screens. It subscribes to `ISessionStore`, `ISetupStore`,
-`IRecordedSessionSourceStore` and `IProcessingDependencyHashIndex`; the dependency hash index owns
+session screens. It tracks changes in `ISessionStore`, `ISetupStore`,
+`IRecordedSessionSourceStore` and `IProcessingDependencyHashIndex`, then schedules
+work from `StorePublication.Committed` for those source stores (including bikes).
+The dependency hash index owns
 the processing-relevant setup/bike store edge. The projection joins
 current session/setup/bike/source snapshots from stores (the derivation
 window is part of the session snapshot), evaluates processing staleness, and publishes two reactive surfaces:
@@ -194,15 +196,23 @@ percentages and optional insights records, while selected/visible analysis tabs
 and plot controls request only the result records they render. Cached records are
 reused within the open editor until the inputs change or the editor is disposed.
 
-Projection recomputes are coalesced through an injected
-`IRecordedSessionProjectionScheduler`; the default
-`UiThreadRecordedSessionProjectionScheduler` posts to
-`Dispatcher.UIThread` at background priority rather than using the
-ambient synchronization context of the thread that queued the change.
+Projection recomputes are coalesced through the existing
+`IRecordedSessionProjectionScheduler`; its UI-background-priority callback captures
+the current session/setup/bike/source snapshots and dependency hashes. Fingerprint
+and staleness evaluation runs through `IBackgroundTaskRunner`, outside the UI
+thread. A single later dispatcher publication batch edits all affected summaries
+and emits their domain snapshots. Inputs are checked again before publication;
+obsolete results are discarded and the current inputs are evaluated instead.
+The projection's own commit names only the projection, so it cannot trigger itself.
+
+Consumers retain the previous result while the same session is being refreshed.
+A session removal clears its summary and completes its watch synchronously in
+the source commit's dispatcher turn, without waiting for pending evaluation.
+Watches are subscription-scoped: the first subscriber creates a replay subject,
+and the last subscriber releases it. Resubscribing replays the latest domain.
+
 A source change also queues every session whose `source_session_id` points
-at that source. This lets a batch of session/setup/bike/source updates produce
-coherent summaries and domain snapshots instead of a cascade of
-partial UI states. Setup or bike changes first update
+at that source. Setup or bike changes first update
 `IProcessingDependencyHashIndex`; only setup hashes whose processing-relevant
 inputs actually changed queue affected sessions for staleness recomputation.
 

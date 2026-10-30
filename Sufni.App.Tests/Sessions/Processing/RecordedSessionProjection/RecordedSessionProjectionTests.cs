@@ -3,6 +3,8 @@ using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Linq;
 using DynamicData;
+using NSubstitute;
+using Sufni.App.Shared.Stores;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
@@ -18,6 +20,151 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 public class RecordedSessionProjectionTests
 {
     [Fact]
+    public async Task ConnectSessions_BikeEdit_PublishesAllAffectedSummariesInOneUpdate()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var first = CreateCurrentContext(fingerprints);
+        var secondId = Guid.NewGuid();
+        var second = first with
+        {
+            Session = first.Session with { Id = secondId },
+            Source = first.Source with { SessionId = secondId }
+        };
+        second = second with { Session = second.Session with
+        {
+            ProcessingFingerprintJson = AppJson.Serialize(fingerprints.CreateCurrent(second.Session, second.Setup, second.Bike, second.Source))
+        }};
+        var updates = new List<RecordedSessionSummary[]>();
+        using var observation = projection.ConnectSessions().Bind(out var summaries)
+            .Subscribe(_ => updates.Add(summaries.ToArray()));
+        await stores.AddAsync(first);
+        await stores.AddAsync(second);
+        await scheduler.DrainAsync();
+        updates.Clear();
+
+        await stores.Bikes.PublishBikesChangedAsync([first.Bike with { HeadAngle = first.Bike.HeadAngle + 1 }]);
+        Assert.All(summaries, summary => Assert.IsType<SessionStaleness.Current>(summary.Staleness));
+        await scheduler.DrainAsync();
+
+        var published = Assert.Single(updates);
+        Assert.Equal(2, published.Length);
+        Assert.All(published, summary => Assert.IsType<SessionStaleness.Stale>(summary.Staleness));
+        await scheduler.DrainAsync();
+        Assert.Single(updates);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingEvaluation_DoesNotPublishReplacedOrDeletedInputs(bool remove)
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        var runner = new DeferredBackgroundTaskRunner();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler, runner);
+        var context = CreateCurrentContext(fingerprints);
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        var completed = false;
+        var domains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(context.Session.Id).Subscribe(domains.Add, () => completed = true);
+        await stores.AddAsync(context);
+        await scheduler.DrainAsync();
+        await CompleteEvaluationAsync(runner, scheduler);
+        domains.Clear();
+
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with { Name = "obsolete" }]);
+        await scheduler.DrainAsync();
+        Assert.Equal(context.Session.Name, Assert.Single(summaries).Name);
+        if (remove)
+        {
+            await stores.Sessions.PublishSessionsRemovedAsync([context.Session.Id]);
+            Assert.Empty(summaries);
+            Assert.True(completed);
+        }
+        else
+            await stores.Sessions.PublishSessionsChangedAsync([context.Session with { Name = "latest" }]);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Empty(domains);
+
+        if (remove) Assert.Empty(summaries);
+        else
+        {
+            Assert.Equal(context.Session.Name, Assert.Single(summaries).Name);
+            await CompleteEvaluationAsync(runner, scheduler);
+            Assert.Equal("latest", Assert.Single(domains).Session.Name);
+            Assert.Equal("latest", Assert.Single(summaries).Name);
+        }
+    }
+
+    [Fact]
+    public async Task Evaluation_UsesCapturedInputsOutsideTheUiDispatcher()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        var runner = new DeferredBackgroundTaskRunner();
+        using var stores = new StoreFixtures();
+        var actual = new ProcessingFingerprintService();
+        var context = CreateCurrentContext(actual);
+        var fingerprints = Substitute.For<IProcessingFingerprintService>();
+        fingerprints.EvaluateState(Arg.Any<SessionSnapshot>(), Arg.Any<SetupSnapshot?>(), Arg.Any<BikeSnapshot?>(),
+            Arg.Any<RecordedSessionSourceSnapshot?>(), Arg.Any<string?>()).Returns(call =>
+        {
+            Assert.False(scheduler.CheckAccess());
+            return actual.EvaluateState(call.Arg<SessionSnapshot>(), call.Arg<SetupSnapshot?>(),
+                call.Arg<BikeSnapshot?>(), call.Arg<RecordedSessionSourceSnapshot?>(), call.Arg<string?>());
+        });
+        using var projection = stores.CreateProjection(fingerprints, scheduler, runner);
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        await stores.AddAsync(context);
+        await scheduler.DrainAsync();
+        Assert.Empty(summaries);
+
+        await CompleteEvaluationAsync(runner, scheduler);
+
+        Assert.IsType<SessionStaleness.Current>(Assert.Single(summaries).Staleness);
+    }
+
+    [Fact]
+    public async Task WatchSession_ResubscriptionReplaysLatestDomain_AndKeepsOtherObserversActive()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var context = CreateCurrentContext(fingerprints);
+        await stores.AddAsync(context);
+        await scheduler.DrainAsync();
+        var observable = projection.WatchSession(context.Session.Id);
+        var first = new List<RecordedSessionDomainSnapshot>();
+        using (observable.Subscribe(first.Add)) Assert.Single(first);
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with { Name = "changed while closed" }]);
+        await scheduler.DrainAsync();
+        var reopened = new List<RecordedSessionDomainSnapshot>();
+        using var reopenedWatch = observable.Subscribe(reopened.Add);
+        var other = new List<RecordedSessionDomainSnapshot>();
+        using (observable.Subscribe(other.Add)) Assert.Single(other);
+
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with { Name = "latest" }]);
+        await scheduler.DrainAsync();
+
+        Assert.Equal("changed while closed", reopened[0].Session.Name);
+        Assert.Equal("latest", reopened[1].Session.Name);
+        Assert.Equal(2, reopened.Count);
+        Assert.Single(first);
+        Assert.Single(other);
+    }
+
+    private static async Task CompleteEvaluationAsync(DeferredBackgroundTaskRunner runner, ManualUiThreadDispatcher scheduler)
+    {
+        await runner.RunNextAsync();
+        await scheduler.WaitForWorkAsync(global::Xunit.TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await scheduler.DrainAsync();
+    }
+
+    [Fact]
     public async Task ConnectSessions_PublishesCurrentSummary_WhenSessionIsFullyCurrent()
     {
         var scheduler = new ManualUiThreadDispatcher();
@@ -27,7 +174,7 @@ public class RecordedSessionProjectionTests
         using var subscription = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
 
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
 
         var summary = Assert.Single(summaries);
@@ -47,9 +194,9 @@ public class RecordedSessionProjectionTests
         using var subscription = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
 
-        stores.Bikes.Add(context.Bike);
-        stores.Setups.Add(context.Setup);
-        stores.Sessions.Add(context.Session);
+        await stores.Bikes.PublishBikesChangedAsync([context.Bike]);
+        await stores.Setups.PublishSetupsChangedAsync([context.Setup]);
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session]);
         await scheduler.DrainAsync();
 
         var summary = Assert.Single(summaries);
@@ -68,17 +215,17 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
 
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         var initial = Assert.Single(emissions);
         Assert.Equal(DerivedChangeKind.Initial, initial.ChangeKind);
 
-        stores.Sessions.Add(context.Session with
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with
         {
             Name = "renamed session",
             HasProcessedData = false,
             ProcessingFingerprintJson = null
-        });
+        }]);
         await scheduler.DrainAsync();
 
         var latest = emissions.Last();
@@ -98,10 +245,10 @@ public class RecordedSessionProjectionTests
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
 
-        stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
+        await stores.Sources.PublishSourcesChangedAsync([context.Source with { SourceHash = "changed-source-hash" }]);
         await scheduler.DrainAsync();
 
         var latest = emissions.Last();
@@ -120,12 +267,12 @@ public class RecordedSessionProjectionTests
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
-        stores.Sessions.Add(context.Session with { WindowStartSeconds = 2 });
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with { WindowStartSeconds = 2 }]);
         await scheduler.DrainAsync();
 
         var latest = Assert.Single(emissions);
@@ -144,12 +291,12 @@ public class RecordedSessionProjectionTests
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
-        stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
+        await stores.Sources.PublishSourcesChangedAsync([context.Source with { SourceHash = "changed-source-hash" }]);
         await scheduler.DrainAsync();
 
         var latest = Assert.Single(emissions);
@@ -169,10 +316,10 @@ public class RecordedSessionProjectionTests
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
 
-        stores.Bikes.Add(context.Bike with { HeadAngle = context.Bike.HeadAngle + 0.5 });
+        await stores.Bikes.PublishBikesChangedAsync([context.Bike with { HeadAngle = context.Bike.HeadAngle + 0.5 }]);
         await scheduler.DrainAsync();
 
         var latest = emissions.Last();
@@ -190,17 +337,17 @@ public class RecordedSessionProjectionTests
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
-        stores.Bikes.Add(context.Bike with
+        await stores.Bikes.PublishBikesChangedAsync([context.Bike with
         {
             Name = "renamed bike",
             ImageBytes = [9, 8, 7],
             Updated = context.Bike.Updated + 1
-        });
+        }]);
         await scheduler.DrainAsync();
 
         Assert.Empty(emissions);
@@ -216,14 +363,14 @@ public class RecordedSessionProjectionTests
         var context = CreateCurrentContext(fingerprintService);
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
-        stores.Sessions.Add(context.Session with { Name = "renamed session" });
-        stores.Bikes.Add(context.Bike with { HeadAngle = context.Bike.HeadAngle + 0.5 });
-        stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with { Name = "renamed session" }]);
+        await stores.Bikes.PublishBikesChangedAsync([context.Bike with { HeadAngle = context.Bike.HeadAngle + 0.5 }]);
+        await stores.Sources.PublishSourcesChangedAsync([context.Source with { SourceHash = "changed-source-hash" }]);
 
         Assert.Empty(emissions);
         await scheduler.DrainAsync();
@@ -246,11 +393,11 @@ public class RecordedSessionProjectionTests
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
         using var subscription = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Single(summaries);
 
-        stores.Sessions.Remove(context.Session.Id);
+        await stores.Sessions.PublishSessionsRemovedAsync([context.Session.Id]);
 
         Assert.Empty(summaries);
     }
@@ -268,14 +415,14 @@ public class RecordedSessionProjectionTests
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(
             _ => emissions++,
             () => completed = true);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Equal(1, emissions);
 
-        stores.Sessions.Remove(context.Session.Id);
+        await stores.Sessions.PublishSessionsRemovedAsync([context.Session.Id]);
 
         Assert.True(completed);
-        stores.Sources.Add(context.Source with { SourceHash = "changed-after-remove" });
+        await stores.Sources.PublishSourcesChangedAsync([context.Source with { SourceHash = "changed-after-remove" }]);
         await scheduler.DrainAsync();
         Assert.Equal(1, emissions);
     }
@@ -293,12 +440,12 @@ public class RecordedSessionProjectionTests
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(
             emissions.Add,
             () => completed = true);
-        stores.Add(context);
+        await stores.AddAsync(context);
         await scheduler.DrainAsync();
         Assert.Single(emissions);
 
         var refreshed = context.Session with { Name = "refreshed session" };
-        stores.Sessions.RefreshWith(refreshed);
+        await stores.Sessions.ReplaceAllAsync([refreshed]);
         await scheduler.DrainAsync();
 
         Assert.False(completed);
@@ -306,7 +453,7 @@ public class RecordedSessionProjectionTests
         Assert.Equal("refreshed session", emissions[^1].Session.Name);
         Assert.Equal(DerivedChangeKind.SessionMetadataChanged, emissions[^1].ChangeKind);
 
-        stores.Sources.Add(context.Source with { SourceHash = "changed-after-refresh" });
+        await stores.Sources.PublishSourcesChangedAsync([context.Source with { SourceHash = "changed-after-refresh" }]);
         await scheduler.DrainAsync();
 
         Assert.Equal(3, emissions.Count);
@@ -368,34 +515,43 @@ public class RecordedSessionProjectionTests
 
     private sealed class StoreFixtures : IDisposable
     {
-        public SessionStoreStub Sessions { get; } = new();
-        public SetupStoreStub Setups { get; } = new();
-        public BikeStoreStub Bikes { get; } = new();
-        public RecordedSourceStoreStub Sources { get; } = new();
+        public SessionStore Sessions { get; }
+        public SetupStore Setups { get; }
+        public BikeStore Bikes { get; }
+        public RecordedSessionSourceStore Sources { get; }
         public ProcessingDependencyHashIndex DependencyHashIndex { get; }
+        public StorePublication Publication { get; } = new(new InlineUiThreadDispatcher());
 
         public StoreFixtures()
         {
+            Sessions = new SessionStore(Publication);
+            Setups = new SetupStore(Publication);
+            Bikes = new BikeStore(Publication);
+            Sources = new RecordedSessionSourceStore(Publication);
             DependencyHashIndex = new ProcessingDependencyHashIndex(Setups, Bikes);
         }
 
         public RecordedSessionProjectionModel CreateProjection(
             IProcessingFingerprintService fingerprintService,
-            IUiThreadDispatcher scheduler) => new(
+            IUiThreadDispatcher scheduler, IBackgroundTaskRunner? runner = null) => new(
             Sessions,
             Setups,
             Bikes,
             Sources,
             fingerprintService,
             DependencyHashIndex,
+            scheduler,
+            runner ?? new InlineBackgroundTaskRunner(),
+            Publication,
             new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
-        public void Add(TestContext context)
+        public async Task AddAsync(TestContext context)
         {
-            Bikes.Add(context.Bike);
-            Setups.Add(context.Setup);
-            Sources.Add(context.Source);
-            Sessions.Add(context.Session);
+            using var batch = Publication.BeginBatch();
+            await Bikes.PublishBikesChangedAsync([context.Bike]);
+            await Setups.PublishSetupsChangedAsync([context.Setup]);
+            await Sources.PublishSourcesChangedAsync([context.Source]);
+            await Sessions.PublishSessionsChangedAsync([context.Session]);
         }
 
         public void Dispose()
@@ -405,6 +561,7 @@ public class RecordedSessionProjectionTests
             Setups.Dispose();
             Bikes.Dispose();
             Sources.Dispose();
+            Publication.Dispose();
         }
     }
 

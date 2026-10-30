@@ -6,19 +6,14 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
-using Sufni.Telemetry;
-
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Stores;
+
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
-/// <summary>
-/// Reactive read model that keeps recorded-session derived state current.
-/// It keeps the minimal fan-out indexes needed to coalesce bursts of changes,
-/// then reads current store snapshots to publish coherent list summaries plus
-/// per-session domain snapshots.
-/// </summary>
+/// <summary>Derives recorded-session read models from committed store snapshots.</summary>
 public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDisposable
 {
     private readonly ISessionStore sessionStore;
@@ -28,466 +23,296 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private readonly IProcessingDependencyHashIndex dependencyHashIndex;
     private readonly IProcessingFingerprintService fingerprintService;
     private readonly IRecordedSessionProjectionScheduler scheduler;
+    private readonly IUiThreadDispatcher dispatcher;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly StorePublication publication;
     private readonly SourceCache<RecordedSessionSummary, Guid> summaries = new(summary => summary.Id);
     private readonly Dictionary<Guid, Guid?> sessionToSetup = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> setupToSessions = [];
     private readonly Dictionary<Guid, RecordedSessionDomainSnapshot> domains = [];
-    private readonly Dictionary<Guid, ReplaySubject<RecordedSessionDomainSnapshot>> watches = [];
+    private readonly Dictionary<Guid, SessionWatch> watches = [];
     private readonly CompositeDisposable subscriptions = [];
     private readonly System.Threading.Lock stateGate = new();
     private readonly HashSet<Guid> pendingRecomputeIds = [];
+    private readonly HashSet<Guid> removedSessionIds = [];
     private bool recomputeFlushScheduled;
     private bool disposed;
 
     public RecordedSessionProjection(
-        ISessionStore sessionStore,
-        ISetupStore setupStore,
-        IBikeStore bikeStore,
-        IRecordedSessionSourceStore sourceStore,
-        IProcessingFingerprintService fingerprintService,
-        IProcessingDependencyHashIndex dependencyHashIndex,
-        IUiThreadDispatcher uiThreadDispatcher)
-        : this(
-            sessionStore,
-            setupStore,
-            bikeStore,
-            sourceStore,
-            fingerprintService,
-            dependencyHashIndex,
-            new UiThreadRecordedSessionProjectionScheduler(uiThreadDispatcher))
+        ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
+        IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
+        IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication)
+        : this(sessionStore, setupStore, bikeStore, sourceStore, fingerprintService,
+            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication,
+            new UiThreadRecordedSessionProjectionScheduler(dispatcher))
     {
     }
 
     internal RecordedSessionProjection(
-        ISessionStore sessionStore,
-        ISetupStore setupStore,
-        IBikeStore bikeStore,
-        IRecordedSessionSourceStore sourceStore,
-        IProcessingFingerprintService fingerprintService,
-        IProcessingDependencyHashIndex dependencyHashIndex,
+        ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
+        IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
+        IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication,
         IRecordedSessionProjectionScheduler scheduler)
     {
         this.sessionStore = sessionStore;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
         this.sourceStore = sourceStore;
-        this.dependencyHashIndex = dependencyHashIndex;
         this.fingerprintService = fingerprintService;
+        this.dependencyHashIndex = dependencyHashIndex;
+        this.dispatcher = dispatcher;
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.publication = publication;
         this.scheduler = scheduler;
-
+        subscriptions.Add(summaries.Connect().Subscribe(_ => publication.RecordChange(this)));
         subscriptions.Add(sessionStore.Connect().Subscribe(ApplySessionChanges));
-        subscriptions.Add(setupStore.Connect().Subscribe(ApplySetupChanges));
+        subscriptions.Add(setupStore.Connect().Subscribe(changes =>
+            QueueForSetups(changes.Where(change => change.Reason is ChangeReason.Add or ChangeReason.Remove).Select(change => change.Key))));
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
-        subscriptions.Add(dependencyHashIndex.Connect().Subscribe(ApplyDependencyHashChanges));
-
+        subscriptions.Add(dependencyHashIndex.Connect().Subscribe(change => QueueForSetups([change.SetupId])));
+        subscriptions.Add(publication.Committed.Subscribe(ApplyCommit));
+        SchedulePending();
     }
 
     public IObservable<IChangeSet<RecordedSessionSummary, Guid>> ConnectSessions() => summaries.Connect();
 
-    public IObservable<RecordedSessionDomainSnapshot> WatchSession(Guid sessionId)
-    {
-        ReplaySubject<RecordedSessionDomainSnapshot> watch;
-        RecordedSessionDomainSnapshot? domain = null;
-        var created = false;
-        lock (stateGate)
+    public IObservable<RecordedSessionDomainSnapshot> WatchSession(Guid sessionId) =>
+        Observable.Create<RecordedSessionDomainSnapshot>(observer =>
         {
-            if (disposed)
+            SessionWatch watch;
+            IDisposable subscription;
+            lock (stateGate)
             {
-                return Observable.Empty<RecordedSessionDomainSnapshot>();
+                if (disposed) return Observable.Empty<RecordedSessionDomainSnapshot>().Subscribe(observer);
+                if (!watches.TryGetValue(sessionId, out watch!))
+                {
+                    watch = new SessionWatch();
+                    watches.Add(sessionId, watch);
+                    if (domains.TryGetValue(sessionId, out var domain)) watch.Subject.OnNext(domain);
+                }
+                watch.Subscribers++;
+                subscription = watch.Subject.Subscribe(observer);
             }
-
-            (watch, created) = GetWatchLocked(sessionId);
-            if (created)
+            return Disposable.Create(() =>
             {
-                domains.TryGetValue(sessionId, out domain);
-            }
-        }
-
-        if (domain is not null)
-        {
-            watch.OnNext(domain);
-        }
-
-        return watch.AsObservable();
-    }
+                subscription.Dispose();
+                lock (stateGate)
+                {
+                    if (--watch.Subscribers == 0 && watches.GetValueOrDefault(sessionId) == watch)
+                    {
+                        watches.Remove(sessionId);
+                        watch.Subject.Dispose();
+                    }
+                }
+            });
+        });
 
     public void Dispose()
     {
-        ReplaySubject<RecordedSessionDomainSnapshot>[] completedWatches;
+        SessionWatch[] completed;
         lock (stateGate)
         {
             disposed = true;
             pendingRecomputeIds.Clear();
+            removedSessionIds.Clear();
             sessionToSetup.Clear();
-            setupToSessions.Clear();
-            completedWatches = watches.Values.ToArray();
+            domains.Clear();
+            completed = watches.Values.ToArray();
             watches.Clear();
         }
-
         subscriptions.Dispose();
         summaries.Dispose();
-        CompleteWatches(completedWatches);
+        CompleteWatches(completed);
     }
 
     private void ApplySessionChanges(IChangeSet<SessionSnapshot, Guid> changes)
     {
-        var affected = new HashSet<Guid>();
-        var completedWatches = new List<ReplaySubject<RecordedSessionDomainSnapshot>>();
         lock (stateGate)
         {
-            if (disposed)
-            {
-                return;
-            }
-
+            if (disposed) return;
             foreach (var change in changes)
             {
-                switch (change.Reason)
+                if (change.Reason == ChangeReason.Remove)
                 {
-                    case ChangeReason.Add:
-                    case ChangeReason.Update:
-                    case ChangeReason.Refresh:
-                        UpdateSessionSetupIndexLocked(change.Key, change.Current.SetupId);
-                        affected.Add(change.Key);
-                        break;
-                    case ChangeReason.Remove:
-                        RemoveSessionSetupIndexLocked(change.Key);
-                        domains.Remove(change.Key);
-                        summaries.RemoveKey(change.Key);
-                        RemovePendingRecomputeLocked(change.Key);
-                        if (watches.Remove(change.Key, out var watch))
-                        {
-                            completedWatches.Add(watch);
-                        }
-                        break;
-                    case ChangeReason.Moved:
-                        break;
+                    sessionToSetup.Remove(change.Key);
+                    pendingRecomputeIds.Remove(change.Key);
+                    removedSessionIds.Add(change.Key);
+                }
+                else if (change.Reason != ChangeReason.Moved)
+                {
+                    sessionToSetup[change.Key] = change.Current.SetupId;
+                    removedSessionIds.Remove(change.Key);
+                    pendingRecomputeIds.Add(change.Key);
                 }
             }
         }
-
-        CompleteWatches(completedWatches);
-        QueueRecompute(affected);
     }
 
-    private void ApplySetupChanges(IChangeSet<SetupSnapshot, Guid> changes)
+    private void QueueForSetups(IEnumerable<Guid> setupIds)
     {
-        var affectedAddsAndRemoves = new HashSet<Guid>();
         lock (stateGate)
         {
-            if (disposed)
-            {
-                return;
-            }
-
-            foreach (var change in changes)
-            {
-                switch (change.Reason)
-                {
-                    case ChangeReason.Add:
-                        affectedAddsAndRemoves.Add(change.Key);
-                        break;
-                    case ChangeReason.Update:
-                    case ChangeReason.Refresh:
-                        break;
-                    case ChangeReason.Remove:
-                        affectedAddsAndRemoves.Add(change.Key);
-                        break;
-                    case ChangeReason.Moved:
-                        break;
-                }
-            }
-        }
-
-        if (affectedAddsAndRemoves.Count > 0)
-        {
-            QueueRecomputeForSetups(affectedAddsAndRemoves);
+            if (disposed) return;
+            var affected = setupIds.ToHashSet();
+            pendingRecomputeIds.UnionWith(sessionToSetup
+                .Where(pair => pair.Value is { } setupId && affected.Contains(setupId))
+                .Select(pair => pair.Key));
         }
     }
-
-    private void ApplyDependencyHashChanges(ProcessingDependencyHashChange change) =>
-        QueueRecomputeForSetups([change.SetupId]);
 
     private void ApplySourceChanges(IChangeSet<RecordedSessionSourceSnapshot, Guid> changes)
     {
-        var sourceIds = new HashSet<Guid>();
-        var affected = new HashSet<Guid>();
         lock (stateGate)
         {
-            if (disposed)
-            {
-                return;
-            }
+            if (disposed) return;
+            var sourceIds = changes.Select(change => change.Key).ToHashSet();
+            pendingRecomputeIds.UnionWith(sessionToSetup.Keys.Where(id =>
+                sessionStore.Get(id) is { } session && sourceIds.Contains(session.RecordingSourceSessionId)));
+        }
+    }
 
-            foreach (var change in changes)
+    private void ApplyCommit(StorePublicationCommit commit)
+    {
+        if (!commit.Stores.Contains(sessionStore) && !commit.Stores.Contains(setupStore) &&
+            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore)) return;
+
+        lock (stateGate)
+        {
+            if (disposed) return;
+            if (removedSessionIds.Count > 0)
             {
-                switch (change.Reason)
+                var completed = new List<SessionWatch>();
+                using var batch = publication.BeginBatch();
+                publication.MutateAsync(this, summaries.SuspendNotifications, () => summaries.Edit(updater =>
                 {
-                    case ChangeReason.Add:
-                    case ChangeReason.Update:
-                    case ChangeReason.Refresh:
-                    case ChangeReason.Remove:
-                        sourceIds.Add(change.Key);
-                        break;
-                    case ChangeReason.Moved:
-                        break;
-                }
+                    foreach (var id in removedSessionIds)
+                    {
+                        domains.Remove(id);
+                        updater.RemoveKey(id);
+                        if (watches.Remove(id, out var watch)) completed.Add(watch);
+                    }
+                })).GetAwaiter().GetResult();
+                removedSessionIds.Clear();
+                CompleteWatches(completed);
             }
-
-            affected.UnionWith(sourceIds);
-            affected.UnionWith(domains.Values
-                .Where(domain => domain.Session.SourceSessionId is { } sourceSessionId &&
-                                 sourceIds.Contains(sourceSessionId))
-                .Select(domain => domain.Session.Id));
         }
-
-        QueueRecompute(affected);
+        SchedulePending();
     }
 
-    private void QueueRecomputeForSetups(IEnumerable<Guid> setupIds)
+    private void SchedulePending()
     {
-        List<Guid> sessionIds = [];
         lock (stateGate)
         {
-            if (disposed)
-            {
-                return;
-            }
-
-            foreach (var setupId in setupIds.Distinct())
-            {
-                if (setupToSessions.TryGetValue(setupId, out var setupSessions))
-                {
-                    sessionIds.AddRange(setupSessions);
-                }
-            }
+            if (disposed || recomputeFlushScheduled || pendingRecomputeIds.Count == 0) return;
+            recomputeFlushScheduled = true;
         }
-
-        QueueRecompute(sessionIds);
+        scheduler.Post(FlushPendingRecomputes);
     }
 
-    private void QueueRecompute(Guid sessionId) => QueueRecompute([sessionId]);
-
-    private void QueueRecompute(IEnumerable<Guid> sessionIds)
+    private async void FlushPendingRecomputes()
     {
-        var shouldSchedule = false;
+        ProjectionInput[] inputs;
         lock (stateGate)
         {
-            if (disposed)
-            {
-                return;
-            }
-
-            foreach (var sessionId in sessionIds)
-            {
-                pendingRecomputeIds.Add(sessionId);
-            }
-
-            if (pendingRecomputeIds.Count > 0 && !recomputeFlushScheduled)
-            {
-                recomputeFlushScheduled = true;
-                shouldSchedule = true;
-            }
-        }
-
-        if (shouldSchedule)
-        {
-            ScheduleRecomputeFlush();
-        }
-    }
-
-    private void RemovePendingRecomputeLocked(Guid sessionId) => pendingRecomputeIds.Remove(sessionId);
-
-    private void UpdateSessionSetupIndexLocked(Guid sessionId, Guid? setupId)
-    {
-        if (sessionToSetup.TryGetValue(sessionId, out var previousSetupId))
-        {
-            if (previousSetupId == setupId)
-            {
-                return;
-            }
-
-            RemoveSessionFromSetupIndexLocked(sessionId, previousSetupId);
-        }
-
-        sessionToSetup[sessionId] = setupId;
-        if (setupId is not { } concreteSetupId)
-        {
-            return;
-        }
-
-        if (!setupToSessions.TryGetValue(concreteSetupId, out var setupSessions))
-        {
-            setupSessions = [];
-            setupToSessions[concreteSetupId] = setupSessions;
-        }
-
-        setupSessions.Add(sessionId);
-    }
-
-    private void RemoveSessionSetupIndexLocked(Guid sessionId)
-    {
-        if (!sessionToSetup.Remove(sessionId, out var setupId))
-        {
-            return;
-        }
-
-        RemoveSessionFromSetupIndexLocked(sessionId, setupId);
-    }
-
-    private void RemoveSessionFromSetupIndexLocked(Guid sessionId, Guid? setupId)
-    {
-        if (setupId is not { } concreteSetupId ||
-            !setupToSessions.TryGetValue(concreteSetupId, out var setupSessions))
-        {
-            return;
-        }
-
-        setupSessions.Remove(sessionId);
-        if (setupSessions.Count == 0)
-        {
-            setupToSessions.Remove(concreteSetupId);
-        }
-    }
-
-    private void ScheduleRecomputeFlush() => scheduler.Post(FlushPendingRecomputes);
-
-    private void FlushPendingRecomputes()
-    {
-        Guid[] sessionIds;
-        lock (stateGate)
-        {
-            if (disposed)
-            {
-                pendingRecomputeIds.Clear();
-                recomputeFlushScheduled = false;
-                return;
-            }
-
-            sessionIds = pendingRecomputeIds.ToArray();
+            if (disposed) return;
+            inputs = pendingRecomputeIds.Select(Capture).OfType<ProjectionInput>().ToArray();
             pendingRecomputeIds.Clear();
         }
-
-        Recompute(sessionIds);
-
-        var shouldSchedule = false;
-        lock (stateGate)
+        (ProjectionInput Input, RecordedSessionDomainSnapshot Domain)[] results;
+        try
         {
-            if (disposed)
+            results = await backgroundTaskRunner.RunAsync(() => inputs.Select(input =>
             {
-                pendingRecomputeIds.Clear();
-                recomputeFlushScheduled = false;
-                return;
-            }
-
-            if (pendingRecomputeIds.Count == 0)
-            {
-                recomputeFlushScheduled = false;
-                return;
-            }
-
-            shouldSchedule = true;
+                var change = input.Previous is null ? DerivedChangeKind.Initial : ComputeChangeKind(
+                    input.Previous, input.Session, input.Setup, input.Bike, input.Source, input.DependencyHash);
+                return (Input: input, Domain: RecordedSessionDomainSnapshotFactory.Create(
+                    input.Session, input.Setup, input.Bike, input.Source,
+                    fingerprintService, input.DependencyHash, change));
+            }).ToArray()).ConfigureAwait(false);
         }
-
-        if (shouldSchedule)
+        catch
         {
-            ScheduleRecomputeFlush();
+            await dispatcher.InvokeAsync(FinishFlush);
+            throw;
         }
-    }
-
-    private void Recompute(IEnumerable<Guid> sessionIds)
-    {
-        var emissions = new List<(ReplaySubject<RecordedSessionDomainSnapshot> Watch, RecordedSessionDomainSnapshot Domain)>();
-        lock (stateGate)
+        await dispatcher.InvokeAsync(() =>
         {
-            if (disposed)
+            try
             {
-                return;
-            }
-
-            foreach (var sessionId in sessionIds)
-            {
-                var session = sessionStore.Get(sessionId);
-                if (session is null)
+                lock (stateGate)
                 {
-                    continue;
-                }
-
-                var setup = session.SetupId is { } setupId
-                    ? setupStore.Get(setupId)
-                    : null;
-                var bike = setup is null
-                    ? null
-                    : bikeStore.Get(setup.BikeId);
-                var source = sourceStore.Get(session.RecordingSourceSessionId);
-
-                var previous = domains.GetValueOrDefault(session.Id);
-                var initial = previous is null;
-                var dependencyHash = setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id);
-                var changeKind = initial
-                    ? DerivedChangeKind.Initial
-                    : ComputeChangeKind(
-                        previous!,
-                        session,
-                        setup,
-                        bike,
-                        source,
-                        dependencyHash);
-
-                var domain = RecordedSessionDomainSnapshotFactory.Create(
-                    session,
-                    setup,
-                    bike,
-                    source,
-                    fingerprintService,
-                    dependencyHash,
-                    changeKind);
-                domains[session.Id] = domain;
-                summaries.AddOrUpdate(new RecordedSessionSummary(
-                    session.Id,
-                    session.Updated,
-                    session.Name,
-                    session.Description,
-                    session.Timestamp,
-                    session.HasProcessedData,
-                    domain.Staleness,
-                    session.DurationSeconds,
-                    session.DistanceMeters,
-                    session.AscentMeters,
-                    session.DescentMeters));
-
-                if (watches.TryGetValue(session.Id, out var watch))
-                {
-                    emissions.Add((watch, domain));
+                    if (disposed) return;
+                    var current = results.Where(result => IsCurrent(result.Input)).ToArray();
+                    using var batch = publication.BeginBatch();
+                    // Cache mutations finish synchronously inside the dispatcher-owned batch.
+                    publication.MutateAsync(this, summaries.SuspendNotifications, () => summaries.Edit(updater =>
+                    {
+                        foreach (var (_, domain) in current)
+                        {
+                            domains[domain.Session.Id] = domain;
+                            pendingRecomputeIds.Remove(domain.Session.Id);
+                            var session = domain.Session;
+                            updater.AddOrUpdate(new RecordedSessionSummary(
+                                session.Id, session.Updated, session.Name, session.Description,
+                                session.Timestamp, session.HasProcessedData, domain.Staleness,
+                                session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters));
+                        }
+                    })).GetAwaiter().GetResult();
+                    foreach (var (_, domain) in current)
+                        if (watches.TryGetValue(domain.Session.Id, out var watch)) watch.Subject.OnNext(domain);
                 }
             }
-        }
-
-        foreach (var (watch, domain) in emissions)
-        {
-            watch.OnNext(domain);
-        }
+            finally
+            {
+                FinishFlush();
+            }
+        });
     }
 
-    private (ReplaySubject<RecordedSessionDomainSnapshot> Watch, bool Created) GetWatchLocked(Guid sessionId)
+    private void FinishFlush()
     {
-        if (watches.TryGetValue(sessionId, out var watch))
-        {
-            return (watch, false);
-        }
-
-        watch = new ReplaySubject<RecordedSessionDomainSnapshot>(1);
-        watches[sessionId] = watch;
-        return (watch, true);
+        lock (stateGate) recomputeFlushScheduled = false;
+        SchedulePending();
     }
 
-    private static void CompleteWatches(IEnumerable<ReplaySubject<RecordedSessionDomainSnapshot>> completedWatches)
+    private ProjectionInput? Capture(Guid id)
     {
-        foreach (var watch in completedWatches)
+        if (sessionStore.Get(id) is not { } session) return null;
+        var setup = session.SetupId is { } setupId ? setupStore.Get(setupId) : null;
+        var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
+        return new ProjectionInput(session, setup, bike, sourceStore.Get(session.RecordingSourceSessionId),
+            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), domains.GetValueOrDefault(id));
+    }
+
+    private bool IsCurrent(ProjectionInput input)
+    {
+        var current = Capture(input.Session.Id);
+        if (current is null) return false;
+        if (input.Session == current.Session && input.Setup == current.Setup &&
+            input.Bike == current.Bike && input.Source == current.Source && input.DependencyHash == current.DependencyHash)
+            return true;
+        pendingRecomputeIds.Add(input.Session.Id);
+        return false;
+    }
+
+    private static void CompleteWatches(IEnumerable<SessionWatch> completed)
+    {
+        foreach (var watch in completed)
         {
-            watch.OnCompleted();
+            watch.Subject.OnCompleted();
+            watch.Subject.Dispose();
         }
     }
+
+    private sealed class SessionWatch
+    {
+        public ReplaySubject<RecordedSessionDomainSnapshot> Subject { get; } = new(1);
+        public int Subscribers;
+    }
+
+    private sealed record ProjectionInput(SessionSnapshot Session, SetupSnapshot? Setup, BikeSnapshot? Bike,
+        RecordedSessionSourceSnapshot? Source, string? DependencyHash, RecordedSessionDomainSnapshot? Previous);
 
     private static DerivedChangeKind ComputeChangeKind(
         RecordedSessionDomainSnapshot previous,
