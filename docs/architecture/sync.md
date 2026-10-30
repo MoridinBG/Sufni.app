@@ -58,7 +58,7 @@ the pairing coordinator forwards the outcome, and startup remains blocked withou
 starting repair jobs. An empty advertisable-address list retains the existing
 warning and advertisement attempt.
 
-All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 5`.
+All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 6`.
 Both the anonymous pairing group and the JWT-protected sync group reject missing
 or mismatched protocol headers with `426 Upgrade Required`. Protocol v3 gives
 push and pull separate persisted watermarks and bounds each metadata snapshot
@@ -66,7 +66,8 @@ with one sampled `upper_bound`. Protocol v4 adds the session derivation window
 columns to the session payload. They are authored metadata like `timestamp`:
 the merge engine writes them in both remote-update variants, including the one
 that keeps the held processed generation. Protocol v5 adds the saved-segment
-list. The client installs the header on its shared
+list. Protocol v6 carries the app calibration version in processing fingerprints
+and rejects older peers. The client installs the header on its shared
 `HttpClient`, so new endpoint groups must either stay behind that service or
 explicitly add the same version gate. Kestrel caps sync request bodies at 256
 MiB.

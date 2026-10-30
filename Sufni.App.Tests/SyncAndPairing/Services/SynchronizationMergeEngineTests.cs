@@ -951,12 +951,13 @@ public class SynchronizationMergeEngineTests
         string sourceHash,
         RecordedSessionDerivationWindow? window) =>
         new(
-            SchemaVersion: 3,
+            SchemaVersion: 4,
             ProcessingVersion: TelemetryProcessingVersion.Current,
             SetupId: Guid.NewGuid(),
             BikeId: Guid.NewGuid(),
             TrackProjectionVersion: GpsTrackPointProjection.ProjectionVersion,
             DependencyHash: dependencyHash,
             SourceHash: sourceHash,
-            DerivationWindow: window);
+            DerivationWindow: window,
+            CalibrationVersion: 1);
 }

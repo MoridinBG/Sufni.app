@@ -1,3 +1,4 @@
+using Sufni.App.Bikes.Services;
 using System;
 using System.Text.Json;
 using Sufni.Telemetry;
@@ -16,7 +17,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// </summary>
 public sealed class ProcessingFingerprintService : IProcessingFingerprintService
 {
-    private const int SchemaVersion = 3;
+    private const int SchemaVersion = 4;
 
     public int CurrentSchemaVersion => SchemaVersion;
 
@@ -73,7 +74,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             GpsTrackPointProjection.ProjectionVersion,
             ProcessingDependencyHash.Compute(input.Setup, input.Bike),
             input.Source.SourceHash,
-            DerivationWindow: window);
+            DerivationWindow: window,
+            CalibrationVersion: TelemetryCalibrationVersion.Current);
     }
 
     private static ProcessingFingerprint CreateCurrentDatabaseInputs(
@@ -106,7 +108,8 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             GpsTrackPointProjection.ProjectionVersion,
             dependencyHash,
             source.SourceHash,
-            DerivationWindow: session.DerivationWindow);
+            DerivationWindow: session.DerivationWindow,
+            CalibrationVersion: TelemetryCalibrationVersion.Current);
     }
 
     private ProcessingFingerprint? ParsePersisted(SessionSnapshot session) =>
@@ -201,6 +204,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         if (persisted.SetupId != current.SetupId ||
             persisted.BikeId != current.BikeId ||
             persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
+            persisted.CalibrationVersion != current.CalibrationVersion ||
             persisted.VelocityFilterWindowMilliseconds != current.VelocityFilterWindowMilliseconds ||
             !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||
             !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash))
@@ -248,6 +252,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         return persisted.SetupId != setup.Id ||
                persisted.BikeId != bike.Id ||
                persisted.TrackProjectionVersion != GpsTrackPointProjection.ProjectionVersion ||
+               persisted.CalibrationVersion != TelemetryCalibrationVersion.Current ||
                persisted.VelocityFilterWindowMilliseconds != options.ClampedVelocityFilterWindowMilliseconds ||
                persisted.DerivationWindow != session.DerivationWindow ||
                !StringComparer.Ordinal.Equals(persisted.DependencyHash, currentDependencyHash);

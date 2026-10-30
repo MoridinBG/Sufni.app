@@ -7,11 +7,8 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// <summary>
 /// Compact description of the inputs that produced processed recorded-session
 /// data. It combines the processing algorithm version, dependency identity and
-/// hash, raw-source hash, and the clamped velocity-filter processing option into
-/// a value suitable for stale-cache checks. Schema v3 added
-/// <see cref="VelocityFilterWindowMilliseconds"/>; the field defaults to the
-/// 25 ms default so legacy/test constructions stay valid. Derivation windows are
-/// null-omitted so existing v3 fingerprint JSON remains byte-stable.
+/// hash, raw-source hash, app calibration version, and velocity-filter option.
+/// Schema v4 adds the calibration version; absent legacy values read as zero.
 /// </summary>
 public sealed record ProcessingFingerprint(
     int SchemaVersion,
@@ -23,11 +20,12 @@ public sealed record ProcessingFingerprint(
     string SourceHash,
     int VelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    RecordedSessionDerivationWindow? DerivationWindow = null)
+    RecordedSessionDerivationWindow? DerivationWindow = null,
+    int CalibrationVersion = 0)
 {
     /// <summary>
     /// True when two fingerprints agree on every DB-resident processing input
-    /// (schema/processing version, setup, bike, track-projection version,
+    /// (schema/processing/calibration versions, setup, bike, track-projection version,
     /// dependency hash, raw-source hash). This deliberately excludes any
     /// preference-stored processing option: that option does not live in SQLite,
     /// so the in-transaction recompute coherence guard cannot see it and must not
@@ -37,6 +35,7 @@ public sealed record ProcessingFingerprint(
     public bool MatchesDatabaseInputs(ProcessingFingerprint other) =>
         SchemaVersion == other.SchemaVersion &&
         ProcessingVersion == other.ProcessingVersion &&
+        CalibrationVersion == other.CalibrationVersion &&
         SetupId == other.SetupId &&
         BikeId == other.BikeId &&
         TrackProjectionVersion == other.TrackProjectionVersion &&

@@ -65,7 +65,7 @@ public class ProcessingFingerprintServiceTests
 
         var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
 
-        Assert.Equal(3, current.SchemaVersion);
+        Assert.Equal(4, current.SchemaVersion);
         Assert.Equal(6, TelemetryProcessingVersion.Current);
         Assert.Equal(6, current.ProcessingVersion);
         Assert.Equal(1, current.TrackProjectionVersion);
@@ -170,6 +170,15 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void MatchesDatabaseInputs_RejectsEarlierCalibrationVersion()
+    {
+        var context = CreateContext();
+        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+
+        Assert.False(current.MatchesDatabaseInputs(current with { CalibrationVersion = 0 }));
+    }
+
+    [Fact]
     public void MatchesDatabaseInputs_IgnoresVelocityFilterWindow()
     {
         var context = CreateContext();
@@ -270,6 +279,7 @@ public class ProcessingFingerprintServiceTests
     [InlineData(MissingRawSourceCase.ProcessedDataMissing, true)]
     [InlineData(MissingRawSourceCase.DependencyHashChanged, true)]
     [InlineData(MissingRawSourceCase.TrackProjectionVersionDiffers, true)]
+    [InlineData(MissingRawSourceCase.CalibrationVersionDiffers, true)]
     public void EvaluateState_ReturnsMissingRawSource_WhenRawSourceIsUnavailable(
         MissingRawSourceCase testCase,
         bool expectedStale)
@@ -299,6 +309,13 @@ public class ProcessingFingerprintServiceTests
             case MissingRawSourceCase.DependencyHashChanged:
                 session = PersistCurrentFingerprint(context);
                 bike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
+                break;
+            case MissingRawSourceCase.CalibrationVersionDiffers:
+                var oldCalibration = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
+                {
+                    CalibrationVersion = 0
+                };
+                session = context.Session with { ProcessingFingerprintJson = AppJson.Serialize(oldCalibration) };
                 break;
             case MissingRawSourceCase.TrackProjectionVersionDiffers:
                 var persisted = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source) with
@@ -359,6 +376,7 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Theory]
+    [InlineData(FingerprintDifferenceCase.CalibrationVersion, typeof(SessionStaleness.DependencyHashChanged))]
     [InlineData(FingerprintDifferenceCase.ProcessingVersion, typeof(SessionStaleness.ProcessingVersionChanged))]
     [InlineData(FingerprintDifferenceCase.TrackProjectionVersion, typeof(SessionStaleness.DependencyHashChanged))]
     [InlineData(FingerprintDifferenceCase.ProcessingDependency, typeof(SessionStaleness.DependencyHashChanged))]
@@ -372,6 +390,9 @@ public class ProcessingFingerprintServiceTests
 
         switch (testCase)
         {
+            case FingerprintDifferenceCase.CalibrationVersion:
+                persisted = persisted with { CalibrationVersion = 0 };
+                break;
             case FingerprintDifferenceCase.ProcessingVersion:
                 persisted = persisted with { ProcessingVersion = TelemetryProcessingVersion.Current - 1 };
                 break;
@@ -706,7 +727,8 @@ public class ProcessingFingerprintServiceTests
         SourceAndDependenciesMissing,
         ProcessedDataMissing,
         DependencyHashChanged,
-        TrackProjectionVersionDiffers
+        TrackProjectionVersionDiffers,
+        CalibrationVersionDiffers
     }
 
     public enum ProcessedDataCase
@@ -719,6 +741,7 @@ public class ProcessingFingerprintServiceTests
     public enum FingerprintDifferenceCase
     {
         ProcessingVersion,
+        CalibrationVersion,
         TrackProjectionVersion,
         ProcessingDependency
     }

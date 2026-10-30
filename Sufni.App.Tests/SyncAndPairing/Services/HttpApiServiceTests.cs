@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Time.Testing;
-using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Reactive.Linq;
@@ -68,7 +67,7 @@ public class HttpApiServiceTests
     }
 
     [Fact]
-    public async Task Requests_IncludeSyncProtocolHeader()
+    public async Task Requests_IncludeProtocolSixHeader()
     {
         var secureStorage = CreateSecureStorage();
         var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
@@ -92,10 +91,7 @@ public class HttpApiServiceTests
 
         await service.GetIncompleteSessionIdsAsync();
 
-        Assert.Equal(
-            [SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture),
-                SynchronizationProtocol.SyncProtocolVersion.ToString(CultureInfo.InvariantCulture)],
-            seenProtocolHeaders);
+        Assert.Equal(["6", "6"], seenProtocolHeaders);
     }
 
     [Fact]

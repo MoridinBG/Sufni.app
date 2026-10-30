@@ -534,8 +534,52 @@ public class RecordedSessionReprocessorTests
         // later velocity-filter change makes the stored BLOB read as stale.
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, new TelemetryProcessingOptions(100)), CancellationToken.None));
 
-        Assert.Equal(3, result.Fingerprint.SchemaVersion);
+        Assert.Equal(4, result.Fingerprint.SchemaVersion);
         Assert.Equal(100, result.Fingerprint.VelocityFilterWindowMilliseconds);
+    }
+
+    [Fact]
+    public async Task ReprocessAsync_PinsCalibrationVersionOneToFrontAndRearTravel()
+    {
+        var payload = new RecordedLiveCaptureSourcePayload
+        {
+            SchemaVersion = 1,
+            Metadata = new Metadata { SampleRate = 100, Duration = 0.64, Timestamp = 1_700_000_000 },
+            FrontMeasurements = Enumerable.Repeat((ushort)1024, 64).ToArray(),
+            RearMeasurements = Enumerable.Repeat((ushort)2048, 64).ToArray()
+        };
+        var source = CreateLiveCaptureSource(Guid.NewGuid(), "calibration-v1", payload);
+        var domain = CreateLiveCaptureDomain(source);
+        var input = RecordedSessionDerivationInput.Create(
+            domain.Session,
+            domain.Setup! with
+            {
+                FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
+                {
+                    Length = 160, Resolution = 12
+                }),
+                RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+                {
+                    Type = SensorType.LinearShockStroke, Length = 50, Resolution = 12
+                })
+            },
+            domain.Bike! with
+            {
+                HeadAngle = 90, ForkStroke = 160, ShockStroke = 50,
+                RearSuspension = new RearSuspensionSpec.LeverageRatio(TestSnapshots.LeverageRatioCurve((0, 0), (50, 150)))
+            },
+            source,
+            TelemetryProcessingOptions.Default);
+
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await CreateReprocessor().ReprocessAsync(
+            input, TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, result.Fingerprint.CalibrationVersion);
+        var telemetry = result.ProcessedTelemetry.TelemetryData;
+        Assert.Equal(64, telemetry.Front.Travel.Length);
+        Assert.Equal(64, telemetry.Rear.Travel.Length);
+        Assert.All(telemetry.Front.Travel, travel => Assert.Equal(40.00976800976801, travel, precision: 8));
+        Assert.All(telemetry.Rear.Travel, travel => Assert.Equal(75.01831501831502, travel, precision: 8));
     }
 
     [Theory]
