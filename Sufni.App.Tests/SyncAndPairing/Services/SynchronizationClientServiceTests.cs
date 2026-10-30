@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
@@ -388,9 +389,9 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
-        var events = new List<SynchronizationProgressSnapshot>();
+        var progress = new RecordingProgress<SynchronizationProgressSnapshot>();
 
-        await CreateService().SyncAll(new ProgressCapture(events));
+        await CreateService().SyncAll(progress);
 
         Assert.Equal(
             [
@@ -401,10 +402,10 @@ public class SynchronizationClientServiceTests
                 SynchronizationPhase.PushingIncompleteSessionSources,
                 SynchronizationPhase.PullingIncompleteSessionSources,
             ],
-            events.Select(e => e.Phase).ToArray());
-        Assert.All(events, e => Assert.True(e.IsDeterminate));
-        Assert.All(events, e => Assert.Equal(6, e.TotalSteps));
-        Assert.Equal([1, 2, 3, 4, 5, 6], events.Select(e => e.CurrentStep).ToArray());
+            progress.Reports.Select(e => e.Phase).ToArray());
+        Assert.All(progress.Reports, e => Assert.True(e.IsDeterminate));
+        Assert.All(progress.Reports, e => Assert.Equal(6, e.TotalSteps));
+        Assert.Equal([1, 2, 3, 4, 5, 6], progress.Reports.Select(e => e.CurrentStep).ToArray());
     }
 
     [Theory]
@@ -541,11 +542,4 @@ public class SynchronizationClientServiceTests
         RepositoryFailure
     }
 
-    private sealed class ProgressCapture(List<SynchronizationProgressSnapshot> events) : IProgress<SynchronizationProgressSnapshot>
-    {
-        public void Report(SynchronizationProgressSnapshot value)
-        {
-            events.Add(value);
-        }
-    }
 }

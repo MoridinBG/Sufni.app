@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Async;
 using System.Threading;
 using NSubstitute;
 using Sufni.Telemetry;
@@ -424,7 +425,7 @@ public class SessionRecomputeEngineTests
 
         // A synchronous sink records every report deterministically: the engine
         // reports before each parallel body returns, and ForEachAsync awaits them all.
-        var collector = new RecordingProgress();
+        var collector = new RecordingProgress<SessionRecomputeAllProgress>();
 
         var summary = await CreateEngine()
             .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, collector)
@@ -436,17 +437,4 @@ public class SessionRecomputeEngineTests
         Assert.All(collector.Reports, report => Assert.Equal(2, report.Total));
     }
 
-    private sealed class RecordingProgress : IProgress<SessionRecomputeAllProgress>
-    {
-        private readonly object gate = new();
-        public List<SessionRecomputeAllProgress> Reports { get; } = [];
-
-        public void Report(SessionRecomputeAllProgress value)
-        {
-            lock (gate)
-            {
-                Reports.Add(value);
-            }
-        }
-    }
 }

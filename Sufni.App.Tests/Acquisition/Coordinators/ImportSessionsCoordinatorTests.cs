@@ -1,4 +1,5 @@
 using System.IO;
+using Sufni.App.Tests.TestSupport.Async;
 using System.Net;
 using System.Threading;
 using NSubstitute;
@@ -58,12 +59,12 @@ public class ImportSessionsCoordinatorTests
             Assert.Throws<ObjectDisposedException>(() => telemetrySource.SstBytes);
             return Task.CompletedTask;
         });
-        var progressEvents = new List<SessionImportEvent>();
+        var progress = new RecordingProgress<SessionImportEvent>();
 
         var result = await harness.CreateCoordinator().ImportAsync(
             [file],
             setup.Id,
-            harness.CaptureImportProgress(progressEvents));
+            progress);
 
         var imported = Assert.Single(result.Imported);
         Assert.Empty(result.Failures);
@@ -89,8 +90,8 @@ public class ImportSessionsCoordinatorTests
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
             Arg.Any<CancellationToken>());
         await file.Received(1).OnImported();
-        Assert.Contains(progressEvents, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
-        Assert.Contains(progressEvents, e => e is SessionImportEvent.Imported importedEvent && importedEvent.Snapshot.Id == imported.Id);
+        Assert.Contains(progress.Reports, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
+        Assert.Contains(progress.Reports, e => e is SessionImportEvent.Imported importedEvent && importedEvent.Snapshot.Id == imported.Id);
     }
 
     [Theory]
@@ -116,21 +117,21 @@ public class ImportSessionsCoordinatorTests
                     Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("session publish failed"));
         }
-        var progressEvents = new List<SessionImportEvent>();
+        var progress = new RecordingProgress<SessionImportEvent>();
 
         var result = await harness.CreateCoordinator().ImportAsync(
             [file],
             setup.Id,
-            harness.CaptureImportProgress(progressEvents));
+            progress);
 
         Assert.Single(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal(SessionImportFailureOperation.Publish, failure.Operation);
         await file.DidNotReceive().OnImported();
         Assert.Contains(
-            progressEvents,
+            progress.Reports,
             importEvent => importEvent is SessionImportEvent.PublicationFailed { FileName: "ride" });
-        Assert.DoesNotContain(progressEvents, importEvent => importEvent is SessionImportEvent.Imported);
+        Assert.DoesNotContain(progress.Reports, importEvent => importEvent is SessionImportEvent.Imported);
     }
 
     [Theory]
@@ -193,12 +194,12 @@ public class ImportSessionsCoordinatorTests
             malformedMessage: "trailing chunk was trimmed",
             canImport: true,
             source: importableSource);
-        var progressEvents = new List<SessionImportEvent>();
+        var progress = new RecordingProgress<SessionImportEvent>();
 
         var result = await harness.CreateCoordinator().ImportAsync(
             [rejected, importable],
             setup.Id,
-            harness.CaptureImportProgress(progressEvents));
+            progress);
 
         Assert.Equal("trimmed", Assert.Single(result.Imported).Name);
         var failure = Assert.Single(result.Failures);
@@ -213,7 +214,7 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<CancellationToken>());
         Assert.Throws<ObjectDisposedException>(() => rejectedSource.SstBytes);
         Assert.Throws<ObjectDisposedException>(() => importableSource.SstBytes);
-        Assert.Contains(progressEvents, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
+        Assert.Contains(progress.Reports, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
     }
 
     [Theory]

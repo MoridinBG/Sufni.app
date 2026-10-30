@@ -91,6 +91,12 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - `TestAppPreferences.Load` supplies isolated launch preferences and a fake clock for file-backed preference tests. `TestPersistenceHarness` and `PersistenceTestData.CreateConnectionContext` share a fixed test clock by default and accept an explicit clock for expiry and timestamp scenarios.
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
 
+`RecordingProgress<T>` collects reports synchronously and safely across worker tasks.
+`TestListStores` supplies shared mutable read-store fixtures; projection and list
+tests use `ManualUiThreadDispatcher` for queued publication.
+`FakeMassStorageDriveSource` supplies drive descriptors and recordings without
+probing the machine's mounts.
+
 ## Async Test Control
 
 - Use `ManualUiThreadDispatcher` to drain queued UI work explicitly; `InlineUiThreadDispatcher` is sufficient when dispatch ordering is not under test. Do not replace the ambient synchronization context.

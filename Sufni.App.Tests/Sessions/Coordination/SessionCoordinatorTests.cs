@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Bikes.Models;
@@ -328,7 +329,7 @@ public class SessionCoordinatorTests
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, telemetry);
-        var progress = new CapturingSessionDetailLoadProgress();
+        var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
         var result = await CreateCoordinator().LoadDetailAsync(snapshot.Id, progress, cancellationToken: TestContext.Current.CancellationToken);
 
@@ -367,7 +368,7 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
-        var progress = new CapturingSessionDetailLoadProgress();
+        var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
         var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
 
@@ -389,7 +390,7 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("track failed"));
-        var progress = new CapturingSessionDetailLoadProgress();
+        var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
         var result = await CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
 
@@ -409,7 +410,7 @@ public class SessionCoordinatorTests
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, cancellation.Token)
             .Returns(Task.FromCanceled<SessionTrackPresentationData>(cancellation.Token));
-        var progress = new CapturingSessionDetailLoadProgress();
+        var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             CreateCoordinator().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellation.Token));
@@ -425,7 +426,7 @@ public class SessionCoordinatorTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         SetLocalTelemetry(snapshot.Id, null);
-        var progress = new CapturingSessionDetailLoadProgress();
+        var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
         var result = await CreateCoordinator().LoadDetailAsync(
             snapshot.Id,
@@ -600,13 +601,4 @@ public class SessionCoordinatorTests
             });
     }
 
-    private sealed class CapturingSessionDetailLoadProgress : IProgress<SessionDetailLoadProgress>
-    {
-        public List<SessionDetailLoadProgress> Reports { get; } = [];
-
-        public void Report(SessionDetailLoadProgress value)
-        {
-            Reports.Add(value);
-        }
-    }
 }

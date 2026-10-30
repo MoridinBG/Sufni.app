@@ -1,4 +1,6 @@
 using System.Linq;
+using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Linq;
 using DynamicData;
 
@@ -16,9 +18,9 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 public class RecordedSessionProjectionTests
 {
     [Fact]
-    public void ConnectSessions_PublishesCurrentSummary_WhenSessionIsFullyCurrent()
+    public async Task ConnectSessions_PublishesCurrentSummary_WhenSessionIsFullyCurrent()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -26,7 +28,7 @@ public class RecordedSessionProjectionTests
         var context = CreateCurrentContext(fingerprintService);
 
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var summary = Assert.Single(summaries);
         Assert.Equal(context.Session.Id, summary.Id);
@@ -36,9 +38,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void ConnectSessions_PublishesNoRawSummary_WhenSourceIsMissing()
+    public async Task ConnectSessions_PublishesNoRawSummary_WhenSourceIsMissing()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -48,7 +50,7 @@ public class RecordedSessionProjectionTests
         stores.Bikes.Add(context.Bike);
         stores.Setups.Add(context.Setup);
         stores.Sessions.Add(context.Session);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var summary = Assert.Single(summaries);
         Assert.IsType<SessionStaleness.MissingRawSource>(summary.Staleness);
@@ -56,9 +58,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_EmitsInitialThenCombinedSessionChangeKind_WhenSessionChanges()
+    public async Task WatchSession_EmitsInitialThenCombinedSessionChangeKind_WhenSessionChanges()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -67,7 +69,7 @@ public class RecordedSessionProjectionTests
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
 
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         var initial = Assert.Single(emissions);
         Assert.Equal(DerivedChangeKind.Initial, initial.ChangeKind);
 
@@ -77,7 +79,7 @@ public class RecordedSessionProjectionTests
             HasProcessedData = false,
             ProcessingFingerprintJson = null
         });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var latest = emissions.Last();
         Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.SessionMetadataChanged));
@@ -87,9 +89,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_EmitsSourceAvailabilityChanged_WhenSourceHashChanges()
+    public async Task WatchSession_EmitsSourceAvailabilityChanged_WhenSourceHashChanges()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -97,10 +99,10 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var latest = emissions.Last();
         Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, latest.ChangeKind);
@@ -109,9 +111,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_EmitsFingerprintChanged_WhenDerivationWindowChanges()
+    public async Task WatchSession_EmitsFingerprintChanged_WhenDerivationWindowChanges()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         var context = CreateWindowedContext(fingerprintService);
@@ -119,12 +121,12 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
         stores.Sessions.Add(context.Session with { WindowStartSeconds = 2 });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var latest = Assert.Single(emissions);
         Assert.Equal(2, latest.Session.DerivationWindow!.StartSeconds);
@@ -133,9 +135,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_RecomputesDerivedSession_WhenReferencedSourceHashChanges()
+    public async Task WatchSession_RecomputesDerivedSession_WhenReferencedSourceHashChanges()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         var context = CreateWindowedContext(fingerprintService);
@@ -143,12 +145,12 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
         stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var latest = Assert.Single(emissions);
         Assert.Equal(context.Session.Id, latest.Session.Id);
@@ -158,9 +160,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_EmitsDependencyChanged_WhenBikeProcessingDependencyChanges()
+    public async Task WatchSession_EmitsDependencyChanged_WhenBikeProcessingDependencyChanges()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -168,10 +170,10 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         stores.Bikes.Add(context.Bike with { HeadAngle = context.Bike.HeadAngle + 0.5 });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var latest = emissions.Last();
         Assert.Equal(DerivedChangeKind.DependencyChanged, latest.ChangeKind);
@@ -179,9 +181,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_DoesNotEmit_WhenBikeNonProcessingFieldsChange()
+    public async Task WatchSession_DoesNotEmit_WhenBikeNonProcessingFieldsChange()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -189,7 +191,7 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
@@ -199,15 +201,15 @@ public class RecordedSessionProjectionTests
             ImageBytes = [9, 8, 7],
             Updated = context.Bike.Updated + 1
         });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         Assert.Empty(emissions);
     }
 
     [Fact]
-    public void WatchSession_CoalescesSameTurnStoreChangesIntoSingleMultiCauseEmission()
+    public async Task WatchSession_CoalescesSameTurnStoreChangesIntoSingleMultiCauseEmission()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -215,7 +217,7 @@ public class RecordedSessionProjectionTests
         var emissions = new List<RecordedSessionDomainSnapshot>();
         using var subscription = projection.WatchSession(context.Session.Id).Subscribe(emissions.Add);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Single(emissions);
         emissions.Clear();
 
@@ -224,7 +226,7 @@ public class RecordedSessionProjectionTests
         stores.Sources.Add(context.Source with { SourceHash = "changed-source-hash" });
 
         Assert.Empty(emissions);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         var latest = Assert.Single(emissions);
         var expected =
@@ -236,16 +238,16 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void ConnectSessions_RemovesSummary_WhenSessionIsRemoved()
+    public async Task ConnectSessions_RemovesSummary_WhenSessionIsRemoved()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
         using var subscription = projection.ConnectSessions().Bind(out var summaries).Subscribe();
         var context = CreateCurrentContext(fingerprintService);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Single(summaries);
 
         stores.Sessions.Remove(context.Session.Id);
@@ -254,9 +256,9 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public void WatchSession_CompletesAndStopsWatching_WhenSessionIsRemoved()
+    public async Task WatchSession_CompletesAndStopsWatching_WhenSessionIsRemoved()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -267,21 +269,21 @@ public class RecordedSessionProjectionTests
             _ => emissions++,
             () => completed = true);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Equal(1, emissions);
 
         stores.Sessions.Remove(context.Session.Id);
 
         Assert.True(completed);
         stores.Sources.Add(context.Source with { SourceHash = "changed-after-remove" });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Equal(1, emissions);
     }
 
     [Fact]
-    public void WatchSession_StaysSubscribed_WhenRefreshUpdatesSameSession()
+    public async Task WatchSession_StaysSubscribed_WhenRefreshUpdatesSameSession()
     {
-        var scheduler = new QueuedRecordedSessionProjectionScheduler();
+        var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
         var fingerprintService = new ProcessingFingerprintService();
         using var projection = stores.CreateProjection(fingerprintService, scheduler);
@@ -292,12 +294,12 @@ public class RecordedSessionProjectionTests
             emissions.Add,
             () => completed = true);
         stores.Add(context);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
         Assert.Single(emissions);
 
         var refreshed = context.Session with { Name = "refreshed session" };
         stores.Sessions.RefreshWith(refreshed);
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         Assert.False(completed);
         Assert.Equal(2, emissions.Count);
@@ -305,7 +307,7 @@ public class RecordedSessionProjectionTests
         Assert.Equal(DerivedChangeKind.SessionMetadataChanged, emissions[^1].ChangeKind);
 
         stores.Sources.Add(context.Source with { SourceHash = "changed-after-refresh" });
-        scheduler.Flush();
+        await scheduler.DrainAsync();
 
         Assert.Equal(3, emissions.Count);
         Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, emissions[^1].ChangeKind);
@@ -370,10 +372,10 @@ public class RecordedSessionProjectionTests
 
     private sealed class StoreFixtures : IDisposable
     {
-        public InMemorySessionStore Sessions { get; } = new();
-        public InMemorySetupStore Setups { get; } = new();
-        public InMemoryBikeStore Bikes { get; } = new();
-        public InMemoryRecordedSourceStore Sources { get; } = new();
+        public SessionStoreStub Sessions { get; } = new();
+        public SetupStoreStub Setups { get; } = new();
+        public BikeStoreStub Bikes { get; } = new();
+        public RecordedSourceStoreStub Sources { get; } = new();
         public ProcessingDependencyHashIndex DependencyHashIndex { get; }
 
         public StoreFixtures()
@@ -383,7 +385,7 @@ public class RecordedSessionProjectionTests
 
         public RecordedSessionProjectionModel CreateProjection(
             IProcessingFingerprintService fingerprintService,
-            IRecordedSessionProjectionScheduler scheduler,
+            IUiThreadDispatcher scheduler,
             IRecordedSessionProcessingOptionCache? optionCache = null) => new(
             Sessions,
             Setups,
@@ -392,7 +394,7 @@ public class RecordedSessionProjectionTests
             fingerprintService,
             DependencyHashIndex,
             optionCache ?? new InMemoryRecordedSessionProcessingOptionCache(),
-            scheduler);
+            new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
         public void Add(TestContext context)
         {
@@ -412,137 +414,4 @@ public class RecordedSessionProjectionTests
         }
     }
 
-    private sealed class InMemorySessionStore : ISessionStore, IDisposable
-    {
-        private readonly SourceCache<SessionSnapshot, Guid> cache = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<SessionSnapshot, Guid>> Connect() => cache.Connect();
-
-        public IObservable<SessionSnapshot> Watch(Guid id) => Observable.Empty<SessionSnapshot>();
-
-        public SessionSnapshot? Get(Guid id)
-        {
-            var result = cache.Lookup(id);
-            return result.HasValue ? result.Value : null;
-        }
-
-        public void Add(SessionSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-        public void RefreshWith(SessionSnapshot snapshot) =>
-            cache.EditDiff([snapshot], EqualityComparer<SessionSnapshot>.Default);
-
-        public void Remove(Guid id) => cache.RemoveKey(id);
-
-        public void Dispose() => cache.Dispose();
-    }
-
-    private sealed class InMemorySetupStore : ISetupStore, IDisposable
-    {
-        private readonly SourceCache<SetupSnapshot, Guid> cache = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<SetupSnapshot, Guid>> Connect() => cache.Connect();
-
-        public SetupSnapshot? Get(Guid id)
-        {
-            var result = cache.Lookup(id);
-            return result.HasValue ? result.Value : null;
-        }
-
-        public SetupSnapshot? FindByBoardId(Guid boardId) =>
-            cache.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
-
-        public void Add(SetupSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-        public void Dispose() => cache.Dispose();
-    }
-
-    private sealed class InMemoryBikeStore : IBikeStore, IDisposable
-    {
-        private readonly SourceCache<BikeSnapshot, Guid> cache = new(snapshot => snapshot.Id);
-
-        public IObservable<IChangeSet<BikeSnapshot, Guid>> Connect() => cache.Connect();
-
-        public BikeSnapshot? Get(Guid id)
-        {
-            var result = cache.Lookup(id);
-            return result.HasValue ? result.Value : null;
-        }
-
-        public void Add(BikeSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-        public void Dispose() => cache.Dispose();
-    }
-
-    private sealed class InMemoryRecordedSourceStore : IRecordedSessionSourceStore, IDisposable
-    {
-        private readonly SourceCache<RecordedSessionSourceSnapshot, Guid> cache = new(snapshot => snapshot.SessionId);
-
-        public IObservable<IChangeSet<RecordedSessionSourceSnapshot, Guid>> Connect() => cache.Connect();
-
-        public RecordedSessionSourceSnapshot? Get(Guid sessionId)
-        {
-            var result = cache.Lookup(sessionId);
-            return result.HasValue ? result.Value : null;
-        }
-
-        public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<RecordedSessionSource?>(null);
-
-        public void Add(RecordedSessionSourceSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-        public void Dispose() => cache.Dispose();
-    }
-
-    private sealed class QueuedRecordedSessionProjectionScheduler : IRecordedSessionProjectionScheduler
-    {
-        private readonly Queue<Action> callbacks = new();
-
-        public void Post(Action action) => callbacks.Enqueue(action);
-
-        public void Flush()
-        {
-            while (callbacks.Count > 0)
-            {
-                callbacks.Dequeue()();
-            }
-        }
-    }
-
-    [Fact]
-    public void UiThreadScheduler_PostsAtBackgroundPriority()
-    {
-        var dispatcher = new PriorityRecordingDispatcher();
-        var scheduler = new UiThreadRecordedSessionProjectionScheduler(dispatcher);
-        var executed = false;
-
-        scheduler.Post(() => executed = true);
-
-        Assert.True(executed);
-        Assert.Equal([UiDispatchPriority.Background], dispatcher.Priorities);
-    }
-
-    private sealed class PriorityRecordingDispatcher : IUiThreadDispatcher
-    {
-        public List<UiDispatchPriority> Priorities { get; } = [];
-
-        public bool CheckAccess() => true;
-
-        public void Post(Action action) => action();
-
-        public void Post(Action action, UiDispatchPriority priority)
-        {
-            Priorities.Add(priority);
-            action();
-        }
-
-        public Task InvokeAsync(Action action)
-        {
-            action();
-            return Task.CompletedTask;
-        }
-
-        public Task InvokeAsync(Func<Task> action) => action();
-
-        public Task<T> InvokeAsync<T>(Func<T> action) => Task.FromResult(action());
-    }
 }

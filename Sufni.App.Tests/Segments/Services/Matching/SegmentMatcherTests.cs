@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services.Matching;
@@ -17,7 +18,7 @@ public class SegmentMatcherTests
         var source = AddSession("Source", timestamp: 1000, BuildLineTrack(1000, 0, 400));
         var candidate = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
         AddSession("Short", timestamp: 3000, BuildLineTrack(3000, 0, 40));
-        var progress = new ProgressRecorder();
+        var progress = new RecordingProgress<SegmentMatchProgress>();
 
         var matches = await new SegmentMatcher(reader).FindMatchesAsync(
             new SegmentMatchRequest(
@@ -36,15 +37,15 @@ public class SegmentMatcherTests
         Assert.Equal(new SegmentTimeMapPoint(100, 100), match.TimeMap[0]);
         Assert.Equal(new SegmentTimeMapPoint(300, 300), match.TimeMap[^1]);
         Assert.Equal(candidate.ContentToken, match.ContentToken);
-        Assert.Contains(progress.Values, item => item is SegmentMatchProgress.EnumeratingSessions { CurrentSession: 3, TotalSessions: 3 });
-        Assert.Contains(progress.Values, item => item is SegmentMatchProgress.MatchingSessions { CompletedSessions: 2, TotalSessions: 2 });
+        Assert.Contains(progress.Reports, item => item is SegmentMatchProgress.EnumeratingSessions { CurrentSession: 3, TotalSessions: 3 });
+        Assert.Contains(progress.Reports, item => item is SegmentMatchProgress.MatchingSessions { CompletedSessions: 2, TotalSessions: 2 });
     }
 
     [Fact]
     public async Task FindMatchesAsync_ReportsMatchingProgressThatNeverMovesBackwards()
     {
         AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 500));
-        var progress = new ProgressRecorder();
+        var progress = new RecordingProgress<SegmentMatchProgress>();
 
         var match = Assert.Single(await new SegmentMatcher(reader).FindMatchesAsync(
             CreateRequest(BuildLineTrack(1000, 120, 320), CreateLooseOptions()),
@@ -53,7 +54,7 @@ public class SegmentMatcherTests
 
         Assert.Equal(120, match.StartSeconds, precision: 6);
         Assert.Equal(320, match.EndSeconds, precision: 6);
-        var overall = progress.Values
+        var overall = progress.Reports
             .OfType<SegmentMatchProgress.MatchingSessions>()
             .Select(item => item.CompletedSessions + item.CurrentSessionFraction)
             .ToList();
@@ -428,21 +429,6 @@ public class SegmentMatcherTests
         MaxNormalizedCostMeters: 40,
         CandidateLengthToleranceRatio: 0.35,
         MaxDegreeOfParallelism: 1);
-
-    private sealed class ProgressRecorder : IProgress<SegmentMatchProgress>
-    {
-        private readonly Lock gate = new();
-
-        public List<SegmentMatchProgress> Values { get; } = [];
-
-        public void Report(SegmentMatchProgress value)
-        {
-            lock (gate)
-            {
-                Values.Add(value);
-            }
-        }
-    }
 
     private sealed class MatchComparer : IEqualityComparer<SegmentMatch>
     {

@@ -98,8 +98,6 @@ internal sealed class ImportWorkflowHarness
         return (setup, bike);
     }
 
-    public ProgressCapture<SessionImportEvent> CaptureImportProgress(List<SessionImportEvent>? events = null) => new(events ?? []);
-
     public static RecordedSessionReprocessResult CreateReprocessResult(
         RecordedSessionDomainSnapshot domain,
         RecordedSessionSource source,
@@ -160,11 +158,4 @@ internal sealed class ImportWorkflowHarness
                 return Task.FromResult(session);
             });
     }
-}
-
-internal sealed class ProgressCapture<T>(List<T> events) : IProgress<T>
-{
-    public List<T> Events { get; } = events;
-
-    public void Report(T value) => Events.Add(value);
 }
