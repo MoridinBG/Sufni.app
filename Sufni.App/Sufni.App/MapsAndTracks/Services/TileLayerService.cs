@@ -1,74 +1,53 @@
 using System;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Threading;
+using System.Reactive.Threading.Tasks;
 using System.Threading.Tasks;
-using Serilog;
-
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+
 namespace Sufni.App.MapsAndTracks.Services;
 
-public class TileLayerService : ITileLayerService, IDisposable
+/// <summary>Derives the available map layers and selection from persisted preferences.</summary>
+public sealed class TileLayerService(IAppPreferences preferences, IUiThreadDispatcher dispatcher)
+    : ITileLayerService, IDisposable
 {
-    // Stable so a selection made on one device resolves to the same layer
-    // on another after sync.
     private static readonly Guid JawgDarkLayerId = new("0a3b9c1e-4d2f-4a91-bc7e-1b6e4a2c5f01");
     private static readonly Guid OpenCycleMapLayerId = new("7add6eb5-ee7c-4df5-af18-18ac1bfafc7f");
+    private readonly ReplaySubject<TileLayerState> state = new(1);
+    private readonly TileLayerConfig[] builtInLayers = CreateBuiltInLayers();
+    private IDisposable? subscription;
+    private Task? initialization;
 
-    private static readonly ILogger logger = Log.ForContext<TileLayerService>();
+    public IObservable<TileLayerState> Observe() => state.AsObservable();
 
-    private readonly IMapPreferences mapPreferences;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly IDisposable mapPreferenceSubscription;
-    // Serializes refresh-after-preference-change bodies. AppPreferences gates
-    // applies so sync preference events fire back-to-back.
-    private readonly SemaphoreSlim refreshGate = new(1, 1);
-    private Task? initializationTask;
+    public Task InitializeAsync() => initialization ??= InitializeCoreAsync();
 
-    public ObservableCollection<TileLayerConfig> AvailableLayers { get; } = new();
-
-    // Seeded with null; consumers see a value only after InitializeAsync.
-    private readonly BehaviorSubject<TileLayerConfig?> selectedLayerSubject = new(null);
-    public IObservable<TileLayerConfig> SelectedLayerChanges =>
-        selectedLayerSubject.Where(l => l is not null).Select(l => l!);
-
-    private TileLayerConfig selectedLayer = null!;
-    public TileLayerConfig SelectedLayer => selectedLayer;
-
-    public async Task SetSelectedLayerAsync(TileLayerConfig config)
+    private Task InitializeCoreAsync()
     {
-        if (!TrySetSelectedLayer(config)) return;
-        await mapPreferences.SetSelectedLayerIdAsync(config.Id);
+        subscription = preferences.Map.ObserveChanges()
+            .Select(change => Derive(change.Value))
+            .ObserveOnUiThread(dispatcher)
+            .Subscribe(state);
+        return state.FirstAsync().ToTask();
     }
 
-    public TileLayerService(IAppPreferences appPreferences, IUiThreadDispatcher uiThreadDispatcher)
+    private TileLayerState Derive(MapPreferencesValue preferences)
     {
-        mapPreferences = appPreferences.Map;
-        this.uiThreadDispatcher = uiThreadDispatcher;
-
-        // Preference changes fire on whichever thread happens to be awaiting
-        // ApplySyncDataAsync. Marshal sync refreshes onto the UI thread because
-        // AvailableLayers is bound to the UI. Local writes are already reflected
-        // by this service's mutating methods.
-        mapPreferenceSubscription = mapPreferences.ObserveChanges()
-            .Skip(1)
-            .Where(change => change.Origin == PreferenceChangeOrigin.SyncApply)
-            .Subscribe(change => OnMapPreferencesChanged(change.Value));
+        var layers = builtInLayers.Concat(preferences.CustomLayers.Select(layer => layer.AsCustom())).ToArray();
+        var selected = layers.FirstOrDefault(layer => layer.Id == preferences.SelectedLayerId) ?? layers[0];
+        return new TileLayerState(Array.AsReadOnly(layers), selected);
     }
 
-    public Task InitializeAsync()
+    public void Dispose()
     {
-        return initializationTask ??= InitializeCoreAsync();
+        subscription?.Dispose();
+        state.Dispose();
     }
 
-    private async Task InitializeCoreAsync()
+    private static TileLayerConfig[] CreateBuiltInLayers()
     {
-        AvailableLayers.Clear();
-
-        // Add default layers
         var jawgDark = new TileLayerConfig
         {
             Id = JawgDarkLayerId,
@@ -79,125 +58,18 @@ public class TileLayerService : ITileLayerService, IDisposable
             MaxZoom = 22,
             IsCustom = false
         };
-        AvailableLayers.Add(jawgDark);
 
         var openCycleMap = new TileLayerConfig
         {
             Id = OpenCycleMapLayerId,
             Name = "OpenCycleMap",
-            UrlTemplate = "https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=e9ff876252864e9dacc8dbdd83c786e6", // Maybe add a picker for your own key?
+            UrlTemplate = "https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=e9ff876252864e9dacc8dbdd83c786e6",
             AttributionText = "OpenCycleMap via Thunderforest",
             AttributionUrl = "https://www.thunderforest.com/opencyclemap/",
             MaxZoom = 22,
             IsCustom = false
         };
-        AvailableLayers.Add(openCycleMap);
 
-        var customLayers = await mapPreferences.GetCustomLayersAsync();
-        foreach (var layer in customLayers)
-        {
-            layer.IsCustom = true;
-            AvailableLayers.Add(layer);
-        }
-
-        var selectedId = await mapPreferences.GetSelectedLayerIdAsync();
-        if (selectedId is { } id)
-        {
-            selectedLayer = AvailableLayers.FirstOrDefault(l => l.Id == id) ?? AvailableLayers.First();
-        }
-        else
-        {
-            selectedLayer = AvailableLayers.First();
-        }
-
-        selectedLayerSubject.OnNext(selectedLayer);
-    }
-
-    public async Task AddCustomLayerAsync(TileLayerConfig config)
-    {
-        config.IsCustom = true;
-        AvailableLayers.Add(config);
-        await SaveCustomLayersAsync();
-    }
-
-    private async Task SaveCustomLayersAsync()
-    {
-        var customLayers = AvailableLayers.Where(l => l.IsCustom).ToList();
-        await mapPreferences.SetCustomLayersAsync(customLayers);
-    }
-
-    public void Dispose()
-    {
-        mapPreferenceSubscription.Dispose();
-        selectedLayerSubject.Dispose();
-        refreshGate.Dispose();
-    }
-
-    // Field update + subject push without persisting. Selection changes call
-    // this then persist; refresh calls this without persisting (the prefs file
-    // is the source we just read from).
-    private bool TrySetSelectedLayer(TileLayerConfig value)
-    {
-        if (selectedLayer == value) return false;
-        selectedLayer = value;
-        selectedLayerSubject.OnNext(value);
-        return true;
-    }
-
-    private void OnMapPreferencesChanged(MapPreferencesValue preferences)
-    {
-        if (uiThreadDispatcher.CheckAccess())
-        {
-            _ = RefreshFromPreferencesSafelyAsync(preferences);
-            return;
-        }
-
-        _ = uiThreadDispatcher.InvokeAsync(() => RefreshFromPreferencesSafelyAsync(preferences));
-    }
-
-    private async Task RefreshFromPreferencesSafelyAsync(MapPreferencesValue preferences)
-    {
-        await refreshGate.WaitAsync();
-        try
-        {
-            await RefreshFromPreferencesAsync(preferences);
-        }
-        catch (Exception ex)
-        {
-            logger.Warning(ex, "Failed to refresh tile layers from preferences");
-        }
-        finally
-        {
-            refreshGate.Release();
-        }
-    }
-
-    private async Task RefreshFromPreferencesAsync(MapPreferencesValue preferences)
-    {
-        if (initializationTask is null) return;
-
-        // Serialize against InitializeCoreAsync — both mutate AvailableLayers
-        // and selectedLayer.
-        await initializationTask;
-
-        for (var i = AvailableLayers.Count - 1; i >= 0; i--)
-        {
-            if (AvailableLayers[i].IsCustom)
-            {
-                AvailableLayers.RemoveAt(i);
-            }
-        }
-
-        foreach (var layer in preferences.CustomLayers)
-        {
-            layer.IsCustom = true;
-            AvailableLayers.Add(layer);
-        }
-
-        var resolved = preferences.SelectedLayerId is { } id
-            ? AvailableLayers.FirstOrDefault(l => l.Id == id) ?? AvailableLayers.First()
-            : AvailableLayers.First();
-
-        TrySetSelectedLayer(resolved);
+        return [jawgDark, openCycleMap];
     }
 }

@@ -117,6 +117,7 @@ public static class AppComposition
         services.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
         services.AddSingleton<IUiPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Ui);
         services.AddSingleton<ITileLayerService, TileLayerService>();
+        services.AddSingleton<IMapLayerCoordinator, MapLayerCoordinator>();
         services.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         services.AddSingleton<FilesService>();
         services.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());

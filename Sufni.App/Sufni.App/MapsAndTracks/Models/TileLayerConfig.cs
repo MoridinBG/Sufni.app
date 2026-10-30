@@ -26,5 +26,16 @@ public class TileLayerConfig
     [JsonPropertyName("is_custom")]
     public bool IsCustom { get; set; }
 
+    public TileLayerConfig AsCustom() => new()
+    {
+        Id = Id,
+        Name = Name,
+        UrlTemplate = UrlTemplate,
+        AttributionText = AttributionText,
+        AttributionUrl = AttributionUrl,
+        MaxZoom = MaxZoom,
+        IsCustom = true
+    };
+
     public override string ToString() => Name;
 }

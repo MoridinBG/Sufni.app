@@ -51,3 +51,5 @@ public enum PairingFailureReason { Request, Confirm, Unpair }
 public enum DataStoreDiscoveryFailureReason { Scan, Connect }
 
 public enum GpxImportFailureReason { InvalidFile, Import }
+
+public enum MapLayerFailureReason { Add, Select }

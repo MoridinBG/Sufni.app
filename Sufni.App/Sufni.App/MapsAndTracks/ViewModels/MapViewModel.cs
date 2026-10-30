@@ -1,8 +1,6 @@
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
 using System.Reactive.Disposables;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Shared.Base;
 namespace Sufni.App.MapsAndTracks.ViewModels;
@@ -18,10 +17,11 @@ public partial class MapViewModel : ViewModelBase, IDisposable
 {
     private readonly ITileLayerService tileLayerService;
     private readonly IDialogService dialogService;
+    private readonly IMapLayerCoordinator coordinator;
+    private TileLayerState? layerState;
     private readonly CompositeDisposable subscriptions = new();
 
-    [ObservableProperty]
-    public partial TileLayerConfig? SelectedLayer { get; set; }
+    public TileLayerConfig? SelectedLayer => layerState?.SelectedLayer;
 
     [ObservableProperty]
     public partial List<TrackPoint>? FullTrackPoints { get; set; }
@@ -35,23 +35,26 @@ public partial class MapViewModel : ViewModelBase, IDisposable
 
     public bool HasSessionTrackPoints => SessionTrackPoints?.Count > 0;
 
-    public ObservableCollection<TileLayerConfig> AvailableLayers => tileLayerService.AvailableLayers;
+    public IReadOnlyList<TileLayerConfig> AvailableLayers => layerState?.AvailableLayers ?? [];
 
     public MapViewModel(
         ITileLayerService tileLayerService,
+        IMapLayerCoordinator coordinator,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.tileLayerService = tileLayerService;
+        this.coordinator = coordinator;
         this.dialogService = dialogService;
 
-        // BehaviorSubject replays the current value to late subscribers, so a
-        // VM constructed after the service is initialized still picks up the
-        // selected layer on subscribe.
-        subscriptions.Add(tileLayerService.SelectedLayerChanges
-            .Subscribe(layer => SelectedLayer = layer));
+        subscriptions.Add(tileLayerService.Observe().Subscribe(state =>
+        {
+            layerState = state;
+            OnPropertyChanged(nameof(AvailableLayers));
+            OnPropertyChanged(nameof(SelectedLayer));
+        }));
     }
 
     public async Task InitializeAsync()
@@ -61,17 +64,12 @@ public partial class MapViewModel : ViewModelBase, IDisposable
 
     public async Task SelectLayerAsync(TileLayerConfig? value)
     {
-        if (value is null) return;
-
-        SelectedLayer = value;
-
-        try
+        if (value is null || value.Id == SelectedLayer?.Id) return;
+        var result = await coordinator.SelectAsync(value.Id);
+        if (result is MapLayerWriteResult.Failed failed)
         {
-            await tileLayerService.SetSelectedLayerAsync(value);
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add(new FailurePresentation($"Map layer preference could not be saved: {e.Message}"));
+            ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+            OnPropertyChanged(nameof(SelectedLayer));
         }
     }
 
@@ -83,8 +81,9 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         var config = await dialogService.ShowAddTileLayerDialogAsync();
         if (config != null)
         {
-            await tileLayerService.AddCustomLayerAsync(config);
-            await SelectLayerAsync(config);
+            var result = await coordinator.AddAndSelectAsync(config);
+            if (result is MapLayerWriteResult.Failed failed)
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
         }
     }
 }

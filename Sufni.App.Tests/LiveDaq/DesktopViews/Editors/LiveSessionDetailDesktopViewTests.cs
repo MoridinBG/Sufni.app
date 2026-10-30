@@ -59,7 +59,7 @@ public class LiveSessionDetailDesktopViewTests
         var sessionCoordinator = TestCoordinatorSubstitutes.Session();
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
         var shell = Substitute.For<IShellCoordinator>();
         var dialogService = Substitute.For<IDialogService>();
         var signalBatches = new ReplaySubject<LiveSignalBatch>(1);
@@ -79,7 +79,6 @@ public class LiveSessionDetailDesktopViewTests
 
         var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, signalBatches);
 
-        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
 
         signalBatches.OnNext(new LiveSignalBatch(

@@ -2,6 +2,7 @@
     x:Class="Sufni.App.MapsAndTracks.Views.MapView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sufni.App.Shared.Views.Controls"
     xmlns:mapsui="clr-namespace:Mapsui.UI.Avalonia;assembly=Mapsui.UI.Avalonia"
     xmlns:models="using:Sufni.App.MapsAndTracks.Models"
     xmlns:vm="using:Sufni.App.MapsAndTracks.ViewModels"
@@ -36,5 +37,7 @@
                         Command="{Binding AddCustomLayerCommand}"/>
             </StackPanel>
         </Border>
+        <controls:ErrorMessagesBar Name="MapErrorMessagesBar"
+                                   VerticalAlignment="Top" Margin="10" />
     </Grid>
 </UserControl>

@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System;
 using System.Collections.Generic;
@@ -81,10 +82,9 @@ public class LiveSignalsPageViewTests
 
     private static SessionMediaWorkspaceStub CreateMediaWorkspace(IReadOnlyList<TrackPoint> trackPoints)
     {
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             FullTrackPoints = [],
             SessionTrackPoints = trackPoints.ToList(),

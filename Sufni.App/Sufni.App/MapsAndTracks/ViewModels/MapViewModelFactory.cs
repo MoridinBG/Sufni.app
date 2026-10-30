@@ -1,5 +1,6 @@
 
 using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Services;
 namespace Sufni.App.MapsAndTracks.ViewModels;
 
@@ -16,9 +17,10 @@ public interface IMapViewModelFactory
 
 internal sealed class MapViewModelFactory(
     ITileLayerService tileLayerService,
+    IMapLayerCoordinator coordinator,
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
     System.TimeProvider timeProvider) : IMapViewModelFactory
 {
-    public MapViewModel Create() => new(tileLayerService, dialogService, uiThreadDispatcher, timeProvider: timeProvider);
+    public MapViewModel Create() => new(tileLayerService, coordinator, dialogService, uiThreadDispatcher, timeProvider: timeProvider);
 }

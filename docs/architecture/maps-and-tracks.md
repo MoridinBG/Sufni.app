@@ -71,27 +71,41 @@ Both factories return `null` for an empty result so the caller does not write a 
 
 ## Tile Layer Service
 
-`ITileLayerService` (`Sufni.App/Sufni.App/MapsAndTracks/Services/ITileLayerService.cs`) and `TileLayerService` (`Sufni.App/Sufni.App/MapsAndTracks/Services/TileLayerService.cs`) own the tile-provider catalog. Its required `IUiThreadDispatcher` marshals synced preference changes before updating bound collections. Registered as a singleton; `AppStartup` initializes it at launch; `MapViewModel` (supplied by `MapViewModelFactory`) consumes the catalog and selection. The service exposes:
+`ITileLayerService` and `TileLayerService` derive one `TileLayerState` from the
+built-in providers and the current `IMapPreferences` snapshot. `Observe()` replays
+the catalog and selection together; local writes and synced preference updates
+use the same derivation. A missing selected id falls back to the first built-in
+layer. Publication runs through the required UI dispatcher. The singleton owns
+and disposes its preference subscription; `AppStartup` still awaits its initial
+snapshot through `InitializeAsync()`.
 
-- `AvailableLayers` — an `ObservableCollection<TileLayerConfig>` that the map control's selector binds to.
-- `SelectedLayer` — the current read-only selection.
-- `SelectedLayerChanges` — an observable that emits the current selection and every subsequent change.
-- `InitializeAsync()` — idempotent (cached `Task`); seeds the two built-in providers (Jawg Dark and OpenCycleMap via Thunderforest, both with embedded API keys), appends any custom layers loaded from preferences, and restores the previously selected layer.
-- `SetSelectedLayerAsync` — updates the selected layer and persists the new selection through `IMapPreferences.SetSelectedLayerIdAsync`.
-- `AddCustomLayerAsync` — marks the supplied `TileLayerConfig` as custom, adds it to the observable collection, and persists the custom-layers list through `IMapPreferences`.
+`IMapLayerCoordinator` / `MapLayerCoordinator` own `AddAndSelectAsync` and
+`SelectAsync`. They persist preferences through the background runner and
+serialize local writes so concurrent additions preserve both layers. Provider
+disposal waits for accepted writes to finish. Adding a
+layer saves the catalog before selecting it. Failed catalog writes leave the
+visible state unchanged; failed selection retains the saved layer and previous
+selection. `MapLayerWriteResult.Saved | Failed(reason, details)` distinguishes
+`MapLayerFailureReason.Add | Select`. Failures log once with the layer id and
+operation. The coordinator never edits the derived tile state.
 
 There is no in-memory tile cache or persistent disk cache here; tile fetching is the responsibility of Mapsui's `TileLayer` and BruTile's `HttpTileSource` constructed in `MapView` from each `TileLayerConfig`. `TileLayerConfig` (`Sufni.App/Sufni.App/MapsAndTracks/Models/TileLayerConfig.cs`) carries the URL template, attribution metadata, `MaxZoom`, an `IsCustom` flag and a generated `Id`.
 
 ## Map View Model
 
-`MapViewModel` (`Sufni.App/Sufni.App/MapsAndTracks/ViewModels/MapViewModel.cs`) is a thin reusable view model — neither an editor nor a list. It owns:
+`MapViewModel` is a reusable presentation over the tile service's current
+`TileLayerState`; `AvailableLayers` and `SelectedLayer` derive from that one
+snapshot. `SelectLayerAsync` forwards the id to the map-layer coordinator.
+`AddCustomLayerCommand` opens `IDialogService.ShowAddTileLayerDialogAsync` and
+forwards the draft to `AddAndSelectAsync`. Fixed failure summaries and optional
+diagnostics appear in the map's shared error bar. A failed selection restores
+the selector to the published value.
 
-- `AvailableLayers` (forwarded from `ITileLayerService`).
-- `SelectedLayer` — updated from `ITileLayerService.SelectedLayerChanges`; user selection is committed through `SelectLayerAsync`, which calls `ITileLayerService.SetSelectedLayerAsync`.
-- `FullTrackPoints` and `SessionTrackPoints` — the two `List<TrackPoint>?` properties the host editor writes into.
-- `AddCustomLayerCommand` — opens `IDialogService.ShowAddTileLayerDialogAsync` and forwards the resulting `TileLayerConfig` to the tile-layer service.
-
-`InitializeAsync()` waits for the tile-layer service to be ready and then snapshots its current `SelectedLayer`. The view model never reads from a store or coordinator directly; the host editor (`SessionDetailViewModel` or `LiveSessionMediaWorkspaceViewModel`) creates it through `IMapViewModelFactory` (`Sufni.App/Sufni.App/MapsAndTracks/ViewModels/MapViewModelFactory.cs`), kicks off `InitializeAsync`, and re-publishes its own track points into it whenever they change. The factory supplies the tile-layer service, dialog service, and UI-thread dispatcher, so the hosts no longer carry map-only constructor dependencies. This keeps the same `MapViewModel` reusable for both recorded and live detail surfaces without hard-coding either flow.
+`FullTrackPoints`, `SessionTrackPoints` and `TimelineContext` remain host-supplied
+map inputs. `MapViewModelFactory` supplies the tile service, coordinator, dialog,
+dispatcher and clock. Both recorded and live hosts use it and dispose the map
+view model with their lifetime; disposal releases the tile-state subscription.
+`InitializeAsync()` waits for the service's first derived snapshot.
 
 ## Mapsui Integration
 
@@ -115,14 +129,15 @@ comparison of the segment comparison state (see
 
 `IMapPreferences` (`Sufni.App/Sufni.App/Infrastructure/IAppPreferences.cs`) is a facet of `IAppPreferences`. The concrete implementation in `AppPreferences` (`Sufni.App/Sufni.App/Infrastructure/AppPreferences.cs`) writes a single JSON document — `app-preferences.json` next to the SQLite database — under a `Maps` key. Reads and writes are serialized through a `SemaphoreSlim`, and writes go through a temp-file rename so a crashed write does not corrupt the document.
 
-The facet exposes only the operations the tile-layer service uses:
+The facet exposes the map coordinator’s writes and tile service’s observation:
 
 - `GetSelectedLayerIdAsync` / `SetSelectedLayerIdAsync` — the `Guid` of the last-selected `TileLayerConfig`.
 - `GetCustomLayersAsync` / `SetCustomLayersAsync` — the user's custom tile-layer list (URL templates, attribution, max zoom).
+- `ObserveChanges()` — the current map snapshot and subsequent committed local/synced changes.
 
-DI registers `IMapPreferences` as a singleton via a factory that resolves `IAppPreferences.Map` so both interfaces point at the same backing document. `ISessionPreferences` is the sibling facet that carries per-session plot and analysis preferences; the two never share state and have no overlap.
+Map owners obtain the map facet from the shared `IAppPreferences` instance. `ISessionPreferences` is the sibling facet that carries per-session plot and analysis preferences; the two never share state and have no overlap.
 
-Map preferences also participate in app-preference sync. `IAppPreferences.GetSyncDataAsync` packages the map facet as `AppPreferencesSyncData.Maps`, and `TileLayerService` subscribes to the typed `IMapPreferences.ObserveChanges()` stream so remote sync-applied map-preference changes refresh the built-in/custom layer catalog and selected layer in open map views.
+Map preferences also participate in app-preference sync. `IAppPreferences.GetSyncDataAsync` packages the map facet as `AppPreferencesSyncData.Maps`, and `TileLayerService` subscribes to the typed `IMapPreferences.ObserveChanges()` stream so committed local and remote sync-applied map-preference changes refresh the built-in/custom layer catalog and selected layer in open map views.
 
 ## Where Maps Are Displayed
 

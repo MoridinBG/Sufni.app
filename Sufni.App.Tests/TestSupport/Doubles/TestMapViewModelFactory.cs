@@ -2,6 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Tests.TestSupport.Doubles;
@@ -15,6 +16,7 @@ public sealed class TestMapViewModelFactory(ITileLayerService tileLayerService) 
 {
     public MapViewModel Create() => new(
         tileLayerService,
+        Substitute.For<IMapLayerCoordinator>(),
         Substitute.For<IDialogService>(),
         new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 }

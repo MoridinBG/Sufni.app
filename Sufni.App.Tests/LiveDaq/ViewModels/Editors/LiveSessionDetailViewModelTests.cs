@@ -37,7 +37,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly Subject<LiveSignalBatch> signalBatches = new();
@@ -48,7 +48,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
     public LiveSessionDetailViewModelTests()
     {
         uiTimers = new ManualUiTimerScheduler();
-        tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         capturePackage = CreateCapturePackage();
 

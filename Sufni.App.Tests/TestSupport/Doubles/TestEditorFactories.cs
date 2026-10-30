@@ -65,7 +65,7 @@ internal static class TestEditorFactories
             Substitute.For<IRecordedSessionProjection>(),
             sessionPresentationService,
             analysisResultStateFactory,
-            new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges()),
+            new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultLayerState()),
             Substitute.For<ISessionPreferences>(),
             new TestSessionProcessedTelemetryReader(),
             Substitute.For<IDaqManagementService>(),

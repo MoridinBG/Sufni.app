@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
-using System.Collections.ObjectModel;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -11,6 +12,9 @@ using Mapsui.Widgets.InfoWidgets;
 using NSubstitute;
 
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Views.Controls;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;
@@ -31,15 +35,12 @@ public class MapViewTests
 
         var layerA = CreateLayer("Topo");
         var layerB = CreateLayer("Satellite");
-        var layers = new ObservableCollection<TileLayerConfig> { layerA, layerB };
+        TileLayerConfig[] layers = [layerA, layerB];
 
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(layers);
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
+        tileLayerService.Observe().Returns(Observable.Return(new TileLayerState(layers, layerB)));
 
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
-        {
-            SelectedLayer = layerB,
-        };
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
         var view = new MapView
         {
             DataContext = viewModel
@@ -54,7 +55,7 @@ public class MapViewTests
             var comboBox = view.FindControl<ComboBox>("TileProviderComboBox");
             Assert.NotNull(comboBox);
             Assert.Same(layerB, comboBox!.SelectedItem);
-            Assert.Equal(2, layers.Count);
+            Assert.Equal(layers, comboBox.ItemsSource);
             Assert.Contains(layerA, layers);
             Assert.Contains(layerB, layers);
         }
@@ -72,23 +73,21 @@ public class MapViewTests
 
         var initialLayer = CreateLayer("Topo");
         var customLayer = CreateLayer("Trail Map");
-        var layers = new ObservableCollection<TileLayerConfig> { initialLayer };
+        using var state = new BehaviorSubject<TileLayerState>(new([initialLayer], initialLayer));
 
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(layers);
-        tileLayerService.AddCustomLayerAsync(customLayer).Returns(_ =>
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
+        tileLayerService.Observe().Returns(state);
+        var coordinator = Substitute.For<IMapLayerCoordinator>();
+        coordinator.AddAndSelectAsync(customLayer).Returns(_ =>
         {
-            layers.Add(customLayer);
-            return Task.CompletedTask;
+            state.OnNext(new TileLayerState([initialLayer, customLayer], customLayer));
+            return new MapLayerWriteResult.Saved();
         });
 
         var dialogService = Substitute.For<IDialogService>();
         dialogService.ShowAddTileLayerDialogAsync().Returns(Task.FromResult<TileLayerConfig?>(customLayer));
 
-        var viewModel = new MapViewModel(tileLayerService, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
-        {
-            SelectedLayer = initialLayer,
-        };
+        var viewModel = new MapViewModel(tileLayerService, coordinator, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
         var view = new MapView
         {
             DataContext = viewModel
@@ -109,9 +108,42 @@ public class MapViewTests
             await command.ExecuteAsync(addButton.CommandParameter);
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            Assert.Contains(customLayer, layers);
+            Assert.Contains(customLayer, viewModel.AvailableLayers);
             Assert.Same(customLayer, viewModel.SelectedLayer);
             Assert.Same(customLayer, comboBox!.SelectedItem);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task AddCustomTileButton_ShowsFailure_AndKeepsPublishedSelection()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var original = CreateLayer("Topo");
+        var added = CreateLayer("Custom");
+        var service = Substitute.For<ITileLayerService>();
+        service.Observe().Returns(Observable.Return(new TileLayerState([original], original)));
+        var coordinator = Substitute.For<IMapLayerCoordinator>();
+        coordinator.AddAndSelectAsync(added).Returns(new MapLayerWriteResult.Failed(MapLayerFailureReason.Add, "disk diagnostic"));
+        var dialog = Substitute.For<IDialogService>();
+        dialog.ShowAddTileLayerDialogAsync().Returns(added);
+        using var vm = new MapViewModel(service, coordinator, dialog, new InlineUiThreadDispatcher(), new FakeTimeProvider());
+        var view = new MapView { DataContext = vm };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        try
+        {
+            var errorBar = view.FindControl<ErrorMessagesBar>("MapErrorMessagesBar")!;
+            Assert.False(errorBar.IsVisible);
+            var button = view.FindControl<Button>("AddCustomTileButton")!;
+            await Assert.IsAssignableFrom<IAsyncRelayCommand>(button.Command).ExecuteAsync(button.CommandParameter);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.True(errorBar.IsVisible);
+            Assert.Same(original, view.FindControl<ComboBox>("TileProviderComboBox")!.SelectedItem);
         }
         finally
         {
@@ -125,10 +157,9 @@ public class MapViewTests
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints = []
         };
@@ -198,9 +229,8 @@ public class MapViewTests
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             FullTrackPoints = [],
         };
@@ -515,10 +545,9 @@ public class MapViewTests
 
     private static MapViewModel CreateViewModelWithTrack()
     {
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        return new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints =
             [
@@ -534,10 +563,9 @@ public class MapViewTests
 
     private static MapViewModel CreateViewModelWithHorizontalTrack()
     {
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns(new ObservableCollection<TileLayerConfig>());
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        return new MapViewModel(tileLayerService, Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints =
             [

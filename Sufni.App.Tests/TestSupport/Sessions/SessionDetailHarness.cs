@@ -35,11 +35,10 @@ namespace Sufni.App.Tests.TestSupport.Sessions;
 internal sealed class SessionDetailHarness
 {
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
-    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
+    private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
     public SessionDetailHarness()
     {
-        tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         SessionPreferences.WithDefaultObserveRecorded();
         SessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(global::Sufni.App.Infrastructure.SessionPreferences.Default));

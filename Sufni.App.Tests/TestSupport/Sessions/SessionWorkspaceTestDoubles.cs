@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -270,10 +271,9 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
 
     private static MapViewModel CreateMapViewModel(IReadOnlyList<TrackPoint> trackPoints)
     {
-        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultSelectedLayerChanges();
-        tileLayerService.AvailableLayers.Returns([]);
+        var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
         var dialogService = Substitute.For<IDialogService>();
-        return new MapViewModel(tileLayerService, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints = trackPoints.ToList(),
             FullTrackPoints = [],

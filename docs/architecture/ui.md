@@ -195,6 +195,11 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+`MapLayerWriteResult` is `Saved | Failed(reason, details)` with
+`MapLayerFailureReason.Add | Select`. Add failure leaves the catalog unchanged;
+selection failure preserves a newly saved layer and retains the previous
+selection. Map views render fixed summaries and expandable diagnostics.
+
 `GpxImportResult` is `Canceled | Completed | Failed`. Completion and failure
 retain imported/already-imported counts; a failed batch stops without undoing
 previous writes. `GpxImportFailureReason.InvalidFile | Import` maps to fixed
