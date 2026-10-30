@@ -27,11 +27,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private readonly IShellCoordinator shell;
     private readonly ISetupStore setupStore;
-    private readonly ISetupCoordinator setupCoordinator;
     private readonly ObservableCollectionExtended<SetupRowViewModel> setupRowsSource = [];
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
     private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
-    private readonly HashSet<Guid> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -45,17 +43,16 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     public SetupListViewModel(
         ISetupStore setupStore,
-        ISetupCoordinator setupCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
+        IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
         IShellCoordinator shell)
-        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.setupStore = setupStore;
-        this.setupCoordinator = setupCoordinator;
         this.shell = shell;
         setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>(setupRowsSource);
+        ObservePendingDeletes<PendingDeleteKey.Setup>(pendingDeletes);
     }
 
     #endregion Constructors
@@ -87,9 +84,8 @@ public partial class SetupListViewModel : ItemListViewModelBase
     protected override void RebuildFilter()
     {
         var current = SearchText;
-        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
         filterSubject.OnNext(snapshot =>
-            (pendingIds is null || !pendingIds.Contains(snapshot.Id)) &&
+            !IsPendingDelete(new PendingDeleteKey.Setup(snapshot.Id)) &&
             (string.IsNullOrEmpty(current) ||
              snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
     }
@@ -112,36 +108,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
     {
         var snapshot = setupStore.Get(row.Id);
         if (snapshot is null) return;
-
-        pendingDeleteIds.Add(snapshot.Id);
-        RebuildFilter();
-
-        StartUndoWindow(
-            snapshot.Name,
-            finalize: () => FinalizeSetupDeleteAsync(snapshot.Id),
-            onUndone: () => OnSetupDeleteUndone(snapshot.Id));
-    }
-
-    private void OnSetupDeleteUndone(Guid setupId)
-    {
-        pendingDeleteIds.Remove(setupId);
-        RebuildFilter();
-    }
-
-    private async Task FinalizeSetupDeleteAsync(Guid setupId)
-    {
-        var result = await setupCoordinator.DeleteAsync(setupId);
-
-        pendingDeleteIds.Remove(setupId);
-        RebuildFilter();
-
-        if (result.Outcome == SetupDeleteOutcome.Deleted)
-            await shell.CloseEditorAsync(new EditorKey.Setup(setupId));
-
-        if (result.Outcome == SetupDeleteOutcome.Failed)
-        {
-            ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
-        }
+        ScheduleDelete(new PendingDeleteKey.Setup(snapshot.Id), snapshot.Name);
     }
 
     #endregion Private methods

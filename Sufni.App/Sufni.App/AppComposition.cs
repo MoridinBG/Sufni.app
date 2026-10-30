@@ -263,6 +263,7 @@ public static class AppComposition
         services.AddSingleton<IStartupJob>(sp => sp.GetRequiredService<ProcessingOptionsResetMigration>());
         services.AddSingleton<IStartupJob>(sp => sp.GetRequiredService<RecordedSessionSourceRetentionCleanup>());
         services.AddSingleton<IAppStartup, AppStartup>();
+        services.AddSingleton<IPendingDeletes, PendingDeletes>();
         services.AddSingleton<MainPagesViewModel>();
         services.AddSingleton<ShellWorkspaceViewModel>();
         services.AddSingleton<ShellRootViewModel>();

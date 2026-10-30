@@ -1,95 +1,19 @@
-using System;
-using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Shell.Coordinators;
 
-using Sufni.App.Infrastructure;
 namespace Sufni.App.Shared.Base;
 
-/// <summary>
-/// One pending-delete entry shown in the stacked undo bar. Owns its
-/// own timer, dismiss command, and undo command. The host list view
-/// model creates one of these per row deletion and adds it to
-/// <see cref="ItemListViewModelBase.PendingDeletes"/>.
-/// </summary>
-public partial class PendingDeleteEntryViewModel : ObservableObject
+/// <summary>An undo-bar projection of a shell-owned pending delete.</summary>
+public partial class PendingDeleteEntryViewModel(PendingDelete pending, IPendingDeletes owner) : ObservableObject
 {
-    private readonly Func<Task> finalize;
-    private readonly Action onUndone;
-    private readonly Action<PendingDeleteEntryViewModel> remove;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly TimeProvider timeProvider;
-    private CancellationTokenSource? cts;
-
-    public string Name { get; }
-
-    public PendingDeleteEntryViewModel(
-        string name,
-        Func<Task> finalize,
-        Action onUndone,
-        Action<PendingDeleteEntryViewModel> remove,
-        IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
-        TimeProvider timeProvider)
-    {
-        Name = name;
-        this.finalize = finalize;
-        this.onUndone = onUndone;
-        this.remove = remove;
-        this.uiThreadDispatcher = uiThreadDispatcher;
-        this.backgroundTaskRunner = backgroundTaskRunner;
-        this.timeProvider = timeProvider;
-    }
-
-    public void StartTimer(int delayMs)
-    {
-        cts = new CancellationTokenSource();
-        var token = cts.Token;
-
-        _ = backgroundTaskRunner.RunAsync(async () =>
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(delayMs), timeProvider, token);
-            }
-            catch (TaskCanceledException)
-            {
-                return;
-            }
-
-            await uiThreadDispatcher.InvokeAsync(async () =>
-            {
-                if (token.IsCancellationRequested) return;
-                await CompleteAsync();
-            });
-        }, token);
-    }
+    public string Name => pending.Name;
+    public PendingDeleteKey Key => pending.Key;
 
     [RelayCommand]
-    private Task FinalizeDelete() => CompleteAsync();
+    private Task FinalizeDelete() => owner.CommitAsync(Key);
 
     [RelayCommand]
-    private void UndoDelete()
-    {
-        if (cts is null) return;
-        cts.Cancel();
-        cts.Dispose();
-        cts = null;
-
-        remove(this);
-        onUndone();
-    }
-
-    private async Task CompleteAsync()
-    {
-        if (cts is null) return;
-        cts.Cancel();
-        cts.Dispose();
-        cts = null;
-
-        remove(this);
-        await finalize();
-    }
+    private void UndoDelete() => owner.Undo(Key);
 }

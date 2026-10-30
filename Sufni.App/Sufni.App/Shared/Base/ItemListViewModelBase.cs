@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
+using System.Reactive.Linq;
+using Sufni.App.Shell.Coordinators;
 using System.Reactive.Disposables;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -9,27 +11,9 @@ using Sufni.App.Shell.ViewModels;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.Shared.Base;
 
-/// <summary>
-/// Shared search-bar / date-filter / menu-item state for the entity
-/// list view models. Every concrete list owns its own store-backed
-/// projection; the base contributes only the cross-cutting filter state
-/// and the menu-item collection.
-///
-/// The base also owns the pending-delete UX (5-second undo window).
-/// Each row deletion produces its own <see cref="PendingDeleteEntryViewModel"/>
-/// in <see cref="PendingDeletes"/>; the entries stack independently and
-/// each runs its own timer. Subclasses install their own pending state,
-/// then call <see cref="StartUndoWindow"/> with a finalize callback that
-/// persists the delete and an onUndone callback that restores the row.
-/// </summary>
-public partial class ItemListViewModelBase : ViewModelBase
+/// <summary>Shared list filtering, menu state, and pending-delete presentation.</summary>
+public partial class ItemListViewModelBase : ViewModelBase, IDisposable
 {
-    #region Constants
-
-    private const int PendingDeleteWindowMs = 5000;
-
-    #endregion Constants
-
     #region Observable properties
 
     [ObservableProperty] public partial string? SearchText { get; set; }
@@ -42,17 +26,16 @@ public partial class ItemListViewModelBase : ViewModelBase
 
     public ObservableCollection<PendingDeleteEntryViewModel> PendingDeletes { get; } = [];
 
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private IPendingDeletes? pendingDeleteOwner;
+    private readonly CompositeDisposable pendingDeleteSubscriptions = new();
 
     #endregion Observable properties
 
     public ItemListViewModelBase(
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
         TimeProvider timeProvider)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.backgroundTaskRunner = backgroundTaskRunner;
     }
 
     #region Property change handlers
@@ -91,56 +74,36 @@ public partial class ItemListViewModelBase : ViewModelBase
     /// </summary>
     protected virtual void RebuildFilter() { }
 
-    protected async Task RunActionSwallowExceptionToErrorMessages(Func<Task> action)
-    {
-        try
-        {
-            await action();
-        }
-        catch (Exception exception)
-        {
-            ErrorMessages.Add(exception.Message);
-        }
-    }
-
     #endregion Virtual methods
 
-    #region Pending-delete helpers
-
-    /// <summary>
-    /// Start a fresh 5-second undo window for one row. The supplied
-    /// <paramref name="finalize"/> runs on timer expiry or when the
-    /// entry's dismiss button is tapped; <paramref name="onUndone"/>
-    /// runs when the entry's undo button is tapped. Caller is
-    /// responsible for installing the row's pending state and calling
-    /// <see cref="RebuildFilter"/> before invoking this.
-    /// </summary>
-    protected void StartUndoWindow(string displayName, Func<Task> finalize, Action onUndone)
+    protected void ObservePendingDeletes<TKey>(IPendingDeletes owner) where TKey : PendingDeleteKey
     {
-        var entry = new PendingDeleteEntryViewModel(
-            displayName,
-            finalize: async () =>
-            {
-                try
-                {
-                    await finalize();
-                }
-                catch (Exception exception)
-                {
-                    ErrorMessages.Add(exception.Message);
-                }
-            },
-            onUndone: onUndone,
-            remove: e => PendingDeletes.Remove(e),
-            UiThreadDispatcher,
-            backgroundTaskRunner,
-            timeProvider: Clock);
-
-        PendingDeletes.Add(entry);
-        entry.StartTimer(PendingDeleteWindowMs);
+        pendingDeleteOwner = owner;
+        pendingDeleteSubscriptions.Add(owner.Observe().Subscribe(values =>
+        {
+            var previous = PendingDeletes.ToDictionary(entry => entry.Key);
+            PendingDeletes.Clear();
+            foreach (var value in values.Where(value => value.Key is TKey))
+                PendingDeletes.Add(previous.TryGetValue(value.Key, out var entry)
+                    ? entry : new PendingDeleteEntryViewModel(value, owner));
+            RebuildFilter();
+        }));
+        EventHandler<PendingDeleteCompletion> completed = (_, result) =>
+        {
+            if (result.Key is TKey && result.Error is { } error) ErrorMessages.Add(error);
+        };
+        owner.Completed += completed;
+        pendingDeleteSubscriptions.Add(Disposable.Create(() => owner.Completed -= completed));
     }
 
-    #endregion Pending-delete helpers
+    protected bool IsPendingDelete(PendingDeleteKey key) => pendingDeleteOwner!.IsPending(key);
+    protected void ScheduleDelete(PendingDeleteKey key, string name) => pendingDeleteOwner!.Schedule(key, name);
+
+    public void Dispose()
+    {
+        DisposeScopedSubscriptions();
+        pendingDeleteSubscriptions.Dispose();
+    }
 
     #region Commands
 

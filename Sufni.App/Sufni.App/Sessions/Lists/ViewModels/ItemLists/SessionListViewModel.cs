@@ -38,7 +38,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly ObservableCollectionExtended<SessionRowViewModel> sessionRowsSource = [];
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
-    private readonly HashSet<Guid> pendingDeleteIds = [];
     private readonly Dictionary<SessionDateGroupKey, bool> dateGroupExpansionState = [];
     private bool subscriptionsAttached;
     private bool dateGroupSyncQueued;
@@ -60,16 +59,17 @@ public partial class SessionListViewModel : ItemListViewModelBase
         ISessionCoordinator sessionCoordinator,
         ISessionVideoStore videoStore,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
+        IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
         IShellCoordinator shell)
-        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.recordedSessionProjection = recordedSessionProjection;
         this.sessionCoordinator = sessionCoordinator;
         this.shell = shell;
         this.videoStore = videoStore;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
+        ObservePendingDeletes<PendingDeleteKey.Session>(pendingDeletes);
     }
 
     #endregion Constructors
@@ -123,11 +123,10 @@ public partial class SessionListViewModel : ItemListViewModelBase
         var search = SearchText;
         var fromDate = DateFilterFrom;
         var toDateExclusive = DateFilterTo?.Date.AddDays(1);
-        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
 
         filterSubject.OnNext(summary =>
         {
-            if (pendingIds is not null && pendingIds.Contains(summary.Id)) return false;
+            if (IsPendingDelete(new PendingDeleteKey.Session(summary.Id))) return false;
 
             // Search matches name OR description.
             var textMatch =
@@ -158,38 +157,8 @@ public partial class SessionListViewModel : ItemListViewModelBase
         }
     }
 
-    private void RequestRowDelete(SessionRowViewModel row)
-    {
-        pendingDeleteIds.Add(row.Id);
-        RebuildFilter();
-
-        StartUndoWindow(
-            row.BaseName,
-            finalize: () => FinalizeSessionDeleteAsync(row.Id),
-            onUndone: () => OnSessionDeleteUndone(row.Id));
-    }
-
-    private void OnSessionDeleteUndone(Guid sessionId)
-    {
-        pendingDeleteIds.Remove(sessionId);
-        RebuildFilter();
-    }
-
-    private async Task FinalizeSessionDeleteAsync(Guid sessionId)
-    {
-        var result = await sessionCoordinator.DeleteAsync(sessionId);
-
-        pendingDeleteIds.Remove(sessionId);
-        RebuildFilter();
-
-        if (result.Outcome == SessionDeleteOutcome.Deleted)
-            await shell.CloseEditorAsync(new EditorKey.Session(sessionId));
-
-        if (result.Outcome == SessionDeleteOutcome.Failed)
-        {
-            ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
-        }
-    }
+    private void RequestRowDelete(SessionRowViewModel row) =>
+        ScheduleDelete(new PendingDeleteKey.Session(row.Id), row.BaseName);
 
     private async Task RecalculateSessionAsync(SessionRowViewModel row)
     {

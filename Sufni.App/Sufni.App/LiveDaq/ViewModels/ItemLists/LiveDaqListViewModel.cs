@@ -34,10 +34,9 @@ public partial class LiveDaqListViewModel : ItemListViewModelBase
         ILiveDaqStore liveDaqStore,
         ILiveDaqCoordinator liveDaqCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
         TimeProvider timeProvider,
         IShellCoordinator shell)
-        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.liveDaqStore = liveDaqStore;
         this.liveDaqCoordinator = liveDaqCoordinator;

@@ -28,12 +28,10 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     private readonly IShellCoordinator shell;
     private readonly IBikeStore bikeStore;
-    private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
     private readonly ObservableCollectionExtended<BikeRowViewModel> bikeRowsSource = [];
     private readonly ReadOnlyObservableCollection<BikeRowViewModel> bikeRows;
     private readonly BehaviorSubject<Func<BikeRowViewModel, bool>> filterSubject = new(_ => true);
-    private readonly HashSet<Guid> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -47,19 +45,18 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     public BikeListViewModel(
         IBikeStore bikeStore,
-        IBikeCoordinator bikeCoordinator,
         IBikeDependencyQuery dependencyQuery,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
+        IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
         IShellCoordinator shell)
-        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.bikeStore = bikeStore;
-        this.bikeCoordinator = bikeCoordinator;
         this.shell = shell;
         this.dependencyQuery = dependencyQuery;
         bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>(bikeRowsSource);
+        ObservePendingDeletes<PendingDeleteKey.Bike>(pendingDeletes);
     }
 
     #endregion Constructors
@@ -99,9 +96,8 @@ public partial class BikeListViewModel : ItemListViewModelBase
     protected override void RebuildFilter()
     {
         var current = SearchText;
-        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<Guid>(pendingDeleteIds);
         filterSubject.OnNext(row =>
-            (pendingIds is null || !pendingIds.Contains(row.Id)) &&
+            !IsPendingDelete(new PendingDeleteKey.Bike(row.Id)) &&
             (string.IsNullOrEmpty(current) ||
              (row.Name?.Contains(current, StringComparison.CurrentCultureIgnoreCase) ?? false)));
     }
@@ -124,41 +120,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     {
         var snapshot = bikeStore.Get(row.Id);
         if (snapshot is null) return;
-
-        pendingDeleteIds.Add(snapshot.Id);
-        RebuildFilter();
-
-        StartUndoWindow(
-            snapshot.Name,
-            finalize: () => FinalizeBikeDeleteAsync(snapshot.Id),
-            onUndone: () => OnBikeDeleteUndone(snapshot.Id));
-    }
-
-    private void OnBikeDeleteUndone(Guid bikeId)
-    {
-        pendingDeleteIds.Remove(bikeId);
-        RebuildFilter();
-    }
-
-    private async Task FinalizeBikeDeleteAsync(Guid bikeId)
-    {
-        var result = await bikeCoordinator.DeleteAsync(bikeId);
-
-        pendingDeleteIds.Remove(bikeId);
-        RebuildFilter();
-
-        switch (result.Outcome)
-        {
-            case BikeDeleteOutcome.Deleted:
-                await shell.CloseEditorAsync(new EditorKey.Bike(bikeId));
-                break;
-            case BikeDeleteOutcome.InUse:
-                ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");
-                break;
-            case BikeDeleteOutcome.Failed:
-                ErrorMessages.Add($"Bike could not be deleted: {result.ErrorMessage}");
-                break;
-        }
+        ScheduleDelete(new PendingDeleteKey.Bike(snapshot.Id), snapshot.Name);
     }
 
     #endregion Private methods

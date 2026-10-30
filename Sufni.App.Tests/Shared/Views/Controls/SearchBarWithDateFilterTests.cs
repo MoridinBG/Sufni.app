@@ -15,7 +15,7 @@ public class SearchBarWithDateFilterTests
     [AvaloniaFact]
     public async Task SearchBarWithDateFilter_HidesDateFilter_WhenCloseButtonIsPressed()
     {
-        var viewModel = new ItemListViewModelBase(new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider())
+        var viewModel = new ItemListViewModelBase(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             DateFilterVisible = true,
         };
@@ -51,7 +51,7 @@ public class SearchBarWithDateFilterTests
     [AvaloniaFact]
     public async Task SearchBarWithDateFilter_ClearsFromAndToDates()
     {
-        var viewModel = new ItemListViewModelBase(new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider())
+        var viewModel = new ItemListViewModelBase(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             DateFilterVisible = true,
             DateFilterFrom = new DateTime(2024, 1, 1),

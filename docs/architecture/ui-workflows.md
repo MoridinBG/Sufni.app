@@ -70,6 +70,23 @@ cancellation token into recompute and leaves its marker unwritten on interruptio
 `PairedDeviceCoordinator`, `PairingClientCoordinator`, `PairingServerCoordinator`
 and `SyncCoordinator` are resolved at page activation, before server startup.
 
+### Pending deletes
+
+`PendingDeletes` is the shell's application-lifetime owner of five-second undo
+windows for bikes, setups, sessions and paired devices. Lists schedule typed
+keys and project the owner's pending entries; undo removes the intent. Expiry,
+dismissal and explicit finalization invoke the owning feature coordinator off
+thread. The shell closes an editor only after successful deletion. A failed or
+blocked delete removes the pending intent, reveals the row, and reports its
+outcome to the owning list, including while that list is detached.
+
+The owner retains commits in flight so finalization waits for them without
+issuing the same delete twice. Pending intents are in-memory state and end with
+the process; shutdown/background finalization is the lifecycle integration point.
+`PendingDeleteEntryViewModel` forwards undo/dismiss intent and has no timer or
+commit callback. `ItemListViewModelBase` owns only the undo-bar projection and
+list feedback; hiding rows derives from the shell owner's current keys.
+
 ### Trim and split
 
 `ISessionEditingCoordinator` (`SessionEditingCoordinator`, singleton) runs the

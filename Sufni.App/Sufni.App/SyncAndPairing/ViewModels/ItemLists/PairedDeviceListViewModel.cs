@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -23,11 +24,9 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IPairedDeviceStore pairedDeviceStore;
-    private readonly IPairedDeviceCoordinator pairedDeviceCoordinator;
     private readonly ObservableCollectionExtended<PairedDeviceRowViewModel> pairedDeviceRowsSource = [];
     private readonly ReadOnlyObservableCollection<PairedDeviceRowViewModel> pairedDeviceRows;
     private readonly BehaviorSubject<Func<PairedDeviceSnapshot, bool>> filterSubject = new(_ => true);
-    private readonly HashSet<string> pendingDeleteIds = [];
 
     #endregion Private fields
 
@@ -41,15 +40,14 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     public PairedDeviceListViewModel(
         IPairedDeviceStore pairedDeviceStore,
-        IPairedDeviceCoordinator pairedDeviceCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner,
+        IPendingDeletes pendingDeletes,
         TimeProvider timeProvider)
-        : base(uiThreadDispatcher, backgroundTaskRunner, timeProvider: timeProvider)
+        : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.pairedDeviceStore = pairedDeviceStore;
-        this.pairedDeviceCoordinator = pairedDeviceCoordinator;
         pairedDeviceRows = new ReadOnlyObservableCollection<PairedDeviceRowViewModel>(pairedDeviceRowsSource);
+        ObservePendingDeletes<PendingDeleteKey.PairedDevice>(pendingDeletes);
     }
 
     #endregion Constructors
@@ -77,9 +75,8 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
 
     protected override void RebuildFilter()
     {
-        var pendingIds = pendingDeleteIds.Count == 0 ? null : new HashSet<string>(pendingDeleteIds);
         filterSubject.OnNext(snapshot =>
-            pendingIds is null || !pendingIds.Contains(snapshot.DeviceId));
+            !IsPendingDelete(new PendingDeleteKey.PairedDevice(snapshot.DeviceId)));
     }
 
     #endregion ItemListViewModelBase overrides
@@ -90,35 +87,8 @@ public partial class PairedDeviceListViewModel : ItemListViewModelBase
     {
         var snapshot = pairedDeviceStore.Get(row.DeviceId);
         if (snapshot is null) return;
-
-        var displayName =
-            string.IsNullOrWhiteSpace(snapshot.DisplayName) ? snapshot.DeviceId : snapshot.DisplayName!;
-        pendingDeleteIds.Add(snapshot.DeviceId);
-        RebuildFilter();
-
-        StartUndoWindow(
-            displayName,
-            finalize: () => FinalizeUnpairAsync(snapshot.DeviceId),
-            onUndone: () => OnUnpairUndone(snapshot.DeviceId));
-    }
-
-    private void OnUnpairUndone(string deviceId)
-    {
-        pendingDeleteIds.Remove(deviceId);
-        RebuildFilter();
-    }
-
-    private async Task FinalizeUnpairAsync(string deviceId)
-    {
-        var result = await pairedDeviceCoordinator.UnpairAsync(deviceId);
-
-        pendingDeleteIds.Remove(deviceId);
-        RebuildFilter();
-
-        if (result is PairedDeviceUnpairResult.Failed failed)
-        {
-            ErrorMessages.Add(failed.ErrorMessage);
-        }
+        var name = string.IsNullOrWhiteSpace(snapshot.DisplayName) ? snapshot.DeviceId : snapshot.DisplayName;
+        ScheduleDelete(new PendingDeleteKey.PairedDevice(snapshot.DeviceId), name);
     }
 
     #endregion Private methods

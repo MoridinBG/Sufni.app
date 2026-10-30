@@ -1,47 +1,25 @@
-using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Tests.TestSupport.Doubles;
 
-using Sufni.App.Shared.Base;
 namespace Sufni.App.Tests.Shared.Base;
 
 public class ItemListViewModelBaseTests
 {
     [Fact]
-    public async Task PendingDeleteEntry_AddsError_WhenFinalizeThrows()
+    public async Task FailedPendingDelete_RemovesUndoEntryAndShowsError()
     {
-        var viewModel = new TestItemListViewModel();
-        viewModel.BeginPendingDelete(() => throw new InvalidOperationException("flush failure"));
+        var coordinator = TestCoordinatorSubstitutes.Session();
+        coordinator.DeleteAsync(Arg.Any<Guid>()).Returns(new SessionDeleteResult(SessionDeleteOutcome.Failed, "failure"));
+        using var owner = TestPendingDeletes.Create(sessions: coordinator);
+        using var viewModel = new TestPendingDeleteListViewModel(owner);
+        var key = new PendingDeleteKey.Session(Guid.NewGuid());
+        owner.Schedule(key, "ride");
 
-        var entry = Assert.Single(viewModel.PendingDeletes);
-        await entry.FinalizeDeleteCommand.ExecuteAsync(null);
+        await Assert.Single(viewModel.PendingDeletes).FinalizeDeleteCommand.ExecuteAsync(null);
 
-        Assert.Contains(viewModel.ErrorMessages, message => message.Contains("flush failure", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task RunPendingDeleteInteractionAsync_AddsError_WhenActionThrows()
-    {
-        var viewModel = new TestItemListViewModel();
-
-        await viewModel.RunPendingDeleteInteractionForTestAsync(() => throw new InvalidOperationException("interaction failure"));
-
-        Assert.Contains(viewModel.ErrorMessages, message => message.Contains("interaction failure", StringComparison.Ordinal));
-    }
-
-    private sealed class TestItemListViewModel : ItemListViewModelBase
-    {
-        public TestItemListViewModel()
-            : base(new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider())
-        {
-        }
-
-        public void BeginPendingDelete(Func<Task> finalize)
-        {
-            StartUndoWindow("test", finalize, () => { });
-        }
-
-        public Task RunPendingDeleteInteractionForTestAsync(Func<Task> action)
-        {
-            return RunActionSwallowExceptionToErrorMessages(action);
-        }
+        Assert.Empty(viewModel.PendingDeletes);
+        Assert.Single(viewModel.ErrorMessages);
     }
 }

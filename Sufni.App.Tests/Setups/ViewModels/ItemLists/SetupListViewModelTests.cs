@@ -24,7 +24,7 @@ public class SetupListViewModelTests
 
         setupStore.Connect().Returns(setupCache.Connect());
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SetupListViewModel(setupStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
 
         viewModel.AddCommand.Execute(null);
 
@@ -46,7 +46,7 @@ public class SetupListViewModelTests
         var deleteTcs = new TaskCompletionSource<SetupDeleteResult>();
         setupCoordinator.DeleteAsync(snapshot.Id).Returns(deleteTcs.Task);
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SetupListViewModel(setupStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -76,9 +76,8 @@ public class SetupListViewModelTests
 
         var viewModel = new SetupListViewModel(
             setupStore,
-            TestCoordinatorSubstitutes.Setup(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(setups: TestCoordinatorSubstitutes.Setup(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
 
         Assert.Empty(viewModel.Items);
 
@@ -109,7 +108,7 @@ public class SetupListViewModelTests
         setupCoordinator.DeleteAsync(snapshot.Id)
             .Returns(new SetupDeleteResult(SetupDeleteOutcome.Failed, "boom"));
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SetupListViewModel(setupStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 

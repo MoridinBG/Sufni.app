@@ -131,7 +131,10 @@ Thread ownership is explicit:
 - Views connect those commands with the `ViewLifecycle` attached properties in `Shared/Views/ViewLifecycle.cs`, not with `Xaml.Behaviors` triggers: `LoadedCommand` (with optional `LoadedCommandParameter`) and `UnloadedCommand` follow Avalonia's `Loaded` / `Unloaded` events, and `AttachedToVisualTreeCommand` / `DetachedFromVisualTreeCommand` follow the visual-tree events for views that need that earlier timing. A command runs on every occurrence of its event and only when `CanExecute` allows it, so a view that is detached and attached again unloads and loads again.
 - Import/setup and recorded-session subscriptions observe on their injected UI dispatcher, with Rx owning queued-delivery cancellation when a subscription is disposed. Import progress uses the same explicit dispatcher; no ambient synchronization context is captured.
 - Persisted stores share `StorePublication`: cache edits in a UI-thread batch defer per-store notifications, then emit one commit identifying changed stores. Joined consumers derive on that commit; ordered per-store notifications alone do not make `CombineLatest` coherent.
-- Notification expiry and pending-delete undo windows use injected clocks. Lists and pending-delete entries require a background runner; they do not construct a fallback.
+- Notification expiry and pending-delete undo windows use injected clocks. The
+  shell-owned `PendingDeletes` workflow retains undo windows and in-flight
+  commits independently of list attachment. Lists project its state; the owner
+  dispatches coordinator work through the background runner.
 - Prefer generated async-command state such as `Command.IsRunning` as the busy-state source of truth instead of maintaining duplicate booleans.
 - Plot views coalesce `RefreshPlot()` calls through one render-priority
   dispatcher post. Multiple property/theme/reload triggers in the same UI turn

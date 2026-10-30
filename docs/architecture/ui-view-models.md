@@ -400,8 +400,9 @@ it open. Setup sensor baselines advance only after the coordinator reports
 collections plus the 3-second auto-hide timer that pauses on pointer
 hover. The base receives `TimeProvider` and `IUiThreadDispatcher`; its subclasses
 receive those dependencies through composition or their owning factories.
-Pending-delete entries also receive the clock and a required background runner
-for their five-second undo window. Primary-page descriptors are immutable
+Pending-delete entries project shell-owned undo windows and forward undo/dismiss
+intent. `PendingDeletes` owns their clock, persistence and lifetime; lists have
+no delete timers or commit callbacks. Primary-page descriptors are immutable
 wrappers around their content; they do not inherit notification state or create
 a dispatcher. Navigation surface belongs to `IShellCoordinator`, not
 `ViewModelBase`; small projection-only view models such as session

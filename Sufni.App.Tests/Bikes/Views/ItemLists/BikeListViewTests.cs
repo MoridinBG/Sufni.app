@@ -34,7 +34,7 @@ public class BikeListViewTests
         dependencyQuery.IsBikeInUse(snapshot.Id).Returns(false);
         dependencyQuery.Changes.Returns(Observable.Return(Unit.Default));
 
-        var viewModel = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new BikeListViewModel(store, dependencyQuery, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(bikes: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
         var view = new BikeListView
         {
             DataContext = viewModel,
@@ -65,7 +65,7 @@ public class BikeListViewTests
 
         var view = new BikeListView
         {
-            DataContext = new BikeListViewModel(store, coordinator, dependencyQuery, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell),
+            DataContext = new BikeListViewModel(store, dependencyQuery, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(bikes: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell),
         };
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);

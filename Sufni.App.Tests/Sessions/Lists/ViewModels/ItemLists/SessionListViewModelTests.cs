@@ -189,7 +189,7 @@ public class SessionListViewModelTests
                 TestCoordinatorSubstitutes.Session(),
                 VideoFixture.CreateEmptyStore(),
                 UiThreadDispatcher,
-                backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+                pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
 
             Assert.Empty(viewModel.Items);
             Assert.Empty(viewModel.DateGroups);
@@ -575,7 +575,7 @@ public class SessionListViewModelTests
             sessionCoordinator,
             videoStore ?? VideoFixture.CreateEmptyStore(),
             uiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
         viewModel.LoadedCommand.Execute(null);
         return viewModel;
     }

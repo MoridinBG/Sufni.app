@@ -28,7 +28,7 @@ public class SetupListViewTests
         var store = new SetupStoreStub(snapshot);
         var coordinator = TestCoordinatorSubstitutes.Setup();
 
-        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new SetupListViewModel(store, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(setups: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
         var view = new SetupListView
         {
             DataContext = viewModel,

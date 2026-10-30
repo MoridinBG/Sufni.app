@@ -34,7 +34,7 @@ public class LiveDaqListViewTests
             SetupName: "Race",
             BikeName: "Demo")]);
 
-        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        var viewModel = new LiveDaqListViewModel(store, coordinator, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), shell: shell);
         await using var mounted = await MountAsync(viewModel);
 
         var row = Assert.Single(FindRowButtons(mounted.Control));

@@ -88,10 +88,9 @@ internal static class MainPagesViewModelTestFactory
     private static BikeListViewModel CreateBikeListPage(IShellCoordinator shell) =>
         new(
             new BikeStoreStub(),
-            TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static SessionListViewModel CreateSessionListPage(IShellCoordinator shell) =>
         new(
@@ -99,7 +98,7 @@ internal static class MainPagesViewModelTestFactory
             TestCoordinatorSubstitutes.Session(),
             VideoFixture.CreateEmptyStore(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
@@ -110,13 +109,13 @@ internal static class MainPagesViewModelTestFactory
     }
 
     private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell) =>
-        new(new SetupStoreStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        new(new SetupStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
-        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider(), shell: shell);
+        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
-        new(new PairedDeviceStoreStub(), CreatePairedDeviceCoordinator(), UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        new(new PairedDeviceStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(pairedDevices: CreatePairedDeviceCoordinator()), timeProvider: new FakeTimeProvider());
 
     private static PairedDeviceCoordinator CreatePairedDeviceCoordinator() =>
         new(Substitute.For<IPairedDeviceStoreWriter>(), new InlineUiThreadDispatcher());

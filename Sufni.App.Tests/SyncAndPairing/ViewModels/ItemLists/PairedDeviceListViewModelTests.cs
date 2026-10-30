@@ -33,7 +33,7 @@ public class PairedDeviceListViewModelTests
             .Returns(_ => CompleteUnpairAsync());
 
         var coordinator = new PairedDeviceCoordinator(storeWriter, new InlineUiThreadDispatcher());
-        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(pairedDevices: coordinator), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -70,9 +70,8 @@ public class PairedDeviceListViewModelTests
 
         var viewModel = new PairedDeviceListViewModel(
             pairedDeviceStore,
-            Substitute.For<IPairedDeviceCoordinator>(),
             UiThreadDispatcher,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+            pendingDeletes: TestPendingDeletes.Create(pairedDevices: Substitute.For<IPairedDeviceCoordinator>()), timeProvider: new FakeTimeProvider());
 
         Assert.Empty(viewModel.Items);
 
@@ -112,7 +111,7 @@ public class PairedDeviceListViewModelTests
                 new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
 
         var coordinator = new PairedDeviceCoordinator(storeWriter, new InlineUiThreadDispatcher());
-        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
+        var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(pairedDevices: coordinator), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 

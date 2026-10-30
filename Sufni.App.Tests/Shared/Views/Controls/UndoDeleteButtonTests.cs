@@ -1,4 +1,7 @@
-using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
+using System.Reactive.Linq;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Tests.TestSupport.Doubles;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -16,8 +19,8 @@ public class UndoDeleteButtonTests
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        var viewModel = new TestUndoItemListViewModel();
-        viewModel.BeginPendingDelete("Morning Ride");
+        var owner = CreateOwner("Morning Ride", out var key);
+        using var viewModel = new TestPendingDeleteListViewModel(owner);
 
         var view = new UndoDeleteButton
         {
@@ -34,9 +37,8 @@ public class UndoDeleteButtonTests
             dismissButton.Command!.Execute(dismissButton.CommandParameter);
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            Assert.Equal(1, viewModel.FinalizeCount);
-            Assert.Equal(0, viewModel.UndoCount);
-            Assert.Empty(viewModel.PendingDeletes);
+            await owner.Received(1).CommitAsync(key);
+            owner.DidNotReceive().Undo(key);
         }
         finally
         {
@@ -50,8 +52,8 @@ public class UndoDeleteButtonTests
     {
         ViewTestHelpers.EnsureViewTestResources();
 
-        var viewModel = new TestUndoItemListViewModel();
-        viewModel.BeginPendingDelete("Race Setup");
+        var owner = CreateOwner("Race Setup", out var key);
+        using var viewModel = new TestPendingDeleteListViewModel(owner);
 
         var view = new UndoDeleteButton
         {
@@ -67,9 +69,8 @@ public class UndoDeleteButtonTests
             undoButton.Command!.Execute(undoButton.CommandParameter);
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            Assert.Equal(0, viewModel.FinalizeCount);
-            Assert.Equal(1, viewModel.UndoCount);
-            Assert.Empty(viewModel.PendingDeletes);
+            owner.Received(1).Undo(key);
+            await owner.DidNotReceive().CommitAsync(key);
         }
         finally
         {
@@ -78,27 +79,11 @@ public class UndoDeleteButtonTests
         }
     }
 
-}
-
-internal sealed class TestUndoItemListViewModel : ItemListViewModelBase
-{
-    public TestUndoItemListViewModel()
-        : base(new InlineUiThreadDispatcher(), backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider())
+    private static IPendingDeletes CreateOwner(string name, out PendingDeleteKey key)
     {
-    }
-
-    public int FinalizeCount { get; private set; }
-    public int UndoCount { get; private set; }
-
-    public void BeginPendingDelete(string name)
-    {
-        StartUndoWindow(
-            name,
-            () =>
-            {
-                FinalizeCount++;
-                return Task.CompletedTask;
-            },
-            () => UndoCount++);
+        key = new PendingDeleteKey.Session(Guid.NewGuid());
+        var owner = Substitute.For<IPendingDeletes>();
+        owner.Observe().Returns(Observable.Return<IReadOnlyList<PendingDelete>>([new(key, name)]));
+        return owner;
     }
 }
