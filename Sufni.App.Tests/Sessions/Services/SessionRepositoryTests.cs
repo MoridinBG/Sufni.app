@@ -7,6 +7,7 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
@@ -538,7 +539,7 @@ public class SessionRepositoryTests
             sessionId,
             PersistenceTestData.CreateTelemetryBlob(65),
             fingerprintJson,
-            new SessionSummaryMetrics(65, null, null, null));
+            new SessionSummaryMetrics(65, null, null, null), SessionProcessedWriteGuard.From(SessionSnapshot.From(before!)));
 
         var present = await database.SessionRepository.GetSessionPsstPayloadMetadataAsync(sessionId);
 
@@ -567,7 +568,7 @@ public class SessionRepositoryTests
             sessionId,
             data,
             null,
-            new SessionSummaryMetrics(65, 10, 4, 2));
+            new SessionSummaryMetrics(65, 10, 4, 2), SessionProcessedWriteGuard.From(SessionSnapshot.From(before!)));
 
         var after = await database.GetSessionAsync(sessionId);
 
@@ -618,7 +619,7 @@ public class SessionRepositoryTests
             sessionId,
             targetData,
             "target",
-            targetGeneration);
+            targetGeneration, SessionProcessedWriteGuard.From(SessionSnapshot.From(before)));
 
         var after = (await database.GetSessionAsync(sessionId))!;
         Assert.Equal(before.Updated, after.Updated);
@@ -646,8 +647,78 @@ public class SessionRepositoryTests
         Assert.Equal(101, Assert.Single(targetTrack!).Time);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ProcessedWrite_RejectsAnAdvancedGeneration(bool completeGeneration, bool sameFingerprint)
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65), ProcessingFingerprintJson = "held"
+        };
+        await database.PutProcessedSessionAsync(session, null, null);
+        var expected = SessionProcessedWriteGuard.From(SessionSnapshot.From((await database.GetSessionAsync(session.Id))!));
+        var newer = PersistenceTestData.CreateTelemetryBlob(80);
+        var newerFingerprint = sameFingerprint ? "held" : "newer";
+        Assert.True(await database.SessionRepository.UpdateSessionPsstAsync(session.Id, newer, newerFingerprint,
+            new SessionSummaryMetrics(80, 20, 8, 3), expected));
+
+        var staleBytes = PersistenceTestData.CreateTelemetryBlob(90);
+        var applied = completeGeneration
+            ? await database.SessionRepository.UpdateSessionProcessedGenerationAsync(session.Id, staleBytes, "target",
+                new SessionProcessedGeneration(90, 50, 10, 4, Guid.NewGuid(), []), expected)
+            : await database.SessionRepository.UpdateSessionPsstAsync(session.Id, staleBytes, "target",
+                new SessionSummaryMetrics(90, 50, 10, 4), expected);
+
+        Assert.False(applied);
+        var retained = (await database.GetSessionAsync(session.Id))!;
+        Assert.Equal(newer, await database.GetSessionRawPsstAsync(session.Id));
+        Assert.Equal(newerFingerprint, retained.ProcessingFingerprintJson);
+        Assert.Equal(80, retained.DurationSeconds);
+        Assert.Null(retained.FullTrack);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessedWrite_CompletesOnlyTheCapturedHubRequest(bool requestChanged)
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65), ProcessingFingerprintJson = "held"
+        };
+        await database.PutProcessedSessionAsync(session, null, null);
+        var expected = SessionProcessedWriteGuard.From(SessionSnapshot.From((await database.GetSessionAsync(session.Id))!), "target");
+        var connection = await database.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync("INSERT INTO session_blob_swap_request (session_id, target_fingerprint) VALUES (?, ?)",
+            session.Id, requestChanged ? "new-target" : "target");
+        var incoming = PersistenceTestData.CreateTelemetryBlob(80);
+
+        var applied = await database.SessionRepository.UpdateSessionProcessedGenerationAsync(session.Id, incoming, "target",
+            new SessionProcessedGeneration(80, 20, 8, 3, null, null), expected);
+
+        Assert.Equal(!requestChanged, applied);
+        var pending = await database.GetSessionBlobSwapRequestAsync(session.Id);
+        if (requestChanged)
+        {
+            Assert.Equal("new-target", pending!.TargetFingerprint);
+            Assert.Equal(session.ProcessedData, await database.GetSessionRawPsstAsync(session.Id));
+        }
+        else
+        {
+            Assert.Null(pending);
+            Assert.Equal(incoming, await database.GetSessionRawPsstAsync(session.Id));
+        }
+    }
+
     [Fact]
-    public async Task UpdateSessionPsstAsync_Throws_WhenSessionDoesNotExist()
+    public async Task UpdateSessionPsstAsync_ReturnsFalse_WhenSessionDoesNotExist()
     {
         using var tempDatabase = new TempDatabase("session-psst-update-missing.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -655,11 +726,11 @@ public class SessionRepositoryTests
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
-        await Assert.ThrowsAsync<Exception>(() => database.SessionRepository.UpdateSessionPsstAsync(
+        Assert.False(await database.SessionRepository.UpdateSessionPsstAsync(
             Guid.NewGuid(),
             [1, 2, 3],
             null,
-            new SessionSummaryMetrics(null, null, null, null)));
+            new SessionSummaryMetrics(null, null, null, null), new SessionProcessedWriteGuard(null, 0)));
 
     }
 

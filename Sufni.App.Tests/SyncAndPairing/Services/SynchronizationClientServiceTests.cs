@@ -4,6 +4,7 @@ using Sufni.App.Shared.Models;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
@@ -209,6 +210,7 @@ public class SynchronizationClientServiceTests
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""")]);
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
         httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionBlobPayload?)null);
 
@@ -217,16 +219,45 @@ public class SynchronizationClientServiceTests
         // The pull cursor stays back so the next run re-derives and retries the swap;
         // advancing it would strand the swap permanently (BLOB writes do not bump updated).
         Assert.IsType<SynchronizationRunResult.Completed>(result);
-        await harness.SessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<byte[]>(),
-            Arg.Any<string?>());
+        await harness.SessionSyncApplier.DidNotReceive().ApplyDownloadedAsync(
+            Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), Arg.Any<string?>(), Arg.Any<SessionProcessedGeneration?>());
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,
             Arg.Any<long>());
         await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(
             SynchronizationClientService.SyncStateKey,
             Arg.Any<long>());
+    }
+
+    [Fact]
+    public async Task SyncAll_PassesPreTransferGenerationToOwner_AndRetainsCursorWhenSuperseded()
+    {
+        var id = Guid.NewGuid();
+        var current = new Session(id, "ride", "notes", null)
+        {
+            ProcessingFingerprintJson = "held", ProcessedTelemetryRevision = 1
+        };
+        sessionRepository.GetSessionAsync(id).Returns(_ => current);
+        syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
+        syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
+        httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
+        syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(id, "target")]);
+        httpApiService.GetSessionPsstAsync(id).Returns(_ =>
+        {
+            current = new Session(id, "ride", "notes", null) { ProcessingFingerprintJson = "newer", ProcessedTelemetryRevision = 2 };
+            return new SessionBlobPayload("target", [1, 2, 3]);
+        });
+        harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), "target", null)
+            .Returns(SessionDataApplyResult.Superseded);
+
+        await CreateService().SyncAll();
+
+        await harness.SessionSyncApplier.Received(1).ApplyDownloadedAsync(
+            Arg.Is<SessionSnapshot>(expected => expected.ProcessingFingerprintJson == "held" && expected.ProcessedTelemetryRevision == 1),
+            Arg.Any<SessionBlobPayload>(), "target", null);
+        await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(SynchronizationClientService.SyncStateKey, Arg.Any<long>());
     }
 
     [Fact]
@@ -255,11 +286,9 @@ public class SynchronizationClientServiceTests
 
         await CreateService().SyncAll();
 
-        await harness.SessionTelemetryWriter.Received(1).SwapSessionPsstAsync(
-            sessionId,
-            Arg.Any<byte[]>(),
-            target,
-            targetGeneration);
+        await harness.SessionSyncApplier.Received(1).ApplyDownloadedAsync(
+            Arg.Is<SessionSnapshot>(snapshot => snapshot.Id == sessionId),
+            Arg.Is<SessionBlobPayload>(payload => payload.Fingerprint == target), target, targetGeneration);
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,
             Arg.Any<long>());

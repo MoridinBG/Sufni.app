@@ -33,7 +33,7 @@ using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
@@ -53,7 +53,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISyncDataStore syncDataStore;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ISessionSyncApplier sessionSyncApplier;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IAppPreferences appPreferences;
@@ -236,7 +236,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISyncDataStore syncDataStore,
         IPairedDeviceRepository pairedDeviceRepository,
         ISessionRepository sessionRepository,
-        ISessionTelemetryWriter sessionTelemetryWriter,
+        ISessionSyncApplier sessionSyncApplier,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IAppPreferences appPreferences,
@@ -248,7 +248,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.syncDataStore = syncDataStore;
         this.pairedDeviceRepository = pairedDeviceRepository;
         this.sessionRepository = sessionRepository;
-        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.sessionSyncApplier = sessionSyncApplier;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.appPreferences = appPreferences;
@@ -561,62 +561,11 @@ public class SynchronizationServerService : ISynchronizationServerService
     }
 
     internal static async Task<IResult> ApplySessionDataPatchAsync(
-        Guid id,
-        SessionBlobPayload payload,
-        ISessionTelemetryWriter sessionTelemetryWriter,
-        ISessionBlobSwapRequestStore swapRequestStore,
-        Action<Guid> sessionDataArrived)
+        Guid id, SessionBlobPayload payload, ISessionSyncApplier sessionSyncApplier, Action<Guid> sessionDataArrived)
     {
-        try
-        {
-            var swapRequest = await swapRequestStore.GetRequestAsync(id);
-            if (swapRequest is not null)
-            {
-                // Push-swap row: only the uploader holding the wanted bytes
-                // commits the swap and drops the request. Legacy requests without
-                // a stored generation retain the previous fingerprint-only completion.
-                // Any other upload is ignored so that client's sync run does not fail.
-                if (StringComparer.Ordinal.Equals(payload.Fingerprint, swapRequest.TargetFingerprint))
-                {
-                    if (swapRequest.TargetGeneration is null)
-                    {
-                        await sessionTelemetryWriter.SwapSessionPsstAsync(
-                            id,
-                            payload.Data,
-                            payload.Fingerprint);
-                    }
-                    else
-                    {
-                        await sessionTelemetryWriter.SwapSessionPsstAsync(
-                            id,
-                            payload.Data,
-                            payload.Fingerprint,
-                            swapRequest.TargetGeneration);
-                    }
-
-                    await swapRequestStore.ClearAsync(id);
-                }
-            }
-            else
-            {
-                // Fill: rejects invalid bytes AND a fingerprint that does not
-                // match this row's stored fingerprint; both throw
-                // InvalidDataException, mapped to 400 so the row stays pending.
-                await sessionTelemetryWriter.PatchSessionPsstAsync(id, payload.Data, payload.Fingerprint);
-            }
-        }
-        catch (InvalidDataException ex)
-        {
-            logger.Warning(ex, "Session data patch rejected because the uploaded data was invalid for {SessionId}", id);
-            return Results.BadRequest();
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "Session data patch failed because session {SessionId} was not found", id);
-            return Results.NotFound();
-        }
-
-        logger.Verbose("Patched session data for {SessionId} with {ByteCount} bytes", id, payload.Data.Length);
+        var result = await sessionSyncApplier.ApplyUploadedAsync(id, payload);
+        if (result == SessionDataApplyResult.InvalidPayload) return Results.BadRequest();
+        if (result is SessionDataApplyResult.Missing or SessionDataApplyResult.Failed) return Results.NotFound();
         sessionDataArrived(id);
         return Results.NoContent();
     }
@@ -920,8 +869,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                         return await ApplySessionDataPatchAsync(
                             id,
                             payload,
-                            sessionTelemetryWriter,
-                            swapRequestStore,
+                            sessionSyncApplier,
                             sessionId => SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(sessionId)));
                     });
             });

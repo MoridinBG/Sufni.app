@@ -25,7 +25,6 @@ public interface ISessionBlobSwapRequestStore
 
     Task<SessionBlobSwap?> GetRequestAsync(Guid sessionId);
 
-    Task ClearAsync(Guid sessionId);
 }
 
 internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connectionContext)
@@ -63,11 +62,12 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
         return new SessionBlobSwap(row.SessionId, row.TargetFingerprint, generation);
     }
 
-    public async Task ClearAsync(Guid sessionId)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        await connection.ExecuteAsync($"DELETE FROM {TableName} WHERE session_id = ?", sessionId);
-    }
+    internal static bool MatchesInTransaction(SQLiteConnection connection, Guid sessionId, string? expectedFingerprint) =>
+        StringComparer.Ordinal.Equals(expectedFingerprint, connection.ExecuteScalar<string?>(
+            $"SELECT target_fingerprint FROM {TableName} WHERE session_id = ?", sessionId));
+
+    internal static void ClearInTransaction(SQLiteConnection connection, Guid sessionId) =>
+        connection.Execute($"DELETE FROM {TableName} WHERE session_id = ?", sessionId);
 
     private sealed class SwapRequestRow
     {

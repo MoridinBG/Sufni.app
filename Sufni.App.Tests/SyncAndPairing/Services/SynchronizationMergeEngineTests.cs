@@ -621,7 +621,7 @@ public class SynchronizationMergeEngineTests
             sessionId,
             afterMetadata.TrackProjectionRevision))!).Time);
 
-        await database.SessionTelemetryWriter.SwapSessionPsstAsync(
+        await database.SwapSessionPsstAsync(
             sessionId,
             targetData,
             remoteFingerprint,

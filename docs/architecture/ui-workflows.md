@@ -59,7 +59,7 @@ singletons):
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ISessionLoader` (`SessionLoader`) | Local-only staged detail reads. It depends on read-only `ISessionStore` (never `ISessionStoreWriter`) and uses `Get(sessionId)` only to resolve the linked full-track id. `LoadDetailAsync` decodes and validates telemetry for first-content publication, while `LoadTrackAsync` resolves the optional map/track payload later. Missing processed telemetry returns an incomplete-local-data result. Available telemetry opens even when its source is missing or its fingerprint is stale; the domain projection drives the source warning or recompute prompt. Track failures remain a typed failed settling result |
 | `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and the session row's velocity-filter option; the reprocessor returns a pure `ProcessedGeneration` with telemetry, serialized bytes, fingerprint JSON, projected GPS points and metrics. The engine creates/reuses the full track, resolves timestamp association when necessary, prepares the session and validates the result fingerprint against a captured database input bundle, then calls `ISessionRepository.UpdateProcessedDerivedDataAsync` with those expected scalar values. If that derived write replaces the session's previous full track, the engine deletes the previous track only after the active-session `full_track_id` projection shows it is no longer referenced. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` enumerates active ids through the session-id projection (`ISessionRepository.GetActiveSessionIdsAsync()`), excludes sessions currently classified `Current`, and fans the remainder through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that disappear or cannot be recomputed are counted and skipped, not surfaced as failures. Completed fingerprints are the restart checkpoint; bulk runs are not resumed automatically. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
-| `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, loading authoritative session/source snapshots after the server has persisted the payloads and publishing them through writer publish-only paths. The desktop sync server's PSST upload endpoint persists BLOB fills and swaps through `ISessionTelemetryWriter`; the resulting `SessionDataArrived` event is the only store-publication path for that upload |
+| `ISessionSyncApplier` (`SessionSyncApplier`) | Owns incoming processed generations on hub and client: validates bytes, prepares metrics, applies guarded writes and publishes committed sessions. Startup explicitly attaches its desktop metadata/source event subscriptions, which reload authoritative snapshots; disposal detaches them. Processed-data arrivals use the direct apply command and do not subscribe back to the server event. |
 
 ### Startup and database recovery
 
@@ -83,9 +83,11 @@ option normalization tasks. Its stop operation cancels and awaits those jobs and
 waits for structural migrations or a reset to settle. Normalization passes the
 cancellation token into recompute and leaves its marker unwritten on interruption.
 
-`ISessionTrackReader`, `InboundSyncCoordinator`, `SessionSyncApplier`,
-`PairedDeviceCoordinator`, `PairingClientCoordinator`, `PairingServerCoordinator`
-and `SyncCoordinator` are resolved at page activation, before server startup.
+`ISessionTrackReader`, `InboundSyncCoordinator`, `PairedDeviceCoordinator`,
+`PairingClientCoordinator`, `PairingServerCoordinator` and `SyncCoordinator` are
+resolved at page activation, before server startup. `SessionSyncApplier` is
+registered on every platform; desktop startup explicitly attaches its metadata
+and source arrival subscriptions, avoiding a server/coordinator constructor cycle.
 
 Recompute requests and bulk recompute accept cancellation. The engine retains
 all outstanding tasks, including displaced per-session runs, so `StopAsync`
@@ -294,10 +296,11 @@ configured host; there is no application-lifetime lookup fallback.
 
 `App`'s page-activation callback also eagerly resolves
 `ISessionTrackReader`, `PairedDeviceCoordinator`, `SyncCoordinator`, plus the
-desktop-only `SessionSyncApplier`, `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
-mobile-only `IPairingClientCoordinator`). This is necessary because
-their constructors subscribe to session-store, synchronization-server, pairing,
-or service-discovery changes before server startup or user-driven arrivals.
+desktop-only `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
+mobile-only `IPairingClientCoordinator`). Their constructors subscribe to
+session-store, synchronization-server, pairing or service-discovery changes.
+The same callback attaches `SessionSyncApplier` to the desktop server before
+server startup or user-driven arrivals.
 
 ## Navigation
 

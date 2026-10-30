@@ -57,7 +57,7 @@ internal static class SessionTrackProjection
     // Alignment check driven by the session row's own timestamp, for callers that
     // would otherwise deserialize the whole processed-telemetry blob just to read
     // its metadata. The cached session-window track is generated from
-    // session.Timestamp (see SessionTelemetryWriter), so that is the value it must
+    // session.Timestamp (see SessionCoordinator), so that is the value it must
     // line up with.
     public static bool IsSessionTrackAligned(
         IReadOnlyList<TrackPoint>? trackPoints,

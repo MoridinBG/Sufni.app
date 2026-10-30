@@ -5,7 +5,7 @@ using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Models;
-using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
@@ -24,7 +24,7 @@ public class SynchronizationServerServiceTests
             Substitute.For<ISyncDataStore>(),
             Substitute.For<IPairedDeviceRepository>(),
             Substitute.For<ISessionRepository>(),
-            Substitute.For<ISessionTelemetryWriter>(),
+            Substitute.For<ISessionSyncApplier>(),
             Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<IRecordedSessionSourceSyncQuery>(),
             Substitute.For<IAppPreferences>(),
@@ -98,73 +98,25 @@ public class SynchronizationServerServiceTests
         await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
     }
 
-    [Fact]
-    public async Task ApplySessionDataPatchAsync_FillPersistsThroughTelemetryWriter_AndRaisesSessionDataArrived()
+    [Theory]
+    [InlineData(SessionDataApplyResult.Applied, StatusCodes.Status204NoContent, true)]
+    [InlineData(SessionDataApplyResult.Superseded, StatusCodes.Status204NoContent, true)]
+    [InlineData(SessionDataApplyResult.InvalidPayload, StatusCodes.Status400BadRequest, false)]
+    [InlineData(SessionDataApplyResult.Missing, StatusCodes.Status404NotFound, false)]
+    [InlineData(SessionDataApplyResult.Failed, StatusCodes.Status404NotFound, false)]
+    public async Task ApplySessionDataPatchAsync_MapsApplicationOutcome_AndReportsAcceptedArrival(
+        SessionDataApplyResult outcome, int status, bool accepted)
     {
-        var sessionId = Guid.NewGuid();
-        var payload = new SessionBlobPayload("fingerprint-a", [1, 2, 3]);
-        var sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
-        var swapRequestStore = Substitute.For<ISessionBlobSwapRequestStore>();
-        var arrivedSessionIds = new List<Guid>();
-        swapRequestStore.GetRequestAsync(sessionId).Returns((SessionBlobSwap?)null);
-
-        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(
-            sessionId,
-            payload,
-            sessionTelemetryWriter,
-            swapRequestStore,
-            arrivedSessionIds.Add);
-
-        await sessionTelemetryWriter.Received(1).PatchSessionPsstAsync(
-            sessionId,
-            payload.Data,
-            payload.Fingerprint);
-        await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<byte[]>(),
-            Arg.Any<string?>());
-        await swapRequestStore.DidNotReceive().ClearAsync(Arg.Any<Guid>());
-        Assert.Equal([sessionId], arrivedSessionIds);
-        await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
-    }
-
-    [Fact]
-    public async Task ApplySessionDataPatchAsync_MatchingSwapAppliesStoredGenerationAndClearsRequest()
-    {
-        var sessionId = Guid.NewGuid();
+        var id = Guid.NewGuid();
         var payload = new SessionBlobPayload("target", [1, 2, 3]);
-        var generation = new SessionProcessedGeneration(
-            DurationSeconds: 80,
-            DistanceMeters: 20,
-            AscentMeters: 8,
-            DescentMeters: 3,
-            FullTrackId: Guid.NewGuid(),
-            Track: [new Sufni.App.MapsAndTracks.Models.TrackPoint(100, 1, 2, 3)]);
-        var sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
-        var swapRequestStore = Substitute.For<ISessionBlobSwapRequestStore>();
-        swapRequestStore.GetRequestAsync(sessionId)
-            .Returns(new SessionBlobSwap(sessionId, payload.Fingerprint!, generation));
-        var arrivedSessionIds = new List<Guid>();
+        var applier = Substitute.For<ISessionSyncApplier>();
+        applier.ApplyUploadedAsync(id, payload).Returns(outcome);
+        var arrivals = new List<Guid>();
 
-        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(
-            sessionId,
-            payload,
-            sessionTelemetryWriter,
-            swapRequestStore,
-            arrivedSessionIds.Add);
+        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(id, payload, applier, arrivals.Add);
 
-        await sessionTelemetryWriter.Received(1).SwapSessionPsstAsync(
-            sessionId,
-            payload.Data,
-            payload.Fingerprint,
-            generation);
-        await sessionTelemetryWriter.DidNotReceive().SwapSessionPsstAsync(
-            Arg.Any<Guid>(),
-            Arg.Any<byte[]>(),
-            Arg.Any<string?>());
-        await swapRequestStore.Received(1).ClearAsync(sessionId);
-        Assert.Equal([sessionId], arrivedSessionIds);
-        await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
+        await AssertStatusCodeAsync(result, status);
+        Assert.Equal(accepted ? [id] : Array.Empty<Guid>(), arrivals);
     }
 
     private static async Task AssertStatusCodeAsync(IResult result, int expectedStatusCode)

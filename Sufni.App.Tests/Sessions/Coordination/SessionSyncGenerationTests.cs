@@ -5,15 +5,74 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
-using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Persistence;
-namespace Sufni.App.Tests.Sessions.Processing.Services;
+namespace Sufni.App.Tests.Sessions.Coordination;
 
-public class SessionTelemetryWriterTests
+public class SessionSyncGenerationTests
 {
+    [Theory]
+    [InlineData("other", true, SessionDataApplyResult.Superseded)]
+    [InlineData("target", false, SessionDataApplyResult.InvalidPayload)]
+    [InlineData("target", true, SessionDataApplyResult.Applied)]
+    public async Task ApplyUploadedAsync_KeepsRequestUntilMatchingValidBytesCommit(
+        string fingerprint, bool valid, SessionDataApplyResult expectedResult)
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65), ProcessingFingerprintJson = "held"
+        };
+        await database.PutProcessedSessionAsync(session, null, null);
+        var connection = await database.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync("INSERT INTO session_blob_swap_request (session_id, target_fingerprint) VALUES (?, ?)", session.Id, "target");
+        var incoming = valid ? PersistenceTestData.CreateTelemetryBlob(80) : new byte[] { 1, 2, 3 };
+
+        var result = await database.SessionSyncApplier.ApplyUploadedAsync(session.Id, new SessionBlobPayload(fingerprint, incoming));
+
+        Assert.Equal(expectedResult, result);
+        if (result == SessionDataApplyResult.Applied)
+        {
+            Assert.Null(await database.GetSessionBlobSwapRequestAsync(session.Id));
+            Assert.Equal(incoming, await database.GetSessionRawPsstAsync(session.Id));
+            Assert.Equal("target", database.PublishedSessions.Get(session.Id)!.ProcessingFingerprintJson);
+        }
+        else
+        {
+            Assert.Equal("target", (await database.GetSessionBlobSwapRequestAsync(session.Id))!.TargetFingerprint);
+            Assert.Equal(session.ProcessedData, await database.GetSessionRawPsstAsync(session.Id));
+            Assert.Null(database.PublishedSessions.Get(session.Id));
+        }
+    }
+
+    [Fact]
+    public async Task ApplyDownloadedAsync_DoesNotReplaceGenerationChangedDuringTransfer()
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65), ProcessingFingerprintJson = "held"
+        };
+        await database.PutProcessedSessionAsync(session, null, null);
+        var captured = SessionSnapshot.From((await database.GetSessionAsync(session.Id))!);
+        var newer = PersistenceTestData.CreateTelemetryBlob(80);
+        Assert.True(await database.SessionRepository.UpdateSessionPsstAsync(session.Id, newer, "held",
+            new SessionSummaryMetrics(80, null, null, null), SessionProcessedWriteGuard.From(captured)));
+
+        var result = await database.SessionSyncApplier.ApplyDownloadedAsync(captured,
+            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(90)), "target");
+
+        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(newer, await database.GetSessionRawPsstAsync(session.Id));
+        Assert.Null(database.PublishedSessions.Get(session.Id));
+    }
+
     [Fact]
     public async Task PatchSessionPsstAsync_UpdatesDuration_AndPreservesGpsMetrics_WithoutTrackPoints()
     {
@@ -55,7 +114,7 @@ public class SessionTelemetryWriterTests
             ProcessedData = originalPsst
         }, newFullTrack: null, source: null);
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => database.PatchSessionPsstAsync(sessionId, [1, 2, 3]));
+        Assert.Equal(SessionDataApplyResult.InvalidPayload, await database.PatchSessionPsstAsync(sessionId, [1, 2, 3]));
 
         var session = await database.GetSessionAsync(sessionId);
 
@@ -86,8 +145,8 @@ public class SessionTelemetryWriterTests
         // The bytes are valid, so the rejection is purely the fingerprint integrity
         // check (the hub asked for the BLOB matching its stored fingerprint). The held
         // BLOB and its fingerprint are left intact for a later retry.
-        await Assert.ThrowsAsync<InvalidDataException>(
-            () => database.PatchSessionPsstAsync(sessionId, incomingBlob, incomingFingerprint));
+        Assert.Equal(SessionDataApplyResult.InvalidPayload,
+            await database.PatchSessionPsstAsync(sessionId, incomingBlob, incomingFingerprint));
 
         var session = await database.GetSessionAsync(sessionId);
         Assert.NotNull(session);
@@ -96,34 +155,34 @@ public class SessionTelemetryWriterTests
     }
 
     [Fact]
-    public async Task SwapSessionPsstAsync_WithTargetGeneration_ValidatesBytesAndPersistsGenerationAsGiven()
+    public async Task ApplyDownloadedAsync_ValidatesAndPublishesCompleteGeneration_WithoutChangingAuthoredFields()
     {
-        var sessionId = Guid.NewGuid();
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", "notes", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
+            ProcessingFingerprintJson = "held",
+            GpsOffsetSeconds = 7
+        };
+        await database.PutProcessedSessionAsync(session, null, null);
+        var before = (await database.GetSessionAsync(session.Id))!;
         var data = PersistenceTestData.CreateTelemetryBlob(80);
-        var generation = new SessionProcessedGeneration(
-            DurationSeconds: 80,
-            DistanceMeters: 20,
-            AscentMeters: 8,
-            DescentMeters: 3,
-            FullTrackId: Guid.NewGuid(),
-            Track: [new TrackPoint(100, 1, 2, 3)]);
-        var sessionRepository = Substitute.For<ISessionRepository>();
-        var telemetryProcessor = new TestSessionTelemetryProcessor();
-        telemetryProcessor.Map(data, TestTelemetryData.CreateMinimal(duration: 80));
-        var writer = new SessionTelemetryWriter(
-            sessionRepository,
-            telemetryProcessor);
+        var generation = new SessionProcessedGeneration(80, 20, 8, 3, Guid.NewGuid(), [new TrackPoint(100, 1, 2, 3)]);
 
-        await writer.SwapSessionPsstAsync(sessionId, data, "target", generation);
+        var result = await database.SessionSyncApplier.ApplyDownloadedAsync(SessionSnapshot.From(before),
+            new SessionBlobPayload("target", data), "target", generation);
 
-        Assert.Equal(1, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
-        await sessionRepository.Received(1).UpdateSessionProcessedGenerationAsync(
-            sessionId,
-            data,
-            "target",
-            generation);
-        await sessionRepository.DidNotReceive().GetSessionAsync(Arg.Any<Guid>());
-        await sessionRepository.DidNotReceive().GetSessionTrackAsync(Arg.Any<Guid>());
+        Assert.Equal(SessionDataApplyResult.Applied, result);
+        var saved = (await database.GetSessionAsync(session.Id))!;
+        Assert.Equal(before.Updated, saved.Updated);
+        Assert.Equal("notes", saved.Description);
+        Assert.Equal(7, saved.GpsOffsetSeconds);
+        Assert.Equal(data, await database.GetSessionRawPsstAsync(session.Id));
+        Assert.Equal(generation.DurationSeconds, saved.DurationSeconds);
+        Assert.Equal(generation.DistanceMeters, saved.DistanceMeters);
+        Assert.Equal(generation.FullTrackId, saved.FullTrack);
+        Assert.Equal(SessionSnapshot.From(saved), database.PublishedSessions.Get(session.Id));
     }
 
     [Fact]

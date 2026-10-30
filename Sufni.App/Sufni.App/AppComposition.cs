@@ -107,7 +107,6 @@ public static class AppComposition
         services.AddSingleton<ISessionTrackReader, SessionTrackReader>();
         services.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();
         services.AddSingleton<ISessionRepository, SessionRepository>();
-        services.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
         services.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();
         services.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
         services.AddSingleton<ISessionContentReader, SessionContentReader>();
@@ -189,17 +188,8 @@ public static class AppComposition
             sp.GetRequiredService<IProcessingFingerprintService>()));
         services.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
         services.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
-        if (root.Capabilities.CanHostSyncServer)
-        {
-            services.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
-                sp.GetRequiredService<ISessionStoreWriter>(),
-                sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-                sp.GetRequiredService<IUiThreadDispatcher>(),
-                sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-                sp.GetRequiredService<ISessionRepository>(),
-                sp.GetRequiredService<IBackgroundTaskRunner>(),
-                sp.GetRequiredService<ISynchronizationServerService>()));
-        }
+        services.AddSingleton<SessionSyncApplier>();
+        services.AddSingleton<ISessionSyncApplier>(sp => sp.GetRequiredService<SessionSyncApplier>());
         services.AddSingleton<ISessionCoordinator, SessionCoordinator>();
         services.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(
             sp.GetRequiredService<SqliteConnectionContext>(),

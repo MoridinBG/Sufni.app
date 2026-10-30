@@ -158,9 +158,8 @@ The layer roles are consistent across slices:
   - SQLite persistence (`SqliteConnectionContext`, `DatabaseMigrationRunner`),
     `IDialogService` (view models' prompt contract; its `IDialogHost` wiring facet is
     used only by `App`), and `IFilesService` → `Infrastructure/`.
-  - `ISessionTelemetryWriter` (incoming sync telemetry validation and writes) →
-    `Sessions/Processing/Services/`;
-    `ISessionRepository` → `Sessions/Services/`.
+  - `ISessionSyncApplier` (incoming sync generation validation, guarded writes and
+    publication) → `Sessions/Coordination/`; `ISessionRepository` → `Sessions/Services/`.
   - `ITelemetryDataStoreService` → `Acquisition/Services/`.
   - `IHttpApiService`, `ISynchronizationClientService` → `SyncAndPairing/Services/`
     (the desktop-only `ISynchronizationServerService` stays in `Sufni.App.Desktop`).
@@ -280,7 +279,8 @@ persistence operations and store the values they are given.
 `RecordedSessionReprocessor` produces pure `ProcessedGeneration` values with
 telemetry, GPS points and summary metrics. Import, live-save and recompute owners
 resolve track association and persist those values through `ISessionRepository`.
-`SessionTelemetryWriter` currently handles incoming sync fills/swaps only. The database file location is platform-specific app
+`SessionSyncApplier` owns incoming sync fills/swaps and publication. Its repository
+guards compare the captured fingerprint/revision and complete hub requests atomically. The database file location is platform-specific app
 data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
 etc.).
 
@@ -349,18 +349,21 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   constructor-time event subscriptions
   (`ISessionTrackReader`, `PairedDeviceCoordinator`,
   `SyncCoordinator`,
-  the desktop-only `SessionSyncApplier` / `IInboundSyncCoordinator` /
+  the desktop-only `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
   `App`'s startup page-activation callback so subscriptions wire up before
-  server startup or user-driven arrivals. `AppStartup` gates pages on schema
+  server startup or user-driven arrivals. The same callback explicitly attaches
+  `SessionSyncApplier` to desktop metadata/source events; it also owns incoming
+  BLOB commits on both platforms and detaches its handlers on disposal.
+  `AppStartup` gates pages on schema
   initialization and the first store refresh; `AppShutdown` owns close prompts,
   work drainage, pending deletes, server stop and provider disposal.
   `SessionCoordinator` owns metadata save, processing-option changes, GPS alignment,
   live-capture save and deletion. Recorded editors use `ISessionLoader` for staged reads;
   lists and staleness prompts call `ISessionRecomputeEngine` directly. The engine
-  owns recompute liveness and commit guards; `SessionSyncApplier` owns inbound
-  publication — see [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
+  owns recompute liveness and commit guards; `SessionSyncApplier` owns incoming
+  generation writes and inbound publication — see [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),
 starting from [Layered Architecture](docs/architecture/ui.md#layered-architecture)

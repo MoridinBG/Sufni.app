@@ -11,7 +11,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Coordination;
 namespace Sufni.App.SyncAndPairing.Services;
 
 public class SynchronizationClientService : ISynchronizationClientService
@@ -21,8 +21,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private const int SyncTransferDop = 3;
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionStoreWriter sessionStore;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
+    private readonly ISessionSyncApplier sessionSyncApplier;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
@@ -33,19 +32,17 @@ public class SynchronizationClientService : ISynchronizationClientService
     public SynchronizationClientService(
         ISyncDataStore syncDataStore,
         ISessionRepository sessionRepository,
-        ISessionStoreWriter sessionStore,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
         IAppPreferences appPreferences,
         TimeProvider timeProvider,
-        ISessionTelemetryWriter sessionTelemetryWriter)
+        ISessionSyncApplier sessionSyncApplier)
     {
         this.syncDataStore = syncDataStore;
         this.sessionRepository = sessionRepository;
-        this.sessionStore = sessionStore;
-        this.sessionTelemetryWriter = sessionTelemetryWriter;
+        this.sessionSyncApplier = sessionSyncApplier;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
@@ -192,6 +189,9 @@ public class SynchronizationClientService : ISynchronizationClientService
             return false;
         }
 
+        var expectedRow = await sessionRepository.GetSessionAsync(id);
+        if (expectedRow is null) return false;
+        var expected = SessionSnapshot.From(expectedRow);
         var transfer = await httpApiService.GetSessionPsstAsync(id, cancellationToken: cancellationToken);
         if (transfer is null)
         {
@@ -206,28 +206,8 @@ public class SynchronizationClientService : ISynchronizationClientService
             return false;
         }
 
-        try
-        {
-            if (await sessionRepository.GetSessionAsync(id) is null) return false;
-            if (targetGeneration is null)
-                await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint);
-            else
-                await sessionTelemetryWriter.SwapSessionPsstAsync(id, transfer.Data, transfer.Fingerprint, targetGeneration);
-
-            var fresh = await sessionRepository.GetSessionAsync(id);
-            if (fresh is null)
-            {
-                await sessionStore.PublishSessionsRemovedAsync([id]);
-                return false;
-            }
-            await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
-            return true;
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            logger.Error(e, "Downloaded session data could not be applied for {SessionId}", id);
-            return false;
-        }
+        return await sessionSyncApplier.ApplyDownloadedAsync(
+            expected, transfer, targetFingerprint, targetGeneration) == SessionDataApplyResult.Applied;
     }
 
     private async Task PushIncompleteSessionSources(CancellationToken cancellationToken)

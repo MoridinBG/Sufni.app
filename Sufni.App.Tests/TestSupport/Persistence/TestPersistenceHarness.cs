@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using SQLite;
+using Sufni.App.Shared.Stores;
+using Sufni.App.Tests.TestSupport.Async;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -24,7 +26,6 @@ internal sealed class TestPersistenceHarness
     private readonly ITrackRepository trackRepository;
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
-    private readonly ISessionTelemetryWriter sessionTelemetryWriter;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISyncDataStore syncDataStore;
 
@@ -36,14 +37,22 @@ internal sealed class TestPersistenceHarness
         trackRepository = new TrackRepository(context);
         sessionRepository = new SessionRepository(context, this.timeProvider);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
-        sessionTelemetryWriter = new SessionTelemetryWriter(sessionRepository, sessionTelemetryProcessor);
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
+        var dispatcher = new InlineUiThreadDispatcher();
+        var publication = new StorePublication(dispatcher);
+        PublishedSessions = new SessionStore(publication);
+        PublishedSources = new RecordedSessionSourceStore(publication);
+        SessionSyncApplier = new SessionSyncApplier(PublishedSessions, PublishedSources, dispatcher,
+            recordedSessionSourceRepository, sessionRepository, new InlineBackgroundTaskRunner(),
+            sessionTelemetryProcessor, new SessionBlobSwapRequestStore(context));
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService, this.timeProvider);
     }
 
     public ISessionRepository SessionRepository => sessionRepository;
 
-    public ISessionTelemetryWriter SessionTelemetryWriter => sessionTelemetryWriter;
+    public SessionSyncApplier SessionSyncApplier { get; }
+    public SessionStore PublishedSessions { get; }
+    public RecordedSessionSourceStore PublishedSources { get; }
 
     public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
 
@@ -149,11 +158,15 @@ internal sealed class TestPersistenceHarness
         SessionProcessingInputBundle expectedInputs) =>
         sessionRepository.UpdateProcessedDerivedDataAsync(PrepareGeneration(session, newFullTrack), newFullTrack, expectedInputs);
 
-    public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
-        sessionTelemetryWriter.PatchSessionPsstAsync(id, data, fingerprint);
+    public Task<SessionDataApplyResult> PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
+        SessionSyncApplier.ApplyUploadedAsync(id, new SessionBlobPayload(fingerprint, data));
 
-    public Task SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
-        sessionTelemetryWriter.SwapSessionPsstAsync(id, data, fingerprint);
+    public async Task<SessionDataApplyResult> SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null,
+        SessionProcessedGeneration? generation = null)
+    {
+        var expected = SessionSnapshot.From((await sessionRepository.GetSessionAsync(id))!);
+        return await SessionSyncApplier.ApplyDownloadedAsync(expected, new SessionBlobPayload(fingerprint, data), fingerprint, generation);
+    }
 
     public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id) =>
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);

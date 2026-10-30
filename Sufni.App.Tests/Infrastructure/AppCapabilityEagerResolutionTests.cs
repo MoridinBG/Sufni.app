@@ -1,84 +1,53 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Persistence;
 
 namespace Sufni.App.Tests.Infrastructure;
 
 public class AppCapabilityEagerResolutionTests
 {
-    [Fact]
-    public void ResolveCapabilityEagerServices_ResolvesClientCoordinator_WhenClientCapabilityIsAvailable()
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void Startup_AttachesSessionArrivalsBeforeFirstServerEvent_WhenHostingIsAvailable(bool client, bool host)
     {
-        var services = new RecordingServiceProvider();
+        var dispatcher = new InlineUiThreadDispatcher();
+        using var publication = new StorePublication(dispatcher);
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        var snapshot = TestSnapshots.Session(hasProcessedData: false);
+        repository.Seed(snapshot);
+        var server = Substitute.For<ISynchronizationServerService>();
+        using var applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
+            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>());
+        using var provider = new ServiceCollection()
+            .AddSingleton(applier)
+            .AddSingleton(server)
+            .AddSingleton(Substitute.For<IPairingClientCoordinator>())
+            .AddSingleton(Substitute.For<IPairingServerCoordinator>())
+            .AddSingleton(Substitute.For<IInboundSyncCoordinator>())
+            .BuildServiceProvider();
 
-        App.ResolveCapabilityEagerServices(
-            services,
-            CreateCapabilities(canPairAsClient: true, canHostSyncServer: false));
+        App.ResolveCapabilityEagerServices(provider, new AppCapabilities(host, client, false, true, false));
+        server.SynchronizationDataArrived += Raise.EventWith(server,
+            new SynchronizationDataArrivedEventArgs(new SynchronizationData { Sessions = [new Session { Id = snapshot.Id }] }));
 
-        Assert.Contains(typeof(IPairingClientCoordinator), services.RequestedServices);
-        Assert.DoesNotContain(typeof(IPairingServerCoordinator), services.RequestedServices);
-        Assert.DoesNotContain(typeof(IInboundSyncCoordinator), services.RequestedServices);
-        Assert.DoesNotContain(typeof(SessionSyncApplier), services.RequestedServices);
-    }
-
-    [Fact]
-    public void ResolveCapabilityEagerServices_ResolvesServerCoordinators_WhenHostCapabilityIsAvailable()
-    {
-        var services = new RecordingServiceProvider();
-
-        App.ResolveCapabilityEagerServices(
-            services,
-            CreateCapabilities(canPairAsClient: false, canHostSyncServer: true));
-
-        Assert.DoesNotContain(typeof(IPairingClientCoordinator), services.RequestedServices);
-        Assert.Contains(typeof(IPairingServerCoordinator), services.RequestedServices);
-        Assert.Contains(typeof(IInboundSyncCoordinator), services.RequestedServices);
-        Assert.Contains(typeof(SessionSyncApplier), services.RequestedServices);
-    }
-
-    [Fact]
-    public void ResolveCapabilityEagerServices_ResolvesBothSides_WhenBothCapabilitiesAreAvailable()
-    {
-        var services = new RecordingServiceProvider();
-
-        App.ResolveCapabilityEagerServices(
-            services,
-            CreateCapabilities(canPairAsClient: true, canHostSyncServer: true));
-
-        Assert.Contains(typeof(IPairingClientCoordinator), services.RequestedServices);
-        Assert.Contains(typeof(IPairingServerCoordinator), services.RequestedServices);
-        Assert.Contains(typeof(IInboundSyncCoordinator), services.RequestedServices);
-        Assert.Contains(typeof(SessionSyncApplier), services.RequestedServices);
-    }
-
-    [Fact]
-    public void ResolveCapabilityEagerServices_DoesNotResolvePlatformCoordinators_WhenCapabilitiesAreUnavailable()
-    {
-        var services = new RecordingServiceProvider();
-
-        App.ResolveCapabilityEagerServices(
-            services,
-            CreateCapabilities(canPairAsClient: false, canHostSyncServer: false));
-
-        Assert.Empty(services.RequestedServices);
-    }
-
-    private static AppCapabilities CreateCapabilities(bool canPairAsClient, bool canHostSyncServer) =>
-        new(
-            CanHostSyncServer: canHostSyncServer,
-            CanPairAsClient: canPairAsClient,
-            SupportsMassStorageImport: false,
-            SupportsStorageProviderImport: true,
-            CanPlayVideo: false);
-
-    private sealed class RecordingServiceProvider : IServiceProvider
-    {
-        public List<Type> RequestedServices { get; } = [];
-
-        public object? GetService(Type serviceType)
-        {
-            RequestedServices.Add(serviceType);
-            return null;
-        }
+        Assert.Equal(host ? snapshot : null, sessions.Get(snapshot.Id));
     }
 }

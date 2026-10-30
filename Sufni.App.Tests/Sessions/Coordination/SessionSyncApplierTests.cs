@@ -1,81 +1,83 @@
-using Sufni.App.Shared.Models;
 using NSubstitute;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Persistence;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Tests.TestSupport.Async;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionSyncApplierTests
 {
-    private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
-    private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
-    private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
-    private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task DataArrived_PublishesOnUiDispatcher(bool recordedSource)
+    public async Task Arrival_PublishesAuthoritativeSnapshotsOnUiDispatcher(bool recordedSource)
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         var dispatcher = new ManualUiThreadDispatcher();
-        _ = new SessionSyncApplier(sessionStore, sourceStore, dispatcher, sourceRepository, sessionRepository, new InlineBackgroundTaskRunner(), sync);
-        var sessionId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
-        sourceRepository.GetRecordedSessionSourceSnapshotAsync(sessionId).Returns(RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(sessionId)));
+        using var publication = new StorePublication(dispatcher);
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
+        using var applier = new SessionSyncApplier(sessions, sources, dispatcher, sourceRepository, repository.Repository,
+            new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>());
+        applier.AttachServer(sync);
+        var snapshot = TestSnapshots.Session();
+        repository.Seed(snapshot);
+        var source = RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(snapshot.Id));
+        sourceRepository.GetRecordedSessionSourceSnapshotAsync(snapshot.Id).Returns(source);
 
         if (recordedSource)
-            sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
+            sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(snapshot.Id));
         else
-            sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
-
-        await sessionStore.DidNotReceive().PublishSessionsChangedAsync(Arg.Any<IReadOnlyCollection<SessionSnapshot>>(), Arg.Any<CancellationToken>());
-        await sourceStore.DidNotReceive().PublishSourcesChangedAsync(Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(), Arg.Any<CancellationToken>());
+            sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(
+                new SynchronizationData { Sessions = [new Session { Id = snapshot.Id }] }));
+        Assert.Null(sessions.Get(snapshot.Id));
+        Assert.Null(sources.Get(snapshot.Id));
         await dispatcher.DrainAsync();
 
-        if (recordedSource)
-            await sourceStore.Received(1).PublishSourcesChangedAsync(
-                Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(sessionId)),
-                Arg.Any<CancellationToken>());
-        else
-            await sessionStore.Received(1).PublishSessionsChangedAsync(
-                Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(sessionId)),
-                Arg.Any<CancellationToken>());
+        if (recordedSource) Assert.Equal(source, sources.Get(snapshot.Id));
+        else Assert.Equal(snapshot, sessions.Get(snapshot.Id));
     }
 
     [Fact]
-    public async Task SyncApplier_PublishesDeletedAndLiveSessions()
+    public async Task MetadataArrival_RemovesDeletedSession_AndPublishesRetainedDatabaseValues()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         var dispatcher = new ManualUiThreadDispatcher();
-        _ = new SessionSyncApplier(sessionStore, sourceStore, dispatcher, sourceRepository, sessionRepository, new InlineBackgroundTaskRunner(), sync);
-        var liveId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(liveId).Returns(new Session(liveId, "current", "", null));
-        var deletedId = Guid.NewGuid();
-        var data = new SynchronizationData
-        {
-            Sessions =
-            {
-                new Session { Id = liveId, Updated = 6 },
-                new Session { Id = deletedId, Updated = 6, Deleted = 6 },
-            },
-        };
+        using var publication = new StorePublication(dispatcher);
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
+            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>());
+        applier.AttachServer(sync);
+        var live = TestSnapshots.Session(updated: 8);
+        var deleted = TestSnapshots.Session();
+        repository.Seed(live);
+        var seed = sessions.ReplaceAllAsync([deleted]);
+        await dispatcher.DrainAsync();
+        await seed;
+        var data = new SynchronizationData { Sessions =
+        [
+            new Session { Id = live.Id, Updated = 6 },
+            new Session { Id = deleted.Id, Updated = 6, Deleted = 6 }
+        ] };
 
         sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
         await dispatcher.DrainAsync();
 
-        await sessionStore.Received(1).PublishSessionsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(deletedId)),
-            Arg.Any<CancellationToken>());
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.Id).Contains(liveId)),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(live, sessions.Get(live.Id));
+        Assert.Null(sessions.Get(deleted.Id));
     }
-
 }

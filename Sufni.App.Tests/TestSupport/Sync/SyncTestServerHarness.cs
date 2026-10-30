@@ -8,7 +8,7 @@ using System.Text.Json;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
@@ -41,7 +41,7 @@ internal sealed class SyncTestServerHarness
 
     public ISecureStorage SecureStorage { get; } = Substitute.For<ISecureStorage>();
     public ISyncDataStore SyncDataStore { get; } = Substitute.For<ISyncDataStore>();
-    public ISessionTelemetryWriter SessionTelemetryWriter { get; } = Substitute.For<ISessionTelemetryWriter>();
+    public ISessionSyncApplier SessionSyncApplier { get; } = Substitute.For<ISessionSyncApplier>();
     public ISessionRepository SessionRepository { get; } = Substitute.For<ISessionRepository>();
     public ISessionStoreWriter SessionStore { get; } = Substitute.For<ISessionStoreWriter>();
     public IRecordedSessionSourceRepository RecordedSessionSourceRepository { get; } = Substitute.For<IRecordedSessionSourceRepository>();
@@ -58,14 +58,13 @@ internal sealed class SyncTestServerHarness
         new(
             SyncDataStore,
             SessionRepository,
-            SessionStore,
             RecordedSessionSourceRepository,
             SourceStore,
             RecordedSessionSourceSyncQuery,
             HttpApiService,
             AppPreferences,
             Time,
-            SessionTelemetryWriter);
+            SessionSyncApplier);
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)
     {

@@ -1,3 +1,4 @@
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Shared.Views;
 using System;
 using System.Diagnostics;
@@ -214,7 +215,8 @@ public partial class App : Application
             // Resolve so pairing and inbound-sync event subscriptions wire up before views load.
             _ = services.GetService<IPairingServerCoordinator>();
             _ = services.GetService<IInboundSyncCoordinator>();
-            _ = services.GetService<SessionSyncApplier>();
+            services.GetRequiredService<SessionSyncApplier>().AttachServer(
+                services.GetRequiredService<ISynchronizationServerService>());
         }
     }
 }

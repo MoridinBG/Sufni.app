@@ -75,19 +75,27 @@ public interface ISessionRepository
         Track? newFullTrack,
         SessionProcessingInputBundle expectedInputs);
 
-    Task UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics);
+    Task<bool> UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics, SessionProcessedWriteGuard expected);
 
-    Task UpdateSessionProcessedGenerationAsync(
+    Task<bool> UpdateSessionProcessedGenerationAsync(
         Guid id,
         byte[] data,
         string? fingerprintJson,
-        SessionProcessedGeneration generation);
+        SessionProcessedGeneration generation,
+        SessionProcessedWriteGuard expected);
 
     Task UpdateSessionTrackAsync(
         Guid id,
         List<TrackPoint> points,
         SessionSummaryMetrics metrics,
         double? gpsOffsetSeconds = null);
+}
+
+/// <summary>Persisted generation and optional hub request captured before accepting transferred bytes.</summary>
+public sealed record SessionProcessedWriteGuard(string? Fingerprint, long Revision, string? PendingSwapFingerprint = null)
+{
+    public static SessionProcessedWriteGuard From(SessionSnapshot session, string? pendingSwapFingerprint = null) =>
+        new(session.ProcessingFingerprintJson, session.ProcessedTelemetryRevision, pendingSwapFingerprint);
 }
 
 public sealed record SessionImportCommitResult(
@@ -504,73 +512,47 @@ internal sealed class SessionRepository(
         return rows.Count == 1 ? rows[0].ToBundle() : null;
     }
 
-    public async Task UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        // Writes the BLOB-bound pair (data + its fingerprint) and the metrics
-        // recomputed from the new bytes, with NO `updated` bump — a processed-BLOB
-        // swap/fill must not create a metadata-sync feedback edge.
-        var updatedRows = await connection.ExecuteAsync(
-            $"""
-            UPDATE session
-            SET
-                data=?,
-                {SessionSqlProjection.ProcessingFingerprintColumn}=?,
-                duration_seconds=?,
-                distance_meters=?,
-                ascent_meters=?,
-                descent_meters=?
-            WHERE id=? AND deleted IS NULL
-            """,
-            data,
-            fingerprintJson,
-            metrics.DurationSeconds,
-            metrics.DistanceMeters,
-            metrics.AscentMeters,
-            metrics.DescentMeters,
-            id);
-        if (updatedRows == 0)
+    public Task<bool> UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson,
+        SessionSummaryMetrics metrics, SessionProcessedWriteGuard expected) =>
+        connectionContext.RunInTransactionAsync(connection =>
         {
-            throw new Exception($"Session {id} does not exist.");
-        }
-    }
+            if (!SessionBlobSwapRequestStore.MatchesInTransaction(connection, id, expected.PendingSwapFingerprint)) return false;
+            var updated = connection.Execute(
+                $"""
+                UPDATE session
+                SET data=?, {SessionSqlProjection.ProcessingFingerprintColumn}=?,
+                    duration_seconds=?, distance_meters=?, ascent_meters=?, descent_meters=?
+                WHERE id=? AND deleted IS NULL
+                  AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
+                """,
+                data, fingerprintJson, metrics.DurationSeconds, metrics.DistanceMeters, metrics.AscentMeters, metrics.DescentMeters,
+                id, expected.Fingerprint, expected.Revision);
+            if (updated > 0 && expected.PendingSwapFingerprint is not null)
+                SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
+            return updated > 0;
+        });
 
-    public async Task UpdateSessionProcessedGenerationAsync(
-        Guid id,
-        byte[] data,
-        string? fingerprintJson,
-        SessionProcessedGeneration generation)
+    public Task<bool> UpdateSessionProcessedGenerationAsync(Guid id, byte[] data, string? fingerprintJson,
+        SessionProcessedGeneration generation, SessionProcessedWriteGuard expected)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
         var trackJson = generation.Track is null ? null : AppJson.Serialize(generation.Track);
-        var updatedRows = await connection.ExecuteAsync(
-            $"""
-            UPDATE session
-            SET
-                data=?,
-                {SessionSqlProjection.ProcessingFingerprintColumn}=?,
-                duration_seconds=?,
-                distance_meters=?,
-                ascent_meters=?,
-                descent_meters=?,
-                full_track_id=?,
-                track=?
-            WHERE id=? AND deleted IS NULL
-            """,
-            data,
-            fingerprintJson,
-            generation.DurationSeconds,
-            generation.DistanceMeters,
-            generation.AscentMeters,
-            generation.DescentMeters,
-            generation.FullTrackId,
-            trackJson,
-            id);
-        if (updatedRows == 0)
+        return connectionContext.RunInTransactionAsync(connection =>
         {
-            throw new Exception($"Session {id} does not exist.");
-        }
+            if (!SessionBlobSwapRequestStore.MatchesInTransaction(connection, id, expected.PendingSwapFingerprint)) return false;
+            var updated = connection.Execute(
+                $"""
+                UPDATE session
+                SET data=?, {SessionSqlProjection.ProcessingFingerprintColumn}=?,
+                    duration_seconds=?, distance_meters=?, ascent_meters=?, descent_meters=?, full_track_id=?, track=?
+                WHERE id=? AND deleted IS NULL
+                  AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
+                """,
+                data, fingerprintJson, generation.DurationSeconds, generation.DistanceMeters, generation.AscentMeters,
+                generation.DescentMeters, generation.FullTrackId, trackJson, id, expected.Fingerprint, expected.Revision);
+            if (updated > 0 && expected.PendingSwapFingerprint is not null)
+                SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
+            return updated > 0;
+        });
     }
 
     public async Task UpdateSessionTrackAsync(
