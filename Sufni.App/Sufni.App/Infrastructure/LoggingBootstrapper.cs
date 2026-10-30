@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Serilog.Formatting.Display;
+using Serilog.Sinks.File;
 
 namespace Sufni.App.Infrastructure;
 
@@ -17,8 +19,7 @@ public static class LoggingBootstrapper
     private static readonly System.Threading.Lock gate = new();
     private static bool isInitialized;
     private static bool hooksInstalled;
-    private static string? currentPlatformName;
-    private static ILogEventSink? currentPlatformSink;
+    private static FileSink? fileSink;
 
     internal static string? CurrentLogFilePath { get; private set; }
 
@@ -33,8 +34,6 @@ public static class LoggingBootstrapper
 
             try
             {
-                currentPlatformName = platformName;
-                currentPlatformSink = platformSink;
                 Directory.CreateDirectory(paths.LogsDirectory);
                 CurrentLogFilePath ??= paths.CreateSessionLogPath(timeProvider.GetLocalNow());
 
@@ -61,17 +60,14 @@ public static class LoggingBootstrapper
     {
         lock (gate)
         {
-            if (!isInitialized || currentPlatformName is null || CurrentLogFilePath is null)
+            if (!isInitialized)
             {
                 return;
             }
 
             try
             {
-                var logger = Log.Logger;
-                Log.Logger = new LoggerConfiguration().CreateLogger();
-                (logger as IDisposable)?.Dispose();
-                Log.Logger = CreateLogger(currentPlatformName, CurrentLogFilePath, currentPlatformSink);
+                fileSink?.FlushToDisk();
             }
             catch (Exception ex)
             {
@@ -123,6 +119,7 @@ public static class LoggingBootstrapper
             {
                 Log.CloseAndFlush();
                 isInitialized = false;
+                fileSink = null;
             }
             catch (Exception ex)
             {
@@ -136,6 +133,7 @@ public static class LoggingBootstrapper
         string logFilePath,
         ILogEventSink? platformSink)
     {
+        fileSink = new FileSink(logFilePath, new MessageTemplateTextFormatter(OutputTemplate), 1024L * 1024 * 1024);
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Verbose()
             .Enrich.WithProperty("Platform", platformName)
@@ -143,13 +141,13 @@ public static class LoggingBootstrapper
 
 #if DEBUG
         configuration = configuration
-            .WriteTo.File(logFilePath, outputTemplate: OutputTemplate)
+            .WriteTo.Sink(fileSink)
             .WriteTo.Debug(outputTemplate: OutputTemplate);
 #else
         configuration = configuration
             .WriteTo.Logger(lc => lc
                 .Filter.ByExcluding(logEvent => logEvent.Level == LogEventLevel.Debug)
-                .WriteTo.File(logFilePath, outputTemplate: OutputTemplate));
+                .WriteTo.Sink(fileSink));
 #endif
 
         if (platformSink is not null)

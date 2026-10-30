@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using Serilog;
 using Sufni.Telemetry;
 
@@ -30,23 +31,23 @@ internal sealed class ProcessingOptionsResetMigration(
     IAppDataRefresher appDataRefresher,
     ISessionPreferences sessionPreferences,
     ISessionRecomputeEngine recomputeEngine,
-    IBackgroundTaskRunner backgroundTaskRunner)
+    IBackgroundTaskRunner backgroundTaskRunner) : IStartupJob
 {
     private const string MigrationId = "processing_options_normalize_v3_202606";
     private const int DefaultWindow = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
     private static readonly ILogger logger = Log.ForContext<ProcessingOptionsResetMigration>();
 
-    // Runs off the UI thread; safe to call fire-and-forget. Never throws — a
-    // failure is logged and leaves the marker unwritten so the next launch retries.
-    public Task RunAsync() => backgroundTaskRunner.RunAsync(RunCoreAsync);
+    // An interrupted run leaves its marker unwritten for the next launch.
+    public Task RunAsync(CancellationToken cancellationToken = default) =>
+        backgroundTaskRunner.RunAsync(() => RunCoreAsync(cancellationToken), cancellationToken);
 
-    private async Task RunCoreAsync()
+    private async Task RunCoreAsync(CancellationToken cancellationToken)
     {
         try
         {
             // Awaiting the initialized connection also waits for the startup schema
             // migration that creates the core_migration table.
-            var connection = await connectionContext.GetInitializedConnectionAsync();
+            var connection = await connectionContext.GetInitializedConnectionAsync(cancellationToken);
             var coreMigrations = new CoreMigrationStore(connection);
             if (await coreMigrations.IsAppliedAsync(MigrationId))
             {
@@ -79,12 +80,13 @@ internal sealed class ProcessingOptionsResetMigration(
 
             // The recompute engine reads the latest store snapshots, so populate the
             // stores (and hydrate the option cache) before recomputing.
-            await appDataRefresher.RefreshAsync();
+            await appDataRefresher.RefreshAsync(cancellationToken);
 
             var storedPreferences = await sessionPreferences.GetAllRecordedAsync();
             var processed = 0;
             foreach (var sessionId in targets)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Reset a non-default per-session window to 25 ms, local-only so the
                 // synced preferences clock is not bumped. Sessions already at 25 ms
                 // (or absent from the document) need no write.
@@ -96,7 +98,8 @@ internal sealed class ProcessingOptionsResetMigration(
 
                 // Drive the recompute through the engine; it serializes per session,
                 // recomputes stale sessions, and no-ops anything already current.
-                var result = await recomputeEngine.RequestRecomputeAsync(sessionId, RecomputeReason.Migration);
+                var result = await recomputeEngine.RequestRecomputeAsync(sessionId, RecomputeReason.Migration, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!IsSuccessfulMigrationResult(result))
                 {
                     throw new InvalidOperationException(
@@ -117,6 +120,10 @@ internal sealed class ProcessingOptionsResetMigration(
                 "Processing-option reset migration normalized {Count} source-backed session(s) to {Window} ms",
                 targets.Count,
                 DefaultWindow);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

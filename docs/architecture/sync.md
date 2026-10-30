@@ -40,6 +40,10 @@ sequenceDiagram
 - **Rate limiting**: the anonymous `/pair/*` surface is throttled per remote IP by a fixed-window limiter — 10 requests per PIN-TTL window (30 s) — bounding PIN guesses per source per PIN lifetime. Excess requests get `429` with a `Retry-After` header and are logged; the partition key fails closed to `"unknown"` when the peer IP is unavailable.
 - **Strict inbound JSON**: request bodies bind with a hardened profile (reject duplicate keys, reject unmapped members, case-sensitive names, required non-nullable members and constructor parameters). Well-formed first-party traffic is unaffected because the client emits every snake_case key explicitly; responses and other serialization stay on the lenient profile. See [Persistence § JSON Serialization](persistence.md#json-serialization).
 
+`AppStartup` starts the server after the database and store refresh are ready,
+with pairing and inbound subscriptions already connected. Server startup is no
+longer driven by a view attaching.
+
 All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 5`.
 Both the anonymous pairing group and the JWT-protected sync group reject missing
 or mismatched protocol headers with `426 Upgrade Required`. Protocol v3 gives

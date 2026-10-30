@@ -112,6 +112,13 @@ Rules enforced by convention:
 
 ## Threading & Lifecycle
 
+`AppStartup` awaits database initialization and the first coherent store refresh
+before primary pages are created. Both shells render a blocking startup/failure
+surface until readiness. Tile-layer initialization and subscription wiring precede
+server startup; retention and normalization jobs then run under startup ownership.
+Database reset archives the closed database and requires a new launch. See
+[Startup and database recovery](ui-workflows.md#startup-and-database-recovery).
+
 Thread ownership is explicit:
 
 - The UI thread is reserved for bound-property updates, `ObservableCollection` mutation, notifications, native picker interaction, and lightweight read-store lookups.

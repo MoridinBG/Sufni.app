@@ -245,7 +245,7 @@ public class CompactShellViewTests
             .OfType<TextBlock>()
             .Single(control => control.Name == "CompactPairingPinText");
         Assert.True(pinText.Bounds.Height > 24);
-        await pairingServerCoordinator.Received(1).StartServerAsync();
+        await pairingServerCoordinator.DidNotReceive().StartServerAsync();
     }
 
     private static ShellRootViewModel CreateRoot(
@@ -255,7 +255,7 @@ public class CompactShellViewTests
         environment ??= CreateMobileCompactEnvironment();
         pages ??= MainPagesViewModelTestFactory.Create(appEnvironment: environment);
 
-        return new ShellRootViewModel(
+        return ShellRootViewModelTestFactory.Create(
             pages,
             new ShellWorkspaceViewModel(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider()),
             environment,

@@ -94,6 +94,10 @@ Desktop heads register capabilities and services that mobile heads do not provid
 
 The workspace profile does not grant these capabilities by itself. For example, workspace profile on iOS must not expose the desktop sync server or mass-storage import.
 
+The server starts once through `AppStartup` at launch. Attaching either shell
+or the pairing view does not start it. Both profiles show the same blocking
+startup failure/reset surface; reset requires relaunch.
+
 ## Mobile-Capable Surface
 
 Mobile heads register capabilities and services that desktop heads generally do not provide:
@@ -119,10 +123,12 @@ a platform registration delegate. The mobile native hosts override
    environment, calls the platform registration delegate, then registers the
    shared graph. Desktop delegates use `RegisterDesktopSync`; mobile delegates
    use `RegisterMobileSync`. Video capability must agree with player registration.
-3. `App.OnFrameworkInitializationCompleted` builds the provider with
-   `ValidateOnBuild = true` and eagerly resolves subscription owners. The session
-   sync applier, pairing server and inbound sync owners are desktop-only; the
-   pairing client owner is mobile-only.
+3. `App.OnFrameworkInitializationCompleted` builds one provider with
+   `ValidateOnBuild = true`. `AppStartup` gates page creation on database
+   initialization and the first store refresh, initializes tile layers, and
+   starts the server on capable heads. The page-activation callback resolves
+   subscription owners before server startup: session sync applier, pairing
+   server and inbound sync on desktop; pairing client on mobile.
 
 Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia
 application setup. There is no shared OS check for them.

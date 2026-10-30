@@ -2,6 +2,7 @@
     x:Class="Sufni.App.Shell.DesktopViews.WorkspaceShellView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shellViews="clr-namespace:Sufni.App.Shell.Views"
     xmlns:baseVm="clr-namespace:Sufni.App.Shared.Base"
     xmlns:avaloniaConverters="using:Avalonia.Data.Converters"
     xmlns:converters="clr-namespace:Sufni.App.Shared.Views.Converters"
@@ -20,6 +21,8 @@
         <converters:IsEqualConverter x:Key="IsEqualConverter" />
     </UserControl.Resources>
 
+    <Grid>
+    <Panel Name="ReadyContent" IsVisible="{Binding IsReady}">
     <SplitView
         Name="RootSplitView"
         CompactPaneLength="{StaticResource SufniNavRailPaneCompactWidth}"
@@ -146,4 +149,7 @@
             </Grid>
         </Grid>
     </SplitView>
+    </Panel>
+    <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" />
+    </Grid>
 </UserControl>

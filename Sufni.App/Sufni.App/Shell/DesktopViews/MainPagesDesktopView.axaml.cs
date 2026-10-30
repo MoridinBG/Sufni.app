@@ -12,7 +12,6 @@ public partial class MainPagesDesktopView : MainPagesViewBase
     public MainPagesDesktopView()
     {
         InitializeComponent();
-        RegisterPairingServerStartup();
 
         // Allow the pane to close/open on tab header clicks.
         foreach (var tabItem in new[] { SessionTabItem, BikeSetupsTabItem, BikesTabItem, LiveDaqsTabItem })

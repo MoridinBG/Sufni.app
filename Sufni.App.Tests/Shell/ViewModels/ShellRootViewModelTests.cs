@@ -33,7 +33,7 @@ public class ShellRootViewModelTests
 
         var plotZoomState = Substitute.For<IPlotZoomState>();
 
-        var root = new ShellRootViewModel(pages, workspace, environment, plotZoomState, TestDispatcher, timeProvider: new FakeTimeProvider());
+        var root = ShellRootViewModelTestFactory.Create(pages, workspace, environment, plotZoomState, TestDispatcher, timeProvider: new FakeTimeProvider());
 
         Assert.Same(pages, root.Pages);
         Assert.Same(workspace, root.Workspace);
@@ -145,7 +145,7 @@ public class ShellRootViewModelTests
                 SupportsLongPressContextMenu: true,
                 CommandModifier: CommandModifier.Control));
 
-        return new ShellRootViewModel(
+        return ShellRootViewModelTestFactory.Create(
             MainPagesViewModelTestFactory.Create(),
             new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider()),
             environment,

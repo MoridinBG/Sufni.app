@@ -260,6 +260,9 @@ public static class AppComposition
         services.AddSingleton<LiveDaqListViewModel>();
         services.AddSingleton<PairedDeviceListViewModel>();
         services.AddSingleton<SetupListViewModel>();
+        services.AddSingleton<IStartupJob>(sp => sp.GetRequiredService<ProcessingOptionsResetMigration>());
+        services.AddSingleton<IStartupJob>(sp => sp.GetRequiredService<RecordedSessionSourceRetentionCleanup>());
+        services.AddSingleton<IAppStartup, AppStartup>();
         services.AddSingleton<MainPagesViewModel>();
         services.AddSingleton<ShellWorkspaceViewModel>();
         services.AddSingleton<ShellRootViewModel>();

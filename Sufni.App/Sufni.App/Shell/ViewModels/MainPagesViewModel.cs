@@ -26,7 +26,6 @@ namespace Sufni.App.Shell.ViewModels;
 
 public partial class MainPagesViewModel : ViewModelBase
 {
-    private readonly IAppDataRefresher appDataRefresher;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IVideoCoordinator videoCoordinator;
     private readonly ISyncCoordinator syncCoordinator;
@@ -37,7 +36,6 @@ public partial class MainPagesViewModel : ViewModelBase
 
     #region Observable properties
 
-    [ObservableProperty] public partial bool DatabaseLoaded { get; set; }
     [ObservableProperty] public partial int SelectedPrimaryIndex { get; set; }
     [ObservableProperty] public partial bool SyncInProgress { get; set; }
     [ObservableProperty] public partial string SyncProgressText { get; set; } = string.Empty;
@@ -84,7 +82,6 @@ public partial class MainPagesViewModel : ViewModelBase
     #region Constructors
 
     public MainPagesViewModel(
-        IAppDataRefresher appDataRefresher,
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
@@ -102,7 +99,6 @@ public partial class MainPagesViewModel : ViewModelBase
         PairingServerViewModel? pairingServerViewModel = null)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.appDataRefresher = appDataRefresher;
         this.trackCoordinator = trackCoordinator;
         this.videoCoordinator = videoCoordinator;
         this.syncCoordinator = syncCoordinator;
@@ -170,7 +166,6 @@ public partial class MainPagesViewModel : ViewModelBase
         SyncLayoutProfileState();
         appEnvironment.PropertyChanged += OnAppEnvironmentPropertyChanged;
 
-        _ = LoadDatabaseContent();
     }
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs e)
@@ -222,15 +217,6 @@ public partial class MainPagesViewModel : ViewModelBase
     #endregion Constructors
 
     #region Private methods
-
-    private async Task LoadDatabaseContent()
-    {
-        DatabaseLoaded = false;
-
-        await appDataRefresher.RefreshAsync();
-
-        DatabaseLoaded = true;
-    }
 
     private ViewModelBase GetSelectedPrimaryPage()
     {

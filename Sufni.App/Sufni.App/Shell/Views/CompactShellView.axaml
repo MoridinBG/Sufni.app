@@ -3,6 +3,7 @@ Name="Root"
 x:Class="Sufni.App.Shell.Views.CompactShellView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:shellViews="clr-namespace:Sufni.App.Shell.Views"
 xmlns:converters="using:Avalonia.Data.Converters"
 xmlns:itemlists="clr-namespace:Sufni.App.LiveDaq.ViewModels.ItemLists"
 xmlns:itemlists2="clr-namespace:Sufni.App.Setups.ViewModels.ItemLists"
@@ -25,6 +26,8 @@ mc:Ignorable="d">
         <viewconverters:ProgressToArcConverter x:Key="ProgressToArcConverter" />
     </UserControl.Resources>
 
+    <Grid>
+    <Panel Name="ReadyContent" IsVisible="{Binding IsReady}">
     <Panel>
     <DrawerPage
     Name="MainDrawerPage"
@@ -193,4 +196,7 @@ mc:Ignorable="d">
             <ContentControl Content="{Binding Workspace.CurrentTab}" />
         </Border>
     </Panel>
+    </Panel>
+    <shellViews:StartupView Name="StartupSurface" IsVisible="{Binding !IsReady}" />
+    </Grid>
 </UserControl>

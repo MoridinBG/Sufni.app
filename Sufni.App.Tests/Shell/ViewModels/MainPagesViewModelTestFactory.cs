@@ -41,7 +41,6 @@ internal static class MainPagesViewModelTestFactory
     public static MainPagesViewModel Create(
         LiveDaqListViewModel? liveDaqsPage = null,
         ITrackCoordinator? trackCoordinator = null,
-        IAppDataRefresher? appDataRefresher = null,
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
@@ -50,12 +49,10 @@ internal static class MainPagesViewModelTestFactory
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
     {
-        appDataRefresher ??= Substitute.For<IAppDataRefresher>();
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
 
-        appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         if (themeService is null)
         {
             themeService = Substitute.For<IThemeService>();
@@ -65,7 +62,6 @@ internal static class MainPagesViewModelTestFactory
         }
         appEnvironment ??= CreateAppEnvironment();
         return new MainPagesViewModel(
-            appDataRefresher,
             trackCoordinator,
             syncCoordinator,
             shell,

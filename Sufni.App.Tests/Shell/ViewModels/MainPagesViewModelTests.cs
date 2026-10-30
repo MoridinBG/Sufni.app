@@ -171,17 +171,6 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public async Task Constructor_RefreshesAllState_WithInitialDatabaseLoad()
-    {
-        var appDataRefresher = Substitute.For<IAppDataRefresher>();
-        appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
-
-        _ = MainPagesViewModelTestFactory.Create(appDataRefresher: appDataRefresher);
-
-        await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public void ThemeState_UsesTwoModeCycle_WhenSystemThemeIsUnavailable()
     {
         var themeService = Substitute.For<IThemeService>();

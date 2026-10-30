@@ -311,7 +311,7 @@ public class WorkspaceShellViewTests
                 SupportsLongPressContextMenu: false,
                 CommandModifier: CommandModifier.Control));
 
-        return new ShellRootViewModel(
+        return ShellRootViewModelTestFactory.Create(
             MainPagesViewModelTestFactory.Create(),
             new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider()),
             environment,

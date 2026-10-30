@@ -119,7 +119,7 @@ public class MainViewTests
                 SupportsLongPressContextMenu: true,
                 CommandModifier: CommandModifier.Control));
 
-        return new ShellRootViewModel(
+        return ShellRootViewModelTestFactory.Create(
             mainPages,
             new ShellWorkspaceViewModel(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider()),
             environment,

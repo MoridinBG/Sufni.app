@@ -1,6 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 using Serilog;
+using Sufni.App.Shell.Coordinators;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Store;
@@ -10,17 +12,18 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
     SqliteConnectionContext connectionContext,
     IRecordedSessionSourceRepository recordedSessionSourceRepository,
     IRecordedSessionSourceStoreWriter recordedSessionSourceStore,
-    IBackgroundTaskRunner backgroundTaskRunner)
+    IBackgroundTaskRunner backgroundTaskRunner) : IStartupJob
 {
     private static readonly ILogger logger = Log.ForContext<RecordedSessionSourceRetentionCleanup>();
 
-    public Task RunAsync() => backgroundTaskRunner.RunAsync(RunCoreAsync);
+    public Task RunAsync(CancellationToken cancellationToken = default) =>
+        backgroundTaskRunner.RunAsync(() => RunCoreAsync(cancellationToken), cancellationToken);
 
-    private async Task RunCoreAsync()
+    private async Task RunCoreAsync(CancellationToken cancellationToken)
     {
         try
         {
-            _ = await connectionContext.GetInitializedConnectionAsync();
+            _ = await connectionContext.GetInitializedConnectionAsync(cancellationToken);
             var deletedIds = await recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync();
 
             if (deletedIds.Count > 0)
@@ -30,6 +33,10 @@ internal sealed class RecordedSessionSourceRetentionCleanup(
                     deletedIds.Count);
                 await recordedSessionSourceStore.PublishSourcesRemovedAsync(deletedIds);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

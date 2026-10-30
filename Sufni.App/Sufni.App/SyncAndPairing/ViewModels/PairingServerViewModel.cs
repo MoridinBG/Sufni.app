@@ -1,9 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Infrastructure;
 
 using Sufni.App.Shared.Base;
@@ -13,7 +11,6 @@ namespace Sufni.App.SyncAndPairing.ViewModels;
 
 public partial class PairingServerViewModel : ViewModelBase
 {
-    private readonly IPairingServerCoordinator coordinator;
     private CancellationTokenSource? pairingCountdownCancellation;
 
     #region Observable properties
@@ -47,12 +44,6 @@ public partial class PairingServerViewModel : ViewModelBase
         TimeProvider timeProvider)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.coordinator = coordinator;
-
-        // The desktop view's LoadedCommand is bound to AttachedToVisualTree
-        // which can fire more than once per VM lifetime. This VM is a
-        // desktop singleton, so the constructor runs exactly once and is
-        // the right level for these subscriptions and the timer hookup.
         coordinator.PairingRequested += (_, e) =>
         {
             UiThreadDispatcher.Post(() =>
@@ -65,19 +56,6 @@ public partial class PairingServerViewModel : ViewModelBase
     }
 
     #endregion Constructors
-
-    #region Commands
-
-    [RelayCommand]
-    private async Task Loaded()
-    {
-        if (!Design.IsDesignMode)
-        {
-            await coordinator.StartServerAsync();
-        }
-    }
-
-    #endregion Commands
 
     #region Private methods
 

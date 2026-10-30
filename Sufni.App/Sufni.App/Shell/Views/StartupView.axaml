@@ -1,0 +1,25 @@
+<UserControl
+    x:Class="Sufni.App.Shell.Views.StartupView"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
+    xmlns:converters="using:Avalonia.Data.Converters"
+    x:DataType="vm:ShellRootViewModel"
+    Background="{DynamicResource SufniSurfacePage}">
+    <ScrollViewer>
+        <StackPanel MaxWidth="560" Margin="24" Spacing="16"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Name="StartupMessage" Text="{Binding StartupMessage}" TextWrapping="Wrap" />
+            <StackPanel IsVisible="{Binding CanQuit}" Spacing="8">
+                <TextBlock Text="Log location" />
+                <SelectableTextBlock Text="{Binding LogPath}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Expander Header="Details" IsVisible="{Binding StartupDetails, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                <SelectableTextBlock Text="{Binding StartupDetails}" TextWrapping="Wrap" />
+            </Expander>
+            <Button Name="ResetDatabase" Content="Reset database" Command="{Binding ResetDatabaseCommand}"
+                    IsVisible="{Binding CanResetDatabase}" />
+            <Button Name="Quit" Content="Quit" Command="{Binding QuitCommand}" IsVisible="{Binding CanQuit}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -40,7 +40,7 @@ public enum RecomputeReason
 /// </summary>
 public interface ISessionRecomputeEngine
 {
-    Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason);
+    Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Rebuilds every live recorded session, fanning the per-session requests out
@@ -118,7 +118,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
         }
     }
 
-    public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason)
+    public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason, CancellationToken cancellationToken = default)
     {
         CancellationTokenSource cts;
         long seq;
@@ -134,7 +134,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine
                 oldRun.Cts.Cancel();
             }
 
-            cts = new CancellationTokenSource();
+            cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             seq = ++sequence;
             runs[sessionId] = new Run(cts, seq, tcs.Task);
         }

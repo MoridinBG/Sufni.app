@@ -28,7 +28,7 @@ and are registered as singletons.
 | `ImportSessionsCoordinator`                                               | shared       | Owns one active import task and replayed `SessionImportState` across tab lifetimes, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes changed session/source ids through store writer publish-only paths                                                                                                                                                                |
 | `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, then refreshes all stores through `IAppDataRefresher`                                                                                                                                                                                                                                                                                    |
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, mirrors HTTP `PairedState` as `IsPaired`, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                     |
-| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` passthrough                                                                                                                                                                                                                                                                                                                  |
+| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` launch entry point called only by `AppStartup`                                                                                                                                                                                                                                                                                                                  |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and publishes incoming bike/setup ids through writer publish-only paths after the server merge has already persisted them, and loads authoritative segment snapshots off-thread before replacing that store when segments arrive. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                                                                                  |
 | `TrackCoordinator`                                                        | shared       | GPX import and **read-only** session-track loading: it resolves the linked full-track points through `IFullTrackPointReader` and the cached session-window polyline through `ISessionTrackReader`, keyed by `points_revision` and `track_projection_revision` respectively. When the cached session-window track is missing or misaligned it regenerates points in memory for display only — track association and cached-track persistence are owned by the processed-write path. The GPS-offset adjustment is its one remaining write, committed through `ISessionStoreWriter.CommitTrackPatchAsync`; the editor refreshes through the session watch like a recompute, with no pushed result |
 | `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation. The shell routes diagnostics and live-session editor keys; `EditorFactory` creates their shared-stream and capture dependencies only for a new tab. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
@@ -44,12 +44,31 @@ singletons):
 | `SessionRecomputeEngine` | Serialized, per-session **cancel-and-replace** recompute engine and the single owner of recompute liveness. `RequestRecomputeAsync` rebuilds processed telemetry from the raw source against the current setup/bike inputs and the hydrated `IRecordedSessionProcessingOptionCache`; the reprocessor returns a `ProcessedTelemetryPayload` carrying the decoded telemetry, serialized bytes, and fingerprint JSON, and `SessionTelemetryWriter.UpdateProcessedDerivedDataAsync` commits that payload after the in-transaction DB-input fingerprint check. If that derived write replaces the session's previous full track, the engine deletes the previous track only after the active-session `full_track_id` projection shows it is no longer referenced. A newer request for the same session cancels and replaces the in-flight one (which resolves to `Superseded`), and a run whose DB inputs change underneath it re-enqueues itself until it converges. `IsActive` reports an in-flight run. Cancellation bounds correctness (no stale commit), not CPU — an in-flight reprocess is not interrupted, only prevented from committing. `RequestRecomputeAllAsync` hydrates the processing-option cache, enumerates active ids through the session-id projection (`ISessionRepository.GetActiveSessionIdsAsync()`), and fans them through `RequestRecomputeAsync` with a degree of parallelism scaled to `Environment.ProcessorCount`, returning a `SessionRecomputeAllResult` tally and reporting per-session progress through an optional `IProgress<SessionRecomputeAllProgress>` so the caller can drive a determinate progress dialog; sessions that cannot be recomputed are counted and skipped, not surfaced as failures. The staleness prompt (`SessionStalenessReconciler`) offers "Recompute all" alongside "Recompute" — it builds those buttons through the dialog service's generic `ShowChoiceAsync` prompt (the service stays recompute-agnostic; the reconciler owns the choice ids and what they mean) and runs the bulk recompute behind a modal, equally generic `ShowProgressAsync` loading dialog |
 | `SessionSyncApplier`| Subscribes to the desktop server's `SynchronizationDataArrived`, `SessionDataArrived`, and `SessionSourceDataArrived`, publishing inbound session/source ids through writer publish-only paths after the server has persisted the payloads. The desktop sync server's PSST upload endpoint persists BLOB fills and swaps through `ISessionTelemetryWriter`; the resulting `SessionDataArrived` event is the only store-publication path for that upload |
 
-`ISessionTrackReader`, `InboundSyncCoordinator`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
-`PairingClientCoordinator` on client-capable mobile heads,
-`PairingServerCoordinator` on server-capable desktop heads, and
-`SyncCoordinator` are eagerly resolved in `App.axaml.cs` after
-`BuildServiceProvider()` so their constructor event subscriptions wire up
-before any sync, pairing, or telemetry arrival can happen.
+### Startup and database recovery
+
+`AppStartup` owns the initial database gate, the single-flight store refresh,
+tile-layer initialization, and server startup. `App` builds one provider and a
+shell root before asking startup to activate the primary pages. Schema work runs
+off-thread; initialization or refresh failure prevents page creation. After the
+refresh, the composition callback resolves subscription owners and pages before
+the server can accept arrivals. `ShellRootViewModel` observes the shell startup
+state: `Starting`, `Ready`, `Failed(reason, details)`, or `RelaunchRequired`.
+Both layout profiles block their normal surfaces until `Ready`.
+
+Database failure offers the log location and reset. Reset closes the existing
+connection, archives remaining database files, creates the replacement through
+normal migrations, and requires relaunch. It never rebuilds stores, coordinators
+or pages in-process. Reset failure stays blocked and permits retry; successful
+reset exposes only Quit. Startup logs database initialization failure once.
+
+After readiness, `AppStartup` retains the source-retention cleanup and processing
+option normalization tasks. Its stop operation cancels and awaits those jobs and
+waits for structural migrations or a reset to settle. Normalization passes the
+cancellation token into recompute and leaves its marker unwritten on interruption.
+
+`ISessionTrackReader`, `InboundSyncCoordinator`, `SessionSyncApplier`,
+`PairedDeviceCoordinator`, `PairingClientCoordinator`, `PairingServerCoordinator`
+and `SyncCoordinator` are resolved at page activation, before server startup.
 
 ### Trim and split
 
@@ -194,12 +213,12 @@ desktop sets `MainWindow` as both owner and overlay host with
 as overlay host with `DialogPresentationMode.Overlay`. View models
 never see this contract — they consume `IDialogService` only.
 
-`App` also eagerly resolves
+`App`'s page-activation callback also eagerly resolves
 `ISessionTrackReader`, `PairedDeviceCoordinator`, `SyncCoordinator`, plus the
 desktop-only `SessionSyncApplier`, `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
 mobile-only `IPairingClientCoordinator`). This is necessary because
 their constructors subscribe to session-store, synchronization-server, pairing,
-or service-discovery changes before the first refresh or arrival.
+or service-discovery changes before server startup or user-driven arrivals.
 
 ## Navigation
 

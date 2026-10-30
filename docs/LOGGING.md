@@ -246,6 +246,13 @@ counts, and sizes when helpful.
 
 ## Framework logging policy
 
+- `Flush` flushes the existing file sink to disk without replacing the logger;
+  existing contextual loggers remain connected. `FlushAndClose` disposes the
+  logger at termination. Mobile lifecycle hooks use flush on background and
+  close on termination.
+- Structural database initialization errors are logged once by `AppStartup`;
+  `DatabaseMigrationRunner` propagates them to that owner.
+
 - Do not run parallel app and framework logging pipelines.
 - Avalonia framework logs are forwarded into Serilog.
 - Avalonia framework logs are filtered to `Warning` and above.

@@ -66,24 +66,6 @@ public partial class App : Application
         var themeService = Services.GetRequiredService<IThemeService>();
         _ = themeService.InitializeAsync();
 
-        // Services with constructor-time event subscriptions are
-        // eagerly resolved here so the subscriptions are wired before any
-        // sync, pairing, or telemetry arrival can happen.
-        _ = Services.GetRequiredService<ISessionTrackReader>();
-        _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
-        _ = Services.GetRequiredService<ISyncCoordinator>();
-
-        ResolveCapabilityEagerServices(
-            Services,
-            Services.GetRequiredService<IAppEnvironment>().Capabilities);
-
-        // One-time, per-device normalization: reset every source-backed session's
-        // processing option to 25 ms and recompute it so its fingerprint records the
-        // option it processed. Fire-and-forget off the UI thread; the pass waits for
-        // database initialization itself and is resumable via its core_migration marker.
-        _ = Services.GetRequiredService<ProcessingOptionsResetMigration>().RunAsync();
-        _ = Services.GetRequiredService<RecordedSessionSourceRetentionCleanup>().RunAsync();
-
         var fileService = Services.GetRequiredService<IFilesService>();
         var dialogHost = Services.GetRequiredService<IDialogHost>();
         var input = Services.GetRequiredService<IAppEnvironment>().Input;
@@ -94,10 +76,10 @@ public partial class App : Application
             ? null
             : hapticFeedback.LongPress;
 
+        var shellRoot = Services.GetRequiredService<ShellRootViewModel>();
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
-                var desktopShellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainWindow = new MainWindow(Services.GetService<IWindowBehavior>());
                 UiTimers.SetScheduler(mainWindow, Services.GetRequiredService<IUiTimerScheduler>());
                 PointerGesture.SetSupportsTouchLongPressContextMenu(
@@ -111,14 +93,13 @@ public partial class App : Application
                 dialogHost.SetOwner(mainWindow);
                 dialogHost.SetOverlayHost(mainWindow);
                 dialogHost.SetPresentationMode(DialogPresentationMode.Window);
-                mainWindow.DataContext = desktopShellRootViewModel;
+                mainWindow.DataContext = shellRoot;
                 desktop.Exit += (_, _) => LoggingBootstrapper.FlushAndClose();
                 break;
             case ISingleViewApplicationLifetime singleViewPlatform:
-                var shellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainView = new MainView
                 {
-                    DataContext = shellRootViewModel
+                    DataContext = shellRoot
                 };
                 UiTimers.SetScheduler(mainView, Services.GetRequiredService<IUiTimerScheduler>());
                 PointerGesture.SetSupportsTouchLongPressContextMenu(
@@ -139,12 +120,32 @@ public partial class App : Application
                     Debug.Assert(topLevel is not null);
                     topLevel.BackRequested += (_, e) =>
                     {
-                        e.Handled = shellRootViewModel.HandleBackRequest();
+                        e.Handled = shellRoot.HandleBackRequest();
                     };
                     fileService.SetTarget(topLevel);
                 };
                 break;
         }
+
+        shellRoot.QuitRequested += async (_, _) =>
+        {
+            await Services.GetRequiredService<IAppStartup>().StopAsync();
+            await ((ServiceProvider)Services).DisposeAsync();
+            LoggingBootstrapper.FlushAndClose();
+            if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktopLifetime)
+                desktopLifetime.Shutdown();
+            else
+                Environment.Exit(0);
+        };
+
+        _ = shellRoot.StartAsync(() =>
+        {
+            _ = Services.GetRequiredService<ISessionTrackReader>();
+            _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
+            _ = Services.GetRequiredService<ISyncCoordinator>();
+            ResolveCapabilityEagerServices(Services, root.Capabilities);
+            return Services.GetRequiredService<MainPagesViewModel>();
+        });
 
         base.OnFrameworkInitializationCompleted();
     }

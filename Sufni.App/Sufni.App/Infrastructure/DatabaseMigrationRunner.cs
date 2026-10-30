@@ -29,50 +29,42 @@ internal sealed class DatabaseMigrationRunner(
 
     internal async Task RunAsync()
     {
-        try
+        await connection.EnableWriteAheadLoggingAsync();
+        await CreateTablesAsync();
+        await EnsureSyncCursorColumnsAsync();
+        await EnsureSyncIndexesAsync();
+        await EnsureSessionProcessingFingerprintColumnAsync();
+        await EnsureSessionSummaryMetricColumnsAsync();
+        await EnsureSessionGpsOffsetColumnAsync();
+        await EnsureLocalContentRevisionColumnsAndTriggersAsync();
+        await EnsureBikeDampingSpeedCutoffColumnsAsync();
+        await EnsureBikeRearSuspensionColumnAsync();
+        await DropSessionCacheTableAsync();
+        await coreMigrations.EnsureTableAsync();
+        await coreMigrations.ApplyAsync("database-incarnation", transaction =>
         {
-            await connection.EnableWriteAheadLoggingAsync();
-            await CreateTablesAsync();
-            await EnsureSyncCursorColumnsAsync();
-            await EnsureSyncIndexesAsync();
-            await EnsureSessionProcessingFingerprintColumnAsync();
-            await EnsureSessionSummaryMetricColumnsAsync();
-            await EnsureSessionGpsOffsetColumnAsync();
-            await EnsureLocalContentRevisionColumnsAndTriggersAsync();
-            await EnsureBikeDampingSpeedCutoffColumnsAsync();
-            await EnsureBikeRearSuspensionColumnAsync();
-            await DropSessionCacheTableAsync();
-            await coreMigrations.EnsureTableAsync();
-            await coreMigrations.ApplyAsync("database-incarnation", transaction =>
-            {
-                transaction.Execute("CREATE TABLE database_identity (id INTEGER PRIMARY KEY CHECK (id = 1), db_incarnation TEXT NOT NULL)");
-                transaction.Execute("INSERT INTO database_identity (id, db_incarnation) VALUES (1, ?)", Guid.NewGuid().ToString());
-            });
-            await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
-            await EnsureSessionBlobSwapRequestColumnsAsync();
-            await EnsureSessionBlobSwapRequestIntegrityAsync();
-            await coreMigrations.MarkAppliedAsync("session-video");
-            await MigrateSessionDerivationWindowsAsync();
-            await coreMigrations.MarkAppliedAsync("session-segment");
-            await DropSchemaVersionTableAsync();
+            transaction.Execute("CREATE TABLE database_identity (id INTEGER PRIMARY KEY CHECK (id = 1), db_incarnation TEXT NOT NULL)");
+            transaction.Execute("INSERT INTO database_identity (id, db_incarnation) VALUES (1, ?)", Guid.NewGuid().ToString());
+        });
+        await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
+        await EnsureSessionBlobSwapRequestColumnsAsync();
+        await EnsureSessionBlobSwapRequestIntegrityAsync();
+        await coreMigrations.MarkAppliedAsync("session-video");
+        await MigrateSessionDerivationWindowsAsync();
+        await coreMigrations.MarkAppliedAsync("session-segment");
+        await DropSchemaVersionTableAsync();
 
-            var cleanupSummary = await Cleanup();
-            logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
-            logger.Verbose(
-                "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
-                cleanupSummary.Sessions,
-                cleanupSummary.Segments,
-                cleanupSummary.Tracks,
-                cleanupSummary.Boards,
-                cleanupSummary.Setups,
-                cleanupSummary.Bikes,
-                cleanupSummary.PairedDevices);
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "SQLite database initialization failed at {DatabasePath}", databasePath);
-            throw;
-        }
+        var cleanupSummary = await Cleanup();
+        logger.Information("SQLite database initialized at {DatabasePath}", databasePath);
+        logger.Verbose(
+            "SQLite startup cleanup removed {SessionCount} sessions, {SegmentCount} segments, {TrackCount} tracks, {BoardCount} boards, {SetupCount} setups, {BikeCount} bikes, and {PairedDeviceCount} paired devices",
+            cleanupSummary.Sessions,
+            cleanupSummary.Segments,
+            cleanupSummary.Tracks,
+            cleanupSummary.Boards,
+            cleanupSummary.Setups,
+            cleanupSummary.Bikes,
+            cleanupSummary.PairedDevices);
     }
 
     private async Task CreateTablesAsync()
