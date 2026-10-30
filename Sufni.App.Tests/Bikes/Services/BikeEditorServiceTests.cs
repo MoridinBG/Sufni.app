@@ -73,8 +73,7 @@ public class BikeEditorServiceTests
     [Fact]
     public async Task ImportBikeAsync_ReturnsInvalidFile_WhenJsonIsInvalid()
     {
-        var file = Substitute.For<IStorageFile>();
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes("not json"))));
+        var file = TestStorageItems.TextFile("bike.json", "not json");
         filesService.OpenBikeFileAsync().Returns(file);
 
         var result = await CreateService().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);

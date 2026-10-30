@@ -309,3 +309,7 @@ Detailed presentation-layer references live in focused files:
 - [Controls Library](controls.md) covers reusable mobile and desktop controls.
 - [Theming](theming.md) covers theme snapshots, the resource bridge, runtime theme service, and theme ownership.
 - [Plot Rendering](plot-rendering.md) covers ScottPlot-backed plot classes and the display-time rendering pipeline.
+
+Bike and setup JSON model parsing propagates malformed-document exceptions to
+the file-import boundary. The bike editor service and setup coordinator classify
+invalid files and log the cause once at Warning; model parsers do not log.

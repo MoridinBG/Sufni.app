@@ -102,8 +102,10 @@ internal sealed class ProcessingOptionsResetMigration(
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!IsSuccessfulMigrationResult(result))
                 {
-                    throw new InvalidOperationException(
-                        $"Processing-option reset recompute for session {sessionId} did not complete: {DescribeResult(result)}.");
+                    logger.Warning(
+                        "Processing-option reset stopped after {ProcessedCount}/{TotalCount} sessions with {Result}; will retry on next launch",
+                        processed, targets.Count, result.GetType().Name);
+                    return;
                 }
 
                 processed++;
@@ -140,10 +142,4 @@ internal sealed class ProcessingOptionsResetMigration(
     private static bool IsSuccessfulMigrationResult(SessionRecomputeResult result) =>
         result is SessionRecomputeResult.Recomputed or SessionRecomputeResult.NotRecomputable;
 
-    private static string DescribeResult(SessionRecomputeResult result) => result switch
-    {
-        SessionRecomputeResult.Failed failed => $"{nameof(SessionRecomputeResult.Failed)} ({failed.ErrorMessage})",
-        SessionRecomputeResult.NotRecomputable notRecomputable => $"{nameof(SessionRecomputeResult.NotRecomputable)} ({notRecomputable.Reason.GetType().Name})",
-        _ => result.GetType().Name,
-    };
 }

@@ -219,13 +219,13 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [RelayCommand]
     private async Task Connect()
     {
-        await ConnectImplementationAsync(userInitiated: true);
+        await ConnectImplementationAsync();
     }
 
     [RelayCommand]
     private async Task Disconnect()
     {
-        await DisconnectImplementationAsync(userInitiated: true);
+        await DisconnectImplementationAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanStartSession))]
@@ -479,7 +479,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         }
     }
 
-    private async Task ConnectImplementationAsync(bool userInitiated)
+    private async Task ConnectImplementationAsync()
     {
         var streamState = sharedStream.CurrentState;
         if (streamState.IsClosed || streamState.ConnectionState is LiveConnectionState.Connecting or LiveConnectionState.Connected)
@@ -525,33 +525,20 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                     BoardId,
                     Endpoint);
             }
-            else if (userInitiated && !string.IsNullOrWhiteSpace(updatedState.LastError))
-            {
-                logger.Warning(
-                    "Live DAQ preview connect failed for {IdentityKey} {BoardId} {Endpoint}: {ErrorMessage}",
-                    IdentityKey,
-                    BoardId,
-                    Endpoint,
-                    updatedState.LastError);
-            }
+
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            logger.Error(
-                ex,
-                "Live DAQ preview connection failed for {IdentityKey} {BoardId} {Endpoint}",
-                IdentityKey,
-                BoardId,
-                Endpoint);
+            // The shared stream owns failure state and logging.
         }
 
         RefreshSharedStreamState();
     }
 
-    private async Task DisconnectImplementationAsync(bool userInitiated)
+    private async Task DisconnectImplementationAsync()
     {
         var currentState = sharedStream.CurrentState;
         if (currentState.IsClosed || currentState.ConnectionState is LiveConnectionState.Disconnected)
@@ -574,14 +561,9 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 BoardId,
                 Endpoint);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            logger.Error(
-                ex,
-                "Live DAQ preview disconnect failed for {IdentityKey} {BoardId} {Endpoint}",
-                IdentityKey,
-                BoardId,
-                Endpoint);
+            // The shared stream owns failure state and logging.
         }
 
         RefreshSharedStreamState();

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Serilog;
 using SQLite;
 using Sufni.Kinematics;
 using Sufni.Telemetry;
@@ -18,7 +17,6 @@ namespace Sufni.App.Bikes.Models;
 [Table("bike")]
 public class Bike : Synchronizable
 {
-    private static readonly ILogger logger = Log.ForContext<Bike>();
 
     private double? chainstay;
     private byte[] imageBytes = [];
@@ -170,18 +168,7 @@ public class Bike : Synchronizable
         Updated = snapshot.Updated,
     };
 
-    public static Bike? FromJson(string json)
-    {
-        try
-        {
-            return BikeImportDocumentParser.Parse(json);
-        }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException or LeverageRatioValidationException)
-        {
-            logger.Warning(ex, "Bike JSON deserialization failed");
-            return null;
-        }
-    }
+    public static Bike? FromJson(string json) => BikeImportDocumentParser.Parse(json);
 
     private double? CalculateChainstay()
     {

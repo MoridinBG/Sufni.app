@@ -176,14 +176,9 @@ internal sealed class BikeEditorService(
                     logger.Verbose("Bike import parsed bike {BikeId}", bike.Id);
                     return new BikeFileImportResult.Imported(bike);
                 }
-                catch (JsonException exception)
+                catch (Exception exception) when (exception is JsonException or NotSupportedException or Sufni.Kinematics.LeverageRatioValidationException)
                 {
-                    logger.Warning(exception, "Bike import rejected because the selected file was invalid JSON");
-                    return new BikeFileImportResult.InvalidFile("JSON file was not a valid bike file.");
-                }
-                catch (NotSupportedException exception)
-                {
-                    logger.Warning(exception, "Bike import rejected because the selected file format was unsupported");
+                    logger.Warning(exception, "Bike import rejected because the selected file was invalid");
                     return new BikeFileImportResult.InvalidFile("JSON file was not a valid bike file.");
                 }
             }, cancellationToken);

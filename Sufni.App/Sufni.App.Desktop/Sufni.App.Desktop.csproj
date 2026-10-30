@@ -13,6 +13,7 @@
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
         <PackageReference Include="Makaretu.Dns.Multicast.New" />
         <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Extensions.Logging" />
     </ItemGroup>
 
     <ItemGroup>

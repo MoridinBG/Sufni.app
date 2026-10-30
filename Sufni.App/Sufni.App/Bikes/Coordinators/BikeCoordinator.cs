@@ -52,11 +52,9 @@ internal class BikeCoordinator(
                 return new BikeImportResult.Canceled();
 
             case BikeFileImportResult.InvalidFile invalid:
-                logger.Error("Bike import failed because the selected file was invalid: {ErrorMessage}", invalid.ErrorMessage);
                 return new BikeImportResult.InvalidFile(invalid.ErrorMessage);
 
             case BikeFileImportResult.Failed failed:
-                logger.Error("Bike import failed: {ErrorMessage}", failed.ErrorMessage);
                 return new BikeImportResult.Failed(failed.ErrorMessage);
 
             default:
@@ -83,8 +81,7 @@ internal class BikeCoordinator(
                 logger.Information("Bike export canceled for {BikeId}", bike.Id);
                 break;
 
-            case BikeExportResult.Failed failed:
-                logger.Error("Bike export failed for {BikeId}: {ErrorMessage}", bike.Id, failed.ErrorMessage);
+            case BikeExportResult.Failed:
                 break;
 
             default:

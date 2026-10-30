@@ -48,18 +48,6 @@ internal sealed class KinematicSolutionCache : IKinematicSolutionCache
             key.Steps,
             key.Iterations);
 
-        try
-        {
-            return solve(key.Linkage, key.Steps, key.Iterations);
-        }
-        catch (Exception exception)
-        {
-            logger.Warning(
-                exception,
-                "Kinematic solution solve failed with {StepCount} steps and {IterationCount} iterations",
-                key.Steps,
-                key.Iterations);
-            throw;
-        }
+        return solve(key.Linkage, key.Steps, key.Iterations);
     }
 }

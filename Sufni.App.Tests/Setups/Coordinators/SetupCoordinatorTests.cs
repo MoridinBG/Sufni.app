@@ -6,6 +6,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
@@ -22,6 +23,7 @@ public class SetupCoordinatorTests : IDisposable
     private readonly InMemorySynchronizableRepository<Board> boards;
     private readonly InMemorySetupTransactions transactions;
     private readonly SetupCoordinator coordinator;
+    private readonly IFilesService files = Substitute.For<IFilesService>();
 
     public SetupCoordinatorTests()
     {
@@ -29,7 +31,7 @@ public class SetupCoordinatorTests : IDisposable
         setups = new(clock);
         boards = new(clock);
         transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards);
-        coordinator = new(setupStore, bikeStore, Substitute.For<IFilesService>(), new InlineBackgroundTaskRunner(), transactions);
+        coordinator = new(setupStore, bikeStore, files, new InlineBackgroundTaskRunner(), transactions);
     }
 
     public void Dispose()
@@ -43,6 +45,18 @@ public class SetupCoordinatorTests : IDisposable
         setups.Seed(new Setup(snapshot.Id, snapshot.Name) { BikeId = snapshot.BikeId, Updated = snapshot.Updated });
         if (snapshot.BoardId is { } boardId) boards.Seed(new Board(boardId, snapshot.Id));
         await setupStore.PublishSetupsChangedAsync([snapshot]);
+    }
+
+    [Fact]
+    public async Task ImportSetupAsync_ReturnsInvalidFile_WhenSelectedJsonIsMalformed()
+    {
+        var file = TestStorageItems.TextFile("setup.json", "not json");
+        files.OpenSetupFileAsync().Returns(file);
+
+        var result = await coordinator.ImportSetupAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsType<SetupImportResult.InvalidFile>(result);
+        Assert.Empty(await setups.GetAllAsync());
     }
 
     [Theory]

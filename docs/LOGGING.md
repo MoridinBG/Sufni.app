@@ -44,6 +44,11 @@ This policy does not introduce:
 Logging work must follow the application architecture documented in
 `docs/architecture/ui.md`.
 
+- The first boundary that catches a failure logs it once with the exception
+  object and available identity (device, peer, recording or phase). It returns
+  a typed outcome; callers do not log that outcome again.
+- Stores do not catch persistence errors or log them. Workflow owners catch
+  repository errors and return closed reasons with separate diagnostic details.
 - Startup and logger configuration belong to shared app startup plus
   platform entry points, not to view models.
 - In app code, `Information` logs should usually originate from shell
@@ -152,9 +157,8 @@ This includes:
 - duplicate or already-open conditions
 - no-op actions caused by current state
 
-Do not use `Warning` for invalid user input or missing required user
-choice when that input aborts the requested action. Those are `Error`
-under this policy.
+Invalid user input, invalid import files, and missing required user choices
+are `Warning`, even when they prevent the requested action.
 
 ### Error
 
@@ -167,8 +171,6 @@ Use `Error` for:
 - global unhandled failures
 - remote rejections that abort the action, even when they arrive as a
   normal error response
-- missing required user choice or invalid user input when that aborts
-  the action
 
 Always include the exception object when there is one.
 
@@ -253,7 +255,10 @@ counts, and sizes when helpful.
 - Structural database initialization errors are logged once by `AppStartup`;
   `DatabaseMigrationRunner` propagates them to that owner.
 
-- Do not run parallel app and framework logging pipelines.
+- Do not run parallel app and framework logging pipelines. The ASP.NET host
+  clears default providers and uses `Serilog.Extensions.Logging` with the
+  application-owned logger; host disposal does not dispose that logger.
+  Microsoft framework categories are filtered to `Warning` and above.
 - Avalonia framework logs are forwarded into Serilog.
 - The shell owns one dispatcher unhandled-exception subscription. It logs the
   exception once and shows a generic message through global shell feedback; it
@@ -265,13 +270,13 @@ counts, and sizes when helpful.
 
 Every new log addition should survive this review:
 
-1. Is this log emitted by the layer that owns the outcome?
+1. Is this the first catcher, with cause and available device/peer/recording/phase identity?
 2. Does its level match this policy?
 3. If it is `Information`, would removing it make the coarse user
    story materially harder to reconstruct?
 4. If it is `Verbose`, is it meaningful intermediate workflow detail
    or genuinely noisy internal detail?
-5. Is it duplicating an existing higher-level event?
+5. Is it re-logging an exception or typed failure already handled by another layer?
 6. Does it use structured properties where that matters?
 7. Does it avoid secrets and low-value user content?
 

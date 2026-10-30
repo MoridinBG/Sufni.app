@@ -122,6 +122,11 @@ public class SetupCoordinator(
         {
             throw;
         }
+        catch (Exception e) when (e is System.Text.Json.JsonException or NotSupportedException or Sufni.Kinematics.LeverageRatioValidationException)
+        {
+            logger.Warning(e, "Setup import rejected because the selected file was invalid");
+            return new SetupImportResult.InvalidFile("JSON file was not a valid setup file.");
+        }
         catch (Exception e)
         {
             logger.Error(e, "Setup import failed while reading file");

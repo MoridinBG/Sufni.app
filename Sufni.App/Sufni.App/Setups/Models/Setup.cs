@@ -1,7 +1,6 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Serilog;
 using SQLite;
 using Sufni.Kinematics;
 
@@ -14,7 +13,6 @@ namespace Sufni.App.Setups.Models;
 [Table("setup")]
 public class Setup : Synchronizable
 {
-    private static readonly ILogger logger = Log.ForContext<Setup>();
 
     // Just to satisfy sql-net-pcl's parameterless constructor requirement
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
@@ -49,19 +47,8 @@ public class Setup : Synchronizable
         return AppJson.SerializeIndented(SetupExportModel.FromSetup(this, bike, boardId));
     }
 
-    public static SetupImportPayload? FromJson(string json)
-    {
-        try
-        {
-            var model = AppJson.Deserialize<SetupExportModel>(json);
-            return model?.ToPayload();
-        }
-        catch (Exception ex) when (ex is JsonException or NotSupportedException or LeverageRatioValidationException)
-        {
-            logger.Warning(ex, "Setup JSON deserialization failed");
-            return null;
-        }
-    }
+    public static SetupImportPayload? FromJson(string json) =>
+        AppJson.Deserialize<SetupExportModel>(json)?.ToPayload();
 }
 
 public sealed record SetupImportPayload(Setup Setup, Bike Bike, Guid? BoardId);

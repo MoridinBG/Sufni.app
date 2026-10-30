@@ -298,44 +298,29 @@ internal class HttpApiService : IHttpApiService
     private async Task<HttpResponseMessage> SendWithLoggingAsync(
         HttpMethod method,
         string url,
-        Func<Task<HttpResponseMessage>> sendAsync,
-        CancellationToken cancellationToken = default)
+        Func<Task<HttpResponseMessage>> sendAsync)
     {
         var stopwatch = Stopwatch.StartNew();
 
-        try
+        var response = await sendAsync();
+
+        logger.Verbose(
+            "HTTP {Method} {Route} returned {StatusCode} in {DurationMs} ms",
+            method.Method,
+            GetRoute(url),
+            (int)response.StatusCode,
+            stopwatch.Elapsed.TotalMilliseconds);
+
+        if (response.StatusCode == HttpStatusCode.UpgradeRequired)
         {
-            var response = await sendAsync();
-
-            logger.Verbose(
-                "HTTP {Method} {Route} returned {StatusCode} in {DurationMs} ms",
-                method.Method,
-                GetRoute(url),
-                (int)response.StatusCode,
-                stopwatch.Elapsed.TotalMilliseconds);
-
-            if (response.StatusCode == HttpStatusCode.UpgradeRequired)
-            {
-                response.Dispose();
-                throw new HttpRequestException(
-                    "Sync protocol version mismatch. Both devices must run the same app version.",
-                    null,
-                    HttpStatusCode.UpgradeRequired);
-            }
-
-            return response;
+            response.Dispose();
+            throw new HttpRequestException(
+                "Sync protocol version mismatch. Both devices must run the same app version.",
+                null,
+                HttpStatusCode.UpgradeRequired);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception exception)
-        {
-            logger.Error(
-                exception,
-                "HTTP {Method} {Route} failed after {DurationMs} ms",
-                method.Method,
-                GetRoute(url),
-                stopwatch.Elapsed.TotalMilliseconds);
-            throw;
-        }
+
+        return response;
     }
 
     private async Task RefreshTokensAsync()
@@ -545,7 +530,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken), cancellationToken);
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
         var entities = await response.Content.ReadFromJsonAsync(AppJson.Context.SynchronizationData, cancellationToken);
         Debug.Assert(entities != null);
@@ -581,7 +566,7 @@ internal class HttpApiService : IHttpApiService
             () => SendRequestAsync(
                 HttpMethod.Put,
                 route,
-                JsonContent.Create(syncData, AppJson.Context.SynchronizationData), cancellationToken: cancellationToken), cancellationToken);
+                JsonContent.Create(syncData, AppJson.Context.SynchronizationData), cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
     }
 
@@ -594,7 +579,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken), cancellationToken);
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
         var incompleteSessions = await response.Content.ReadFromJsonAsync(AppJson.Context.ListGuid, cancellationToken);
 
@@ -614,7 +599,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken), cancellationToken);
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             logger.Verbose("Session data was not found on the server for {SessionId}", id);
@@ -652,7 +637,7 @@ internal class HttpApiService : IHttpApiService
                     {
                         request.Headers.TryAddWithoutValidation(SynchronizationProtocol.FingerprintHeader, fingerprint);
                     }
-                }, cancellationToken: cancellationToken), cancellationToken);
+                }, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
     }
 
@@ -665,7 +650,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken), cancellationToken);
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
         var incompleteSources = await response.Content.ReadFromJsonAsync(AppJson.Context.ListGuid, cancellationToken);
 
@@ -685,7 +670,7 @@ internal class HttpApiService : IHttpApiService
         using var response = await SendWithLoggingAsync(
             HttpMethod.Get,
             route,
-            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken), cancellationToken);
+            () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             logger.Verbose("Recorded source was not found on the server for {SessionId}", id);
@@ -750,7 +735,7 @@ internal class HttpApiService : IHttpApiService
                     request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceNameHeader, Uri.EscapeDataString(source.SourceName));
                     request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SchemaVersionHeader, source.SchemaVersion.ToString(CultureInfo.InvariantCulture));
                     request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceHashHeader, source.SourceHash);
-                }, cancellationToken: cancellationToken), cancellationToken);
+                }, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
     }
 

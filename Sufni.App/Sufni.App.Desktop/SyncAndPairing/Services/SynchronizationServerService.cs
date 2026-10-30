@@ -1,4 +1,6 @@
 using System;
+using Microsoft.Extensions.Logging;
+using ILogger = Serilog.ILogger;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -443,6 +445,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         logger.Verbose("Building synchronization server pipeline for port {Port}", port);
 
         var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.Logging.AddSerilog(Log.Logger, dispose: false);
 
         builder.WebHost.ConfigureKestrel(options =>
         {

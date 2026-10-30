@@ -136,6 +136,7 @@ public static class LoggingBootstrapper
         fileSink = new FileSink(logFilePath, new MessageTemplateTextFormatter(OutputTemplate), 1024L * 1024 * 1024);
         var configuration = new LoggerConfiguration()
             .MinimumLevel.Verbose()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
             .Enrich.WithProperty("Platform", platformName)
             .Enrich.WithProperty("ProcessId", Environment.ProcessId);
 

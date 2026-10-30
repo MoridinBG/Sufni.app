@@ -109,9 +109,7 @@ public class BikeSerializationTests
                             }
                             """;
 
-        var imported = Bike.FromJson(json);
-
-        Assert.Null(imported);
+        Assert.Throws<System.Text.Json.JsonException>(() => Bike.FromJson(json));
     }
 
     [Fact]
@@ -143,8 +141,6 @@ public class BikeSerializationTests
         var root = JsonNode.Parse(bike.ToJson())!.AsObject();
         root.Remove("rear_suspension");
 
-        var imported = Bike.FromJson(root.ToJsonString());
-
-        Assert.Null(imported);
+        Assert.Throws<System.Text.Json.JsonException>(() => Bike.FromJson(root.ToJsonString()));
     }
 }

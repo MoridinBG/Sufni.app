@@ -45,8 +45,6 @@ public class SetupSerializationTests
         var root = JsonNode.Parse(setup.ToJson(bike, boardId: null))!.AsObject();
         root["bike"]!.AsObject()["schema_version"] = 1;
 
-        var payload = Setup.FromJson(root.ToJsonString());
-
-        Assert.Null(payload);
+        Assert.Throws<System.Text.Json.JsonException>(() => Setup.FromJson(root.ToJsonString()));
     }
 }
