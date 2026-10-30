@@ -255,7 +255,10 @@ After `BuildServiceProvider()`, the lifetime wiring resolves
 desktop sets `MainWindow` as both owner and overlay host with
 `DialogPresentationMode.Window`; mobile/single-view sets `MainView`
 as overlay host with `DialogPresentationMode.Overlay`. View models
-never see this contract — they consume `IDialogService` only.
+never see this contract — they consume `IDialogService` only. Close confirmation
+honors the configured mode: save/discard/cancel and unsavable-page confirmation
+render as overlays on single-view hosts. Every overlay uses the explicitly
+configured host; there is no application-lifetime lookup fallback.
 
 `App`'s page-activation callback also eagerly resolves
 `ISessionTrackReader`, `PairedDeviceCoordinator`, `SyncCoordinator`, plus the

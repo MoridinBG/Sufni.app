@@ -344,6 +344,36 @@ public class DialogServiceTests
         }
     }
 
+    [AvaloniaTheory]
+    [InlineData(true, "Yes", PromptResult.Yes)]
+    [InlineData(true, "No", PromptResult.No)]
+    [InlineData(true, "Cancel", PromptResult.Cancel)]
+    [InlineData(false, "OK", PromptResult.Ok)]
+    [InlineData(false, "Cancel", PromptResult.Cancel)]
+    public async Task CloseConfirmation_OverlayMode_UsesConfiguredHostWithoutAnOwnerWindow(
+        bool canSave, string button, PromptResult expected)
+    {
+        var service = CreateService(DialogPresentationMode.Overlay);
+        var panel = new Grid();
+        var host = await ViewTestHelpers.ShowViewAsync(panel);
+        service.SetOverlayHost(panel);
+        try
+        {
+            var result = service.ShowCloseConfirmationAsync(canSave);
+            await ViewTestHelpers.FlushDispatcherAsync();
+            Assert.Empty(host.OwnedWindows);
+            ClickConfirmationButton(panel, button);
+
+            Assert.Equal(expected, await result.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+            Assert.Empty(panel.Children);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     private static DialogService CreateService(DialogPresentationMode presentationMode)
     {
         var service = new DialogService(new ViewLocator(), new DispatcherUiTimerScheduler());

@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -47,6 +46,24 @@ public class DialogService : IDialogService, IDialogHost
 
     public async Task<PromptResult> ShowCloseConfirmationAsync(bool isSaveEnabled = true)
     {
+        if (presentationMode == DialogPresentationMode.Overlay)
+        {
+            if (!isSaveEnabled)
+                return await ShowConfirmationOverlayAsync("Close?",
+                    "Page cannot be saved due to missing or wrong data. Are you sure you want to close it?")
+                    ? PromptResult.Ok : PromptResult.Cancel;
+
+            var choice = await ShowChoiceOverlayAsync("Save?", "You have unsaved changes. Save before closing?",
+                [new(nameof(PromptResult.Yes), "Yes", IsDefault: true),
+                 new(nameof(PromptResult.No), "No"), new(nameof(PromptResult.Cancel), "Cancel")]);
+            return choice switch
+            {
+                nameof(PromptResult.Yes) => PromptResult.Yes,
+                nameof(PromptResult.No) => PromptResult.No,
+                _ => PromptResult.Cancel
+            };
+        }
+
         Debug.Assert(owner != null, nameof(owner) + " != null");
 
         DialogWindow dialog;
@@ -113,19 +130,7 @@ public class DialogService : IDialogService, IDialogHost
 
     private Task<TileLayerConfig?> ShowAddTileLayerOverlayAsync()
     {
-        var host = overlayHost ?? TryGetSingleViewOverlayHost();
-        Debug.Assert(host != null, nameof(overlayHost) + " != null");
-
-        if (host is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host has not been set.");
-        }
-
-        var panel = TryGetOverlayPanel(host);
-        if (panel is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
-        }
+        var panel = GetOverlayPanel();
 
         var tcs = new TaskCompletionSource<TileLayerConfig?>();
         var content = new AddTileLayerView();
@@ -193,19 +198,7 @@ public class DialogService : IDialogService, IDialogHost
 
     private Task<PromptResult> ShowContentDialogOverlayAsync(object contentViewModel, DialogOptions options)
     {
-        var host = overlayHost ?? TryGetSingleViewOverlayHost();
-        Debug.Assert(host != null, nameof(overlayHost) + " != null");
-
-        if (host is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host has not been set.");
-        }
-
-        var panel = TryGetOverlayPanel(host);
-        if (panel is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
-        }
+        var panel = GetOverlayPanel();
 
         var tcs = new TaskCompletionSource<PromptResult>();
         Control? overlay = null;
@@ -254,15 +247,13 @@ public class DialogService : IDialogService, IDialogHost
         }
     }
 
-    private static Control? TryGetSingleViewOverlayHost()
+    private Panel GetOverlayPanel() => overlayHost switch
     {
-        return (Application.Current?.ApplicationLifetime as ISingleViewApplicationLifetime)?.MainView as Control;
-    }
-
-    private static Panel? TryGetOverlayPanel(Control host)
-    {
-        return host as Panel ?? (host as ContentControl)?.Content as Panel;
-    }
+        Panel panel => panel,
+        ContentControl { Content: Panel panel } => panel,
+        null => throw new InvalidOperationException("Dialog overlay host has not been set."),
+        _ => throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.")
+    };
 
     private static Control CreateAddTileLayerOverlay(AddTileLayerView content)
     {
@@ -360,19 +351,7 @@ public class DialogService : IDialogService, IDialogHost
 
     private Task<string?> ShowChoiceOverlayAsync(string title, string message, IReadOnlyList<DialogChoice> choices)
     {
-        var host = overlayHost ?? TryGetSingleViewOverlayHost();
-        Debug.Assert(host != null, nameof(overlayHost) + " != null");
-
-        if (host is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host has not been set.");
-        }
-
-        var panel = TryGetOverlayPanel(host);
-        if (panel is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
-        }
+        var panel = GetOverlayPanel();
 
         var tcs = new TaskCompletionSource<string?>();
         Control? overlay = null;
@@ -502,19 +481,7 @@ public class DialogService : IDialogService, IDialogHost
 
     private async Task<T> ShowProgressOverlayAsync<T>(string title, Func<IProgress<DialogProgress>, Task<T>> work)
     {
-        var host = overlayHost ?? TryGetSingleViewOverlayHost();
-        Debug.Assert(host != null, nameof(overlayHost) + " != null");
-
-        if (host is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host has not been set.");
-        }
-
-        var panel = TryGetOverlayPanel(host);
-        if (panel is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
-        }
+        var panel = GetOverlayPanel();
 
         var bar = new ProgressBar { Minimum = 0, Maximum = 1 };
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
@@ -579,19 +546,7 @@ public class DialogService : IDialogService, IDialogHost
 
     private Task<bool> ShowConfirmationOverlayAsync(string title, string message)
     {
-        var host = overlayHost ?? TryGetSingleViewOverlayHost();
-        Debug.Assert(host != null, nameof(overlayHost) + " != null");
-
-        if (host is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host has not been set.");
-        }
-
-        var panel = TryGetOverlayPanel(host);
-        if (panel is null)
-        {
-            throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.");
-        }
+        var panel = GetOverlayPanel();
 
         var tcs = new TaskCompletionSource<bool>();
         Control? overlay = null;
