@@ -120,7 +120,7 @@ public class MainPagesViewModelTests
     {
         var trackCoordinator = TestCoordinatorSubstitutes.Track();
         trackCoordinator.ImportGpxAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new GpxImportResult(0, 1)));
+            .Returns(Task.FromResult<GpxImportResult>(new GpxImportResult.Completed(0, 1)));
         var viewModel = MainPagesViewModelTestFactory.Create(trackCoordinator: trackCoordinator);
         viewModel.SelectedPrimaryIndex = 2;
 

@@ -195,6 +195,12 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+`GpxImportResult` is `Canceled | Completed | Failed`. Completion and failure
+retain imported/already-imported counts; a failed batch stops without undoing
+previous writes. `GpxImportFailureReason.InvalidFile | Import` maps to fixed
+summaries with optional details; shell feedback displays both partial completion
+counts and failures. Caller cancellation propagates.
+
 `BoardIdInspection` is `Found(BoardId) | TimedOut | Unreachable`; caller
 cancellation propagates. Network import admits only identified datastores.
 `DataStoreDiscoveryIssue` is `DaqUnavailable | Failed(reason, details)`;

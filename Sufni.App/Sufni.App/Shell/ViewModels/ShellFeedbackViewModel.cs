@@ -72,15 +72,29 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
 
     public void ShowGpxResult(GpxImportResult result)
     {
-        if (result.ImportedCount == 0 && result.AlreadyImportedCount == 0) return;
-        if (result.ImportedCount > 0)
-            Notifications.Add(result.AlreadyImportedCount > 0
-                ? $"Imported {result.ImportedCount} GPX track(s); skipped {result.AlreadyImportedCount} already imported track(s)."
-                : $"Imported {result.ImportedCount} GPX track(s).");
+        switch (result)
+        {
+            case GpxImportResult.Completed completed:
+                ShowGpxCounts(completed.ImportedCount, completed.AlreadyImportedCount);
+                break;
+            case GpxImportResult.Failed failed:
+                ShowGpxCounts(failed.ImportedCount, failed.AlreadyImportedCount);
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
+        }
+    }
+
+    private void ShowGpxCounts(int importedCount, int alreadyImportedCount)
+    {
+        if (importedCount == 0 && alreadyImportedCount == 0) return;
+        if (importedCount > 0)
+            Notifications.Add(alreadyImportedCount > 0
+                ? $"Imported {importedCount} GPX track(s); skipped {alreadyImportedCount} already imported track(s)."
+                : $"Imported {importedCount} GPX track(s).");
         else
-            Notifications.Add(result.AlreadyImportedCount == 1
+            Notifications.Add(alreadyImportedCount == 1
                 ? "GPX track is already imported."
-                : $"{result.AlreadyImportedCount} GPX tracks are already imported.");
+                : $"{alreadyImportedCount} GPX tracks are already imported.");
     }
 
     public void ShowVideoResult(VideoImportResult result)

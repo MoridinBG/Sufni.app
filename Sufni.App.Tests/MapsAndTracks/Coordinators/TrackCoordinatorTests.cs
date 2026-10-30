@@ -13,7 +13,8 @@ using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
-using Sufni.App.SyncAndPairing.Services;
+using Microsoft.Extensions.Time.Testing;
+using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.MapsAndTracks.Coordinators;
@@ -21,7 +22,7 @@ namespace Sufni.App.Tests.MapsAndTracks.Coordinators;
 public class TrackCoordinatorTests : IDisposable
 {
     private readonly ITrackRepository trackRepository = Substitute.For<ITrackRepository>();
-    private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
+    private readonly InMemorySynchronizableRepository<Track> trackEntityRepository = new(new FakeTimeProvider());
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly SessionStore sessionStore = new(new StorePublication(new InlineUiThreadDispatcher()));
@@ -46,55 +47,121 @@ public class TrackCoordinatorTests : IDisposable
     [Fact]
     public async Task ImportGpxAsync_ImportsSelectedFiles()
     {
-        var file = Substitute.For<IStorageFile>();
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(ValidGpx()))));
+        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
         trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
             .Returns(Task.FromResult<Guid?>(null));
 
-        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var result = Assert.IsType<GpxImportResult.Completed>(await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(1, result.ImportedCount);
         Assert.Equal(0, result.AlreadyImportedCount);
-        await trackEntityRepository.Received(1).PutAsync(Arg.Is<Track>(track => track.Points.Count == 2));
+        Assert.Equal(2, Assert.Single(await trackEntityRepository.GetAllAsync()).Points.Count);
     }
 
     [Fact]
     public async Task ImportGpxAsync_SkipsFile_WhenTrackTimeRangeAlreadyExists()
     {
-        var file = Substitute.For<IStorageFile>();
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(ValidGpx()))));
+        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
         trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
             .Returns(Task.FromResult<Guid?>(Guid.NewGuid()));
 
-        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var result = Assert.IsType<GpxImportResult.Completed>(await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(0, result.ImportedCount);
         Assert.Equal(1, result.AlreadyImportedCount);
-        await trackEntityRepository.DidNotReceive().PutAsync(Arg.Any<Track>());
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
     }
 
     [Fact]
-    public async Task ImportGpxAsync_Throws_WhenGpxIsInvalid()
+    public async Task ImportGpxAsync_ReturnsInvalidFile_WhenGpxIsInvalid()
     {
-        var file = Substitute.For<IStorageFile>();
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not gpx"))));
+        var file = TestStorageItems.TextFile("ride.gpx", "not gpx");
         filesService.OpenGpxFilesAsync().Returns([file]);
 
-        await Assert.ThrowsAsync<System.Xml.XmlException>(() => CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
-        await trackEntityRepository.DidNotReceive().PutAsync(Arg.Any<Track>());
+        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(GpxImportFailureReason.InvalidFile, Assert.IsType<GpxImportResult.Failed>(result).Reason);
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
     }
 
     [Fact]
-    public async Task ImportGpxAsync_Throws_WhenGpxContainsNoValidTrackPoints()
+    public async Task ImportGpxAsync_ReturnsInvalidFile_WhenGpxContainsNoValidTrackPoints()
     {
-        var file = Substitute.For<IStorageFile>();
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(EmptyTrackGpx()))));
+        var file = TestStorageItems.TextFile("ride.gpx", EmptyTrackGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
-        await trackEntityRepository.DidNotReceive().PutAsync(Arg.Any<Track>());
+        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(GpxImportFailureReason.InvalidFile, Assert.IsType<GpxImportResult.Failed>(result).Reason);
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_StopsAtInvalidFile_AndReportsAlreadyCommittedTracks()
+    {
+        List<IStorageFile> files = [
+            TestStorageItems.TextFile("first.gpx", ValidGpx()),
+            TestStorageItems.TextFile("broken.gpx", "not gpx"),
+            TestStorageItems.TextFile("last.gpx", ValidGpx())];
+        filesService.OpenGpxFilesAsync().Returns(files);
+
+        var result = Assert.IsType<GpxImportResult.Failed>(
+            await CreateCoordinator().ImportGpxAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(GpxImportFailureReason.InvalidFile, result.Reason);
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Single(await trackEntityRepository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_ReturnsFailure_WhenPersistenceFails()
+    {
+        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
+        filesService.OpenGpxFilesAsync().Returns([file]);
+        trackEntityRepository.WriteFailure = new IOException("disk full");
+
+        var result = Assert.IsType<GpxImportResult.Failed>(
+            await CreateCoordinator().ImportGpxAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(GpxImportFailureReason.Import, result.Reason);
+        Assert.Equal(0, result.ImportedCount);
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_ReturnsFailure_WhenPickerFails()
+    {
+        filesService.OpenGpxFilesAsync().ThrowsAsync(new IOException("picker failed"));
+
+        var result = await CreateCoordinator().ImportGpxAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(GpxImportFailureReason.Import, Assert.IsType<GpxImportResult.Failed>(result).Reason);
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_ReturnsCanceled_WhenPickerReturnsNoFiles()
+    {
+        filesService.OpenGpxFilesAsync().Returns([]);
+
+        var result = await CreateCoordinator().ImportGpxAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsType<GpxImportResult.Canceled>(result);
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_PropagatesCancellation_WithoutWriting()
+    {
+        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
+        filesService.OpenGpxFilesAsync().Returns([file]);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => CreateCoordinator().ImportGpxAsync(cancellation.Token));
+
+        Assert.Empty(await trackEntityRepository.GetAllAsync());
     }
 
     [Fact]
@@ -140,7 +207,6 @@ public class TrackCoordinatorTests : IDisposable
         Assert.Same(fullTrack.Points, result.FullTrackPoints);
         Assert.Same(existingTrack, result.TrackPoints);
         Assert.Equal(400.0, result.MediaColumnWidth);
-        await trackEntityRepository.DidNotReceive().GetAsync(fullTrackId);
         await sessionRepository.DidNotReceive().GetSessionTrackAsync(sessionId);
         await sessionTelemetryWriter.DidNotReceive().PatchSessionTrackAsync(
             Arg.Any<Guid>(),
@@ -235,7 +301,7 @@ public class TrackCoordinatorTests : IDisposable
         {
             FullTrack = track.Id, HasProcessedData = true, Updated = 5
         };
-        trackEntityRepository.GetAsync(track.Id).Returns(track);
+        trackEntityRepository.Seed(track);
         sessionRepository.GetSessionAsync(session.Id).Returns(session);
         sessionTelemetryWriter.PatchSessionTrackAsync(session.Id, Arg.Any<List<TrackPoint>>(), Arg.Any<double?>())
             .Returns(call =>

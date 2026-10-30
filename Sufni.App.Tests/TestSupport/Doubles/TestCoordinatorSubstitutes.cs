@@ -63,7 +63,7 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<ITrackCoordinator>();
 
         coordinator.ImportGpxAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new GpxImportResult(0, 0)));
+            .Returns(Task.FromResult<GpxImportResult>(new GpxImportResult.Canceled()));
 
         return coordinator;
     }

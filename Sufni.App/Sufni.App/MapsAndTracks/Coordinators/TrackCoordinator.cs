@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -35,15 +36,19 @@ public class TrackCoordinator(
 
     public async Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default)
     {
-        var files = await filesService.OpenGpxFilesAsync();
-        if (files.Count == 0)
+        try
         {
-            return new GpxImportResult(0, 0);
-        }
+            var files = await filesService.OpenGpxFilesAsync();
+            if (files.Count == 0) return new GpxImportResult.Canceled();
 
-        return await backgroundTaskRunner.RunAsync(
-            () => ImportGpxCoreAsync(files, cancellationToken),
-            cancellationToken);
+            return await backgroundTaskRunner.RunAsync(
+                () => ImportGpxCoreAsync(files, cancellationToken), cancellationToken);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            logger.Error(e, "GPX import could not start");
+            return new GpxImportResult.Failed(GpxImportFailureReason.Import, e.Message);
+        }
     }
 
     public Task<SessionTrackPresentationData> LoadSessionTrackAsync(
@@ -88,27 +93,44 @@ public class TrackCoordinator(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await using var stream = await file.OpenReadAsync();
-            using var reader = new StreamReader(stream);
-            var gpx = await reader.ReadToEndAsync(cancellationToken);
-            var track = Track.FromGpx(gpx);
-            if (track is null)
+            try
             {
-                throw new InvalidOperationException("GPX file did not contain any valid track points.");
-            }
+                await using var stream = await file.OpenReadAsync();
+                using var reader = new StreamReader(stream);
+                var gpx = await reader.ReadToEndAsync(cancellationToken);
+                var track = Track.FromGpx(gpx);
+                if (track is null)
+                {
+                    logger.Warning("GPX file {FileName} has no valid track points", file.Name);
+                    return new GpxImportResult.Failed(GpxImportFailureReason.InvalidFile,
+                        ImportedCount: importedCount, AlreadyImportedCount: alreadyImportedCount);
+                }
 
-            var existingTrackId = await trackRepository.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
-            if (existingTrackId is not null)
+                var existingTrackId = await trackRepository.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
+                if (existingTrackId is not null)
+                {
+                    alreadyImportedCount++;
+                    continue;
+                }
+
+                await trackEntityRepository.PutAsync(track);
+                importedCount++;
+            }
+            catch (XmlException e)
             {
-                alreadyImportedCount++;
-                continue;
+                logger.Warning(e, "Invalid GPX file {FileName}", file.Name);
+                return new GpxImportResult.Failed(GpxImportFailureReason.InvalidFile, e.Message,
+                    importedCount, alreadyImportedCount);
             }
-
-            await trackEntityRepository.PutAsync(track);
-            importedCount++;
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.Error(e, "GPX import failed for {FileName}", file.Name);
+                return new GpxImportResult.Failed(GpxImportFailureReason.Import, e.Message,
+                    importedCount, alreadyImportedCount);
+            }
         }
 
-        return new GpxImportResult(importedCount, alreadyImportedCount);
+        return new GpxImportResult.Completed(importedCount, alreadyImportedCount);
     }
 
     private async Task<SessionTrackPresentationData> LoadSessionTrackCoreAsync(
@@ -233,7 +255,14 @@ public class TrackCoordinator(
     }
 }
 
-public sealed record GpxImportResult(int ImportedCount, int AlreadyImportedCount);
+public abstract record GpxImportResult
+{
+    private GpxImportResult() { }
+    public sealed record Canceled : GpxImportResult;
+    public sealed record Completed(int ImportedCount, int AlreadyImportedCount) : GpxImportResult;
+    public sealed record Failed(GpxImportFailureReason Reason, string? Details = null,
+        int ImportedCount = 0, int AlreadyImportedCount = 0) : GpxImportResult;
+}
 
 public abstract record GpsOffsetResult
 {

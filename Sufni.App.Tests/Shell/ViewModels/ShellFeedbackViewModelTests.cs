@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
@@ -30,6 +31,20 @@ public class ShellFeedbackViewModelTests
 
         Assert.Single(feedback.Notifications);
         Assert.Empty(feedback.ErrorMessages);
+    }
+
+    [Fact]
+    public void PartialGpxImport_ReportsSavedTracks_AndSeparatesFailureDiagnostics()
+    {
+        using var feedback = TestShellFeedback.Create();
+        const string details = "XML diagnostic";
+
+        feedback.ShowGpxResult(new GpxImportResult.Failed(GpxImportFailureReason.InvalidFile, details, ImportedCount: 1));
+
+        Assert.Single(feedback.Notifications);
+        var failure = Assert.Single(feedback.ErrorMessages);
+        Assert.Equal(details, failure.Details);
+        Assert.DoesNotContain(details, failure.Summary);
     }
 
     [Fact]

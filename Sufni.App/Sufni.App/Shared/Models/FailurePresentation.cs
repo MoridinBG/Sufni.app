@@ -154,4 +154,10 @@ public sealed record FailurePresentation
         DataStoreDiscoveryFailureReason.Connect => "The DAQ could not be opened. Check the connection and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(GpxImportFailureReason reason, string? details = null) => new(reason switch
+    {
+        GpxImportFailureReason.InvalidFile => "GPX import stopped because a file has no readable track with timestamps. Check the selected files.",
+        GpxImportFailureReason.Import => "GPX import could not be completed. Check the selected files and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }
