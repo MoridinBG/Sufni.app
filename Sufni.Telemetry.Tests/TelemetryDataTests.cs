@@ -5,6 +5,109 @@ namespace Sufni.Telemetry.Tests;
 
 public class TelemetryDataTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FromRecording_WithoutCalibration_ProcessesOnlyTheCalibratedSide(bool segmented, bool missingFront)
+    {
+        var samples = Enumerable.Range(1, 20).Select(value => (ushort)value).ToArray();
+        var raw = new RawTelemetryData { Version = 4, SampleRate = 100, Front = samples, Rear = samples };
+        if (segmented)
+        {
+            raw.Version = 5;
+            raw.FrontSegments = [new() { Counts = samples[..10] }, new() { FirstIndex = 10, FirstMonotonicDeltaUs = 100_000, Counts = samples[10..] }];
+            raw.RearSegments = raw.FrontSegments;
+        }
+        var bike = missingFront
+            ? new BikeData(null, 100, null, value => value)
+            : new BikeData(100, null, value => value, null);
+
+        var result = TelemetryData.FromRecording(raw, new Metadata { SampleRate = 100 }, bike);
+
+        Assert.Equal(!missingFront, result.Front.Present);
+        Assert.Equal(missingFront, result.Rear.Present);
+        Assert.Equal(20, (missingFront ? result.Rear : result.Front).Travel.Length);
+    }
+
+    [Theory]
+    [InlineData((ushort)0)]
+    [InlineData(ushort.MaxValue)]
+    public void FromRecording_V4SentinelRearChannel_ProducesPersistedFrontOnlySession(ushort sentinel)
+    {
+        using var stream = SstTestFiles.CreateV4Stream(123,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 100)),
+            SstTestFiles.Telemetry(Enumerable.Range(1, 20).Select(value => ((ushort)value, sentinel)).ToArray()));
+        var raw = RawTelemetryData.FromStream(stream);
+
+        var result = TelemetryData.FromRecording(raw, new Metadata { SampleRate = 100 },
+            new BikeData(100, 100, value => value, value => value));
+
+        Assert.True(result.Front.Present);
+        Assert.False(result.Rear.Present);
+        Assert.Equal(20, result.Front.Travel.Length);
+        var restored = TelemetryData.FromBinary(result.BinaryForm);
+        Assert.True(restored.Front.Present);
+        Assert.False(restored.Rear.Present);
+    }
+
+    [Theory]
+    [InlineData((ushort)0)]
+    [InlineData(ushort.MaxValue)]
+    public void FromRecording_SegmentedSentinelFrontChannel_PreservesRearTravel(ushort sentinel)
+    {
+        var raw = CreateSegmentedRaw(
+            new() { Counts = Enumerable.Repeat(sentinel, 10).ToArray() },
+            new() { FirstIndex = 20, FirstMonotonicDeltaUs = 200_000, Counts = Enumerable.Repeat(sentinel, 10).ToArray() });
+        raw.RearSegments = [new() { Counts = Enumerable.Range(1, 30).Select(value => (ushort)value).ToArray() }];
+
+        var result = TelemetryData.FromRecording(raw, new Metadata { SampleRate = 100 },
+            new BikeData(100, 100, value => value, value => value));
+
+        Assert.False(result.Front.Present);
+        Assert.True(result.Rear.Present);
+        Assert.Equal(30, result.Rear.Travel.Length);
+    }
+
+    [Theory]
+    [InlineData((ushort)0, (ushort)100)]
+    [InlineData(ushort.MaxValue, (ushort)100)]
+    [InlineData((ushort)0, ushort.MaxValue)]
+    public void FromRecording_MixedSamples_KeepChannelPresent(ushort first, ushort second)
+    {
+        var samples = Enumerable.Repeat(first, 10).Concat(Enumerable.Repeat(second, 10)).ToArray();
+        var raw = new RawTelemetryData { Version = 4, Front = samples };
+
+        var result = TelemetryData.FromRecording(raw, new Metadata { SampleRate = 100 },
+            new BikeData(4095, null, value => value, null));
+
+        Assert.True(result.Front.Present);
+        Assert.Equal(samples.Length, result.Front.Travel.Length);
+    }
+
+    [Fact]
+    public void FromRecording_NoUsableChannel_ThrowsTypedFailure()
+    {
+        var raw = new RawTelemetryData { Front = new ushort[20], Rear = Enumerable.Repeat(ushort.MaxValue, 20).ToArray() };
+
+        var failure = Assert.Throws<TelemetryProcessingException>(() => TelemetryData.FromRecording(raw,
+            new Metadata { SampleRate = 100 }, new BikeData(100, 100, value => value, value => value)));
+
+        Assert.Equal(TelemetryProcessingFailureReason.NoTravelData, failure.Reason);
+    }
+
+    [Fact]
+    public void FromRecording_UnequalPresentChannels_ThrowsTypedFailure()
+    {
+        var raw = new RawTelemetryData { Front = [1, 2, 3, 4, 5], Rear = [1, 2, 3, 4, 5, 6] };
+
+        var failure = Assert.Throws<TelemetryProcessingException>(() => TelemetryData.FromRecording(raw,
+            new Metadata { SampleRate = 100 }, new BikeData(100, 100, value => value, value => value)));
+
+        Assert.Equal(TelemetryProcessingFailureReason.RecordCountMismatch, failure.Reason);
+    }
+
     [Fact]
     public void FromRecording_WithLinearHighAdcSamples_DoesNotWrapMeasurements()
     {
@@ -704,6 +807,8 @@ public class TelemetryDataTests
                 CompressionHighSpeedThreshold: 200.0,
                 ReboundHighSpeedThreshold: 200.0));
 
+        Assert.True(result.Front.Present);
+        Assert.True(result.Rear.Present);
         Assert.False(TelemetryStatistics.HasBalanceData(result, BalanceType.Compression));
         Assert.False(TelemetryStatistics.HasBalanceData(result, BalanceType.Rebound));
         Assert.Equal(0, frontBands.LowSpeedCompression);

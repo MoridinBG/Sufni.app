@@ -135,6 +135,8 @@ graph TD
 
 `RawTelemetryData.FromStream()` (`Sufni.Telemetry/RawTelemetryData.cs`) reads the first four bytes, then dispatches to the appropriate `ISstParser` implementation: legacy `SST` plus version byte `3` or `4`, or the `SST5` fixed magic. Each parser (`ISstParser`) exposes two entry points: `Parse()` for full data extraction, and `Inspect()` for a lightweight header scan that returns UTC header timestamps in an `SstFileInspection` (sealed hierarchy: `ValidSstFileInspection` or `MalformedSstFileInspection`) without reading the full payload. `RawTelemetryData.InspectStream()` is the corresponding entry point for the inspect path — file implementations use it for eager header inspection before import. Primitive reads use the shared span cursor `SstByteReader`; V4 SST GPS chunks and live GPS batches share `GpsBinaryRecordDecoder` and its 46-byte record-size constant. The V4 and V5 GPS decoders use the same date/time validation.
 
+Channel classification uses all samples: all-zero or all-`0xFFFF` channels are absent during processing, as are channels without calibration. V4 parsing preserves these raw sentinel samples; mixed channels remain available for processing.
+
 Spike elimination is **not** part of the SST parser. The parsers populate the raw `Front` / `Rear` arrays directly; the [Spike Elimination](#spike-elimination) cleanup runs later in `TelemetryData.FromRecording()` via `MeasurementPreprocessor.Process(...)`, once the bike's sensor calibration is known.
 
 ### SST V3 Format
@@ -148,7 +150,7 @@ Spike elimination is **not** part of the SST parser. The parsers populate the ra
 | 8      | 8    | Timestamp (int64, Unix seconds)                |
 | 16     | N×4  | Records: uint16 front + uint16 rear per sample |
 
-Samples are unsigned 12-bit ADC counts (range `0..4095`) read as `uint16`. A sentinel of `0xFFFF` (`ushort.MaxValue`) on the first sample of a channel indicates no data on that channel.
+Samples are unsigned 12-bit ADC counts (range `0..4095`) read as `uint16`. An all-`0xFFFF` (`ushort.MaxValue`) channel is omitted by the parser; a sentinel followed by valid samples is retained. Processing also treats an all-zero channel or a channel without calibration as absent.
 
 ### SST V4 TLV Format
 

@@ -90,6 +90,18 @@ public class SstV3ParserTests
     }
 
     [Fact]
+    public void Parse_InitialSentinelFollowedByValidSamples_KeepsChannel()
+    {
+        using var stream = SstTestFiles.CreateV3ParserStream(samples: [(ushort.MaxValue, 200), (110, 210)]);
+        using var reader = new BinaryReader(stream);
+
+        var raw = new SstV3Parser().Parse(reader, 3);
+
+        Assert.Equal(new ushort[] { ushort.MaxValue, 110 }, raw.Front);
+        Assert.Equal(new ushort[] { 200, 210 }, raw.Rear);
+    }
+
+    [Fact]
     public void Parse_PreservesHighAdcSamples_WithoutSignedWrap()
     {
         ushort[] front = [2500, 2510, 2520, 2530, 2540];

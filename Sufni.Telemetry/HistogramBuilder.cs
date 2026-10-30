@@ -54,7 +54,7 @@ public static class HistogramBuilder
     {
         if (velocity.IsEmpty)
         {
-            throw new InvalidOperationException("Velocity samples are required.");
+            throw new TelemetryProcessingException(TelemetryProcessingFailureReason.VelocitySamplesMissing);
         }
 
         var minimum = velocity[0];

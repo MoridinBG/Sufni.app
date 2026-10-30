@@ -18,7 +18,8 @@ public class SuspensionTraceProcessorTests
             filter);
 
         Assert.Equal([0, 1, 2, 2, 2], result.Travel);
-        Assert.False(result.Present);
+        Assert.Empty(result.Strokes.Compressions);
+        Assert.Empty(result.Strokes.Rebounds);
     }
 
     [Fact]
@@ -43,7 +44,6 @@ public class SuspensionTraceProcessorTests
             sampleRate: 1000,
             filter);
 
-        Assert.True(result.Present);
         Assert.Equal(measurements.Length, result.Travel.Length);
         Assert.Equal(measurements.Length, result.Velocity.Length);
         Assert.NotEmpty(result.TravelBins);
@@ -57,6 +57,15 @@ public class SuspensionTraceProcessorTests
                 Assert.Empty(stroke.DigitizedTravel);
                 Assert.Empty(stroke.DigitizedVelocity);
             });
+    }
+
+    [Fact]
+    public void Process_WithoutSamples_ThrowsTypedFailure()
+    {
+        var failure = Assert.Throws<TelemetryProcessingException>(() =>
+            SuspensionTraceProcessor.Process([], 100, value => value, 100, velocityFilter: null));
+
+        Assert.Equal(TelemetryProcessingFailureReason.VelocitySamplesMissing, failure.Reason);
     }
 
     [Fact]

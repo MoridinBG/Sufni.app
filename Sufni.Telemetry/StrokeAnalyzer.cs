@@ -1,12 +1,8 @@
 namespace Sufni.Telemetry;
 
-public readonly record struct StrokeAnalysisResult(
-    bool HasActiveStrokes,
-    Strokes Strokes);
-
 public static class StrokeAnalyzer
 {
-    public static StrokeAnalysisResult Analyze(
+    public static Strokes Analyze(
         double[] velocity,
         double[] travel,
         double maxTravel,
@@ -16,7 +12,6 @@ public static class StrokeAnalyzer
         var detectedStrokes = Strokes.FilterStrokes(velocity, travel, maxTravel, sampleRate);
         strokes.Categorize(detectedStrokes);
 
-        var hasActiveStrokes = strokes.Compressions.Length != 0 || strokes.Rebounds.Length != 0;
-        return new StrokeAnalysisResult(hasActiveStrokes, strokes);
+        return strokes;
     }
 }

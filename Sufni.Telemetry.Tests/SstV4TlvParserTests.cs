@@ -37,6 +37,19 @@ public class SstV4TlvParserTests
     }
 
     [Fact]
+    public void Parse_HardtailRecording_RetainsRawSentinelChannelForProcessing()
+    {
+        using var stream = SstTestFiles.CreateV4Stream(123,
+            SstTestFiles.Rates((TlvChunkType.Telemetry, 100)),
+            SstTestFiles.Telemetry((100, ushort.MaxValue), (200, ushort.MaxValue)));
+
+        var raw = RawTelemetryData.FromStream(stream);
+
+        Assert.Equal(new ushort[] { 100, 200 }, raw.Front);
+        Assert.Equal(new ushort[] { ushort.MaxValue, ushort.MaxValue }, raw.Rear);
+    }
+
+    [Fact]
     public void Parse_TemperatureChunk_ReturnsTemperatureSamples()
     {
         using var ms = SstTestFiles.CreateV4ParserStream(

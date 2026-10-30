@@ -16,8 +16,7 @@ public class StrokeAnalyzerTests
             maxTravel: 20,
             sampleRate: 1000);
 
-        Assert.False(result.HasActiveStrokes);
-        Assert.Empty(result.Strokes.Compressions);
-        Assert.Empty(result.Strokes.Rebounds);
+        Assert.Empty(result.Compressions);
+        Assert.Empty(result.Rebounds);
     }
 }

@@ -72,22 +72,13 @@ public class SstV3Parser : ISstParser
 
         var front = new ushort[count];
         var rear = new ushort[count];
-        var frontPresent = count > 0;
-        var rearPresent = count > 0;
         for (var i = 0; i < count; i++)
         {
-            var rawFront = cursor.ReadUInt16();
-            var rawRear = cursor.ReadUInt16();
-
-            if (i == 0)
-            {
-                frontPresent = rawFront != ushort.MaxValue;
-                rearPresent = rawRear != ushort.MaxValue;
-            }
-
-            if (frontPresent) front[i] = rawFront;
-            if (rearPresent) rear[i] = rawRear;
+            front[i] = cursor.ReadUInt16();
+            rear[i] = cursor.ReadUInt16();
         }
+        var frontPresent = front.Any(sample => sample != ushort.MaxValue);
+        var rearPresent = rear.Any(sample => sample != ushort.MaxValue);
 
         var rtd = new RawTelemetryData
         {

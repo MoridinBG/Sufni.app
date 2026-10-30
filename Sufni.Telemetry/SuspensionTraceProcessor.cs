@@ -1,7 +1,6 @@
 namespace Sufni.Telemetry;
 
 public sealed record ProcessedSuspensionTrace(
-    bool Present,
     double[] Travel,
     double[] Velocity,
     Strokes Strokes,
@@ -26,17 +25,16 @@ public static class SuspensionTraceProcessor
             : velocityFilter.Process(travel, dt);
         var velocityBins = HistogramBuilder.CreateVelocityBins(velocity, Parameters.VelocityHistStep);
 
-        var strokeAnalysis = StrokeAnalyzer.Analyze(
+        var strokes = StrokeAnalyzer.Analyze(
             velocity,
             travel,
             maxTravel,
             sampleRate);
 
         return new ProcessedSuspensionTrace(
-            strokeAnalysis.HasActiveStrokes,
             travel,
             velocity,
-            strokeAnalysis.Strokes,
+            strokes,
             travelBins,
             velocityBins);
     }

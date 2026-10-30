@@ -230,7 +230,6 @@ public class TelemetryData
 
     private static void ApplySuspensionTrace(Suspension suspension, ProcessedSuspensionTrace trace)
     {
-        suspension.Present = trace.Present;
         suspension.Travel = trace.Travel;
         suspension.Velocity = trace.Velocity;
         suspension.Strokes = trace.Strokes;
@@ -285,10 +284,6 @@ public class TelemetryData
         }
 
         Debug.Assert(measurementToTravel is not null);
-        if (measurementToTravel is null)
-        {
-            throw new InvalidOperationException("Present suspension is missing travel calibration.");
-        }
 
         var preprocessed = MeasurementPreprocessor.Process(
             rawSamples,
@@ -313,7 +308,7 @@ public class TelemetryData
         int sampleRate,
         TelemetryProcessingOptions processingOptions)
     {
-        if (rawSegments.Length == 0)
+        if (!suspension.Present)
         {
             suspension.Present = false;
             suspension.Travel = [];
@@ -327,10 +322,6 @@ public class TelemetryData
         }
 
         Debug.Assert(measurementToTravel is not null);
-        if (measurementToTravel is null)
-        {
-            throw new InvalidOperationException("Present suspension is missing travel calibration.");
-        }
 
         var travelValues = new List<double>();
         var velocityValues = new List<double>();
@@ -503,6 +494,20 @@ public class TelemetryData
         return SavitzkyGolay.Create(windowSize, 1, 3);
     }
 
+    private static bool HasUsableTravel(IEnumerable<ushort> samples, double? maxTravel, Func<ushort, double>? calibration)
+    {
+        if (maxTravel is null || calibration is null) return false;
+        var hasNonZero = false;
+        var hasNonMax = false;
+        foreach (var sample in samples)
+        {
+            hasNonZero |= sample != 0;
+            hasNonMax |= sample != ushort.MaxValue;
+            if (hasNonZero && hasNonMax) return true;
+        }
+        return false;
+    }
+
     private static double CalculateAnomalyRate(int anomalyCount, int sampleCount, int sampleRate)
     {
         return sampleCount == 0
@@ -544,11 +549,13 @@ public class TelemetryData
 
         if (UsesSegmentAwareTravel(rawData))
         {
-            td.Front.Present = rawData.FrontSegments.Length > 0;
-            td.Rear.Present = rawData.RearSegments.Length > 0;
+            td.Front.Present = HasUsableTravel(rawData.FrontSegments.SelectMany(segment => segment.Counts),
+                bikeData.FrontMaxTravel, bikeData.FrontMeasurementToTravel);
+            td.Rear.Present = HasUsableTravel(rawData.RearSegments.SelectMany(segment => segment.Counts),
+                bikeData.RearMaxTravel, bikeData.RearMeasurementToTravel);
             if (!td.Front.Present && !td.Rear.Present)
             {
-                throw new Exception("Front and rear record arrays are empty!");
+                throw new TelemetryProcessingException(TelemetryProcessingFailureReason.NoTravelData);
             }
 
             Parallel.Invoke(
@@ -567,8 +574,8 @@ public class TelemetryData
                     td.Metadata.SampleRate,
                     processingOptions));
 
-            td.Front.HasGaps = td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorForkTravel);
-            td.Rear.HasGaps = td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorShockTravel);
+            td.Front.HasGaps = td.Front.Present && (td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorForkTravel));
+            td.Rear.HasGaps = td.Rear.Present && (td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorShockTravel));
             td.CalculateAirTimes();
 
             return td;
@@ -577,18 +584,18 @@ public class TelemetryData
         // Evaluate front and rear input arrays
         var fc = rawData.Front.Length;
         var rc = rawData.Rear.Length;
-        td.Front.Present = fc != 0;
-        td.Rear.Present = rc != 0;
+        td.Front.Present = HasUsableTravel(rawData.Front, bikeData.FrontMaxTravel, bikeData.FrontMeasurementToTravel);
+        td.Rear.Present = HasUsableTravel(rawData.Rear, bikeData.RearMaxTravel, bikeData.RearMeasurementToTravel);
         if (!td.Front.Present && !td.Rear.Present)
         {
-            throw new Exception("Front and rear record arrays are empty!");
+            throw new TelemetryProcessingException(TelemetryProcessingFailureReason.NoTravelData);
         }
         if (td.Front.Present && td.Rear.Present && fc != rc)
         {
-            throw new Exception("Front and rear record counts are not equal!");
+            throw new TelemetryProcessingException(TelemetryProcessingFailureReason.RecordCountMismatch);
         }
 
-        var recordCount = Math.Max(fc, rc);
+        var recordCount = td.Front.Present ? fc : rc;
 
         if (recordCount < 5)
         {

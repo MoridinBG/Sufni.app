@@ -148,6 +148,11 @@ Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 ## Signal Processing & Suspension Kinematics
 
+Processing classifies absent channels from calibration and whole-channel sentinel
+content, preserves the usable side, and raises typed `TelemetryProcessingException`
+failures for unprocessable data. Channel presence is independent of stroke activity.
+
+
 `TelemetryData.FromRecording()` orchestrates the full pipeline: measurement preprocessing → travel calibration → configurable Savitzky-Golay velocity → stroke detection → categorization → airtime detection → histogram bin definitions. The `Sufni.Kinematics` library independently solves bike linkage geometry to derive leverage ratios. Sensor calibration maps between raw ADC counts and millimeters of travel. Recorded sessions persist the raw source separately from the derived `TelemetryData` BLOB so stale processed data can be recomputed when the source and dependencies are available; an optional derivation window on the session row lets a trimmed or split session derive from a source-absolute slice of another session's raw source.
 
 Topics in [architecture/processing.md](architecture/processing.md):
