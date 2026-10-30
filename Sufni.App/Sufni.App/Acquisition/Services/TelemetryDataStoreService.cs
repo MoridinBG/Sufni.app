@@ -12,6 +12,7 @@ using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.Acquisition.Services;
 
 internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IAsyncDisposable
@@ -32,7 +33,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
     private IDisposable? browseLease;
 
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = new();
-    public event EventHandler<string>? ErrorOccurred;
+    public event EventHandler<DataStoreDiscoveryIssue>? DiscoveryIssueReported;
 
     private async Task RefreshMassStorageDataStoresAsync(CancellationToken cancellationToken = default)
     {
@@ -113,12 +114,18 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         try
         {
             ds = new NetworkTelemetryDataStore(ipAddress, port, daqManagementService, liveDaqBoardIdInspector);
-            await ds.Initialization;
+            if (await ds.Initialization is not BoardIdInspection.Found)
+            {
+                await uiThreadDispatcher.InvokeAsync(() =>
+                    DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue.DaqUnavailable()));
+                return;
+            }
         }
         catch (Exception ex)
         {
+            logger.Error(ex, "DAQ discovery failed at {Address}:{Port}", ipAddress, port);
             await uiThreadDispatcher.InvokeAsync(() =>
-                ErrorOccurred?.Invoke(this, $"Could not connect to DAQ at {ipAddress}:{port}: {ex.Message}"));
+                DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue.Failed(DataStoreDiscoveryFailureReason.Connect, ex.Message)));
             return;
         }
 
@@ -200,10 +207,11 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
                     }
                     catch (Exception exception)
                     {
+                        logger.Error(exception, "DAQ drive scan failed");
                         await uiThreadDispatcher.InvokeAsync(() =>
                         {
                             if (!token.IsCancellationRequested)
-                                ErrorOccurred?.Invoke(this, $"Could not scan DAQ drives: {exception.Message}");
+                                DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue.Failed(DataStoreDiscoveryFailureReason.Scan, exception.Message));
                         });
                     }
                 }

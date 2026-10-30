@@ -1,5 +1,6 @@
 using Sufni.App.Tests.TestSupport.LiveDaq;
 using System.Net;
+using Microsoft.Extensions.Time.Testing;
 using System.Net.Sockets;
 using NSubstitute;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
@@ -256,14 +257,14 @@ public class LiveDaqCatalogServiceTests
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
         var acceptTask = listener.AcceptTcpClientAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var inspector = new LiveDaqBoardIdInspector(
-            new InlineBackgroundTaskRunner(),
-            TimeSpan.FromMilliseconds(150));
-
-        await Assert.ThrowsAsync<OperationCanceledException>(
-            () => inspector.InspectAsync(IPAddress.Loopback, port, cancellationToken: TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
-
+        var time = new FakeTimeProvider();
+        var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), time);
+        var inspection = inspector.InspectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
         using var accepted = await acceptTask.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        time.Advance(TimeSpan.FromSeconds(5));
+
+        Assert.IsType<BoardIdInspection.TimedOut>(await inspection.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
     }
 
     [Fact]
@@ -277,12 +278,46 @@ public class LiveDaqCatalogServiceTests
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
         var serverTask = ServeIdentifyAckAsync(listener, boardSerial);
-        var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner());
+        var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), new FakeTimeProvider());
 
         var boardId = await inspector.InspectAsync(IPAddress.Loopback, port, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(expectedBoardId, boardId);
+        Assert.Equal(expectedBoardId, Assert.IsType<BoardIdInspection.Found>(boardId).BoardId);
         await serverTask;
+    }
+
+    [Fact]
+    public async Task InspectAsync_ReturnsUnreachable_WhenPeerClosesBeforeIdentity()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var accepting = listener.AcceptTcpClientAsync(TestContext.Current.CancellationToken);
+        var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), new FakeTimeProvider());
+        var inspection = inspector.InspectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
+        using var accepted = await accepting.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        accepted.Close();
+
+        Assert.IsType<BoardIdInspection.Unreachable>(await inspection.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public async Task InspectAsync_PropagatesCallerCancellation_WhileWaitingForIdentity()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var accepting = listener.AcceptTcpClientAsync(TestContext.Current.CancellationToken);
+        using var cancellation = new CancellationTokenSource();
+        var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), new FakeTimeProvider());
+        var inspection = inspector.InspectAsync(IPAddress.Loopback, port, cancellation.Token);
+        using var accepted = await accepting.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => inspection.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
     }
 
     private static async Task<IReadOnlyList<LiveDaqCatalogEntry>> WaitForEntriesAsync(

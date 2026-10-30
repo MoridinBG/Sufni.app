@@ -5,6 +5,7 @@ using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Acquisition;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -227,6 +228,30 @@ public class ImportSessionsViewModelTests
         viewModel.ShowMalformedMessageCommand.Execute(file);
 
         Assert.Single(viewModel.Notifications);
+    }
+
+    [Fact]
+    public void DiscoveryIssue_SeparatesUnavailableNotificationsFromFailureDiagnostics_WhileLoaded()
+    {
+        var harness = new ImportWorkflowHarness();
+        var vm = harness.CreateViewModel();
+        vm.LoadedCommand.Execute(null);
+        harness.TelemetryDataStoreService.DiscoveryIssueReported += Raise.Event<EventHandler<DataStoreDiscoveryIssue>>(
+            harness.TelemetryDataStoreService, new DataStoreDiscoveryIssue.DaqUnavailable());
+        Assert.Single(vm.Notifications);
+        Assert.Empty(vm.ErrorMessages);
+
+        const string details = "drive diagnostic";
+        harness.TelemetryDataStoreService.DiscoveryIssueReported += Raise.Event<EventHandler<DataStoreDiscoveryIssue>>(
+            harness.TelemetryDataStoreService, new DataStoreDiscoveryIssue.Failed(DataStoreDiscoveryFailureReason.Scan, details));
+        var error = Assert.Single(vm.ErrorMessages);
+        Assert.Equal(details, error.Details);
+        Assert.DoesNotContain(details, error.Summary);
+
+        vm.UnloadedCommand.Execute(null);
+        harness.TelemetryDataStoreService.DiscoveryIssueReported += Raise.Event<EventHandler<DataStoreDiscoveryIssue>>(
+            harness.TelemetryDataStoreService, new DataStoreDiscoveryIssue.DaqUnavailable());
+        Assert.Single(vm.Notifications);
     }
 
     [Fact]

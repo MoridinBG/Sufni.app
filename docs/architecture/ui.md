@@ -195,6 +195,13 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+`BoardIdInspection` is `Found(BoardId) | TimedOut | Unreachable`; caller
+cancellation propagates. Network import admits only identified datastores.
+`DataStoreDiscoveryIssue` is `DaqUnavailable | Failed(reason, details)`;
+`DataStoreDiscoveryFailureReason.Scan | Connect` supplies fixed summaries.
+The import page renders unavailability as a notification and failure diagnostics
+in the error expander.
+
 Mobile pairing returns `RequestPairingResult.Sent | ServerUnavailable | Failed`,
 `ConfirmPairingResult.Paired | PinRejected | Failed`, and
 `UnpairResult.Unpaired | LocalOnly | Failed`. Failures carry

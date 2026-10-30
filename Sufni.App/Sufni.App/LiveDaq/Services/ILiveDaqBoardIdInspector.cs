@@ -1,14 +1,20 @@
+using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sufni.App.LiveDaq.Services;
 
-// Resolves a discovered live DAQ endpoint to a persisted board identity by sending
-// an IDENTIFY frame over the live protocol.
+/// <summary>Resolves a legacy v2 endpoint's board identity through IDENTIFY.</summary>
 public interface ILiveDaqBoardIdInspector
 {
-    // `address` and `port` identify the DAQ endpoint to inspect. Returns null when an
-    // inspection succeeds but no board identity can be resolved.
-    Task<System.Guid?> InspectAsync(IPAddress address, int port, CancellationToken cancellationToken = default);
+    Task<BoardIdInspection> InspectAsync(IPAddress address, int port, CancellationToken cancellationToken = default);
+}
+
+public abstract record BoardIdInspection
+{
+    private BoardIdInspection() { }
+    public sealed record Found(Guid BoardId) : BoardIdInspection;
+    public sealed record TimedOut : BoardIdInspection;
+    public sealed record Unreachable : BoardIdInspection;
 }

@@ -47,3 +47,5 @@ public enum BikeImageFailureReason { Read, Decode }
 public enum LeverageRatioImportFailureReason { Import }
 
 public enum PairingFailureReason { Request, Confirm, Unpair }
+
+public enum DataStoreDiscoveryFailureReason { Scan, Connect }

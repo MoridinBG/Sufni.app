@@ -256,7 +256,7 @@ reflection.
 
 ### Board-ID Inspector
 
-`LiveDaqBoardIdInspector` is a v2 compatibility helper used by the network import path. It opens a short-lived v2 LIVE connection, sends an `IDENTIFY` frame, and parses the matching `IDENTIFY_ACK` to recover the board GUID for legacy v2 endpoints. The live catalog no longer probes devices for identity; it reads TXT `bid` when available.
+`LiveDaqBoardIdInspector` is a v2 compatibility helper used by the network import path. It opens a short-lived v2 LIVE connection, sends an `IDENTIFY` frame, and parses the matching `IDENTIFY_ACK` to recover the board GUID for legacy v2 endpoints. The inspector returns `BoardIdInspection.Found | TimedOut | Unreachable`, uses an injected clock for its five-second deadline, and propagates caller cancellation. The live catalog no longer probes devices for identity; it reads TXT `bid` when available.
 
 ### Catalog Service
 

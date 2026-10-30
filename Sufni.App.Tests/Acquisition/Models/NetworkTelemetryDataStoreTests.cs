@@ -23,7 +23,7 @@ public class NetworkTelemetryDataStoreTests
         var expectedBoardId = Guid.NewGuid();
         boardIdInspector
             .InspectAsync(IPAddress.Loopback, 5555, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Guid?>(expectedBoardId));
+            .Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(expectedBoardId)));
 
         var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
 
@@ -245,7 +245,7 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         boardIdInspector
             .InspectAsync(IPAddress.Loopback, 5555, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<Guid?>(null));
+            .Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(Guid.NewGuid())));
         return boardIdInspector;
     }
 

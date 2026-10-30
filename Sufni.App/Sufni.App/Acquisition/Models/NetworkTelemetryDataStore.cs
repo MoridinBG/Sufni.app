@@ -16,7 +16,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
     private readonly IPEndPoint ipEndPoint;
     private readonly IDaqManagementService daqManagementService;
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
-    public readonly Task Initialization;
+    public readonly Task<BoardIdInspection> Initialization;
 
     public async Task<List<ITelemetryFile>> GetFiles()
     {
@@ -64,9 +64,11 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
         return files.OrderByDescending(f => f.StartTime).ToList();
     }
 
-    private async Task InitializeAsync()
+    private async Task<BoardIdInspection> InitializeAsync()
     {
-        BoardId = await liveDaqBoardIdInspector.InspectAsync(ipEndPoint.Address, ipEndPoint.Port);
+        var result = await liveDaqBoardIdInspector.InspectAsync(ipEndPoint.Address, ipEndPoint.Port);
+        if (result is BoardIdInspection.Found found) BoardId = found.BoardId;
+        return result;
     }
 
     public NetworkTelemetryDataStore(

@@ -334,7 +334,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private void Loaded()
     {
-        telemetryDataStoreService.ErrorOccurred += OnDataStoreServiceError;
+        telemetryDataStoreService.DiscoveryIssueReported += OnDiscoveryIssueReported;
         telemetryDataStoreService.StartBrowse();
         ResolveSelectedSetup();
 
@@ -353,7 +353,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         SelectedSetup = null;
         NewDataStoresAvailable = false;
         TelemetryFiles.Clear();
-        telemetryDataStoreService.ErrorOccurred -= OnDataStoreServiceError;
+        telemetryDataStoreService.DiscoveryIssueReported -= OnDiscoveryIssueReported;
         telemetryDataStoreService.StopBrowse();
     }
 
@@ -365,9 +365,17 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         return Task.CompletedTask;
     }
 
-    private void OnDataStoreServiceError(object? sender, string message)
+    private void OnDiscoveryIssueReported(object? sender, DataStoreDiscoveryIssue issue)
     {
-        ErrorMessages.Add(new FailurePresentation(message));
+        switch (issue)
+        {
+            case DataStoreDiscoveryIssue.DaqUnavailable:
+                Notifications.Add("The DAQ is unavailable. Check that it is connected and not in use.");
+                break;
+            case DataStoreDiscoveryIssue.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
+        }
     }
 
     #endregion Commands

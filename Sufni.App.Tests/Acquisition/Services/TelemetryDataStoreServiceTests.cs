@@ -11,6 +11,7 @@ using Sufni.App.Acquisition.Services;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;
 namespace Sufni.App.Tests.Acquisition.Services;
 
@@ -92,7 +93,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<Guid?>(boardId));
+        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
         await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         service.StartBrowse();
 
@@ -110,7 +111,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<Guid?>(boardId));
+        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
         await using var service = CreateService(
             serviceDiscovery: serviceDiscovery,
             boardIdInspector: boardIdInspector,
@@ -148,10 +149,10 @@ public class TelemetryDataStoreServiceTests
                 Arg.Any<IPAddress>(),
                 Arg.Any<int>(),
                 cancellationToken: Arg.Any<CancellationToken>())
-            .Returns<Task<Guid?>>(_ => throw new IOException("unreachable"));
+            .Returns<Task<BoardIdInspection>>(_ => throw new InvalidOperationException("discovery failed"));
         await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
-        var errors = new List<string>();
-        service.ErrorOccurred += (_, message) => errors.Add(message);
+        var errors = new List<DataStoreDiscoveryIssue>();
+        service.DiscoveryIssueReported += (_, message) => errors.Add(message);
         service.StartBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
@@ -159,6 +160,27 @@ public class TelemetryDataStoreServiceTests
 
         Assert.Empty(service.DataStores);
         Assert.Single(errors);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ServiceAdded_ReportsUnavailable_WithoutAddingUnidentifiedStore(bool timedOut)
+    {
+        var discovery = Substitute.For<IServiceDiscovery>();
+        var inspector = Substitute.For<ILiveDaqBoardIdInspector>();
+        inspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(timedOut ? new BoardIdInspection.TimedOut() : (BoardIdInspection)new BoardIdInspection.Unreachable());
+        await using var service = CreateService(serviceDiscovery: discovery, boardIdInspector: inspector);
+        var issues = new List<DataStoreDiscoveryIssue>();
+        service.DiscoveryIssueReported += (_, issue) => issues.Add(issue);
+        service.StartBrowse();
+
+        discovery.ServiceAdded += Raise.EventWith(
+            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
+
+        Assert.Empty(service.DataStores);
+        Assert.IsType<DataStoreDiscoveryIssue.DaqUnavailable>(Assert.Single(issues));
     }
 
     [Fact]
@@ -287,13 +309,14 @@ public class TelemetryDataStoreServiceTests
         probe.FindDrives().Returns(_ => scanFails ? throw new IOException("drive unavailable") : [drive]);
         probe.InitializeAsync(drive, Arg.Any<CancellationToken>()).Returns(Guid.NewGuid());
         await using var service = CreateService(driveProbe: probe, timeProvider: time);
-        var error = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var error = new TaskCompletionSource<DataStoreDiscoveryIssue>(TaskCreationOptions.RunContinuationsAsynchronously);
         var added = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        service.ErrorOccurred += (_, message) => error.TrySetResult(message);
+        service.DiscoveryIssueReported += (_, message) => error.TrySetResult(message);
         service.DataStores.CollectionChanged += (_, _) => added.TrySetResult();
         service.StartBrowse();
         time.Advance(TimeSpan.FromSeconds(1));
-        Assert.Contains("drive unavailable", await error.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(DataStoreDiscoveryFailureReason.Scan,
+            Assert.IsType<DataStoreDiscoveryIssue.Failed>(await error.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2))).Reason);
 
         scanFails = false;
         time.Advance(TimeSpan.FromSeconds(1));
@@ -317,11 +340,18 @@ public class TelemetryDataStoreServiceTests
             browseOwner.AcquireBrowse().Returns(Substitute.For<IDisposable>());
         }
 
+        if (boardIdInspector is null)
+        {
+            boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
+            boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+                .Returns(new BoardIdInspection.Found(Guid.NewGuid()));
+        }
+
         return new TelemetryDataStoreService(
             serviceDiscovery ?? Substitute.For<IServiceDiscovery>(),
             browseOwner,
             Substitute.For<IDaqManagementService>(),
-            boardIdInspector ?? Substitute.For<ILiveDaqBoardIdInspector>(),
+            boardIdInspector,
             backgroundTaskRunner ?? new InlineBackgroundTaskRunner(),
             driveProbe ?? new FakeMassStorageDriveSource(),
             new InlineUiThreadDispatcher(),

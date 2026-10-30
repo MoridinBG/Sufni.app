@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -13,7 +14,7 @@ namespace Sufni.App.Acquisition.Services;
 public interface ITelemetryDataStoreService
 {
     public ObservableCollection<ITelemetryDataStore> DataStores { get; }
-    public event EventHandler<string>? ErrorOccurred;
+    public event EventHandler<DataStoreDiscoveryIssue>? DiscoveryIssueReported;
     public void StartBrowse();
     public void StopBrowse();
 
@@ -33,4 +34,11 @@ public abstract record StorageProviderRegistrationResult
     public sealed record Added(ITelemetryDataStore DataStore) : StorageProviderRegistrationResult;
 
     public sealed record AlreadyOpen(ITelemetryDataStore DataStore) : StorageProviderRegistrationResult;
+}
+
+public abstract record DataStoreDiscoveryIssue
+{
+    private DataStoreDiscoveryIssue() { }
+    public sealed record DaqUnavailable : DataStoreDiscoveryIssue;
+    public sealed record Failed(DataStoreDiscoveryFailureReason Reason, string? Details = null) : DataStoreDiscoveryIssue;
 }
