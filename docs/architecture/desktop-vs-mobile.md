@@ -127,6 +127,13 @@ a platform registration delegate. The mobile native hosts override
 Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia
 application setup. There is no shared OS check for them.
 
+The macOS head registers `IWindowBehavior` for its raw Control+Tab input hook and
+inert automation peer. The shared window owns attachment cleanup on close. Only
+the macOS project enables `AvaloniaAccessUnstablePrivateApis`, allowing direct
+raw-input access without reflection; the other heads register no window behavior.
+The pure raw-key handling and peer behavior are linked into the app tests without
+opting that test project into private APIs.
+
 ## Solution Scoping
 
 `Sufni.App.sln` is the full-matrix solution. For day-to-day work the per-platform solutions scope the projects so the IDE only loads what is relevant:

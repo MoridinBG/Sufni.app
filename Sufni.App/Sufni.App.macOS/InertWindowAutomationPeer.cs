@@ -4,7 +4,7 @@ using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 
-namespace Sufni.App.Shell.DesktopViews;
+namespace Sufni.App.macOS;
 
 internal sealed class InertWindowAutomationPeer(Window owner) : WindowAutomationPeer(owner)
 {

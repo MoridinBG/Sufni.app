@@ -3,7 +3,6 @@ using System.Linq;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 
 using Sufni.App.Shell.KeyboardShortcuts;
@@ -13,13 +12,18 @@ namespace Sufni.App.Shell.DesktopViews;
 
 public partial class MainWindow : Window
 {
-    private RawTabShortcutHandler? rawTabShortcutHandler;
+    private readonly IWindowBehavior? windowBehavior;
 
-    public MainWindow()
+    public MainWindow() : this(null)
     {
+    }
+
+    public MainWindow(IWindowBehavior? windowBehavior)
+    {
+        this.windowBehavior = windowBehavior;
         InitializeComponent();
-        rawTabShortcutHandler = RawTabShortcutHandler.Attach(TryHandleRegisteredTabShortcut);
-        Closed += (_, _) => DisposeRawTabShortcutHandling();
+        var attachment = windowBehavior?.Attach(this, TryHandleRegisteredTabShortcut);
+        Closed += (_, _) => attachment?.Dispose();
 
         AddHandler<KeyEventArgs>(
             InputElement.KeyDownEvent,
@@ -28,28 +32,8 @@ public partial class MainWindow : Window
             handledEventsToo: true);
     }
 
-    // WARNING: This intentionally disables the entire Avalonia accessibility tree on macOS.
-    // VoiceOver, Accessibility Inspector, and accessibility-driven UI automation cannot inspect
-    // any Sufni control while this workaround is active. Remove it as soon as Avalonia.Native
-    // provides a safe peer/node detach lifecycle.
-    //
-    // The macOS accessibility bridge permanently retains every automation peer it
-    // materializes (element/node ownership cycle in Avalonia.Native), which keeps
-    // closed session content alive. An inert peer keeps AX clients from reaching
-    // any descendant peer through tree descent, focus queries, or hit-testing.
     protected override AutomationPeer OnCreateAutomationPeer() =>
-        OperatingSystem.IsMacOS()
-            ? new InertWindowAutomationPeer(this)
-            : base.OnCreateAutomationPeer();
-
-    private void DisposeRawTabShortcutHandling()
-    {
-        rawTabShortcutHandler?.Dispose();
-        rawTabShortcutHandler = null;
-    }
-
-    internal bool TryHandleRawTabShortcut(RawKeyEventType type, Key key, KeyModifiers modifiers) =>
-        rawTabShortcutHandler?.TryHandleRawTabShortcut(type, key, modifiers) == true;
+        windowBehavior?.CreateAutomationPeer(this) ?? base.OnCreateAutomationPeer();
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs args)
     {
@@ -59,7 +43,7 @@ public partial class MainWindow : Window
         }
     }
 
-    internal bool TryHandleRegisteredTabShortcut(Key key, KeyModifiers modifiers)
+    private bool TryHandleRegisteredTabShortcut(Key key, KeyModifiers modifiers)
     {
         if (DataContext is not ShellRootViewModel root)
         {

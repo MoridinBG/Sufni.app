@@ -95,7 +95,7 @@ public partial class App : Application
         {
             case IClassicDesktopStyleApplicationLifetime desktop:
                 var desktopShellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
-                var mainWindow = new MainWindow();
+                var mainWindow = new MainWindow(Services.GetService<IWindowBehavior>());
                 PointerGesture.SetSupportsTouchLongPressContextMenu(
                     mainWindow,
                     supportsTouchLongPressContextMenu);

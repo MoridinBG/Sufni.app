@@ -3,10 +3,10 @@ using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
-using Avalonia.Input.Raw;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.macOS;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.KeyboardShortcuts;
 using Sufni.App.Shell.ViewModels;
@@ -15,6 +15,7 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Shell.DesktopViews;
 
+// Mounted windows and automation peers require Avalonia resources.
 [Collection("Ui")]
 public class MainWindowTests
 {
@@ -88,7 +89,7 @@ public class MainWindowTests
         var next = Shortcut(
             KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
             KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab);
-        var handledNext = mounted.Window.TryHandleRegisteredTabShortcut(next.Key, next.KeyModifiers);
+        var handledNext = RaiseKey(mounted.Window, next.Key, next.KeyModifiers);
 
         Assert.True(handledNext);
         Assert.Same(first, root.Workspace.CurrentTab);
@@ -96,7 +97,7 @@ public class MainWindowTests
         var previous = Shortcut(
             KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
             KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab);
-        var handledPrevious = mounted.Window.TryHandleRegisteredTabShortcut(previous.Key, previous.KeyModifiers);
+        var handledPrevious = RaiseKey(mounted.Window, previous.Key, previous.KeyModifiers);
 
         Assert.True(handledPrevious);
         Assert.Same(third, root.Workspace.CurrentTab);
@@ -140,66 +141,36 @@ public class MainWindowTests
     }
 
     [AvaloniaFact]
-    public async Task MainWindow_HandlesRegisteredTabShortcutFromRawKeyUp_WhenRawKeyDownIsMissing()
+    public async Task MainWindow_PlatformAttachmentHandlesTabIntent_AndEndsOnClose()
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
-
         var root = CreateRoot();
         var first = new TestTabPageViewModel();
-        var second = new TestTabPageViewModel();
         root.Workspace.OpenOrFocus(first);
-        root.Workspace.OpenOrFocus(second);
+        root.Workspace.OpenOrFocus(new TestTabPageViewModel());
+        var behavior = Substitute.For<IWindowBehavior>();
+        var attachment = Substitute.For<IDisposable>();
+        Func<Key, KeyModifiers, bool>? handle = null;
+        behavior.Attach(Arg.Any<Avalonia.Controls.Window>(), Arg.Any<Func<Key, KeyModifiers, bool>>())
+            .Returns(call =>
+            {
+                handle = call.Arg<Func<Key, KeyModifiers, bool>>();
+                return attachment;
+            });
 
-        await using var mounted = await MountAsync(new MainWindow
+        await using var mounted = await MountAsync(new MainWindow(behavior)
         {
             DataContext = root,
             Width = 900,
             Height = 700,
         });
 
-        var handled = mounted.Window.TryHandleRawTabShortcut(
-            RawKeyEventType.KeyUp,
-            Key.Tab,
-            KeyModifiers.Control);
-
-        Assert.True(handled);
+        Assert.True(handle!(Key.Tab, KeyModifiers.Control));
         Assert.Same(first, root.Workspace.CurrentTab);
-    }
-
-    [AvaloniaFact]
-    public async Task MainWindow_SuppressesRawTabKeyUp_WhenRawKeyDownAlreadyHandledShortcut()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
-
-        var root = CreateRoot();
-        var first = new TestTabPageViewModel();
-        var second = new TestTabPageViewModel();
-        root.Workspace.OpenOrFocus(first);
-        root.Workspace.OpenOrFocus(second);
-
-        await using var mounted = await MountAsync(new MainWindow
-        {
-            DataContext = root,
-            Width = 900,
-            Height = 700,
-        });
-
-        var handledDown = mounted.Window.TryHandleRawTabShortcut(
-            RawKeyEventType.KeyDown,
-            Key.Tab,
-            KeyModifiers.Control);
-        var selectedAfterDown = root.Workspace.CurrentTab;
-        var handledUp = mounted.Window.TryHandleRawTabShortcut(
-            RawKeyEventType.KeyUp,
-            Key.Tab,
-            KeyModifiers.Control);
-
-        Assert.True(handledDown);
-        Assert.True(handledUp);
-        Assert.Same(first, selectedAfterDown);
-        Assert.Same(first, root.Workspace.CurrentTab);
+        attachment.DidNotReceive().Dispose();
+        mounted.Window.Close();
+        attachment.Received(1).Dispose();
     }
 
     [AvaloniaFact]
@@ -224,19 +195,24 @@ public class MainWindowTests
             KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab,
             index: 1);
 
-        Assert.False(mounted.Window.TryHandleRegisteredTabShortcut(
+        Assert.False(RaiseKey(mounted.Window,
             bracketShortcut.Key,
             bracketShortcut.KeyModifiers));
         Assert.Same(first, root.Workspace.CurrentTab);
     }
 
-    [AvaloniaFact]
-    public async Task MainWindow_AutomationPeer_BlocksDescentFocusAndHitTest_OnMacOS()
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MainWindow_AutomationPeer_FollowsPlatformBehavior(bool useMacBehavior)
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
-        await using var mounted = await MountAsync(new MainWindow
+        var behavior = Substitute.For<IWindowBehavior>();
+        behavior.CreateAutomationPeer(Arg.Any<Avalonia.Controls.Window>())
+            .Returns(call => new InertWindowAutomationPeer(call.Arg<Avalonia.Controls.Window>()));
+        await using var mounted = await MountAsync(new MainWindow(useMacBehavior ? behavior : null)
         {
             DataContext = CreateRoot(),
             Width = 900,
@@ -245,15 +221,13 @@ public class MainWindowTests
 
         var peer = ControlAutomationPeer.CreatePeerForElement(mounted.Window);
 
-        if (OperatingSystem.IsMacOS())
+        if (useMacBehavior)
         {
-            Assert.IsType<InertWindowAutomationPeer>(peer);
             Assert.Empty(peer.GetChildren());
             Assert.Null(peer.GetProvider<IRootProvider>());
         }
         else
         {
-            Assert.IsNotType<InertWindowAutomationPeer>(peer);
             Assert.NotNull(peer.GetProvider<IRootProvider>());
         }
     }
@@ -268,6 +242,19 @@ public class MainWindowTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         return new MountedMainWindow(window);
+    }
+
+    private static bool RaiseKey(MainWindow window, Key key, KeyModifiers modifiers)
+    {
+        var args = new KeyEventArgs
+        {
+            RoutedEvent = InputElement.KeyDownEvent,
+            Source = window,
+            Key = key,
+            KeyModifiers = modifiers,
+        };
+        window.RaiseEvent(args);
+        return args.Handled;
     }
 
     private static bool HasGesture(KeyBinding binding, KeyGesture expected) =>

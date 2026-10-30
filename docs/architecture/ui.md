@@ -130,7 +130,10 @@ Thread ownership is explicit:
   calls `MapViewModel.InitializeAsync()` only the first time the map state
   reserves layout (`SurfacePresentationState.ReservesLayout`); `Hidden` map
   state does not initialize the map.
-- On macOS, `MainWindow` returns an inert window automation peer
+- `MainWindow` accepts an optional `IWindowBehavior`, owns its attachment until
+  close, and delegates automation-peer creation to it. Only the macOS head
+  registers an implementation. It owns the raw Control+Tab key-up workaround
+  and returns an inert window automation peer
   (`InertWindowAutomationPeer`): it has no automation children and stops
   advertising `IRootProvider`. The native bridge otherwise materializes peers
   through two root-provider paths that bypass tree descent —

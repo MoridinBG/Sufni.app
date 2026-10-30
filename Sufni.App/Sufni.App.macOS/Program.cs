@@ -6,6 +6,7 @@ using System.IO;
 using Sufni.App.Desktop;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Video.Models;
 namespace Sufni.App.macOS
 {
@@ -39,6 +40,7 @@ namespace Sufni.App.macOS
                 AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Workspace),
                 services =>
                 {
+                    services.AddSingleton<IWindowBehavior, MacOsWindowBehavior>();
                     services.AddSingleton<ISecureStorage, MacOsSecureStorage>();
                     services.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
                     DesktopAppBootstrapper.RegisterDesktopSync(services);
