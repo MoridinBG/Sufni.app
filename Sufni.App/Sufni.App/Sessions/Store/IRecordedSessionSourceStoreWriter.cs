@@ -13,7 +13,7 @@ public interface IRecordedSessionSourceStoreWriter : IRecordedSessionSourceStore
 {
     Task ReplaceAllAsync(IReadOnlyList<RecordedSessionSourceSnapshot> snapshots);
     Task PublishSourcesChangedAsync(
-        IReadOnlyCollection<Guid> sessionIds,
+        IReadOnlyCollection<RecordedSessionSourceSnapshot> snapshots,
         CancellationToken cancellationToken = default);
 
     Task PublishSourcesRemovedAsync(

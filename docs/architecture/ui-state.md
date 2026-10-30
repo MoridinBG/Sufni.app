@@ -67,7 +67,7 @@ Each persisted writer interface additionally exposes:
   cancellation or load failure leaves the previously published state intact.
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
-- `BikeStore`, `SetupStore` and `PairedDeviceStore` are publish-only: their writers accept prepared snapshots
+- `BikeStore`, `SetupStore`, `RecordedSessionSourceStore` and `PairedDeviceStore` are publish-only: their writers accept prepared snapshots
   or ids to remove, and have no repository dependencies. Bike save/cutoff/delete
   persistence belongs to `BikeCoordinator`; save checks its snapshot baseline
   once after analysis, before writing. `SetupCoordinator` publishes the setup
@@ -109,14 +109,13 @@ staleness state.
 
 `RecordedSessionSourceStore` is the metadata cache for
 `session_recording_source`: source kind, source name, schema version,
-and source hash. The full payload is not kept in the store; callers
-use `LoadAsync(sessionId)` to load a `RecordedSessionSource` from
-SQLite when recompute needs the bytes. The writer surface refreshes or
-publishes changed/removed source snapshots after coordinators,
-transaction runners, sync appliers, or repositories have already changed
-persistence; it does not write source rows itself. Sync-server source
-arrivals are applied through `SessionCoordinator` so this store still has
-one application-layer writer.
+and source hash. The full payload is not kept in the store. Recompute loads it directly through
+`IRecordedSessionSourceRepository`; the store exposes metadata only. Import and
+live save publish prepared metadata from the persisted source, and client sync
+collects the metadata of committed transfers before publishing once, including
+when another transfer is canceled or fails. `SessionSyncApplier` reads source
+metadata off-thread for a server arrival, then publishes it or removes a missing
+source. Stores never read repositories to prepare publication.
 
 `SetupStore` exposes `FindByBoardId(Guid)` so the import flow can
 look up the existing setup for the currently selected DAQ board

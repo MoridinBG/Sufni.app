@@ -468,7 +468,7 @@ public class SynchronizationClientServiceTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService().SyncAll());
 
             await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
                 Arg.Any<CancellationToken>());
             await syncDataStore.Received(1).UpdateLastPushTimeAsync(
                 SynchronizationClientService.SyncStateKey,
@@ -491,7 +491,7 @@ public class SynchronizationClientServiceTests
                 saved.SourceHash == source.SourceHash &&
                 saved.Payload.SequenceEqual(source.Payload)));
             await sourceStore.Received(1).PublishSourcesChangedAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(source.SessionId)),
+                Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(source.SessionId)),
                 Arg.Any<CancellationToken>());
             return;
         }
@@ -499,7 +499,7 @@ public class SynchronizationClientServiceTests
         await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(
             Arg.Any<RecordedSessionSource>());
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
             Arg.Any<CancellationToken>());
     }
 
@@ -528,10 +528,10 @@ public class SynchronizationClientServiceTests
             saved.SessionId == second.SessionId &&
             saved.Payload.SequenceEqual(second.Payload)));
         await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids =>
+            Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids =>
                 ids.Count == 2 &&
-                ids.Contains(first.SessionId) &&
-                ids.Contains(second.SessionId)),
+                ids.Select(snapshot => snapshot.SessionId).Contains(first.SessionId) &&
+                ids.Select(snapshot => snapshot.SessionId).Contains(second.SessionId)),
             Arg.Any<CancellationToken>());
     }
 

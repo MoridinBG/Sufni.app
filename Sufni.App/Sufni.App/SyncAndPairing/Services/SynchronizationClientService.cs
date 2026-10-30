@@ -237,7 +237,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         var incompleteSourceIds = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
         var downloadedCount = 0;
-        var committedSourceIds = new ConcurrentBag<Guid>();
+        var committedSources = new ConcurrentBag<RecordedSessionSourceSnapshot>();
 
         try
         {
@@ -254,17 +254,18 @@ public class SynchronizationClientService : ISynchronizationClientService
                         return;
                     }
 
-                    await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(FromPayload(source));
-                    committedSourceIds.Add(source.SessionId);
+                    var stored = FromPayload(source);
+                    await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(stored);
+                    committedSources.Add(RecordedSessionSourceSnapshot.From(stored));
                     Interlocked.Increment(ref downloadedCount);
                 }
             });
         }
         finally
         {
-            if (!committedSourceIds.IsEmpty)
+            if (!committedSources.IsEmpty)
             {
-                await sourceStore.PublishSourcesChangedAsync(committedSourceIds.ToArray());
+                await sourceStore.PublishSourcesChangedAsync(committedSources.ToArray());
             }
         }
 

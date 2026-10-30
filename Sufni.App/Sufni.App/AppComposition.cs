@@ -184,7 +184,8 @@ public static class AppComposition
             sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
-            sp.GetRequiredService<IRecordedSessionReprocessor>()));
+            sp.GetRequiredService<IRecordedSessionReprocessor>(),
+            sp.GetRequiredService<IRecordedSessionSourceRepository>()));
         services.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
         services.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
         services.AddSingleton<SessionCommandService>(sp => new SessionCommandService(
@@ -205,6 +206,8 @@ public static class AppComposition
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
                 sp.GetRequiredService<IUiThreadDispatcher>(),
+                sp.GetRequiredService<IRecordedSessionSourceRepository>(),
+                sp.GetRequiredService<IBackgroundTaskRunner>(),
                 sp.GetRequiredService<ISynchronizationServerService>()));
         }
         services.AddSingleton<ISessionCoordinator, SessionCoordinator>();

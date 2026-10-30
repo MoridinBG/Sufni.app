@@ -165,7 +165,7 @@ public class ImportSessionsCoordinator(
             var totalToProcess = files.Count(f => f.ShouldBeImported is not false);
             var processedCount = 0;
             var progressGate = new object();
-            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot Snapshot)>();
+            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot Snapshot, RecordedSessionSourceSnapshot Source)>();
             var failuresQueue = new ConcurrentQueue<SessionImportFailure>();
 
             void Report(SessionImportEvent importEvent)
@@ -324,7 +324,7 @@ public class ImportSessionsCoordinator(
                                 source);
 
                             var snapshot = SessionSnapshot.From(persisted);
-                            committedImports.Add((telemetryFile, snapshot));
+                            committedImports.Add((telemetryFile, snapshot, RecordedSessionSourceSnapshot.From(source)));
                         }
                         catch (Exception e)
                         {
@@ -376,7 +376,7 @@ public class ImportSessionsCoordinator(
                 try
                 {
                     await sessionStore.PublishSessionsChangedAsync(importedSessionIds);
-                    await sourceStore.PublishSourcesChangedAsync(importedSessionIds);
+                    await sourceStore.PublishSourcesChangedAsync(committedEntries.Select(entry => entry.Source).ToArray());
                 }
                 catch (Exception e)
                 {

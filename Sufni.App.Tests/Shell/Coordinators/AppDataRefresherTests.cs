@@ -160,7 +160,7 @@ public class AppDataRefresherTests
             Bikes = new BikeStore(Publication);
             Setups = new SetupStore(Publication);
             Sessions = new SessionStore(sessionRepository, Substitute.For<ISessionTelemetryWriter>(), Publication);
-            Sources = new RecordedSessionSourceStore(sourceRepository, Publication);
+            Sources = new RecordedSessionSourceStore(Publication);
             Devices = new PairedDeviceStore(Publication);
             Videos = new SessionVideoStore(Publication);
             Segments = new SessionSegmentStore(Publication);

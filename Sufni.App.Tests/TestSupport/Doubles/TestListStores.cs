@@ -120,9 +120,6 @@ internal sealed class RecordedSourceStoreStub : IRecordedSessionSourceStore, IDi
         return result.HasValue ? result.Value : null;
     }
 
-    public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default) =>
-        Task.FromResult<RecordedSessionSource?>(null);
-
     public void Add(RecordedSessionSourceSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
     public void Dispose() => cache.Dispose();

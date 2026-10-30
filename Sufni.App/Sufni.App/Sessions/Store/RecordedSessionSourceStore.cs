@@ -1,69 +1,25 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Sufni.App.Shared.Stores;
 using Sufni.App.Shared.Base;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Services;
+
 namespace Sufni.App.Sessions.Store;
 
-/// <summary>
-/// Reactive metadata cache for recorded-session raw sources.
-/// It keeps source identity and hash information in a DynamicData cache and
-/// leaves payload retrieval to explicit load calls.
-/// </summary>
-internal sealed class RecordedSessionSourceStore(
-    IRecordedSessionSourceRepository sourceRepository,
-    StorePublication publication)
-    : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(s => s.SessionId, publication), IRecordedSessionSourceStoreWriter
+/// <summary>Shared metadata for recorded sources; payloads remain in the repository.</summary>
+internal sealed class RecordedSessionSourceStore(StorePublication publication)
+    : SourceCacheStoreBase<RecordedSessionSourceSnapshot, Guid>(source => source.SessionId, publication), IRecordedSessionSourceStoreWriter
 {
-    public Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default)
+    public Task PublishSourcesChangedAsync(IReadOnlyCollection<RecordedSessionSourceSnapshot> snapshots, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return sourceRepository.GetRecordedSessionSourceAsync(sessionId);
+        return PublishSnapshotsAsync(snapshots);
     }
 
-    public async Task PublishSourcesChangedAsync(
-        IReadOnlyCollection<Guid> sessionIds,
-        CancellationToken cancellationToken = default)
-    {
-        var snapshots = new List<RecordedSessionSourceSnapshot>();
-        var removedIds = new List<Guid>();
-
-        foreach (var sessionId in sessionIds.Distinct())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = await sourceRepository.GetRecordedSessionSourceSnapshotAsync(sessionId);
-            if (snapshot is null)
-            {
-                removedIds.Add(sessionId);
-            }
-            else
-            {
-                snapshots.Add(snapshot);
-            }
-        }
-
-        if (snapshots.Count > 0)
-        {
-            await PublishSnapshotsAsync(snapshots);
-        }
-
-        if (removedIds.Count > 0)
-        {
-            await PublishRemovalsAsync(removedIds);
-        }
-    }
-
-    public Task PublishSourcesRemovedAsync(
-        IReadOnlyCollection<Guid> sessionIds,
-        CancellationToken cancellationToken = default)
+    public Task PublishSourcesRemovedAsync(IReadOnlyCollection<Guid> sessionIds, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return PublishRemovalsAsync(sessionIds.Distinct());
+        return PublishRemovalsAsync(sessionIds);
     }
-
 }

@@ -14,6 +14,8 @@ public sealed class SessionSyncApplier
     private static readonly ILogger logger = Log.ForContext<SessionSyncApplier>();
 
     private readonly IUiThreadDispatcher uiThreadDispatcher;
+    private readonly IRecordedSessionSourceRepository sourceRepository;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionStoreWriter sessionStore;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
 
@@ -21,11 +23,15 @@ public sealed class SessionSyncApplier
         ISessionStoreWriter sessionStore,
         IRecordedSessionSourceStoreWriter sourceStore,
         IUiThreadDispatcher uiThreadDispatcher,
+        IRecordedSessionSourceRepository sourceRepository,
+        IBackgroundTaskRunner backgroundTaskRunner,
         ISynchronizationServerService? synchronizationServer = null)
     {
         this.sessionStore = sessionStore;
         this.sourceStore = sourceStore;
         this.uiThreadDispatcher = uiThreadDispatcher;
+        this.sourceRepository = sourceRepository;
+        this.backgroundTaskRunner = backgroundTaskRunner;
 
         if (synchronizationServer is not null)
         {
@@ -114,6 +120,10 @@ public sealed class SessionSyncApplier
     {
         logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
 
-        await sourceStore.PublishSourcesChangedAsync([e.SessionId]);
+        var snapshot = await backgroundTaskRunner.RunAsync(() => sourceRepository.GetRecordedSessionSourceSnapshotAsync(e.SessionId));
+        if (snapshot is null)
+            await sourceStore.PublishSourcesRemovedAsync([e.SessionId]);
+        else
+            await sourceStore.PublishSourcesChangedAsync([snapshot]);
     }
 }

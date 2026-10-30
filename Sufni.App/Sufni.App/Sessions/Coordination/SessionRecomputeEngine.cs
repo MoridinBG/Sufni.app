@@ -78,6 +78,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
+    private readonly IRecordedSessionSourceRepository sourceRepository;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
     private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
 
@@ -100,7 +101,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         IRecordedSessionProcessingOptionCache processingOptionCache,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
-        IRecordedSessionReprocessor recordedSessionReprocessor)
+        IRecordedSessionReprocessor recordedSessionReprocessor,
+        IRecordedSessionSourceRepository sourceRepository)
     {
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
@@ -109,6 +111,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.processingOptionCache = processingOptionCache;
         this.sourceStore = sourceStore;
+        this.sourceRepository = sourceRepository;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
         this.recordedSessionReprocessor = recordedSessionReprocessor;
     }
@@ -306,7 +309,8 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             }
 
             var sourceSessionId = domain.Session.RecordingSourceSessionId;
-            var source = await sourceStore.LoadAsync(sourceSessionId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = await sourceRepository.GetRecordedSessionSourceAsync(sourceSessionId);
             if (source is null)
             {
                 logger.Warning(
@@ -322,7 +326,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             var loadedSourceSnapshot = RecordedSessionSourceSnapshot.From(source);
             if (domain.Source != loadedSourceSnapshot)
             {
-                await sourceStore.PublishSourcesChangedAsync([source.SessionId], cancellationToken);
+                await sourceStore.PublishSourcesChangedAsync([loadedSourceSnapshot], cancellationToken);
                 domain = recordedSessionDomainQuery.Get(sessionId);
                 if (domain is null)
                 {

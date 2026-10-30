@@ -169,7 +169,7 @@ public class SessionCoordinatorTests
                 source.SourceKind == RecordedSessionSourceKind.LiveCapture &&
                 source.SourceName == "live"));
         await sourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
+            Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(session.Id)),
             Arg.Any<CancellationToken>());
         await sessionStore.Received(1).PublishSessionsChangedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(session.Id)),
@@ -209,7 +209,7 @@ public class SessionCoordinatorTests
         if (sourcePublicationFails)
         {
             sourceStore.PublishSourcesChangedAsync(
-                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
                     Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("source publish failed"));
         }
@@ -258,7 +258,7 @@ public class SessionCoordinatorTests
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());
         await sourceStore.DidNotReceive().PublishSourcesChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
             Arg.Any<CancellationToken>());
     }
 

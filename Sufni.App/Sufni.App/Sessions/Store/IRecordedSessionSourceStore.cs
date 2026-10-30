@@ -1,19 +1,14 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using DynamicData;
 
-using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Store;
 
 /// <summary>
 /// Read side of the recorded-session source cache.
-/// It exposes lightweight source metadata reactively while keeping full raw
-/// source payload loading as an explicit operation.
+/// Exposes lightweight source metadata without loading raw payloads.
 /// </summary>
 public interface IRecordedSessionSourceStore
 {
     IObservable<IChangeSet<RecordedSessionSourceSnapshot, Guid>> Connect();
     RecordedSessionSourceSnapshot? Get(Guid sessionId);
-    Task<RecordedSessionSource?> LoadAsync(Guid sessionId, CancellationToken cancellationToken = default);
 }

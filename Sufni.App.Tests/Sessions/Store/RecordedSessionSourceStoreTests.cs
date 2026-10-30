@@ -1,90 +1,45 @@
-using Sufni.App.Shared.Stores;
 using DynamicData;
-using NSubstitute;
-
-using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Services;
+using Sufni.App.Shared.Stores;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Tests.TestSupport.Persistence;
+
 namespace Sufni.App.Tests.Sessions.Store;
 
 public class RecordedSessionSourceStoreTests
 {
-    private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
-    private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
-
     [Fact]
-    public async Task PublishSourcesChangedAsync_ReReadsAndPublishesMetadataSnapshot()
+    public async Task Publication_UpdatesObservedMetadata_AndRemovesBySourceSessionId()
     {
-        var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
+        using var store = new RecordedSessionSourceStore(new StorePublication(new InlineUiThreadDispatcher()));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
-        var source = CreateSource();
-        var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-        sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)
-            .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(sourceSnapshot));
+        var source = RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid()));
+        await store.PublishSourcesChangedAsync([source], TestContext.Current.CancellationToken);
+        var updated = source with { SourceName = "renamed.SST" };
 
-        await store.PublishSourcesChangedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
+        await store.PublishSourcesChangedAsync([updated], TestContext.Current.CancellationToken);
 
-        _ = sourceRepository.DidNotReceiveWithAnyArgs().PutRecordedSessionSourceAsync(default!);
-        var snapshot = Assert.Single(snapshots);
-        Assert.Equal(source.SessionId, snapshot.SessionId);
-        Assert.Equal(source.SourceKind, snapshot.SourceKind);
-        Assert.Equal(source.SourceName, snapshot.SourceName);
-        Assert.Equal(source.SchemaVersion, snapshot.SchemaVersion);
-        Assert.Equal(source.SourceHash, snapshot.SourceHash);
-        Assert.Equal(snapshot, store.Get(source.SessionId));
-    }
+        Assert.Equal(updated, Assert.Single(snapshots));
+        Assert.Equal(updated, store.Get(source.SessionId));
 
-    [Fact]
-    public async Task ReplaceAllAsync_ReplacesCachedMetadata()
-    {
-        var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
-        using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
-        var removed = CreateSource(name: "removed.SST");
-        var kept = CreateSource(name: "kept.SST");
-
-        sourceRepository.GetRecordedSessionSourceSnapshotAsync(removed.SessionId)
-            .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(removed)));
-        await store.PublishSourcesChangedAsync([removed.SessionId], cancellationToken: TestContext.Current.CancellationToken);
-
-        await store.ReplaceAllAsync([RecordedSessionSourceSnapshot.From(kept)]);
-
-        var snapshot = Assert.Single(snapshots);
-        Assert.Equal(kept.SessionId, snapshot.SessionId);
-        Assert.Null(store.Get(removed.SessionId));
-        Assert.Equal(kept.SourceHash, store.Get(kept.SessionId)!.SourceHash);
-    }
-
-    [Fact]
-    public async Task PublishSourcesRemovedAsync_RemovesCachedSnapshot()
-    {
-        var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
-        using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
-        var source = CreateSource();
-        sourceRepository.GetRecordedSessionSourceSnapshotAsync(source.SessionId)
-            .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(source)));
-        await store.PublishSourcesChangedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
-
-        await store.PublishSourcesRemovedAsync([source.SessionId], cancellationToken: TestContext.Current.CancellationToken);
+        await store.PublishSourcesRemovedAsync([source.SessionId], TestContext.Current.CancellationToken);
 
         Assert.Empty(snapshots);
         Assert.Null(store.Get(source.SessionId));
     }
 
-    private static RecordedSessionSource CreateSource(string name = "recording.SST")
+    [Fact]
+    public async Task ReplaceAllAsync_ReplacesCachedMetadata()
     {
-        var payload = new byte[] { 1, 2, 3, 4 };
-        return new RecordedSessionSource
-        {
-            SessionId = Guid.NewGuid(),
-            SourceKind = RecordedSessionSourceKind.ImportedSst,
-            SourceName = name,
-            SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                name,
-                1,
-                payload),
-            Payload = payload
-        };
+        using var store = new RecordedSessionSourceStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
+        var old = RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid()));
+        var replacement = RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid()));
+        await store.PublishSourcesChangedAsync([old], TestContext.Current.CancellationToken);
+
+        await store.ReplaceAllAsync([replacement]);
+
+        Assert.Equal(replacement, Assert.Single(snapshots));
+        Assert.Null(store.Get(old.SessionId));
+        Assert.Equal(replacement, store.Get(replacement.SessionId));
     }
 }

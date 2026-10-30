@@ -47,7 +47,7 @@ public class ImportSessionsCoordinatorTests
                 return Task.CompletedTask;
             });
         harness.SourceStore.PublishSourcesChangedAsync(
-                Arg.Any<IReadOnlyCollection<Guid>>(),
+                Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
                 Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
@@ -90,7 +90,7 @@ public class ImportSessionsCoordinatorTests
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
             Arg.Any<CancellationToken>());
         await harness.SourceStore.Received(1).PublishSourcesChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
+            Arg.Is<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(ids => ids.Count == 1 && ids.Select(snapshot => snapshot.SessionId).Contains(imported.Id)),
             Arg.Any<CancellationToken>());
         await file.Received(1).OnImported();
         Assert.Contains(states, state => state is SessionImportState.Running { Current: 1, Total: 1 });
@@ -110,7 +110,7 @@ public class ImportSessionsCoordinatorTests
         if (sourcePublicationFails)
         {
             harness.SourceStore.PublishSourcesChangedAsync(
-                    Arg.Any<IReadOnlyCollection<Guid>>(),
+                    Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(),
                     Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("source publish failed"));
         }

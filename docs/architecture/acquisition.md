@@ -60,7 +60,7 @@ The import-sessions feature is the canonical worked example of the current bound
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads persistence repositories directly.
 - It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses the coordinator's `SessionImportState.Running` as its busy-state source of truth.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
-- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
+- `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store publication (source metadata is prepared from the committed recording), background execution, and per-file progress reporting.
 
 `ImportSessionsCoordinator` retains one active task and the latest
 `SessionImportState` for the application lifetime. A second start while that task

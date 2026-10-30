@@ -183,7 +183,7 @@ public sealed class SessionCommandService
             try
             {
                 await sessionStore.PublishSessionsChangedAsync([snapshot.Id], cancellationToken);
-                await sourceStore.PublishSourcesChangedAsync([sourceSnapshot.SessionId], cancellationToken);
+                await sourceStore.PublishSourcesChangedAsync([sourceSnapshot]);
             }
             catch (Exception e)
             {

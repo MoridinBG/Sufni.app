@@ -25,6 +25,7 @@ public class SessionRecomputeEngineTests
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
     private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
     private readonly IRecordedSessionProcessingOptionCache processingOptionCache = Substitute.For<IRecordedSessionProcessingOptionCache>();
+    private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
     private readonly IRecordedSessionReprocessor reprocessor = Substitute.For<IRecordedSessionReprocessor>();
@@ -38,7 +39,8 @@ public class SessionRecomputeEngineTests
         processingOptionCache,
         sourceStore,
         domainQuery,
-        reprocessor);
+        reprocessor,
+        sourceRepository);
 
     public SessionRecomputeEngineTests()
     {
@@ -68,7 +70,7 @@ public class SessionRecomputeEngineTests
             DerivedChangeKind.None);
 
         domainQuery.Get(sessionId).Returns(domain);
-        sourceStore.LoadAsync(sessionId, Arg.Any<CancellationToken>()).Returns(source);
+        sourceRepository.GetRecordedSessionSourceAsync(sessionId).Returns(source);
         var persisted = new Session(sessionId, "session", "desc", setupId, 100)
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
@@ -288,7 +290,7 @@ public class SessionRecomputeEngineTests
             new SessionStaleness.SourceWindowChanged(),
             DerivedChangeKind.None);
         domainQuery.Get(sessionId).Returns(domain);
-        sourceStore.LoadAsync(sourceSessionId, Arg.Any<CancellationToken>()).Returns(source);
+        sourceRepository.GetRecordedSessionSourceAsync(sourceSessionId).Returns(source);
         var persisted = new Session(sessionId, "derived", "desc", setupId, 100)
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
@@ -311,8 +313,8 @@ public class SessionRecomputeEngineTests
             .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await sourceStore.Received(1).LoadAsync(sourceSessionId, Arg.Any<CancellationToken>());
-        await sourceStore.DidNotReceive().LoadAsync(sessionId, Arg.Any<CancellationToken>());
+        await sourceRepository.Received(1).GetRecordedSessionSourceAsync(sourceSessionId);
+        await sourceRepository.DidNotReceive().GetRecordedSessionSourceAsync(sessionId);
         await reprocessor.Received(1).ReprocessAsync(
             Arg.Is<RecordedSessionDomainSnapshot>(value => value.Session.DerivationWindow == window),
             Arg.Is<RecordedSessionSource>(value => value.SessionId == sourceSessionId),
