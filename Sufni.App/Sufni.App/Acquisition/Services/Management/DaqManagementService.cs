@@ -13,11 +13,6 @@ internal sealed class DaqManagementService : IDaqManagementService
     private readonly TimeSpan ioTimeout;
     private readonly TimeSpan commitTimeout;
 
-    public DaqManagementService()
-        : this(TimeProvider.System)
-    {
-    }
-
     public DaqManagementService(TimeProvider timeProvider)
         : this(
             timeProvider,

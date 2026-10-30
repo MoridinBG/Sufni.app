@@ -745,7 +745,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task Frames_TwoTravelFramesBeforeFlush_ProduceSingleMergedBatchWithIndependentSignalRevision()
     {
-        var pipeline = new LiveSignalPipeline(TimeSpan.FromMilliseconds(200), Logger.None);
+        var pipeline = new LiveSignalPipeline(TimeSpan.FromMilliseconds(200), Logger.None, TimeProvider.System);
         var service = new LiveSessionService(
             CreateSessionContext(),
             sharedStream,
@@ -942,7 +942,7 @@ public class LiveSessionServiceTests
         ILiveSignalPipeline? signalPipeline = null,
         LiveDaqSessionContext? context = null)
     {
-        var pipeline = signalPipeline ?? new LiveSignalPipeline(TimeSpan.FromMilliseconds(5), Logger.None);
+        var pipeline = signalPipeline ?? new LiveSignalPipeline(TimeSpan.FromMilliseconds(5), Logger.None, TimeProvider.System);
         return new LiveSessionService(
             context ?? CreateSessionContext(),
             sharedStream,

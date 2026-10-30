@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using Microsoft.Extensions.Time.Testing;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -241,6 +241,8 @@ public class DaqManagementServiceTests
     public async Task SetTimeAsync_UsesTrimmedAverageAcrossFivePingSamples()
     {
         await using var server = new ManagementTestServer();
+        var timeProvider = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(1_700_000_000));
+        int[] roundTripMilliseconds = [10, 50, 20, 30, 40];
         var observedRequestIds = new List<uint>();
         var serverTask = server.RunSessionAsync(async stream =>
         {
@@ -249,46 +251,17 @@ public class DaqManagementServiceTests
             {
                 var ping = Assert.IsType<ManagementPingFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
                 observedRequestIds.Add(ping.RequestId);
+                timeProvider.Advance(TimeSpan.FromMilliseconds(roundTripMilliseconds[i]));
                 await ManagementTestServer.WriteFrameAsync(stream, ManagementProtocolTestFrames.CreatePongFrame(ping.RequestId));
             }
 
             var setTime = Assert.IsType<ManagementSetTimeRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             observedRequestIds.Add(setTime.RequestId);
             Assert.Equal((uint)1_700_000_000, setTime.UtcSeconds);
-            Assert.Equal((uint)315_000, setTime.Microseconds);
+            Assert.Equal((uint)98_333, setTime.Microseconds);
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateActionResultFrame(setTime.RequestId, 0));
         });
-
-        var baseInstant = DateTimeOffset.FromUnixTimeSeconds(1_700_000_000);
-        TimeSpan[] roundTrips =
-        [
-            TimeSpan.FromMilliseconds(10),
-            TimeSpan.FromMilliseconds(50),
-            TimeSpan.FromMilliseconds(20),
-            TimeSpan.FromMilliseconds(30),
-            TimeSpan.FromMilliseconds(40)
-        ];
-        var timestampValues = new List<long>();
-        long cursor = 0;
-        foreach (var roundTrip in roundTrips)
-        {
-            timestampValues.Add(cursor);
-            cursor += ToStopwatchTicks(roundTrip);
-            timestampValues.Add(cursor);
-            cursor += ToStopwatchTicks(TimeSpan.FromMilliseconds(1));
-        }
-
-        var timeProvider = new ScriptedTimeProvider(
-            utcNowValues:
-            [
-                baseInstant,
-                baseInstant.AddMilliseconds(100),
-                baseInstant.AddMilliseconds(200),
-                baseInstant.AddMilliseconds(300),
-                baseInstant.AddMilliseconds(400)
-            ],
-            timestampValues: timestampValues);
 
         var result = await CreateService(timeProvider).SetTimeAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
@@ -358,31 +331,9 @@ public class DaqManagementServiceTests
         TimeSpan? ioTimeout = null,
         TimeSpan? commitTimeout = null) =>
         new(
-            timeProvider ?? TimeProvider.System,
+            timeProvider ?? new FakeTimeProvider(),
             connectTimeout ?? TimeSpan.FromSeconds(1),
             ioTimeout ?? TimeSpan.FromSeconds(1),
             commitTimeout ?? TimeSpan.FromSeconds(1));
 
-    private sealed class ScriptedTimeProvider : TimeProvider
-    {
-        private readonly Queue<DateTimeOffset> utcNowValues;
-        private readonly Queue<long> timestampValues;
-
-        public ScriptedTimeProvider(
-            IEnumerable<DateTimeOffset> utcNowValues,
-            IEnumerable<long> timestampValues)
-        {
-            this.utcNowValues = new Queue<DateTimeOffset>(utcNowValues);
-            this.timestampValues = new Queue<long>(timestampValues);
-        }
-
-        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
-
-        public override DateTimeOffset GetUtcNow() => utcNowValues.Dequeue();
-
-        public override long GetTimestamp() => timestampValues.Dequeue();
-    }
-
-    private static long ToStopwatchTicks(TimeSpan duration) =>
-        (long)Math.Round(duration.TotalSeconds * Stopwatch.Frequency, MidpointRounding.AwayFromZero);
 }

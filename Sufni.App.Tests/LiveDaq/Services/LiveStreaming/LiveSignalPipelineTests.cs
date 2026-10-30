@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using System.Threading.Tasks;
-using Serilog;
+using Sufni.App.Tests.TestSupport.Async;
 using Serilog.Core;
 
 using Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -14,6 +14,7 @@ public class LiveSignalPipelineTests
 {
     private const int MaxVelocityContextMilliseconds = 127;
     private const int DeadlockProneTestTimeoutMs = 5000;
+    private readonly SignalingFakeTimeProvider time = new();
     private static readonly TimeSpan FlushInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(2);
 
@@ -22,6 +23,7 @@ public class LiveSignalPipelineTests
     {
         await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var times = BuildRampTimes(20);
         var front = BuildLinearTravel(20, startValue: 10);
@@ -31,6 +33,7 @@ public class LiveSignalPipelineTests
 
         pipeline.AppendTravelSamples(times, front, rear);
 
+        time.Advance(FlushInterval);
         var batch = await batchTask;
 
         Assert.Equal(20, batch.TravelTimes.Count);
@@ -46,6 +49,7 @@ public class LiveSignalPipelineTests
     {
         await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var times = new[] { 0.0, 0.01, 0.02 };
         var front = new[] { 10.0, 11.0, 12.0 };
@@ -55,6 +59,7 @@ public class LiveSignalPipelineTests
 
         pipeline.AppendTravelSamples(times, front, rear);
 
+        time.Advance(FlushInterval);
         var batch = await batchTask;
 
         Assert.Equal(3, batch.FrontVelocity.Count);
@@ -67,6 +72,7 @@ public class LiveSignalPipelineTests
     {
         await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var sampleCount = 150;
         var times = BuildRampTimes(sampleCount);
@@ -84,6 +90,7 @@ public class LiveSignalPipelineTests
         pipeline.AppendTravelSamples(times, front, rear);
         pipeline.AppendImuSamples(LiveImuLocation.Frame, imuTimes, imuVibrationRms);
 
+        time.Advance(FlushInterval);
         var batch = await batchTask;
 
         Assert.Equal(sampleCount, batch.TravelTimes.Count);
@@ -102,6 +109,7 @@ public class LiveSignalPipelineTests
     {
         await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var times = new[] { 0.0 };
         var vibrationRms = new[] { 1.5 };
@@ -114,6 +122,7 @@ public class LiveSignalPipelineTests
 
         pipeline.AppendImuSamples(LiveImuLocation.Frame, times, vibrationRms);
 
+        time.Advance(FlushInterval);
         var batch = await batchTask;
 
         Assert.Empty(batch.TravelTimes);
@@ -130,6 +139,7 @@ public class LiveSignalPipelineTests
     {
         await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var times = new[] { 0.0, 0.01 };
         var pitch = new[] { 1.0, 1.5 };
@@ -142,6 +152,7 @@ public class LiveSignalPipelineTests
 
         pipeline.AppendFramePitchRollSamples(times, pitch, roll);
 
+        time.Advance(FlushInterval);
         var batch = await batchTask;
 
         Assert.Empty(batch.TravelTimes);
@@ -157,8 +168,9 @@ public class LiveSignalPipelineTests
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendTravelSamples_TwoCallsBeforeFlush_MergesIntoSingleBatch()
     {
-        await using var pipeline = CreatePipelineWithInterval(TimeSpan.FromMilliseconds(200));
+        await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var timesA = BuildRampTimes(5);
         var frontA = BuildLinearTravel(5, startValue: 10);
@@ -173,6 +185,7 @@ public class LiveSignalPipelineTests
         pipeline.AppendTravelSamples(timesA, frontA, rearA);
         pipeline.AppendTravelSamples(timesB, frontB, rearB);
 
+        time.Advance(FlushInterval);
         var batch = await batchTask;
 
         Assert.Equal(10, batch.FrontTravel.Count);
@@ -184,6 +197,7 @@ public class LiveSignalPipelineTests
     {
         await using var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var times = BuildRampTimes(10);
         var front = BuildLinearTravel(10, startValue: 10);
@@ -191,6 +205,7 @@ public class LiveSignalPipelineTests
 
         var firstBatchTask = WaitForBatchAsync(pipeline, batch => batch.FrontTravel.Count == 10);
         pipeline.AppendTravelSamples(times, front, rear);
+        time.Advance(FlushInterval);
         var firstBatch = await firstBatchTask;
 
         var resetBatchTask = WaitForBatchAsync(
@@ -215,6 +230,7 @@ public class LiveSignalPipelineTests
 
         pipeline.AppendTravelSamples(postResetTimes, postResetFront, postResetRear);
 
+        time.Advance(FlushInterval);
         var postResetBatch = await postResetBatchTask;
         Assert.All(postResetBatch.FrontVelocity, value => Assert.True(double.IsNaN(value)));
     }
@@ -224,6 +240,7 @@ public class LiveSignalPipelineTests
     {
         var pipeline = CreatePipeline();
         pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
 
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var subscription = pipeline.SignalBatches.Subscribe(
@@ -236,15 +253,7 @@ public class LiveSignalPipelineTests
         await completed.Task.AwaitBoundedAsync(Timeout);
     }
 
-    private static LiveSignalPipeline CreatePipeline()
-    {
-        return CreatePipelineWithInterval(FlushInterval);
-    }
-
-    private static LiveSignalPipeline CreatePipelineWithInterval(TimeSpan interval)
-    {
-        return new LiveSignalPipeline(interval, Logger.None);
-    }
+    private LiveSignalPipeline CreatePipeline() => new(FlushInterval, Logger.None, time);
 
     private static Task<LiveSignalBatch> WaitForBatchAsync(
         ILiveSignalPipeline pipeline,

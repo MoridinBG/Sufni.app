@@ -17,6 +17,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
     private const int MinimumVelocityFilterSamples = 5;
 
     private readonly TimeSpan flushInterval;
+    private readonly TimeProvider timeProvider;
     private readonly ILogger logger;
     private readonly System.Threading.Lock gate = new();
     private readonly Subject<LiveSignalBatch> signalBatchesSubject = new();
@@ -35,10 +36,11 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
     private bool isStarted;
     private bool isDisposed;
 
-    public LiveSignalPipeline(TimeSpan flushInterval, ILogger logger)
+    public LiveSignalPipeline(TimeSpan flushInterval, ILogger logger, TimeProvider timeProvider)
     {
         this.flushInterval = flushInterval;
         this.logger = logger;
+        this.timeProvider = timeProvider;
     }
 
     public IObservable<LiveSignalBatch> SignalBatches => signalBatchesSubject.AsObservable();
@@ -210,7 +212,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
     private async Task RunFlushLoopAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(flushInterval);
+        using var timer = new PeriodicTimer(flushInterval, timeProvider);
 
         try
         {

@@ -20,6 +20,8 @@ The management protocol is a separate framed TCP request/response protocol from 
 
 Each top-level method opens a fresh TCP connection, runs one operation, and disposes the connection. `OpenSessionAsync(...)` is the exception: it returns an `IDaqManagementSession` (`Sufni.App/Sufni.App/Acquisition/Services/Management/IDaqManagementSession.cs`) that keeps a single connection open across `GetFileAsync`, `MarkSstUploadedAsync`, and `TrashFileAsync` calls and disposes it on `DisposeAsync()`. List, set-time, and replace-config remain one-shot. `ImportSessionsCoordinator` opens one session for the selected network datastore at the start of a batch and attaches it to the batch's `NetworkTelemetryFile` instances via `AttachSession(...)`. Downloads, trash and post-publication acknowledgements use that session; the coordinator disposes it when the batch finishes.
 
+`DaqManagementService` requires a `TimeProvider` for UTC and monotonic round-trip measurements.
+
 Connection, per-frame I/O, and the `PUT_FILE_COMMIT` reply each have independent timeouts supplied by `DaqManagementService` (5s / 5s / 15s). Connection and operation-validation failures surface as `DaqManagementException`; low-level malformed-frame parsing can still throw `FormatException` from `ManagementProtocolReader`. Protocol-level errors are returned as a typed `DaqManagementResult.Error` / `DaqGetFileResult.Error` / `DaqListDirectoryResult.Error` carrying a mapped `DaqManagementErrorCode` and a human-readable message.
 
 ## Wire Protocol
