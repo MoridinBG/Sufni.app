@@ -31,6 +31,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
     private readonly IAppPreferences appPreferences;
+    private readonly TimeProvider timeProvider;
 
     public SynchronizationClientService(
         ISyncDataStore syncDataStore,
@@ -40,7 +41,8 @@ public class SynchronizationClientService : ISynchronizationClientService
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
-        IAppPreferences appPreferences)
+        IAppPreferences appPreferences,
+        TimeProvider timeProvider)
     {
         this.syncDataStore = syncDataStore;
         this.sessionRepository = sessionRepository;
@@ -50,11 +52,12 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
         this.appPreferences = appPreferences;
+        this.timeProvider = timeProvider;
     }
 
     private async Task PushLocalChanges(long sinceExclusive)
     {
-        var upperInclusive = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var upperInclusive = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         var changes = await syncDataStore.GetSynchronizationDataAsync(
             sinceExclusive,
             upperInclusive);

@@ -214,6 +214,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private Task? startTask;
 
     private readonly string certPath;
+    private readonly TimeProvider timeProvider;
 
     private Task Initialization { get; }
 
@@ -238,7 +239,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
         ISessionBlobSwapRequestStore swapRequestStore,
-        IAppPaths paths)
+        IAppPaths paths,
+        TimeProvider timeProvider)
     {
         this.syncDataStore = syncDataStore;
         this.pairedDeviceRepository = pairedDeviceRepository;
@@ -250,6 +252,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.secureStorage = secureStorage;
         this.swapRequestStore = swapRequestStore;
         certPath = paths.CertificatePath;
+        this.timeProvider = timeProvider;
         Initialization = Init();
     }
 
@@ -382,7 +385,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         req.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
             new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, // Server Auth
             critical: false));
-        var cert = req.CreateSelfSigned(DateTimeOffset.Now, DateTimeOffset.Now.AddYears(5));
+        var now = timeProvider.GetUtcNow();
+        var cert = req.CreateSelfSigned(now, now.AddYears(5));
         var pfx = cert.Export(X509ContentType.Pfx, certPassword);
         await File.WriteAllBytesAsync(certPath, pfx);
     }
@@ -404,7 +408,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
         // Check if the certificate has not expired.
         var cert = X509CertificateLoader.LoadPkcs12FromFile(certPath, certPassword);
-        if (cert.NotAfter < DateTimeOffset.Now)
+        if (cert.NotAfter < timeProvider.GetLocalNow())
         {
             logger.Verbose("Synchronization certificate expired at {CertificateExpiry}; generating a new certificate", cert.NotAfter);
             await GenerateCertificate();
@@ -415,11 +419,14 @@ public class SynchronizationServerService : ISynchronizationServerService
     {
         Debug.Assert(jwtSecret is not null);
 
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         var tokenHandler = new JwtSecurityTokenHandler();
         var descriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, deviceId)]),
-            Expires = DateTime.UtcNow.AddMinutes(TokenTtlMinutes),
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now.AddMinutes(TokenTtlMinutes),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
                 SecurityAlgorithms.HmacSha256Signature)
@@ -700,7 +707,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
                 var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
                 var pin = GeneratePin();
-                pendingPairings[pin] = (req.DeviceId, displayName, DateTime.UtcNow.AddSeconds(SynchronizationProtocol.PinTtlSeconds));
+                pendingPairings[pin] = (req.DeviceId, displayName, timeProvider.GetUtcNow().UtcDateTime.AddSeconds(SynchronizationProtocol.PinTtlSeconds));
                 PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
                 return Results.Ok();
             });
@@ -716,14 +723,14 @@ public class SynchronizationServerService : ISynchronizationServerService
                 var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
                 if (record.deviceId != req.DeviceId ||
                     record.displayName != displayName ||
-                    record.expiresAt < DateTime.UtcNow)
+                    record.expiresAt < timeProvider.GetUtcNow().UtcDateTime)
                 {
                     logger.Warning("Pairing confirmation rejected for {DeviceId}: record mismatch or expired PIN", req.DeviceId);
                     return Results.Unauthorized();
                 }
 
                 var accessToken = GenerateAccessToken(req.DeviceId);
-                var pairedDevice = new PairedDevice(req.DeviceId, displayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
+                var pairedDevice = new PairedDevice(req.DeviceId, displayName, timeProvider.GetUtcNow().UtcDateTime.AddDays(RefreshTtlDays));
                 await pairedDeviceRepository.PutPairedDeviceAsync(pairedDevice);
 
                 logger.Verbose("Pairing confirmed for {DeviceId}", req.DeviceId);
@@ -734,14 +741,14 @@ public class SynchronizationServerService : ISynchronizationServerService
             pairing.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
             {
                 var pairedDevice = await pairedDeviceRepository.GetPairedDeviceByTokenAsync(req.RefreshToken);
-                if (pairedDevice is null || pairedDevice.Expires < DateTime.UtcNow)
+                if (pairedDevice is null || pairedDevice.Expires < timeProvider.GetUtcNow().UtcDateTime)
                 {
                     logger.Warning("Token refresh rejected because the paired device was missing or expired");
                     return Results.Unauthorized();
                 }
 
                 var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
-                var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, DateTime.UtcNow.AddDays(RefreshTtlDays));
+                var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, timeProvider.GetUtcNow().UtcDateTime.AddDays(RefreshTtlDays));
                 await pairedDeviceRepository.PutPairedDeviceAsync(newPairedDevice);
 
                 logger.Verbose("Issued refreshed synchronization token for {DeviceId}", pairedDevice.DeviceId);
@@ -780,7 +787,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
                     async () =>
                     {
-                        var upperInclusive = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        var upperInclusive = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                         var data = await syncDataStore.GetSynchronizationDataAsync(
                             since,
                             upperInclusive);

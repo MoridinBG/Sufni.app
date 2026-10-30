@@ -65,7 +65,7 @@ public class SynchronizationClientServiceTests
         await CreateService().SyncAll();
 
         await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data =>
-            ReferenceEquals(data, localChanges) && data.UpperBound > 0));
+            ReferenceEquals(data, localChanges) && data.UpperBound == harness.Time.GetUtcNow().ToUnixTimeSeconds()));
         await syncDataStore.Received(1).UpdateLastPushTimeAsync(
             SynchronizationClientService.SyncStateKey,
             localChanges.UpperBound);

@@ -44,6 +44,7 @@ internal class HttpApiService : IHttpApiService
     private readonly ReplaySubject<bool> pairedStateSubject = new(1);
     private Task Initialization { get; }
     private readonly ISecureStorage secureStorage;
+    private readonly TimeProvider timeProvider;
     private Task? inFlightTokenRefreshTask;
     private string? pinnedServerCertificateThumbprint;
     private string? pendingPairingCertificateThumbprint;
@@ -60,17 +61,19 @@ internal class HttpApiService : IHttpApiService
 
     #region Constructors
 
-    public HttpApiService(ISecureStorage secureStorage)
+    public HttpApiService(ISecureStorage secureStorage, TimeProvider timeProvider)
     {
         this.secureStorage = secureStorage;
+        this.timeProvider = timeProvider;
         client = new HttpClient(CreateHandler());
         ConfigureProtocolHeaders(client);
         Initialization = Init();
     }
 
-    internal HttpApiService(ISecureStorage secureStorage, HttpClient client)
+    internal HttpApiService(ISecureStorage secureStorage, HttpClient client, TimeProvider timeProvider)
     {
         this.secureStorage = secureStorage;
+        this.timeProvider = timeProvider;
         this.client = client;
         ConfigureProtocolHeaders(this.client);
         Initialization = Init();
@@ -197,7 +200,7 @@ internal class HttpApiService : IHttpApiService
         var isValid = SynchronizationCertificateValidator.TryValidate(
             certificate,
             requiredThumbprint,
-            DateTimeOffset.Now,
+            timeProvider.GetUtcNow(),
             out var observedThumbprint);
 
         if (isValid)
@@ -376,7 +379,7 @@ internal class HttpApiService : IHttpApiService
     }
 
     private bool IsTokenRefreshRequired() =>
-        tokenExpiry is null || tokenExpiry <= DateTimeOffset.Now.AddSeconds(30);
+        tokenExpiry is null || tokenExpiry <= timeProvider.GetUtcNow().AddSeconds(30);
 
     private async Task EnsureTokenFreshAsync()
     {

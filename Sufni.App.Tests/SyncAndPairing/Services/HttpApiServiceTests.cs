@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Globalization;
 using System.Net;
 using System.Net.Http;
@@ -16,6 +17,8 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class HttpApiServiceTests
 {
+    private readonly FakeTimeProvider time = new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+
     [Fact]
     public void CreateHandler_AllowsTls12AndTls13()
     {
@@ -25,10 +28,10 @@ public class HttpApiServiceTests
     }
 
     [Fact]
-    public async Task GetIncompleteSessionIdsAsync_ReusesFreshTokenAcrossSequentialCalls()
+    public async Task GetIncompleteSessionIdsAsync_RefreshesAtThirtySecondBoundary()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var seenAuthorizations = new List<string?>();
         var refreshRequestCount = 0;
         var dataRequestCount = 0;
@@ -52,17 +55,23 @@ public class HttpApiServiceTests
         await service.GetIncompleteSessionIdsAsync();
         await service.GetIncompleteSessionIdsAsync();
 
+        time.Advance(TimeSpan.FromMinutes(9) + TimeSpan.FromSeconds(29));
+        await service.GetIncompleteSessionIdsAsync();
         Assert.Equal(1, refreshRequestCount);
-        Assert.Equal(2, dataRequestCount);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await service.GetIncompleteSessionIdsAsync();
+
+        Assert.Equal(2, refreshRequestCount);
+        Assert.Equal(4, dataRequestCount);
         Assert.All(seenAuthorizations, header => Assert.Equal(issuedAccessToken, header));
-        await secureStorage.Received(1).SetStringAsync("RefreshToken", "refresh-2");
+        await secureStorage.Received(2).SetStringAsync("RefreshToken", "refresh-2");
     }
 
     [Fact]
     public async Task Requests_IncludeSyncProtocolHeader()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var seenProtocolHeaders = new List<string?>();
 
         var service = CreateService(secureStorage, (request, _) =>
@@ -93,7 +102,7 @@ public class HttpApiServiceTests
     public async Task UpgradeRequiredResponse_ThrowsSyncProtocolMismatchError()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var service = CreateService(secureStorage, (request, _) =>
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
@@ -114,7 +123,7 @@ public class HttpApiServiceTests
     public async Task GetSessionPsstAsync_ReadsOctetStreamBodyAndFingerprintHeader()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var sessionId = Guid.NewGuid();
         var service = CreateService(secureStorage, (request, _) =>
         {
@@ -140,7 +149,7 @@ public class HttpApiServiceTests
     public async Task PatchSessionPsstAsync_SendsOctetStreamBodyAndFingerprintHeader()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var sessionId = Guid.NewGuid();
         byte[]? body = null;
         string? fingerprint = null;
@@ -175,7 +184,7 @@ public class HttpApiServiceTests
     public async Task GetRecordedSessionSourceAsync_ReadsOctetStreamBodyAndMetadataHeaders()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var sessionId = Guid.NewGuid();
         var service = CreateService(secureStorage, (request, _) =>
         {
@@ -208,7 +217,7 @@ public class HttpApiServiceTests
     public async Task PatchRecordedSessionSourceAsync_SendsOctetStreamBodyAndMetadataHeaders()
     {
         var secureStorage = CreateSecureStorage();
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var sessionId = Guid.NewGuid();
         byte[]? body = null;
         string? contentType = null;
@@ -255,7 +264,7 @@ public class HttpApiServiceTests
         var secureStorage = CreateSecureStorage();
         var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var allowRefreshToComplete = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var refreshRequestCount = 0;
         var dataRequestCount = 0;
         var seenAuthorizations = new List<string?>();
@@ -399,7 +408,7 @@ public class HttpApiServiceTests
     {
         var secureStorage = CreateSecureStorage();
         secureStorage.GetStringAsync("RefreshToken").Returns((string?)null);
-        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(DateTimeOffset.UtcNow.AddMinutes(10));
+        var issuedAccessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var service = CreateService(secureStorage, (request, _) =>
         {
             Assert.Equal(SynchronizationProtocol.EndpointPairConfirm, request.RequestUri?.AbsolutePath);
@@ -424,12 +433,12 @@ public class HttpApiServiceTests
         await secureStorage.Received(1).SetStringAsync("RefreshToken", "refresh-2");
     }
 
-    private static HttpApiService CreateService(
+    private HttpApiService CreateService(
         ISecureStorage secureStorage,
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync)
     {
         var client = new HttpClient(new StubHttpMessageHandler(sendAsync));
-        return new HttpApiService(secureStorage, client);
+        return new HttpApiService(secureStorage, client, time);
     }
 
     private static ISecureStorage CreateSecureStorage()

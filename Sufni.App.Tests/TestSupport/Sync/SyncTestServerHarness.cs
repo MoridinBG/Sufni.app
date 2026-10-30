@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
@@ -33,6 +34,8 @@ internal sealed class SyncTestServerHarness
         AppPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
 
+    public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+
     public ISecureStorage SecureStorage { get; } = Substitute.For<ISecureStorage>();
     public ISyncDataStore SyncDataStore { get; } = Substitute.For<ISyncDataStore>();
     public ISessionRepository SessionRepository { get; } = Substitute.For<ISessionRepository>();
@@ -45,7 +48,7 @@ internal sealed class SyncTestServerHarness
 
     public HttpApiService CreateHttpApiService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
-        new(SecureStorage, new HttpClient(new StubHttpMessageHandler(sendAsync)));
+        new(SecureStorage, new HttpClient(new StubHttpMessageHandler(sendAsync)), Time);
 
     public SynchronizationClientService CreateSynchronizationClientService() =>
         new(
@@ -56,7 +59,8 @@ internal sealed class SyncTestServerHarness
             SourceStore,
             RecordedSessionSourceSyncQuery,
             HttpApiService,
-            AppPreferences);
+            AppPreferences,
+            Time);
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)
     {

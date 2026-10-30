@@ -72,7 +72,14 @@ Authorization is enforced as a route group — `MapGroup("").RequireAuthorizatio
 
 `PATCH /session/data/{id}` raises `SessionDataArrived`; `PATCH /session/source/data/{id}` raises `SessionSourceDataArrived`. `SessionSyncApplier` listens to both events and calls publish-only session/source store writer methods after the database write succeeds. The server service remains UI-agnostic; subscribers that publish stores or bound state own the UI-thread hop through the store writer infrastructure.
 
+The server receives `TimeProvider` for certificate renewal, issued-token times,
+PIN/refresh-token expiration and pull cutoffs. JWT bearer authentication retains
+the framework's lifetime validation.
+
 ## Client
+
+The client samples push cutoffs through its injected clock. `HttpApiService`
+uses that clock for certificate validity and the 30-second token-refresh margin.
 
 `SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Protocol v3 persists `last_push_time` and `last_pull_time` independently, so a successful push cannot skip a failed or incomplete pull, and vice versa. Each direction replays the previous whole-second timestamp bucket (`sinceExclusive = cursor - 1` for a positive cursor) and de-duplicates through normal merge semantics; this closes the gap created when multiple writes share the same second as the prior upper bound.
 
