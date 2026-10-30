@@ -153,7 +153,7 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
         return new ProcessingFingerprintEvaluation(current, persisted, staleness);
     }
 
-    private SessionStaleness Evaluate(
+    private static SessionStaleness Evaluate(
         SessionSnapshot session,
         SetupSnapshot? setup,
         BikeSnapshot? bike,
@@ -174,43 +174,9 @@ public sealed class ProcessingFingerprintService : IProcessingFingerprintService
             return new SessionStaleness.MissingDependencies(setup is null, bike is null);
         }
 
-        if (!session.HasProcessedData)
-        {
-            return new SessionStaleness.MissingProcessedData();
-        }
-
-        if (persisted is null || persisted.SchemaVersion != SchemaVersion)
-        {
-            return new SessionStaleness.UnknownLegacyFingerprint();
-        }
-
-        if (persisted.ProcessingVersion != TelemetryProcessingVersion.Current)
-        {
-            return new SessionStaleness.ProcessingVersionChanged(
-                persisted.ProcessingVersion,
-                TelemetryProcessingVersion.Current);
-        }
-
-        current ??= CreateCurrent(
-            session,
-            setup,
-            bike,
-            source,
-            dependencyHash ?? ProcessingDependencyHash.Compute(setup, bike));
-        if (persisted.SetupId != current.SetupId ||
-            persisted.BikeId != current.BikeId ||
-            persisted.TrackProjectionVersion != current.TrackProjectionVersion ||
-            persisted.CalibrationVersion != current.CalibrationVersion ||
-            persisted.VelocityFilterWindowMilliseconds != current.VelocityFilterWindowMilliseconds ||
-            !StringComparer.Ordinal.Equals(persisted.DependencyHash, current.DependencyHash) ||
-            !StringComparer.Ordinal.Equals(persisted.SourceHash, current.SourceHash))
-        {
-            return new SessionStaleness.DependencyHashChanged();
-        }
-
-        return persisted.DerivationWindow != current.DerivationWindow
-            ? new SessionStaleness.SourceWindowChanged()
-            : new SessionStaleness.Current();
+        return session.HasProcessedData && current is not null && persisted == current
+            ? new SessionStaleness.Current()
+            : new SessionStaleness.Stale();
     }
 
     private static bool IsProcessedStateStaleWithoutRawSource(

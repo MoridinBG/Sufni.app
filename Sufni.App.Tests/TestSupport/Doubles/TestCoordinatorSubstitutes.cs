@@ -86,7 +86,7 @@ internal static class TestCoordinatorSubstitutes
     public static ISessionRecomputeEngine RecomputeEngine()
     {
         var engine = Substitute.For<ISessionRecomputeEngine>();
-        engine.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
+        engine.RequestRecomputeAsync(Arg.Any<Guid>())
             .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
         return engine;
     }

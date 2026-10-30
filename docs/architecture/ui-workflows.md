@@ -154,7 +154,7 @@ Each command is one `SessionPersistenceTransactionRunner` transaction:
 The transaction rejects the edit when the stored window differs from the
 snapshot the command started from, so concurrent edits of one session do not
 need a lock. After the commit the coordinator publishes the changed sessions,
-requests their recompute with `RecomputeReason.SourceWindowChanged` before any
+requests their recompute before any
 other await (an open editor prompts for a recompute of a stale session unless
 one is already running), publishes the changed clips and segments, reports a `SessionEditProgress` with
 the created id, and waits for the recomputes. An applied edit retains a typed recompute failure

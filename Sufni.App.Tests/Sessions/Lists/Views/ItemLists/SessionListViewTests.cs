@@ -72,7 +72,7 @@ public class SessionListViewTests
             snapshot.Description,
             snapshot.Timestamp,
             snapshot.HasProcessedData,
-            new SessionStaleness.MissingProcessedData()));
+            new SessionStaleness.Stale()));
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
@@ -153,12 +153,12 @@ public class SessionListViewTests
             snapshot.Description,
             snapshot.Timestamp,
             snapshot.HasProcessedData,
-            new SessionStaleness.DependencyHashChanged()));
+            new SessionStaleness.Stale()));
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
         var coordinator = TestCoordinatorSubstitutes.Session();
         var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-        recomputeEngine.RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList)
+        recomputeEngine.RequestRecomputeAsync(snapshot.Id)
             .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
 
         var viewModel = new SessionListViewModel(projection, recomputeEngine, VideoFixture.CreateEmptyStore(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
@@ -177,7 +177,7 @@ public class SessionListViewTests
         swipe!.SwipeState = SwipeState.LeftVisible;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        await recomputeEngine.Received(1).RequestRecomputeAsync(snapshot.Id, RecomputeReason.ManualFromList);
+        await recomputeEngine.Received(1).RequestRecomputeAsync(snapshot.Id);
         Assert.Equal(SwipeState.Hidden, swipe.SwipeState);
 
         swipe.SwipeState = SwipeState.RightVisible;
@@ -202,7 +202,7 @@ public class SessionListViewTests
             snapshot.Description,
             snapshot.Timestamp,
             snapshot.HasProcessedData,
-            new SessionStaleness.DependencyHashChanged()));
+            new SessionStaleness.Stale()));
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
 

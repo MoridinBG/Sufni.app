@@ -178,7 +178,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private async Task RecalculateSessionAsync(SessionRowViewModel row)
     {
-        var result = await recomputeEngine.RequestRecomputeAsync(row.Id, RecomputeReason.ManualFromList);
+        var result = await recomputeEngine.RequestRecomputeAsync(row.Id);
 
         switch (result)
         {

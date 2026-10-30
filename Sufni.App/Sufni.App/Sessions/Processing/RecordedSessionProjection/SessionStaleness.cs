@@ -18,7 +18,7 @@ public abstract record SessionStaleness
         public override bool CanRecompute => false;
     }
 
-    public sealed record MissingProcessedData : SessionStaleness
+    public sealed record Stale : SessionStaleness
     {
         public override bool IsStale => true;
         public override bool CanRecompute => true;
@@ -30,33 +30,10 @@ public abstract record SessionStaleness
         public override bool CanRecompute => false;
     }
 
-    public sealed record ProcessingVersionChanged(int Persisted, int CurrentVersion) : SessionStaleness
-    {
-        public override bool IsStale => true;
-        public override bool CanRecompute => true;
-    }
-
-    public sealed record DependencyHashChanged : SessionStaleness
-    {
-        public override bool IsStale => true;
-        public override bool CanRecompute => true;
-    }
-
-    public sealed record SourceWindowChanged : SessionStaleness
-    {
-        public override bool IsStale => true;
-        public override bool CanRecompute => true;
-    }
-
     public sealed record MissingDependencies(bool SetupMissing, bool BikeMissing) : SessionStaleness
     {
         public override bool IsStale => true;
         public override bool CanRecompute => false;
     }
 
-    public sealed record UnknownLegacyFingerprint : SessionStaleness
-    {
-        public override bool IsStale => true;
-        public override bool CanRecompute => true;
-    }
 }

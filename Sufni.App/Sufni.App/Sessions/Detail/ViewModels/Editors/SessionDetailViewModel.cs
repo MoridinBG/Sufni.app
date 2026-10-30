@@ -952,9 +952,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             await ApplyDomainReactionAsync(domain);
         }
 
-        await stalenessReconciler.HandleStalenessAsync(
-            domain,
-            initial ? RecomputeReason.StaleOnOpen : RecomputeReason.DependencyChanged);
+        await stalenessReconciler.HandleStalenessAsync(domain);
     }
 
     private async Task ApplyDomainReactionAsync(RecordedSessionDomainSnapshot domain)

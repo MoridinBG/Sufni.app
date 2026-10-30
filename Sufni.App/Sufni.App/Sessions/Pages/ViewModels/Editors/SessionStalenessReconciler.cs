@@ -42,7 +42,7 @@ internal sealed class SessionStalenessReconciler
         this.gateway = gateway;
     }
 
-    public async Task HandleStalenessAsync(RecordedSessionDomainSnapshot domain, RecomputeReason reason)
+    public async Task HandleStalenessAsync(RecordedSessionDomainSnapshot domain)
     {
         // Suppress the prompt for a recompute the user just triggered: the request
         // flips engine.IsActive(id) true synchronously before any await, and both
@@ -66,14 +66,14 @@ internal sealed class SessionStalenessReconciler
 
         if (domain.Staleness.CanRecompute)
         {
-            await PromptForRecomputeAsync(domain, reason);
+            await PromptForRecomputeAsync(domain);
             return;
         }
 
         ReportUnavailableInputs(domain.Staleness);
     }
 
-    private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain, RecomputeReason reason)
+    private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain)
     {
         if (recomputePromptRunning)
         {
@@ -119,7 +119,7 @@ internal sealed class SessionStalenessReconciler
                     return;
             }
 
-            var result = await recomputeEngine.RequestRecomputeAsync(gateway.SessionId, reason);
+            var result = await recomputeEngine.RequestRecomputeAsync(gateway.SessionId);
             switch (result)
             {
                 case SessionRecomputeResult.NotRecomputable unavailable:
@@ -159,7 +159,7 @@ internal sealed class SessionStalenessReconciler
                     progress.Report(new DialogProgress(
                         report.Total == 0 ? 1 : (double)report.Completed / report.Total,
                         $"{report.Completed} of {report.Total} sessions")));
-                return recomputeEngine.RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, relay);
+                return recomputeEngine.RequestRecomputeAllAsync(relay);
             });
 
         // Skipped (not-recomputable) sessions are an expected outcome of a bulk

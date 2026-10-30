@@ -79,7 +79,7 @@ public class SessionDetailViewModelTests
             });
         editor.SetTabActive(false);
         await harness.LoadAsync(editor);
-        changes.OnNext(DomainFromSnapshot(snapshot, staleness: new SessionStaleness.DependencyHashChanged()));
+        changes.OnNext(DomainFromSnapshot(snapshot, staleness: new SessionStaleness.Stale()));
 
         await harness.LoadAsync(editor);
 

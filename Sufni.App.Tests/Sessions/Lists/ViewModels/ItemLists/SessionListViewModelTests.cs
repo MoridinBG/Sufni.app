@@ -130,11 +130,11 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "stale",
                 updated: 42,
-                staleness: new SessionStaleness.DependencyHashChanged());
+                staleness: new SessionStaleness.Stale());
             sessionCache.AddOrUpdate(summary);
 
             var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-            recomputeEngine.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
+            recomputeEngine.RequestRecomputeAsync(summary.Id)
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
@@ -144,7 +144,7 @@ public class SessionListViewModelTests
             await row.RecalculateCommand.ExecuteAsync(null);
 
             await recomputeEngine.Received(1)
-                .RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList);
+                .RequestRecomputeAsync(summary.Id);
             Assert.Empty(viewModel.ErrorMessages);
         }
     }
@@ -239,11 +239,11 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "stale",
                 updated: 42,
-                staleness: new SessionStaleness.DependencyHashChanged());
+                staleness: new SessionStaleness.Stale());
             sessionCache.AddOrUpdate(summary);
 
             var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-            recomputeEngine.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
+            recomputeEngine.RequestRecomputeAsync(summary.Id)
                 .Returns(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "boom"));
 
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
@@ -266,7 +266,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(summary);
 
             var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-            recomputeEngine.RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList)
+            recomputeEngine.RequestRecomputeAsync(summary.Id)
                 .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
 
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
@@ -276,7 +276,7 @@ public class SessionListViewModelTests
             await row.RecalculateCommand.ExecuteAsync(null);
 
             await recomputeEngine.Received(1)
-                .RequestRecomputeAsync(summary.Id, RecomputeReason.ManualFromList);
+                .RequestRecomputeAsync(summary.Id);
         }
     }
 
@@ -306,7 +306,7 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "Alpine",
                 description: "rough track",
-                staleness: new SessionStaleness.DependencyHashChanged());
+                staleness: new SessionStaleness.Stale());
             sessionCache.AddOrUpdate(summary);
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
@@ -525,7 +525,7 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "Alpine",
                 timestamp: timestamp,
-                staleness: new SessionStaleness.DependencyHashChanged());
+                staleness: new SessionStaleness.Stale());
             sessionCache.AddOrUpdate(summary);
 
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);

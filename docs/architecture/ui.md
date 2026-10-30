@@ -364,12 +364,10 @@ The live session path is deliberately separate:
 is no optimistic-concurrency baseline for an in-memory live capture.
 
 Recorded-session recompute follows the same explicit-result pattern but is
-**baseline-free**: `SessionCoordinator.RequestRecomputeAsync(sessionId, reason)`
+**baseline-free**: `ISessionRecomputeEngine.RequestRecomputeAsync(sessionId)`
 returns `Recomputed(NewBaselineUpdated)`, `Superseded`,
 `NotRecomputable(SessionStaleness)`, `Missing`, `Failed(reason, details)` or
-`ProcessingFailed(reason, details)`, where
-`RecomputeReason` records why the recompute was requested (logging only). The
-`SessionRecomputeEngine` owns per-session, cancel-and-replace serialization and
+`ProcessingFailed(reason, details)`. The `SessionRecomputeEngine` owns per-session, cancel-and-replace serialization and
 recompute liveness, so a user's own recompute never false-conflicts: a run
 displaced by a newer explicit request resolves to `Superseded`, a run whose DB
 inputs change underneath it re-enqueues itself until it converges, and the

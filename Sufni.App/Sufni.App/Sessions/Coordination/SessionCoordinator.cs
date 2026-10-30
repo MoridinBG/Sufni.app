@@ -80,7 +80,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
             var previous = await backgroundTaskRunner.RunAsync(() => sessionRepository.GetSessionAsync(sessionId));
             if (previous is null) return new SessionRecomputeResult.Missing();
             if (SessionSnapshot.From(previous).ProcessingOptions.ClampedVelocityFilterWindowMilliseconds == window)
-                return await recomputeEngine.RequestRecomputeAsync(sessionId, RecomputeReason.ProcessingPreferenceChanged);
+                return await recomputeEngine.RequestRecomputeAsync(sessionId);
 
             var saved = await backgroundTaskRunner.RunAsync(() => sessionRepository.SetProcessingOptionAsync(sessionId, window));
             if (saved is null) return new SessionRecomputeResult.Missing();
@@ -89,7 +89,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
             {
                 await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(saved)]);
                 // Mark the request active before queued projection work can prompt.
-                recompute = recomputeEngine.RequestRecomputeAsync(sessionId, RecomputeReason.ProcessingPreferenceChanged);
+                recompute = recomputeEngine.RequestRecomputeAsync(sessionId);
             });
             var result = await recompute;
             if (result is SessionRecomputeResult.Failed or SessionRecomputeResult.ProcessingFailed or

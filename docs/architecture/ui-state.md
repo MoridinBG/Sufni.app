@@ -173,7 +173,7 @@ the track without a discard prompt.
 Recompute and GPS-offset adjustment are one-way: they persist and upsert
 the session store, and the refresh reaches the editor through this same
 watch reaction rather than a pushed result.
-`ISessionRecomputeEngine.RequestRecomputeAsync(sessionId, reason)` is
+`ISessionRecomputeEngine.RequestRecomputeAsync(sessionId)` is
 baseline-free — the `SessionRecomputeEngine` owns serialization and
 liveness — and the staleness prompter is forward-only: on a stale,
 recomputable session it confirms and requests a recompute (suppressed
@@ -216,10 +216,9 @@ classifies staleness as:
 
 - `Current` — processed data matches the recorded source and current
   processing inputs.
-- `MissingProcessedData`, `ProcessingVersionChanged`,
-  `DependencyHashChanged`, `SourceWindowChanged`,
-  `UnknownLegacyFingerprint` — stale and recomputable when setup, bike, and
-  raw source are available.
+- `Stale` — recomputable when setup, bike and raw source are available, whether
+  the BLOB is absent or any fingerprint input differs. Currentness is complete
+  fingerprint equality; the evaluation retains both fingerprints for inspection.
 - `MissingDependencies` — stale but not recomputable until the setup
   or bike is restored.
 - `MissingRawSource(ProcessedStateStale)` — displayed as "No Raw" and

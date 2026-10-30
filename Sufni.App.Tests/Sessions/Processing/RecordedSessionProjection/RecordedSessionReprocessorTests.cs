@@ -50,7 +50,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.MissingProcessedData(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
@@ -103,7 +103,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.SourceWindowChanged(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
@@ -180,7 +180,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.MissingProcessedData(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
@@ -278,7 +278,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.SourceWindowChanged(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
@@ -513,7 +513,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.MissingProcessedData(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
@@ -645,7 +645,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.MissingProcessedData(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
     }
 

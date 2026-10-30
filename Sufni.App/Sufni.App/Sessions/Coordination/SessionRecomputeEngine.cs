@@ -17,22 +17,6 @@ using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
-/// Why a recompute was requested. Logging/telemetry only — it does not change
-/// engine behavior.
-/// </summary>
-public enum RecomputeReason
-{
-    ProcessingPreferenceChanged,
-    StaleOnOpen,
-    DependencyChanged,
-    ManualFromList,
-    GpsOffsetChanged,
-    SourceWindowChanged,
-    Migration,
-    RecomputeAll
-}
-
-/// <summary>
 /// Serialized, per-session cancel-and-replace recompute engine and the single
 /// owner of recompute liveness. A newer request for the same session
 /// cancels and replaces the in-flight one; a run whose DB inputs change underneath
@@ -42,7 +26,7 @@ public enum RecomputeReason
 /// </summary>
 public interface ISessionRecomputeEngine
 {
-    Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason, CancellationToken cancellationToken = default);
+    Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Rebuilds every live recorded session, fanning the per-session requests out
@@ -54,7 +38,6 @@ public interface ISessionRecomputeEngine
     /// session finishes so a caller can drive a progress indicator.
     /// </summary>
     Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
-        RecomputeReason reason,
         IProgress<SessionRecomputeAllProgress>? progress = null,
         CancellationToken cancellationToken = default);
 
@@ -124,7 +107,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         }
     }
 
-    public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, RecomputeReason reason, CancellationToken cancellationToken = default)
+    public Task<SessionRecomputeResult> RequestRecomputeAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
         CancellationTokenSource cts;
         long seq;
@@ -160,7 +143,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 // Start this run immediately. The displaced run may still be inside
                 // the synchronous telemetry pipeline, but it is no longer current
                 // and will no-op at guard (i) before persistence.
-                var result = await RecomputeAsync(sessionId, reason, seq, cts.Token).ConfigureAwait(false);
+                var result = await RecomputeAsync(sessionId, seq, cts.Token).ConfigureAwait(false);
                 tcs.SetResult(result);
             }
             catch (OperationCanceledException)
@@ -191,7 +174,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     }
 
     public Task<SessionRecomputeAllResult> RequestRecomputeAllAsync(
-        RecomputeReason reason,
         IProgress<SessionRecomputeAllProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -199,7 +181,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         {
             shutdown.Token.ThrowIfCancellationRequested();
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
-            var task = RecomputeAllAsync(reason, progress, cancellation.Token);
+            var task = RecomputeAllAsync(progress, cancellation.Token);
             activeTasks.Add(task);
             _ = ReleaseAsync(task, cancellation);
             return task;
@@ -224,15 +206,13 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     public void Dispose() => shutdown.Dispose();
 
     private async Task<SessionRecomputeAllResult> RecomputeAllAsync(
-        RecomputeReason reason,
         IProgress<SessionRecomputeAllProgress>? progress,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        cancellationToken.ThrowIfCancellationRequested();
         var ids = await sessionRepository.GetActiveSessionIdsAsync();
 
-        logger.Information("Starting recompute-all for {SessionCount} sessions ({Reason})", ids.Count, reason);
+        logger.Information("Starting recompute-all for {SessionCount} sessions", ids.Count);
 
         var recomputed = 0;
         var superseded = 0;
@@ -245,7 +225,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         var options = new ParallelOptions { MaxDegreeOfParallelism = RecomputeAllMaxDegreeOfParallelism, CancellationToken = cancellationToken };
         await Parallel.ForEachAsync(ids, options, async (id, token) =>
         {
-            var result = await RequestRecomputeAsync(id, reason, token);
+            var result = await RequestRecomputeAsync(id, token);
             switch (result)
             {
                 case SessionRecomputeResult.Recomputed:
@@ -279,11 +259,10 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
 
     private async Task<SessionRecomputeResult> RecomputeAsync(
         Guid sessionId,
-        RecomputeReason reason,
         long seq,
         CancellationToken cancellationToken)
     {
-        logger.Information("Starting recorded session recompute for {SessionId} ({Reason})", sessionId, reason);
+        logger.Information("Starting recorded session recompute for {SessionId}", sessionId);
 
         // The loop is the engine's liveness self-heal: when the write
         // transaction rolls back on a passive setup/bike/source change, re-read all

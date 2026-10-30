@@ -99,7 +99,7 @@ internal sealed class SessionEditingCoordinator(
             // update, and an open editor prompts for a recompute of a stale session
             // unless one is already running.
             var recomputes = committed.SessionIds
-                .Select(id => recomputeEngine.RequestRecomputeAsync(id, RecomputeReason.SourceWindowChanged))
+                .Select(id => recomputeEngine.RequestRecomputeAsync(id))
                 .ToArray();
 
             if (committed.Clips.Count > 0)

@@ -85,7 +85,7 @@ public class RecordedSessionProjectionTests
         Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.SessionMetadataChanged));
         Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged));
         Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.FingerprintChanged));
-        Assert.IsType<SessionStaleness.MissingProcessedData>(latest.Staleness);
+        Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class RecordedSessionProjectionTests
 
         var latest = emissions.Last();
         Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, latest.ChangeKind);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(latest.Staleness);
+        Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
         Assert.Equal("changed-source-hash", latest.CurrentFingerprint!.SourceHash);
     }
 
@@ -131,7 +131,7 @@ public class RecordedSessionProjectionTests
         var latest = Assert.Single(emissions);
         Assert.Equal(2, latest.Session.DerivationWindow!.StartSeconds);
         Assert.Equal(DerivedChangeKind.FingerprintChanged, latest.ChangeKind);
-        Assert.IsType<SessionStaleness.SourceWindowChanged>(latest.Staleness);
+        Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]
@@ -156,7 +156,7 @@ public class RecordedSessionProjectionTests
         Assert.Equal(context.Session.Id, latest.Session.Id);
         Assert.Equal("changed-source-hash", latest.CurrentFingerprint!.SourceHash);
         Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.SourceAvailabilityChanged));
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(latest.Staleness);
+        Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class RecordedSessionProjectionTests
 
         var latest = emissions.Last();
         Assert.Equal(DerivedChangeKind.DependencyChanged, latest.ChangeKind);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(latest.Staleness);
+        Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class RecordedSessionProjectionTests
             DerivedChangeKind.SourceAvailabilityChanged |
             DerivedChangeKind.DependencyChanged;
         Assert.Equal(expected, latest.ChangeKind);
-        Assert.IsType<SessionStaleness.DependencyHashChanged>(latest.Staleness);
+        Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]

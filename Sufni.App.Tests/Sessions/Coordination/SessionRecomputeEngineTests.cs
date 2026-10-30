@@ -62,7 +62,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.DependencyHashChanged(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
 
         domainQuery.Get(sessionId).Returns(domain);
@@ -107,7 +107,7 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetActiveSessionIdsAsync().Returns([id]);
         using var engine = CreateEngine();
 
-        var result = await engine.RequestRecomputeAllAsync(RecomputeReason.ManualFromList, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await engine.RequestRecomputeAllAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, result.Total);
         Assert.Equal(1, result.NotRecomputable);
@@ -128,7 +128,7 @@ public class SessionRecomputeEngineTests
             .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.InvalidCalibration, "calibration diagnostic"));
         using var engine = CreateEngine(store, repository.Repository);
 
-        var result = await engine.RequestRecomputeAsync(id, RecomputeReason.ManualFromList);
+        var result = await engine.RequestRecomputeAsync(id);
 
         Assert.Equal(SessionProcessingFailureReason.InvalidCalibration, Assert.IsType<SessionRecomputeResult.ProcessingFailed>(result).Reason);
         Assert.Equal(existing, store.Get(id));
@@ -153,9 +153,9 @@ public class SessionRecomputeEngineTests
             return release.Task;
         });
         using var engine = CreateEngine();
-        var displaced = engine.RequestRecomputeAsync(id, RecomputeReason.RecomputeAll);
+        var displaced = engine.RequestRecomputeAsync(id);
         await entered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.IsType<SessionRecomputeResult.Recomputed>(await engine.RequestRecomputeAsync(id, RecomputeReason.StaleOnOpen));
+        Assert.IsType<SessionRecomputeResult.Recomputed>(await engine.RequestRecomputeAsync(id));
 
         var stop = engine.StopAsync();
         Assert.False(stop.IsCompleted);
@@ -214,7 +214,7 @@ public class SessionRecomputeEngineTests
 
         var engine = CreateEngine();
 
-        var firstTask = engine.RequestRecomputeAsync(sessionId, RecomputeReason.ProcessingPreferenceChanged);
+        var firstTask = engine.RequestRecomputeAsync(sessionId);
         // Liveness is owned synchronously: the request is active before any await.
         Assert.True(engine.IsActive(sessionId));
         await firstReprocessStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
@@ -225,7 +225,7 @@ public class SessionRecomputeEngineTests
         {
             Session = domain.Session with { VelocityFilterWindowMilliseconds = 250 }
         });
-        var secondTask = engine.RequestRecomputeAsync(sessionId, RecomputeReason.ProcessingPreferenceChanged);
+        var secondTask = engine.RequestRecomputeAsync(sessionId);
 
         // The replacement starts and commits before the old uninterruptible
         // reprocess physically finishes.
@@ -261,8 +261,8 @@ public class SessionRecomputeEngineTests
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
 
         var engine = CreateEngine();
-        var firstTask = engine.RequestRecomputeAsync(firstId, RecomputeReason.ManualFromList);
-        var secondTask = engine.RequestRecomputeAsync(secondId, RecomputeReason.ManualFromList);
+        var firstTask = engine.RequestRecomputeAsync(firstId);
+        var secondTask = engine.RequestRecomputeAsync(secondId);
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(await firstTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         Assert.IsType<SessionRecomputeResult.Recomputed>(await secondTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
@@ -290,7 +290,7 @@ public class SessionRecomputeEngineTests
             .Returns((Session?)null, persisted);
 
         var result = await CreateEngine()
-            .RequestRecomputeAsync(sessionId, RecomputeReason.DependencyChanged)
+            .RequestRecomputeAsync(sessionId)
             .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
@@ -327,7 +327,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.SourceWindowChanged(),
+            new SessionStaleness.Stale(),
             DerivedChangeKind.None);
         domainQuery.Get(sessionId).Returns(domain);
         sourceRepository.GetRecordedSessionSourceAsync(sourceSessionId).Returns(source);
@@ -348,7 +348,7 @@ public class SessionRecomputeEngineTests
             .Returns(callInfo => callInfo.Arg<Session>());
 
         var result = await CreateEngine()
-            .RequestRecomputeAsync(sessionId, RecomputeReason.SourceWindowChanged)
+            .RequestRecomputeAsync(sessionId)
             .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
@@ -374,7 +374,7 @@ public class SessionRecomputeEngineTests
 
         var engine = CreateEngine();
         var result = await engine
-            .RequestRecomputeAsync(sessionId, RecomputeReason.ManualFromList)
+            .RequestRecomputeAsync(sessionId)
             .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.NotRecomputable>(result);
@@ -416,7 +416,7 @@ public class SessionRecomputeEngineTests
 
         var engine = CreateEngine();
         var summary = await engine
-            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll)
+            .RequestRecomputeAllAsync()
             .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(3, summary.Total);
@@ -445,7 +445,7 @@ public class SessionRecomputeEngineTests
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
 
         var summary = await CreateEngine()
-            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll)
+            .RequestRecomputeAllAsync()
             .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(1, summary.Total);
@@ -471,7 +471,7 @@ public class SessionRecomputeEngineTests
         var collector = new RecordingProgress<SessionRecomputeAllProgress>();
 
         var summary = await CreateEngine()
-            .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll, collector)
+            .RequestRecomputeAllAsync(collector)
             .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(2, summary.Total);

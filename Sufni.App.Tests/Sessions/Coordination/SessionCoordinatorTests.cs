@@ -183,7 +183,7 @@ public class SessionCoordinatorTests
         repository.Seed(original);
         await store.PublishSessionsChangedAsync([original]);
         int? optionSeenDuringRecompute = null;
-        recomputeEngine.RequestRecomputeAsync(original.Id, RecomputeReason.ProcessingPreferenceChanged, Arg.Any<CancellationToken>())
+        recomputeEngine.RequestRecomputeAsync(original.Id, Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 optionSeenDuringRecompute = store.Get(original.Id)!.VelocityFilterWindowMilliseconds;
@@ -211,7 +211,7 @@ public class SessionCoordinatorTests
         var original = TestSnapshots.Session() with { VelocityFilterWindowMilliseconds = 50 };
         repository.Seed(original);
         await store.PublishSessionsChangedAsync([original]);
-        recomputeEngine.RequestRecomputeAsync(original.Id, RecomputeReason.ProcessingPreferenceChanged, Arg.Any<CancellationToken>())
+        recomputeEngine.RequestRecomputeAsync(original.Id, Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
                 await repository.Repository.SetProcessingOptionAsync(original.Id, 250);

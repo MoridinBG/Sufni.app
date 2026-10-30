@@ -35,7 +35,7 @@ public class SessionLoaderTests
         var persisted = new ProcessingFingerprint(4, 6, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "older-source");
         domainQuery.Get(snapshot.Id).Returns(new RecordedSessionDomainSnapshot(
             snapshot, null, null, null, persisted, source,
-            sourcePresent ? new SessionStaleness.DependencyHashChanged() : new SessionStaleness.MissingRawSource(),
+            sourcePresent ? new SessionStaleness.Stale() : new SessionStaleness.MissingRawSource(),
             DerivedChangeKind.Initial));
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         processedTelemetryReader.Set(snapshot.Id, telemetry);

@@ -27,7 +27,7 @@ public class SessionEditingCoordinatorTests
     {
         sessionStore.Get(session.Id).Returns(session);
         sessionRepository.GetSessionAsync(session.Id).Returns(new Session(session.Id, session.Name, "", null));
-        recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>())
+        recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>())
             .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed(1)));
     }
 
@@ -41,7 +41,7 @@ public class SessionEditingCoordinatorTests
         transactions.SplitAsync(session, 3).Returns(new SessionEditCommit.Committed([session.Id, part2.Id], [clip], [], part2.Id));
 
         var completion = new TaskCompletionSource<SessionRecomputeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>(), RecomputeReason.SourceWindowChanged)
+        recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>())
             .Returns(completion.Task);
         var progress = new RecordingProgress<SessionEditProgress>();
         var operation = CreateCoordinator().SplitAsync(session.Id, 3, progress);
@@ -56,8 +56,8 @@ public class SessionEditingCoordinatorTests
             Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Select(snapshot => snapshot.Id).SequenceEqual(new[] { session.Id, part2.Id })),
             Arg.Any<CancellationToken>());
         await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoSnapshot>>(clips => clips.Single().Id == clip.Id && clips.Single().AlignmentOffsetSeconds == clip.AlignmentOffsetSeconds));
-        await recomputeEngine.Received(1).RequestRecomputeAsync(session.Id, RecomputeReason.SourceWindowChanged);
-        await recomputeEngine.Received(1).RequestRecomputeAsync(part2.Id, RecomputeReason.SourceWindowChanged);
+        await recomputeEngine.Received(1).RequestRecomputeAsync(session.Id);
+        await recomputeEngine.Received(1).RequestRecomputeAsync(part2.Id);
         Assert.Equal(part2.Id, Assert.Single(progress.Reports).CreatedSessionId);
     }
 
@@ -72,14 +72,14 @@ public class SessionEditingCoordinatorTests
         await sessionStore.DidNotReceive().PublishSessionsChangedAsync(
             Arg.Any<IReadOnlyCollection<SessionSnapshot>>(),
             Arg.Any<CancellationToken>());
-        await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<RecomputeReason>());
+        await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>());
     }
 
     [Fact]
     public async Task UndoTrimAsync_WhenRecomputeFails_AppliesWithRecomputeError()
     {
         transactions.UndoTrimAsync(session).Returns(new SessionEditCommit.Committed([session.Id], [], []));
-        recomputeEngine.RequestRecomputeAsync(session.Id, RecomputeReason.SourceWindowChanged)
+        recomputeEngine.RequestRecomputeAsync(session.Id)
             .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "source is corrupt")));
 
         var result = await CreateCoordinator().UndoTrimAsync(session.Id);

@@ -1512,28 +1512,12 @@ public class DatabaseMigrationRunnerTests
         if (fingerprintCase == ProcessedSessionFingerprintCase.MissingLegacyFingerprint)
         {
             Assert.Null(evaluation.Persisted);
-            Assert.IsType<SessionStaleness.UnknownLegacyFingerprint>(evaluation.Staleness);
+            Assert.IsType<SessionStaleness.Stale>(evaluation.Staleness);
             return;
         }
 
         Assert.Equal(staleFingerprint, evaluation.Persisted);
-        switch (fingerprintCase)
-        {
-            case ProcessedSessionFingerprintCase.PreviousProcessingVersion:
-                var previous = Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
-                Assert.Equal(TelemetryProcessingVersion.Current - 1, previous.Persisted);
-                Assert.Equal(TelemetryProcessingVersion.Current, previous.CurrentVersion);
-                break;
-            case ProcessedSessionFingerprintCase.LegacyRearSuspensionKind:
-            case ProcessedSessionFingerprintCase.DependencyHashMismatch:
-                Assert.IsType<SessionStaleness.DependencyHashChanged>(evaluation.Staleness);
-                break;
-            case ProcessedSessionFingerprintCase.UnexpectedProcessingVersion:
-                Assert.IsType<SessionStaleness.ProcessingVersionChanged>(evaluation.Staleness);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(fingerprintCase), fingerprintCase, null);
-        }
+        Assert.IsType<SessionStaleness.Stale>(evaluation.Staleness);
     }
 
     private static void AssertRevisions(
