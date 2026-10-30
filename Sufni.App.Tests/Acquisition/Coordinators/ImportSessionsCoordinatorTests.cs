@@ -1,4 +1,7 @@
 using Sufni.App.Shared.Models;
+using Microsoft.Extensions.Time.Testing;
+using Sufni.App.Shared.Stores;
+using Sufni.App.Tests.TestSupport.Persistence;
 using System.Reactive.Linq;
 using System.IO;
 using Sufni.App.Tests.TestSupport.Async;
@@ -24,6 +27,32 @@ namespace Sufni.App.Tests.Acquisition.Coordinators;
 public class ImportSessionsCoordinatorTests
 {
     [Fact]
+    public async Task ImportAsync_RenamedRecording_ReusesPersistedSessionAndAcknowledgesFile()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        var publication = new StorePublication(new InlineUiThreadDispatcher());
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        using var coordinator = harness.CreateCoordinator(repository.Repository, sessions, sources);
+        await coordinator.ImportAsync([CreateTelemetryFile(name: "first", description: "notes")], setup.Id);
+        var original = Assert.Single((await repository.Repository.GetSessionsAsync()));
+        var renamed = CreateTelemetryFile(name: "renamed", description: "other notes");
+
+        await coordinator.ImportAsync([renamed], setup.Id);
+
+        var completed = Assert.IsType<SessionImportState.Completed>(coordinator.State);
+        Assert.Empty(completed.Result.Imported);
+        Assert.Empty(completed.Result.Failures);
+        Assert.Equal(original.Id, Assert.Single(completed.Events.OfType<SessionImportEvent.AlreadyImported>()).SessionId);
+        Assert.Equal("first", Assert.Single(await repository.Repository.GetSessionsAsync()).Name);
+        Assert.Equal("notes", sessions.Get(original.Id)!.Description);
+        Assert.Equal("first.SST", sources.Get(original.Id)!.SourceName);
+        await renamed.Received(1).OnImported();
+    }
+
+    [Fact]
     public async Task ImportAsync_ProcessingFailure_KeepsSourceUnacknowledgedAndReportsReason()
     {
         var harness = new ImportWorkflowHarness();
@@ -43,8 +72,8 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("ride", failure.FileName);
         Assert.Equal(failure, Assert.Single(completed.Events.OfType<SessionImportEvent.Failed>()).Failure);
         await file.DidNotReceive().OnImported();
-        await harness.SessionRepository.DidNotReceive().PutProcessedSessionAsync(
-            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>());
+        await harness.SessionRepository.DidNotReceive().ImportProcessedSessionAsync(
+            Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource>());
     }
 
     [Fact]
@@ -99,7 +128,7 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("ride-01", imported.Name);
         Assert.Equal("morning lap", imported.Description);
         Assert.Equal(new DateTimeOffset(startTime).ToUnixTimeSeconds(), imported.Timestamp);
-        await harness.SessionRepository.Received(1).PutProcessedSessionAsync(
+        await harness.SessionRepository.Received(1).ImportProcessedSessionAsync(
             Arg.Is<Session>(session =>
                 session.Name == "ride-01" &&
                 session.Description == "morning lap" &&
@@ -282,10 +311,10 @@ public class ImportSessionsCoordinatorTests
         else
         {
             harness.SessionRepository
-                .PutProcessedSessionAsync(
+                .ImportProcessedSessionAsync(
                     Arg.Is<Session>(session => session.Name == "broken"),
                     Arg.Any<Track?>(),
-                    Arg.Any<RecordedSessionSource?>())
+                    Arg.Any<RecordedSessionSource>())
                 .ThrowsAsync(new InvalidOperationException("persistence"));
         }
 
@@ -296,10 +325,10 @@ public class ImportSessionsCoordinatorTests
         var failure = Assert.Single(result.Failures);
         Assert.Equal("broken", failure.FileName);
         Assert.Equal(SessionImportFailureOperation.Import, failure.Operation);
-        await harness.SessionRepository.Received(1).PutProcessedSessionAsync(
+        await harness.SessionRepository.Received(1).ImportProcessedSessionAsync(
             Arg.Is<Session>(session => session.Name == "ok"),
             Arg.Any<Track?>(),
-            Arg.Any<RecordedSessionSource?>());
+            Arg.Any<RecordedSessionSource>());
         Assert.Throws<ObjectDisposedException>(() => goodSource.SstBytes);
         if (brokenSource is not null)
         {

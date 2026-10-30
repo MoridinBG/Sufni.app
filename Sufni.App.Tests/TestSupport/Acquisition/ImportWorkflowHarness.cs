@@ -67,13 +67,16 @@ internal sealed class ImportWorkflowHarness
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = [];
     public SourceCache<SetupSnapshot, Guid> SetupCache { get; } = new(s => s.Id);
 
-    public ImportSessionsCoordinator CreateCoordinator() => new(
-        SessionRepository,
+    public ImportSessionsCoordinator CreateCoordinator(
+        ISessionRepository? repository = null,
+        ISessionStoreWriter? sessionStore = null,
+        IRecordedSessionSourceStoreWriter? sourceStore = null) => new(
+        repository ?? SessionRepository,
         TrackRepository,
         SetupRepository,
         BikeRepository,
-        SessionStore,
-        SourceStore,
+        sessionStore ?? SessionStore,
+        sourceStore ?? SourceStore,
         BackgroundTaskRunner,
         DaqManagementService,
         Reprocessor,
@@ -136,17 +139,18 @@ internal sealed class ImportWorkflowHarness
     private void ConfigureDefaultWriter()
     {
         SessionRepository
-            .PutProcessedSessionAsync(
+            .ImportProcessedSessionAsync(
                 Arg.Any<Session>(),
                 Arg.Any<Track?>(),
-                Arg.Any<RecordedSessionSource?>())
+                Arg.Any<RecordedSessionSource>())
             .Returns(callInfo =>
             {
                 var session = callInfo.ArgAt<Session>(0);
                 var track = callInfo.ArgAt<Track?>(1);
                 session.FullTrack = track?.Id;
                 session.Updated = 10;
-                return Task.FromResult(session);
+                return Task.FromResult(new SessionImportCommitResult(
+                    session, RecordedSessionSourceSnapshot.From(callInfo.Arg<RecordedSessionSource>()), false));
             });
     }
 }

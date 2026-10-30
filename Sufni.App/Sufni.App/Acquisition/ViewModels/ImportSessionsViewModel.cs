@@ -172,6 +172,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 case SessionImportEvent.Imported imported:
                     Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
                     break;
+                case SessionImportEvent.AlreadyImported existing:
+                    Notifications.Insert(0, $"{existing.FileName} was already imported.");
+                    break;
                 case SessionImportEvent.Failed failed:
                     var presentation = failed.Failure switch
                     {

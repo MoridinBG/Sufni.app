@@ -206,7 +206,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         {
             return await backgroundTaskRunner.RunAsync<LiveSessionSaveResult>(async () =>
             {
-                var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture.TelemetryCapture);
+                var source = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture);
                 var setup = await setupRepository.GetAsync(capture.Context.SetupId)
                             ?? throw new InvalidOperationException("Setup is missing.");
                 var bike = await bikeRepository.GetAsync(setup.BikeId)
@@ -214,7 +214,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
                 var bikeSnapshot = BikeSnapshot.From(bike);
                 var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-                var sessionSnapshot = SessionSnapshot.From(session);
+                var sessionSnapshot = SessionSnapshot.From(session) with { Id = source.SessionId };
                 var input = new RecordedSessionDerivationInput(
                     sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload);
 
@@ -237,7 +237,9 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                         generation = generation.WithTrackWindow(track, sessionSnapshot);
                 }
                 var prepared = generation.CreateSession(sessionSnapshot, fullTrackId);
-                var fresh = await sessionRepository.PutProcessedSessionAsync(prepared, newTrack, source);
+                var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
+                var fresh = committed.Session
+                    ?? throw new InvalidOperationException("The capture source exists, but its recorded session is no longer available.");
 
                 var snapshot = SessionSnapshot.From(fresh);
                 try
@@ -253,7 +255,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 try
                 {
                     await sessionStore.PublishSessionsChangedAsync([snapshot]);
-                    await sourceStore.PublishSourcesChangedAsync([sourceSnapshot]);
+                    await sourceStore.PublishSourcesChangedAsync([committed.Source]);
                 }
                 catch (Exception e)
                 {

@@ -60,7 +60,7 @@ public interface ISessionRepository
     Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds);
     Task<Session?> RestoreProcessingOptionAsync(Guid id, int expectedWindowMilliseconds, int? previousWindowMilliseconds);
 
-    Task<Session> PutProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource? source);
+    Task<SessionImportCommitResult> ImportProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource source);
 
     /// <summary>
     /// Derived-only processed write used by the recompute engine. Writes only the
@@ -89,6 +89,11 @@ public interface ISessionRepository
         SessionSummaryMetrics metrics,
         double? gpsOffsetSeconds = null);
 }
+
+public sealed record SessionImportCommitResult(
+    Session? Session,
+    RecordedSessionSourceSnapshot Source,
+    bool AlreadyImported);
 
 public sealed record SessionPsstPayloadMetadata(
     Guid Id,
@@ -131,27 +136,6 @@ internal sealed class SessionRepository(
                                                                      {SessionSqlProjection.HasDataProjection}
                                                                      """;
 
-    private const string ProcessedSessionUpdateAssignments = """
-                                                             name=?,
-                                                             setup_id=?,
-                                                             description=?,
-                                                             timestamp=?,
-                                                             velocity_filter_window_ms=?,
-                                                             duration_seconds=?,
-                                                             distance_meters=?,
-                                                             ascent_meters=?,
-                                                             descent_meters=?,
-                                                             full_track_id=?,
-                                                             gps_offset_seconds=?,
-                                                             session_processing_fingerprint=?,
-                                                             track=?,
-                                                             data=?,
-                                                             front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
-                                                             rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                                             updated=?,
-                                                             deleted=NULL
-                                                             """;
-
     private const string SessionMetadataSaveUpdateAssignments = """
                                                                 name=?,
                                                                 setup_id=?,
@@ -163,11 +147,7 @@ internal sealed class SessionRepository(
                                                                 deleted=NULL
                                                                 """;
 
-    // Derived-only assignment: the columns owned by the processed-write pipeline,
-    // i.e. ProcessedSessionUpdateAssignments minus user-authored metadata (name,
-    // setup_id, description, timestamp, tuning) and minus gps_offset_seconds (the
-    // GPS-offset command owns that). It never resurrects a soft-deleted row, so it
-    // omits deleted=NULL and the caller filters WHERE deleted IS NULL.
+    // Derived writes preserve authored fields and never resurrect deleted sessions.
     private const string DerivedSessionUpdateAssignments = """
                                                            duration_seconds=?,
                                                            distance_meters=?,
@@ -178,14 +158,6 @@ internal sealed class SessionRepository(
                                                            track=?,
                                                            data=?
                                                            """;
-
-    private static readonly string UpdateProcessedSessionSql = $"""
-                                                                UPDATE session
-                                                                SET
-                                                                    {ProcessedSessionUpdateAssignments}
-                                                                WHERE
-                                                                    id=?
-                                                                """;
 
     private static readonly string UpdateProcessedDerivedDataSql = $"""
                                                                     UPDATE session
@@ -429,13 +401,40 @@ internal sealed class SessionRepository(
         return session.Id;
     }
 
-    public async Task<Session> PutProcessedSessionAsync(
-        Session session,
-        Track? newFullTrack,
-        RecordedSessionSource? source)
+    public async Task<SessionImportCommitResult> ImportProcessedSessionAsync(
+        Session session, Track? newFullTrack, RecordedSessionSource source)
     {
-        return await PutProcessedSessionCoreAsync(session, newFullTrack, source)
-               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
+        if (source.SessionId != session.Id)
+            throw new InvalidOperationException("Recorded session source must belong to the processed session.");
+
+        var committed = await connectionContext.RunInTransactionAsync(connection =>
+        {
+            var existingSource = connection.FindWithQuery<RecordedSessionSource>(
+                """
+                SELECT session_id, source_kind, source_name, schema_version, source_hash
+                FROM session_recording_source WHERE source_hash = ? ORDER BY session_id LIMIT 1
+                """, source.SourceHash);
+            if (existingSource is not null)
+                return (Source: RecordedSessionSourceSnapshot.From(existingSource), AlreadyImported: true);
+
+            if (!EntityExists<Session>(connection, session.Id))
+            {
+                if (newFullTrack is not null)
+                {
+                    newFullTrack.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+                    newFullTrack.Deleted = null;
+                    InsertEntity(connection, newFullTrack);
+                    session.FullTrack = newFullTrack.Id;
+                }
+                session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+                session.Deleted = null;
+                InsertEntity(connection, session);
+            }
+            RecordedSessionSourceRepository.PutRecordedSessionSourceInTransaction(connection, source);
+            return (Source: RecordedSessionSourceSnapshot.From(source), AlreadyImported: false);
+        });
+        return new SessionImportCommitResult(
+            await GetSessionAsync(committed.Source.SessionId), committed.Source, committed.AlreadyImported);
     }
 
     public async Task<Session?> UpdateProcessedDerivedDataAsync(
@@ -611,118 +610,8 @@ internal sealed class SessionRepository(
         }
     }
 
-    private async Task<Session?> PutProcessedSessionCoreAsync(
-        Session session,
-        Track? newFullTrack,
-        RecordedSessionSource? source)
-    {
-        if (source is not null && source.SessionId != session.Id)
-        {
-            throw new InvalidOperationException("Recorded session source must belong to the processed session.");
-        }
-
-        try
-        {
-            await connectionContext.RunInTransactionAsync(connection =>
-            {
-                if (newFullTrack is not null)
-                {
-                    var existingTrack = EntityExists<Track>(connection, newFullTrack.Id);
-                    newFullTrack.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-                    newFullTrack.Deleted = null;
-
-                    if (existingTrack)
-                    {
-                        UpdateEntity(connection, newFullTrack);
-                    }
-                    else
-                    {
-                        InsertEntity(connection, newFullTrack);
-                    }
-
-                    session.FullTrack = newFullTrack.Id;
-                }
-
-                var existingSession = EntityExists<Session>(connection, session.Id);
-                session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-                session.Deleted = null;
-
-                if (existingSession)
-                {
-                    var updatedRows = UpdateProcessedSession(connection, session);
-                    if (updatedRows == 0)
-                    {
-                        throw new RollbackWithoutResultException();
-                    }
-                }
-                else
-                {
-                    InsertEntity(connection, session);
-                }
-
-                if (source is not null)
-                {
-                    RecordedSessionSourceRepository.PutRecordedSessionSourceInTransaction(
-                        connection,
-                        source);
-                }
-            });
-        }
-        catch (RollbackWithoutResultException)
-        {
-            return null;
-        }
-
-        return await GetSessionAsync(session.Id)
-               ?? throw new InvalidOperationException($"Session {session.Id} was not found after processed-session persistence.");
-    }
-
-    private static int UpdateProcessedSession(
-        SQLiteConnection connection,
-        Session session)
-    {
-        return connection.Execute(
-            UpdateProcessedSessionSql,
-            CreateProcessedSessionUpdateValuesWithId(session));
-    }
-
     private static string? SerializeTrack(Session session) =>
         session.Track is null ? null : AppJson.Serialize(session.Track);
-
-    private static object?[] CreateProcessedSessionUpdateValues(Session session) =>
-    [
-        session.Name,
-        session.Setup,
-        session.Description,
-        session.Timestamp,
-        session.VelocityFilterWindowMilliseconds,
-        session.DurationSeconds,
-        session.DistanceMeters,
-        session.AscentMeters,
-        session.DescentMeters,
-        session.FullTrack,
-        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
-        session.ProcessingFingerprintJson,
-        SerializeTrack(session),
-        session.ProcessedData,
-        session.FrontSpringRate,
-        session.FrontHighSpeedCompression,
-        session.FrontLowSpeedCompression,
-        session.FrontLowSpeedRebound,
-        session.FrontHighSpeedRebound,
-        session.RearSpringRate,
-        session.RearHighSpeedCompression,
-        session.RearLowSpeedCompression,
-        session.RearLowSpeedRebound,
-        session.RearHighSpeedRebound,
-        session.Updated
-    ];
-
-    private static object?[] CreateProcessedSessionUpdateValuesWithId(Session session) =>
-    [
-        .. CreateProcessedSessionUpdateValues(session),
-        session.Id
-    ];
 
     // Values for DerivedSessionUpdateAssignments (derived columns only), in column
     // order, followed by the id used in the WHERE clause.

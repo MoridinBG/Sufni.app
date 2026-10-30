@@ -169,7 +169,7 @@ public class ImportSessionsCoordinator(
             var totalToProcess = files.Count(f => f.Action != ImportFileAction.Ignore);
             var processedCount = 0;
             var progressGate = new object();
-            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot Snapshot, RecordedSessionSourceSnapshot Source)>();
+            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported)>();
             var failuresQueue = new ConcurrentQueue<SessionImportFailure>();
 
             void Report(SessionImportEvent importEvent)
@@ -305,7 +305,7 @@ public class ImportSessionsCoordinator(
                                 continue;
                             }
 
-                            var source = RecordedSessionSourceFactory.CreateImportedSst(Guid.NewGuid(), telemetrySource);
+                            var source = RecordedSessionSourceFactory.CreateImportedSst(telemetrySource);
                             var session = new Session(
                                 id: source.SessionId,
                                 name: telemetryFile.Name,
@@ -337,10 +337,10 @@ public class ImportSessionsCoordinator(
                                     generation = generation.WithTrackWindow(track, SessionSnapshot.From(session));
                             }
                             var prepared = generation.CreateSession(SessionSnapshot.From(session), fullTrackId);
-                            var persisted = await sessionRepository.PutProcessedSessionAsync(prepared, newTrack, source);
+                            var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
 
-                            var snapshot = SessionSnapshot.From(persisted);
-                            committedImports.Add((telemetryFile, snapshot, RecordedSessionSourceSnapshot.From(source)));
+                            var snapshot = committed.Session is { } persisted ? SessionSnapshot.From(persisted) : null;
+                            committedImports.Add((telemetryFile, snapshot, committed.Source, committed.AlreadyImported));
                         }
                         catch (Exception e)
                         {
@@ -382,12 +382,12 @@ public class ImportSessionsCoordinator(
             }
 
             var committedEntries = committedImports.ToArray();
-            imported.AddRange(committedEntries.Select(entry => entry.Snapshot));
+            imported.AddRange(committedEntries.Where(entry => !entry.AlreadyImported).Select(entry => entry.Snapshot).OfType<SessionSnapshot>());
             failures.AddRange(failuresQueue);
 
             var publicationSucceeded = true;
-            var importedSnapshots = committedEntries.Select(entry => entry.Snapshot).ToArray();
-            if (importedSnapshots.Length > 0)
+            var importedSnapshots = committedEntries.Select(entry => entry.Snapshot).OfType<SessionSnapshot>().ToArray();
+            if (committedEntries.Length > 0)
             {
                 try
                 {
@@ -412,7 +412,9 @@ public class ImportSessionsCoordinator(
             {
                 foreach (var entry in committedEntries)
                 {
-                    Report(new SessionImportEvent.Imported(entry.Snapshot));
+                    Report(entry.AlreadyImported
+                        ? new SessionImportEvent.AlreadyImported(entry.File.Name, entry.Source.SessionId)
+                        : new SessionImportEvent.Imported(entry.Snapshot!));
                     try
                     {
                         await entry.File.OnImported();
@@ -474,6 +476,7 @@ public abstract record SessionImportEvent
     private SessionImportEvent() { }
 
     public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
+    public sealed record AlreadyImported(string FileName, Guid SessionId) : SessionImportEvent;
     public sealed record Failed(SessionImportFailure Failure) : SessionImportEvent;
     public sealed record Progress(int Current, int Total) : SessionImportEvent;
 }

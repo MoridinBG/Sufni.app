@@ -172,7 +172,8 @@ public class RecordedSessionReprocessorTests
                 new TemperatureSample(1_700_000_001, 0, 22.5f),
             ],
         };
-        var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, capture);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(capture);
+        source.SessionId = session.Id;
         var domain = new RecordedSessionDomainSnapshot(
             session,
             setup,
@@ -263,7 +264,8 @@ public class RecordedSessionReprocessorTests
             StreamGaps: [],
             FinalStatus: null,
             MissingFinalStatus: false);
-        var source = RecordedSessionSourceFactory.CreateLiveCapture(sourceSessionId, capture);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(capture);
+        source.SessionId = sourceSessionId;
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
         session = session with
         {
@@ -353,7 +355,8 @@ public class RecordedSessionReprocessorTests
             ],
             FinalStatus: null,
             MissingFinalStatus: true);
-        var source = RecordedSessionSourceFactory.CreateLiveCapture(sessionId, capture);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(capture);
+        source.SessionId = sessionId;
         var sourceJson = Encoding.UTF8.GetString(source.Payload);
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();

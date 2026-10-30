@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 using Sufni.Telemetry;
 
@@ -13,22 +12,23 @@ public static class RecordedSessionSourceFactory
 {
     private const int SchemaVersion = 1;
 
-    public static RecordedSessionSource CreateImportedSst(Guid sessionId, TelemetryFileSource source)
+    public static RecordedSessionSource CreateImportedSst(TelemetryFileSource source)
     {
         var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(source.SstBytes);
+        var sourceHash = RecordedSessionSourceHash.ComputeImportedSst(source.SstBytes.Span);
 
         return new RecordedSessionSource
         {
-            SessionId = sessionId,
+            SessionId = RecordedSessionSourceHash.CreateSessionId(sourceHash),
             SourceKind = RecordedSessionSourceKind.ImportedSst,
             SourceName = source.FileName,
             SchemaVersion = SchemaVersion,
-            SourceHash = RecordedSessionSourceHash.ComputeImportedSst(source.SstBytes.Span),
+            SourceHash = sourceHash,
             Payload = payload
         };
     }
 
-    public static RecordedSessionSource CreateLiveCapture(Guid sessionId, LiveTelemetryCapture capture)
+    public static RecordedSessionSource CreateLiveCapture(LiveTelemetryCapture capture)
     {
         var payload = new RecordedLiveCaptureSourcePayload
         {
@@ -45,14 +45,15 @@ public static class RecordedSessionSourceFactory
             MissingFinalStatus = capture.MissingFinalStatus,
         };
         var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
+        var sourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.LiveCapture, payloadBytes);
 
         return new RecordedSessionSource
         {
-            SessionId = sessionId,
+            SessionId = RecordedSessionSourceHash.CreateSessionId(sourceHash),
             SourceKind = RecordedSessionSourceKind.LiveCapture,
             SourceName = capture.Metadata.SourceName,
             SchemaVersion = SchemaVersion,
-            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.LiveCapture, payloadBytes),
+            SourceHash = sourceHash,
             Payload = payloadBytes
         };
     }

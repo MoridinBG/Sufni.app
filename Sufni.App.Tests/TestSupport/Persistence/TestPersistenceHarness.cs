@@ -127,11 +127,21 @@ internal sealed class TestPersistenceHarness
         await PutRecordedSessionSourceAsync(source);
     }
 
-    public Task<Session> PutProcessedSessionAsync(
+    public async Task<Session> PutProcessedSessionAsync(
         Session session,
         Track? newFullTrack,
-        RecordedSessionSource? source) =>
-        sessionRepository.PutProcessedSessionAsync(PrepareGeneration(session, newFullTrack), newFullTrack, source);
+        RecordedSessionSource? source)
+    {
+        var prepared = PrepareGeneration(session, newFullTrack);
+        if (newFullTrack is not null)
+        {
+            await PutAsync(newFullTrack);
+            prepared.FullTrack = newFullTrack.Id;
+        }
+        await PutAsync(prepared);
+        if (source is not null) await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
+        return (await sessionRepository.GetSessionAsync(prepared.Id))!;
+    }
 
     public Task<Session?> UpdateProcessedDerivedDataAsync(
         Session session,

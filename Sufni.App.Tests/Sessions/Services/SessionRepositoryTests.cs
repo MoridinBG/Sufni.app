@@ -1,4 +1,5 @@
 using SQLite;
+using Sufni.App.Acquisition.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
@@ -17,6 +18,91 @@ namespace Sufni.App.Tests.Sessions.Services;
 public class SessionRepositoryTests
 {
     [Fact]
+    public async Task ImportProcessedSessionAsync_ExistingLegacyHash_KeepsOriginalSessionAndSource()
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        using var file = new TelemetryFileSource("renamed.SST", [1, 2, 3]);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+        var legacySource = RecordedSessionSourceFactory.CreateImportedSst(file);
+        legacySource.SessionId = Guid.NewGuid();
+        legacySource.SourceName = "original.SST";
+        var original = new Session(legacySource.SessionId, "original", "notes", null)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+        await database.PutProcessedSessionAsync(original, null, legacySource);
+        var candidateTrack = PersistenceTestData.CreateFullTrack();
+
+        var result = await database.SessionRepository.ImportProcessedSessionAsync(
+            new Session(source.SessionId, "renamed", "replaced", null), candidateTrack, source);
+
+        Assert.True(result.AlreadyImported);
+        Assert.Equal(original.Id, result.Session!.Id);
+        Assert.Equal("original", result.Session.Name);
+        Assert.Equal("original.SST", result.Source.SourceName);
+        Assert.Single(await database.SessionRepository.GetSessionsAsync());
+        Assert.Null(await database.GetSessionAsync(source.SessionId));
+        Assert.Null(await database.GetAsync<Track>(candidateTrack.Id));
+    }
+
+    [Fact]
+    public async Task ImportProcessedSessionAsync_SyncedMetadataWithoutSource_AddsOnlySource()
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        using var file = new TelemetryFileSource("local.SST", [1, 2, 3]);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+        var original = new Session(source.SessionId, "remote name", "remote notes", null, 123)
+        {
+            VelocityFilterWindowMilliseconds = 100
+        };
+        await database.PutSessionAsync(original);
+        var before = SessionSnapshot.From((await database.GetSessionAsync(original.Id))!);
+        var candidateTrack = PersistenceTestData.CreateFullTrack();
+        var local = new Session(source.SessionId, "local name", "local notes", null, 456)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+
+        var result = await database.SessionRepository.ImportProcessedSessionAsync(local, candidateTrack, source);
+
+        Assert.False(result.AlreadyImported);
+        Assert.Equal(before, SessionSnapshot.From(result.Session!));
+        Assert.Equal(source.Payload, (await database.GetRecordedSessionSourceAsync(source.SessionId))!.Payload);
+        Assert.Null(await database.GetSessionRawPsstAsync(source.SessionId));
+        Assert.Null(await database.GetAsync<Track>(candidateTrack.Id));
+    }
+
+    [Fact]
+    public async Task ImportProcessedSessionAsync_ConcurrentImports_CommitOneRecordingAndTrack()
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        using var file = new TelemetryFileSource("ride.SST", [1, 2, 3]);
+        var candidates = Enumerable.Range(0, 4).Select(index =>
+        {
+            var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+            var track = PersistenceTestData.CreateFullTrack();
+            var session = new Session(source.SessionId, $"ride {index}", "", null)
+            {
+                ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+            };
+            return (Session: session, Track: track, Source: source);
+        }).ToArray();
+
+        var results = await Task.WhenAll(candidates.Select(candidate =>
+            database.SessionRepository.ImportProcessedSessionAsync(candidate.Session, candidate.Track, candidate.Source)));
+
+        var imported = Assert.Single(results.Where(result => !result.AlreadyImported));
+        Assert.Equal(3, results.Count(result => result.AlreadyImported));
+        Assert.Single(await database.SessionRepository.GetSessionsAsync());
+        Assert.Equal(candidates[0].Session.ProcessedData, await database.GetSessionRawPsstAsync(imported.Session!.Id));
+        var persistedTracks = await Task.WhenAll(candidates.Select(candidate => database.GetAsync<Track>(candidate.Track.Id)));
+        Assert.Equal(imported.Session.FullTrack, Assert.Single(persistedTracks.OfType<Track>()).Id);
+    }
+
+    [Fact]
     public async Task ProcessingOption_RollbackRequiresTheExpectedValue_AndPreservesTelemetry()
     {
         using var temp = new TempDatabase();
@@ -26,7 +112,7 @@ public class SessionRepositoryTests
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(30),
             VelocityFilterWindowMilliseconds = 50
         };
-        await database.SessionRepository.PutProcessedSessionAsync(session, null, null);
+        await database.PutAsync(session);
         await database.SessionRepository.SetProcessingOptionAsync(session.Id, 100);
         await database.SessionRepository.SetProcessingOptionAsync(session.Id, 250);
 
@@ -39,7 +125,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutProcessedSessionAsync_PersistsSummaryMetricsAsGiven_WithoutDerivation()
+    public async Task ImportProcessedSessionAsync_PersistsSummaryMetricsAsGiven_WithoutDerivation()
     {
         using var tempDatabase = new TempDatabase("processed-session-as-given.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -66,7 +152,8 @@ public class SessionRepositoryTests
             DescentMeters = 4
         };
 
-        var persisted = await database.SessionRepository.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+        var commit = await database.SessionRepository.ImportProcessedSessionAsync(session, null, PersistenceTestData.CreateRecordedSessionSource(session.Id));
+        var persisted = commit.Session!;
         var loaded = await database.GetSessionAsync(sessionId);
 
         Assert.Equal(1, persisted.DurationSeconds);
@@ -83,7 +170,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutProcessedSessionAsync_PersistsSessionTrackSourceAndFingerprint()
+    public async Task ImportProcessedSessionAsync_PersistsSessionTrackSourceAndFingerprint()
     {
         using var tempDatabase = new TempDatabase("processed-session.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -99,7 +186,8 @@ public class SessionRepositoryTests
         };
         var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
 
-        var persisted = await database.PutProcessedSessionAsync(session, track, source);
+        var commit = await database.SessionRepository.ImportProcessedSessionAsync(session, track, source);
+        var persisted = commit.Session!;
 
         Assert.Equal(track.Id, persisted.FullTrack);
         Assert.True(persisted.HasProcessedData);
@@ -315,9 +403,10 @@ public class SessionRepositoryTests
 
         for (var i = 0; i < putCount; i++)
         {
-            var sessionId = Guid.NewGuid();
+            using var file = new TelemetryFileSource($"recording-{i}.SST", Guid.NewGuid().ToByteArray());
+            var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+            var sessionId = source.SessionId;
             var track = PersistenceTestData.CreateFullTrack();
-            var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
             var session = new Session(sessionId, $"new session {i}", "desc", null, 200 + i)
             {
                 ProcessedData = PersistenceTestData.CreateTelemetryBlob(90 + i),
@@ -358,11 +447,12 @@ public class SessionRepositoryTests
             writeTasks.Add(Task.Run(async () =>
             {
                 await start.Task;
-                var persisted = await database.PutProcessedSessionAsync(
+                var committed = await database.SessionRepository.ImportProcessedSessionAsync(
                     putCase.Session,
                     putCase.Track,
                     putCase.Source);
-                Assert.Equal(putCase.Track.Id, persisted.FullTrack);
+                Assert.False(committed.AlreadyImported);
+                Assert.Equal(putCase.Track.Id, committed.Session!.FullTrack);
                 return (putCase.Session.Id, putCase.Track.Id);
             }));
         }
@@ -384,7 +474,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutProcessedSessionAsync_RollsBackSessionTrackAndSource_WhenSourceWriteFails()
+    public async Task ImportProcessedSessionAsync_RollsBackSessionTrackAndSource_WhenSourceWriteFails()
     {
         using var tempDatabase = new TempDatabase("processed-session-rollback.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -400,7 +490,7 @@ public class SessionRepositoryTests
         var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
         source.SourceName = null!;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.PutProcessedSessionAsync(session, track, source));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.SessionRepository.ImportProcessedSessionAsync(session, track, source));
 
         Assert.Null(await database.GetSessionAsync(sessionId));
         Assert.Null(await database.GetAsync<Track>(track.Id));

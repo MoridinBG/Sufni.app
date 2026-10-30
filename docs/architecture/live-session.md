@@ -39,7 +39,7 @@ graph LR
     DetailVM --> Coord["SessionCoordinator<br/>SaveLiveCaptureAsync"]
     Coord --> Source["RecordedSessionSourceFactory<br/>live_capture"]
     Coord --> Reprocessor["RecordedSessionReprocessor<br/>telemetry + track + fingerprint"]
-    Coord --> Repo["ISessionRepository<br/>PutProcessedSessionAsync"]
+    Coord --> Repo["ISessionRepository<br/>ImportProcessedSessionAsync"]
     Coord --> Prefs["ISessionPreferences<br/>UpdateRecordedAsync"]
     Coord --> Store["SessionStore<br/>Upsert"]
     Coord --> SourceStore["RecordedSessionSourceStore<br/>Upsert"]
@@ -90,7 +90,7 @@ User presses Save
     -> SessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
       -> RecordedSessionSourceFactory.CreateLiveCapture
       -> RecordedSessionReprocessor.ReprocessAsync
-      -> databaseService.PutProcessedSessionAsync(session, track, source)
+      -> databaseService.ImportProcessedSessionAsync(session, track, source)
       -> ISessionPreferences.UpdateRecordedAsync(sessionId, preferences)
       -> SessionStore.Upsert(snapshot) + RecordedSessionSourceStore.Upsert(source)
         -> LiveSessionSaveResult.Saved -> reset capture + open recorded editor
@@ -234,15 +234,14 @@ LiveSessionDetailViewModel.SaveImplementation
        with fork/shock spring + damping settings copied from NotesPage
   -> sessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
        1. source = RecordedSessionSourceFactory.CreateLiveCapture(...)
-       2. RecordedSessionReprocessor.ReprocessAsync(...)
-          -> telemetryData + optional generated track + fingerprint
-       3. session.ProcessedData = telemetryData.BinaryForm
-       4. session.ProcessingFingerprintJson = fingerprint JSON
-       5. fresh = databaseService.PutProcessedSessionAsync(session, track, source)
-       6. snapshot = SessionSnapshot.From(fresh)
+       2. capture metadata with source.SessionId as the recorded id
+       3. RecordedSessionReprocessor.ReprocessAsync(...) -> ProcessedGeneration
+       4. create/reuse track, resolve association, prepare session
+       5. committed = sessionRepository.ImportProcessedSessionAsync(session, track, source)
+       6. snapshot = SessionSnapshot.From(committed.Session)
        7. sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences)
-       8. sessionStore.Upsert(snapshot)
-       9. recordedSessionSourceStore.Upsert(source snapshot)
+       8. sessionStore.PublishSessionsChangedAsync([snapshot])
+       9. recordedSessionSourceStore.PublishSourcesChangedAsync([committed.Source])
        -> LiveSessionSaveResult.Saved(SessionId, Updated)
             | LiveSessionSaveResult.Failed(Reason, Details)
             | LiveSessionSaveResult.ProcessingFailed(Reason, Details)
@@ -251,7 +250,7 @@ LiveSessionDetailViewModel.SaveImplementation
   -> on Failed: append to ErrorMessages
 ```
 
-`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) always inserts a fresh recorded session row — there is no edit path for live captures and no `BaselineUpdated` to enforce. It creates the live-capture source through `RecordedSessionSourceFactory`, then delegates telemetry, generated-track, and fingerprint derivation to `IRecordedSessionReprocessor`. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, temperature data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `PutProcessedSessionAsync` persists the processed session, optional generated full track, and live-capture source in one transaction.
+`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) derives the recorded session id from the live source hash, replacing the temporary draft id without mutating the draft. There is no editor conflict baseline for live saves. It creates the live-capture source through `RecordedSessionSourceFactory`, then asks `IRecordedSessionReprocessor` for the pure generation; the coordinator owns track association and persistence. A retry of the same capture uses the same id and keeps the existing recording, including its authored metadata and processed generation. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, temperature data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `ImportProcessedSessionAsync` applies the same source-hash/content-id classification as file import and atomically persists a new session, optional generated full track, and source. Publication uses the retained source snapshot on a duplicate.
 
 `SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `shell.OpenEditor`.
 

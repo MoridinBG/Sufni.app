@@ -11,6 +11,7 @@ internal sealed class InMemorySessionRepository
     private readonly Dictionary<Guid, SessionSnapshot> snapshots = [];
     private readonly Dictionary<Guid, List<TrackPoint>> tracks = [];
     private readonly Dictionary<Guid, byte[]> telemetry = [];
+    private readonly Dictionary<Guid, RecordedSessionSourceSnapshot> sources = [];
     public ISessionRepository Repository { get; } = Substitute.For<ISessionRepository>();
     public Exception? WriteFailure { get; set; }
 
@@ -21,21 +22,33 @@ internal sealed class InMemorySessionRepository
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());
         Repository.GetSessionTrackAsync(Arg.Any<Guid>()).Returns(call => tracks.GetValueOrDefault(call.Arg<Guid>()));
         Repository.GetSessionRawPsstAsync(Arg.Any<Guid>()).Returns(call => telemetry.GetValueOrDefault(call.Arg<Guid>()));
-        Repository.PutProcessedSessionAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource?>())
+        Repository.ImportProcessedSessionAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource>())
             .Returns(call =>
             {
-                if (WriteFailure is { } failure) return Task.FromException<Session>(failure);
+                if (WriteFailure is { } failure) return Task.FromException<SessionImportCommitResult>(failure);
+                var source = call.Arg<RecordedSessionSource>();
+                var existing = sources.Values.FirstOrDefault(value => value.SourceHash == source.SourceHash);
+                if (existing is not null)
+                    return Task.FromResult(new SessionImportCommitResult(ToEntity(snapshots.GetValueOrDefault(existing.SessionId)), existing, true));
                 var session = call.Arg<Session>();
-                var snapshot = SessionSnapshot.From(session) with
-                {
-                    Updated = clock.GetUtcNow().ToUnixTimeSeconds(),
-                    FullTrackId = call.Arg<Track?>()?.Id ?? session.FullTrack
-                };
-                snapshots[session.Id] = snapshot;
-                if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
-                if (session.Track is { } points) tracks[session.Id] = [.. points];
-                return Task.FromResult(ToEntity(snapshot)!);
+                if (!snapshots.ContainsKey(session.Id)) PersistProcessed(session, call.Arg<Track?>());
+                var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
+                sources[session.Id] = sourceSnapshot;
+                return Task.FromResult(new SessionImportCommitResult(ToEntity(snapshots[session.Id]), sourceSnapshot, false));
             });
+
+        Session PersistProcessed(Session session, Track? track)
+        {
+            var snapshot = SessionSnapshot.From(session) with
+            {
+                Updated = clock.GetUtcNow().ToUnixTimeSeconds(),
+                FullTrackId = track?.Id ?? session.FullTrack
+            };
+            snapshots[session.Id] = snapshot;
+            if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
+            if (session.Track is { } points) tracks[session.Id] = [.. points];
+            return ToEntity(snapshot)!;
+        }
         Repository.UpdateSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>())
             .Returns(call =>
             {

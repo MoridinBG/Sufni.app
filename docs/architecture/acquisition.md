@@ -25,7 +25,7 @@ graph LR
     Coord --> Runner["IBackgroundTaskRunner"]
     Coord --> SourceFactory["RecordedSessionSourceFactory"]
     Coord --> Reprocessor["RecordedSessionReprocessor"]
-    Coord --> Repo["ISessionRepository<br/>PutProcessedSessionAsync"]
+    Coord --> Repo["ISessionRepository<br/>ImportProcessedSessionAsync"]
     Coord --> SessionStore["ISessionStoreWriter"]
     Coord --> SourceStore["IRecordedSessionSourceStoreWriter"]
     Coord --> TelemetryFile["ITelemetryFile"]
@@ -36,6 +36,17 @@ Files already queued finish processing and persistence, then their store
 publication and acknowledgement complete before the coordinator's `StopAsync`
 returns. The batch remains owned by the coordinator throughout this drain;
 closing its tab does not cancel it. There is no user-facing cancel action.
+
+The import transaction classifies by source hash before inserting. An existing
+hash, including a legacy recording with a random id, yields `AlreadyImported`
+and preserves its session/source. If the content-id session arrived by sync but
+has no source, the transaction inserts only that source and reports `Imported`;
+authored metadata and any existing processed generation remain unchanged.
+Otherwise it inserts the session, source and optional generated track atomically.
+Committed snapshots are published before acknowledgement, including duplicate
+imports, so retrying a publication failure can restore visible state without
+creating another recording. The source-hash column is not unique: legacy duplicate
+rows and split references remain valid.
 
 ### Interfaces
 

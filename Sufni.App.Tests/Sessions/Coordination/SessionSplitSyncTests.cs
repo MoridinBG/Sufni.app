@@ -67,15 +67,17 @@ public class SessionSplitSyncTests
                 new LinearForkSensorConfiguration { Length = 140, Resolution = 12 })
         };
         var session = new Session(Guid.NewGuid(), "ride", "", setup.Id, Timestamp) { DurationSeconds = DurationSeconds, VelocityFilterWindowMilliseconds = 100 };
-        var source = RecordedSessionSourceFactory.CreateLiveCapture(session.Id, CreateCapture());
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(CreateCapture());
+        source.SessionId = session.Id;
         await database.PutAsync(bike);
         await database.PutAsync(setup);
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(CreateInput(SessionSnapshot.From(session), setup, bike, source), TestContext.Current.CancellationToken));
-        var persisted = await database.SessionRepository.PutProcessedSessionAsync(
+        var commit = await database.SessionRepository.ImportProcessedSessionAsync(
             result.Generation.CreateSession(SessionSnapshot.From(session), fullTrackId: null),
             newFullTrack: null,
             source);
+        var persisted = commit.Session!;
         return (persisted, setup, bike, source);
     }
 
