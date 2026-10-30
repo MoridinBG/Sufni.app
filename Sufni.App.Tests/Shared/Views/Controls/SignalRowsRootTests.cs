@@ -655,7 +655,7 @@ public class SignalRowsRootTests
             Content = root,
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
         root.Measure(new Size(width, height));
         root.Arrange(new Rect(0, 0, width, height));

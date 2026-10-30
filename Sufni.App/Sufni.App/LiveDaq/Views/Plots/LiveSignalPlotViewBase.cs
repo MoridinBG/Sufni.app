@@ -337,7 +337,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
 
     private void StartForegroundUpdates()
     {
-        uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
+        uiRefreshTimer ??= UiTimers.GetScheduler(this).SchedulePeriodic(
             TimeSpan.FromMilliseconds(PlotSettings.LiveSignalRefreshIntervalMs),
             FlushPendingSignalBatches);
         EnsureSignalBatchSubscription();

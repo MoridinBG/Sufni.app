@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -18,18 +19,15 @@ namespace Sufni.App.Infrastructure;
 public class DialogService : IDialogService, IDialogHost
 {
     private readonly ViewLocator viewLocator;
+    private readonly IUiTimerScheduler uiTimerScheduler;
     private Window? owner;
     private Control? overlayHost;
     private DialogPresentationMode presentationMode = DialogPresentationMode.Window;
 
-    public DialogService()
-        : this(new ViewLocator())
-    {
-    }
-
-    public DialogService(ViewLocator viewLocator)
+    public DialogService(ViewLocator viewLocator, IUiTimerScheduler uiTimerScheduler)
     {
         this.viewLocator = viewLocator;
+        this.uiTimerScheduler = uiTimerScheduler;
     }
 
     public void SetOwner(Window owner)
@@ -61,6 +59,7 @@ public class DialogService : IDialogService, IDialogHost
             dialog = new OkCancelDialogWindow("Close?",
                 "Page cannot be saved due to missing or wrong data. Are you sure you want to close it?");
         }
+        UiTimers.SetScheduler(dialog, uiTimerScheduler);
         return await dialog.ShowDialogAsync(owner);
     }
 
@@ -107,6 +106,7 @@ public class DialogService : IDialogService, IDialogHost
 
         window.Content = content;
 
+        UiTimers.SetScheduler(window, uiTimerScheduler);
         window.ShowDialog(dialogOwner);
         return tcs.Task;
     }
@@ -175,6 +175,7 @@ public class DialogService : IDialogService, IDialogHost
             tcs.TrySetResult(PromptResult.Cancel);
         };
 
+        UiTimers.SetScheduler(window, uiTimerScheduler);
         window.ShowDialog(dialogOwner);
         return tcs.Task;
 
@@ -336,6 +337,7 @@ public class DialogService : IDialogService, IDialogHost
         Debug.Assert(owner != null, nameof(owner) + " != null");
 
         var dialog = new OkCancelDialogWindow(title, message);
+        UiTimers.SetScheduler(dialog, uiTimerScheduler);
         var result = await dialog.ShowDialogAsync(owner);
         return result == PromptResult.Ok;
     }
@@ -352,6 +354,7 @@ public class DialogService : IDialogService, IDialogHost
         Debug.Assert(owner != null, nameof(owner) + " != null");
 
         var dialog = new ChoiceDialogWindow(title, message, choices);
+        UiTimers.SetScheduler(dialog, uiTimerScheduler);
         return await dialog.ShowDialogAsync(owner!);
     }
 
@@ -485,6 +488,7 @@ public class DialogService : IDialogService, IDialogHost
         var progress = new Progress<DialogProgress>(window.Update);
         // Show the modal dialog without awaiting it: its task completes only on
         // close, which we do ourselves once the reported work finishes.
+        UiTimers.SetScheduler(window, uiTimerScheduler);
         _ = window.ShowDialog(owner!);
         try
         {

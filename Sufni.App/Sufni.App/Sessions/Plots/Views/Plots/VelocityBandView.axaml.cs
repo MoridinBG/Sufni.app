@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -455,7 +456,7 @@ public class VelocityBandView : TemplatedControl
         CancelPendingMobileLongPress();
         pendingMobilePointer = pointer;
         pendingMobileCircuit = circuit;
-        pendingMobileLongPress = PeriodicUiTimer.ScheduleOnce(
+        pendingMobileLongPress = UiTimers.GetScheduler(this).ScheduleOnce(
             PointerGesture.DampingCutoffLongPressDelay,
             CompleteMobileLongPress);
     }

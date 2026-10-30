@@ -376,7 +376,8 @@ public class EditorFactoryTests
             TestSegmentPickers.CreateFactory(),
             TestSegmentComparisons.CreateFactory(),
             new SessionOperationRunner(),
-            new Microsoft.Extensions.Time.Testing.FakeTimeProvider());
+            new Microsoft.Extensions.Time.Testing.FakeTimeProvider(),
+            new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler());
     }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator

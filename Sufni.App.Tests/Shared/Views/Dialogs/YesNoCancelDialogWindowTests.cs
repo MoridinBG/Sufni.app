@@ -35,7 +35,7 @@ public class YesNoCancelDialogWindowTests
     private static async Task<PromptResult> ShowAndPressAsync(string buttonName)
     {
         var owner = new Window();
-        owner.Show();
+        ViewTestHelpers.ShowWindow(owner);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var dialog = new YesNoCancelDialogWindow("Title sentinel", "Message sentinel");

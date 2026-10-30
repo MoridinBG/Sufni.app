@@ -62,7 +62,7 @@ public class RecordedImuPlotViewTests
             Content = hiddenAncestor,
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(0, backgroundTaskRunner.RunCount);
@@ -130,7 +130,7 @@ public class RecordedImuPlotViewTests
         Assert.False(state.HasInputObservers);
         Assert.False(state.HasResultObservers);
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(state.HasInputObservers);

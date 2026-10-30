@@ -33,7 +33,7 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 [Collection("Ui")]
 public class LiveSessionDetailViewModelTests : IDisposable
 {
-    private readonly ManualPeriodicUiTimerScheduler uiTimers;
+    private readonly ManualUiTimerScheduler uiTimers;
     private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider time = new();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
@@ -49,7 +49,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
     public LiveSessionDetailViewModelTests()
     {
-        uiTimers = ManualPeriodicUiTimerScheduler.Install();
+        uiTimers = new ManualUiTimerScheduler();
         tileLayerService.AvailableLayers.Returns([]);
         tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         capturePackage = CreateCapturePackage();
@@ -471,6 +471,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
             dialogService,
             new InlineUiThreadDispatcher(),
             time,
+            uiTimers,
             bikeCoordinator);
         editor.SetTabActive(isTabActive);
         return editor;

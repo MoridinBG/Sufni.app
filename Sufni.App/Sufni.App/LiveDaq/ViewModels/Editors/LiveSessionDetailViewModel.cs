@@ -42,6 +42,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     ISessionSidebarWorkspace,
     ILiveSessionControlsWorkspace
 {
+    private readonly IUiTimerScheduler uiTimerScheduler;
     private readonly LiveSessionSignalsWorkspaceViewModel signalsWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService liveSessionService;
@@ -231,9 +232,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider,
+        IUiTimerScheduler uiTimerScheduler,
         IBikeCoordinator? bikeCoordinator = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
+        this.uiTimerScheduler = uiTimerScheduler;
         IdentityKey = context.IdentityKey;
         SetupId = context.SetupId;
         SetupName = context.SetupName;
@@ -340,7 +343,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     {
         // Live session updates arrive far faster than the controls need to repaint.
         // Keep the latest snapshot and project it into the UI at a fixed cadence.
-        uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(
+        uiRefreshTimer ??= uiTimerScheduler.SchedulePeriodic(
             TimeSpan.FromMilliseconds(PlotSettings.LiveUiRefreshIntervalMs),
             RefreshUi);
 

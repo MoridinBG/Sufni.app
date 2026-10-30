@@ -1,5 +1,4 @@
 using System.Text;
-using Avalonia.Headless.XUnit;
 using NSubstitute;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
@@ -7,16 +6,14 @@ using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
-using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.LiveDaq;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 
-[Collection("Ui")]
 public class LiveDaqDetailViewModelTests
 {
-    [AvaloniaFact]
+    [Fact]
     public async Task ConnectCommand_AppliesConfigurationAndAcceptedSessionState()
     {
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
@@ -42,7 +39,7 @@ public class LiveDaqDetailViewModelTests
         Assert.Equal("192.168.0.50:1557", editor.Endpoint);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ConnectCommand_PushesErrorMessage_WhenStartIsRejected()
     {
         const string rejectionMessage = "start rejected sentinel";
@@ -55,7 +52,7 @@ public class LiveDaqDetailViewModelTests
         Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SetTimeCommand_AddsNotification_OnSuccess()
     {
         var harness = new LiveDaqDetailHarness();
@@ -70,7 +67,7 @@ public class LiveDaqDetailViewModelTests
         Assert.False(editor.IsManagementBusy);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task UploadConfigCommand_UploadsSelectedConfigAndClearsPendingState()
     {
         var harness = new LiveDaqDetailHarness();
@@ -89,7 +86,7 @@ public class LiveDaqDetailViewModelTests
         Assert.Single(editor.Notifications);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task EditConfigCommand_DownloadsConfigAndUploadsDialogChanges()
     {
         object? dialogContent = null;
@@ -126,43 +123,41 @@ public class LiveDaqDetailViewModelTests
         Assert.False(editor.IsManagementBusy);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task LoadedCommand_DoesNotStartForegroundUpdates_WhenTabIsInactive()
     {
-        using var uiTimers = ManualPeriodicUiTimerScheduler.Install();
         var harness = new LiveDaqDetailHarness();
         var editor = harness.CreateEditor();
 
         await editor.LoadedCommand.ExecuteAsync(null);
 
-        Assert.False(uiTimers.HasScheduledTimers);
+        Assert.False(harness.UiTimers.HasScheduledTimers);
         Assert.False(harness.Frames.HasObservers);
         Assert.False(harness.StreamStates.HasObservers);
         _ = harness.SharedStream.Received(1).AcquireLease();
         await harness.StreamLease.DidNotReceive().DisposeAsync();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task TabDeactivation_StopsForegroundUpdates_ButRetainsStreamLease()
     {
-        using var uiTimers = ManualPeriodicUiTimerScheduler.Install();
         var harness = new LiveDaqDetailHarness();
         var editor = harness.CreateEditor();
         editor.SetTabActive(true);
         await editor.LoadedCommand.ExecuteAsync(null);
-        Assert.True(uiTimers.HasScheduledTimers);
+        Assert.True(harness.UiTimers.HasScheduledTimers);
         Assert.True(harness.Frames.HasObservers);
         Assert.True(harness.StreamStates.HasObservers);
 
         editor.SetTabActive(false);
 
-        Assert.False(uiTimers.HasScheduledTimers);
+        Assert.False(harness.UiTimers.HasScheduledTimers);
         Assert.False(harness.Frames.HasObservers);
         Assert.False(harness.StreamStates.HasObservers);
         await harness.StreamLease.DidNotReceive().DisposeAsync();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ReactivatingClosedTab_DoesNotSubscribeToDisposedSharedStream()
     {
         var harness = new LiveDaqDetailHarness();
@@ -179,7 +174,7 @@ public class LiveDaqDetailViewModelTests
         Assert.Null(exception);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ManagementCommands_DoNotRun_AfterStoreRemovesRow()
     {
         var harness = new LiveDaqDetailHarness();

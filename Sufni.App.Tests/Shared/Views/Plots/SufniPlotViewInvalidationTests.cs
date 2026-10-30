@@ -60,7 +60,7 @@ public class SufniPlotViewInvalidationTests
         ViewTestHelpers.EnsurePlotViewStyle();
         var view = new TrackingPlotView();
         var host = new Window { Content = view };
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
         return (view, host);
     }

@@ -46,7 +46,7 @@ public class LiveSignalPlotViewTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
@@ -94,7 +94,7 @@ public class LiveSignalPlotViewTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
@@ -143,7 +143,7 @@ public class LiveSignalPlotViewTests
             Content = tabContent
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
@@ -198,7 +198,7 @@ public class LiveSignalPlotViewTests
             Content = root
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
@@ -244,7 +244,7 @@ public class LiveSignalPlotViewTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");

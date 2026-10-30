@@ -1,22 +1,14 @@
-using Sufni.App.Shared.Common;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Tests.TestSupport.Async;
 
-public sealed class ManualPeriodicUiTimerScheduler :
-    PeriodicUiTimer.IPeriodicUiTimerScheduler,
+public sealed class ManualUiTimerScheduler :
+    IUiTimerScheduler,
     IDisposable
 {
     private readonly object gate = new();
     private readonly List<ScheduledTimer> timers = [];
-    private readonly IDisposable schedulerOverride;
     private bool isDisposed;
-
-    private ManualPeriodicUiTimerScheduler()
-    {
-        schedulerOverride = PeriodicUiTimer.UseSchedulerForTests(this);
-    }
-
-    public static ManualPeriodicUiTimerScheduler Install() => new();
 
     public bool HasScheduledTimers
     {
@@ -66,7 +58,6 @@ public sealed class ManualPeriodicUiTimerScheduler :
         }
 
         isDisposed = true;
-        schedulerOverride.Dispose();
         ScheduledTimer[] snapshot;
         lock (gate)
         {
@@ -103,7 +94,7 @@ public sealed class ManualPeriodicUiTimerScheduler :
     }
 
     private sealed class ScheduledTimer(
-        ManualPeriodicUiTimerScheduler owner,
+        ManualUiTimerScheduler owner,
         bool repeats,
         Action action) : IDisposable
     {

@@ -220,7 +220,7 @@ public class MainWindowTests
 
     private static async Task<MountedMainWindow> MountAsync(MainWindow window)
     {
-        window.Show();
+        ViewTestHelpers.ShowWindow(window);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         window.Measure(new Size(window.Width, window.Height));

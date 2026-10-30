@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views;
 using System;
 using Avalonia;
 using Avalonia.Animation;
@@ -253,7 +254,7 @@ public sealed class PlotZoomOverlayHost : Panel, IPlotZoomSurface
         scrim.Transitions = CreateOpacityTransitions();
         modalSurface.RenderTransform = CreateTransform(targetRect.Value, sourceRect.Value);
         scrim.Opacity = 0;
-        pendingCloseCompletion = PeriodicUiTimer.ScheduleOnce(AnimationDuration, FinishClose);
+        pendingCloseCompletion = UiTimers.GetScheduler(this).ScheduleOnce(AnimationDuration, FinishClose);
     }
 
     private void CloseImmediately()

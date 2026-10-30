@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views;
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -98,6 +99,7 @@ public partial class App : Application
             case IClassicDesktopStyleApplicationLifetime desktop:
                 var desktopShellRootViewModel = Services.GetRequiredService<ShellRootViewModel>();
                 var mainWindow = new MainWindow(Services.GetService<IWindowBehavior>());
+                UiTimers.SetScheduler(mainWindow, Services.GetRequiredService<IUiTimerScheduler>());
                 PointerGesture.SetSupportsTouchLongPressContextMenu(
                     mainWindow,
                     supportsTouchLongPressContextMenu);
@@ -118,6 +120,7 @@ public partial class App : Application
                 {
                     DataContext = shellRootViewModel
                 };
+                UiTimers.SetScheduler(mainView, Services.GetRequiredService<IUiTimerScheduler>());
                 PointerGesture.SetSupportsTouchLongPressContextMenu(
                     mainView,
                     supportsTouchLongPressContextMenu);

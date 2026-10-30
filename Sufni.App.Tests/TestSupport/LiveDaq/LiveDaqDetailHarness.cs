@@ -1,4 +1,5 @@
 using System.Reactive.Subjects;
+using Sufni.App.Tests.TestSupport.Async;
 using Microsoft.Extensions.Time.Testing;
 using System.Text;
 using NSubstitute;
@@ -68,6 +69,7 @@ internal sealed class LiveDaqDetailHarness
     }
 
     public FakeTimeProvider Time { get; } = new();
+    public ManualUiTimerScheduler UiTimers { get; } = new();
 
     public ILiveDaqSharedStream SharedStream { get; } = Substitute.For<ILiveDaqSharedStream>();
     public ILiveDaqCoordinator LiveDaqCoordinator { get; } = TestCoordinatorSubstitutes.LiveDaq();
@@ -107,7 +109,8 @@ internal sealed class LiveDaqDetailHarness
             KnownBoardsQuery,
             LiveDaqStore,
             new InlineUiThreadDispatcher(),
-            Time);
+            Time,
+            UiTimers);
     }
 
     public void PublishStreamState(LiveDaqSharedStreamState state)

@@ -128,7 +128,7 @@ AP_PSK=changemeplease
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
         view.Measure(new Size(width, height));
         view.Arrange(new Rect(0, 0, width, height));

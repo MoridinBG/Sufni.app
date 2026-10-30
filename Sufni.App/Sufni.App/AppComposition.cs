@@ -64,6 +64,7 @@ public static class AppComposition
     {
         services.AddSingleton(root.Paths);
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IUiTimerScheduler, DispatcherUiTimerScheduler>();
         services.AddSingleton<IAppEnvironment>(new AppEnvironment(
             root.LaunchPreferences.LayoutProfile, root.Capabilities, root.Input));
         root.RegisterPlatformServices(services);

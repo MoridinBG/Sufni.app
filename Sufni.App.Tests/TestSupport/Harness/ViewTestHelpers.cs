@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Sufni.App;
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Views;
 
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Tests.TestSupport.Harness;
@@ -28,8 +29,14 @@ public static class ViewTestHelpers
             Content = view
         };
 
-        window.Show();
+        ShowWindow(window);
         return window;
+    }
+
+    public static void ShowWindow(Window window, IUiTimerScheduler? scheduler = null)
+    {
+        UiTimers.SetScheduler(window, scheduler ?? new DispatcherUiTimerScheduler());
+        window.Show();
     }
 
     public static async Task<Window> ShowViewAsync(Control view)

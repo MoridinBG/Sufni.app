@@ -15,7 +15,7 @@ public class OkCancelDialogWindowTests
     public async Task OkCancelDialogWindow_OkButton_CompletesDialogWithOk()
     {
         var owner = new Window();
-        owner.Show();
+        ViewTestHelpers.ShowWindow(owner);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var dialog = new OkCancelDialogWindow("Title sentinel", "Message sentinel");
@@ -48,7 +48,7 @@ public class OkCancelDialogWindowTests
     public async Task OkCancelDialogWindow_CancelButton_CompletesDialogWithCancel()
     {
         var owner = new Window();
-        owner.Show();
+        ViewTestHelpers.ShowWindow(owner);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var dialog = new OkCancelDialogWindow("Title sentinel", "Message sentinel");

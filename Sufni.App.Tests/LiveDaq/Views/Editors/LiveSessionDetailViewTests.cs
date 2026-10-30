@@ -99,7 +99,8 @@ public class LiveSessionDetailViewTests
             shell,
             dialogService,
             new InlineUiThreadDispatcher(),
-            new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
+            new Microsoft.Extensions.Time.Testing.FakeTimeProvider(),
+            new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler())
         {
             Name = "Live Session 01",
         };

@@ -50,7 +50,7 @@ public class SufniAvaPlotTests
             Content = plot,
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         plot.Measure(new Size(400, 220));
         plot.Arrange(new Rect(0, 0, 400, 220));
         await RenderAsync(plot, 800, 440);

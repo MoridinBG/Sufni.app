@@ -39,6 +39,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [ObservableProperty]
     public partial string? BikeName { get; set; }
 
+    private readonly IUiTimerScheduler uiTimerScheduler;
     private readonly ILiveDaqSharedStream sharedStream;
     private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly IDaqManagementService daqManagementService;
@@ -128,10 +129,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqStore liveDaqStore,
         IUiThreadDispatcher uiThreadDispatcher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IUiTimerScheduler uiTimerScheduler)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         sessionState = new LiveDaqSessionState(timeProvider);
+        this.uiTimerScheduler = uiTimerScheduler;
         IdentityKey = snapshot.IdentityKey;
         BoardId = snapshot.BoardId;
         Endpoint = snapshot.Endpoint;
@@ -866,7 +869,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
         // Frames arrive far faster than the UI needs to repaint. The session state
         // accumulates every frame, and this timer snapshots it at a fixed cadence.
-        uiRefreshTimer ??= PeriodicUiTimer.SchedulePeriodic(TimeSpan.FromMilliseconds(100), RefreshSnapshot);
+        uiRefreshTimer ??= uiTimerScheduler.SchedulePeriodic(TimeSpan.FromMilliseconds(100), RefreshSnapshot);
         EnsureScopedSubscription(disposables =>
         {
             disposables.Add(sharedStream.Frames.Subscribe(frame => HandleFrame(frame)));

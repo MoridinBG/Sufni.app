@@ -95,7 +95,7 @@ Diagnostics tab loads
               -> publish loop emits LiveDaqClientEvent frames
             -> LiveDaqSharedStream state/frames
               -> LiveDaqSessionState.ApplyFrame
-                -> DispatcherTimer tick -> CreateSnapshot -> UI binding
+                -> IUiTimerScheduler tick -> CreateSnapshot -> UI binding
 
 User presses Start Session
   -> LiveDaqCoordinator.OpenSessionAsync
@@ -295,7 +295,7 @@ using the `TimeProvider` supplied to `LiveDaqSessionState` by the editor factory
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses a `DispatcherTimer` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses an injected `IUiTimerScheduler` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
 
 Management actions stay in the detail view model rather than the transport layer or coordinator:
 
@@ -324,7 +324,7 @@ Both desktop and mobile heads add the Live tab and bind to the same view models.
 2. **Runtime-only store** — `LiveDaqStore` has no persistence, no `RefreshAsync()`, and no optimistic-concurrency surface. It exists only to project discovered and known boards into the list.
 3. **Custom row type** — `LiveDaqRowViewModel` does not implement `IListItemRow` because live rows are not deletable and need online/offline presentation rather than the entity-list pattern.
 4. **Per-identity shared stream** — one `LiveDaqSharedStream` owns the transport for one DAQ identity, and both the diagnostics tab and the live-session tab subscribe to it through leases.
-5. **Throttled UI updates** — sensor data arrives at packet rate but UI binding updates are snapshot-based and throttled by `DispatcherTimer`, not by raw frame arrival.
+5. **Throttled UI updates** — sensor data arrives at packet rate but UI binding updates are snapshot-based and throttled by `IUiTimerScheduler`, not by raw frame arrival.
 6. **Lease-based browse** — browse ownership uses reference counting so import and live can browse concurrently without interfering.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Protocol-specific clients behind a canonical frame model** — v2 and v3 wire parsing stays inside protocol-specific readers/clients. Everything above `ILiveDaqClientFactory` receives canonical live frames and does not branch on wire layout.

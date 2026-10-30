@@ -650,12 +650,12 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected virtual IDisposable ScheduleTouchContextMenuLongPress(Action callback)
     {
-        return PeriodicUiTimer.ScheduleOnce(PointerGesture.AnalysisLongPressDelay, callback);
+        return UiTimers.GetScheduler(this).ScheduleOnce(PointerGesture.AnalysisLongPressDelay, callback);
     }
 
     protected virtual IDisposable ScheduleDeferredPlotClickEffects(TimeSpan delay, Action callback)
     {
-        return PeriodicUiTimer.ScheduleOnce(delay, callback);
+        return UiTimers.GetScheduler(this).ScheduleOnce(delay, callback);
     }
 
     private TimeSpan GetDoubleTapCancelWindow(PointerEventArgs args)

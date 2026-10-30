@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Async;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -156,11 +157,40 @@ public class PlotZoomOverlayHostTests
         Assert.False(mounted.Overlay.TryCollapseZoom());
     }
 
+    [AvaloniaFact]
+    public async Task CloseAnimation_ReturnsEachChild_WhenItsRootSchedulerCompletes()
+    {
+        using var firstTimers = new ManualUiTimerScheduler();
+        using var secondTimers = new ManualUiTimerScheduler();
+        await using var first = await MountAsync(scheduler: firstTimers);
+        await using var second = await MountAsync(scheduler: secondTimers);
+        await OpenAsync(first.Container);
+        await OpenAsync(second.Container);
+
+        Assert.True(first.Overlay.TryCollapseZoom());
+        Assert.True(second.Overlay.TryCollapseZoom());
+        Assert.Null(first.Container.Child);
+        Assert.Null(second.Container.Child);
+
+        firstTimers.FireAll();
+
+        Assert.False(first.Overlay.IsZoomOpen);
+        Assert.Same(first.Child, first.Container.Child);
+        Assert.True(second.Overlay.IsZoomOpen);
+        Assert.Null(second.Container.Child);
+
+        secondTimers.FireAll();
+
+        Assert.False(second.Overlay.IsZoomOpen);
+        Assert.Same(second.Child, second.Container.Child);
+    }
+
     private static async Task<MountedOverlay> MountAsync(
         double width = 640,
         double height = 360,
         UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace,
-        bool hasKeyboardInput = true)
+        bool hasKeyboardInput = true,
+        IUiTimerScheduler? scheduler = null)
     {
         ViewTestHelpers.EnsureViewTestResources();
         var child = new Border();
@@ -188,7 +218,7 @@ public class PlotZoomOverlayHostTests
             Content = root,
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host, scheduler);
         await ViewTestHelpers.FlushDispatcherAsync();
         root.Measure(new Size(width, height));
         root.Arrange(new Rect(0, 0, width, height));

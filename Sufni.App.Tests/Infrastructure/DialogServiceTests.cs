@@ -18,7 +18,7 @@ public class DialogServiceTests
         var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
         var viewModel = new TestContentDialogCompletionSource();
-        owner.Show();
+        ViewTestHelpers.ShowWindow(owner);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         service.SetOwner(owner);
@@ -275,7 +275,7 @@ public class DialogServiceTests
     {
         var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
-        owner.Show();
+        ViewTestHelpers.ShowWindow(owner);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         service.SetOwner(owner);
@@ -345,7 +345,7 @@ public class DialogServiceTests
 
     private static DialogService CreateService(DialogPresentationMode presentationMode)
     {
-        var service = new DialogService();
+        var service = new DialogService(new ViewLocator(), new DispatcherUiTimerScheduler());
         service.SetPresentationMode(presentationMode);
         return service;
     }

@@ -46,7 +46,7 @@ public class BikeEditorViewSmokeTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var importButton = view.FindControl<Button>("ImportButton");
@@ -77,7 +77,7 @@ public class BikeEditorViewSmokeTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var splitView = Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
@@ -110,7 +110,7 @@ public class BikeEditorViewSmokeTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
@@ -138,7 +138,7 @@ public class BikeEditorViewSmokeTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var removeButtons = view.GetVisualDescendants()
@@ -177,7 +177,7 @@ public class BikeEditorViewSmokeTests
             Content = view
         };
 
-        host.Show();
+        ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Single(view.GetVisualDescendants().OfType<LeverageRatioEditorView>());
