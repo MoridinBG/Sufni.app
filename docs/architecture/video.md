@@ -44,7 +44,9 @@ through its background runner, then published through the store's
 whole-app batch; the store itself has no repository dependency.
 
 
-`SessionVideoStore` holds a `SessionVideoSnapshot` per clip. The snapshot records `FileExists` when it is created, and a refresh checks the file again. `AppDataRefresher` refreshes the store with the other core stores.
+`SessionVideoStore` holds a `SessionVideoSnapshot` per clip and accepts prepared
+snapshots only. Import, alignment, and session editing prepare clip snapshots
+off-thread, including the file-presence check, before publication. The snapshot records `FileExists` when it is created, and a refresh checks the file again. `AppDataRefresher` refreshes the store with the other core stores.
 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 

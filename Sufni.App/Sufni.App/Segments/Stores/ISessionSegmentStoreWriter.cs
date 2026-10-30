@@ -1,8 +1,7 @@
+using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.Segments.Models;
 namespace Sufni.App.Segments.Stores;
 
 public interface ISessionSegmentStoreWriter : ISessionSegmentStore
@@ -10,7 +9,7 @@ public interface ISessionSegmentStoreWriter : ISessionSegmentStore
     Task ReplaceAllAsync(IReadOnlyList<SessionSegmentSnapshot> snapshots);
 
     /// <summary>
-    /// Publishes written rows; deleted rows leave the store.
+    /// Publishes prepared snapshots and removals in one cache update.
     /// </summary>
-    Task PublishSegmentsAsync(IReadOnlyCollection<SessionSegment> segments);
+    Task PublishSegmentsAsync(IReadOnlyCollection<SessionSegmentSnapshot> snapshots, IReadOnlyCollection<Guid> removedIds);
 }

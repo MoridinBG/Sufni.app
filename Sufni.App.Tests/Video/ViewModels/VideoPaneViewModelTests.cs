@@ -1,3 +1,4 @@
+using Sufni.App.Video.Stores;
 using Sufni.App.Video.Models;
 using System.Reactive.Subjects;
 using System.Reactive.Linq;
@@ -41,7 +42,7 @@ public class VideoPaneViewModelTests : IDisposable
         var store = await fixture.CreateStoreAsync();
         using var pane = new VideoPaneViewModel(sessionId, timeline, Observable.Never<VideoSessionTiming>(), store, fixture.Coordinator, fixture.PlayerFactory);
 
-        await store.PublishClipsAsync([fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60)]);
+        await store.PublishClipsAsync([SessionVideoSnapshot.From(fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60))]);
 
         Assert.True(pane.HasVideo);
     }

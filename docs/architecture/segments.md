@@ -35,7 +35,7 @@ Startup cleanup removes segment tombstones older than one day and segments whose
 
 ## Store And Coordinator
 
-`SessionSegmentStore` holds the live segments of live sessions. `GetForSession` returns the segments of one session. `PublishSegmentsAsync` publishes written rows; a deleted row leaves the store. `AppDataRefresher` refreshes the store with the other core stores.
+`SessionSegmentStore` holds the live segments of live sessions. `GetForSession` returns the segments of one session. `PublishSegmentsAsync` receives prepared snapshots and removal ids, publishing both in one cache update. Workflow owners classify deleted rows and prepare snapshots; the store does not inspect persistence models. `AppDataRefresher` refreshes the store with the other core stores.
 
 `SegmentCoordinator` owns create, rename, and delete, matching (see [Matching And Comparison](#matching-and-comparison)), and the Strava workflows (see [Strava](#strava)). It is the only place of the name rule: a name is required, and it is unique among the live segments of the session. `ValidateName` exposes the rule to prompts, and `NextName` returns the first free "Segment N" name. Create also rejects a missing session and a range that is not finite or not ordered. Each workflow returns `SegmentChangeResult.Applied` or `Failed` with a message.
 

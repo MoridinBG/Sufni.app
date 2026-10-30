@@ -102,7 +102,11 @@ internal sealed class VideoCoordinator(
 
         try
         {
-            var updated = await videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds);
+            var updated = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var row = await videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds);
+                return row is null ? null : SessionVideoSnapshot.From(row);
+            });
             if (updated is null)
             {
                 return new VideoAlignmentResult.ClipMissing();
@@ -160,7 +164,7 @@ internal sealed class VideoCoordinator(
             metadata.Duration.TotalSeconds,
             timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),
             sessionIds);
-        await videoStore.PublishClipsAsync(clips);
+        await videoStore.PublishClipsAsync(clips.Select(SessionVideoSnapshot.From).ToArray());
         return new VideoImportResult.Linked(clips.Count);
     }
 

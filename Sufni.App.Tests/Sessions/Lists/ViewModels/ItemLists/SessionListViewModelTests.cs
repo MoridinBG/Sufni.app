@@ -182,7 +182,7 @@ public class SessionListViewModelTests
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, store);
             var row = Assert.Single(viewModel.Items);
 
-            await store.PublishClipsAsync([videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60)]);
+            await store.PublishClipsAsync([SessionVideoSnapshot.From(videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60))]);
 
             Assert.Same(row, Assert.Single(viewModel.Items));
             Assert.True(row.HasPresentVideo);

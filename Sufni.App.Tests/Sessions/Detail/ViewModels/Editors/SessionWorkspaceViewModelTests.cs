@@ -1,3 +1,4 @@
+using Sufni.App.Video.Stores;
 using Sufni.App.Video.Models;
 using System.Reactive.Linq;
 using System.Collections.ObjectModel;
@@ -271,7 +272,7 @@ public class SessionWorkspaceViewModelTests
         var videoBeforeLink = workspace.Video;
         var changes = TrackPropertyChanges(workspace);
 
-        await store.PublishClipsAsync([videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60)]);
+        await store.PublishClipsAsync([SessionVideoSnapshot.From(videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60))]);
 
         Assert.Null(videoBeforeLink);
         Assert.Same(videoPane, workspace.Video);

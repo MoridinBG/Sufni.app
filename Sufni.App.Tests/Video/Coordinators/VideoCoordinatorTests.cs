@@ -59,7 +59,7 @@ public class VideoCoordinatorTests
             600,
             VideoStart.AddDays(1).ToUnixTimeMilliseconds(),
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Order().SequenceEqual(new[] { inside.Id, overlappingStart.Id }.Order())));
-        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoClip>>(clips => clips.Count == 2));
+        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoSnapshot>>(clips => clips.Count == 2));
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class VideoCoordinatorTests
         var shifted = await coordinator.ShiftAlignmentAsync(clip.Id, 1.5);
 
         Assert.IsType<VideoAlignmentResult.Updated>(shifted);
-        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoClip>>(clips => clips.Single() == clip));
+        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoSnapshot>>(clips => clips.Single().Id == clip.Id && clips.Single().AlignmentOffsetSeconds == clip.AlignmentOffsetSeconds));
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class VideoCoordinatorTests
         var shifted = await coordinator.ShiftAlignmentAsync(clipId, 1);
 
         Assert.IsType<VideoAlignmentResult.ClipMissing>(shifted);
-        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoClip>>());
+        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoSnapshot>>());
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class VideoCoordinatorTests
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(VideoImportFailureReason.Import, Assert.IsType<VideoImportResult.Failed>(result).Reason);
-        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoClip>>());
+        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoSnapshot>>());
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class VideoCoordinatorTests
         var result = await coordinator.ShiftAlignmentAsync(clipId, 1);
 
         Assert.Equal(VideoAlignmentFailureReason.Save, Assert.IsType<VideoAlignmentResult.Failed>(result).Reason);
-        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoClip>>());
+        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoSnapshot>>());
     }
 
     private void SelectVideo(double durationSeconds)

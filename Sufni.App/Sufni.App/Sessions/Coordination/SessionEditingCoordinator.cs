@@ -104,12 +104,15 @@ internal sealed class SessionEditingCoordinator(
 
             if (committed.Clips.Count > 0)
             {
-                await videoStore.PublishClipsAsync(committed.Clips);
+                var clips = await backgroundTaskRunner.RunAsync(() => committed.Clips.Select(SessionVideoSnapshot.From).ToArray());
+                await videoStore.PublishClipsAsync(clips);
             }
 
             if (committed.Segments.Count > 0)
             {
-                await segmentStore.PublishSegmentsAsync(committed.Segments);
+                var segments = committed.Segments.Where(segment => segment.Deleted is null).Select(SessionSegmentSnapshot.From).ToArray();
+                var removedSegments = committed.Segments.Where(segment => segment.Deleted is not null).Select(segment => segment.Id).ToArray();
+                await segmentStore.PublishSegmentsAsync(segments, removedSegments);
             }
 
             if (committed.CreatedSessionId is { } createdId)

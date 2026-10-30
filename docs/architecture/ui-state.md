@@ -65,7 +65,9 @@ Each persisted writer interface additionally exposes:
   cancellation or load failure leaves the previously published state intact.
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
-- Metadata publication methods accept prepared snapshots or ids to remove.
+- Publication methods accept prepared snapshots or ids to remove. Segment
+  publication combines changes and removals in one cache update; video
+  workflows perform file-presence checks before passing their snapshots.
   `BikeCoordinator`, `SetupCoordinator`, `SessionCommandService`,
   `TrackCoordinator` and `PairedDeviceCoordinator` own their respective writes.
   Import, live save and recompute publish snapshots returned by persistence;

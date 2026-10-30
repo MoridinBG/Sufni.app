@@ -55,7 +55,7 @@ public class SessionEditingCoordinatorTests
         await sessionStore.Received(1).PublishSessionsChangedAsync(
             Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Select(snapshot => snapshot.Id).SequenceEqual(new[] { session.Id, part2.Id })),
             Arg.Any<CancellationToken>());
-        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoClip>>(clips => clips.Single() == clip));
+        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoSnapshot>>(clips => clips.Single().Id == clip.Id && clips.Single().AlignmentOffsetSeconds == clip.AlignmentOffsetSeconds));
         await recomputeEngine.Received(1).RequestRecomputeAsync(session.Id, RecomputeReason.SourceWindowChanged);
         await recomputeEngine.Received(1).RequestRecomputeAsync(part2.Id, RecomputeReason.SourceWindowChanged);
         Assert.Equal(part2.Id, Assert.Single(progress.Reports).CreatedSessionId);

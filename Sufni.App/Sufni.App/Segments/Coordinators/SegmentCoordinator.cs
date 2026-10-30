@@ -450,12 +450,14 @@ internal sealed class SegmentCoordinator(
     {
         try
         {
-            if (await write() is not { } segment)
+            if (await backgroundTaskRunner.RunAsync(write) is not { } segment)
             {
                 return MissingSegment;
             }
 
-            await segmentStore.PublishSegmentsAsync([segment]);
+            await segmentStore.PublishSegmentsAsync(
+                segment.Deleted is null ? [SessionSegmentSnapshot.From(segment)] : [],
+                segment.Deleted is not null ? [segment.Id] : []);
             return new SegmentChangeResult.Applied();
         }
         catch (Exception e)

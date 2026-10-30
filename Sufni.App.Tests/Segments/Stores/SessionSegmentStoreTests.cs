@@ -1,25 +1,27 @@
+using System.Reactive.Linq;
 using Sufni.App.Shared.Stores;
-using NSubstitute;
-
 using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
+
 namespace Sufni.App.Tests.Segments.Stores;
 
 public class SessionSegmentStoreTests
 {
     [Fact]
-    public async Task PublishSegmentsAsync_RemovesDeletedSegments()
+    public async Task Publication_ChangesAndRemovesSegments_InOneObservedUpdate()
     {
-        var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));
         var sessionId = Guid.NewGuid();
-        var kept = new SessionSegment { SessionId = sessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 };
-        var deleted = new SessionSegment { SessionId = sessionId, Name = "deleted", StartSeconds = 2, EndSeconds = 3 };
-        await store.PublishSegmentsAsync([kept, deleted]);
+        var kept = SessionSegmentSnapshot.From(new SessionSegment { SessionId = sessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 });
+        var removed = SessionSegmentSnapshot.From(new SessionSegment { SessionId = sessionId, Name = "removed", StartSeconds = 2, EndSeconds = 3 });
+        await store.PublishSegmentsAsync([kept, removed], []);
+        var observed = new List<IReadOnlyList<SessionSegmentSnapshot>>();
+        using var changes = store.Connect().Skip(1).Subscribe(_ => observed.Add(store.GetForSession(sessionId)));
+        var renamed = kept with { Name = "renamed" };
 
-        deleted.Deleted = 10;
-        await store.PublishSegmentsAsync([deleted]);
+        await store.PublishSegmentsAsync([renamed], [removed.Id]);
 
-        Assert.Equal(kept.Id, Assert.Single(store.GetForSession(sessionId)).Id);
+        Assert.Equal(renamed, Assert.Single(Assert.Single(observed)));
+        Assert.Null(store.Get(removed.Id));
     }
 }

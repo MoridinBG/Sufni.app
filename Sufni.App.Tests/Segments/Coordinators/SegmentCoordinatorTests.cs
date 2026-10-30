@@ -40,8 +40,8 @@ public class SegmentCoordinatorTests
         Assert.IsType<SegmentChangeResult.Applied>(result);
         await repository.Received(1).InsertAsync(Arg.Is<SessionSegment>(segment =>
             segment.SessionId == session.Id && segment.Name == "climb" && segment.StartSeconds == 2 && segment.EndSeconds == 5));
-        await segmentStore.Received(1).PublishSegmentsAsync(Arg.Is<IReadOnlyCollection<SessionSegment>>(segments =>
-            segments.Single().Name == "climb"));
+        await segmentStore.Received(1).PublishSegmentsAsync(Arg.Is<IReadOnlyCollection<SessionSegmentSnapshot>>(segments =>
+            segments.Single().Name == "climb"), Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 0));
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class SegmentCoordinatorTests
         var result = await CreateCoordinator().DeleteAsync(Guid.NewGuid());
 
         Assert.IsType<SegmentChangeResult.Failed>(result);
-        await segmentStore.DidNotReceive().PublishSegmentsAsync(Arg.Any<IReadOnlyCollection<SessionSegment>>());
+        await segmentStore.DidNotReceive().PublishSegmentsAsync(Arg.Any<IReadOnlyCollection<SessionSegmentSnapshot>>(), Arg.Any<IReadOnlyCollection<Guid>>());
     }
 
     [Fact]
