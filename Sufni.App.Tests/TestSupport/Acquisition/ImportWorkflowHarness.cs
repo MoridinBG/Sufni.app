@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using DynamicData;
@@ -37,14 +38,13 @@ internal sealed class ImportWorkflowHarness
         SetupStore.Connect().Returns(SetupCache.Connect());
         SetupStore.FindByBoardId(Arg.Any<Guid>())
             .Returns(callInfo => SetupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
-        ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
-                Arg.Any<Guid>(),
-                Arg.Any<IProgress<SessionImportEvent>?>())
-            .Returns(Task.FromResult(new SessionImportResult([], [])));
+        ImportSessionsCoordinatorSubstitute.State.Returns(_ => ImportState.Value);
+        ImportSessionsCoordinatorSubstitute.Observe().Returns(ImportState);
         ConfigureDefaultReprocessor();
         ConfigureDefaultWriter();
     }
+
+    public BehaviorSubject<SessionImportState> ImportState { get; } = new(new SessionImportState.Idle());
 
     public ISessionTelemetryWriter SessionTelemetryWriter { get; } = Substitute.For<ISessionTelemetryWriter>();
     public ISynchronizableRepository<Setup> SetupRepository { get; } = Substitute.For<ISynchronizableRepository<Setup>>();
@@ -74,7 +74,8 @@ internal sealed class ImportWorkflowHarness
         BackgroundTaskRunner,
         DaqManagementService,
         Reprocessor,
-        EditorFactory);
+        EditorFactory,
+        new InlineUiThreadDispatcher());
 
     public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
         TelemetryDataStoreService,

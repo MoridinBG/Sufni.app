@@ -32,6 +32,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
+    public partial bool IsImporting { get; private set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
     public partial Guid? SelectedSetup { get; set; }
 
     [ObservableProperty]
@@ -54,6 +58,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupStore setupStore;
+    private readonly IDisposable importSubscription;
+    private int displayedEventCount;
 
     #endregion Private members
 
@@ -77,6 +83,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         this.setupCoordinator = setupCoordinator;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.setupStore = setupStore;
+
+        importSubscription = importSessionsCoordinator.Observe()
+            .ObserveOnUiThread(uiThreadDispatcher)
+            .Subscribe(ApplyImportState);
 
         TelemetryDataStores = telemetryDataStoreService.DataStores;
         TelemetryDataStores.CollectionChanged += OnTelemetryDataStoresCollectionChanged;
@@ -151,10 +161,15 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private bool IsCurrentTelemetryFilesLoad(ITelemetryDataStore originStore) =>
         ReferenceEquals(SelectedDataStore, originStore);
 
-    private IProgress<SessionImportEvent> CreateImportProgress() =>
-        new UiThreadProgress<SessionImportEvent>(UiThreadDispatcher, evt =>
+    private void ApplyImportState(SessionImportState state)
+    {
+        IsImporting = state is SessionImportState.Running;
+        CurrentFileIndex = state is SessionImportState.Running running ? running.Current : 0;
+        TotalFiles = state is SessionImportState.Running active ? active.Total : 0;
+        if (state.Events.Count == 0) displayedEventCount = 0;
+        foreach (var message in state.Events.Skip(displayedEventCount))
         {
-            switch (evt)
+            switch (message)
             {
                 case SessionImportEvent.Imported imported:
                     Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
@@ -169,12 +184,33 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 case SessionImportEvent.TrashFailed failed:
                     ErrorMessages.Add($"Could not trash {failed.FileName}: {failed.ErrorMessage}");
                     break;
-                case SessionImportEvent.Progress progressEvent:
-                    CurrentFileIndex = progressEvent.Current;
-                    TotalFiles = progressEvent.Total;
-                    break;
             }
-        });
+        }
+        displayedEventCount = state.Events.Count;
+
+        switch (state)
+        {
+            case SessionImportState.Completed completed:
+                AddImportSummary(completed.Result);
+                if (SelectedDataStore is { } dataStore) _ = RefreshAfterImportAsync(dataStore);
+                break;
+            case SessionImportState.Failed failed:
+                ErrorMessages.Add($"Import failed: {failed.ErrorMessage}");
+                break;
+        }
+    }
+
+    private async Task RefreshAfterImportAsync(ITelemetryDataStore dataStore)
+    {
+        try
+        {
+            await LoadTelemetryFilesAsync(dataStore);
+        }
+        catch (Exception e)
+        {
+            if (IsCurrentTelemetryFilesLoad(dataStore)) ErrorMessages.Add($"Import failed: {e.Message}");
+        }
+    }
 
     private void AddImportSummary(SessionImportResult result)
     {
@@ -260,37 +296,13 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand(CanExecute = nameof(CanImportSessions))]
     private async Task ImportSessions()
     {
-        if (SelectedDataStore is not { } dataStore || SelectedSetup is not { } setupId)
+        if (SelectedDataStore is null || SelectedSetup is not { } setupId)
             return;
 
-        var files = TelemetryFiles.ToList();
-
-        CurrentFileIndex = 0;
-        TotalFiles = 0;
-
-        try
-        {
-            var progress = CreateImportProgress();
-            var result = await importSessionsCoordinator.ImportAsync(
-                files,
-                setupId,
-                progress);
-            AddImportSummary(result);
-
-            await LoadTelemetryFilesAsync(dataStore);
-        }
-        catch (Exception e)
-        {
-            ErrorMessages.Add($"Import failed: {e.Message}");
-        }
-        finally
-        {
-            CurrentFileIndex = 0;
-            TotalFiles = 0;
-        }
+        await importSessionsCoordinator.ImportAsync(TelemetryFiles.ToList(), setupId);
     }
 
-    private bool CanImportSessions() => SelectedSetup != null;
+    private bool CanImportSessions() => SelectedSetup != null && !IsImporting;
 
     [RelayCommand]
     private void ShowMalformedMessage(ITelemetryFile? file)

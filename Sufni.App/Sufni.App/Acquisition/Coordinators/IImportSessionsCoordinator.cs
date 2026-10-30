@@ -10,8 +10,11 @@ public interface IImportSessionsCoordinator
 {
     Task OpenAsync();
 
-    Task<SessionImportResult> ImportAsync(
+    SessionImportState State { get; }
+
+    IObservable<SessionImportState> Observe();
+
+    Task ImportAsync(
         IReadOnlyList<ITelemetryFile> files,
-        Guid setupId,
-        IProgress<SessionImportEvent>? progress = null);
+        Guid setupId);
 }

@@ -65,18 +65,16 @@ public class ImportSessionsViewModelTests
         var viewModel = harness.CreateViewModel();
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
-                setup.Id,
-                Arg.Any<IProgress<SessionImportEvent>?>())
+                setup.Id)
             .Returns(callInfo =>
             {
-                var progress = callInfo.ArgAt<IProgress<SessionImportEvent>?>(2);
-                progress?.Report(new SessionImportEvent.Progress(1, 2));
+                harness.ImportState.OnNext(new SessionImportState.Running(1, 2, []));
                 capturedProgressText.Add(viewModel.ImportProgressText);
-                progress?.Report(new SessionImportEvent.Imported(TestSnapshots.Session(name: "lap")));
-                progress?.Report(new SessionImportEvent.ImportFailed(failure.FileName, failure.ErrorMessage));
-                return Task.FromResult(new SessionImportResult(
-                    [TestSnapshots.Session(name: "lap")],
-                    [failure]));
+                harness.ImportState.OnNext(new SessionImportState.Completed(
+                    new SessionImportResult([TestSnapshots.Session(name: "lap")], [failure]),
+                    [new SessionImportEvent.Imported(TestSnapshots.Session(name: "lap")),
+                     new SessionImportEvent.ImportFailed(failure.FileName, failure.ErrorMessage)]));
+                return Task.CompletedTask;
             });
 
         viewModel.SelectedDataStore = dataStore;
@@ -84,8 +82,7 @@ public class ImportSessionsViewModelTests
 
         await harness.ImportSessionsCoordinatorSubstitute.Received(1).ImportAsync(
             Arg.Is<IReadOnlyList<ITelemetryFile>>(files => files.Count == 1 && ReferenceEquals(files[0], initialFile)),
-            setup.Id,
-            Arg.Any<IProgress<SessionImportEvent>?>());
+            setup.Id);
         Assert.Equal(["File 1/2"], capturedProgressText);
         Assert.Equal(0, viewModel.CurrentFileIndex);
         Assert.Equal(0, viewModel.TotalFiles);
@@ -116,13 +113,13 @@ public class ImportSessionsViewModelTests
             SessionImportFailureOperation.Publish);
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
                 Arg.Any<IReadOnlyList<ITelemetryFile>>(),
-                setup.Id,
-                Arg.Any<IProgress<SessionImportEvent>?>())
+                setup.Id)
             .Returns(callInfo =>
             {
-                callInfo.ArgAt<IProgress<SessionImportEvent>?>(2)?.Report(
-                    new SessionImportEvent.PublicationFailed(failure.FileName, failure.ErrorMessage));
-                return Task.FromResult(new SessionImportResult([imported], [failure]));
+                harness.ImportState.OnNext(new SessionImportState.Completed(
+                    new SessionImportResult([imported], [failure]),
+                    [new SessionImportEvent.PublicationFailed(failure.FileName, failure.ErrorMessage)]));
+                return Task.CompletedTask;
             });
         var viewModel = harness.CreateViewModel();
 
@@ -232,6 +229,28 @@ public class ImportSessionsViewModelTests
         viewModel.ShowMalformedMessageCommand.Execute(file);
 
         Assert.Single(viewModel.Notifications);
+    }
+
+    [Fact]
+    public void NewTab_ObservesActiveImport_WithoutStartingAnotherCommand()
+    {
+        var harness = new ImportWorkflowHarness();
+        harness.ImportState.OnNext(new SessionImportState.Running(2, 3, []));
+
+        var reopened = harness.CreateViewModel();
+        reopened.SelectedSetup = Guid.NewGuid();
+
+        Assert.True(reopened.IsImporting);
+        Assert.False(reopened.ImportSessionsCommand.IsRunning);
+        Assert.False(reopened.ImportSessionsCommand.CanExecute(null));
+        Assert.Equal(2, reopened.CurrentFileIndex);
+        Assert.Equal(3, reopened.TotalFiles);
+
+        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([], []), []));
+
+        Assert.False(reopened.IsImporting);
+        Assert.True(reopened.ImportSessionsCommand.CanExecute(null));
+        Assert.Single(reopened.Notifications);
     }
 
     public enum OpenStoreResult

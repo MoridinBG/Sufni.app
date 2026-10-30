@@ -24,7 +24,7 @@ namespace Sufni.App.Tests.Acquisition.Views;
 public class ImportSessionsViewTests
 {
     [AvaloniaFact]
-    public async Task ImportSessionsView_ComposesImportContentAndDisablesEditorsWhileImportRuns()
+    public async Task ImportSessionsView_DisablesEditors_WhenAnotherTabStartedImport()
     {
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
@@ -34,12 +34,6 @@ public class ImportSessionsViewTests
         harness.DataStores.Add(dataStore);
         harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
-        var importCompletion = new TaskCompletionSource<SessionImportResult>();
-        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
-                Arg.Any<Guid>(),
-                Arg.Any<IProgress<SessionImportEvent>?>())
-            .Returns(importCompletion.Task);
         var viewModel = harness.CreateViewModel();
 
         await using var mounted = await MountAsync(viewModel);
@@ -52,7 +46,7 @@ public class ImportSessionsViewTests
         expander.IsExpanded = true;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var importTask = viewModel.ImportSessionsCommand.ExecuteAsync(null);
+        harness.ImportState.OnNext(new SessionImportState.Running(1, 2, []));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var importChoice = mounted.View.GetLogicalDescendants().OfType<ComboBox>()
@@ -68,8 +62,10 @@ public class ImportSessionsViewTests
         Assert.True(busyOverlay.ShowMessage);
         Assert.Equal(viewModel.ImportProgressText, busyOverlay.Message);
 
-        importCompletion.SetResult(new SessionImportResult([], []));
-        await importTask;
+        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([], []), []));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(importChoice.IsEnabled);
+        Assert.False(busyOverlay.IsActive);
     }
 
     [AvaloniaFact]

@@ -21,7 +21,7 @@ graph LR
     Import -->|"StartBrowse / StopBrowse"| DSS
     Import -->|"LoadFilesAsync / TryAddStorageProviderAsync"| DSS
     Import -->|"FindByBoardId"| SetupStore["ISetupStore"]
-    Import -->|"ImportAsync(progress)"| Coord["ImportSessionsCoordinator"]
+    Import -->|"ImportAsync / Observe"| Coord["ImportSessionsCoordinator"]
     Coord --> Runner["IBackgroundTaskRunner"]
     Coord --> SourceFactory["RecordedSessionSourceFactory"]
     Coord --> Reprocessor["RecordedSessionReprocessor"]
@@ -52,9 +52,19 @@ The import-sessions feature is the canonical worked example of the current bound
 
 - `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors.
 - It resolves the current board's setup through `ISetupStore.FindByBoardId(Guid)` and never reads persistence repositories directly.
-- It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses `ImportSessionsCommand.IsRunning` as its busy-state source of truth.
+- It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses the coordinator's `SessionImportState.Running` as its busy-state source of truth.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store upserts, background execution, and per-file progress reporting.
+
+`ImportSessionsCoordinator` retains one active task and the latest
+`SessionImportState` for the application lifetime. A second start while that task
+is running joins it. State publications cross the injected UI dispatcher; the
+state carries running counts, immutable per-file events, and the completed result
+or run failure. New tabs replay this state, so closing a tab does not cancel a
+batch or allow another batch to start. The next run replaces the retained state.
+The busy overlay follows coordinator state even when its command did not start
+the run. The import view model remains a singleton until the shell navigation
+migration supplies its factory-created tab lifetime.
 
 The import workflow is staged once the user starts a batch from the selected
 datastore. One producer reads source bytes serially and feeds a bounded channel.

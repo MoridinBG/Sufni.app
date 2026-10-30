@@ -1,3 +1,5 @@
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -39,7 +41,8 @@ public class ImportSessionsCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
-    IEditorFactory editorFactory) : IImportSessionsCoordinator
+    IEditorFactory editorFactory,
+    IUiThreadDispatcher dispatcher) : IImportSessionsCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
     private static readonly int ImportProcessDop = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
@@ -50,10 +53,27 @@ public class ImportSessionsCoordinator(
         return Task.CompletedTask;
     }
 
-    public async Task<SessionImportResult> ImportAsync(
-        IReadOnlyList<ITelemetryFile> files,
-        Guid setupId,
-        IProgress<SessionImportEvent>? progress = null)
+    private readonly BehaviorSubject<SessionImportState> state = new(new SessionImportState.Idle());
+    private Task? activeRun;
+
+    public SessionImportState State => state.Value;
+
+    public IObservable<SessionImportState> Observe() => state.AsObservable();
+
+    public async Task ImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId)
+    {
+        var run = await dispatcher.InvokeAsync<Task>(() =>
+        {
+            if (activeRun is { IsCompleted: false }) return activeRun;
+
+            state.OnNext(new SessionImportState.Running(0, 0, []));
+            activeRun = RunImportAsync(files.ToArray(), setupId);
+            return activeRun;
+        });
+        await run;
+    }
+
+    private async Task RunImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId)
     {
         logger.Information(
             "Starting session import for {FileCount} files and setup {SetupId}",
@@ -62,6 +82,7 @@ public class ImportSessionsCoordinator(
 
         try
         {
+            var progress = new UiThreadProgress<SessionImportEvent>(dispatcher, ReportProgress);
             var result = await backgroundTaskRunner.RunAsync(
                 () => ImportCoreAsync(files, setupId, progress));
 
@@ -69,15 +90,26 @@ public class ImportSessionsCoordinator(
                 "Session import completed with {ImportedCount} imported sessions and {FailureCount} failures",
                 result.Imported.Count,
                 result.Failures.Count);
-
-            return result;
+            await dispatcher.InvokeAsync(() =>
+                state.OnNext(new SessionImportState.Completed(result, State.Events)));
         }
         catch (Exception e)
         {
             logger.Error(e, "Session import failed for setup {SetupId}", setupId);
-            throw;
+            await dispatcher.InvokeAsync(() =>
+                state.OnNext(new SessionImportState.Failed(e.Message, State.Events)));
         }
     }
+
+    private void ReportProgress(SessionImportEvent message)
+    {
+        var running = (SessionImportState.Running)State;
+        state.OnNext(message is SessionImportEvent.Progress progress
+            ? running with { Current = progress.Current, Total = progress.Total }
+            : running with { Events = running.Events.Add(message) });
+    }
+
+    public void Dispose() => state.Dispose();
 
     private async Task<SessionImportResult> ImportCoreAsync(
         IReadOnlyList<ITelemetryFile> files,

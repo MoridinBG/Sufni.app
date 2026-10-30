@@ -1,3 +1,4 @@
+using System.Reactive.Linq;
 using System.IO;
 using Sufni.App.Tests.TestSupport.Async;
 using System.Net;
@@ -25,6 +26,7 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_ImportsSourcePublishesStoresBeforeAcknowledgementAndReportsProgress()
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var startTime = new DateTime(2025, 6, 1, 12, 34, 56, DateTimeKind.Utc);
         var telemetrySource = new TelemetryFileSource("ride-01.SST", [1, 2, 3]);
@@ -59,12 +61,13 @@ public class ImportSessionsCoordinatorTests
             Assert.Throws<ObjectDisposedException>(() => telemetrySource.SstBytes);
             return Task.CompletedTask;
         });
-        var progress = new RecordingProgress<SessionImportEvent>();
+        var states = new List<SessionImportState>();
+        using var observation = coordinator.Observe().Subscribe(states.Add);
 
-        var result = await harness.CreateCoordinator().ImportAsync(
+        await coordinator.ImportAsync(
             [file],
-            setup.Id,
-            progress);
+            setup.Id);
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         var imported = Assert.Single(result.Imported);
         Assert.Empty(result.Failures);
@@ -90,8 +93,8 @@ public class ImportSessionsCoordinatorTests
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(imported.Id)),
             Arg.Any<CancellationToken>());
         await file.Received(1).OnImported();
-        Assert.Contains(progress.Reports, e => e is SessionImportEvent.Progress { Current: 1, Total: 1 });
-        Assert.Contains(progress.Reports, e => e is SessionImportEvent.Imported importedEvent && importedEvent.Snapshot.Id == imported.Id);
+        Assert.Contains(states, state => state is SessionImportState.Running { Current: 1, Total: 1 });
+        Assert.Contains(coordinator.State.Events, e => e is SessionImportEvent.Imported importedEvent && importedEvent.Snapshot.Id == imported.Id);
     }
 
     [Theory]
@@ -101,6 +104,7 @@ public class ImportSessionsCoordinatorTests
         bool sourcePublicationFails)
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "ride", shouldBeImported: true);
         if (sourcePublicationFails)
@@ -117,21 +121,22 @@ public class ImportSessionsCoordinatorTests
                     Arg.Any<CancellationToken>())
                 .ThrowsAsync(new InvalidOperationException("session publish failed"));
         }
-        var progress = new RecordingProgress<SessionImportEvent>();
+        var states = new List<SessionImportState>();
+        using var observation = coordinator.Observe().Subscribe(states.Add);
 
-        var result = await harness.CreateCoordinator().ImportAsync(
+        await coordinator.ImportAsync(
             [file],
-            setup.Id,
-            progress);
+            setup.Id);
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         Assert.Single(result.Imported);
         var failure = Assert.Single(result.Failures);
         Assert.Equal(SessionImportFailureOperation.Publish, failure.Operation);
         await file.DidNotReceive().OnImported();
         Assert.Contains(
-            progress.Reports,
+            coordinator.State.Events,
             importEvent => importEvent is SessionImportEvent.PublicationFailed { FileName: "ride" });
-        Assert.DoesNotContain(progress.Reports, importEvent => importEvent is SessionImportEvent.Imported);
+        Assert.DoesNotContain(coordinator.State.Events, importEvent => importEvent is SessionImportEvent.Imported);
     }
 
     [Theory]
@@ -143,10 +148,12 @@ public class ImportSessionsCoordinatorTests
         ImportAction expectedAction)
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "candidate", shouldBeImported: shouldBeImported);
 
-        var result = await harness.CreateCoordinator().ImportAsync([file], setup.Id);
+        await coordinator.ImportAsync([file], setup.Id);
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         switch (expectedAction)
         {
@@ -180,6 +187,7 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_SkipsMalformedFileUnlessItIsExplicitlyImportable()
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var rejectedSource = new TelemetryFileSource("bad.SST", [1, 2, 3]);
         var importableSource = new TelemetryFileSource("trimmed.SST", [4, 5, 6]);
@@ -194,12 +202,13 @@ public class ImportSessionsCoordinatorTests
             malformedMessage: "trailing chunk was trimmed",
             canImport: true,
             source: importableSource);
-        var progress = new RecordingProgress<SessionImportEvent>();
+        var states = new List<SessionImportState>();
+        using var observation = coordinator.Observe().Subscribe(states.Add);
 
-        var result = await harness.CreateCoordinator().ImportAsync(
+        await coordinator.ImportAsync(
             [rejected, importable],
-            setup.Id,
-            progress);
+            setup.Id);
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         Assert.Equal("trimmed", Assert.Single(result.Imported).Name);
         var failure = Assert.Single(result.Failures);
@@ -214,7 +223,7 @@ public class ImportSessionsCoordinatorTests
             Arg.Any<CancellationToken>());
         Assert.Throws<ObjectDisposedException>(() => rejectedSource.SstBytes);
         Assert.Throws<ObjectDisposedException>(() => importableSource.SstBytes);
-        Assert.Contains(progress.Reports, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
+        Assert.Contains(coordinator.State.Events, e => e is SessionImportEvent.ImportFailed failed && failed.FileName == "bad");
     }
 
     [Theory]
@@ -224,6 +233,7 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_ContinuesAfterPerFileReadReprocessOrPersistenceFailure(ImportFailurePoint failurePoint)
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var brokenSource = failurePoint is ImportFailurePoint.ReadSource
             ? null
@@ -263,7 +273,8 @@ public class ImportSessionsCoordinatorTests
                 .ThrowsAsync(new InvalidOperationException("persistence"));
         }
 
-        var result = await harness.CreateCoordinator().ImportAsync([broken, good], setup.Id);
+        await coordinator.ImportAsync([broken, good], setup.Id);
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         Assert.Equal("ok", Assert.Single(result.Imported).Name);
         var failure = Assert.Single(result.Failures);
@@ -285,6 +296,7 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_TrashesBatchFilesThroughOneSessionAndDisposesIt()
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
         var session = Substitute.For<IDaqManagementSession>();
@@ -295,7 +307,8 @@ public class ImportSessionsCoordinatorTests
         var first = CreateNetworkFile(endpoint, id: 1);
         var second = CreateNetworkFile(endpoint, id: 2);
 
-        var result = await harness.CreateCoordinator().ImportAsync([first, second], setup.Id);
+        await coordinator.ImportAsync([first, second], setup.Id);
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         Assert.Empty(result.Failures);
         await harness.DaqManagementService.Received(1)
@@ -309,6 +322,7 @@ public class ImportSessionsCoordinatorTests
     public async Task ImportAsync_OverlapsDownloadWithProcessing()
     {
         var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
         var first = CreateTelemetryFile(name: "first", shouldBeImported: true);
         var second = CreateTelemetryFile(name: "second", shouldBeImported: true);
@@ -339,14 +353,61 @@ public class ImportSessionsCoordinatorTests
                 return ImportWorkflowHarness.CreateReprocessResult(domain, source);
             });
 
-        var importTask = harness.CreateCoordinator().ImportAsync([first, second], setup.Id);
+        var importTask = coordinator.ImportAsync([first, second], setup.Id);
 
         await firstProcessingStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await secondReadStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         releaseFirstProcessing.SetResult();
-        var result = await importTask;
+        await importTask;
+        var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
         Assert.Equal(2, result.Imported.Count);
+    }
+
+    [Fact]
+    public async Task ImportAsync_JoinsActiveBatch_AndReplaysProgressToNewObservers()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        using var coordinator = harness.CreateCoordinator();
+        var source = new TaskCompletionSource<TelemetryFileSource>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var file = CreateTelemetryFile("first", shouldBeImported: true);
+        file.ReadSourceAsync(Arg.Any<CancellationToken>()).Returns(source.Task);
+        var anotherFile = CreateTelemetryFile("second", shouldBeImported: true);
+
+        var firstRun = coordinator.ImportAsync([file], setup.Id);
+        var secondRun = coordinator.ImportAsync([anotherFile], setup.Id);
+        SessionImportState? observed = null;
+        using var observation = coordinator.Observe().Subscribe(value => observed = value);
+
+        Assert.IsType<SessionImportState.Running>(observed);
+        Assert.False(firstRun.IsCompleted);
+        Assert.False(secondRun.IsCompleted);
+        source.SetResult(new TelemetryFileSource("first.SST", [1, 2, 3]));
+        await Task.WhenAll(firstRun, secondRun).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        var completed = Assert.IsType<SessionImportState.Completed>(observed);
+        Assert.Equal("first", Assert.Single(completed.Result.Imported).Name);
+        Assert.Contains(completed.Events, message => message is SessionImportEvent.Imported);
+        await anotherFile.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ImportAsync_PublishesFailure_AndAllowsAnotherRun()
+    {
+        var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
+        var setupId = Guid.NewGuid();
+        harness.SetupRepository.GetAsync(setupId).ThrowsAsync(new InvalidOperationException("unavailable"));
+
+        await coordinator.ImportAsync([], setupId);
+
+        Assert.IsType<SessionImportState.Failed>(coordinator.State);
+        var (setup, _) = harness.SeedSetupAndBike();
+        await coordinator.ImportAsync([CreateTelemetryFile("recovered", shouldBeImported: true)], setup.Id);
+
+        var completed = Assert.IsType<SessionImportState.Completed>(coordinator.State);
+        Assert.Equal("recovered", Assert.Single(completed.Result.Imported).Name);
     }
 
     private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>

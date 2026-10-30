@@ -101,6 +101,8 @@ internal static class TestCoordinatorSubstitutes
         var coordinator = Substitute.For<IImportSessionsCoordinator>();
 
         coordinator.OpenAsync().Returns(Task.CompletedTask);
+        coordinator.State.Returns(new SessionImportState.Idle());
+        coordinator.Observe().Returns(System.Reactive.Linq.Observable.Return<SessionImportState>(new SessionImportState.Idle()));
 
         return coordinator;
     }

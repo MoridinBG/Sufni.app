@@ -186,7 +186,7 @@ mc:Ignorable="d">
                                         <ComboBox.IsEnabled>
                                             <MultiBinding Converter="{x:Static BoolConverters.And}">
                                                 <Binding Path="CanImport" />
-                                                <Binding Path="!$parent[views:ImportSessionsContentView].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
+                                                <Binding Path="!$parent[views:ImportSessionsContentView].((vm:ImportSessionsViewModel)DataContext).IsImporting" />
                                             </MultiBinding>
                                         </ComboBox.IsEnabled>
                                         <ComboBoxItem Content="Ignore" />
@@ -287,7 +287,7 @@ mc:Ignorable="d">
                                 Margin="2"
                                 Text="{Binding Name}">
                                     <TextBox.IsEnabled>
-                                        <Binding Path="!$parent[views:ImportSessionsContentView].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
+                                        <Binding Path="!$parent[views:ImportSessionsContentView].((vm:ImportSessionsViewModel)DataContext).IsImporting" />
                                     </TextBox.IsEnabled>
                                 </TextBox>
                                 <Label
@@ -306,7 +306,7 @@ mc:Ignorable="d">
                                 Text="{Binding Description}"
                                 TextWrapping="Wrap">
                                     <TextBox.IsEnabled>
-                                        <Binding Path="!$parent[views:ImportSessionsContentView].((vm:ImportSessionsViewModel)DataContext).ImportSessionsCommand.IsRunning" />
+                                        <Binding Path="!$parent[views:ImportSessionsContentView].((vm:ImportSessionsViewModel)DataContext).IsImporting" />
                                     </TextBox.IsEnabled>
                                 </TextBox>
                             </Grid>
@@ -353,12 +353,12 @@ mc:Ignorable="d">
             <overlays:BusyOverlay.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="!TelemetryDataStores.Count" />
-                    <Binding Path="ImportSessionsCommand.IsRunning" />
+                    <Binding Path="IsImporting" />
                     <Binding Path="IsLoadingFiles" />
                 </MultiBinding>
             </overlays:BusyOverlay.IsActive>
             <overlays:BusyOverlay.ShowMessage>
-                <Binding Path="ImportSessionsCommand.IsRunning" />
+                <Binding Path="IsImporting" />
             </overlays:BusyOverlay.ShowMessage>
             <overlays:BusyOverlay.ShowSecondaryMessage>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">

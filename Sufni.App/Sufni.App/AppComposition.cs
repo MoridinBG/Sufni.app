@@ -256,7 +256,8 @@ public static class AppComposition
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
-                sp.GetRequiredService<IEditorFactory>()));
+                sp.GetRequiredService<IEditorFactory>(),
+                sp.GetRequiredService<IUiThreadDispatcher>()));
         services.AddSingleton<IImportSessionsCoordinator>(sp =>
             sp.GetRequiredService<ImportSessionsCoordinator>());
         services.AddSingleton<BikeListViewModel>();
