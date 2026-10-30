@@ -151,8 +151,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private bool IsCurrentTelemetryFilesLoad(ITelemetryDataStore originStore) =>
         ReferenceEquals(SelectedDataStore, originStore);
 
-    private Progress<SessionImportEvent> CreateImportProgress() =>
-        new(evt =>
+    private IProgress<SessionImportEvent> CreateImportProgress() =>
+        new UiThreadProgress<SessionImportEvent>(UiThreadDispatcher, evt =>
         {
             switch (evt)
             {
@@ -327,9 +327,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
         EnsureScopedSubscription(s =>
         {
-            var changes = SynchronizationContext.Current is { } synchronizationContext
-                ? setupStore.Connect().ObserveOn(synchronizationContext)
-                : setupStore.Connect();
+            var changes = setupStore.Connect().ObserveOnUiThread(UiThreadDispatcher);
             s.Add(changes.Subscribe(_ => ResolveSelectedSetup()));
         });
     }

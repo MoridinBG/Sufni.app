@@ -120,6 +120,7 @@ Thread ownership is explicit:
 - Services may still use UI-thread primitives for cadence or collection ownership (for example `DispatcherTimer`), but only the UI-bound collection mutation belongs back on the UI thread.
 - Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`. In particular, `ItemListViewModelBase` owns this lifecycle for every entity list: concrete lists build their store projection in `AttachSubscriptions`, clear projected rows after detach, ignore duplicate `Loaded` calls while already attached, and rebuild from the store's current state when loaded again.
 - Views connect those commands with the `ViewLifecycle` attached properties in `Shared/Views/ViewLifecycle.cs`, not with `Xaml.Behaviors` triggers: `LoadedCommand` (with optional `LoadedCommandParameter`) and `UnloadedCommand` follow Avalonia's `Loaded` / `Unloaded` events, and `AttachedToVisualTreeCommand` / `DetachedFromVisualTreeCommand` follow the visual-tree events for views that need that earlier timing. A command runs on every occurrence of its event and only when `CanExecute` allows it, so a view that is detached and attached again unloads and loads again.
+- Import/setup and recorded-session subscriptions observe on their injected UI dispatcher, with Rx owning queued-delivery cancellation when a subscription is disposed. Import progress uses the same explicit dispatcher; no ambient synchronization context is captured.
 - Notification expiry and pending-delete undo windows use injected clocks. Lists and pending-delete entries require a background runner; they do not construct a fallback.
 - Prefer generated async-command state such as `Command.IsRunning` as the busy-state source of truth instead of maintaining duplicate booleans.
 - Plot views coalesce `RefreshPlot()` calls through one render-priority
@@ -229,7 +230,7 @@ progress back to the UI.
 
 The architecture is intended to be tested in layers:
 
-- View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command or local busy-state transitions, and progress-driven notification updates under a test `SynchronizationContext`.
+- View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command or local busy-state transitions, and progress-driven notification updates through explicit dispatcher fakes.
 - Read-graph tests assert joined projections and derived-change flags across session, setup, bike, and recorded-source updates.
 - Coordinator tests assert workflow semantics such as persistence, store writes, branching, result shapes, per-file progress emission, and background-runner usage.
 - Service tests cover infrastructure ownership when the behavior is non-trivial, for example datastore registration or duplicate detection.

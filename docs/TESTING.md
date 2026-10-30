@@ -93,7 +93,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 
 ## Async Test Control
 
-- Use `TestSynchronizationContextScope` when the SUT or one of its collaborators posts callbacks or continuations through `SynchronizationContext` and the test needs those callbacks to run deterministically before assertions.
+- Use `ManualUiThreadDispatcher` to drain queued UI work explicitly; `InlineUiThreadDispatcher` is sufficient when dispatch ordering is not under test. Do not replace the ambient synchronization context.
 - Use `TaskCompletionSource<T>` when the test needs to hold async work pending so it can assert intermediate states such as busy, cancellation, unload behavior, or superseded results before completion.
 - Prefer explicit control over async completion to timing-based waits or delays. `SignalingFakeTimeProvider` lets tests wait until background work has scheduled its timer before advancing virtual time; scheduling is an await point, not an assertion.
 - Bound awaits that could otherwise stall the test indefinitely. In `Sufni.App.Tests`, use the globally imported `AwaitBoundedAsync(TimeSpan)` helper for completion sources, event observations, protocol/server tasks, background drains, and similar synchronization points. The helper applies both the stated timeout and `TestContext.Current.CancellationToken`; do not replace it with an unbounded `await` or a test-local `Task.WhenAny` timeout pattern.

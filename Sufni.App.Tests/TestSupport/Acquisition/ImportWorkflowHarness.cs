@@ -76,7 +76,7 @@ internal sealed class ImportWorkflowHarness
         Reprocessor,
         EditorFactory);
 
-    public ImportSessionsViewModel CreateViewModel() => new(
+    public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
         TelemetryDataStoreService,
         FilesService,
         Shell,
@@ -84,7 +84,7 @@ internal sealed class ImportWorkflowHarness
         SetupCoordinator,
         ImportSessionsCoordinatorSubstitute,
         SetupStore,
-        new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
+        dispatcher ?? new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 
     public (Setup Setup, Bike Bike) SeedSetupAndBike(double headAngle = 65.0)
     {

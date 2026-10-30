@@ -17,7 +17,6 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task SelectingDataStore_ResolvesSetupLoadsFilesAndIgnoresStaleLoads()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup(boardId: boardId);
@@ -50,7 +49,6 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task ImportSessionsCommand_ReportsProgressSummarizesResultAndRefreshesCurrentStore()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup(boardId: boardId);
@@ -101,7 +99,6 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task ImportSessionsCommand_ReportsCommittedButUnpublishedFilesAccurately()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup(boardId: boardId);
@@ -145,7 +142,6 @@ public class ImportSessionsViewModelTests
     [InlineData(OpenStoreResult.AlreadyOpen)]
     public async Task OpenDataStoreCommand_SelectsReturnedStore(OpenStoreResult result)
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var folder = Substitute.For<IStorageFolder>();
         var dataStore = CreateDataStore(name: "store");
@@ -174,7 +170,6 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void LoadedAndUnloaded_StartBrowseTrackSetupChangesAndClearState()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         var dataStore = CreateDataStore(boardId: boardId);
@@ -199,9 +194,33 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
+    public async Task SetupChanges_UpdateSelectionOnUiThread_AndStopAfterUnload()
+    {
+        var dispatcher = new ManualUiThreadDispatcher();
+        var harness = new ImportWorkflowHarness();
+        var boardId = Guid.NewGuid();
+        var viewModel = harness.CreateViewModel(dispatcher);
+        viewModel.SelectedDataStore = CreateDataStore(boardId: boardId);
+        viewModel.LoadedCommand.Execute(null);
+        await dispatcher.DrainAsync();
+        var setup = TestSnapshots.Setup(boardId: boardId);
+
+        harness.SetupCache.AddOrUpdate(setup);
+        Assert.Null(viewModel.SelectedSetup);
+        await dispatcher.DrainAsync();
+        Assert.Equal(setup.Id, viewModel.SelectedSetup);
+
+        harness.SetupCache.Remove(setup.Id);
+        viewModel.UnloadedCommand.Execute(null);
+        viewModel.SelectedSetup = setup.Id;
+        await dispatcher.DrainAsync();
+
+        Assert.Equal(setup.Id, viewModel.SelectedSetup);
+    }
+
+    [Fact]
     public void ShowMalformedMessage_AddsSingleNotification()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var file = CreateTelemetryFile(
             name: "trimmed",

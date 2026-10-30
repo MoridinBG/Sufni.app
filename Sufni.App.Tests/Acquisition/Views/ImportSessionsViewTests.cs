@@ -26,7 +26,6 @@ public class ImportSessionsViewTests
     [AvaloniaFact]
     public async Task ImportSessionsView_ComposesImportContentAndDisablesEditorsWhileImportRuns()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         harness.SetupCache.AddOrUpdate(TestSnapshots.Setup(boardId: boardId));
@@ -76,7 +75,6 @@ public class ImportSessionsViewTests
     [AvaloniaFact]
     public async Task ImportSessionsView_ShowsMalformedFileReason()
     {
-        using var _ = new TestSynchronizationContextScope();
         var harness = new ImportWorkflowHarness();
         var reason = "trailing chunk was trimmed";
         var dataStore = CreateDataStore();

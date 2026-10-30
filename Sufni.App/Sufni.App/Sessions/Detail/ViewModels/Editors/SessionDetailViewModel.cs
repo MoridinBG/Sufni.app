@@ -2416,13 +2416,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         // Subscribe before the awaited restore so a remote sync apply that
         // lands while restore is in flight is not missed.
-        var watch = recordedSessionProjection.WatchSession(Id);
-        var operationWatch = sessionOperationRunner.Watch(Id);
-        if (SynchronizationContext.Current is { } synchronizationContext)
-        {
-            watch = watch.ObserveOn(synchronizationContext);
-            operationWatch = operationWatch.ObserveOn(synchronizationContext);
-        }
+        var watch = recordedSessionProjection.WatchSession(Id).ObserveOnUiThread(UiThreadDispatcher);
+        var operationWatch = sessionOperationRunner.Watch(Id).ObserveOnUiThread(UiThreadDispatcher);
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
