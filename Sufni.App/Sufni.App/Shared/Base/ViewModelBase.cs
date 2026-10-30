@@ -1,4 +1,5 @@
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -19,7 +20,7 @@ namespace Sufni.App.Shared.Base
 
         [ObservableProperty] public partial bool IsPointerOverNotifications { get; set; }
 
-        public ObservableCollection<string> ErrorMessages { get; } = [];
+        public ObservableCollection<FailurePresentation> ErrorMessages { get; } = [];
         public ObservableCollection<string> Notifications { get; } = [];
 
         #endregion Observable properties

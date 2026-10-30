@@ -5,7 +5,6 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
 using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Shared.Common;
@@ -56,7 +55,7 @@ public class SignalRowsRootTests
     [AvaloniaFact]
     public async Task SignalRowsRoot_CtrlWheelOverPlot_ScrollsRowsWithoutZoomingPlot()
     {
-        EnsureFluentTheme();
+        ViewTestHelpers.EnsureFluentTheme();
         var plot = CreateWheelPlot();
         var root = CreateScrollableRootWithWheelPlot(plot);
 
@@ -80,7 +79,7 @@ public class SignalRowsRootTests
     [AvaloniaFact]
     public async Task SignalRowsRoot_PlainWheelOverPlot_DoesNotScrollRows()
     {
-        EnsureFluentTheme();
+        ViewTestHelpers.EnsureFluentTheme();
         var plot = CreateWheelPlot();
         var root = CreateScrollableRootWithWheelPlot(plot);
 
@@ -101,7 +100,7 @@ public class SignalRowsRootTests
     [AvaloniaFact]
     public async Task SignalRowsRoot_CtrlWheelUsesHorizontalDeltaFallback_ForVerticalScroll()
     {
-        EnsureFluentTheme();
+        ViewTestHelpers.EnsureFluentTheme();
         var plot = CreateWheelPlot();
         var root = CreateScrollableRootWithWheelPlot(plot);
 
@@ -123,7 +122,7 @@ public class SignalRowsRootTests
     [AvaloniaFact]
     public async Task SignalRowsRoot_CtrlWheelAtScrollBoundary_DoesNotZoomPlot()
     {
-        EnsureFluentTheme();
+        ViewTestHelpers.EnsureFluentTheme();
         var plot = CreateWheelPlot();
         var root = CreateScrollableRootWithWheelPlotAtEnd(plot);
 
@@ -671,16 +670,7 @@ public class SignalRowsRootTests
         root.Arrange(new Rect(0, 0, width, height));
     }
 
-    private static void EnsureFluentTheme()
-    {
-        var application = Application.Current
-            ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
-        if (!application.Styles.OfType<FluentTheme>().Any())
-        {
-            application.Styles.Add(new FluentTheme());
-        }
-    }
 
     private static RawInputModifiers ToRawInputModifiers(KeyModifiers keyModifiers)
     {

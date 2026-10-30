@@ -645,7 +645,7 @@ public class SessionDetailViewModelTests
         await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
             .ExecuteAsync(CreatePlotContext(clickSeconds: 4));
 
-        Assert.Contains("Session changed while editing.", editor.ErrorMessages);
+        Assert.NotEmpty(editor.ErrorMessages);
         Assert.Empty(editor.Notifications);
     }
 

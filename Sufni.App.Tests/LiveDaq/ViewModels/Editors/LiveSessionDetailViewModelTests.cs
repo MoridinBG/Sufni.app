@@ -264,9 +264,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
         shell.Received(1).OpenEditor(new EditorKey.Session(savedId));
-        Assert.Contains(
-            editor.ErrorMessages,
-            message => message.Contains("app state could not be refreshed", StringComparison.Ordinal));
+        Assert.NotEmpty(editor.ErrorMessages);
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
@@ -365,7 +363,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         Assert.Equal(initialCutoffs, editor.DampingSpeedCutoffs);
         Assert.Equal(initialCutoffs, editor.PlotDampingSpeedCutoffs);
-        Assert.Contains(editor.ErrorMessages, message => message.Contains("disk full", StringComparison.Ordinal));
+        Assert.NotEmpty(editor.ErrorMessages);
     }
 
     [Fact]

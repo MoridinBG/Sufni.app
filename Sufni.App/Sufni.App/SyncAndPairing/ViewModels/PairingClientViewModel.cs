@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Diagnostics;
 using System.Reactive.Linq;
@@ -84,7 +85,7 @@ public partial class PairingClientViewModel : TabPageViewModelBase
                 IsRequestSent = true;
                 break;
             case RequestPairingResult.Failed failed:
-                ErrorMessages.Add($"Could not request pairing: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Could not request pairing: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -103,7 +104,7 @@ public partial class PairingClientViewModel : TabPageViewModelBase
                 ErrorMessages.Clear();
                 break;
             case ConfirmPairingResult.Failed failed:
-                ErrorMessages.Add($"Could not pair: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Could not pair: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -120,7 +121,7 @@ public partial class PairingClientViewModel : TabPageViewModelBase
                 Notifications.Add($"Could unpair only locally: {localOnly.Reason}");
                 break;
             case UnpairResult.Failed failed:
-                ErrorMessages.Add($"Could not unpair: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Could not unpair: {failed.ErrorMessage}"));
                 break;
         }
     }

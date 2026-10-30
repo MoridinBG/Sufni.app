@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -322,7 +323,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 break;
 
             case SetupSaveResult.Failed failed:
-                ErrorMessages.Add($"Setup could not be saved: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Setup could not be saved: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -346,7 +347,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         var bikeSnapshot = bikeStore.Get(setup.BikeId);
         if (bikeSnapshot is null)
         {
-            ErrorMessages.Add("Setup could not be exported: associated bike not found.");
+            ErrorMessages.Add(new FailurePresentation("Setup could not be exported: associated bike not found."));
             return;
         }
 
@@ -354,7 +355,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         var result = await setupCoordinator.ExportSetupAsync(setup, bike, originalBoardId);
         if (result is SetupExportResult.Failed failed)
         {
-            ErrorMessages.Add($"Setup could not be exported: {failed.ErrorMessage}");
+            ErrorMessages.Add(new FailurePresentation($"Setup could not be exported: {failed.ErrorMessage}"));
         }
     }
 
@@ -385,7 +386,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 await shell.CloseEditorAsync(new EditorKey.Setup(Id));
                 break;
             case SetupDeleteOutcome.Failed:
-                ErrorMessages.Add($"Setup could not be deleted: {result.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Setup could not be deleted: {result.ErrorMessage}"));
                 break;
         }
     }
@@ -413,10 +414,10 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                     await ApplyImportedSetupAsync(imported.Data);
                     break;
                 case SetupImportResult.InvalidFile invalid:
-                    ErrorMessages.Add(invalid.ErrorMessage);
+                    ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
                     break;
                 case SetupImportResult.Failed failed:
-                    ErrorMessages.Add($"Setup could not be imported: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"Setup could not be imported: {failed.ErrorMessage}"));
                     break;
             }
         }
@@ -440,7 +441,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
         if (data.BoardIdWarning is not null)
         {
-            ErrorMessages.Add(data.BoardIdWarning);
+            ErrorMessages.Add(new FailurePresentation(data.BoardIdWarning));
         }
     }
 

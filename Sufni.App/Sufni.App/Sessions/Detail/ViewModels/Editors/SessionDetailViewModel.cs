@@ -490,7 +490,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (change.Error is not null)
         {
-            ErrorMessages.Add($"Failed to update session analysis: {change.Error.Message}");
+            ErrorMessages.Add(new FailurePresentation($"Failed to update session analysis: {change.Error.Message}"));
             return;
         }
 
@@ -923,7 +923,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
         catch (Exception exception)
         {
-            ErrorMessages.Add($"Failed to handle a session change: {exception.Message}");
+            ErrorMessages.Add(new FailurePresentation($"Failed to handle a session change: {exception.Message}"));
         }
     }
 
@@ -1184,7 +1184,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (!applied)
         {
-            ErrorMessages.Add("GPS offset could not be applied: no matching track segment was found.");
+            ErrorMessages.Add(new FailurePresentation("GPS offset could not be applied: no matching track segment was found."));
         }
 
         // One-way: on success the store upsert drives the refreshed track and
@@ -1247,7 +1247,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 Notifications.Add("Session video alignment could not be saved because the video metadata is missing.");
                 break;
             case VideoAlignmentResult.Failed failed:
-                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details).Summary);
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -1351,13 +1351,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         switch (await edit())
         {
             case SessionEditResult.Applied { RecomputeError: { } recomputeError }:
-                ErrorMessages.Add(recomputeError);
+                ErrorMessages.Add(new FailurePresentation(recomputeError));
                 break;
             case SessionEditResult.Applied:
                 Notifications.Add(appliedMessage);
                 break;
             case SessionEditResult.Failed failed:
-                ErrorMessages.Add(failed.ErrorMessage);
+                ErrorMessages.Add(new FailurePresentation(failed.ErrorMessage));
                 break;
         }
     }
@@ -1365,7 +1365,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
         double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
-    void ISessionOperationGateway.AddError(string message) => ErrorMessages.Add(message);
+    void ISessionOperationGateway.AddError(string message) => ErrorMessages.Add(new FailurePresentation(message));
 
     Guid ISessionOperationGateway.SessionId => Id;
 
@@ -1461,13 +1461,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 state.Intent.DampingSpeedCutoffs,
                 state.Presentation.DampingPercentages)),
             (start, end) => Timeline.SetVisibleRange(start, end, this),
-            ErrorMessages.Add,
+            message => ErrorMessages.Add(new FailurePresentation(message)),
             Notifications.Add);
         this.sessionEditingCoordinator = sessionEditingCoordinator;
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,
-            ErrorMessages.Add);
+            message => ErrorMessages.Add(new FailurePresentation(message)));
         signalRowActions = new SignalRowActionsController(
             () => currentEditorState.AnalysisSelection.HighlightRanges.Count > 0,
             () => currentEditorState.Presentation.Signals.ShowAirtime,
@@ -1575,7 +1575,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     editorActions.ClearAnalysisRange();
                 }
             },
-            ErrorMessages.Add);
+            message => ErrorMessages.Add(new FailurePresentation(message)));
         MobileWorkspace = new SessionShellMobileWorkspaceViewModel(
             this,
             Pages,
@@ -1625,7 +1625,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorActions.SetDampingSpeedCutoffs,
             SetPlotDampingSpeedCutoffs,
             bikeCoordinator,
-            ErrorMessages.Add);
+            message => ErrorMessages.Add(new FailurePresentation(message)));
         stalenessReconciler = new SessionStalenessReconciler(
             sessionCoordinator,
             dialogService,
@@ -2243,7 +2243,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 break;
 
             case SessionSaveResult.Failed failed:
-                ErrorMessages.Add($"Session could not be saved: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Session could not be saved: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -2332,7 +2332,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 await shell.CloseEditorAsync(new EditorKey.Session(Id));
                 break;
             case SessionDeleteOutcome.Failed:
-                ErrorMessages.Add($"Session could not be deleted: {result.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Session could not be deleted: {result.ErrorMessage}"));
                 break;
         }
     }

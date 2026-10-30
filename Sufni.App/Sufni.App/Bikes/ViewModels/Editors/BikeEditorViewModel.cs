@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -496,7 +497,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 LeverageRatioData = null;
                 ImageCanvas.SetRearAxlePathData(null);
                 ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
-                ErrorMessages.Add($"Rear suspension analysis failed: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Rear suspension analysis failed: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -867,11 +868,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 break;
 
             case BikeSaveResult.InvalidRearSuspension invalidRearSuspension:
-                ErrorMessages.Add(invalidRearSuspension.ErrorMessage);
+                ErrorMessages.Add(new FailurePresentation(invalidRearSuspension.ErrorMessage));
                 break;
 
             case BikeSaveResult.Failed failed:
-                ErrorMessages.Add($"Bike could not be saved: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Bike could not be saved: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -894,10 +895,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 await shell.CloseEditorAsync(new EditorKey.Bike(Id));
                 break;
             case BikeDeleteOutcome.InUse:
-                ErrorMessages.Add("Bike is referenced by a setup and cannot be deleted.");
+                ErrorMessages.Add(new FailurePresentation("Bike is referenced by a setup and cannot be deleted."));
                 break;
             case BikeDeleteOutcome.Failed:
-                ErrorMessages.Add($"Bike could not be deleted: {result.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Bike could not be deleted: {result.ErrorMessage}"));
                 break;
         }
     }
@@ -913,7 +914,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         var result = await bikeCoordinator.ExportBikeAsync(BikeModel.FromSnapshot(ToSnapshot(BaselineUpdated)));
         if (result is BikeExportResult.Failed failed)
         {
-            ErrorMessages.Add($"Bike could not be exported: {failed.ErrorMessage}");
+            ErrorMessages.Add(new FailurePresentation($"Bike could not be exported: {failed.ErrorMessage}"));
         }
     }
 
@@ -950,11 +951,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                     }
                     catch (Exception e)
                     {
-                        ErrorMessages.Add($"Bike image could not be loaded: {e.Message}");
+                        ErrorMessages.Add(new FailurePresentation($"Bike image could not be loaded: {e.Message}"));
                     }
                     break;
                 case BikeImageLoadResult.Failed failed:
-                    ErrorMessages.Add($"Bike image could not be loaded: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"Bike image could not be loaded: {failed.ErrorMessage}"));
                     break;
             }
         }
@@ -1007,10 +1008,10 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                     ApplyImportedBike(imported.Data);
                     break;
                 case BikeImportResult.InvalidFile invalid:
-                    ErrorMessages.Add(invalid.ErrorMessage);
+                    ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
                     break;
                 case BikeImportResult.Failed failed:
-                    ErrorMessages.Add($"Bike could not be imported: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"Bike could not be imported: {failed.ErrorMessage}"));
                     break;
             }
         }

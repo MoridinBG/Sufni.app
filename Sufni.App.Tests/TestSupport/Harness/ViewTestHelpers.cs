@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.Themes.Fluent;
 using Avalonia.VisualTree;
 using Sufni.App;
 using Sufni.App.Infrastructure;
@@ -56,6 +57,14 @@ public static class ViewTestHelpers
     public static async Task FlushDispatcherAsync()
     {
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+    }
+
+    public static void EnsureFluentTheme()
+    {
+        var application = Application.Current
+            ?? throw new InvalidOperationException("A headless application is required.");
+        if (!application.Styles.OfType<FluentTheme>().Any())
+            application.Styles.Add(new FluentTheme());
     }
 
     public static void EnsureViewTestResources()

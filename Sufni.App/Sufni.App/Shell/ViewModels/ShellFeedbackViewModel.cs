@@ -64,7 +64,7 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
     });
 
     private void OnSyncFailed(object? sender, SyncFailedEventArgs args) =>
-        UiThreadDispatcher.Post(() => ErrorMessages.Add(args.ErrorMessage));
+        UiThreadDispatcher.Post(() => ErrorMessages.Add(new FailurePresentation(args.ErrorMessage)));
 
     public void ShowGpxResult(GpxImportResult result)
     {
@@ -91,12 +91,12 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
                 Notifications.Add("No recorded session overlaps the selected video.");
                 break;
             case VideoImportResult.Failed failed:
-                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details).Summary);
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
 
-    public void ShowUnexpectedFailure() => ErrorMessages.Add("The action could not be completed. See the log for details.");
+    public void ShowUnexpectedFailure() => ErrorMessages.Add(new FailurePresentation("The action could not be completed. See the log for details."));
 
     public void Dispose()
     {

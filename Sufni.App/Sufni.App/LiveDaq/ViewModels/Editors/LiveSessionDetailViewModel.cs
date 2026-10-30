@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Segments.ViewModels;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -499,7 +500,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     blockedSavedCaptureRevision = savedCaptureRevision;
                     if (saved.PublicationWarning is not null)
                     {
-                        ErrorMessages.Add(saved.PublicationWarning);
+                        ErrorMessages.Add(new FailurePresentation(saved.PublicationWarning));
                     }
 
                     try
@@ -519,12 +520,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     }
                     catch (Exception e)
                     {
-                        ErrorMessages.Add($"Live session was saved, but post-save cleanup failed: {e.Message}");
+                        ErrorMessages.Add(new FailurePresentation($"Live session was saved, but post-save cleanup failed: {e.Message}"));
                     }
                     break;
 
                 case LiveSessionSaveResult.Failed failed:
-                    ErrorMessages.Add($"Live session could not be saved: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"Live session could not be saved: {failed.ErrorMessage}"));
                     break;
             }
         }
@@ -533,7 +534,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
         catch (Exception e)
         {
-            ErrorMessages.Add($"Live session could not be saved: {e.Message}");
+            ErrorMessages.Add(new FailurePresentation($"Live session could not be saved: {e.Message}"));
         }
         finally
         {
@@ -852,7 +853,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
         catch (Exception e)
         {
-            UiThreadDispatcher.Post(() => ErrorMessages.Add($"Live analysis render failed: {e.Message}"));
+            UiThreadDispatcher.Post(() => ErrorMessages.Add(new FailurePresentation($"Live analysis render failed: {e.Message}")));
         }
     }
 
@@ -1000,13 +1001,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
             case BikeDampingSpeedCutoffUpdateResult.Conflict conflict:
                 ApplyPersistedDampingSpeedCutoffs(conflict.CurrentSnapshot.DampingSpeedCutoffs, conflict.CurrentSnapshot.Updated);
-                ErrorMessages.Add("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff.");
+                ErrorMessages.Add(new FailurePresentation("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff."));
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
                 DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
                 PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                ErrorMessages.Add($"Could not save damping cutoff: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Could not save damping cutoff: {failed.ErrorMessage}"));
                 break;
         }
     }

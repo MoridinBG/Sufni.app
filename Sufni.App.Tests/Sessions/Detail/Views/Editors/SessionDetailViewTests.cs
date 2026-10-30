@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -48,7 +49,7 @@ public class SessionDetailViewTests
         Assert.NotNull(errorBar);
         Assert.False(errorBar!.IsVisible);
 
-        mounted.Editor.ErrorMessages.Add("Something went wrong");
+        mounted.Editor.ErrorMessages.Add(new FailurePresentation("Something went wrong"));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(errorBar.IsVisible);

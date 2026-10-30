@@ -204,7 +204,10 @@ no matching session and missing clips are notification states.
 Failure-policy adoption has started with startup: `StartupFailureReason`
 (`Database`, `Startup`, `Reset`) is mapped by shared `FailurePresentation` to a
 fixed summary. Diagnostic details remain separate and appear in the startup
-screen's expander. Other flows below still use their current result shapes
+screen's expander. Shared error bars also accept summary/detail presentations
+and expose optional details through a collapsed expander. Video failures use
+that presentation; the remaining string-based producers still require migration.
+Other flows below still use their current result shapes
 until their failure-policy migration lands.
 
 Operations with multiple semantically distinct outcomes return a sealed

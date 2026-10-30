@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -127,7 +128,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         {
             if (IsCurrentTelemetryFilesLoad(value))
             {
-                ErrorMessages.Add($"Error while changing data store: {e.Message}");
+                ErrorMessages.Add(new FailurePresentation($"Error while changing data store: {e.Message}"));
             }
         }
         finally
@@ -172,14 +173,13 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                     Notifications.Insert(0, $"{imported.Snapshot.Name} was successfully imported.");
                     break;
                 case SessionImportEvent.ImportFailed failed:
-                    ErrorMessages.Add($"Could not import {failed.FileName}: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"Could not import {failed.FileName}: {failed.ErrorMessage}"));
                     break;
                 case SessionImportEvent.PublicationFailed failed:
-                    ErrorMessages.Add(
-                        $"{failed.FileName} was imported, but app state could not be refreshed; the source was left unacknowledged: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"{failed.FileName} was imported, but app state could not be refreshed; the source was left unacknowledged: {failed.ErrorMessage}"));
                     break;
                 case SessionImportEvent.TrashFailed failed:
-                    ErrorMessages.Add($"Could not trash {failed.FileName}: {failed.ErrorMessage}");
+                    ErrorMessages.Add(new FailurePresentation($"Could not trash {failed.FileName}: {failed.ErrorMessage}"));
                     break;
             }
         }
@@ -192,7 +192,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 if (SelectedDataStore is { } dataStore) _ = RefreshAfterImportAsync(dataStore);
                 break;
             case SessionImportState.Failed failed:
-                ErrorMessages.Add($"Import failed: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Import failed: {failed.ErrorMessage}"));
                 break;
         }
     }
@@ -205,7 +205,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         }
         catch (Exception e)
         {
-            if (IsCurrentTelemetryFilesLoad(dataStore)) ErrorMessages.Add($"Import failed: {e.Message}");
+            if (IsCurrentTelemetryFilesLoad(dataStore)) ErrorMessages.Add(new FailurePresentation($"Import failed: {e.Message}"));
         }
     }
 
@@ -286,7 +286,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         }
         catch (Exception e)
         {
-            ErrorMessages.Add($"Could not open folder: {e.Message}");
+            ErrorMessages.Add(new FailurePresentation($"Could not open folder: {e.Message}"));
         }
     }
 
@@ -367,7 +367,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private void OnDataStoreServiceError(object? sender, string message)
     {
-        ErrorMessages.Add(message);
+        ErrorMessages.Add(new FailurePresentation(message));
     }
 
     #endregion Commands

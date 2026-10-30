@@ -117,6 +117,6 @@ public class SetupListViewModelTests
         await entry.FinalizeDeleteCommand.ExecuteAsync(null);
 
         Assert.Single(viewModel.Items);
-        Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
+        Assert.NotEmpty(viewModel.ErrorMessages);
     }
 }

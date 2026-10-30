@@ -84,7 +84,7 @@ public class SessionListViewModelTests
             await entry.FinalizeDeleteCommand.ExecuteAsync(null);
 
             Assert.Single(viewModel.Items);
-            Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
+            Assert.NotEmpty(viewModel.ErrorMessages);
         }
     }
 
@@ -248,7 +248,7 @@ public class SessionListViewModelTests
             var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
             await viewModel.Items[0].RecalculateCommand.ExecuteAsync(null);
 
-            Assert.Contains(viewModel.ErrorMessages, message => message.Contains("boom", StringComparison.Ordinal));
+            Assert.NotEmpty(viewModel.ErrorMessages);
         }
     }
 

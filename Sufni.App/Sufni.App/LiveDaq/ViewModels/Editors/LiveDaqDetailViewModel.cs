@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.IO;
 using System.Reactive.Linq;
@@ -257,7 +258,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                     Notifications.Add(FormattableString.Invariant($"Device time updated ({ok.RoundTripTime.TotalMilliseconds:0} ms RTT)."));
                     break;
                 case DaqSetTimeResult.Error error:
-                    ErrorMessages.Add(error.Message);
+                    ErrorMessages.Add(new FailurePresentation(error.Message));
                     break;
             }
         }
@@ -269,7 +270,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             if (!linkedCts.IsCancellationRequested)
             {
                 logger.Error(ex, "Setting device time failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
-                ErrorMessages.Add(ex.Message);
+                ErrorMessages.Add(new FailurePresentation(ex.Message));
             }
         }
         finally
@@ -292,7 +293,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
             if (!string.Equals(selectedFile.FileName, "CONFIG", StringComparison.Ordinal))
             {
-                ErrorMessages.Add("Selected file must be named CONFIG.");
+                ErrorMessages.Add(new FailurePresentation("Selected file must be named CONFIG."));
                 return;
             }
 
@@ -308,7 +309,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             if (!linkedCts.IsCancellationRequested)
             {
                 logger.Error(ex, "Selecting CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
-                ErrorMessages.Add(ex.Message);
+                ErrorMessages.Add(new FailurePresentation(ex.Message));
             }
         }
         finally
@@ -343,7 +344,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                     Notifications.Add("CONFIG uploaded.");
                     break;
                 case DaqManagementResult.Error error:
-                    ErrorMessages.Add(error.Message);
+                    ErrorMessages.Add(new FailurePresentation(error.Message));
                     break;
             }
         }
@@ -355,7 +356,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             if (!linkedCts.IsCancellationRequested)
             {
                 logger.Error(ex, "Uploading CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
-                ErrorMessages.Add(ex.Message);
+                ErrorMessages.Add(new FailurePresentation(ex.Message));
             }
         }
         finally
@@ -401,7 +402,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                         document = DaqConfigDocument.Parse(destination.ToArray());
                         break;
                     case DaqGetFileResult.Error error:
-                        ErrorMessages.Add(error.Message);
+                        ErrorMessages.Add(new FailurePresentation(error.Message));
                         return;
                 }
             }
@@ -414,7 +415,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 if (!linkedCts.IsCancellationRequested)
                 {
                     logger.Error(ex, "Editing CONFIG failed for {IdentityKey} {Endpoint}", IdentityKey, Endpoint);
-                    ErrorMessages.Add(ex.Message);
+                    ErrorMessages.Add(new FailurePresentation(ex.Message));
                 }
 
                 return;
@@ -512,7 +513,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             var updatedState = sharedStream.CurrentState;
             if (result is LivePreviewStartResult.Rejected rejected)
             {
-                ErrorMessages.Add(rejected.UserMessage);
+                ErrorMessages.Add(new FailurePresentation(rejected.UserMessage));
                 return;
             }
             else if (result is LivePreviewStartResult.Started started && updatedState.ConnectionState == LiveConnectionState.Connected)

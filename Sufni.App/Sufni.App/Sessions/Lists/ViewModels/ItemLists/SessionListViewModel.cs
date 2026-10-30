@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Coordinators;
 using System;
@@ -185,11 +186,11 @@ public partial class SessionListViewModel : ItemListViewModelBase
                 break;
 
             case SessionRecomputeResult.NotRecomputable:
-                ErrorMessages.Add("Session cannot be recalculated in its current state.");
+                ErrorMessages.Add(new FailurePresentation("Session cannot be recalculated in its current state."));
                 break;
 
             case SessionRecomputeResult.Failed failed:
-                ErrorMessages.Add($"Session could not be recalculated: {failed.ErrorMessage}");
+                ErrorMessages.Add(new FailurePresentation($"Session could not be recalculated: {failed.ErrorMessage}"));
                 break;
         }
     }

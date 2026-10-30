@@ -1,7 +1,9 @@
+using Sufni.App.Shared.Models;
 using System.Collections;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Headless.XUnit;
 
 using Sufni.App.Shared.Views.Controls;
@@ -12,6 +14,41 @@ namespace Sufni.App.Tests.Shared.Views.Controls;
 [Collection("Ui")]
 public class ErrorMessagesBarTests
 {
+    [AvaloniaTheory]
+    [InlineData(null)]
+    [InlineData("Technical diagnostic")]
+    public async Task ErrorMessagesBar_KeepsDetailsCollapsedUntilExpanded(string? details)
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        var viewModel = new TestViewModel();
+        var failure = FailurePresentation.From(VideoImportFailureReason.Import, details);
+        viewModel.ErrorMessages.Add(failure);
+        var view = new ErrorMessagesBar { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        try
+        {
+            var summary = view.GetVisualDescendants().OfType<TextBlock>()
+                .Single(control => control.Name == "FailureSummary");
+            var expander = view.GetVisualDescendants().OfType<Expander>().Single();
+            Assert.Equal(failure.Summary, summary.Text);
+            Assert.Equal(details is not null, expander.IsVisible);
+            Assert.False(expander.IsExpanded);
+            if (details is null) return;
+
+            expander.IsExpanded = true;
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            var detailText = expander.GetVisualDescendants().OfType<SelectableTextBlock>().Single();
+            Assert.Equal(details, detailText.Text);
+            Assert.True(detailText.IsVisible);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     [AvaloniaFact]
     public async Task ErrorMessagesBar_HidesItself_WhenThereAreNoErrors()
     {
@@ -38,8 +75,8 @@ public class ErrorMessagesBarTests
     public async Task ErrorMessagesBar_ShowsEachErrorMessage()
     {
         var viewModel = new TestViewModel();
-        viewModel.ErrorMessages.Add("Fork sensor is missing");
-        viewModel.ErrorMessages.Add("Shock sensor is missing");
+        viewModel.ErrorMessages.Add(new FailurePresentation("Fork sensor is missing"));
+        viewModel.ErrorMessages.Add(new FailurePresentation("Shock sensor is missing"));
 
         var view = new ErrorMessagesBar
         {
@@ -57,8 +94,8 @@ public class ErrorMessagesBarTests
 
             Assert.True(view.IsVisible);
             Assert.Equal(2, items.Length);
-            Assert.Contains("Fork sensor is missing", items);
-            Assert.Contains("Shock sensor is missing", items);
+            Assert.Contains(viewModel.ErrorMessages[0], items);
+            Assert.Contains(viewModel.ErrorMessages[1], items);
         }
         finally
         {
@@ -71,7 +108,7 @@ public class ErrorMessagesBarTests
     public async Task ErrorMessagesBar_CloseButton_ClearsAllErrors()
     {
         var viewModel = new TestViewModel();
-        viewModel.ErrorMessages.Add("Board id is required");
+        viewModel.ErrorMessages.Add(new FailurePresentation("Board id is required"));
 
         var view = new ErrorMessagesBar
         {

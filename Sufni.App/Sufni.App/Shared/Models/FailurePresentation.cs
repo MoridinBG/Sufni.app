@@ -5,7 +5,7 @@ namespace Sufni.App.Shared.Models;
 /// <summary>Fixed user-facing text with separate, optional diagnostic details.</summary>
 public sealed record FailurePresentation
 {
-    private FailurePresentation(string summary, string? details)
+    public FailurePresentation(string summary, string? details = null)
     {
         Summary = summary;
         Details = details;
@@ -13,6 +13,7 @@ public sealed record FailurePresentation
 
     public string Summary { get; }
     public string? Details { get; }
+    public bool HasDetails => !string.IsNullOrEmpty(Details);
 
     public static FailurePresentation From(StartupFailureReason reason, string? details = null) => new(reason switch
     {

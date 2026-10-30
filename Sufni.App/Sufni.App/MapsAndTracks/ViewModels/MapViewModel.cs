@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -70,7 +71,7 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         }
         catch (Exception e)
         {
-            ErrorMessages.Add($"Map layer preference could not be saved: {e.Message}");
+            ErrorMessages.Add(new FailurePresentation($"Map layer preference could not be saved: {e.Message}"));
         }
     }
 
