@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Reactive.Subjects;
 using DynamicData;
 using NSubstitute;
@@ -197,6 +198,29 @@ public class SegmentPickerViewModelTests
 
         Assert.False(picker.IsOpen);
         Assert.False(picker.CanOpen);
+    }
+
+    [Fact]
+    public async Task Open_WhenStravaFails_KeepsDiagnosticsSeparateAndClearsThemOnRetry()
+    {
+        const string details = "technical diagnostic";
+        segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
+            .Returns(new StravaSegmentFetchResult.Failed(StravaSegmentFetchFailureReason.Load, details),
+                new StravaSegmentFetchResult.NoMatchingActivity());
+        using var picker = CreateLoadedPicker();
+
+        await picker.OpenCommand.ExecuteAsync(null);
+
+        Assert.NotNull(picker.StravaError);
+        Assert.Equal(details, picker.StravaError.Details);
+        Assert.DoesNotContain(details, picker.StravaError.Summary);
+        Assert.Null(picker.StravaMessage);
+        picker.CloseCommand.Execute(null);
+
+        await picker.OpenCommand.ExecuteAsync(null);
+
+        Assert.Null(picker.StravaError);
+        Assert.True(picker.HasStravaMessage);
     }
 
     private SegmentPickerViewModel CreateLoadedPicker(double durationSeconds = 10, TelemetryTimeRange? analysisRange = null)

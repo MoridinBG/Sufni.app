@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using NSubstitute;
 
 using Sufni.App.Segments.Coordinators;
@@ -211,7 +212,7 @@ public class SegmentCoordinatorTests
 
         var result = await CreateCoordinator().FindStravaSegmentsAsync(1_000, 10, CancellationToken.None);
 
-        Assert.Equal("offline", Assert.IsType<StravaSegmentFetchResult.Failed>(result).Message);
+        Assert.Equal(StravaSegmentFetchFailureReason.Load, Assert.IsType<StravaSegmentFetchResult.Failed>(result).Reason);
     }
 
     [Fact]
@@ -224,7 +225,7 @@ public class SegmentCoordinatorTests
             new StravaConnectRequest("client", "secret", "http://localhost/exchange_token?code=abc"),
             CancellationToken.None);
 
-        Assert.Equal("offline", Assert.IsType<StravaConnectResult.Failed>(result).Message);
+        Assert.Equal(StravaConnectFailureReason.Connect, Assert.IsType<StravaConnectResult.Failed>(result).Reason);
     }
 
     private static async Task<IReadOnlyList<SegmentMatch>> WaitForCancellationAsync(CancellationToken cancellationToken)

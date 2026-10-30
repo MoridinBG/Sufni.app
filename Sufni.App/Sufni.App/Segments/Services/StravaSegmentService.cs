@@ -1,3 +1,5 @@
+using Serilog;
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -47,6 +49,7 @@ public interface IStravaSegmentService
 
 internal sealed class StravaSegmentService : IStravaSegmentService
 {
+    private static readonly ILogger logger = Log.ForContext<StravaSegmentService>();
     private const string AuthorizationEndpoint = "https://www.strava.com/oauth/authorize";
     private const string TokenEndpoint = "https://www.strava.com/oauth/token";
     private const string ActivitiesEndpoint = "https://www.strava.com/api/v3/athlete/activities";
@@ -147,13 +150,14 @@ internal sealed class StravaSegmentService : IStravaSegmentService
 
         if (!response.IsSuccessStatusCode)
         {
-            return new StravaConnectResult.Failed(response.ReasonPhrase ?? response.StatusCode.ToString());
+            return new StravaConnectResult.Failed(StravaConnectFailureReason.Connect, DescribeResponseFailure(response, TokenEndpoint));
         }
 
         var tokenResponse = await ReadJsonAsync<StravaTokenResponseDto>(response.Content, cancellationToken);
         if (!IsTokenResponseUsable(tokenResponse))
         {
-            return new StravaConnectResult.Failed("Strava token response was incomplete.");
+            logger.Error("Strava token response was incomplete during authorization");
+            return new StravaConnectResult.Failed(StravaConnectFailureReason.Connect, "Strava token response was incomplete.");
         }
 
         var validTokenResponse = tokenResponse!;
@@ -176,7 +180,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
     {
         if (!double.IsFinite(sessionDurationSeconds) || sessionDurationSeconds <= 0)
         {
-            return new StravaSegmentFetchResult.Failed("Session duration is not usable.");
+            return new StravaSegmentFetchResult.MissingSessionTiming();
         }
 
         var cacheKey = SegmentCacheKey.Create(sessionStart, sessionDurationSeconds);
@@ -195,7 +199,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
             case AccessTokenResult.RateLimited:
                 return new StravaSegmentFetchResult.RateLimited();
             case AccessTokenResult.Failed failed:
-                return new StravaSegmentFetchResult.Failed(failed.Message);
+                return new StravaSegmentFetchResult.Failed(StravaSegmentFetchFailureReason.Load, failed.Details);
             case AccessTokenResult.Available:
                 break;
         }
@@ -219,7 +223,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
                 await ClearOAuthStateAsync();
                 return new StravaSegmentFetchResult.ReconnectRequired();
             case JsonResult.Failed failed:
-                return new StravaSegmentFetchResult.Failed(failed.Message);
+                return new StravaSegmentFetchResult.Failed(StravaSegmentFetchFailureReason.Load, failed.Details);
             case JsonResult.Success<List<StravaActivitySummaryDto>>:
                 break;
         }
@@ -241,7 +245,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
                 await ClearOAuthStateAsync();
                 return new StravaSegmentFetchResult.ReconnectRequired();
             case JsonResult.Failed failed:
-                return new StravaSegmentFetchResult.Failed(failed.Message);
+                return new StravaSegmentFetchResult.Failed(StravaSegmentFetchFailureReason.Load, failed.Details);
             case JsonResult.Success<StravaDetailedActivityDto>:
                 break;
         }
@@ -344,12 +348,13 @@ internal sealed class StravaSegmentService : IStravaSegmentService
 
         if (!response.IsSuccessStatusCode)
         {
-            return new AccessTokenResult.Failed(response.ReasonPhrase ?? response.StatusCode.ToString());
+            return new AccessTokenResult.Failed(DescribeResponseFailure(response, TokenEndpoint));
         }
 
         var tokenResponse = await ReadJsonAsync<StravaTokenResponseDto>(response.Content, cancellationToken);
         if (!IsTokenResponseUsable(tokenResponse))
         {
+            logger.Error("Strava token response was incomplete during refresh");
             return new AccessTokenResult.Failed("Strava token response was incomplete.");
         }
 
@@ -386,11 +391,21 @@ internal sealed class StravaSegmentService : IStravaSegmentService
 
         if (!response.IsSuccessStatusCode)
         {
-            return new JsonResult.Failed(response.ReasonPhrase ?? response.StatusCode.ToString());
+            return new JsonResult.Failed(DescribeResponseFailure(response, uri));
         }
 
         var value = await ReadJsonAsync<T>(response.Content, cancellationToken);
         return new JsonResult.Success<T>(value);
+    }
+
+    private static string DescribeResponseFailure(HttpResponseMessage response, string endpoint)
+    {
+        var details = $"HTTP {(int)response.StatusCode}: {response.ReasonPhrase}";
+        if ((int)response.StatusCode < 500)
+            logger.Warning("Strava request rejected by {Endpoint}: {Details}", endpoint, details);
+        else
+            logger.Error("Strava request failed at {Endpoint}: {Details}", endpoint, details);
+        return details;
     }
 
     private bool TryGetCachedSegmentResult(
@@ -595,7 +610,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
         public sealed record NotConnected : AccessTokenResult;
         public sealed record ReconnectRequired : AccessTokenResult;
         public sealed record RateLimited : AccessTokenResult;
-        public sealed record Failed(string Message) : AccessTokenResult;
+        public sealed record Failed(string Details) : AccessTokenResult;
     }
 
     private abstract record JsonResult
@@ -605,6 +620,6 @@ internal sealed class StravaSegmentService : IStravaSegmentService
         public sealed record Success<T>(T? Value) : JsonResult;
         public sealed record Unauthorized : JsonResult;
         public sealed record RateLimited : JsonResult;
-        public sealed record Failed(string Message) : JsonResult;
+        public sealed record Failed(string Details) : JsonResult;
     }
 }

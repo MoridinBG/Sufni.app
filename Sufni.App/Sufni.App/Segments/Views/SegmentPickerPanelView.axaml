@@ -171,6 +171,16 @@
                         Text="{Binding StravaMessage}"
                         TextWrapping="Wrap" />
 
+                    <StackPanel IsVisible="{Binding StravaError, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock Text="{Binding StravaError.Summary}" TextWrapping="Wrap" />
+                        <Expander
+                            x:Name="StravaErrorDetailsExpander"
+                            Header="Details"
+                            IsVisible="{Binding StravaError.HasDetails}">
+                            <SelectableTextBlock Text="{Binding StravaError.Details}" TextWrapping="Wrap" />
+                        </Expander>
+                    </StackPanel>
+
                     <ItemsControl
                         x:Name="StravaSegmentsItems"
                         IsVisible="{Binding IsStravaConnected}"

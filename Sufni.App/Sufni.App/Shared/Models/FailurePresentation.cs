@@ -203,4 +203,15 @@ public sealed record FailurePresentation
         SessionDeleteFailureReason.Delete => "Session deletion could not be completed. Reload the list and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(StravaConnectFailureReason reason, string? details = null) => new(reason switch
+    {
+        StravaConnectFailureReason.Connect => "Strava could not be connected. Check the credentials and connection, then try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(StravaSegmentFetchFailureReason reason, string? details = null) => new(reason switch
+    {
+        StravaSegmentFetchFailureReason.Load => "Strava segments could not be loaded. Check the connection and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

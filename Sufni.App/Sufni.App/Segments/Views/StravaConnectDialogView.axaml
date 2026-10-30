@@ -43,8 +43,14 @@
         <TextBlock
             x:Name="StravaErrorMessageText"
             IsVisible="{Binding HasError}"
-            Text="{Binding ErrorMessage}"
+            Text="{Binding Error.Summary}"
             TextWrapping="Wrap" />
+        <Expander
+            x:Name="StravaErrorDetailsExpander"
+            Header="Details"
+            IsVisible="{Binding Error.HasDetails}">
+            <SelectableTextBlock Text="{Binding Error.Details}" TextWrapping="Wrap" />
+        </Expander>
         <TextBlock
             IsVisible="{Binding IsConnecting}"
             Opacity="0.75"

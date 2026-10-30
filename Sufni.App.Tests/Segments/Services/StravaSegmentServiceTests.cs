@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using System.Net;
 using System.Text;
@@ -165,6 +166,60 @@ public class StravaSegmentServiceTests
         Assert.Contains("client_id=123", url);
         Assert.Contains("redirect_uri=http%3A%2F%2Flocalhost%2Fexchange_token", url);
         Assert.Contains("scope=read%2Cactivity%3Aread_all", url);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConnectAsync_WhenResponseFails_PreservesExistingConnection(bool incompleteToken)
+    {
+        await StoreConnectionAsync("existing-access");
+        var service = CreateService(_ => Task.FromResult(incompleteToken
+            ? TokenResponse("", "", "read,activity:read_all")
+            : new HttpResponseMessage(HttpStatusCode.BadRequest)));
+
+        var result = await service.ConnectAsync(
+            new StravaConnectRequest("new-client", "new-secret", "http://localhost/exchange_token?code=abc"),
+            TestContext.Current.CancellationToken);
+
+        var failure = Assert.IsType<StravaConnectResult.Failed>(result);
+        Assert.Equal(StravaConnectFailureReason.Connect, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
+        Assert.Equal(new StravaConnectionSnapshot("client", "secret", true),
+            await service.GetConnectionSnapshotAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("access")]
+    public async Task FindSegmentsAsync_WhenRequestFails_ReturnsFailureAndAllowsRetry(string? accessToken)
+    {
+        await StoreConnectionAsync(accessToken);
+        var responses = new List<Func<HttpRequestMessage, Task<HttpResponseMessage>>>
+        {
+            _ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable))
+        };
+        if (accessToken is null)
+            responses.Add(_ => Task.FromResult(TokenResponse("fresh", "refresh", "read,activity:read_all")));
+        responses.Add(_ => Task.FromResult(JsonResponse("[]")));
+        var service = CreateService(responses.ToArray());
+
+        var failure = Assert.IsType<StravaSegmentFetchResult.Failed>(
+            await service.FindSegmentsAsync(SessionStart, 3600, TestContext.Current.CancellationToken));
+        Assert.Equal(StravaSegmentFetchFailureReason.Load, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
+        Assert.True((await service.GetConnectionSnapshotAsync(TestContext.Current.CancellationToken)).IsConnected);
+        Assert.IsType<StravaSegmentFetchResult.NoMatchingActivity>(
+            await service.FindSegmentsAsync(SessionStart, 3600, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(double.NaN)]
+    public async Task FindSegmentsAsync_WithoutUsableDuration_ReturnsMissingSessionTiming(double duration)
+    {
+        Assert.IsType<StravaSegmentFetchResult.MissingSessionTiming>(
+            await CreateService().FindSegmentsAsync(SessionStart, duration, TestContext.Current.CancellationToken));
     }
 
     private StravaSegmentService CreateService(params Func<HttpRequestMessage, Task<HttpResponseMessage>>[] responses)

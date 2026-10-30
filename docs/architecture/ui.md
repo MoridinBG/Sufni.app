@@ -298,6 +298,15 @@ failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
 optional diagnostic details. `FailurePresentation` supplies fixed summaries;
 no matching session and missing clips are notification states.
 
+Strava connection returns `StravaConnectResult.Connected | ValidationFailed |
+MissingRequiredScope | RateLimited | Failed`. Segment fetch returns
+`StravaSegmentFetchResult.Loaded | NotConnected | MissingSessionTiming |
+ReconnectRequired | NoMatchingActivity | NoUsableSegments | RateLimited | Failed`.
+Failures carry `StravaConnectFailureReason.Connect` or
+`StravaSegmentFetchFailureReason.Load` and optional details. Other cases remain
+status or validation messages; the dialog and picker separate failure diagnostics
+from their fixed summaries.
+
 Server launch returns `ServerStartResult.Started | Failed(reason, details)` with
 `ServerStartFailureReason.Start`. The shell maps failure to the blocking
 `StartupFailureReason.Server` state without logging the same failure again.

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -63,6 +64,8 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasStravaMessage))]
     public partial string? StravaMessage { get; private set; }
+
+    [ObservableProperty] public partial FailurePresentation? StravaError { get; private set; }
 
     [ObservableProperty] public partial IReadOnlyList<StravaSegmentRow> StravaSegments { get; private set; } = [];
 
@@ -219,6 +222,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         stravaLoad = load;
         StravaSegments = [];
         StravaMessage = null;
+        StravaError = null;
         try
         {
             IsStravaSegmentsLoading = true;
@@ -270,7 +274,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
                 StravaMessage = "Strava rate limit reached.";
                 break;
             case StravaSegmentFetchResult.Failed failed:
-                StravaMessage = $"Could not load Strava segments: {failed.Message}";
+                StravaError = FailurePresentation.From(failed.Reason, failed.Details);
                 break;
         }
     }
@@ -278,6 +282,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private void ShowStravaDisconnected(string message)
     {
         IsStravaConnected = false;
+        StravaError = null;
         StravaSegments = [];
         StravaMessage = message;
     }

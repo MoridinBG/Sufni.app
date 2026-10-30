@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System.Collections.Generic;
 using Sufni.Telemetry;
 
@@ -21,7 +22,7 @@ public abstract record StravaConnectResult
     public sealed record ValidationFailed(string Message) : StravaConnectResult;
     public sealed record MissingRequiredScope : StravaConnectResult;
     public sealed record RateLimited : StravaConnectResult;
-    public sealed record Failed(string Message) : StravaConnectResult;
+    public sealed record Failed(StravaConnectFailureReason Reason, string? Details = null) : StravaConnectResult;
 }
 
 public abstract record StravaSegmentFetchResult
@@ -35,7 +36,7 @@ public abstract record StravaSegmentFetchResult
     public sealed record NoMatchingActivity : StravaSegmentFetchResult;
     public sealed record NoUsableSegments : StravaSegmentFetchResult;
     public sealed record RateLimited : StravaSegmentFetchResult;
-    public sealed record Failed(string Message) : StravaSegmentFetchResult;
+    public sealed record Failed(StravaSegmentFetchFailureReason Reason, string? Details = null) : StravaSegmentFetchResult;
 }
 
 /// <summary>

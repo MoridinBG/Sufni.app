@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -336,7 +337,7 @@ internal sealed class SegmentCoordinator(
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             logger.Error(e, "Strava connection failed");
-            return new StravaConnectResult.Failed(e.Message);
+            return new StravaConnectResult.Failed(StravaConnectFailureReason.Connect, e.Message);
         }
     }
 
@@ -366,7 +367,7 @@ internal sealed class SegmentCoordinator(
         catch (Exception e) when (!cancellationToken.IsCancellationRequested)
         {
             logger.Error(e, "Strava segments could not be loaded");
-            return new StravaSegmentFetchResult.Failed(e.Message);
+            return new StravaSegmentFetchResult.Failed(StravaSegmentFetchFailureReason.Load, e.Message);
         }
     }
 

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using NSubstitute;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Coordinators;
@@ -50,6 +51,31 @@ public class StravaConnectDialogViewModelTests
         };
 
         Assert.False(dialog.ConnectCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Connect_WhenFailed_KeepsDiagnosticsSeparateAndAllowsRetry()
+    {
+        const string details = "technical diagnostic";
+        segmentCoordinator.ConnectStravaAsync(Arg.Any<StravaConnectRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new StravaConnectResult.Failed(StravaConnectFailureReason.Connect, details),
+                new StravaConnectResult.Connected());
+        var dialog = CreateDialogReadyToConnect();
+        var completed = false;
+        dialog.Completed += (_, _) => completed = true;
+
+        await dialog.ConnectCommand.ExecuteAsync(null);
+
+        Assert.False(completed);
+        Assert.NotNull(dialog.Error);
+        Assert.Equal(details, dialog.Error.Details);
+        Assert.DoesNotContain(details, dialog.Error.Summary);
+        Assert.True(dialog.ConnectCommand.CanExecute(null));
+
+        await dialog.ConnectCommand.ExecuteAsync(null);
+
+        Assert.True(completed);
+        Assert.Null(dialog.Error);
     }
 
     private StravaConnectDialogViewModel CreateDialogReadyToConnect()

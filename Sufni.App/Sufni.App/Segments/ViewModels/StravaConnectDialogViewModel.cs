@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,7 +39,7 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
-    public partial string? ErrorMessage { get; private set; }
+    public partial FailurePresentation? Error { get; private set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanOpenAuthorizationUrl))]
@@ -65,7 +66,7 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
         !string.IsNullOrWhiteSpace(ClientSecret);
 
     public bool CanOpenAuthorizationUrl => HasClientCredentials && !IsConnecting;
-    public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
+    public bool HasError => Error is not null;
 
     public event EventHandler? Completed;
 
@@ -87,19 +88,19 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task Connect(CancellationToken cancellationToken)
     {
-        ErrorMessage = null;
+        Error = null;
         IsConnecting = true;
         try
         {
             var result = await segmentCoordinator.ConnectStravaAsync(
                 new StravaConnectRequest(ClientId, ClientSecret, RedirectUrl),
                 cancellationToken);
-            ErrorMessage = result switch
+            Error = result switch
             {
-                StravaConnectResult.ValidationFailed validation => validation.Message,
-                StravaConnectResult.MissingRequiredScope => "Strava did not grant activity:read_all scope.",
-                StravaConnectResult.RateLimited => "Strava rate limit reached.",
-                StravaConnectResult.Failed failed => failed.Message,
+                StravaConnectResult.ValidationFailed validation => new FailurePresentation(validation.Message),
+                StravaConnectResult.MissingRequiredScope => new FailurePresentation("Strava did not grant activity:read_all scope."),
+                StravaConnectResult.RateLimited => new FailurePresentation("Strava rate limit reached."),
+                StravaConnectResult.Failed failed => FailurePresentation.From(failed.Reason, failed.Details),
                 _ => null,
             };
             if (result is StravaConnectResult.Connected)
