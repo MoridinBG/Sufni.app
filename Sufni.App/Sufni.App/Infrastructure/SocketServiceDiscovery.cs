@@ -31,8 +31,8 @@ public class SocketServiceDiscovery : IServiceDiscovery
                 return;
             }
 
-            var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(args.Announcement);
-            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement);
+            var instanceName = string.IsNullOrWhiteSpace(args.Announcement.Instance) ? null : args.Announcement.Instance;
+            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement.Txt ?? []);
             endpointCache.Add(instanceName, announcedAddresses, args.Announcement.Port, connectableAddress);
             var announcement = new ServiceAnnouncement(connectableAddress, args.Announcement.Port, instanceName, txtRecords);
             logger.Verbose(
@@ -45,7 +45,7 @@ public class SocketServiceDiscovery : IServiceDiscovery
 
         browser.ServiceRemoved += (sender, args) =>
         {
-            var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(args.Announcement);
+            var instanceName = string.IsNullOrWhiteSpace(args.Announcement.Instance) ? null : args.Announcement.Instance;
             if (!endpointCache.TryRemove(instanceName, args.Announcement.Addresses, args.Announcement.Port, out var removedAddress))
             {
                 logger.Verbose(
@@ -54,7 +54,7 @@ public class SocketServiceDiscovery : IServiceDiscovery
                 return;
             }
 
-            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement);
+            var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement.Txt ?? []);
             var announcement = new ServiceAnnouncement(removedAddress, args.Announcement.Port, instanceName, txtRecords);
             logger.Verbose(
                 "Removed socket service endpoint {Address}:{Port} instance {InstanceName}",

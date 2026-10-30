@@ -241,6 +241,15 @@ The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDa
 
 ## Discovery & Catalog
 
+### Announcement Metadata
+
+Socket discovery reads Tmds's typed `Instance` and `Txt` properties. Bonjour
+keeps the endpoint string as its announcement key and copies native TXT bytes
+before the browse result is released. `ServiceAnnouncementMetadataReader`
+accepts string records or copied key/value bytes; it keeps the first duplicate
+key and uses an empty value for invalid UTF-8. Discovery metadata uses no
+reflection.
+
 ### Browse Ownership
 
 `DaqBrowseOwner` implements reference-counted lease-based browse ownership for `_sufni._tcp`. `AcquireBrowse()` returns a disposable lease; the first lease starts the underlying `IServiceDiscovery` mDNS browse, and the last disposed lease stops it. This keeps live discovery decoupled from the import pipeline — both features can browse concurrently without one clearing the other's state. The lease uses `Interlocked.Exchange` for safe double-dispose.

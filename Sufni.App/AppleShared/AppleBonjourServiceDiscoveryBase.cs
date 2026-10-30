@@ -81,7 +81,6 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         }
 
         var key = GetBrowseResultKey(result);
-        var instanceName = ServiceAnnouncementMetadataReader.ReadInstanceName(result) ?? key;
         var txtRecords = ReadTxtRecords(result.TxtRecord);
         logger.Verbose(
             "Bonjour browse result added on {Platform} for endpoint {Endpoint}",
@@ -121,7 +120,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
                 return;
             }
 
-            var announcement = new ServiceAnnouncement(address, port.Value, instanceName, txtRecords);
+            var announcement = new ServiceAnnouncement(address, port.Value, key, txtRecords);
             if (!browseLifecycle.TryResolve(key, resolutionId, announcement))
             {
                 logger.Verbose(
