@@ -19,6 +19,7 @@ public sealed record FailurePresentation
     {
         StartupFailureReason.Database => "The database could not be opened. Reset it to start with an empty database; your current database will be archived.",
         StartupFailureReason.Startup => "The application could not start. See the log for details.",
+        StartupFailureReason.Server => "The synchronization server could not start. See the log for details.",
         StartupFailureReason.Reset => "The database could not be reset. See the log for details.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);

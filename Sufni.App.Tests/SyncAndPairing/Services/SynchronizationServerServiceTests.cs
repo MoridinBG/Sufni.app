@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
@@ -13,6 +14,36 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationServerServiceTests
 {
+    [Fact]
+    public async Task StartAsync_ReturnsFailureForCredentialInitialization_AndStopRemainsSafe()
+    {
+        var credentials = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secureStorage = Substitute.For<ISecureStorage>();
+        secureStorage.GetStringAsync("jwt_secret").Returns(credentials.Task);
+        var server = new SynchronizationServerService(
+            Substitute.For<ISyncDataStore>(),
+            Substitute.For<IPairedDeviceRepository>(),
+            Substitute.For<ISessionRepository>(),
+            Substitute.For<ISessionTelemetryWriter>(),
+            Substitute.For<IRecordedSessionSourceRepository>(),
+            Substitute.For<IRecordedSessionSourceSyncQuery>(),
+            Substitute.For<IAppPreferences>(),
+            secureStorage,
+            Substitute.For<ISessionBlobSwapRequestStore>(),
+            Substitute.For<IAppPaths>(),
+            new Microsoft.Extensions.Time.Testing.FakeTimeProvider());
+
+        var start = server.StartAsync();
+        Assert.Same(start, server.StartAsync());
+        credentials.SetException(new IOException("credential storage unavailable"));
+        var failure = Assert.IsType<ServerStartResult.Failed>(
+            await start.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Equal(ServerStartFailureReason.Start, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
+        await server.StopAsync().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public void SelectAdvertisedAddresses_FiltersLinkLocalAndLoopbackAddresses_AndPrefersIPv4()
     {

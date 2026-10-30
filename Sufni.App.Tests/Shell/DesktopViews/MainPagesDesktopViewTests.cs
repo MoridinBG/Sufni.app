@@ -33,7 +33,7 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
+        pairingCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
 
         var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider())
         {
@@ -67,7 +67,7 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
+        pairingCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
         var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider())
         {
             PairingPin = "123456",
@@ -104,7 +104,7 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(Task.CompletedTask);
+        pairingCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
         var server = new TestSynchronizationServerService();
         var syncCoordinator = CreateSyncCoordinator(server);
         var viewModel = MainPagesViewModelTestFactory.Create(

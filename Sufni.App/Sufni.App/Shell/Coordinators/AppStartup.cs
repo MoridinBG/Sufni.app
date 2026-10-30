@@ -10,6 +10,7 @@ using Serilog;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
 
 namespace Sufni.App.Shell.Coordinators;
 
@@ -49,12 +50,10 @@ internal sealed class AppStartup(
             await dispatcher.InvokeAsync(activatePages);
             if (server is not null)
             {
-                try { await backgroundTaskRunner.RunAsync(server.StartServerAsync, cancellation.Token); }
-                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
-                catch (Exception exception)
+                var result = await backgroundTaskRunner.RunAsync(server.StartServerAsync, cancellation.Token);
+                if (result is ServerStartResult.Failed failed)
                 {
-                    // The server boundary has already logged its startup failure.
-                    await PublishAsync(new ShellStartupState.Failed(reason, exception.Message));
+                    await PublishAsync(new ShellStartupState.Failed(StartupFailureReason.Server, failed.Details));
                     return;
                 }
             }

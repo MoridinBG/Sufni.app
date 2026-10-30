@@ -6,6 +6,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Tests.TestSupport.Persistence;
 
 namespace Sufni.App.Tests.Shell.Coordinators;
@@ -119,6 +120,41 @@ public class AppStartupTests
         await startup.StopAsync().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.True(job.Stopped);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ServerStart_ControlsReadinessAndRepairJobs(bool fails)
+    {
+        var server = Substitute.For<IPairingServerCoordinator>();
+        var completion = new TaskCompletionSource<ServerStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.StartServerAsync().Returns(completion.Task);
+        var job = new CancellableJob();
+        using var startup = Create(server: server, jobs: [job]);
+
+        var run = startup.StartAsync(() => { });
+        Assert.IsType<ShellStartupState.Starting>(startup.State);
+        Assert.False(job.Started);
+        completion.SetResult(fails
+            ? new ServerStartResult.Failed(ServerStartFailureReason.Start, "diagnostic details")
+            : new ServerStartResult.Started());
+        await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        if (fails)
+        {
+            var failure = Assert.IsType<ShellStartupState.Failed>(startup.State);
+            Assert.Equal(StartupFailureReason.Server, failure.Reason);
+            Assert.NotEmpty(failure.Details!);
+            Assert.False(job.Started);
+        }
+        else
+        {
+            Assert.IsType<ShellStartupState.Ready>(startup.State);
+            Assert.True(job.Started);
+        }
+
+        await startup.StopAsync().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
     }
 
     [Fact]

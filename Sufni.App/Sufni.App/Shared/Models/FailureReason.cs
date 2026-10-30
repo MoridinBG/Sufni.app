@@ -1,6 +1,6 @@
 namespace Sufni.App.Shared.Models;
 
-public enum StartupFailureReason { Database, Startup, Reset }
+public enum StartupFailureReason { Database, Startup, Server, Reset }
 
 public enum VideoImportFailureReason
 {
@@ -62,3 +62,5 @@ public enum LiveSessionSaveFailureReason { Save }
 public enum SessionImportFailureReason { Import, InvalidFile, Publish, Trash, Acknowledge, Batch }
 
 public enum SessionDeleteFailureReason { Delete }
+
+public enum ServerStartFailureReason { Start }

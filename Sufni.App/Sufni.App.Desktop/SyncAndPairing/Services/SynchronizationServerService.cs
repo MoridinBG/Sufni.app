@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using Microsoft.Extensions.Logging;
 using ILogger = Serilog.ILogger;
@@ -213,7 +214,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private Makaretu.Dns.ServiceDiscovery? serviceDiscovery;
     private ServiceProfile? advertisedService;
     private WebApplication? application;
-    private Task? startTask;
+    private Task<ServerStartResult>? startTask;
 
     private readonly string certPath;
     private readonly TimeProvider timeProvider;
@@ -655,13 +656,13 @@ public class SynchronizationServerService : ISynchronizationServerService
     #region Public methods
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "The synchronization server is a desktop-only feature and these minimal API delegates are explicitly rooted in this method.")]
-    public Task StartAsync()
+    public Task<ServerStartResult> StartAsync()
     {
         lock (startGate)
         {
             if (application is not null)
             {
-                return Task.CompletedTask;
+                return Task.FromResult<ServerStartResult>(new ServerStartResult.Started());
             }
 
             startTask ??= StartCoreAsync();
@@ -684,7 +685,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         finally { await app.DisposeAsync(); }
     }
 
-    private async Task StartCoreAsync()
+    private async Task<ServerStartResult> StartCoreAsync()
     {
         WebApplication? app = null;
 
@@ -1019,6 +1020,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             logger.Information("Synchronization server listening on port {Port}", Port);
             logger.Verbose("Advertising synchronization service on port {Port}", Port);
             StartAdvertising();
+            return new ServerStartResult.Started();
         }
         catch (Exception ex)
         {
@@ -1039,7 +1041,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             }
 
             logger.Error(ex, "Synchronization server failed to start on port {Port}", Port);
-            throw;
+            return new ServerStartResult.Failed(ServerStartFailureReason.Start, ex.Message);
         }
     }
 

@@ -298,8 +298,12 @@ failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
 optional diagnostic details. `FailurePresentation` supplies fixed summaries;
 no matching session and missing clips are notification states.
 
+Server launch returns `ServerStartResult.Started | Failed(reason, details)` with
+`ServerStartFailureReason.Start`. The shell maps failure to the blocking
+`StartupFailureReason.Server` state without logging the same failure again.
+
 Failure-policy adoption has started with startup: `StartupFailureReason`
-(`Database`, `Startup`, `Reset`) is mapped by shared `FailurePresentation` to a
+(`Database`, `Startup`, `Server`, `Reset`) is mapped by shared `FailurePresentation` to a
 fixed summary. Diagnostic details remain separate and appear in the startup
 screen's expander. Shared error bars also accept summary/detail presentations
 and expose optional details through a collapsed expander. Video failures use

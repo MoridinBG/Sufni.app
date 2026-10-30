@@ -1,3 +1,4 @@
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Shell.Views.Controls;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
@@ -216,7 +217,7 @@ public class CompactShellViewTests
 
         var environment = CreateDesktopCompactEnvironment();
         var pairingServerCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingServerCoordinator.StartServerAsync().Returns(Task.CompletedTask);
+        pairingServerCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
         var pairingServer = new PairingServerViewModel(
             pairingServerCoordinator,
             new InlineUiThreadDispatcher(), new FakeTimeProvider())

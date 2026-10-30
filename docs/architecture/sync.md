@@ -52,6 +52,11 @@ sequenceDiagram
 with pairing and inbound subscriptions already connected. Server startup is no
 longer driven by a view attaching. `AppShutdown` stops advertising, stops Kestrel
 and disposes its application before disposing the shared service provider.
+Server startup returns `ServerStartResult.Started | Failed(reason, details)`.
+The service logs a startup failure once and cleans up a partially started host;
+the pairing coordinator forwards the outcome, and startup remains blocked without
+starting repair jobs. An empty advertisable-address list retains the existing
+warning and advertisement attempt.
 
 All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 5`.
 Both the anonymous pairing group and the JWT-protected sync group reject missing

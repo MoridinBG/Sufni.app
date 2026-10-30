@@ -19,7 +19,7 @@ public abstract record ShellStartupState
     private ShellStartupState() { }
     public sealed record Starting : ShellStartupState;
     public sealed record Ready : ShellStartupState;
-    public sealed record Failed(StartupFailureReason Reason, string Details) : ShellStartupState;
+    public sealed record Failed(StartupFailureReason Reason, string? Details) : ShellStartupState;
     public sealed record RelaunchRequired(string ArchiveDirectory) : ShellStartupState;
 }
 

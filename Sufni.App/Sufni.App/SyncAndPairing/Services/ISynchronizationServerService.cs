@@ -6,7 +6,7 @@ namespace Sufni.App.SyncAndPairing.Services;
 
 public interface ISynchronizationServerService
 {
-    public Task StartAsync();
+    public Task<ServerStartResult> StartAsync();
     public Task StopAsync();
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;

@@ -29,7 +29,7 @@ public sealed class PairingServerCoordinator : IPairingServerCoordinator
         synchronizationServer.PairingConfirmed += OnPairingConfirmed;
     }
 
-    public Task StartServerAsync()
+    public Task<ServerStartResult> StartServerAsync()
     {
         return synchronizationServer.StartAsync();
     }

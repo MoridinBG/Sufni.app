@@ -15,7 +15,7 @@ internal sealed class TestSynchronizationServerService : ISynchronizationServerS
     public event EventHandler<PairingEventArgs>? PairingConfirmed;
     public event EventHandler<PairingEventArgs>? Unpaired;
 
-    public Task StartAsync() => Task.CompletedTask;
+    public Task<ServerStartResult> StartAsync() => Task.FromResult<ServerStartResult>(new ServerStartResult.Started());
     public Task StopAsync() => Task.CompletedTask;
 
     public void RaiseSyncActivityStarted(SynchronizationProgressSnapshot progress)
