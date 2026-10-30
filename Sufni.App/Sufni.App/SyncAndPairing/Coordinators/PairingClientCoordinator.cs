@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -8,18 +9,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
 using Sufni.App.Infrastructure;
-using Sufni.App.Shell.Coordinators;
+using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-/// <summary>
-/// Mobile-only singleton owning DeviceId / DisplayName / ServerUrl /
-/// IsPaired state and the pair/confirm/unpair HTTP plumbing. Replaces
-/// the equivalent code that previously lived inside
-/// <c>PairingClientViewModel</c>. The view model becomes a thin
-/// observer of this coordinator.
-/// </summary>
+/// <summary>Owns mobile pairing, peer discovery and device identity.</summary>
 public sealed class PairingClientCoordinator : IPairingClientCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<PairingClientCoordinator>();
@@ -31,7 +26,6 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private readonly IHttpApiService httpApiService;
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly IFriendlyNameProvider friendlyNameProvider;
-    private readonly IShellCoordinator shell;
     private readonly TimeProvider timeProvider;
     private readonly List<string> discoveredServerUrls = [];
     private readonly System.Threading.Lock browseGate = new();
@@ -62,14 +56,12 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         IHttpApiService httpApiService,
         [FromKeyedServices("sync")] IServiceDiscovery serviceDiscovery,
         IFriendlyNameProvider friendlyNameProvider,
-        IShellCoordinator shell,
         TimeProvider timeProvider)
     {
         this.secureStorage = secureStorage;
         this.httpApiService = httpApiService;
         this.serviceDiscovery = serviceDiscovery;
         this.friendlyNameProvider = friendlyNameProvider;
-        this.shell = shell;
         this.timeProvider = timeProvider;
 
         _ = httpApiService.PairedState.Subscribe(OnPairedStateChanged);
@@ -291,8 +283,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
         if (serverUrl is null)
         {
-            logger.Warning("Pairing request could not start because no server is currently discovered");
-            return new RequestPairingResult.Failed("No server discovered.");
+            return new RequestPairingResult.ServerUnavailable();
         }
 
         var normalized = PairedDevice.NormalizeDisplayName(displayName);
@@ -307,8 +298,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         }
         catch (Exception e)
         {
-            logger.Error(e, "Pairing request failed");
-            return new RequestPairingResult.Failed(e.Message);
+            logger.Error(e, "Pairing request failed for {DeviceId} at {ServerUrl}", deviceId, serverUrl);
+            return new RequestPairingResult.Failed(PairingFailureReason.Request, e.Message);
         }
     }
 
@@ -334,16 +325,19 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
                 DisplayNameChanged?.Invoke(this, EventArgs.Empty);
             }
 
-            _ = shell.GoBack();
             PairingConfirmed?.Invoke(this, EventArgs.Empty);
 
             logger.Information("Pairing confirmation completed");
             return new ConfirmPairingResult.Paired();
         }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            return new ConfirmPairingResult.PinRejected();
+        }
         catch (Exception e)
         {
-            logger.Error(e, "Pairing confirmation failed");
-            return new ConfirmPairingResult.Failed(e.Message);
+            logger.Error(e, "Pairing confirmation failed for {DeviceId} at {ServerUrl}", deviceId, serverUrl);
+            return new ConfirmPairingResult.Failed(PairingFailureReason.Confirm, e.Message);
         }
     }
 
@@ -361,13 +355,13 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         }
         catch (HttpRequestException e)
         {
-            logger.Warning(e, "Client unpair completed locally only");
-            result = new UnpairResult.LocalOnly(e.Message);
+            logger.Warning(e, "Client unpair completed locally only for {DeviceId} at {ServerUrl}", deviceId, serverUrl);
+            result = new UnpairResult.LocalOnly();
         }
         catch (Exception e)
         {
-            logger.Error(e, "Client unpair failed");
-            result = new UnpairResult.Failed(e.Message);
+            logger.Error(e, "Client unpair failed for {DeviceId} at {ServerUrl}", deviceId, serverUrl);
+            result = new UnpairResult.Failed(PairingFailureReason.Unpair, e.Message);
         }
 
         if (result is UnpairResult.Unpaired)

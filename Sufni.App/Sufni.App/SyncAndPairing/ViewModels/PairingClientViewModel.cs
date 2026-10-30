@@ -84,8 +84,11 @@ public partial class PairingClientViewModel : TabPageViewModelBase
             case RequestPairingResult.Sent:
                 IsRequestSent = true;
                 break;
+            case RequestPairingResult.ServerUnavailable:
+                Notifications.Add("No server was found. Make sure the desktop app is running on the same network.");
+                break;
             case RequestPairingResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Could not request pairing: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -102,9 +105,13 @@ public partial class PairingClientViewModel : TabPageViewModelBase
                 Pin = null;
                 IsRequestSent = false;
                 ErrorMessages.Clear();
+                _ = shell.GoBack();
+                break;
+            case ConfirmPairingResult.PinRejected:
+                Notifications.Add("The PIN was not accepted. Check the PIN or request a new one.");
                 break;
             case ConfirmPairingResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Could not pair: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -117,11 +124,11 @@ public partial class PairingClientViewModel : TabPageViewModelBase
         {
             case UnpairResult.Unpaired:
                 break;
-            case UnpairResult.LocalOnly localOnly:
-                Notifications.Add($"Could unpair only locally: {localOnly.Reason}");
+            case UnpairResult.LocalOnly:
+                Notifications.Add("Unpaired on this device. The server could not be notified.");
                 break;
             case UnpairResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Could not unpair: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

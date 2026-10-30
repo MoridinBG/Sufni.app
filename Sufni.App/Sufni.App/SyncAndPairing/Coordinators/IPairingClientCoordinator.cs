@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Threading.Tasks;
 using System.Threading;
@@ -69,14 +70,16 @@ public abstract record RequestPairingResult
 {
     private RequestPairingResult() { }
     public sealed record Sent : RequestPairingResult;
-    public sealed record Failed(string ErrorMessage) : RequestPairingResult;
+    public sealed record ServerUnavailable : RequestPairingResult;
+    public sealed record Failed(PairingFailureReason Reason, string? Details = null) : RequestPairingResult;
 }
 
 public abstract record ConfirmPairingResult
 {
     private ConfirmPairingResult() { }
     public sealed record Paired : ConfirmPairingResult;
-    public sealed record Failed(string ErrorMessage) : ConfirmPairingResult;
+    public sealed record PinRejected : ConfirmPairingResult;
+    public sealed record Failed(PairingFailureReason Reason, string? Details = null) : ConfirmPairingResult;
 }
 
 public abstract record UnpairResult
@@ -85,6 +88,6 @@ public abstract record UnpairResult
     public sealed record Unpaired : UnpairResult;
     // Network call failed but local credentials were already cleared,
     // matching the existing "could unpair only locally" behaviour.
-    public sealed record LocalOnly(string Reason) : UnpairResult;
-    public sealed record Failed(string ErrorMessage) : UnpairResult;
+    public sealed record LocalOnly : UnpairResult;
+    public sealed record Failed(PairingFailureReason Reason, string? Details = null) : UnpairResult;
 }

@@ -45,3 +45,5 @@ public enum BikeImportFailureReason { Import }
 public enum BikeExportFailureReason { Export }
 public enum BikeImageFailureReason { Read, Decode }
 public enum LeverageRatioImportFailureReason { Import }
+
+public enum PairingFailureReason { Request, Confirm, Unpair }

@@ -10,6 +10,14 @@ The pairing client uses an injected `TimeProvider` for temporary discovery
 resolution deadlines. The server prompt uses the same seam for its one-second
 PIN countdown; confirmation cancels the countdown.
 
+The mobile coordinator returns expected states for no discovered server and
+rejected or expired PINs (HTTP 401). Other request/confirmation/unpair failures
+carry a closed reason and optional diagnostics, logged once at the coordinator.
+Local credentials are still cleared before the remote unpair request; a network
+failure leaves the device locally unpaired and produces a fixed notification.
+`PairingClientViewModel` asks the shell to go back after successful confirmation;
+the coordinator has no navigation dependency.
+
 ```mermaid
 sequenceDiagram
     participant Mobile

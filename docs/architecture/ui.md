@@ -195,6 +195,13 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+Mobile pairing returns `RequestPairingResult.Sent | ServerUnavailable | Failed`,
+`ConfirmPairingResult.Paired | PinRejected | Failed`, and
+`UnpairResult.Unpaired | LocalOnly | Failed`. Failures carry
+`PairingFailureReason.Request | Confirm | Unpair` and optional details. No server,
+a rejected/expired PIN, and local-only unpairing are notification states. Only a
+successful confirmation asks the shell to return to the previous page.
+
 `PairedDeviceUnpairResult` is `Unpaired | Failed(reason, details)`;
 `PairedDeviceUnpairFailureReason.Unpair` maps to a fixed summary. Pending-delete
 completion carries `FailurePresentation`, retaining details for the error bar

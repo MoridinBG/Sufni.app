@@ -141,4 +141,11 @@ public sealed record FailurePresentation
         LeverageRatioImportFailureReason.Import => "The leverage ratio file could not be imported. Check the selected file and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(PairingFailureReason reason, string? details = null) => new(reason switch
+    {
+        PairingFailureReason.Request => "Pairing could not be requested. Check the connection and try again.",
+        PairingFailureReason.Confirm => "Pairing could not be completed. Try again.",
+        PairingFailureReason.Unpair => "The server could not be unpaired. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

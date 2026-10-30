@@ -268,6 +268,10 @@ or service-discovery changes before server startup or user-driven arrivals.
 
 ## Navigation
 
+The pairing client coordinator returns confirmation outcomes without navigating.
+Its view model requests `GoBack` only after `Paired`, leaving rejected PINs and
+failures on the pairing surface.
+
 Navigation is owned exclusively by `IShellCoordinator`. Features use
 `OpenEditor(EditorKey, background)` and `CloseEditorAsync(EditorKey)`; the shell
 also exposes `Open`, `Close` and `GoBack` for its existing non-editor surfaces.

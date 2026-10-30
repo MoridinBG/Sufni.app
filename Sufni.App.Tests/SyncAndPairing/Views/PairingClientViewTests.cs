@@ -9,6 +9,7 @@ using AvaloniaProgressRing;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.ViewModels;
 using Sufni.App.SyncAndPairing.Views;
@@ -118,7 +119,7 @@ public class PairingClientViewTests
     public async Task PairingClientView_ShowsErrorBar_WhenRequestFails()
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: "https://desktop", isPaired: false);
-        coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Failed("network"));
+        coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Failed(PairingFailureReason.Request, "network"));
         var shell = Substitute.For<IShellCoordinator>();
         var viewModel = CreateViewModel(coordinator, shell);
 
@@ -139,7 +140,7 @@ public class PairingClientViewTests
     public async Task PairingClientView_ShowsNotificationBar_WhenUnpairFallsBackToLocalOnly()
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: true);
-        coordinator.UnpairAsync().Returns(new UnpairResult.LocalOnly("remote offline"));
+        coordinator.UnpairAsync().Returns(new UnpairResult.LocalOnly());
         var shell = Substitute.For<IShellCoordinator>();
         var viewModel = CreateViewModel(coordinator, shell);
 
@@ -152,7 +153,7 @@ public class PairingClientViewTests
         unpairButton!.Command!.Execute(unpairButton.CommandParameter);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.Contains("Could unpair only locally: remote offline", viewModel.Notifications);
+        Assert.NotEmpty(viewModel.Notifications);
         Assert.True(notificationsBar.IsVisible);
     }
 

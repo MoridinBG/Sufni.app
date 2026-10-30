@@ -5,7 +5,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
 using Sufni.App.Infrastructure;
-using Sufni.App.Shell.Coordinators;
+using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
@@ -19,7 +19,6 @@ public class PairingClientCoordinatorTests
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
     private readonly IFriendlyNameProvider friendlyNameProvider = Substitute.For<IFriendlyNameProvider>();
-    private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly BehaviorSubject<bool> pairedState = new(false);
     private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider time = new();
 
@@ -41,7 +40,7 @@ public class PairingClientCoordinatorTests
     }
 
     private PairingClientCoordinator CreateCoordinator() => new(
-        secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, shell, time);
+        secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, time);
 
     /// <summary>
     /// Seeds the secure-storage / http substitutes with defaults
@@ -65,7 +64,7 @@ public class PairingClientCoordinatorTests
     /// <summary>
     /// Forces `Initialization` to drain by calling the cheapest public
     /// method — `RequestPairingAsync` with a null `ServerUrl` returns
-    /// `Failed` without touching the http substitute.
+    /// `ServerUnavailable` without touching the http substitute.
     /// </summary>
     private async Task DrainInitializationAsync(PairingClientCoordinator coordinator)
     {
@@ -363,14 +362,14 @@ public class PairingClientCoordinatorTests
     // ----- RequestPairingAsync -----
 
     [Fact]
-    public async Task RequestPairingAsync_ReturnsFailed_AndDoesNotTouchHttp_WhenServerUrlIsNull()
+    public async Task RequestPairingAsync_ReturnsUnavailable_AndDoesNotTouchHttp_WhenServerUrlIsNull()
     {
         SeedInitDefaults();
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.RequestPairingAsync("label");
 
-        Assert.IsType<RequestPairingResult.Failed>(result);
+        Assert.IsType<RequestPairingResult.ServerUnavailable>(result);
         await httpApiService.DidNotReceiveWithAnyArgs().RequestPairingAsync(default!, default!, default);
     }
 
@@ -405,7 +404,7 @@ public class PairingClientCoordinatorTests
 
         var result = await coordinator.RequestPairingAsync("label");
 
-        Assert.IsType<RequestPairingResult.Failed>(result);
+        Assert.Equal(PairingFailureReason.Request, Assert.IsType<RequestPairingResult.Failed>(result).Reason);
     }
 
     // ----- ConfirmPairingAsync -----
@@ -450,7 +449,6 @@ public class PairingClientCoordinatorTests
         Assert.Equal(1, isPairedChanged);
         Assert.Equal(1, pairingConfirmed);
         await secureStorage.Received(1).SetStringAsync(DisplayNameKey, "new name");
-        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -479,7 +477,6 @@ public class PairingClientCoordinatorTests
         Assert.Equal(0, displayNameChanged);
         Assert.Equal(1, isPairedChanged);
         Assert.Equal(1, pairingConfirmed);
-        shell.Received(1).GoBack();
     }
 
     [Fact]
@@ -503,14 +500,32 @@ public class PairingClientCoordinatorTests
 
         var result = await coordinator.ConfirmPairingAsync("new name", "1234");
 
-        Assert.IsType<ConfirmPairingResult.Failed>(result);
+        Assert.Equal(PairingFailureReason.Confirm, Assert.IsType<ConfirmPairingResult.Failed>(result).Reason);
         Assert.Equal("previous", coordinator.DisplayName);
         Assert.False(coordinator.IsPaired);
         Assert.Equal(0, displayNameChanged);
         Assert.Equal(0, isPairedChanged);
         Assert.Equal(0, pairingConfirmed);
         await secureStorage.DidNotReceive().SetStringAsync(DisplayNameKey, Arg.Any<string?>());
-        shell.DidNotReceive().GoBack();
+    }
+
+    [Fact]
+    public async Task ConfirmPairingAsync_ReturnsPinRejected_WithoutCommittingNameOrConfirmingPairing()
+    {
+        SeedInitDefaults(existingDisplayName: "previous");
+        var coordinator = CreateCoordinator();
+        httpApiService.ConfirmPairingAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>())
+            .ThrowsAsync(new HttpRequestException("unauthorized", null, HttpStatusCode.Unauthorized));
+        var confirmed = false;
+        coordinator.PairingConfirmed += (_, _) => confirmed = true;
+
+        var result = await coordinator.ConfirmPairingAsync("new name", "123456");
+
+        Assert.IsType<ConfirmPairingResult.PinRejected>(result);
+        Assert.Equal("previous", coordinator.DisplayName);
+        Assert.False(coordinator.IsPaired);
+        Assert.False(confirmed);
+        await secureStorage.DidNotReceive().SetStringAsync(DisplayNameKey, Arg.Any<string?>());
     }
 
     // ----- UnpairAsync -----
@@ -568,7 +583,7 @@ public class PairingClientCoordinatorTests
 
         var result = await coordinator.UnpairAsync();
 
-        Assert.IsType<UnpairResult.Failed>(result);
+        Assert.Equal(PairingFailureReason.Unpair, Assert.IsType<UnpairResult.Failed>(result).Reason);
         Assert.False(coordinator.IsPaired);
     }
 }
