@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
@@ -397,7 +398,7 @@ public class SetupEditorViewModelTests
         editor.Name = "renamed";
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
-            .Returns(new SetupSaveResult.Failed("disk full"));
+            .Returns(new SetupSaveResult.Failed(SetupSaveFailureReason.Save, "disk full"));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -428,7 +429,7 @@ public class SetupEditorViewModelTests
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), snapshot.BoardId, 5).Returns(
             conflict
                 ? new SetupSaveResult.Conflict(snapshot with { Updated = 6 })
-                : new SetupSaveResult.Failed("disk full"));
+                : new SetupSaveResult.Failed(SetupSaveFailureReason.Save, "disk full"));
         dialogService.ShowCloseConfirmationAsync(true).Returns(PromptResult.Yes);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
@@ -460,7 +461,7 @@ public class SetupEditorViewModelTests
         var snapshot = TestSnapshots.Setup();
         var editor = CreateEditor(snapshot);
         setupCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new SetupDeleteResult(SetupDeleteOutcome.Deleted));
+            .Returns(new SetupDeleteResult.Deleted());
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
@@ -474,7 +475,7 @@ public class SetupEditorViewModelTests
         var snapshot = TestSnapshots.Setup();
         var editor = CreateEditor(snapshot);
         setupCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new SetupDeleteResult(SetupDeleteOutcome.Failed, "locked"));
+            .Returns(new SetupDeleteResult.Failed(SetupDeleteFailureReason.Delete, "locked"));
 
         await editor.DeleteCommand.ExecuteAsync(true);
 

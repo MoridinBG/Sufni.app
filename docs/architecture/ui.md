@@ -209,6 +209,14 @@ Deletion returns `BikeDeleteResult.Deleted | InUse | Failed` with
 technical details. The bike coordinator persists changes and supplies prepared
 snapshots to its store; there are no bike store mutation results.
 
+Setup save returns `SetupSaveResult.Saved | Conflict | Failed`, deletion returns
+`SetupDeleteResult.Deleted | Failed`, import returns `SetupImportResult.Imported |
+Canceled | InvalidFile | Failed`, and export returns `SetupExportResult.Exported |
+Canceled | Failed`. Failures carry the corresponding `SetupSaveFailureReason.Save`,
+`SetupDeleteFailureReason.Delete`, `SetupImportFailureReason.Import` or
+`SetupExportFailureReason.Export` plus optional details. Import publication failure
+still reports failure after the transaction has committed.
+
 Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | Failed`;
 alignment returns `VideoAlignmentResult.Updated | ClipMissing | Failed`. Their
 failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
@@ -241,7 +249,7 @@ editors.
 
 `SaveAsync` on the entity coordinators follows this pattern with
 `Saved(Id, NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
-`Failed(ErrorMessage)` on the remaining unmigrated session/setup flows.
+`Failed(ErrorMessage)` on the remaining unmigrated session flows.
 `BikeSaveResult.Saved` additionally carries
 a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
 to leverage-ratio recomputation without a second round-trip; the

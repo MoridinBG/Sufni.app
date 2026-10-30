@@ -27,6 +27,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
 
     private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly ISynchronizableRepository<Setup> setupRepository;
+    private readonly ISynchronizableRepository<Board> boardRepository;
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
     private readonly ISessionSegmentStoreWriter segmentStoreWriter;
@@ -43,9 +44,11 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         ISynchronizationServerService synchronizationServer,
         IUiThreadDispatcher uiThreadDispatcher,
         ISessionSegmentRepository segmentRepository,
-        IBackgroundTaskRunner backgroundTaskRunner)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        ISynchronizableRepository<Board> boardRepository)
     {
         this.bikeRepository = bikeRepository;
+        this.boardRepository = boardRepository;
         this.setupRepository = setupRepository;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
@@ -99,10 +102,15 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 var removedSetupCount = 0;
                 var upsertedSetupCount = 0;
                 var removedSetupIds = new List<Guid>();
-                var changedSetupIds = new List<Guid>();
+                var changedSetups = new List<SetupSnapshot>();
+                var boards = e.Data.Setups.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
                 foreach (var setup in e.Data.Setups)
                 {
-                    var freshSetup = await setupRepository.GetAsync(setup.Id);
+                    var freshSetup = await backgroundTaskRunner.RunAsync(async () =>
+                    {
+                        var row = await setupRepository.GetAsync(setup.Id);
+                        return row is null ? null : SetupSnapshot.From(row, boards.FirstOrDefault(board => board.SetupId == row.Id)?.Id);
+                    });
                     if (freshSetup is null)
                     {
                         removedSetupIds.Add(setup.Id);
@@ -110,7 +118,7 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     }
                     else
                     {
-                        changedSetupIds.Add(freshSetup.Id);
+                        changedSetups.Add(freshSetup);
                         upsertedSetupCount++;
                     }
                 }
@@ -120,9 +128,9 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     await setupStoreWriter.PublishSetupsRemovedAsync(removedSetupIds);
                 }
 
-                if (changedSetupIds.Count > 0)
+                if (changedSetups.Count > 0)
                 {
-                    await setupStoreWriter.PublishSetupsChangedAsync(changedSetupIds);
+                    await setupStoreWriter.PublishSetupsChangedAsync(changedSetups);
                 }
 
                 if (e.Data.Segments.Count > 0)

@@ -64,4 +64,28 @@ public sealed record FailurePresentation
         BikeDeleteFailureReason.Delete => "The bike could not be deleted. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SetupSaveFailureReason reason, string? details = null) => new(reason switch
+    {
+        SetupSaveFailureReason.Save => "The setup could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(SetupImportFailureReason reason, string? details = null) => new(reason switch
+    {
+        SetupImportFailureReason.Import => "The setup could not be imported. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(SetupExportFailureReason reason, string? details = null) => new(reason switch
+    {
+        SetupExportFailureReason.Export => "The setup could not be exported. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(SetupDeleteFailureReason reason, string? details = null) => new(reason switch
+    {
+        SetupDeleteFailureReason.Delete => "The setup could not be deleted. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
 }

@@ -27,3 +27,8 @@ public enum PendingDeleteFailureReason
 public enum BikeSaveFailureReason { Save, Analysis }
 public enum BikeDampingCutoffFailureReason { Save }
 public enum BikeDeleteFailureReason { Delete }
+
+public enum SetupSaveFailureReason { Save }
+public enum SetupImportFailureReason { Import }
+public enum SetupExportFailureReason { Export }
+public enum SetupDeleteFailureReason { Delete }

@@ -1,268 +1,140 @@
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
-
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
-using Sufni.App.Shell.Coordinators;
+using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Tests.TestSupport.Persistence;
+
 namespace Sufni.App.Tests.Setups.Coordinators;
 
-public class SetupCoordinatorTests
+public class SetupCoordinatorTests : IDisposable
 {
-    private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
-    private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
-    private readonly ISetupPersistenceTransactionRunner setupPersistenceTransactions = Substitute.For<ISetupPersistenceTransactionRunner>();
-    private readonly IFilesService filesService = Substitute.For<IFilesService>();
-    private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
+    private readonly SetupStore setupStore = new(new StorePublication(new InlineUiThreadDispatcher()));
+    private readonly BikeStore bikeStore = new(new StorePublication(new InlineUiThreadDispatcher()));
+    private readonly InMemorySynchronizableRepository<Setup> setups;
+    private readonly InMemorySynchronizableRepository<Board> boards;
+    private readonly InMemorySetupTransactions transactions;
+    private readonly SetupCoordinator coordinator;
 
     public SetupCoordinatorTests()
     {
-        setupPersistenceTransactions.SaveSetupAsync(
-                Arg.Any<Setup>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
-        setupPersistenceTransactions.DeleteSetupAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
-        setupPersistenceTransactions.ImportSetupAsync(
-                Arg.Any<Bike>(),
-                Arg.Any<Setup>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<CancellationToken>())
-            .Returns(Task.CompletedTask);
+        var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9));
+        setups = new(clock);
+        boards = new(clock);
+        transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards);
+        coordinator = new(setupStore, bikeStore, Substitute.For<IFilesService>(), new InlineBackgroundTaskRunner(), transactions);
     }
 
-    private SetupCoordinator CreateCoordinator()
+    public void Dispose()
     {
-        SetupCoordinator? coordinator = null;
-        coordinator = new(
-            setupStore,
-            bikeStore,
-            filesService,
-            backgroundTaskRunner,
-            setupPersistenceTransactions);
-        return coordinator;
+        setupStore.Dispose();
+        bikeStore.Dispose();
+    }
+
+    private async Task SeedAsync(SetupSnapshot snapshot)
+    {
+        setups.Seed(new Setup(snapshot.Id, snapshot.Name) { BikeId = snapshot.BikeId, Updated = snapshot.Updated });
+        if (snapshot.BoardId is { } boardId) boards.Seed(new Board(boardId, snapshot.Id));
+        await setupStore.PublishSetupsChangedAsync([snapshot]);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CreateDraft_UsesSuggestedBoardOnlyWhenUnclaimed(bool claimed)
+    public async Task CreateDraft_UsesSuggestedBoardOnlyWhenUnclaimed(bool claimed)
     {
         var boardId = Guid.NewGuid();
-        setupStore.FindByBoardId(boardId).Returns(claimed ? TestSnapshots.Setup(boardId: boardId) : null);
+        if (claimed) await SeedAsync(TestSnapshots.Setup(boardId: boardId));
 
-        var draft = CreateCoordinator().CreateDraft(boardId);
+        var draft = coordinator.CreateDraft(boardId);
 
         Assert.Equal(claimed ? null : (Guid?)boardId, draft.BoardId);
     }
 
-    // ----- SaveAsync -----
-
-    [Fact]
-    public async Task SaveAsync_HappyPath_PersistsSetup_AndPublishesChange()
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public async Task SaveAsync_PersistsSetupAndBoardAssociation_ThenPublishes(bool hadBoard, bool hasBoard, bool sameBoard)
     {
-        var existing = TestSnapshots.Setup(updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
+        Guid? oldBoard = hadBoard ? Guid.NewGuid() : null;
+        Guid? newBoard = hasBoard ? sameBoard ? oldBoard : Guid.NewGuid() : null;
+        var existing = TestSnapshots.Setup(boardId: oldBoard, updated: 5);
+        await SeedAsync(existing);
+        var draft = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId };
 
-        var setup = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId, Updated = 7 };
+        var result = await coordinator.SaveAsync(draft, newBoard, 5);
 
-        var result = await CreateCoordinator().SaveAsync(setup, boardId: existing.BoardId, baselineUpdated: 5);
-
-        await setupPersistenceTransactions.Received(1).SaveSetupAsync(
-            setup,
-            existing.BoardId,
-            existing.BoardId,
-            Arg.Any<CancellationToken>());
-        await setupStore.Received(1).PublishSetupsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(existing.Id)),
-            Arg.Any<CancellationToken>());
-        var saved = Assert.IsType<SetupSaveResult.Saved>(result);
-        Assert.Equal(7, saved.NewBaselineUpdated);
+        Assert.Equal(9, Assert.IsType<SetupSaveResult.Saved>(result).NewBaselineUpdated);
+        Assert.Equal("renamed", (await setups.GetAsync(existing.Id))!.Name);
+        var published = setupStore.Get(existing.Id)!;
+        Assert.Equal("renamed", published.Name);
+        Assert.Equal(newBoard, published.BoardId);
+        Assert.Equal(9, published.Updated);
+        if (newBoard is { } claimed) Assert.Equal(existing.Id, (await boards.GetAsync(claimed))!.SetupId);
+        if (oldBoard is { } cleared && oldBoard != newBoard) Assert.Null((await boards.GetAsync(cleared))!.SetupId);
     }
 
     [Fact]
-    public async Task SaveAsync_ForwardsUnchangedBoard_ToTransactionRunner()
-    {
-        var boardId = Guid.NewGuid();
-        var existing = TestSnapshots.Setup(boardId: boardId, updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
-
-        var setup = new Setup(existing.Id, existing.Name) { BikeId = existing.BikeId, Updated = 6 };
-
-        await CreateCoordinator().SaveAsync(setup, boardId, baselineUpdated: 5);
-
-        await setupPersistenceTransactions.Received(1).SaveSetupAsync(
-            setup,
-            boardId,
-            boardId,
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SaveAsync_ClearsPreviousBoard_AndClaimsNewBoard_WhenChanged()
-    {
-        var oldBoardId = Guid.NewGuid();
-        var newBoardId = Guid.NewGuid();
-        var existing = TestSnapshots.Setup(boardId: oldBoardId, updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
-
-        var setup = new Setup(existing.Id, existing.Name) { BikeId = existing.BikeId, Updated = 6 };
-
-        await CreateCoordinator().SaveAsync(setup, newBoardId, baselineUpdated: 5);
-
-        await setupPersistenceTransactions.Received(1).SaveSetupAsync(
-            setup,
-            oldBoardId,
-            newBoardId,
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SaveAsync_ClaimsNewBoard_WhenSetupHadNoBoardBefore()
-    {
-        var newBoardId = Guid.NewGuid();
-        var existing = TestSnapshots.Setup(boardId: null, updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
-
-        var setup = new Setup(existing.Id, existing.Name) { BikeId = existing.BikeId, Updated = 6 };
-
-        await CreateCoordinator().SaveAsync(setup, newBoardId, baselineUpdated: 5);
-
-        await setupPersistenceTransactions.Received(1).SaveSetupAsync(
-            setup,
-            null,
-            newBoardId,
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SaveAsync_ClearsPreviousBoard_WhenBoardCleared()
-    {
-        var oldBoardId = Guid.NewGuid();
-        var existing = TestSnapshots.Setup(boardId: oldBoardId, updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
-
-        var setup = new Setup(existing.Id, existing.Name) { BikeId = existing.BikeId, Updated = 6 };
-
-        await CreateCoordinator().SaveAsync(setup, boardId: null, baselineUpdated: 5);
-
-        await setupPersistenceTransactions.Received(1).SaveSetupAsync(
-            setup,
-            oldBoardId,
-            null,
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SaveAsync_ReturnsConflict_WhenStoreIsNewer()
+    public async Task SaveAsync_ConflictPreservesPersistedAndPublishedSetup()
     {
         var current = TestSnapshots.Setup(updated: 10);
-        setupStore.Get(current.Id).Returns(current);
+        await SeedAsync(current);
 
-        var setup = new Setup(current.Id, "stale") { BikeId = current.BikeId };
+        var result = await coordinator.SaveAsync(new Setup(current.Id, "stale"), null, 5);
 
-        var result = await CreateCoordinator().SaveAsync(setup, boardId: null, baselineUpdated: 5);
-
-        var conflict = Assert.IsType<SetupSaveResult.Conflict>(result);
-        Assert.Same(current, conflict.CurrentSnapshot);
-        await setupPersistenceTransactions.DidNotReceive().SaveSetupAsync(
-            Arg.Any<Setup>(),
-            Arg.Any<Guid?>(),
-            Arg.Any<Guid?>(),
-            Arg.Any<CancellationToken>());
-        await setupStore.DidNotReceive().PublishSetupsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(current, Assert.IsType<SetupSaveResult.Conflict>(result).CurrentSnapshot);
+        Assert.Equal(current.Name, (await setups.GetAsync(current.Id))!.Name);
+        Assert.Equal(current, setupStore.Get(current.Id));
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsFailed_WhenDatabasePutThrows()
+    public async Task SaveAsync_FailurePreservesPublishedSetup()
     {
         var existing = TestSnapshots.Setup(updated: 5);
-        setupStore.Get(existing.Id).Returns(existing);
-        setupPersistenceTransactions.SaveSetupAsync(
-                Arg.Any<Setup>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("disk full"));
+        await SeedAsync(existing);
+        transactions.Failure = new IOException("disk full");
 
-        var setup = new Setup(existing.Id, existing.Name) { BikeId = existing.BikeId };
+        var result = await coordinator.SaveAsync(new Setup(existing.Id, "edited"), null, 5);
 
-        var result = await CreateCoordinator().SaveAsync(setup, boardId: null, baselineUpdated: 5);
-
-        Assert.IsType<SetupSaveResult.Failed>(result);
-        await setupStore.DidNotReceive().PublishSetupsChangedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(SetupSaveFailureReason.Save, Assert.IsType<SetupSaveResult.Failed>(result).Reason);
+        Assert.Equal(existing.Name, (await setups.GetAsync(existing.Id))!.Name);
+        Assert.Equal(existing, setupStore.Get(existing.Id));
     }
 
-    // ----- DeleteAsync -----
-
-    [Fact]
-    public async Task DeleteAsync_HappyPath_DeletesClosesAndPublishesRemoval()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteAsync_RemovesSetupAndClearsBoard_OnlyWhenPersistenceSucceeds(bool fail)
     {
-        var snapshot = TestSnapshots.Setup();
-        setupStore.Get(snapshot.Id).Returns(snapshot);
+        var existing = TestSnapshots.Setup(boardId: Guid.NewGuid());
+        await SeedAsync(existing);
+        if (fail) transactions.Failure = new IOException("locked");
 
-        var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
+        var result = await coordinator.DeleteAsync(existing.Id);
 
-        Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
-        await setupPersistenceTransactions.Received(1).DeleteSetupAsync(
-            snapshot.Id,
-            snapshot.BoardId,
-            Arg.Any<CancellationToken>());
-        await setupStore.Received(1).PublishSetupsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(snapshot.Id)),
-            Arg.Any<CancellationToken>());
+        if (fail)
+        {
+            Assert.Equal(SetupDeleteFailureReason.Delete, Assert.IsType<SetupDeleteResult.Failed>(result).Reason);
+            Assert.NotNull(await setups.GetAsync(existing.Id));
+            Assert.Equal(existing.Id, (await boards.GetAsync(existing.BoardId!.Value))!.SetupId);
+            Assert.Equal(existing, setupStore.Get(existing.Id));
+        }
+        else
+        {
+            Assert.IsType<SetupDeleteResult.Deleted>(result);
+            Assert.Null(await setups.GetAsync(existing.Id));
+            Assert.Null((await boards.GetAsync(existing.BoardId!.Value))!.SetupId);
+            Assert.Null(setupStore.Get(existing.Id));
+        }
     }
-
-    [Fact]
-    public async Task DeleteAsync_ForwardsPreviousBoard_ToTransactionRunner()
-    {
-        var boardId = Guid.NewGuid();
-        var snapshot = TestSnapshots.Setup(boardId: boardId);
-        setupStore.Get(snapshot.Id).Returns(snapshot);
-
-        var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
-
-        Assert.Equal(SetupDeleteOutcome.Deleted, result.Outcome);
-        await setupPersistenceTransactions.Received(1).DeleteSetupAsync(
-            snapshot.Id,
-            boardId,
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ReturnsFailed_WhenTransactionRunnerThrows()
-    {
-        var boardId = Guid.NewGuid();
-        var snapshot = TestSnapshots.Setup(boardId: boardId);
-        setupStore.Get(snapshot.Id).Returns(snapshot);
-        setupPersistenceTransactions.DeleteSetupAsync(
-                snapshot.Id,
-                boardId,
-                Arg.Any<CancellationToken>())
-            .ThrowsAsync(new InvalidOperationException("locked"));
-
-        var result = await CreateCoordinator().DeleteAsync(snapshot.Id);
-
-        Assert.Equal(SetupDeleteOutcome.Failed, result.Outcome);
-        await setupStore.DidNotReceive().PublishSetupsRemovedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-    }
-
 }

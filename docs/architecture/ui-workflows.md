@@ -329,3 +329,8 @@ The first screen is the primary navigation with no detail tab selected. The
 workspace profile shows a neutral empty workspace state until a tab opens.
 Profile-specific views are resolved by `ViewLocator` from
 `IAppEnvironment.LayoutProfile`, not from platform.
+
+Setup writes and transaction work run through the background runner; the
+coordinator supplies prepared snapshots to the setup and bike stores after
+commit. Desktop inbound sync reads and maps bike/setup rows off-thread, including
+the persisted board association, before publishing those snapshots.

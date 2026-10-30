@@ -158,7 +158,7 @@ public class AppDataRefresherTests
             var dispatcher = new InlineUiThreadDispatcher();
             Publication = new StorePublication(dispatcher);
             Bikes = new BikeStore(Publication);
-            Setups = new SetupStore(setupRepository, boardRepository, Publication);
+            Setups = new SetupStore(Publication);
             Sessions = new SessionStore(sessionRepository, Substitute.For<ISessionTelemetryWriter>(), Publication);
             Sources = new RecordedSessionSourceStore(sourceRepository, Publication);
             Devices = new PairedDeviceStore(Publication);

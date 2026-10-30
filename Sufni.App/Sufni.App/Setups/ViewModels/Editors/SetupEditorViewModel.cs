@@ -323,7 +323,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 break;
 
             case SetupSaveResult.Failed failed:
-                ErrorMessages.Add(new FailurePresentation($"Setup could not be saved: {failed.ErrorMessage}"));
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -355,7 +355,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         var result = await setupCoordinator.ExportSetupAsync(setup, bike, originalBoardId);
         if (result is SetupExportResult.Failed failed)
         {
-            ErrorMessages.Add(new FailurePresentation($"Setup could not be exported: {failed.ErrorMessage}"));
+            ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
         }
     }
 
@@ -380,13 +380,13 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         }
 
         var result = await setupCoordinator.DeleteAsync(Id);
-        switch (result.Outcome)
+        switch (result)
         {
-            case SetupDeleteOutcome.Deleted:
+            case SetupDeleteResult.Deleted:
                 await shell.CloseEditorAsync(new EditorKey.Setup(Id));
                 break;
-            case SetupDeleteOutcome.Failed:
-                ErrorMessages.Add(new FailurePresentation($"Setup could not be deleted: {result.ErrorMessage}"));
+            case SetupDeleteResult.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
@@ -417,7 +417,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                     ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
                     break;
                 case SetupImportResult.Failed failed:
-                    ErrorMessages.Add(new FailurePresentation($"Setup could not be imported: {failed.ErrorMessage}"));
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                     break;
             }
         }

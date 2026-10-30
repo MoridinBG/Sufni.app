@@ -1,155 +1,130 @@
-using Sufni.App.Segments.Services;
-using Sufni.App.Tests.TestSupport.Async;
+using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Segments.Models;
+using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Tests.TestSupport.Persistence;
+
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
-public class InboundSyncCoordinatorTests
+public class InboundSyncCoordinatorTests : IDisposable
 {
-    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
-    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
-    private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
-    private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
-    private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
+    private readonly InMemorySynchronizableRepository<Bike> bikes;
+    private readonly InMemorySynchronizableRepository<Setup> setups;
+    private readonly InMemorySynchronizableRepository<Board> boards;
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly BikeStore bikeStore;
+    private readonly SetupStore setupStore;
+    private readonly SessionSegmentStore segmentStore;
     private readonly ISessionSegmentRepository segmentRepository = Substitute.For<ISessionSegmentRepository>();
     private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
 
-    private InboundSyncCoordinator CreateCoordinator() =>
-        new(bikeRepository, setupRepository, bikeStore, setupStore, segmentStore, server, new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner());
-
-    // ----- Bikes -----
-
-    [Theory]
-    [InlineData(false, true, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    public async Task SynchronizationDataArrived_PublishesBikeChangeOrRemoval(
-        bool incomingDeleted,
-        bool authoritativeExists,
-        bool expectRemoved)
+    public InboundSyncCoordinatorTests()
     {
-        var coordinator = CreateCoordinator();
-        var bikeId = Guid.NewGuid();
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(
-            authoritativeExists ? new Bike(bikeId, "fresh bike") { HeadAngle = 65, ForkStroke = 160, Updated = 7 } : null));
-        var incoming = new Bike(bikeId, incomingDeleted ? "gone" : "test bike") { HeadAngle = 65, ForkStroke = 160, Updated = 4 };
-        if (incomingDeleted)
-        {
-            incoming.Deleted = 5;
-        }
-        var data = new SynchronizationData { Bikes = { incoming } };
-
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-
-        if (expectRemoved)
-        {
-            await bikeStore.Received(1).PublishBikesRemovedAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
-                Arg.Any<CancellationToken>());
-        }
-        else
-        {
-            await bikeStore.Received(1).PublishBikesChangedAsync(
-                Arg.Is<IReadOnlyCollection<BikeSnapshot>>(rows => rows.Count == 1 && rows.Single().Id == bikeId && rows.Single().Updated == 7),
-                Arg.Any<CancellationToken>());
-        }
+        var clock = new FakeTimeProvider();
+        bikes = new(clock);
+        setups = new(clock);
+        boards = new(clock);
+        bikeStore = new(publication);
+        setupStore = new(publication);
+        segmentStore = new(publication);
+        _ = new InboundSyncCoordinator(bikes, setups, bikeStore, setupStore, segmentStore, server,
+            new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner(), boards);
     }
 
-    // ----- Setups -----
-
-    [Theory]
-    [InlineData(false, true, 8, false)]
-    [InlineData(false, true, 3, false)]
-    [InlineData(true, false, 0, true)]
-    public async Task SynchronizationDataArrived_PublishesSetupChangeOrRemoval(
-        bool incomingDeleted,
-        bool authoritativeExists,
-        int authoritativeUpdated,
-        bool expectRemoved)
+    public void Dispose()
     {
-        var setupId = Guid.NewGuid();
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(
-            authoritativeExists
-                ? new Setup(setupId, "authoritative setup") { BikeId = Guid.NewGuid(), Updated = authoritativeUpdated }
-                : null));
-        var coordinator = CreateCoordinator();
-        var incoming = new Setup(setupId, incomingDeleted ? "gone" : "tuned") { BikeId = Guid.NewGuid(), Updated = 3 };
-        if (incomingDeleted)
-        {
-            incoming.Deleted = 9;
-        }
-        var data = new SynchronizationData { Setups = { incoming } };
-
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-
-        if (expectRemoved)
-        {
-            await setupStore.Received(1).PublishSetupsRemovedAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
-                Arg.Any<CancellationToken>());
-            await setupStore.DidNotReceive().PublishSetupsChangedAsync(
-                Arg.Any<IReadOnlyCollection<Guid>>(),
-                Arg.Any<CancellationToken>());
-        }
-        else
-        {
-            await setupStore.Received(1).PublishSetupsChangedAsync(
-                Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
-                Arg.Any<CancellationToken>());
-        }
+        bikeStore.Dispose();
+        setupStore.Dispose();
+        segmentStore.Dispose();
+        publication.Dispose();
     }
 
-    // ----- Mixed payload -----
+    private async Task PublishAsync(SynchronizationData data, object changedStore)
+    {
+        var published = publication.Committed.Where(commit => commit.Stores.Contains(changedStore))
+            .FirstAsync().ToTask(TestContext.Current.CancellationToken);
+        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
+        await published.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task SynchronizationDataArrived_PublishesAuthoritativeBikeState(bool incomingDeleted, bool authoritativeExists)
+    {
+        var id = Guid.NewGuid();
+        var incoming = new Bike(id, "incoming") { Updated = 4, Deleted = incomingDeleted ? 5 : null };
+        await bikeStore.ReplaceAllAsync([BikeSnapshot.From(new Bike(id, "old"))]);
+        var authoritative = new Bike(id, "current") { Updated = 7, ForkStroke = 160 };
+        if (authoritativeExists) bikes.Seed(authoritative);
+
+        await PublishAsync(new SynchronizationData { Bikes = { incoming } }, bikeStore);
+
+        Assert.Equal(authoritativeExists ? BikeSnapshot.From(authoritative) : null, bikeStore.Get(id));
+    }
+
+    [Theory]
+    [InlineData(false, true, 8)]
+    [InlineData(false, true, 3)]
+    [InlineData(true, false, 0)]
+    public async Task SynchronizationDataArrived_PublishesAuthoritativeSetupAndBoard(bool incomingDeleted, bool authoritativeExists, int updated)
+    {
+        var id = Guid.NewGuid();
+        var boardId = Guid.NewGuid();
+        var incoming = new Setup(id, "incoming") { Updated = 3, Deleted = incomingDeleted ? 9 : null };
+        await setupStore.ReplaceAllAsync([SetupSnapshot.From(new Setup(id, "old"), null)]);
+        var authoritative = new Setup(id, "current") { Updated = updated, BikeId = Guid.NewGuid() };
+        if (authoritativeExists) setups.Seed(authoritative);
+        boards.Seed(new Board(boardId, id));
+
+        await PublishAsync(new SynchronizationData { Setups = { incoming } }, setupStore);
+
+        Assert.Equal(authoritativeExists ? SetupSnapshot.From(authoritative, boardId) : null, setupStore.Get(id));
+    }
 
     [Fact]
-    public async Task SynchronizationDataArrived_MixedPayload_UpdatesBothStores()
+    public async Task SynchronizationDataArrived_MixedPayload_PublishesBothAuthoritativeRows()
     {
-        var coordinator = CreateCoordinator();
-        var bikeId = Guid.NewGuid();
-        var setupId = Guid.NewGuid();
-        bikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(new Bike(bikeId, "authoritative bike") { Updated = 2 }));
-        setupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(new Setup(setupId, "authoritative setup") { BikeId = bikeId, Updated = 2 }));
+        var bike = new Bike(Guid.NewGuid(), "current bike") { Updated = 2 };
+        var setup = new Setup(Guid.NewGuid(), "current setup") { BikeId = bike.Id, Updated = 2 };
+        bikes.Seed(bike);
+        setups.Seed(setup);
         var data = new SynchronizationData
         {
-            Bikes = { new Bike(bikeId, "test bike") { Updated = 1 } },
-            Setups = { new Setup(setupId, "test setup") { BikeId = bikeId, Updated = 1 } },
+            Bikes = { new Bike(bike.Id, "incoming bike") { Updated = 1 } },
+            Setups = { new Setup(setup.Id, "incoming setup") { Updated = 1 } }
         };
 
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
+        await PublishAsync(data, setupStore);
 
-        await bikeStore.Received(1).PublishBikesChangedAsync(
-            Arg.Is<IReadOnlyCollection<BikeSnapshot>>(rows => rows.Count == 1 && rows.Single().Id == bikeId && rows.Single().Updated == 2),
-            Arg.Any<CancellationToken>());
-        await setupStore.Received(1).PublishSetupsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(setupId)),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(BikeSnapshot.From(bike), bikeStore.Get(bike.Id));
+        Assert.Equal(SetupSnapshot.From(setup, null), setupStore.Get(setup.Id));
     }
 
-    // ----- Segments -----
-
     [Fact]
-    public async Task SynchronizationDataArrived_WithSegments_RefreshesSegmentStore()
+    public async Task SynchronizationDataArrived_WithSegments_RefreshesAuthoritativeSegments()
     {
         var authoritative = new SessionSegment { Id = Guid.NewGuid(), SessionId = Guid.NewGuid(), Name = "current", StartSeconds = 2, EndSeconds = 4 };
         segmentRepository.GetLiveAsync().Returns([authoritative]);
-        var coordinator = CreateCoordinator();
         var data = new SynchronizationData
         {
-            Segments = { new SessionSegment { SessionId = Guid.NewGuid(), Name = "climb", StartSeconds = 1, EndSeconds = 2 } },
+            Segments = { new SessionSegment { SessionId = authoritative.SessionId, Name = "incoming", StartSeconds = 1, EndSeconds = 2 } }
         };
 
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
+        await PublishAsync(data, segmentStore);
 
-        await segmentStore.Received(1).ReplaceAllAsync(Arg.Is<IReadOnlyList<SessionSegmentSnapshot>>(rows =>
-            rows.Count == 1 && rows[0].Id == authoritative.Id && rows[0].Name == "current"));
+        Assert.Equal(SessionSegmentSnapshot.From(authoritative), Assert.Single(segmentStore.GetForSession(authoritative.SessionId)));
     }
 }

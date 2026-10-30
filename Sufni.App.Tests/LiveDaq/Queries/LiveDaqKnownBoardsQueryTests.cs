@@ -18,19 +18,15 @@ namespace Sufni.App.Tests.LiveDaq.Queries;
 
 public class LiveDaqKnownBoardsQueryTests
 {
-    private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
     private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
-    private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
     private readonly SetupStore setupStore;
     private readonly BikeStore bikeStore;
 
     public LiveDaqKnownBoardsQueryTests()
     {
         var uiThreadDispatcher = new InlineUiThreadDispatcher();
-        setupStore = new SetupStore(setupRepository, boardRepository, new StorePublication(uiThreadDispatcher));
+        setupStore = new SetupStore(new StorePublication(uiThreadDispatcher));
         bikeStore = new BikeStore(new StorePublication(uiThreadDispatcher));
-        bikeRepository.PutAsync(Arg.Any<Bike>()).Returns(callInfo =>
-            Task.FromResult(callInfo.Arg<Bike>().Id));
     }
 
     private LiveDaqKnownBoardsQuery CreateQuery() => new(
@@ -355,20 +351,11 @@ public class LiveDaqKnownBoardsQueryTests
 
     private async Task SeedSetupAsync(SetupSnapshot setup)
     {
-        var entity = new Setup(setup.Id, setup.Name)
-        {
-            BikeId = setup.BikeId,
-            FrontSensorConfigurationJson = setup.FrontSensorConfigurationJson,
-            RearSensorConfigurationJson = setup.RearSensorConfigurationJson,
-            Updated = setup.Updated
-        };
-
-        setupRepository.GetAsync(setup.Id).Returns(Task.FromResult<Setup?>(entity));
         boardRepository.GetAllAsync().Returns(Task.FromResult(setup.BoardId.HasValue
             ? new List<Board> { new(setup.BoardId.Value, setup.Id) }
             : new List<Board>()));
 
-        await setupStore.PublishSetupsChangedAsync(new[] { setup.Id });
+        await setupStore.PublishSetupsChangedAsync([setup]);
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
@@ -15,7 +16,7 @@ public abstract record SetupImportResult
     public sealed record Imported(ImportedSetupEditorData Data) : SetupImportResult;
     public sealed record Canceled : SetupImportResult;
     public sealed record InvalidFile(string ErrorMessage) : SetupImportResult;
-    public sealed record Failed(string ErrorMessage) : SetupImportResult;
+    public sealed record Failed(SetupImportFailureReason Reason, string? Details = null) : SetupImportResult;
 }
 
 public abstract record SetupExportResult
@@ -24,5 +25,5 @@ public abstract record SetupExportResult
 
     public sealed record Exported : SetupExportResult;
     public sealed record Canceled : SetupExportResult;
-    public sealed record Failed(string ErrorMessage) : SetupExportResult;
+    public sealed record Failed(SetupExportFailureReason Reason, string? Details = null) : SetupExportResult;
 }

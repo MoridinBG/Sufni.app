@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -60,17 +61,17 @@ public class SetupCoordinator(
                     boardId);
             }
 
-            await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId);
+            await backgroundTaskRunner.RunAsync(() => setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId));
 
             var saved = SetupSnapshot.From(setup, boardId);
-            await setupStore.PublishSetupsChangedAsync([setup.Id]);
+            await setupStore.PublishSetupsChangedAsync([saved]);
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Id, saved.Updated);
         }
         catch (Exception e)
         {
             logger.Error(e, "Setup save failed for {SetupId}", setup.Id);
-            return new SetupSaveResult.Failed(e.Message);
+            return new SetupSaveResult.Failed(SetupSaveFailureReason.Save, e.Message);
         }
     }
 
@@ -82,18 +83,17 @@ public class SetupCoordinator(
 
         try
         {
-            await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId);
+            await backgroundTaskRunner.RunAsync(() => setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId));
+            await setupStore.PublishSetupsRemovedAsync([setupId]);
         }
         catch (Exception e)
         {
             logger.Error(e, "Setup delete failed for {SetupId}", setupId);
-            return new SetupDeleteResult(SetupDeleteOutcome.Failed, e.Message);
+            return new SetupDeleteResult.Failed(SetupDeleteFailureReason.Delete, e.Message);
         }
 
-        await setupStore.PublishSetupsRemovedAsync([setupId]);
-
         logger.Information("Setup delete completed for {SetupId}", setupId);
-        return new SetupDeleteResult(SetupDeleteOutcome.Deleted);
+        return new SetupDeleteResult.Deleted();
     }
 
     public async Task<SetupImportResult> ImportSetupAsync(CancellationToken cancellationToken = default)
@@ -125,7 +125,7 @@ public class SetupCoordinator(
         catch (Exception e)
         {
             logger.Error(e, "Setup import failed while reading file");
-            return new SetupImportResult.Failed(e.Message);
+            return new SetupImportResult.Failed(SetupImportFailureReason.Import, e.Message);
         }
 
         if (payload is null)
@@ -138,16 +138,13 @@ public class SetupCoordinator(
         {
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
-            await setupPersistenceTransactions.ImportSetupAsync(
-                payload.Bike,
-                payload.Setup,
-                resolvedBoardId,
-                cancellationToken);
+            await backgroundTaskRunner.RunAsync(() => setupPersistenceTransactions.ImportSetupAsync(
+                payload.Bike, payload.Setup, resolvedBoardId, cancellationToken), cancellationToken);
 
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
             await bikeStore.PublishBikesChangedAsync([bikeSnapshot]);
-            await setupStore.PublishSetupsChangedAsync([payload.Setup.Id], cancellationToken);
+            await setupStore.PublishSetupsChangedAsync([setupSnapshot]);
 
             logger.Information(
                 "Setup import completed for {SetupId} (bike {BikeId}, board {BoardId})",
@@ -161,7 +158,7 @@ public class SetupCoordinator(
         catch (Exception e)
         {
             logger.Error(e, "Setup import failed during persistence");
-            return new SetupImportResult.Failed(e.Message);
+            return new SetupImportResult.Failed(SetupImportFailureReason.Import, e.Message);
         }
     }
 
@@ -200,7 +197,7 @@ public class SetupCoordinator(
         catch (Exception e)
         {
             logger.Error(e, "Setup export failed for {SetupId}", setup.Id);
-            return new SetupExportResult.Failed(e.Message);
+            return new SetupExportResult.Failed(SetupExportFailureReason.Export, e.Message);
         }
     }
 
@@ -227,13 +224,12 @@ public abstract record SetupSaveResult
 
     public sealed record Saved(Guid Id, long NewBaselineUpdated) : SetupSaveResult;
     public sealed record Conflict(SetupSnapshot CurrentSnapshot) : SetupSaveResult;
-    public sealed record Failed(string ErrorMessage) : SetupSaveResult;
+    public sealed record Failed(SetupSaveFailureReason Reason, string? Details = null) : SetupSaveResult;
 }
 
-public sealed record SetupDeleteResult(SetupDeleteOutcome Outcome, string? ErrorMessage = null);
-
-public enum SetupDeleteOutcome
+public abstract record SetupDeleteResult
 {
-    Deleted,
-    Failed
+    private SetupDeleteResult() { }
+    public sealed record Deleted : SetupDeleteResult;
+    public sealed record Failed(SetupDeleteFailureReason Reason, string? Details = null) : SetupDeleteResult;
 }

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using DynamicData;
@@ -58,7 +59,7 @@ public class SetupListViewModelTests
         Assert.Empty(viewModel.Items);
 
         setupCache.Remove(snapshot.Id);
-        deleteTcs.SetResult(new SetupDeleteResult(SetupDeleteOutcome.Deleted));
+        deleteTcs.SetResult(new SetupDeleteResult.Deleted());
         await finalizeTask;
 
         Assert.Empty(viewModel.Items);
@@ -106,7 +107,7 @@ public class SetupListViewModelTests
 
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
         setupCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new SetupDeleteResult(SetupDeleteOutcome.Failed, "boom"));
+            .Returns(new SetupDeleteResult.Failed(SetupDeleteFailureReason.Delete, "boom"));
 
         var viewModel = new SetupListViewModel(setupStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);

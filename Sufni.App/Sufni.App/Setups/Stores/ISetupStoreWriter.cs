@@ -14,13 +14,12 @@ namespace Sufni.App.Setups.Stores;
 public interface ISetupStoreWriter : ISetupStore
 {
     /// <summary>
-    /// Load setups (and their board associations) from the database
-    /// and replace the current contents.
+    /// Replace the published contents with prepared snapshots.
     /// </summary>
     Task ReplaceAllAsync(IReadOnlyList<SetupSnapshot> snapshots);
 
     Task PublishSetupsChangedAsync(
-        IReadOnlyCollection<Guid> setupIds,
+        IReadOnlyCollection<SetupSnapshot> snapshots,
         CancellationToken cancellationToken = default);
 
     Task PublishSetupsRemovedAsync(

@@ -67,16 +67,17 @@ Each persisted writer interface additionally exposes:
   cancellation or load failure leaves the previously published state intact.
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
-- `BikeStore` and `PairedDeviceStore` are publish-only: their writers accept prepared snapshots
+- `BikeStore`, `SetupStore` and `PairedDeviceStore` are publish-only: their writers accept prepared snapshots
   or ids to remove, and have no repository dependencies. Bike save/cutoff/delete
   persistence belongs to `BikeCoordinator`; save checks its snapshot baseline
-  once after analysis, before writing.
+  once after analysis, before writing. `SetupCoordinator` publishes the setup
+  and resolved board association returned from its transaction inputs; inbound
+  sync prepares setup snapshots from persisted rows and board associations.
   `PairedDeviceCoordinator` persists an explicit unpair before removing the
   snapshot; server events already carry the persisted device snapshot.
 - Remaining semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitSessionMetadataAsync`,
-  `CommitTrackPatchAsync`, and
-  `CommitLocalUnpairAsync`. These methods persist one aggregate family,
+  `CommitTrackPatchAsync`, and `CommitPsstSwapAsync`. These methods persist one aggregate family,
   re-read any database-computed snapshot fields, and publish the resulting
   snapshot through the store. Commit operations do not cancel between persistence
   and publication. Track alignment retains a caller cancellation check before

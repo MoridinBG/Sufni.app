@@ -149,9 +149,12 @@ public sealed class PendingDeletes(
                 };
             case PendingDeleteKey.Setup setup:
                 var setupResult = await setups.DeleteAsync(setup.Id);
-                return setupResult.Outcome == SetupDeleteOutcome.Deleted
-                    ? (null, new EditorKey.Setup(setup.Id))
-                    : (new FailurePresentation("Setup could not be deleted.", setupResult.ErrorMessage), null);
+                return setupResult switch
+                {
+                    SetupDeleteResult.Deleted => (null, new EditorKey.Setup(setup.Id)),
+                    SetupDeleteResult.Failed setupFailure => (FailurePresentation.From(setupFailure.Reason, setupFailure.Details), null),
+                    _ => throw new ArgumentOutOfRangeException(nameof(setupResult))
+                };
             case PendingDeleteKey.Session session:
                 var sessionResult = await sessions.DeleteAsync(session.Id);
                 return sessionResult.Outcome == SessionDeleteOutcome.Deleted

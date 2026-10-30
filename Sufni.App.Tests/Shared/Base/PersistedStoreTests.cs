@@ -167,12 +167,7 @@ public class PersistedStoreTests
             BikeId = bikeId,
             Updated = 9
         };
-        var board = new Board(boardId, setupId);
-        var setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
-        var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
-        setupRepository.GetAllAsync().Returns([setup]);
-        boardRepository.GetAllAsync().Returns([board]);
-        var store = new SetupStore(setupRepository, boardRepository, new StorePublication(UiThreadDispatcher));
+        var store = new SetupStore(new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
         await store.ReplaceAllAsync([SetupSnapshot.From(setup, boardId)]);
