@@ -1,6 +1,7 @@
 using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
+using System.Reactive.Linq;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Tests.TestSupport.Persistence;
 using NSubstitute.ExceptionExtensions;
@@ -33,6 +34,7 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionCoordinatorTests
 {
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
     private readonly InMemorySynchronizableRepository<Track> trackRepository = new(new FakeTimeProvider());
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
@@ -67,7 +69,7 @@ public class SessionCoordinatorTests
     {
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(20));
         var repository = new InMemorySessionRepository(clock);
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var original = PrepareAlignment(repository, storedDuration);
         await store.PublishSessionsChangedAsync([original with { GpsOffsetSeconds = 0 }]);
 
@@ -90,7 +92,7 @@ public class SessionCoordinatorTests
     public async Task ShiftGpsOffsetAsync_DistinguishesMissingSessionFromPersistenceFailure(bool missing)
     {
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var original = PrepareAlignment(repository, 3);
         await store.PublishSessionsChangedAsync([original]);
         if (missing) repository.Repository.GetSessionAsync(original.Id).Returns((Session?)null);
@@ -107,7 +109,7 @@ public class SessionCoordinatorTests
     public async Task ShiftGpsOffsetAsync_LeavesSessionUnchanged_WhenNoTrackSegmentMatches()
     {
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var original = PrepareAlignment(repository, 3);
         await store.PublishSessionsChangedAsync([original]);
 
@@ -145,7 +147,7 @@ public class SessionCoordinatorTests
         var repository = new InMemorySessionRepository(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(7)));
         repository.Seed(existing);
         if (fail) repository.WriteFailure = new IOException("disk full");
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         await store.ReplaceAllAsync([existing]);
         var session = new Session(existing.Id, "renamed", "", null);
 
@@ -176,7 +178,7 @@ public class SessionCoordinatorTests
     {
         var clock = new FakeTimeProvider();
         var repository = new InMemorySessionRepository(clock);
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var original = TestSnapshots.Session(hasProcessedData: true) with { VelocityFilterWindowMilliseconds = 50 };
         repository.Seed(original);
         await store.PublishSessionsChangedAsync([original]);
@@ -205,7 +207,7 @@ public class SessionCoordinatorTests
     public async Task SetProcessingOptionAsync_DoesNotRestoreOverANewerAuthoredOption()
     {
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var original = TestSnapshots.Session() with { VelocityFilterWindowMilliseconds = 50 };
         repository.Seed(original);
         await store.PublishSessionsChangedAsync([original]);
@@ -228,7 +230,7 @@ public class SessionCoordinatorTests
         var current = TestSnapshots.Session(updated: 10);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         repository.Seed(current);
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         await store.ReplaceAllAsync([current]);
 
         var result = await CreateCoordinator(store, repository.Repository).SaveAsync(new Session(current.Id, "stale", "", null), 5);
@@ -242,7 +244,7 @@ public class SessionCoordinatorTests
     public async Task SaveAsync_WhenSessionDisappearsAfterPersistence_ReturnsMissingAndRemovesPublishedRow()
     {
         var existing = TestSnapshots.Session(updated: 5);
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         await store.ReplaceAllAsync([existing]);
         sessionRepository.GetSessionAsync(existing.Id).Returns((Session?)null);
 
@@ -259,7 +261,7 @@ public class SessionCoordinatorTests
         SeedLiveCaptureDependencies(capture);
         reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.NoTravelData));
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         var session = new Session(Guid.NewGuid(), "capture", "", capture.Context.SetupId);
 
@@ -286,7 +288,7 @@ public class SessionCoordinatorTests
         trackRepository.Seed(track);
         trackQueries.FindTrackContainingTimestampAsync(timestamp).Returns(track.Id);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var session = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, timestamp);
 
         var result = await CreateCoordinator(store, repository.Repository).SaveLiveCaptureAsync(
@@ -307,12 +309,35 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task SaveLiveCaptureAsync_PublishesRecordingAndSourceTogether()
+    {
+        var capture = CreateLiveCapturePackage(withGps: false);
+        SeedLiveCaptureDependencies(capture);
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var sessions = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
+        var coordinator = CreateCoordinator(sessions, repository.Repository, sources);
+        var id = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId;
+        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source)>();
+        using var subscription = publication.Committed.Subscribe(_ => observed.Add((sessions.Get(id), sources.Get(id))));
+
+        var result = await coordinator.SaveLiveCaptureAsync(
+            new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId),
+            capture, SessionPreferences.Default, TestContext.Current.CancellationToken);
+
+        Assert.IsType<LiveSessionSaveResult.Saved>(result);
+        var committed = Assert.Single(observed);
+        Assert.Equal(id, committed.Session!.Id);
+        Assert.Equal(id, committed.Source!.SessionId);
+    }
+
+    [Fact]
     public async Task SaveLiveCaptureAsync_RepeatedCapture_PreservesExistingRecording()
     {
         var capture = CreateLiveCapturePackage(withGps: false);
         SeedLiveCaptureDependencies(capture);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         var coordinator = CreateCoordinator(store, repository.Repository);
         var original = new Session(Guid.NewGuid(), "original", "notes", capture.Context.SetupId);
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveLiveCaptureAsync(
@@ -476,7 +501,7 @@ public class SessionCoordinatorTests
         var original = TestSnapshots.Session();
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         repository.Seed(original);
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
         await store.ReplaceAllAsync([original]);
         sessionPersistenceTransactions.DeleteSessionAsync(original.Id, Arg.Any<CancellationToken>())
             .ThrowsAsync(new IOException("database diagnostic"));
@@ -493,20 +518,21 @@ public class SessionCoordinatorTests
     public async Task DeleteAsync_PublishesRemovalAndClearsPreferencesAfterCommit()
     {
         var id = Guid.NewGuid();
-        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var store = new SessionStore(publication);
+        using var sources = new RecordedSessionSourceStore(publication);
         await store.PublishSessionsChangedAsync([TestSnapshots.Session(id: id)]);
+        await sources.PublishSourcesChangedAsync([RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(id))]);
+        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source)>();
+        using var subscription = publication.Committed.Subscribe(_ => observed.Add((store.Get(id), sources.Get(id))));
 
-        var result = await CreateCoordinator(store).DeleteAsync(id);
+        var result = await CreateCoordinator(store, sources: sources).DeleteAsync(id);
 
         Assert.IsType<SessionDeleteResult.Deleted>(result);
-        await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(
-            id,
-            Arg.Any<CancellationToken>());
-        await sourceStore.Received(1).PublishSourcesRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
+        await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(id, Arg.Any<CancellationToken>());
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
-        Assert.Null(store.Get(id));
+        var removed = Assert.Single(observed);
+        Assert.Null(removed.Session);
+        Assert.Null(removed.Source);
     }
 
     [Fact]
@@ -525,14 +551,15 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null) =>
+    private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null,
+        IRecordedSessionSourceStoreWriter? sources = null) =>
         new(
             store ?? sessionStore,
             repository ?? sessionRepository,
             trackQueries,
             setupRepository,
             bikeRepository,
-            sourceStore,
+            sources ?? sourceStore,
             reprocessor,
             backgroundTaskRunner,
             sessionPreferences,
@@ -540,7 +567,8 @@ public class SessionCoordinatorTests
             sessionPersistenceTransactions,
             new InlineUiThreadDispatcher(),
             processedTelemetryReader,
-            trackRepository);
+            trackRepository,
+            publication);
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

@@ -42,8 +42,10 @@ inputs and publishing the aligned session after its repository write. Live save 
 and optional generated track, then publishes the resulting snapshots. Delete
 uses the transaction runner for session, source and track removal. The runner
 reads the current track association and checks live references inside the delete
-transaction. The coordinator clears recorded preferences before publishing session
-removal.
+transaction. The coordinator clears recorded preferences, then publishes session
+and source removals together in one dispatcher-owned `StorePublication` batch.
+Import and live-save publication use the same batch boundary for their session
+and source snapshots.
 
 Recorded editors call `ISessionLoader` directly for staged telemetry and track
 reads. Session lists and the staleness reconciler call `ISessionRecomputeEngine`

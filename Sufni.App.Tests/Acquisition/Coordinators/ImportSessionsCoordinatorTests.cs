@@ -27,12 +27,34 @@ namespace Sufni.App.Tests.Acquisition.Coordinators;
 public class ImportSessionsCoordinatorTests
 {
     [Fact]
+    public async Task ImportAsync_PublishesRecordingAndSourceTogether()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var sessions = new SessionStore(harness.Publication);
+        using var sources = new RecordedSessionSourceStore(harness.Publication);
+        using var coordinator = harness.CreateCoordinator(repository.Repository, sessions, sources);
+        var file = CreateTelemetryFile();
+        using var bytes = new TelemetryFileSource("file.SST", [1, 2, 3]);
+        var id = RecordedSessionSourceFactory.CreateImportedSst(bytes).SessionId;
+        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source)>();
+        using var subscription = harness.Publication.Committed.Subscribe(_ => observed.Add((sessions.Get(id), sources.Get(id))));
+
+        await coordinator.ImportAsync([file], setup.Id, TestContext.Current.CancellationToken);
+
+        var committed = Assert.Single(observed);
+        Assert.Equal(id, committed.Session!.Id);
+        Assert.Equal(id, committed.Source!.SessionId);
+    }
+
+    [Fact]
     public async Task ImportAsync_RenamedRecording_ReusesPersistedSessionAndAcknowledgesFile()
     {
         var harness = new ImportWorkflowHarness();
         var (setup, _) = harness.SeedSetupAndBike();
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        var publication = new StorePublication(new InlineUiThreadDispatcher());
+        var publication = harness.Publication;
         using var sessions = new SessionStore(publication);
         using var sources = new RecordedSessionSourceStore(publication);
         using var coordinator = harness.CreateCoordinator(repository.Repository, sessions, sources);

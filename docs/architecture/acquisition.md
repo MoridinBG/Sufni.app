@@ -43,7 +43,8 @@ and preserves its session/source. If the content-id session arrived by sync but
 has no source, the transaction inserts only that source and reports `Imported`;
 authored metadata and any existing processed generation remain unchanged.
 Otherwise it inserts the session, source and optional generated track atomically.
-Committed snapshots are published before acknowledgement, including duplicate
+Committed session/source snapshots publish in one dispatcher-owned
+`StorePublication` batch before acknowledgement, including duplicate
 imports, so retrying a publication failure can restore visible state without
 creating another recording. The source-hash column is not unique: legacy duplicate
 rows and split references remain valid.

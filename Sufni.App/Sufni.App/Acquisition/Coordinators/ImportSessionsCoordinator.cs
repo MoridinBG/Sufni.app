@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
 using System.Reactive.Subjects;
 using System;
 using System.Collections.Concurrent;
@@ -44,7 +45,8 @@ public class ImportSessionsCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
-    IUiThreadDispatcher dispatcher) : IImportSessionsCoordinator, IDisposable
+    IUiThreadDispatcher dispatcher,
+    StorePublication publication) : IImportSessionsCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
     private static readonly int ImportProcessDop = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
@@ -391,8 +393,13 @@ public class ImportSessionsCoordinator(
             {
                 try
                 {
-                    await sessionStore.PublishSessionsChangedAsync(importedSnapshots);
-                    await sourceStore.PublishSourcesChangedAsync(committedEntries.Select(entry => entry.Source).ToArray());
+                    var sourceSnapshots = committedEntries.Select(entry => entry.Source).ToArray();
+                    await dispatcher.InvokeAsync(async () =>
+                    {
+                        using var batch = publication.BeginBatch();
+                        await sessionStore.PublishSessionsChangedAsync(importedSnapshots);
+                        await sourceStore.PublishSourcesChangedAsync(sourceSnapshots);
+                    });
                 }
                 catch (Exception e)
                 {

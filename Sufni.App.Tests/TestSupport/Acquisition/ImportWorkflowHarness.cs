@@ -2,6 +2,7 @@ using System.Reactive.Subjects;
 using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using DynamicData;
+using Sufni.App.Shared.Stores;
 using NSubstitute;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Acquisition.Models;
@@ -46,6 +47,8 @@ internal sealed class ImportWorkflowHarness
         ConfigureDefaultWriter();
     }
 
+    public StorePublication Publication { get; } = new(new InlineUiThreadDispatcher());
+
     public BehaviorSubject<SessionImportState> ImportState { get; } = new(new SessionImportState.Idle());
 
     public ISessionRepository SessionRepository { get; } = Substitute.For<ISessionRepository>();
@@ -80,7 +83,8 @@ internal sealed class ImportWorkflowHarness
         BackgroundTaskRunner,
         DaqManagementService,
         Reprocessor,
-        new InlineUiThreadDispatcher());
+        new InlineUiThreadDispatcher(),
+        Publication);
 
     public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
         TelemetryDataStoreService,

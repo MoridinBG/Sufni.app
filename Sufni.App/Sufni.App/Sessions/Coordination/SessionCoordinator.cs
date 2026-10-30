@@ -20,6 +20,7 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>Owns session metadata, processing options, GPS alignment, live saves and deletion.</summary>
@@ -41,6 +42,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     private readonly ISessionPreferences sessionPreferences;
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
+    private readonly StorePublication publication;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -56,9 +58,11 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         ISessionPersistenceTransactionRunner sessionPersistenceTransactions,
         IUiThreadDispatcher dispatcher,
         ISessionProcessedTelemetryReader processedTelemetryReader,
-        ISynchronizableRepository<Track> trackRepository)
+        ISynchronizableRepository<Track> trackRepository,
+        StorePublication publication)
     {
         this.dispatcher = dispatcher;
+        this.publication = publication;
         this.processedTelemetryReader = processedTelemetryReader;
         this.trackRepository = trackRepository;
         this.sessionStore = sessionStore;
@@ -254,8 +258,12 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 string? publicationWarning = null;
                 try
                 {
-                    await sessionStore.PublishSessionsChangedAsync([snapshot]);
-                    await sourceStore.PublishSourcesChangedAsync([committed.Source]);
+                    await dispatcher.InvokeAsync(async () =>
+                    {
+                        using var batch = publication.BeginBatch();
+                        await sessionStore.PublishSessionsChangedAsync([snapshot]);
+                        await sourceStore.PublishSourcesChangedAsync([committed.Source]);
+                    });
                 }
                 catch (Exception e)
                 {
@@ -288,31 +296,31 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         try
         {
             var sourceDeleted = await sessionPersistenceTransactions.DeleteSessionAsync(sessionId);
-
-            if (sourceDeleted)
+            try
             {
-                await sourceStore.PublishSourcesRemovedAsync([sessionId]);
+                await sessionPreferences.RemoveRecordedAsync(sessionId);
             }
+            catch (Exception e)
+            {
+                logger.Warning(e, "Failed to remove recorded-session preferences after deleting session {SessionId}", sessionId);
+            }
+
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                if (sourceDeleted) await sourceStore.PublishSourcesRemovedAsync([sessionId]);
+                await sessionStore.PublishSessionsRemovedAsync([sessionId]);
+            });
+            logger.Information("Session delete completed for {SessionId}", sessionId);
+            return new SessionDeleteResult.Deleted();
         }
         catch (Exception e)
         {
             logger.Error(e, "Session delete failed for {SessionId}", sessionId);
             return new SessionDeleteResult.Failed(SessionDeleteFailureReason.Delete, e.Message);
         }
-
-        try
-        {
-            await sessionPreferences.RemoveRecordedAsync(sessionId);
-        }
-        catch (Exception e)
-        {
-            logger.Warning(e, "Failed to remove recorded-session preferences after deleting session {SessionId}", sessionId);
-        }
-
-        await sessionStore.PublishSessionsRemovedAsync([sessionId]);
-        logger.Information("Session delete completed for {SessionId}", sessionId);
-        return new SessionDeleteResult.Deleted();
     }
+
 }
 
 public abstract record SessionSaveResult
