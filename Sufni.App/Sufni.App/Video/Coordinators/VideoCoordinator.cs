@@ -47,7 +47,8 @@ internal sealed class VideoCoordinator(
     ISessionRepository sessionRepository,
     ISessionVideoRepository videoRepository,
     ISessionVideoStoreWriter videoStore,
-    IBackgroundTaskRunner backgroundTaskRunner) : IVideoCoordinator
+    IBackgroundTaskRunner backgroundTaskRunner,
+    TimeProvider timeProvider) : IVideoCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
 
@@ -133,7 +134,7 @@ internal sealed class VideoCoordinator(
             path,
             metadata.StartUtc.ToUnixTimeSeconds(),
             metadata.Duration.TotalSeconds,
-            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),
             sessionIds);
         await videoStore.PublishClipsAsync(clips);
         return new VideoImportResult.Linked(clips.Count);

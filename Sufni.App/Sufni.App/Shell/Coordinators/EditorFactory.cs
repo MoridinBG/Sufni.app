@@ -60,7 +60,8 @@ internal sealed class EditorFactory(
     ISessionEditingCoordinator sessionEditingCoordinator,
     ISegmentPickerFactory segmentPickerFactory,
     ISegmentComparisonFactory segmentComparisonFactory,
-    ISessionOperationRunner sessionOperationRunner) : IEditorFactory
+    ISessionOperationRunner sessionOperationRunner,
+    TimeProvider timeProvider) : IEditorFactory
 {
     public void OpenNewBikeEditor(BikeSnapshot snapshot)
     {
@@ -224,7 +225,8 @@ internal sealed class EditorFactory(
             dialogService,
             liveDaqKnownBoardsQuery,
             liveDaqStore,
-            uiThreadDispatcher);
+            uiThreadDispatcher,
+            timeProvider);
 
     public void OpenLiveSessionDetail(
         string identityKey,

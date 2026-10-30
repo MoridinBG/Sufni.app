@@ -1,4 +1,5 @@
 using Avalonia.Platform.Storage;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
@@ -20,6 +21,7 @@ public class VideoCoordinatorTests
     private readonly ISessionVideoRepository videoRepository = Substitute.For<ISessionVideoRepository>();
     private readonly ISessionVideoStoreWriter videoStore = Substitute.For<ISessionVideoStoreWriter>();
     private readonly VideoCoordinator coordinator;
+    private readonly FakeTimeProvider time = new(VideoStart.AddDays(1));
 
     public VideoCoordinatorTests()
     {
@@ -29,7 +31,8 @@ public class VideoCoordinatorTests
             sessionRepository,
             videoRepository,
             videoStore,
-            new InlineBackgroundTaskRunner());
+            new InlineBackgroundTaskRunner(),
+            time);
         videoRepository
             .LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(), Arg.Any<IReadOnlyCollection<Guid>>())
             .Returns(call => call.ArgAt<IReadOnlyCollection<Guid>>(4)
@@ -53,7 +56,7 @@ public class VideoCoordinatorTests
             Arg.Any<string>(),
             VideoStart.ToUnixTimeSeconds(),
             600,
-            Arg.Any<long>(),
+            VideoStart.AddDays(1).ToUnixTimeMilliseconds(),
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Order().SequenceEqual(new[] { inside.Id, overlappingStart.Id }.Order())));
         await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoClip>>(clips => clips.Count == 2));
     }

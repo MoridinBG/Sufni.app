@@ -268,6 +268,9 @@ Entries are emitted through a `BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry
 
 `LiveDaqKnownBoardsQuery` merges three data sources to produce enriched board records: `Board` rows from the database, `ISetupStore` for setup names, and `IBikeStore` for bike names. For each board, it attempts two setup lookups: direct `board.SetupId` first, then fallback via `SetupStore.FindByBoardId()`. For known setup+bike pairs it resolves the shared `ITelemetryBikeProcessingContextFactory` context and builds the live travel-calibration answer from the same `BikeData` delegates that live-session capture passes into telemetry processing. The query no longer performs its own rear-calibration build. It exposes a `Changes` observable that fires when setup or bike stores change, keyed lookup by identity key, and a travel-calibration answer for a specific DAQ identity so the detail view model can format calibrated travel without depending directly on setup or bike stores.
 
+Diagnostics snapshots timestamp received frames and compute travel/IMU freshness
+using the `TimeProvider` supplied to `LiveDaqSessionState` by the editor factory.
+
 ## Runtime Store
 
 `LiveDaqStore` is a runtime-only in-memory `SourceCache<LiveDaqSnapshot, string>` keyed by identity key (board ID when known, protocol-qualified endpoint fallback). It does not persist to the database, has no `RefreshAsync()`, and snapshots carry no `Updated` timestamp. The read-only `ILiveDaqStore` is injected into the list view model; the `ILiveDaqStoreWriter` exposes only `ReplaceAll` for coordinator reconciliation.

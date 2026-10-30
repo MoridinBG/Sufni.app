@@ -20,6 +20,7 @@ namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
 public class LiveSessionServiceTests
 {
+    private readonly SignalingFakeTimeProvider time = new();
     private readonly ILiveDaqSharedStream sharedStream = Substitute.For<ILiveDaqSharedStream>();
     private readonly ILiveDaqSharedStreamLease observerLease = Substitute.For<ILiveDaqSharedStreamLease>();
     private readonly ILiveDaqSharedStreamLease configurationLockLease = Substitute.For<ILiveDaqSharedStreamLease>();
@@ -64,7 +65,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task EnsureAttachedAsync_AcquiresLeases_StartsStream_AndPublishesStreamingState()
     {
-        var service = CreateService();
+        await using var service = CreateService();
 
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -95,7 +96,7 @@ public class LiveSessionServiceTests
     {
         sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
             .Returns<Task<LivePreviewStartResult?>>(_ => throw new InvalidOperationException("boom"));
-        var service = CreateService();
+        await using var service = CreateService();
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken));
 
@@ -106,7 +107,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task Frames_AccumulateSignalTrackAndAnalysis_AndRemainSaveableAfterTerminalClose()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         var analysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
@@ -159,7 +160,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task V3Frames_PrepareCaptureForSave_PreservesSegmentsGapsMarkersAndFinalStatus()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var v3Header = PublishV3TravelSession();
@@ -211,7 +212,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task TemperatureFrames_AreSavedSeparatelyFromImu_AndClearedOnReset()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var temperatureHeader = sessionHeader with
         {
@@ -287,7 +288,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task V3Frames_PrepareCaptureForSave_MarksMissingFinalStatus_WhenClosedWithoutSessionResult()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var v3Header = PublishV3TravelSession();
 
@@ -304,7 +305,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task V3ImuFrames_PrepareCaptureForSave_UsesCanonicalSegmentsWithoutDenseDuplicate()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var v3Header = PublishV3TravelAndImuSession();
         var frame0 = CreateImuRecord(10);
@@ -346,7 +347,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task V3ImuFrames_PrepareCaptureForSave_PreservesValidityAndIndexGapsByLocation()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         var v3Header = PublishV3TravelAndImuSession();
 
@@ -414,7 +415,7 @@ public class LiveSessionServiceTests
     public async Task Frames_CalculateDampingPercentagesWithContextCutoffs()
     {
         var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
-        var service = CreateService(context: CreateSessionContext(cutoffs));
+        await using var service = CreateService(context: CreateSessionContext(cutoffs));
         var analysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
         {
@@ -438,7 +439,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task ResetCaptureAsync_ClearsAccumulatedCaptureAndAnalysis()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
@@ -457,7 +458,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task SessionRollover_ClosesCaptureBeforeReset()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var nextHeader = CreateRolloverSessionHeader();
@@ -472,7 +473,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task ResetCaptureAsync_AfterSessionRollover_AdoptsCurrentHeaderAndReopensStreaming()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         frames.OnNext(new LiveSessionStatsFrame(
@@ -493,7 +494,7 @@ public class LiveSessionServiceTests
     [InlineData(false, true)]
     public async Task ResetCaptureAsync_DoesNotReopenWithoutOpenStreamHeader(bool isClosed, bool removeHeaderBeforeReset)
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var nextHeader = CreateRolloverSessionHeader();
@@ -511,7 +512,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task ResetCaptureAsync_AfterSessionRollover_RejectsOldSessionFramesAndSavesNewSessionFrames()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var nextHeader = CreateRolloverSessionHeader();
@@ -537,7 +538,7 @@ public class LiveSessionServiceTests
     [InlineData(GpsSpeedScenario.OutOfOrderFallback)]
     public async Task GpsFrames_CalculateSpeeds_ForOrderedAndOutOfOrderFrames(GpsSpeedScenario scenario)
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateGpsBatchFrame());
@@ -575,7 +576,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task GpsFrames_OutOfOrderRecordInsideBatch_PreservesEntireRawBatchAndReprojectsAllPoints()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
         var time8 = new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc);
@@ -604,7 +605,8 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task TravelFrames_ThrottleAnalysisUpdatesToConfiguredInterval()
     {
-        var service = CreateService();
+        var runner = new BlockingOnceBackgroundTaskRunner();
+        await using var service = CreateService(runner);
         var firstAnalysisUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var secondAnalysisUpdate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var analysisUpdateCount = 0;
@@ -630,23 +632,25 @@ public class LiveSessionServiceTests
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
+        await runner.Started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + 25_000));
+        runner.Release();
         await firstAnalysisUpdate.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
-        frames.OnNext(CreateTravelBatchFrame());
-
-        var secondUpdateArrivedTooSoon = await Task.WhenAny(
-            secondAnalysisUpdate.Task,
-            Task.Delay(250, TestContext.Current.CancellationToken)) == secondAnalysisUpdate.Task;
-        Assert.False(secondUpdateArrivedTooSoon);
+        time.Advance(TimeSpan.FromMilliseconds(1499));
+        Assert.False(secondAnalysisUpdate.Task.IsCompleted);
+        time.Advance(TimeSpan.FromMilliseconds(1));
 
         await secondAnalysisUpdate.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(10, service.Current.AnalysisTelemetry!.Front.Travel.Length);
     }
 
     [Fact]
     public async Task TravelFrames_AnalysisCatchesUpAfterPendingRecompute()
     {
         var blockingRunner = new BlockingOnceBackgroundTaskRunner();
-        var service = CreateService(blockingRunner);
+        await using var service = CreateService(blockingRunner);
         var latestAnalysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
@@ -668,6 +672,8 @@ public class LiveSessionServiceTests
             frames.OnNext(CreateTravelBatchFrame(firstMonotonicUs: sessionHeader.SessionStartMonotonicUs + 50_000));
 
             blockingRunner.Release();
+            await time.WaitForTimerAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            time.Advance(TimeSpan.FromMilliseconds(1500));
 
             await latestAnalysisReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
@@ -683,7 +689,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task ResetCaptureAsync_RebasesSubsequentSignalTimes_AndClearsCaptureDuration()
     {
-        var service = CreateService();
+        await using var service = CreateService();
 
         var firstBatchTask = WaitForSignalBatchAsync(
             service.SignalBatches,
@@ -721,7 +727,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task TravelFrames_PublishDurationThroughLatestValidTravelEnd()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         frames.OnNext(CreateTravelBatchFrame());
@@ -745,7 +751,8 @@ public class LiveSessionServiceTests
             sharedStream,
             sessionPresentationService,
             backgroundTaskRunner,
-            pipeline);
+            pipeline,
+            time);
 
         var mergedBatchTask = WaitForSignalBatchAsync(
             service.SignalBatches,
@@ -768,7 +775,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task Frames_ImuOnlyInterval_StillEmitsBatchWithImuSamples()
     {
-        var service = CreateService();
+        await using var service = CreateService();
 
         var imuOnlyBatchTask = WaitForSignalBatchAsync(
             service.SignalBatches,
@@ -792,7 +799,7 @@ public class LiveSessionServiceTests
     public async Task TravelFrames_WhenDisplayPipelineStalls_CaptureRemainsComplete()
     {
         var signalPipeline = new BlockingSignalPipeline();
-        var service = CreateService(signalPipeline: signalPipeline);
+        await using var service = CreateService(signalPipeline: signalPipeline);
         try
         {
             await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -941,7 +948,8 @@ public class LiveSessionServiceTests
             sharedStream,
             sessionPresentationService,
             runner ?? backgroundTaskRunner,
-            pipeline);
+            pipeline,
+            time);
     }
 
     private sealed class BlockingSignalPipeline : ILiveSignalPipeline

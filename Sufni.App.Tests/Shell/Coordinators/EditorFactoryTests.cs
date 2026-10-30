@@ -375,7 +375,8 @@ public class EditorFactoryTests
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(),
             TestSegmentComparisons.CreateFactory(),
-            new SessionOperationRunner());
+            new SessionOperationRunner(),
+            new Microsoft.Extensions.Time.Testing.FakeTimeProvider());
     }
 
     private sealed class CapturingShellCoordinator : IShellCoordinator

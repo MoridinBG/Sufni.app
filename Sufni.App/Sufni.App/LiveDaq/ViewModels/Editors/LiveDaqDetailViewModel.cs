@@ -46,7 +46,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqStore liveDaqStore;
 
-    private readonly LiveDaqSessionState sessionState = new();
+    private readonly LiveDaqSessionState sessionState;
     private IDisposable? uiRefreshTimer;
     private readonly CancellableOperation connectOperation = new();
     private readonly CancellableOperation managementOperation = new();
@@ -127,9 +127,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         IDialogService dialogService,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
         ILiveDaqStore liveDaqStore,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
         : base(shell, dialogService, uiThreadDispatcher)
     {
+        sessionState = new LiveDaqSessionState(timeProvider);
         IdentityKey = snapshot.IdentityKey;
         BoardId = snapshot.BoardId;
         Endpoint = snapshot.Endpoint;

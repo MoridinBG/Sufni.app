@@ -1,4 +1,5 @@
 using System.Reactive.Subjects;
+using Microsoft.Extensions.Time.Testing;
 using System.Text;
 using NSubstitute;
 using Sufni.App.Acquisition.Services;
@@ -66,6 +67,8 @@ internal sealed class LiveDaqDetailHarness
         StreamLease.DisposeAsync().Returns(ValueTask.CompletedTask);
     }
 
+    public FakeTimeProvider Time { get; } = new();
+
     public ILiveDaqSharedStream SharedStream { get; } = Substitute.For<ILiveDaqSharedStream>();
     public ILiveDaqCoordinator LiveDaqCoordinator { get; } = TestCoordinatorSubstitutes.LiveDaq();
     public IDaqManagementService DaqManagementService { get; } = Substitute.For<IDaqManagementService>();
@@ -103,7 +106,8 @@ internal sealed class LiveDaqDetailHarness
             DialogService,
             KnownBoardsQuery,
             LiveDaqStore,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            Time);
     }
 
     public void PublishStreamState(LiveDaqSharedStreamState state)

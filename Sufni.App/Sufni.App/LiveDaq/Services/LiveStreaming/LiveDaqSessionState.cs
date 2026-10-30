@@ -5,7 +5,7 @@ using Sufni.Telemetry;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 // Latest diagnostics readings and session contract, published as coherent snapshots.
-public sealed class LiveDaqSessionState
+public sealed class LiveDaqSessionState(TimeProvider timeProvider)
 {
     private readonly System.Threading.Lock gate = new();
     private readonly Dictionary<LiveImuLocation, ImuRecord> latestImuReadings = [];
@@ -49,7 +49,7 @@ public sealed class LiveDaqSessionState
     {
         lock (gate)
         {
-            lastFrameReceivedUtc = DateTimeOffset.UtcNow;
+            lastFrameReceivedUtc = timeProvider.GetUtcNow();
 
             switch (frame)
             {
@@ -76,7 +76,7 @@ public sealed class LiveDaqSessionState
     {
         lock (gate)
         {
-            var now = DateTimeOffset.UtcNow;
+            var now = timeProvider.GetUtcNow();
             var session = CreateSessionSnapshot();
             return new LiveDaqUiSnapshot(
                 ConnectionState: connectionState,

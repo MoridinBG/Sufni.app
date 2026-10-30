@@ -40,7 +40,7 @@ Video playback is a capability. `AppCapabilities.CanPlayVideo` is true on Window
 
 `SessionVideoStore` holds a `SessionVideoSnapshot` per clip. The snapshot records `FileExists` when it is created, and a refresh checks the file again. `AppDataRefresher` refreshes the store with the other core stores.
 
-`VideoCoordinator` owns the write workflows:
+`VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 
 - `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links it, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, or `Failed(message)`.
 - `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns false when the clip no longer exists.

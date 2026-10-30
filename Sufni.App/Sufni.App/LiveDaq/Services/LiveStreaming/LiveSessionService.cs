@@ -22,7 +22,8 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 internal sealed class LiveSessionServiceFactory(
     ISessionPresentationService sessionPresentationService,
     IBackgroundTaskRunner backgroundTaskRunner,
-    LiveSignalPipelineFactory liveSignalPipelineFactory) : ILiveSessionServiceFactory
+    LiveSignalPipelineFactory liveSignalPipelineFactory,
+    TimeProvider timeProvider) : ILiveSessionServiceFactory
 {
     public ILiveSessionService Create(LiveDaqSessionContext context, ILiveDaqSharedStream sharedStream)
     {
@@ -31,7 +32,8 @@ internal sealed class LiveSessionServiceFactory(
             sharedStream,
             sessionPresentationService,
             backgroundTaskRunner,
-            liveSignalPipelineFactory.Create());
+            liveSignalPipelineFactory.Create(),
+            timeProvider);
     }
 }
 
@@ -78,6 +80,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ILiveSignalPipeline signalPipeline;
+    private readonly TimeProvider timeProvider;
     private readonly LiveImuDisplaySignalProcessor imuDisplaySignalProcessor = new();
     private readonly System.Threading.Lock gate = new();
     private readonly System.Threading.Lock displayQueueGate = new();
@@ -137,13 +140,15 @@ internal sealed class LiveSessionService : ILiveSessionService
         ILiveDaqSharedStream sharedStream,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ILiveSignalPipeline signalPipeline)
+        ILiveSignalPipeline signalPipeline,
+        TimeProvider timeProvider)
     {
         this.context = context;
         this.sharedStream = sharedStream;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.signalPipeline = signalPipeline;
+        this.timeProvider = timeProvider;
         frontTravelBuilder = new FixedRateSegmentBuilder<ushort>(
             SstV5ProtocolConstants.StreamTravel,
             (byte)SstV5ProtocolConstants.SensorForkTravel,
@@ -423,7 +428,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             lastError = state.LastError;
             if (GetPressureDropTotal(state.ClientDropCounters) > GetPressureDropTotal(sharedClientDropCounters))
             {
-                lastClientPressureUtc = DateTimeOffset.UtcNow;
+                lastClientPressureUtc = timeProvider.GetUtcNow();
             }
 
             sharedClientDropCounters = state.ClientDropCounters;
@@ -947,7 +952,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         {
             lock (gate)
             {
-                lastClientPressureUtc = DateTimeOffset.UtcNow;
+                lastClientPressureUtc = timeProvider.GetUtcNow();
             }
         }
 
@@ -1025,7 +1030,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 return;
             }
 
-            if (IsAnalysisPressureQuietPeriodActiveLocked(DateTimeOffset.UtcNow))
+            if (IsAnalysisPressureQuietPeriodActiveLocked(timeProvider.GetUtcNow()))
             {
                 return;
             }
@@ -1054,7 +1059,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                     return;
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = timeProvider.GetUtcNow();
                 delay = nextAnalysisRunAt > now ? nextAnalysisRunAt - now : TimeSpan.Zero;
             }
 
@@ -1062,7 +1067,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 try
                 {
-                    await Task.Delay(delay, cancellationToken);
+                    await Task.Delay(delay, timeProvider, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -1079,7 +1084,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 revision = queuedAnalysisRevision;
                 capture = CreateCaptureSnapshotLocked();
-                nextAnalysisRunAt = DateTimeOffset.UtcNow.AddMilliseconds(PlotSettings.LiveAnalysisRefreshIntervalMs);
+                nextAnalysisRunAt = timeProvider.GetUtcNow().AddMilliseconds(PlotSettings.LiveAnalysisRefreshIntervalMs);
             }
 
             try

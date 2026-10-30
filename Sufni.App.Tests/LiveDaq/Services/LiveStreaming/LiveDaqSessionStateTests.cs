@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using Sufni.Telemetry;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 
@@ -8,7 +9,8 @@ public class LiveDaqSessionStateTests
     [Fact]
     public void CreateSnapshot_ProjectsAcceptedSessionAndLatestSensorValues()
     {
-        var state = new LiveDaqSessionState();
+        var time = new FakeTimeProvider();
+        var state = new LiveDaqSessionState(time);
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 700);
 
         state.ApplySharedSessionState(sessionHeader);
@@ -64,7 +66,8 @@ public class LiveDaqSessionStateTests
     [Fact]
     public void CreateSnapshot_HidesInactiveTravelChannel_WhenOnlyOneTravelSensorStarted()
     {
-        var state = new LiveDaqSessionState();
+        var time = new FakeTimeProvider();
+        var state = new LiveDaqSessionState(time);
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
             sessionId: 702,
             requestedSensorMask: LiveSensorInstanceMask.Travel,
@@ -88,7 +91,8 @@ public class LiveDaqSessionStateTests
     [Fact]
     public void CreateSnapshot_TravelSampleDelay_IsNull_UntilTravelBatchArrives()
     {
-        var state = new LiveDaqSessionState();
+        var time = new FakeTimeProvider();
+        var state = new LiveDaqSessionState(time);
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 800);
         state.ApplySharedSessionState(sessionHeader);
 
@@ -114,16 +118,16 @@ public class LiveDaqSessionStateTests
             new LiveBatchHeader(800, 0, 20, 123456789, 1),
             [new LiveTravelRecord(100, 200)]));
 
+        time.Advance(TimeSpan.FromMilliseconds(750));
         var snapshotWithTravel = state.CreateSnapshot(LiveConnectionState.Connected, null);
-        Assert.NotNull(snapshotWithTravel.Travel.SampleDelay);
-        Assert.True(snapshotWithTravel.Travel.SampleDelay >= TimeSpan.Zero);
-        Assert.True(snapshotWithTravel.Travel.SampleDelay < TimeSpan.FromSeconds(5));
+        Assert.Equal(TimeSpan.FromMilliseconds(750), snapshotWithTravel.Travel.SampleDelay);
     }
 
     [Fact]
     public void CreateSnapshot_ImuSampleDelay_IsNull_UntilImuBatchArrives()
     {
-        var state = new LiveDaqSessionState();
+        var time = new FakeTimeProvider();
+        var state = new LiveDaqSessionState(time);
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 801);
         state.ApplySharedSessionState(sessionHeader);
 
@@ -143,19 +147,16 @@ public class LiveDaqSessionStateTests
                 new ImuRecord(7, 8, 9, 10, 11, 12)
             ]));
 
+        time.Advance(TimeSpan.FromMilliseconds(250));
         var snapshotWithImu = state.CreateSnapshot(LiveConnectionState.Connected, null);
-        Assert.All(snapshotWithImu.Imus, imu =>
-        {
-            Assert.NotNull(imu.SampleDelay);
-            Assert.True(imu.SampleDelay >= TimeSpan.Zero);
-            Assert.True(imu.SampleDelay < TimeSpan.FromSeconds(5));
-        });
+        Assert.All(snapshotWithImu.Imus, imu => Assert.Equal(TimeSpan.FromMilliseconds(250), imu.SampleDelay));
     }
 
     [Fact]
     public void CreateSnapshot_FormatsDecimalRates()
     {
-        var state = new LiveDaqSessionState();
+        var time = new FakeTimeProvider();
+        var state = new LiveDaqSessionState(time);
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
             sessionId: 802,
             acceptedTravelRateMhz: 123_450,
@@ -174,7 +175,8 @@ public class LiveDaqSessionStateTests
     [Fact]
     public void Reset_ClearsAcceptedSessionAndLatestData()
     {
-        var state = new LiveDaqSessionState();
+        var time = new FakeTimeProvider();
+        var state = new LiveDaqSessionState(time);
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 701);
         state.ApplySharedSessionState(sessionHeader);
         state.ApplyFrame(new LiveTravelBatchFrame(

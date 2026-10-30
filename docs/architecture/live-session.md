@@ -104,7 +104,7 @@ The live-session service holds a configuration lock on the shared stream for the
 
 ## Capture Service
 
-`ILiveSessionService` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/ILiveSessionService.cs`) is the per-tab recording surface. `LiveSessionServiceFactory` (`ILiveSessionServiceFactory`) builds one instance per `LiveDaqCoordinator.OpenSessionAsync` call, giving it a `LiveDaqSessionContext` (identity, bike data, calibration), the per-identity `ILiveDaqSharedStream`, the shared `ISessionPresentationService`, an `IBackgroundTaskRunner`, and a freshly built `ILiveSignalPipeline`. The implementation in `LiveSessionService` runs three coordinated activities behind one lock plus a separate display-queue lock.
+`ILiveSessionService` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/ILiveSessionService.cs`) is the per-tab recording surface. `LiveSessionServiceFactory` (`ILiveSessionServiceFactory`) builds one instance per `LiveDaqCoordinator.OpenSessionAsync` call, giving it a `LiveDaqSessionContext` (identity, bike data, calibration), the per-identity `ILiveDaqSharedStream`, the shared `ISessionPresentationService`, an `IBackgroundTaskRunner`, a freshly built `ILiveSignalPipeline`, and an injected `TimeProvider` for analysis cadence and pressure quiet periods. The implementation in `LiveSessionService` runs three coordinated activities behind one lock plus a separate display-queue lock.
 
 ### Lifecycle and Attachment
 
