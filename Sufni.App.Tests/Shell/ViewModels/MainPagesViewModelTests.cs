@@ -338,7 +338,9 @@ public class MainPagesViewModelTests
             pairingClientCoordinator: null,
             synchronizationServerService: server,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero);
+            inboundActivityIdleGrace: TimeSpan.Zero,
+            uiThreadDispatcher: new InlineUiThreadDispatcher(),
+            timeProvider: new FakeTimeProvider());
 
     private sealed class ConfirmableTabPageViewModel : TabPageViewModelBase
     {

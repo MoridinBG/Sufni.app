@@ -25,11 +25,11 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 
     public PairedDeviceCoordinator(
         IPairedDeviceStoreWriter pairedDeviceStore,
-        ISynchronizationServerService? synchronizationServer = null,
-        IUiThreadDispatcher? uiThreadDispatcher = null)
+        IUiThreadDispatcher uiThreadDispatcher,
+        ISynchronizationServerService? synchronizationServer = null)
     {
         this.pairedDeviceStore = pairedDeviceStore;
-        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+        this.uiThreadDispatcher = uiThreadDispatcher;
 
         if (synchronizationServer is not null)
         {

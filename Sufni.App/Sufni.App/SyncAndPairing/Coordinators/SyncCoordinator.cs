@@ -22,7 +22,7 @@ public class SyncCoordinator : ISyncCoordinator
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly TimeSpan inboundActivityIdleGrace;
     private readonly TimeSpan finalInboundActivityIdleGrace;
-    private readonly Func<TimeSpan, Task> inboundActivityDelayAsync;
+    private readonly TimeProvider timeProvider;
 
     private bool isRunning;
     private bool outboundSyncRunning;
@@ -65,23 +65,23 @@ public class SyncCoordinator : ISyncCoordinator
 
     public SyncCoordinator(
         IAppDataRefresher appDataRefresher,
+        IBackgroundTaskRunner backgroundTaskRunner,
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider,
         ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null,
         ISynchronizationServerService? synchronizationServerService = null,
-        IBackgroundTaskRunner? backgroundTaskRunner = null,
         TimeSpan? inboundActivityIdleGrace = null,
-        TimeSpan? finalInboundActivityIdleGrace = null,
-        IUiThreadDispatcher? uiThreadDispatcher = null,
-        Func<TimeSpan, Task>? inboundActivityDelayAsync = null)
+        TimeSpan? finalInboundActivityIdleGrace = null)
     {
         this.appDataRefresher = appDataRefresher;
         this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
-        this.backgroundTaskRunner = backgroundTaskRunner ?? new BackgroundTaskRunner();
-        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.uiThreadDispatcher = uiThreadDispatcher;
         this.inboundActivityIdleGrace = inboundActivityIdleGrace ?? DefaultInboundActivityIdleGrace;
         this.finalInboundActivityIdleGrace = finalInboundActivityIdleGrace ?? FinalInboundActivityIdleGrace;
-        this.inboundActivityDelayAsync = inboundActivityDelayAsync ?? Task.Delay;
+        this.timeProvider = timeProvider;
 
         if (pairingClientCoordinator is not null)
         {
@@ -255,7 +255,7 @@ public class SyncCoordinator : ISyncCoordinator
 
     private async Task ClearInboundActivityAfterDelayAsync(int generation, TimeSpan idleGrace)
     {
-        await inboundActivityDelayAsync(idleGrace);
+        await Task.Delay(idleGrace, timeProvider);
         await uiThreadDispatcher.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
     }
 

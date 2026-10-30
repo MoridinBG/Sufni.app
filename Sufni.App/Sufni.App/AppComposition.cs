@@ -207,6 +207,7 @@ public static class AppComposition
             services.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
+                sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<ISynchronizationServerService>()));
         }
         services.AddSingleton<ISessionCoordinator, SessionCoordinator>();

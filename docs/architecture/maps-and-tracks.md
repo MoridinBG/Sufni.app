@@ -71,7 +71,7 @@ Both factories return `null` for an empty result so the caller does not write a 
 
 ## Tile Layer Service
 
-`ITileLayerService` (`Sufni.App/Sufni.App/MapsAndTracks/Services/ITileLayerService.cs`) and `TileLayerService` (`Sufni.App/Sufni.App/MapsAndTracks/Services/TileLayerService.cs`) own the tile-provider catalog. Registered as a singleton; `MapViewModel` (supplied by `MapViewModelFactory`) is the only consumer. The service exposes:
+`ITileLayerService` (`Sufni.App/Sufni.App/MapsAndTracks/Services/ITileLayerService.cs`) and `TileLayerService` (`Sufni.App/Sufni.App/MapsAndTracks/Services/TileLayerService.cs`) own the tile-provider catalog. Its required `IUiThreadDispatcher` marshals synced preference changes before updating bound collections. Registered as a singleton; `MapViewModel` (supplied by `MapViewModelFactory`) is the only consumer. The service exposes:
 
 - `AvailableLayers` — an `ObservableCollection<TileLayerConfig>` that the map control's selector binds to.
 - `SelectedLayer` — the current read-only selection.

@@ -37,14 +37,14 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         ISetupStoreWriter setupStoreWriter,
         ISessionSegmentStoreWriter segmentStoreWriter,
         ISynchronizationServerService synchronizationServer,
-        IUiThreadDispatcher? uiThreadDispatcher = null)
+        IUiThreadDispatcher uiThreadDispatcher)
     {
         this.bikeRepository = bikeRepository;
         this.setupRepository = setupRepository;
         this.bikeStoreWriter = bikeStoreWriter;
         this.setupStoreWriter = setupStoreWriter;
         this.segmentStoreWriter = segmentStoreWriter;
-        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+        this.uiThreadDispatcher = uiThreadDispatcher;
 
         synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
     }

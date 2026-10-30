@@ -1,5 +1,4 @@
-using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
+using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -10,13 +9,12 @@ using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Shared.Stores;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
-[Collection("Ui")]
 public class PairedDeviceCoordinatorTests
 {
     private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
 
     private PairedDeviceCoordinator CreateCoordinator(ISynchronizationServerService? server = null) =>
-        new(pairedDeviceStore, server);
+        new(pairedDeviceStore, new InlineUiThreadDispatcher(), server);
 
     public PairedDeviceCoordinatorTests()
     {
@@ -66,7 +64,7 @@ public class PairedDeviceCoordinatorTests
 
     // ----- Server event subscriptions -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task PairingConfirmed_UpsertsSnapshotOntoStore()
     {
         var server = Substitute.For<ISynchronizationServerService>();
@@ -75,14 +73,13 @@ public class PairedDeviceCoordinatorTests
         var device = new PairedDevice("device-xyz", "My Phone", new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc));
         server.PairingConfirmed += Raise.EventWith(server, new PairingEventArgs(device));
 
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         await pairedDeviceStore.Received(1).PublishPairedDevicesChangedAsync(
             Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 1 && ids.Contains("device-xyz")),
             Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Unpaired_RemovesDeviceFromStore()
     {
         var server = Substitute.For<ISynchronizationServerService>();
@@ -91,7 +88,6 @@ public class PairedDeviceCoordinatorTests
         var device = new PairedDevice("device-xyz", "My Phone", DateTime.UtcNow);
         server.Unpaired += Raise.EventWith(server, new PairingEventArgs(device));
 
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         await pairedDeviceStore.Received(1).PublishPairedDevicesRemovedAsync(
             Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 1 && ids.Contains("device-xyz")),

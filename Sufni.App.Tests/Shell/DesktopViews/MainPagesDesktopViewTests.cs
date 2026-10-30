@@ -283,7 +283,9 @@ public class MainPagesDesktopViewTests
             pairingClientCoordinator: null,
             synchronizationServerService: server,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero);
+            inboundActivityIdleGrace: TimeSpan.Zero,
+            uiThreadDispatcher: new InlineUiThreadDispatcher(),
+            timeProvider: new FakeTimeProvider());
 }
 
 internal sealed class MountedMainPagesDesktopView(Window host, MainPagesDesktopView view) : IAsyncDisposable

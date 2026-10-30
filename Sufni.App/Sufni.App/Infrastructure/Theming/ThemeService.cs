@@ -14,10 +14,10 @@ public sealed class ThemeService : IThemeService, IDisposable
     private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly IDisposable? themePreferenceSubscription;
 
-    public ThemeService(IAppPreferences appPreferences, IUiThreadDispatcher? uiThreadDispatcher = null)
+    public ThemeService(IAppPreferences appPreferences, IUiThreadDispatcher uiThreadDispatcher)
     {
         themePreferences = appPreferences.Theme;
-        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+        this.uiThreadDispatcher = uiThreadDispatcher;
         IsSystemThemeAvailable = ResolveSystemThemeAvailable();
         Mode = NormalizeMode(ResolveModeFromApplication(IsSystemThemeAvailable));
 

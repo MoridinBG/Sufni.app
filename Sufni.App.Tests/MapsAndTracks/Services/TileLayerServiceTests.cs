@@ -1,14 +1,12 @@
+using Sufni.App.Tests.TestSupport.Async;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
-using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 namespace Sufni.App.Tests.MapsAndTracks.Services;
 
-[Collection("Ui")]
 public class TileLayerServiceTests
 {
     [Fact]
@@ -17,7 +15,7 @@ public class TileLayerServiceTests
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var preferences = TestAppPreferences.Load(preferencesPath);
-        using var service = new TileLayerService(preferences);
+        using var service = new TileLayerService(preferences, new InlineUiThreadDispatcher());
         await service.InitializeAsync();
 
         TileLayerConfig? observed = null;
@@ -33,7 +31,7 @@ public class TileLayerServiceTests
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var preferences = TestAppPreferences.Load(preferencesPath);
-        using var service = new TileLayerService(preferences);
+        using var service = new TileLayerService(preferences, new InlineUiThreadDispatcher());
 
         var emissions = 0;
         using var subscription = service.SelectedLayerChanges.Subscribe(_ => emissions++);
@@ -48,8 +46,8 @@ public class TileLayerServiceTests
         var preferencesPathA = Path.Combine(tempDirectoryA.Path, "app-preferences.json");
         using var tempDirectoryB = new TempDirectory("sufni-tilelayer-test");
         var preferencesPathB = Path.Combine(tempDirectoryB.Path, "app-preferences.json");
-        using var serviceA = new TileLayerService(TestAppPreferences.Load(preferencesPathA));
-        using var serviceB = new TileLayerService(TestAppPreferences.Load(preferencesPathB));
+        using var serviceA = new TileLayerService(TestAppPreferences.Load(preferencesPathA), new InlineUiThreadDispatcher());
+        using var serviceB = new TileLayerService(TestAppPreferences.Load(preferencesPathB), new InlineUiThreadDispatcher());
         await serviceA.InitializeAsync();
         await serviceB.InitializeAsync();
 
@@ -66,7 +64,7 @@ public class TileLayerServiceTests
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var preferences = TestAppPreferences.Load(preferencesPath);
-        using var service = new TileLayerService(preferences);
+        using var service = new TileLayerService(preferences, new InlineUiThreadDispatcher());
         await service.InitializeAsync();
 
         var observed = new List<TileLayerConfig>();
@@ -82,13 +80,13 @@ public class TileLayerServiceTests
         Assert.Equal([initial, other, initial], observed);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ApplySyncDataAsync_RefreshesAvailableLayersAndSelectedLayer()
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var preferences = TestAppPreferences.Load(preferencesPath);
-        using var service = new TileLayerService(preferences);
+        using var service = new TileLayerService(preferences, new InlineUiThreadDispatcher());
         await service.InitializeAsync();
 
         var initial = service.SelectedLayer;
@@ -126,13 +124,13 @@ public class TileLayerServiceTests
         Assert.Contains(service.AvailableLayers, l => l.Id == syncedLayer.Id);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ApplySyncDataAsync_BeforeInitialize_DoesNotRefresh()
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var preferences = TestAppPreferences.Load(preferencesPath);
-        using var service = new TileLayerService(preferences);
+        using var service = new TileLayerService(preferences, new InlineUiThreadDispatcher());
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
@@ -144,7 +142,6 @@ public class TileLayerServiceTests
             },
         });
 
-        await Dispatcher.UIThread.InvokeAsync(() => { });
 
         // Refresh skipped: no init has happened, so AvailableLayers
         // remains empty and InitializeAsync still reads fresh state.

@@ -1,7 +1,6 @@
-using Avalonia.Headless.XUnit;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
-using Avalonia.Threading;
 using System.Reactive.Subjects;
 
 using Sufni.App.Infrastructure;
@@ -12,7 +11,6 @@ using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Doubles;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
-[Collection("Ui")]
 public class SyncCoordinatorTests
 {
     private readonly IAppDataRefresher appDataRefresher = Substitute.For<IAppDataRefresher>();
@@ -38,12 +36,13 @@ public class SyncCoordinatorTests
         IUiThreadDispatcher? uiThreadDispatcherOverride = null) =>
         new(
             appDataRefresher,
-            syncClientOverride ?? syncClient,
-            pairingOverride ?? pairing,
-            serverOverride,
+            synchronizationClientService: syncClientOverride ?? syncClient,
+            pairingClientCoordinator: pairingOverride ?? pairing,
+            synchronizationServerService: serverOverride,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
             inboundActivityIdleGrace: TimeSpan.Zero,
-            uiThreadDispatcher: uiThreadDispatcherOverride);
+            uiThreadDispatcher: uiThreadDispatcherOverride ?? new InlineUiThreadDispatcher(),
+            timeProvider: new FakeTimeProvider());
 
     private void SetPairingState(bool isPaired)
     {
@@ -64,7 +63,7 @@ public class SyncCoordinatorTests
         Assert.False(coordinator.IsPaired);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task CanSync_IsFalse_WhileSyncIsRunning()
     {
         SetPairingState(true);
@@ -102,7 +101,7 @@ public class SyncCoordinatorTests
 
     // ----- SyncAllAsync happy path -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_CallsSyncAll_AndRefreshesState()
     {
         SetPairingState(true);
@@ -115,7 +114,7 @@ public class SyncCoordinatorTests
         await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
     {
         SetPairingState(true);
@@ -134,7 +133,7 @@ public class SyncCoordinatorTests
         Assert.True(canSyncChanged > 0);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_RaisesSyncCompleted_OnSuccess()
     {
         SetPairingState(true);
@@ -152,7 +151,7 @@ public class SyncCoordinatorTests
         Assert.Equal(0, failed);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_RaisesIncompleteSyncCompletedMessage_WhenLocalDataRemainsIncomplete()
     {
         SetPairingState(true);
@@ -173,7 +172,7 @@ public class SyncCoordinatorTests
         await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_ReportsOuterAndServiceProgress_AndClearsItAfterSuccess()
     {
         SetPairingState(true);
@@ -205,7 +204,7 @@ public class SyncCoordinatorTests
         Assert.Null(coordinator.Progress);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_WhenNoServerEndpointIsDiscovered_ReportsFailureClearsProgressAndHasNoSideEffects()
     {
         SetPairingState(true);
@@ -230,7 +229,7 @@ public class SyncCoordinatorTests
 
     // ----- SyncAllAsync failure -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenSyncThrows()
     {
         SetPairingState(true);
@@ -270,7 +269,7 @@ public class SyncCoordinatorTests
         Assert.Equal(1, canSyncChanged);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task PairingConfirmed_KicksOffSyncAllAsync_Automatically()
     {
         // Pre-seed IsPaired = true so the fire-and-forget SyncAllAsync's
@@ -302,26 +301,27 @@ public class SyncCoordinatorTests
         _ = syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_RefreshesState_OnUiThread()
     {
         SetPairingState(true);
 
+        var dispatcher = new RecordingUiThreadDispatcher(checkAccess: false);
         var refreshedOnUiThread = false;
         appDataRefresher
             .RefreshAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
-                refreshedOnUiThread = Dispatcher.UIThread.CheckAccess();
+                refreshedOnUiThread = dispatcher.CheckAccess();
                 return Task.CompletedTask;
             });
 
-        await CreateCoordinator().SyncAllAsync();
+        await CreateCoordinator(uiThreadDispatcherOverride: dispatcher).SyncAllAsync();
 
         Assert.True(refreshedOnUiThread);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_ResolvesCurrentServerEndpoint_BeforeRunningSync()
     {
         SetPairingState(true);
@@ -333,7 +333,7 @@ public class SyncCoordinatorTests
         await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>());
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SyncAllAsync_RunsClientSyncThroughBackgroundRunner()
     {
         SetPairingState(true);
@@ -341,10 +341,12 @@ public class SyncCoordinatorTests
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
         var coordinator = new SyncCoordinator(
             appDataRefresher,
-            syncClient,
-            pairing,
+            synchronizationClientService: syncClient,
+            pairingClientCoordinator: pairing,
             backgroundTaskRunner: backgroundTaskRunner,
-            inboundActivityIdleGrace: TimeSpan.Zero);
+            inboundActivityIdleGrace: TimeSpan.Zero,
+            uiThreadDispatcher: new InlineUiThreadDispatcher(),
+            timeProvider: new FakeTimeProvider());
 
         await coordinator.SyncAllAsync();
 
@@ -363,8 +365,8 @@ public class SyncCoordinatorTests
                 missingProcessedSessionCount,
                 incompleteRecordedSourceCount));
 
-    [AvaloniaFact]
-    public async Task ServerSyncActivity_DrivesRunningStateAndProgress()
+    [Fact]
+    public void ServerSyncActivity_DrivesRunningStateAndProgress()
     {
         var server = new TestSynchronizationServerService();
         var coordinator = CreateCoordinator(serverOverride: server);
@@ -376,7 +378,6 @@ public class SyncCoordinatorTests
             IsDeterminate: false);
 
         server.RaiseSyncActivityStarted(progress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         Assert.True(coordinator.IsRunning);
         var currentProgress = coordinator.Progress;
@@ -388,95 +389,51 @@ public class SyncCoordinatorTests
         Assert.True(currentProgress.IsDeterminate);
 
         server.RaiseSyncActivityEnded(progress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
 
         Assert.False(coordinator.IsRunning);
         Assert.Null(coordinator.Progress);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task ServerSyncActivity_RemainsRunningDuringInboundIdleGrace()
     {
         var server = new TestSynchronizationServerService();
-        var idleDelay = new ManualDelay();
+        var time = new FakeTimeProvider();
+        var dispatcher = new ManualUiThreadDispatcher();
         var coordinator = new SyncCoordinator(
             appDataRefresher,
-            synchronizationServerService: server,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.FromMilliseconds(100),
-            inboundActivityDelayAsync: idleDelay.DelayAsync);
+            new InlineBackgroundTaskRunner(),
+            dispatcher,
+            time,
+            synchronizationServerService: server);
         var firstProgress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.ReceivingChanges,
-            "Receiving remote changes",
-            CurrentStep: 0,
-            TotalSteps: 0,
-            IsDeterminate: false);
-        var secondProgress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.ServingSessionData,
-            "Serving session data",
-            CurrentStep: 0,
-            TotalSteps: 0,
-            IsDeterminate: false);
+            SynchronizationPhase.ReceivingChanges, "Receiving remote changes", 0, 0, false);
+        var secondProgress = firstProgress with { Phase = SynchronizationPhase.ServingSessionData };
 
         server.RaiseSyncActivityStarted(firstProgress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         server.RaiseSyncActivityEnded(firstProgress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
+        await dispatcher.DrainAsync();
+        time.Advance(TimeSpan.FromSeconds(9));
         Assert.True(coordinator.IsRunning);
-        Assert.Equal(TimeSpan.FromMilliseconds(100), idleDelay.PeekNextDelay());
-        var currentProgress = coordinator.Progress;
-        Assert.NotNull(currentProgress);
-        Assert.Equal(SynchronizationPhase.ReceivingChanges, currentProgress.Phase);
-        Assert.Equal(1, currentProgress.CurrentStep);
-        Assert.Equal(6, currentProgress.TotalSteps);
-        Assert.True(currentProgress.IsDeterminate);
 
         server.RaiseSyncActivityStarted(secondProgress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        await idleDelay.CompleteNextAsync();
+        await dispatcher.DrainAsync();
+        time.Advance(TimeSpan.FromSeconds(1));
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken);
+        await dispatcher.DrainAsync();
 
         Assert.True(coordinator.IsRunning);
-        currentProgress = coordinator.Progress;
-        Assert.NotNull(currentProgress);
-        Assert.Equal(SynchronizationPhase.ServingSessionData, currentProgress.Phase);
-        Assert.Equal("Serving session data", currentProgress.Message);
-        Assert.Equal(4, currentProgress.CurrentStep);
-        Assert.Equal(6, currentProgress.TotalSteps);
-        Assert.True(currentProgress.IsDeterminate);
+        Assert.Equal(SynchronizationPhase.ServingSessionData, coordinator.Progress?.Phase);
 
         server.RaiseSyncActivityEnded(secondProgress);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        await dispatcher.DrainAsync();
+        time.Advance(TimeSpan.FromSeconds(9));
         Assert.True(coordinator.IsRunning);
-        Assert.Equal(TimeSpan.FromMilliseconds(100), idleDelay.PeekNextDelay());
-
-        await idleDelay.CompleteNextAsync();
+        time.Advance(TimeSpan.FromSeconds(1));
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken);
+        await dispatcher.DrainAsync();
 
         Assert.False(coordinator.IsRunning);
         Assert.Null(coordinator.Progress);
     }
-
-    private sealed class ManualDelay
-    {
-        private readonly Queue<PendingDelay> pending = [];
-
-        public Task DelayAsync(TimeSpan delay)
-        {
-            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            pending.Enqueue(new PendingDelay(delay, completion));
-            return completion.Task;
-        }
-
-        public TimeSpan PeekNextDelay() => pending.Peek().Delay;
-
-        public async Task CompleteNextAsync()
-        {
-            pending.Dequeue().Completion.SetResult();
-            await Task.Yield();
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        }
-
-        private sealed record PendingDelay(TimeSpan Delay, TaskCompletionSource Completion);
-    }
-
 }

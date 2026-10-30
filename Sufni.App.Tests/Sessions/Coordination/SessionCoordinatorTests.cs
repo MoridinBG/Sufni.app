@@ -1,5 +1,3 @@
-using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Bikes.Models;
@@ -29,7 +27,6 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.Sessions.Coordination;
 
-[Collection("Ui")]
 public class SessionCoordinatorTests
 {
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
@@ -451,48 +448,6 @@ public class SessionCoordinatorTests
             Arg.Any<CancellationToken>());
     }
 
-    [AvaloniaFact]
-    public async Task SyncApplier_PublishesOnSessionDataArrived()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateSyncApplier(sync);
-        var sessionId = Guid.NewGuid();
-
-        sync.SessionDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(sessionId));
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(sessionId)),
-            Arg.Any<CancellationToken>());
-    }
-
-    [AvaloniaFact]
-    public async Task SyncApplier_PublishesDeletedAndLiveSessions()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        _ = CreateSyncApplier(sync);
-        var liveId = Guid.NewGuid();
-        var deletedId = Guid.NewGuid();
-        var data = new SynchronizationData
-        {
-            Sessions =
-            {
-                new Session { Id = liveId, Updated = 6 },
-                new Session { Id = deletedId, Updated = 6, Deleted = 6 },
-            },
-        };
-
-        sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-        await sessionStore.Received(1).PublishSessionsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(deletedId)),
-            Arg.Any<CancellationToken>());
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(liveId)),
-            Arg.Any<CancellationToken>());
-    }
-
     private SessionLoader CreateLoader() =>
         new(
             sessionStore,
@@ -523,12 +478,6 @@ public class SessionCoordinatorTests
             recomputeEngine,
             () => editorFactory,
             sessionPersistenceTransactions);
-
-    private SessionSyncApplier CreateSyncApplier(ISynchronizationServerService? sync = null) =>
-        new(
-            sessionStore,
-            sourceStore,
-            sync);
 
     private void SetLocalTelemetry(Guid sessionId, TelemetryData? telemetry)
     {

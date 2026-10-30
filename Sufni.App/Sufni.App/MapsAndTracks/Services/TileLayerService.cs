@@ -44,10 +44,10 @@ public class TileLayerService : ITileLayerService, IDisposable
         await mapPreferences.SetSelectedLayerIdAsync(config.Id);
     }
 
-    public TileLayerService(IAppPreferences appPreferences, IUiThreadDispatcher? uiThreadDispatcher = null)
+    public TileLayerService(IAppPreferences appPreferences, IUiThreadDispatcher uiThreadDispatcher)
     {
         mapPreferences = appPreferences.Map;
-        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
+        this.uiThreadDispatcher = uiThreadDispatcher;
 
         // Preference changes fire on whichever thread happens to be awaiting
         // ApplySyncDataAsync. Marshal sync refreshes onto the UI thread because

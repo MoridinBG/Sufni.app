@@ -134,7 +134,9 @@ public class MainViewTests
             pairingClientCoordinator: null,
             synchronizationServerService: server,
             backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero);
+            inboundActivityIdleGrace: TimeSpan.Zero,
+            uiThreadDispatcher: new InlineUiThreadDispatcher(),
+            timeProvider: new FakeTimeProvider());
 }
 
 internal sealed class MountedMainView(Window host, MainView view) : IAsyncDisposable

@@ -32,7 +32,7 @@ public class PairedDeviceListViewModelTests
         storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId)
             .Returns(_ => CompleteUnpairAsync());
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter);
+        var coordinator = new PairedDeviceCoordinator(storeWriter, new InlineUiThreadDispatcher());
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
@@ -111,7 +111,7 @@ public class PairedDeviceListViewModelTests
             .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
                 new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter);
+        var coordinator = new PairedDeviceCoordinator(storeWriter, new InlineUiThreadDispatcher());
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, coordinator, UiThreadDispatcher, backgroundTaskRunner: new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);

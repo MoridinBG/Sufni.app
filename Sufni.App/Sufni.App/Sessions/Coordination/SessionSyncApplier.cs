@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
@@ -12,16 +13,19 @@ public sealed class SessionSyncApplier
 {
     private static readonly ILogger logger = Log.ForContext<SessionSyncApplier>();
 
+    private readonly IUiThreadDispatcher uiThreadDispatcher;
     private readonly ISessionStoreWriter sessionStore;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
 
     public SessionSyncApplier(
         ISessionStoreWriter sessionStore,
         IRecordedSessionSourceStoreWriter sourceStore,
+        IUiThreadDispatcher uiThreadDispatcher,
         ISynchronizationServerService? synchronizationServer = null)
     {
         this.sessionStore = sessionStore;
         this.sourceStore = sourceStore;
+        this.uiThreadDispatcher = uiThreadDispatcher;
 
         if (synchronizationServer is not null)
         {
@@ -35,7 +39,7 @@ public sealed class SessionSyncApplier
     {
         try
         {
-            await HandleSynchronizationDataArrivedAsync(e);
+            await uiThreadDispatcher.InvokeAsync(() => HandleSynchronizationDataArrivedAsync(e));
         }
         catch (Exception exception)
         {
@@ -79,7 +83,7 @@ public sealed class SessionSyncApplier
     {
         try
         {
-            await HandleSessionDataArrivedAsync(e);
+            await uiThreadDispatcher.InvokeAsync(() => HandleSessionDataArrivedAsync(e));
         }
         catch (Exception exception)
         {
@@ -98,7 +102,7 @@ public sealed class SessionSyncApplier
     {
         try
         {
-            await HandleSessionSourceDataArrivedAsync(e);
+            await uiThreadDispatcher.InvokeAsync(() => HandleSessionSourceDataArrivedAsync(e));
         }
         catch (Exception exception)
         {

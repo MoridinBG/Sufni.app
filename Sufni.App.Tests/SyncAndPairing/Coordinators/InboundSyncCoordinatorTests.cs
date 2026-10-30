@@ -1,5 +1,4 @@
-using Avalonia.Headless.XUnit;
-using Avalonia.Threading;
+using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 
 using Sufni.App.Bikes.Models;
@@ -13,7 +12,6 @@ using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
-[Collection("Ui")]
 public class InboundSyncCoordinatorTests
 {
     private readonly ISynchronizableRepository<Bike> bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
@@ -24,14 +22,11 @@ public class InboundSyncCoordinatorTests
     private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
 
     private InboundSyncCoordinator CreateCoordinator() =>
-        new(bikeRepository, setupRepository, bikeStore, setupStore, segmentStore, server);
-
-    private static async Task DrainDispatcherAsync() =>
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        new(bikeRepository, setupRepository, bikeStore, setupStore, segmentStore, server, new InlineUiThreadDispatcher());
 
     // ----- Bikes -----
 
-    [AvaloniaTheory]
+    [Theory]
     [InlineData(false, true, false)]
     [InlineData(true, false, true)]
     [InlineData(true, true, false)]
@@ -52,7 +47,6 @@ public class InboundSyncCoordinatorTests
         var data = new SynchronizationData { Bikes = { incoming } };
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
 
         if (expectRemoved)
         {
@@ -70,7 +64,7 @@ public class InboundSyncCoordinatorTests
 
     // ----- Setups -----
 
-    [AvaloniaTheory]
+    [Theory]
     [InlineData(false, true, 8, false)]
     [InlineData(false, true, 3, false)]
     [InlineData(true, false, 0, true)]
@@ -94,7 +88,6 @@ public class InboundSyncCoordinatorTests
         var data = new SynchronizationData { Setups = { incoming } };
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
 
         if (expectRemoved)
         {
@@ -115,7 +108,7 @@ public class InboundSyncCoordinatorTests
 
     // ----- Mixed payload -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SynchronizationDataArrived_MixedPayload_UpdatesBothStores()
     {
         var coordinator = CreateCoordinator();
@@ -130,7 +123,6 @@ public class InboundSyncCoordinatorTests
         };
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
 
         await bikeStore.Received(1).PublishBikesChangedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(bikeId)),
@@ -142,7 +134,7 @@ public class InboundSyncCoordinatorTests
 
     // ----- Segments -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task SynchronizationDataArrived_WithSegments_RefreshesSegmentStore()
     {
         var coordinator = CreateCoordinator();
@@ -152,7 +144,6 @@ public class InboundSyncCoordinatorTests
         };
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await DrainDispatcherAsync();
 
         await segmentStore.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
