@@ -679,7 +679,7 @@ public class SstV5Parser : ISstParser
                 innerException);
 
         private DateTime? StartTime() => SessionStartUtcMs.HasValue
-            ? DateTimeOffset.FromUnixTimeMilliseconds(SessionStartUtcMs.Value).LocalDateTime
+            ? DateTimeOffset.FromUnixTimeMilliseconds(SessionStartUtcMs.Value).UtcDateTime
             : null;
 
         private TimeSpan? Duration() => MaxObservedEndUs == 0
@@ -723,7 +723,7 @@ public class SstV5Parser : ISstParser
                 : MaxObservedEndUs / 1_000_000.0;
             return new ValidSstFileInspection(
                 Version,
-                DateTimeOffset.FromUnixTimeMilliseconds(SessionStartUtcMs!.Value).LocalDateTime,
+                DateTimeOffset.FromUnixTimeMilliseconds(SessionStartUtcMs!.Value).UtcDateTime,
                 TimeSpan.FromSeconds(durationSeconds),
                 checked((ushort)(travelDescriptor.AcceptedRateMhz / 1000)),
                 HasUnknown: false,

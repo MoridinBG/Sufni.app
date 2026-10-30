@@ -22,7 +22,7 @@ public class SstV3Parser : ISstParser
         var sampleRate = cursor.ReadUInt16();
         _ = cursor.ReadUInt16();
         var timestamp = cursor.ReadInt64();
-        var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
+        var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).UtcDateTime;
 
         var payloadLength = bytes.Length - HeaderPayloadSize;
         if (payloadLength % TelemetryRecordSize != 0)

@@ -86,7 +86,7 @@ public class NetworkTelemetryFile : ITelemetryFile
         var effectiveDuration = duration;
         CanImport = canImport;
         ShouldBeImported = false;
-        StartTime = (timestampUtc ?? FallbackStartTimeUtc).LocalDateTime;
+        StartTime = (timestampUtc ?? FallbackStartTimeUtc).UtcDateTime;
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
         MalformedMessage = malformedMessage;
         Name = name;

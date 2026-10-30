@@ -21,6 +21,7 @@ public class TelemetryFileInspectionMappingTests
     {
         var file = await CreateTelemetryFileAsync(sourceKind, payload);
 
+        Assert.Equal(DateTimeKind.Utc, file.StartTime.Kind);
         Assert.False(file.ShouldBeImported);
         switch (payload)
         {

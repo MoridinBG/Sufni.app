@@ -504,8 +504,9 @@ public class SstV5ParserTests
         Assert.NotNull(inspection.MalformedMessage);
         Assert.Equal(TimeSpan.FromSeconds(parsed.RecordingDurationSeconds!.Value), inspection.Duration);
         Assert.Equal(parsed.SampleRate, inspection.TelemetrySampleRate);
+        Assert.Equal(DateTimeKind.Utc, inspection.StartTime.Kind);
         Assert.Equal(
-            DateTimeOffset.FromUnixTimeMilliseconds(parsed.SessionStartUtcMs).LocalDateTime,
+            DateTimeOffset.FromUnixTimeMilliseconds(parsed.SessionStartUtcMs).UtcDateTime,
             inspection.StartTime);
     }
 

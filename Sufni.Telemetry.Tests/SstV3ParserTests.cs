@@ -4,6 +4,26 @@ namespace Sufni.Telemetry.Tests;
 
 public class SstV3ParserTests
 {
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(0)]
+    public void Inspect_PreservesUtcStartTime_ForValidAndMalformedRecordings(ushort sampleRate)
+    {
+        using var stream = SstTestFiles.CreateV3ParserStream(sampleRate: sampleRate, timestamp: 123456789, samples: [(100, 200)]);
+        using var reader = new BinaryReader(stream);
+
+        var inspection = new SstV3Parser().Inspect(reader, 3);
+        var startTime = inspection switch
+        {
+            ValidSstFileInspection valid => valid.StartTime,
+            MalformedSstFileInspection malformed => malformed.StartTime!.Value,
+            _ => throw new InvalidOperationException()
+        };
+
+        Assert.Equal(DateTimeKind.Utc, startTime.Kind);
+        Assert.Equal(new DateTime(1973, 11, 29, 21, 33, 9, DateTimeKind.Utc), startTime);
+    }
+
     [Fact]
     public void Parse_ValidV3File_ReturnsCorrectData()
     {

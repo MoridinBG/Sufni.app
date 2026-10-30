@@ -145,6 +145,8 @@ public class SstV4TlvParserTests
         var result = RawTelemetryData.InspectStream(ms);
 
         var inspection = Assert.IsType<ValidSstFileInspection>(result);
+        Assert.Equal(DateTimeKind.Utc, inspection.StartTime.Kind);
+        Assert.Equal(new DateTime(1973, 11, 29, 21, 33, 9, DateTimeKind.Utc), inspection.StartTime);
         Assert.True(inspection.HasUnknown);
         Assert.Equal(4, inspection.Version);
         Assert.Equal(1000, inspection.TelemetrySampleRate);
@@ -179,6 +181,7 @@ public class SstV4TlvParserTests
         var inspection = Assert.IsType<MalformedSstFileInspection>(result);
         Assert.Equal((byte)4, inspection.Version);
         Assert.NotNull(inspection.StartTime);
+        Assert.Equal(DateTimeKind.Utc, inspection.StartTime.Value.Kind);
         Assert.NotEmpty(inspection.Message);
     }
 

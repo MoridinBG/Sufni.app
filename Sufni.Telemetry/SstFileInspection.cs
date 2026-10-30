@@ -1,5 +1,6 @@
 namespace Sufni.Telemetry;
 
+/// <summary>Recording header metadata; start times are UTC.</summary>
 public abstract record SstFileInspection();
 
 public sealed record ValidSstFileInspection(

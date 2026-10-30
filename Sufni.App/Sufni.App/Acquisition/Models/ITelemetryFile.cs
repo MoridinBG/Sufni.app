@@ -14,6 +14,7 @@ public interface ITelemetryFile
     // user's or auto-selection state for the next import operation.
     public bool? ShouldBeImported { get; set; }
     public string Description { get; set; }
+    /// <summary>The recording start instant in UTC.</summary>
     public DateTime StartTime { get; }
     public string Duration { get; }
     public string? MalformedMessage { get; }

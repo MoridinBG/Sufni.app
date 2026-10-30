@@ -95,10 +95,10 @@ public class StorageProviderTelemetryFile : ITelemetryFile
         var localPath = storageFile.TryGetLocalPath();
         if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
         {
-            return new FileInfo(localPath).LastWriteTime;
+            return new FileInfo(localPath).LastWriteTimeUtc;
         }
 
-        return DateTimeOffset.UnixEpoch.LocalDateTime;
+        return DateTimeOffset.UnixEpoch.UtcDateTime;
     }
 
     private static int GetInitialCapacity(Stream stream)

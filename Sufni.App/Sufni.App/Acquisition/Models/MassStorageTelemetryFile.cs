@@ -25,7 +25,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
         using var stream = File.Open(this.fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
         var inspection = RawTelemetryData.InspectStream(stream);
-        ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, fileInfo.LastWriteTime));
+        ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, fileInfo.LastWriteTimeUtc));
         Name = fileInfo.Name;
         Description = $"Imported from {fileInfo.Name}";
     }

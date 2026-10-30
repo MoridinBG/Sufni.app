@@ -210,7 +210,7 @@ public class SstV4TlvParser : ISstParser
         }
 
         var duration = TimeSpan.FromSeconds((double)telemetrySamples / sampleRate.Value);
-        var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
+        var startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp).UtcDateTime;
         return new ValidSstFileInspection(version, startTime, duration, sampleRate.Value, hasUnknown, malformedMessage);
     }
 
@@ -507,7 +507,7 @@ public class SstV4TlvParser : ISstParser
         DateTime? startTime = null;
         if (timestamp.HasValue)
         {
-            startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).LocalDateTime;
+            startTime = DateTimeOffset.FromUnixTimeSeconds(timestamp.Value).UtcDateTime;
         }
 
         TimeSpan? duration = null;

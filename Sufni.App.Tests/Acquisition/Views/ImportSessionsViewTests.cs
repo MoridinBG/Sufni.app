@@ -95,6 +95,24 @@ public class ImportSessionsViewTests
         Assert.Equal(reason, ToolTip.GetTip(label));
     }
 
+    [AvaloniaFact]
+    public async Task ImportSessionsView_DisplaysRecordingStartInLocalTime()
+    {
+        var harness = new ImportWorkflowHarness();
+        var store = CreateDataStore();
+        var startUtc = new DateTime(2025, 6, 1, 12, 34, 0, DateTimeKind.Utc);
+        var file = CreateTelemetryFile("lap", startTime: startUtc);
+        harness.DataStores.Add(store);
+        harness.TelemetryDataStoreService.LoadFilesAsync(store, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]));
+
+        await using var mounted = await MountAsync(harness.CreateViewModel());
+
+        var timestamp = Assert.Single(mounted.View.GetLogicalDescendants()
+            .OfType<TextBlock>().Where(text => text.Name == "FileStartTimeText"));
+        Assert.Equal(startUtc.ToLocalTime().ToString(" yyyy-MM-dd HH:mm"), timestamp.Text);
+    }
+
     private static async Task<MountedImportSessionsView> MountAsync(object dataContext)
     {
         EnsureImportViewResources();

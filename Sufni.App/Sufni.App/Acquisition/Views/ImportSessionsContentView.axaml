@@ -5,6 +5,7 @@ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+xmlns:sharedConverters="clr-namespace:Sufni.App.Shared.Views.Converters"
 xmlns:converters="clr-namespace:Sufni.App.Acquisition.Views.Converters"
 xmlns:v="clr-namespace:Sufni.App.Shared.Views.Controls"
 xmlns:views="clr-namespace:Sufni.App.Acquisition.Views"
@@ -252,7 +253,8 @@ mc:Ignorable="d">
                                     HorizontalAlignment="Stretch"
                                     VerticalAlignment="Center"
                                     FontSize="12"
-                                    Text="{Binding StartTime, StringFormat={}{0: yyyy-MM-dd HH:mm}}"
+                                    x:Name="FileStartTimeText"
+                                    Text="{Binding StartTime, Converter={x:Static sharedConverters:DateTimeConverters.ToLocal}, StringFormat={}{0: yyyy-MM-dd HH:mm}}"
                                     TextAlignment="Right" />
 
                                     <!--  Duration  -->
