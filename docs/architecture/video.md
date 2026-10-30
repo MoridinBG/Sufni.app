@@ -48,14 +48,14 @@ whole-app batch; the store itself has no repository dependency.
 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 
-- `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links it, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, or `Failed(message)`.
-- `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns false when the clip no longer exists.
+- `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links it, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, `NoMatchingSession`, or `Failed(reason, details)`.
+- `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns `VideoAlignmentResult.Updated`, `ClipMissing`, or `Failed(reason, details)`. The coordinator catches and logs persistence/publication failures once; callers project fixed failure text and treat a missing clip as unavailable.
 
 ## Import
 
-The built-in "Open video" action sits beside the GPX import in the desktop nav rail and the mobile side panel. `MainPagesViewModel.OpenVideoCommand` is enabled only when `CanPlayVideo` is true. It posts "Linked video to N recorded session(s)." to the selected page's notifications and posts a failure to its error messages.
+The built-in "Open video" action sits beside the GPX import in the desktop nav rail and the mobile side panel. `MainPagesViewModel.OpenVideoCommand` is enabled only when `CanPlayVideo` is true. `ShellFeedbackViewModel` posts "Linked video to N recorded session(s)." globally and maps typed failures to fixed text.
 
-The selected file must have a local path. The metadata reader runs on the background runner. A session matches when its recording window overlaps the video window; sessions without a timestamp or a positive duration never match. When no session matches, the import fails and the coordinator logs the reason for each session at debug level.
+The selected file must have a local path. The metadata reader runs on the background runner. A session matches when its recording window overlaps the video window; sessions without a timestamp or a positive duration never match. When no session matches, the import returns `NoMatchingSession` and the shell displays a notification. The coordinator logs the reason for each session at debug level. Invalid metadata returns the `InvalidMetadata` reason with diagnostic details; file/persistence exceptions return `Import`, and a non-local selection returns `LocalFileRequired`. Parser exceptions are logged once by the metadata reader; other import exceptions are logged by the coordinator.
 
 ## Clip Selection
 

@@ -21,4 +21,17 @@ public sealed record FailurePresentation
         StartupFailureReason.Reset => "The database could not be reset. See the log for details.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(VideoImportFailureReason reason, string? details = null) => new(reason switch
+    {
+        VideoImportFailureReason.LocalFileRequired => "Selected video must be a local file.",
+        VideoImportFailureReason.InvalidMetadata => "The selected video could not be read. Choose a video with a recording time and duration.",
+        VideoImportFailureReason.Import => "The video could not be imported. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(VideoAlignmentFailureReason reason, string? details = null) => new(reason switch
+    {
+        VideoAlignmentFailureReason.Save => "Session video alignment could not be saved. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

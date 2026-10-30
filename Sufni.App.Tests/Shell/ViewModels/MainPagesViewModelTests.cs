@@ -150,7 +150,7 @@ public class MainPagesViewModelTests
     public async Task OpenVideoCommand_AddsErrorMessage_WhenImportFails()
     {
         var videoCoordinator = Substitute.For<IVideoCoordinator>();
-        videoCoordinator.ImportAsync(Arg.Any<CancellationToken>()).Returns(new VideoImportResult.Failed("no sessions"));
+        videoCoordinator.ImportAsync(Arg.Any<CancellationToken>()).Returns(new VideoImportResult.Failed(Sufni.App.Shared.Models.VideoImportFailureReason.Import));
         var viewModel = MainPagesViewModelTestFactory.Create(videoCoordinator: videoCoordinator);
 
         await viewModel.OpenVideoCommand.ExecuteAsync(null);

@@ -1,4 +1,5 @@
 using NSubstitute;
+using Sufni.App.Video.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -7,6 +8,17 @@ namespace Sufni.App.Tests.Shell.ViewModels;
 
 public class ShellFeedbackViewModelTests
 {
+    [Fact]
+    public void VideoWithoutMatchingSession_ShowsNotificationInsteadOfFailure()
+    {
+        using var feedback = TestShellFeedback.Create();
+
+        feedback.ShowVideoResult(new VideoImportResult.NoMatchingSession());
+
+        Assert.Single(feedback.Notifications);
+        Assert.Empty(feedback.ErrorMessages);
+    }
+
     [Fact]
     public void SyncProgress_TracksTheCurrentRunAndClearsWhenItEnds()
     {

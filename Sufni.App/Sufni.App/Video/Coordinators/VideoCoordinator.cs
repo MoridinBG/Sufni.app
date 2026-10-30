@@ -8,6 +8,7 @@ using Avalonia.Platform.Storage;
 using Serilog;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Video.Services;
@@ -20,7 +21,17 @@ public abstract record VideoImportResult
 
     public sealed record Cancelled : VideoImportResult;
     public sealed record Linked(int SessionCount) : VideoImportResult;
-    public sealed record Failed(string ErrorMessage) : VideoImportResult;
+    public sealed record NoMatchingSession : VideoImportResult;
+    public sealed record Failed(VideoImportFailureReason Reason, string? Details = null) : VideoImportResult;
+}
+
+public abstract record VideoAlignmentResult
+{
+    private VideoAlignmentResult() { }
+
+    public sealed record Updated : VideoAlignmentResult;
+    public sealed record ClipMissing : VideoAlignmentResult;
+    public sealed record Failed(VideoAlignmentFailureReason Reason, string? Details = null) : VideoAlignmentResult;
 }
 
 /// <summary>
@@ -34,9 +45,8 @@ public interface IVideoCoordinator
 
     /// <summary>
     /// Adds <paramref name="deltaSeconds"/> to the clip's alignment offset.
-    /// Returns false when the clip no longer exists.
     /// </summary>
-    Task<bool> ShiftAlignmentAsync(Guid clipId, double deltaSeconds);
+    Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds);
 
     Task RefreshAsync();
 }
@@ -65,7 +75,7 @@ internal sealed class VideoCoordinator(
             var localPath = file.TryGetLocalPath();
             if (string.IsNullOrWhiteSpace(localPath))
             {
-                return new VideoImportResult.Failed("Selected video must be a local file.");
+                return new VideoImportResult.Failed(VideoImportFailureReason.LocalFileRequired);
             }
 
             return await backgroundTaskRunner.RunAsync(
@@ -76,27 +86,36 @@ internal sealed class VideoCoordinator(
         {
             return new VideoImportResult.Cancelled();
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        catch (Exception e)
         {
-            return new VideoImportResult.Failed(e.Message);
+            logger.Error(e, "Video import failed");
+            return new VideoImportResult.Failed(VideoImportFailureReason.Import, e.Message);
         }
     }
 
-    public async Task<bool> ShiftAlignmentAsync(Guid clipId, double deltaSeconds)
+    public async Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds)
     {
         if (videoStore.Get(clipId) is not { } clip)
         {
-            return false;
+            return new VideoAlignmentResult.ClipMissing();
         }
 
-        var updated = await videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds);
-        if (updated is null)
+        try
         {
-            return false;
-        }
+            var updated = await videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds);
+            if (updated is null)
+            {
+                return new VideoAlignmentResult.ClipMissing();
+            }
 
-        await videoStore.PublishClipsAsync([updated]);
-        return true;
+            await videoStore.PublishClipsAsync([updated]);
+            return new VideoAlignmentResult.Updated();
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            logger.Error(e, "Video alignment failed for {ClipId}", clipId);
+            return new VideoAlignmentResult.Failed(VideoAlignmentFailureReason.Save, e.Message);
+        }
     }
 
     public async Task RefreshAsync()
@@ -119,7 +138,7 @@ internal sealed class VideoCoordinator(
 
         if (metadataResult is VideoMetadataReadResult.Invalid invalid)
         {
-            return new VideoImportResult.Failed(invalid.ErrorMessage);
+            return new VideoImportResult.Failed(VideoImportFailureReason.InvalidMetadata, invalid.ErrorMessage);
         }
 
         var metadata = ((VideoMetadataReadResult.Parsed)metadataResult).Metadata;
@@ -131,7 +150,7 @@ internal sealed class VideoCoordinator(
         if (sessionIds.Length == 0)
         {
             LogMatchFailures(file.Name, metadata, sessions);
-            return new VideoImportResult.Failed("No recorded session overlaps the selected video.");
+            return new VideoImportResult.NoMatchingSession();
         }
 
         cancellationToken.ThrowIfCancellationRequested();

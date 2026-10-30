@@ -1,3 +1,4 @@
+using Sufni.App.Video.Coordinators;
 using Sufni.App.Shell.Coordinators;
 using Avalonia.Threading;
 using System.Reactive.Linq;
@@ -586,7 +587,7 @@ public class SessionDetailViewModelTests
     {
         using var videos = new VideoFixture();
         var (editor, clip) = await CreateEditorWithVideoAsync(videos);
-        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(true);
+        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(new VideoAlignmentResult.Updated());
 
         ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
         await ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)

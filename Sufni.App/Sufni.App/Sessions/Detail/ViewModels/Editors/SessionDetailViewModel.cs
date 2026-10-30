@@ -1,3 +1,5 @@
+using Sufni.App.Shared.Models;
+using Sufni.App.Video.Coordinators;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -1239,16 +1241,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
 
         SetPendingTimelineAlignmentMark(null);
-        try
+        switch (await videoPane!.ShiftAlignmentAsync(mark.ClipId, mark.Seconds - context!.ClickSeconds))
         {
-            if (!await videoPane!.ShiftAlignmentAsync(mark.ClipId, mark.Seconds - context!.ClickSeconds))
-            {
-                ErrorMessages.Add("Session video alignment could not be saved because the video metadata is missing.");
-            }
-        }
-        catch (Exception ex)
-        {
-            ErrorMessages.Add($"Session video alignment could not be saved: {ex.Message}");
+            case VideoAlignmentResult.ClipMissing:
+                Notifications.Add("Session video alignment could not be saved because the video metadata is missing.");
+                break;
+            case VideoAlignmentResult.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details).Summary);
+                break;
         }
     }
 

@@ -195,6 +195,12 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | Failed`;
+alignment returns `VideoAlignmentResult.Updated | ClipMissing | Failed`. Their
+failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
+optional diagnostic details. `FailurePresentation` supplies fixed summaries;
+no matching session and missing clips are notification states.
+
 Failure-policy adoption has started with startup: `StartupFailureReason`
 (`Database`, `Startup`, `Reset`) is mapped by shared `FailurePresentation` to a
 fixed summary. Diagnostic details remain separate and appear in the startup

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.Video.Coordinators;
 
@@ -86,8 +87,11 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
                 Notifications.Add(linked.SessionCount == 1 ? "Linked video to 1 recorded session."
                     : $"Linked video to {linked.SessionCount} recorded sessions.");
                 break;
+            case VideoImportResult.NoMatchingSession:
+                Notifications.Add("No recorded session overlaps the selected video.");
+                break;
             case VideoImportResult.Failed failed:
-                ErrorMessages.Add(failed.ErrorMessage);
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details).Summary);
                 break;
         }
     }

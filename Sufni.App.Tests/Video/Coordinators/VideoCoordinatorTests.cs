@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Video.Coordinators;
@@ -81,19 +82,19 @@ public class VideoCoordinatorTests
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
 
-        Assert.IsType<VideoImportResult.Failed>(result);
+        Assert.Equal(VideoImportFailureReason.InvalidMetadata, Assert.IsType<VideoImportResult.Failed>(result).Reason);
         await AssertNothingLinkedAsync();
     }
 
     [Fact]
-    public async Task ImportAsync_Fails_WhenNoSessionOverlapsVideo()
+    public async Task ImportAsync_ReturnsNoMatchingSession_WhenNoSessionOverlapsVideo()
     {
         SelectVideo(durationSeconds: 60);
         sessionRepository.GetSessionsAsync().Returns([CreateSession(VideoStart.AddHours(1), durationSeconds: 60)]);
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
 
-        Assert.IsType<VideoImportResult.Failed>(result);
+        Assert.IsType<VideoImportResult.NoMatchingSession>(result);
         await AssertNothingLinkedAsync();
     }
 
@@ -106,12 +107,12 @@ public class VideoCoordinatorTests
 
         var shifted = await coordinator.ShiftAlignmentAsync(clip.Id, 1.5);
 
-        Assert.True(shifted);
+        Assert.IsType<VideoAlignmentResult.Updated>(shifted);
         await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoClip>>(clips => clips.Single() == clip));
     }
 
     [Fact]
-    public async Task ShiftAlignmentAsync_ReturnsFalse_WhenClipIsGone()
+    public async Task ShiftAlignmentAsync_ReturnsClipMissing_WhenClipIsGone()
     {
         var clipId = Guid.NewGuid();
         videoStore.Get(clipId).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clipId }));
@@ -119,7 +120,36 @@ public class VideoCoordinatorTests
 
         var shifted = await coordinator.ShiftAlignmentAsync(clipId, 1);
 
-        Assert.False(shifted);
+        Assert.IsType<VideoAlignmentResult.ClipMissing>(shifted);
+        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoClip>>());
+    }
+
+    [Fact]
+    public async Task ImportAsync_ReturnsFailure_WhenPersistenceFails()
+    {
+        SelectVideo(durationSeconds: 60);
+        sessionRepository.GetSessionsAsync().Returns([CreateSession(VideoStart, durationSeconds: 60)]);
+        videoRepository.LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(),
+            Arg.Any<IReadOnlyCollection<Guid>>()).Returns(Task.FromException<IReadOnlyList<SessionVideoClip>>(
+                new IOException("database unavailable")));
+
+        var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(VideoImportFailureReason.Import, Assert.IsType<VideoImportResult.Failed>(result).Reason);
+        await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoClip>>());
+    }
+
+    [Fact]
+    public async Task ShiftAlignmentAsync_ReturnsFailure_WhenPersistenceFails()
+    {
+        var clipId = Guid.NewGuid();
+        videoStore.Get(clipId).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clipId }));
+        videoRepository.UpdateAlignmentAsync(clipId, Arg.Any<double>())
+            .Returns(Task.FromException<SessionVideoClip?>(new IOException("database unavailable")));
+
+        var result = await coordinator.ShiftAlignmentAsync(clipId, 1);
+
+        Assert.Equal(VideoAlignmentFailureReason.Save, Assert.IsType<VideoAlignmentResult.Failed>(result).Reason);
         await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoClip>>());
     }
 

@@ -1,4 +1,5 @@
 using System;
+using Serilog;
 using System.Buffers.Binary;
 using System.IO;
 using System.Text;
@@ -9,6 +10,7 @@ namespace Sufni.App.Video.Services;
 
 public sealed class Mp4VideoMetadataReader : IVideoMetadataReader
 {
+    private static readonly ILogger logger = Log.ForContext<Mp4VideoMetadataReader>();
     private const int StandardBoxHeaderSize = 8;
     private static readonly DateTimeOffset QuickTimeEpoch = new(1904, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
@@ -40,7 +42,8 @@ public sealed class Mp4VideoMetadataReader : IVideoMetadataReader
                                   or ArgumentOutOfRangeException
                                   or OverflowException)
         {
-            return new VideoMetadataReadResult.Invalid($"Video metadata could not be read: {e.Message}");
+            logger.Warning(e, "Video metadata could not be read");
+            return new VideoMetadataReadResult.Invalid(e.Message);
         }
     }
 
