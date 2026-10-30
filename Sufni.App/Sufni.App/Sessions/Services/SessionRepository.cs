@@ -185,8 +185,7 @@ internal sealed class SessionRepository(
                                                            full_track_id=?,
                                                            session_processing_fingerprint=?,
                                                            track=?,
-                                                           data=?,
-                                                           updated=?
+                                                           data=?
                                                            """;
 
     private static readonly string UpdateProcessedSessionSql = $"""
@@ -484,7 +483,6 @@ internal sealed class SessionRepository(
                     session.FullTrack = newFullTrack.Id;
                 }
 
-                session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                 var updatedRows = connection.Execute(
                     UpdateProcessedDerivedDataSql,
                     CreateDerivedDataUpdateValuesWithId(session));
@@ -752,7 +750,6 @@ internal sealed class SessionRepository(
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
         session.ProcessedData,
-        session.Updated,
         session.Id
     ];
 

@@ -210,7 +210,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task UpdateProcessedDerivedDataAsync_UsesDerivationWindowSource_ForDatabaseInputGuard()
+    public async Task UpdateProcessedDerivedDataAsync_ReplacesWindowGenerationWithoutChangingAuthoredMetadata()
     {
         using var tempDatabase = new TempDatabase("processed-derived-data-window-source.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -218,7 +218,8 @@ public class SessionRepositoryTests
         var sourceSessionId = Guid.NewGuid();
         var fingerprintService = new ProcessingFingerprintService();
 
-        var database = new TestPersistenceHarness(databasePath);
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var database = new TestPersistenceHarness(databasePath, clock);
         var bike = new Bike(Guid.NewGuid(), "bike")
         {
             HeadAngle = 64
@@ -240,10 +241,12 @@ public class SessionRepositoryTests
 
         await database.PutAsync(bike);
         await database.PutAsync(setup);
-        await database.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+        var saved = await database.PutProcessedSessionAsync(session, newFullTrack: null, source: null);
+        var authoredUpdated = saved.Updated;
+        clock.Advance(TimeSpan.FromHours(1));
         await database.PutRecordedSessionSourceAsync(source);
 
-        var recomputed = new Session(sessionId, "derived", "desc", setup.Id, 100)
+        var recomputed = new Session(sessionId, "stale draft name", "older notes", setup.Id, 90)
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(66),
             ProcessingFingerprintJson = AppJson.Serialize(fingerprint),
@@ -260,6 +263,10 @@ public class SessionRepositoryTests
 
         Assert.NotNull(result);
         Assert.Equal(66, result!.DurationSeconds);
+        Assert.Equal(authoredUpdated, result.Updated);
+        Assert.Equal("derived", result.Name);
+        Assert.Equal("desc", result.Description);
+        Assert.Equal(100, result.Timestamp);
         Assert.Equal(recomputed.ProcessedData, await database.GetSessionRawPsstAsync(sessionId));
     }
 
