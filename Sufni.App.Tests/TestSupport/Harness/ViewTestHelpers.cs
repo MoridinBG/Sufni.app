@@ -1,3 +1,4 @@
+using Sufni.App.Shell.KeyboardShortcuts;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,6 +56,8 @@ public static class ViewTestHelpers
         var resources = Application.Current?.Resources as ResourceDictionary
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
+        resources[typeof(KeyboardShortcutRegistry)] = new KeyboardShortcutRegistry(
+            TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input);
         SufniThemeResourceBridge.PopulateRoot(resources);
         SufniThemeResourceBridge.PopulateVariant(resources, SufniThemes.Dark);
     }
@@ -144,5 +147,6 @@ public static class ViewTestHelpers
                 HasPointer: true,
                 HasTouch: true,
                 HasKeyboard: true,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 }

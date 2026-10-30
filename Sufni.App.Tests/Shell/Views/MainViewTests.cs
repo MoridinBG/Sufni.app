@@ -115,7 +115,8 @@ public class MainViewTests
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 
         return new ShellRootViewModel(
             mainPages,

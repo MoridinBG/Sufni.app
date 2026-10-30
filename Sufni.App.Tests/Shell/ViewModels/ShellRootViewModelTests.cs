@@ -27,7 +27,8 @@ public class ShellRootViewModelTests
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsLongPressContextMenu: false));
+                SupportsLongPressContextMenu: false,
+                CommandModifier: CommandModifier.Control));
 
         var plotZoomState = Substitute.For<IPlotZoomState>();
 
@@ -140,7 +141,8 @@ public class ShellRootViewModelTests
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 
         return new ShellRootViewModel(
             MainPagesViewModelTestFactory.Create(),

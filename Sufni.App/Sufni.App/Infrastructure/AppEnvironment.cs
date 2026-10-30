@@ -16,11 +16,18 @@ public sealed record AppCapabilities(
     bool SupportsStorageProviderImport,
     bool CanPlayVideo);
 
+public enum CommandModifier
+{
+    Control,
+    Meta,
+}
+
 public sealed record InputCapabilities(
     bool HasPointer,
     bool HasTouch,
     bool HasKeyboard,
-    bool SupportsLongPressContextMenu);
+    bool SupportsLongPressContextMenu,
+    CommandModifier CommandModifier);
 
 public interface IAppEnvironment : INotifyPropertyChanged
 {

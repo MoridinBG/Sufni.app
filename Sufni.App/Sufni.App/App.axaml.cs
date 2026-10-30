@@ -14,6 +14,7 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
+using Sufni.App.Shell.KeyboardShortcuts;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
 using Sufni.App.Shared.Views.Input;
@@ -39,6 +40,7 @@ public partial class App : Application
         // Apply before XAML resolution to avoid a default-theme first frame.
         RequestedThemeVariant = SufniThemes.ToVariant(root.LaunchPreferences.ThemeMode);
         AvaloniaXamlLoader.Load(this);
+        Resources[typeof(KeyboardShortcutRegistry)] = new KeyboardShortcutRegistry(root.Input);
     }
 
     public override void OnFrameworkInitializationCompleted()

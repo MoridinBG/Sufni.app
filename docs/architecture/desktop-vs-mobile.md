@@ -59,7 +59,7 @@ Platform heads establish the layout profile, application capabilities, and input
 
 - `IAppEnvironment.LayoutProfile` for compact versus workspace presentation.
 - `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, video playback (`CanPlayVideo`, false on Android). Haptics follow service registration, and native windowing follows the Avalonia lifetime.
-- `InputCapabilities` for pointer, touch, keyboard, and long-press context-menu behavior; touch capabilities also drive pinch gestures.
+- `InputCapabilities` for pointer, touch, keyboard, long-press context menus and the command-key modifier; touch capabilities also drive pinch gestures. Each head supplies Control or Meta explicitly.
 
 Tests configure these explicitly through service setup or test helpers rather than relying on platform inference.
 

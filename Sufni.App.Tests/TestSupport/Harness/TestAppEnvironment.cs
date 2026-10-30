@@ -29,5 +29,6 @@ internal static class TestAppEnvironment
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsLongPressContextMenu: false));
+                SupportsLongPressContextMenu: false,
+                CommandModifier: CommandModifier.Control));
 }

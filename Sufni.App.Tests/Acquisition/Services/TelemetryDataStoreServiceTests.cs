@@ -249,7 +249,8 @@ public class TelemetryDataStoreServiceTests
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 
     private static ITelemetryDataStore CreateDataStore(string name)
     {

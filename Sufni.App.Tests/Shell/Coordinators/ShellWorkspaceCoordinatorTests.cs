@@ -520,7 +520,8 @@ public class ShellWorkspaceCoordinatorTests
                 HasPointer: true,
                 HasTouch: true,
                 HasKeyboard: true,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 
     private sealed class TestTabPageViewModel : TabPageViewModelBase
     {

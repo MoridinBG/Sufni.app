@@ -35,7 +35,8 @@ namespace Sufni.App.Windows
                     HasPointer: true,
                     HasTouch: false,
                     HasKeyboard: true,
-                    SupportsLongPressContextMenu: false),
+                    SupportsLongPressContextMenu: false,
+                    CommandModifier: CommandModifier.Control),
                 AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Workspace),
                 services =>
                 {

@@ -205,11 +205,12 @@ request.
 
 App-defined keyboard shortcuts are listed in
 `KeyboardShortcutRegistry`, grouped by source and shortcut ID in
-`GesturesBySource`. Shell and feature views resolve
+`GesturesBySource`. `App` creates the registry from `InputCapabilities` and
+exposes it as an application resource. Shell and feature views resolve
 `KeyBinding.Gesture` values through `ShortcutGestureExtension` instead
 of hard-coding gesture strings. Command-style shortcuts use the
-platform command modifier (`Meta` / Cmd on macOS and iOS, `Control`
-on Windows, Linux, and Android). Native text editing, focus traversal,
+head-supplied `InputCapabilities.CommandModifier` (`Meta` / Cmd on macOS and
+iOS, `Control` on Windows, Linux, and Android); shared code does not inspect the OS. Native text editing, focus traversal,
 and control-internal keys stay local to their controls.
 
 `ShellWorkspaceCoordinator` translates every coordinator call into

@@ -4,10 +4,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.MarkupExtensions;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Shell.KeyboardShortcuts;
 
-public static class KeyboardShortcutRegistry
+public sealed class KeyboardShortcutRegistry
 {
     public static class ShortcutConfiguration
     {
@@ -22,40 +24,43 @@ public static class KeyboardShortcutRegistry
         public const string SelectPreviousTab = "select-previous-tab";
     }
 
-    internal static KeyModifiers CommandModifier { get; } =
-        OperatingSystem.IsMacOS() || OperatingSystem.IsIOS()
+    public FrozenDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>> GesturesBySource { get; }
+
+    public KeyboardShortcutRegistry(InputCapabilities input)
+    {
+        var commandModifier = input.CommandModifier == CommandModifier.Meta
             ? KeyModifiers.Meta
             : KeyModifiers.Control;
+        GesturesBySource =
+            new Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>>
+            {
+                [ShortcutConfiguration.MainWindow] = new Dictionary<string, IReadOnlyList<KeyGesture>>
+                {
+                    [ShortcutConfiguration.CloseCurrentTab] = [Gesture(Key.W, commandModifier)],
+                    [ShortcutConfiguration.RestoreClosedTab] = [Gesture(Key.T, commandModifier | KeyModifiers.Shift)],
+                    [ShortcutConfiguration.SelectNextTab] =
+                    [
+                        Gesture(Key.Tab, KeyModifiers.Control),
+                        Gesture(Key.OemCloseBrackets, commandModifier | KeyModifiers.Shift),
+                    ],
+                    [ShortcutConfiguration.SelectPreviousTab] =
+                    [
+                        Gesture(Key.Tab, KeyModifiers.Control | KeyModifiers.Shift),
+                        Gesture(Key.OemOpenBrackets, commandModifier | KeyModifiers.Shift),
+                    ],
+                },
+                [ShortcutConfiguration.BikeImageDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
+                {
+                    [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
+                },
+                [ShortcutConfiguration.BikeImageControlsDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
+                {
+                    [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
+                },
+            }.ToFrozenDictionary();
+    }
 
-    public static FrozenDictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>> GesturesBySource { get; } =
-        new Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<KeyGesture>>>
-        {
-            [ShortcutConfiguration.MainWindow] = new Dictionary<string, IReadOnlyList<KeyGesture>>
-            {
-                [ShortcutConfiguration.CloseCurrentTab] = [Gesture(Key.W, CommandModifier)],
-                [ShortcutConfiguration.RestoreClosedTab] = [Gesture(Key.T, CommandModifier | KeyModifiers.Shift)],
-                [ShortcutConfiguration.SelectNextTab] =
-                [
-                    Gesture(Key.Tab, KeyModifiers.Control),
-                    Gesture(Key.OemCloseBrackets, CommandModifier | KeyModifiers.Shift),
-                ],
-                [ShortcutConfiguration.SelectPreviousTab] =
-                [
-                    Gesture(Key.Tab, KeyModifiers.Control | KeyModifiers.Shift),
-                    Gesture(Key.OemOpenBrackets, CommandModifier | KeyModifiers.Shift),
-                ],
-            },
-            [ShortcutConfiguration.BikeImageDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
-            {
-                [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
-            },
-            [ShortcutConfiguration.BikeImageControlsDesktopView] = new Dictionary<string, IReadOnlyList<KeyGesture>>
-            {
-                [ShortcutConfiguration.DeleteSelection] = [Gesture(Key.Delete, KeyModifiers.None)],
-            },
-        }.ToFrozenDictionary();
-
-    public static IReadOnlyList<KeyGesture> All { get; } =
+    public IReadOnlyList<KeyGesture> All =>
         GesturesBySource.Values
             .SelectMany(bindingsById => bindingsById.Values)
             .SelectMany(gestures => gestures)
@@ -75,6 +80,10 @@ public sealed class ShortcutGestureExtension : MarkupExtension
 
     public int Index { get; set; }
 
-    public override object ProvideValue(IServiceProvider serviceProvider) =>
-        KeyboardShortcutRegistry.GesturesBySource[Source][Id][Index];
+    public override object ProvideValue(IServiceProvider serviceProvider)
+    {
+        var registry = (KeyboardShortcutRegistry)new StaticResourceExtension(typeof(KeyboardShortcutRegistry))
+            .ProvideValue(serviceProvider)!;
+        return registry.GesturesBySource[Source][Id][Index];
+    }
 }

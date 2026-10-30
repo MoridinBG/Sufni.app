@@ -548,7 +548,8 @@ public class SessionCoordinatorTests
                 HasPointer: true,
                 HasTouch: true,
                 HasKeyboard: true,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

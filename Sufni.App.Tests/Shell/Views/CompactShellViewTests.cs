@@ -270,7 +270,8 @@ public class CompactShellViewTests
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsLongPressContextMenu: true));
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control));
 
     private static IAppEnvironment CreateDesktopCompactEnvironment() =>
         MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact);

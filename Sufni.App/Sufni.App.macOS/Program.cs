@@ -36,7 +36,8 @@ namespace Sufni.App.macOS
                     HasPointer: true,
                     HasTouch: false,
                     HasKeyboard: true,
-                    SupportsLongPressContextMenu: false),
+                    SupportsLongPressContextMenu: false,
+                    CommandModifier: CommandModifier.Meta),
                 AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Workspace),
                 services =>
                 {

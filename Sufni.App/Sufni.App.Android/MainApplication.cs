@@ -28,7 +28,8 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsLongPressContextMenu: true),
+                SupportsLongPressContextMenu: true,
+                CommandModifier: CommandModifier.Control),
             AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Compact),
             services =>
             {

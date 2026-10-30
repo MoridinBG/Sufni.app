@@ -21,48 +21,33 @@ public class MainWindowTests
 {
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
-    [AvaloniaFact]
-    public async Task MainWindow_UsesShortcutRegistryForWindowShortcuts()
+    [AvaloniaTheory]
+    [InlineData(CommandModifier.Control, KeyModifiers.Control)]
+    [InlineData(CommandModifier.Meta, KeyModifiers.Meta)]
+    public async Task MainWindow_BindsNavigationShortcutFromInputCapability(CommandModifier modifier, KeyModifiers expected)
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
+        var root = CreateRoot();
+        var first = new TestTabPageViewModel();
+        root.Workspace.OpenOrFocus(first);
+        root.Workspace.OpenOrFocus(new TestTabPageViewModel());
+        var input = TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input with { CommandModifier = modifier };
+        Application.Current!.Resources[typeof(KeyboardShortcutRegistry)] = new KeyboardShortcutRegistry(input);
 
         await using var mounted = await MountAsync(new MainWindow
         {
+            DataContext = root,
             Width = 900,
             Height = 700,
         });
 
-        Assert.Contains(
-            mounted.Window.KeyBindings,
-            binding => HasGesture(
-                binding,
-                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.CloseCurrentTab)));
-        Assert.Contains(
-            mounted.Window.KeyBindings,
-            binding => HasGesture(
-                binding,
-                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.RestoreClosedTab)));
-        Assert.Contains(
-            mounted.Window.KeyBindings,
-            binding => HasGesture(
-                binding,
-                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab)));
-        Assert.Contains(
-            mounted.Window.KeyBindings,
-            binding => HasGesture(
-                binding,
-                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab, 1)));
-        Assert.Contains(
-            mounted.Window.KeyBindings,
-            binding => HasGesture(
-                binding,
-                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab)));
-        Assert.Contains(
-            mounted.Window.KeyBindings,
-            binding => HasGesture(
-                binding,
-                Shortcut(KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow, KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab, 1)));
+        var binding = Assert.Single(mounted.Window.KeyBindings, binding =>
+            binding.Gesture is { Key: Key.OemCloseBrackets } gesture &&
+            gesture.KeyModifiers == (expected | KeyModifiers.Shift));
+        binding.Command!.Execute(binding.CommandParameter);
+
+        Assert.Same(first, root.Workspace.CurrentTab);
     }
 
     [AvaloniaFact]
@@ -257,13 +242,8 @@ public class MainWindowTests
         return args.Handled;
     }
 
-    private static bool HasGesture(KeyBinding binding, KeyGesture expected) =>
-        binding.Gesture is { } actual &&
-        actual.Key == expected.Key &&
-        actual.KeyModifiers == expected.KeyModifiers;
-
     private static KeyGesture Shortcut(string source, string id, int index = 0) =>
-        KeyboardShortcutRegistry.GesturesBySource[source][id][index];
+        ((KeyboardShortcutRegistry)Application.Current!.Resources[typeof(KeyboardShortcutRegistry)]!).GesturesBySource[source][id][index];
 
     private static ShellRootViewModel CreateRoot()
     {
@@ -279,7 +259,8 @@ public class MainWindowTests
                 HasPointer: true,
                 HasTouch: false,
                 HasKeyboard: true,
-                SupportsLongPressContextMenu: false));
+                SupportsLongPressContextMenu: false,
+                CommandModifier: CommandModifier.Control));
 
         return new ShellRootViewModel(
             MainPagesViewModelTestFactory.Create(),

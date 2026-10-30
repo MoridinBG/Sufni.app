@@ -65,10 +65,10 @@ public partial class MainWindow : Window
         return false;
     }
 
-    private static bool MatchesMainWindowTabShortcut(Key key, KeyModifiers modifiers, string shortcutId)
+    private bool MatchesMainWindowTabShortcut(Key key, KeyModifiers modifiers, string shortcutId)
     {
-        var gestures = KeyboardShortcutRegistry
-            .GesturesBySource[KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow][shortcutId];
+        var registry = (KeyboardShortcutRegistry)this.FindResource(typeof(KeyboardShortcutRegistry))!;
+        var gestures = registry.GesturesBySource[KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow][shortcutId];
         return gestures.Any(gesture => gesture.Key == Key.Tab &&
                                        gesture.Key == key &&
                                        gesture.KeyModifiers == modifiers);
