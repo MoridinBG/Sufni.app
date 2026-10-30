@@ -1,4 +1,5 @@
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Coordination;
 using Sufni.App.SyncAndPairing.Coordinators;
 
 namespace Sufni.App.Tests.Infrastructure;
@@ -17,6 +18,7 @@ public class AppCapabilityEagerResolutionTests
         Assert.Contains(typeof(IPairingClientCoordinator), services.RequestedServices);
         Assert.DoesNotContain(typeof(IPairingServerCoordinator), services.RequestedServices);
         Assert.DoesNotContain(typeof(IInboundSyncCoordinator), services.RequestedServices);
+        Assert.DoesNotContain(typeof(SessionSyncApplier), services.RequestedServices);
     }
 
     [Fact]
@@ -31,6 +33,7 @@ public class AppCapabilityEagerResolutionTests
         Assert.DoesNotContain(typeof(IPairingClientCoordinator), services.RequestedServices);
         Assert.Contains(typeof(IPairingServerCoordinator), services.RequestedServices);
         Assert.Contains(typeof(IInboundSyncCoordinator), services.RequestedServices);
+        Assert.Contains(typeof(SessionSyncApplier), services.RequestedServices);
     }
 
     [Fact]
@@ -45,6 +48,7 @@ public class AppCapabilityEagerResolutionTests
         Assert.Contains(typeof(IPairingClientCoordinator), services.RequestedServices);
         Assert.Contains(typeof(IPairingServerCoordinator), services.RequestedServices);
         Assert.Contains(typeof(IInboundSyncCoordinator), services.RequestedServices);
+        Assert.Contains(typeof(SessionSyncApplier), services.RequestedServices);
     }
 
     [Fact]

@@ -104,15 +104,28 @@ Mobile heads register capabilities and services that desktop heads generally do 
 - **`IFriendlyNameProvider`**: queried by `PairingClientCoordinator` to seed a default display name for the pairing record.
 - **Touch input capabilities**: pinch zoom and long-press context menus are exposed through `InputCapabilities`, not through the layout profile.
 
-Mobile heads call `MobileAppBootstrapper.RegisterMobileSync(...)` from `MainApplication.CustomizeAppBuilder` (Android) or `AppDelegate.CustomizeAppBuilder` (iOS). The bootstrapper also registers `IHttpApiService`.
+Mobile heads call `MobileAppBootstrapper.RegisterMobileSync(...)` inside the platform registration delegate created by `MainApplication.CreateAppBuilder` (Android) or `AppDelegate.CreateAppBuilder` (iOS). The bootstrapper also registers `IHttpApiService`.
 
 ## DI Composition
 
-The shared DI container is `App.ServiceCollection` (a static `IServiceCollection`). Each platform entry point appends its registrations to it before Avalonia hands control to `App.OnFrameworkInitializationCompleted`, which then runs the shared registrations and calls `BuildServiceProvider()`.
+Each head passes a typed `PlatformRoot` into the Avalonia application factory.
+It carries capabilities, input capabilities, launch preferences, app paths, and
+a platform registration delegate. The mobile native hosts override
+`CreateAppBuilder` to supply that factory while retaining native lifetime setup.
 
-1. The platform head registers platform abstractions (`ISecureStorage`, `IServiceDiscovery`, optionally `IHapticFeedback`, `IFriendlyNameProvider`, `IVideoPlayerFactory`), platform sync services, and `IAppEnvironment` with the platform default layout profile and capabilities. Desktop heads call into `DesktopAppBootstrapper.RegisterDesktopSync(...)`; mobile heads call `MobileAppBootstrapper.RegisterMobileSync(...)`.
-2. `App.OnFrameworkInitializationCompleted` registers the shared graph: stores, services, queries, view models, `ShellWorkspaceViewModel`, `ShellRootViewModel`, `ShellWorkspaceCoordinator`, and the profile-aware `ViewLocator`.
-3. After the provider is built, the app eagerly resolves coordinators that subscribe to external events at construction time. The platform-only eager resolutions still follow platform capabilities: mobile resolves the pairing client coordinator; desktop resolves pairing server and inbound sync coordinators.
+1. The head selects its app-data directory and reads `LaunchPreferences` once.
+   The snapshot supplies theme and layout and seeds runtime preferences.
+2. `AppComposition.AddSharedServices` registers the root's `IAppPaths`, clock and
+   environment, calls the platform registration delegate, then registers the
+   shared graph. Desktop delegates use `RegisterDesktopSync`; mobile delegates
+   use `RegisterMobileSync`. Video capability must agree with player registration.
+3. `App.OnFrameworkInitializationCompleted` builds the provider with
+   `ValidateOnBuild = true` and eagerly resolves subscription owners. The session
+   sync applier, pairing server and inbound sync owners are desktop-only; the
+   pairing client owner is mobile-only.
+
+Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia
+application setup. There is no shared OS check for them.
 
 ## Solution Scoping
 

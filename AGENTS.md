@@ -178,14 +178,11 @@ The layer roles are consistent across slices:
   `LiveDaq/Plots/`, `MapsAndTracks/Views/Plots/`). Shared plot bases (`SufniPlot`,
   `TelemetryPlot`, cursor/airtime layout helpers) live in `Shared/Plots/`.
 
-DI container setup lives in `Sufni.App/Sufni.App/App.axaml.cs`. The
-shared `App.ServiceCollection` is the static composition root —
-platform entry points
-(`Sufni.App/Sufni.App.{Windows,macOS,Linux,Android,iOS}/`) add their
-platform-specific registrations to it before
-`OnFrameworkInitializationCompleted` runs the shared registrations and
-calls `BuildServiceProvider()`. There is no separate
-`RegisteredServices` indirection.
+DI registrations live in `Sufni.App/Sufni.App/AppComposition.cs`.
+Each platform head passes a `PlatformRoot` (capabilities, input capabilities,
+launch preferences, paths, and platform registrations) into `App` through the
+Avalonia application factory. `App.OnFrameworkInitializationCompleted` builds
+the graph with `ValidateOnBuild = true`. No static service collection remains.
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),
 including [Stores](docs/architecture/ui.md#stores),
@@ -349,9 +346,9 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`ISessionTrackReader`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
+  (`ISessionTrackReader`, `PairedDeviceCoordinator`,
   `SyncCoordinator`,
-  the desktop-only `IInboundSyncCoordinator` /
+  the desktop-only `SessionSyncApplier` / `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
   `App.OnFrameworkInitializationCompleted` so the subscriptions wire

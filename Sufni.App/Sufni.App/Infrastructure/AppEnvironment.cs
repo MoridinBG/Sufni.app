@@ -1,8 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.IO;
-using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Sufni.App.Infrastructure;
 
@@ -71,64 +68,5 @@ public sealed class AppEnvironment : IAppEnvironment
     public void SetLayoutProfile(UiLayoutProfile layoutProfile)
     {
         LayoutProfile = layoutProfile;
-    }
-}
-
-public static class AppEnvironmentRegistration
-{
-    public static IServiceCollection AddAppEnvironment(
-        this IServiceCollection services,
-        UiLayoutProfile defaultLayoutProfile,
-        AppCapabilities capabilities,
-        InputCapabilities input)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(capabilities);
-        ArgumentNullException.ThrowIfNull(input);
-
-        return services.AddSingleton<IAppEnvironment>(_ =>
-            new AppEnvironment(
-                UiLayoutProfileBootstrap.ReadPersistedProfile(defaultLayoutProfile),
-                capabilities,
-                input));
-    }
-}
-
-public static class UiLayoutProfileBootstrap
-{
-    public static UiLayoutProfile ReadPersistedProfile(UiLayoutProfile fallback)
-    {
-        try
-        {
-            var directory = Path.GetDirectoryName(AppPaths.DatabasePath);
-            if (string.IsNullOrWhiteSpace(directory))
-            {
-                return fallback;
-            }
-
-            var filePath = Path.Combine(directory, "app-preferences.json");
-            if (!File.Exists(filePath))
-            {
-                return fallback;
-            }
-
-            using var stream = File.OpenRead(filePath);
-            using var document = JsonDocument.Parse(stream);
-            if (!document.RootElement.TryGetProperty("ui", out var uiElement)
-                || uiElement.ValueKind != JsonValueKind.Object
-                || !uiElement.TryGetProperty("layoutProfile", out var layoutProfileElement)
-                || layoutProfileElement.ValueKind != JsonValueKind.String)
-            {
-                return fallback;
-            }
-
-            return Enum.TryParse<UiLayoutProfile>(layoutProfileElement.GetString(), ignoreCase: false, out var parsed)
-                ? parsed
-                : fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
     }
 }

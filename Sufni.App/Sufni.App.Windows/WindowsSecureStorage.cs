@@ -25,15 +25,15 @@ public class WindowsSecureStorage : ISecureStorage
         144, 168, 122, 19, 61, 125, 71, 218, 62, 118, 67, 110, 133, 67, 209, 220,
     };
 
-    private static readonly string AppSecureStoragePath = Path.Combine(
-        AppPaths.AppDataDirectory,
-        "preferences.dat");
+    private readonly IAppPaths paths;
+    private string AppSecureStoragePath => Path.Combine(paths.AppDataDirectory, "preferences.dat");
 
     private readonly SecureStorageDictionary secureStorage = new();
     private Task Initialization { get; }
 
-    public WindowsSecureStorage()
+    public WindowsSecureStorage(IAppPaths paths)
     {
+        this.paths = paths;
         Initialization = InitAsync();
     }
 
@@ -72,7 +72,7 @@ public class WindowsSecureStorage : ISecureStorage
     {
         await Initialization;
 
-        Directory.CreateDirectory(AppPaths.AppDataDirectory);
+        Directory.CreateDirectory(paths.AppDataDirectory);
 
         await using var stream = File.Create(AppSecureStoragePath);
         await AppJson.SerializeAsync(stream, secureStorage);

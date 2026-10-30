@@ -85,7 +85,11 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
 | `IVideoPlayerFactory`   | `Sufni.App/Sufni.App/Video/Models/VideoPlayback.cs`           | Native video player for the session video pane                          | `LibVlcVideoPlayerFactory` (Win / Linux), `MacOsVideoPlayerFactory`, `IosVideoPlayerFactory`                     |
 
-Each platform entry point registers its implementations before the shared `App.axaml.cs` initialization runs.
+Each platform entry point passes its registrations, capabilities, launch
+preferences and `IAppPaths` through `PlatformRoot`. `AppComposition` constructs
+the shared graph; `App` builds it with validation enabled. `AppPaths` derives the
+database, preferences, logs and certificate paths from the head-selected app-data
+directory.
 
 ---
 
@@ -101,7 +105,7 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 - [Shared Navigation Shell](architecture/desktop-vs-mobile.md#shared-navigation-shell) — `ShellWorkspaceCoordinator` and profile-specific shell views
 - [Desktop-Capable Surface](architecture/desktop-vs-mobile.md#desktop-capable-surface) — sync server, inbound sync, pairing server
 - [Mobile-Capable Surface](architecture/desktop-vs-mobile.md#mobile-capable-surface) — pairing client, haptics, friendly-name
-- [DI Composition](architecture/desktop-vs-mobile.md#di-composition) — platform-first then shared registrations
+- [DI Composition](architecture/desktop-vs-mobile.md#di-composition) — typed platform roots, launch preferences and validated registrations
 - [Solution Scoping](architecture/desktop-vs-mobile.md#solution-scoping) — `Sufni.Desktop.sln` / `Android.sln` / `iOS.sln`
 - [Testing](architecture/desktop-vs-mobile.md#testing) — explicit profile/capability setup
 - [Behavioral Differences](architecture/desktop-vs-mobile.md#behavioral-differences) — workflow-level divergences
@@ -184,7 +188,7 @@ Presentation-layer topics:
 - [Queries](architecture/ui-state.md#queries) — dependency, known-board, and recorded-session domain query patterns
 - [Coordinators](architecture/ui-workflows.md#coordinators) — entity, shell, sync, pairing, import, inbound-sync coordinators; eager-resolution rules
 - [Trim and split](architecture/ui-workflows.md#trim-and-split) — recorded-session window edits, their transactions, and the recompute that follows
-- [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `App.ServiceCollection`, shared vs platform registrations, eager resolution
+- [Dependency Injection](architecture/ui-workflows.md#dependency-injection) — `PlatformRoot`, `AppComposition`, shared vs platform registrations, eager resolution
 - [Navigation](architecture/ui-workflows.md#navigation) — `IShellCoordinator`, shared workspace tabs, compact/workspace shell presentation
 - [View Models](architecture/ui-view-models.md#view-models) — shell / page / list / row / editor categories, `TabPageViewModelBase`, `ViewModelBase`
   - [Session Sub-Pages](architecture/ui-view-models.md#session-sub-pages) — recorded/live session tab composition and signal layout preferences

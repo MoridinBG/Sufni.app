@@ -167,7 +167,7 @@ the unrecomputable/failed outcomes.
 
 Recorded-session analysis result state is scoped to an open
 `SessionDetailViewModel`. The editor creates one
-`IRecordedSessionAnalysisResultState` through a transient factory and exposes it
+`IRecordedSessionAnalysisResultState` through a singleton factory and exposes it
 through `SessionAnalysisWorkspaceViewModel`; the heavy work is delegated to the
 singleton `IRecordedSessionAnalysisComputer`. The state is invalidated when the
 telemetry generation, selected analysis range, analysis modes, damping cutoffs,

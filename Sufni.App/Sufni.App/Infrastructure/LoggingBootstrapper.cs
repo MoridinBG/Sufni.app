@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -21,7 +22,7 @@ public static class LoggingBootstrapper
 
     internal static string? CurrentLogFilePath { get; private set; }
 
-    public static void Initialize(string platformName, ILogEventSink? platformSink = null)
+    public static void Initialize(string platformName, IAppPaths paths, TimeProvider timeProvider, ILogEventSink? platformSink = null)
     {
         lock (gate)
         {
@@ -34,8 +35,8 @@ public static class LoggingBootstrapper
             {
                 currentPlatformName = platformName;
                 currentPlatformSink = platformSink;
-                AppPaths.CreateRequiredDirectories();
-                CurrentLogFilePath ??= AppPaths.CreateSessionLogPath(DateTimeOffset.Now);
+                Directory.CreateDirectory(paths.LogsDirectory);
+                CurrentLogFilePath ??= paths.CreateSessionLogPath(timeProvider.GetLocalNow());
 
                 Log.Logger = CreateLogger(platformName, CurrentLogFilePath, platformSink);
                 isInitialized = true;

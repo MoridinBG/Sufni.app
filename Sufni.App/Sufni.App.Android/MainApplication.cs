@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Android.App;
 using Android.Runtime;
 using Avalonia;
@@ -8,13 +10,14 @@ namespace Sufni.App.Android;
 
 [Application]
 public sealed class MainApplication(nint javaReference, JniHandleOwnership transfer)
-    : AvaloniaAndroidApplication<App>(javaReference, transfer)
+    : AvaloniaAndroidApplication<Avalonia.Application>(javaReference, transfer)
 {
-    protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
+    protected override AppBuilder CreateAppBuilder()
     {
-        LoggingBootstrapper.Initialize("Android");
-        App.ServiceCollection.AddAppEnvironment(
-            UiLayoutProfile.Compact,
+        var paths = new AppPaths(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sufni.App"));
+        LoggingBootstrapper.Initialize("Android", paths, TimeProvider.System);
+        var root = new PlatformRoot(
             new AppCapabilities(
                 CanHostSyncServer: false,
                 CanPairAsClient: true,
@@ -25,17 +28,22 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
                 HasPointer: false,
                 HasTouch: true,
                 HasKeyboard: false,
-                SupportsLongPressContextMenu: true));
-        MobileAppBootstrapper.RegisterMobileSync(
-            App.ServiceCollection,
-            static () => new AndroidSecureStorage(),
-            static () => new AndroidFriendlyNameProvider(),
-            static _ => new AndroidServiceDiscovery(
-                new SocketServiceDiscovery(),
-                new AndroidMulticastLockFactory()),
-            static () => new AndroidHapticFeedback(() => MainActivity.CurrentWindow));
+                SupportsLongPressContextMenu: true),
+            AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Compact),
+            services =>
+            {
+                MobileAppBootstrapper.RegisterMobileSync(
+                    services,
+                    static () => new AndroidSecureStorage(),
+                    static () => new AndroidFriendlyNameProvider(),
+                    static _ => new AndroidServiceDiscovery(
+                        new SocketServiceDiscovery(),
+                        new AndroidMulticastLockFactory()),
+                    static () => new AndroidHapticFeedback(() => MainActivity.CurrentWindow));
+            },
+            paths);
 
         return MobileAppBootstrapper.ConfigureMobileAvalonia(
-            base.CustomizeAppBuilder(builder));
+            AppBuilder.Configure(() => new App(root)).UseAndroid());
     }
 }

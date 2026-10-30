@@ -26,13 +26,12 @@ public sealed class AppPreferences : IAppPreferences
     };
 
     private readonly string filePath;
-    private readonly int documentVersion;
+    private readonly TimeProvider timeProvider;
     private readonly SemaphoreSlim gate = new(1, 1);
     private AppPreferencesDocument document;
 
     private readonly Subject<PreferenceValueChange<MapPreferencesValue>> mapPreferencesSubject = new();
     private readonly Subject<PreferenceValueChange<SufniThemeMode>> themePreferencesSubject = new();
-    private readonly Subject<PreferenceValueChange<UiPreferences>> uiPreferencesSubject = new();
     private readonly object recordedPreferenceSubjectsGate = new();
     private readonly Dictionary<Guid, Subject<PreferenceValueChange<SessionPreferences>>> recordedPreferenceSubjects = [];
     private readonly Subject<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>> allRecordedPreferencesSubject = new();
@@ -42,26 +41,19 @@ public sealed class AppPreferences : IAppPreferences
     public IThemePreferences Theme { get; }
     public IUiPreferences Ui { get; }
 
-    public AppPreferences()
-        : this(Path.Combine(Path.GetDirectoryName(AppPaths.DatabasePath)!, "app-preferences.json"))
-    {
-    }
-
-    internal AppPreferences(string filePath)
-        : this(filePath, CurrentVersion)
-    {
-    }
-
-    internal AppPreferences(string filePath, int documentVersion)
+    public AppPreferences(string filePath, LaunchPreferences launchPreferences, TimeProvider timeProvider)
     {
         this.filePath = filePath;
-        this.documentVersion = documentVersion;
-        document = ReadDocumentCore();
+        this.timeProvider = timeProvider;
+        document = launchPreferences.Document;
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
         Theme = new ThemePreferences(this);
         Ui = new UiPreferenceStore(this);
     }
+
+    public static LaunchPreferences ReadLaunchValues(string filePath, UiLayoutProfile defaultLayoutProfile) =>
+        new(ReadDocumentCore(filePath), defaultLayoutProfile);
 
     private async Task<TResult> ReadAsync<TResult>(Func<AppPreferencesDocument, TResult> read)
     {
@@ -118,7 +110,7 @@ public sealed class AppPreferences : IAppPreferences
             }
 
             var next = CloneDocument();
-            next.ApplySyncData(preferences, documentVersion);
+            next.ApplySyncData(preferences, CurrentVersion, GetCurrentTimestamp());
             await WriteDocumentCoreAsync(next);
             document = next;
             PublishMapPreferenceChange(
@@ -220,17 +212,6 @@ public sealed class AppPreferences : IAppPreferences
             advancesSyncClock));
     }
 
-    private void PublishUiPreferenceChange(
-        UiPreferences value,
-        PreferenceChangeOrigin origin,
-        bool advancesSyncClock)
-    {
-        uiPreferencesSubject.OnNext(new PreferenceValueChange<UiPreferences>(
-            value,
-            origin,
-            advancesSyncClock));
-    }
-
     private static TileLayerConfig CloneTileLayerConfig(TileLayerConfig layer)
     {
         return new TileLayerConfig
@@ -245,32 +226,32 @@ public sealed class AppPreferences : IAppPreferences
         };
     }
 
-    private static long GetCurrentTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    private long GetCurrentTimestamp() => timeProvider.GetUtcNow().ToUnixTimeSeconds();
 
     private AppPreferencesDocument CloneDocument()
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
-        return JsonSerializer.Deserialize<AppPreferencesDocument>(bytes, JsonOptions)?.Normalize(documentVersion)
-            ?? new AppPreferencesDocument().Normalize(documentVersion);
+        return JsonSerializer.Deserialize<AppPreferencesDocument>(bytes, JsonOptions)?.Normalize(CurrentVersion)
+            ?? new AppPreferencesDocument().Normalize(CurrentVersion);
     }
 
-    private AppPreferencesDocument ReadDocumentCore()
+    private static AppPreferencesDocument ReadDocumentCore(string filePath)
     {
         if (!File.Exists(filePath))
         {
-            return new AppPreferencesDocument().Normalize(documentVersion);
+            return new AppPreferencesDocument().Normalize(CurrentVersion);
         }
 
         try
         {
             using var stream = File.OpenRead(filePath);
             var document = JsonSerializer.Deserialize<AppPreferencesDocument>(stream, JsonOptions);
-            return document?.Normalize(documentVersion) ?? new AppPreferencesDocument().Normalize(documentVersion);
+            return document?.Normalize(CurrentVersion) ?? new AppPreferencesDocument().Normalize(CurrentVersion);
         }
         catch (JsonException ex)
         {
             logger.Warning(ex, "Failed to read app preferences JSON at {PreferencesPath}; using defaults", filePath);
-            return new AppPreferencesDocument().Normalize(documentVersion);
+            return new AppPreferencesDocument().Normalize(CurrentVersion);
         }
     }
 
@@ -287,7 +268,7 @@ public sealed class AppPreferences : IAppPreferences
         {
             await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
             {
-                await JsonSerializer.SerializeAsync(stream, document.Normalize(documentVersion), JsonOptions);
+                await JsonSerializer.SerializeAsync(stream, document.Normalize(CurrentVersion), JsonOptions);
             }
 
             File.Move(tempPath, filePath, overwrite: true);
@@ -347,7 +328,7 @@ public sealed class AppPreferences : IAppPreferences
             {
                 var next = owner.CloneDocument();
                 update(next);
-                next.Updated = GetCurrentTimestamp();
+                next.Updated = owner.GetCurrentTimestamp();
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
                 owner.PublishMapPreferenceChange(
@@ -429,28 +410,7 @@ public sealed class AppPreferences : IAppPreferences
 
     private sealed class UiPreferenceStore(AppPreferences owner) : IUiPreferences
     {
-        public Task<UiPreferences> GetAsync()
-        {
-            return owner.ReadAsync(document => document.Ui.ToModel());
-        }
-
-        public Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile)
-        {
-            return SetAsync(layoutProfile);
-        }
-
-        public IObservable<PreferenceValueChange<UiPreferences>> ObserveChanges()
-        {
-            return Observable
-                .FromAsync(async () => new PreferenceValueChange<UiPreferences>(
-                    await GetAsync(),
-                    PreferenceChangeOrigin.SyncApply,
-                    AdvancesSyncClock: false))
-                .Concat(owner.uiPreferencesSubject)
-                .DistinctUntilChanged();
-        }
-
-        private async Task SetAsync(UiLayoutProfile? layoutProfile)
+        public async Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile)
         {
             await owner.gate.WaitAsync();
             try
@@ -459,10 +419,6 @@ public sealed class AppPreferences : IAppPreferences
                 next.Ui.LayoutProfile = layoutProfile?.ToString();
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
-                owner.PublishUiPreferenceChange(
-                    next.Ui.ToModel(),
-                    PreferenceChangeOrigin.LocalNoSyncClockWrite,
-                    advancesSyncClock: false);
             }
             finally
             {
@@ -495,7 +451,7 @@ public sealed class AppPreferences : IAppPreferences
                 var current = next.Session.GetRecorded(sessionId);
                 var updated = update(current);
                 next.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(updated);
-                next.Updated = GetCurrentTimestamp();
+                next.Updated = owner.GetCurrentTimestamp();
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
@@ -517,7 +473,7 @@ public sealed class AppPreferences : IAppPreferences
             {
                 var next = owner.CloneDocument();
                 next.Session.Sessions.Remove(SessionKey(sessionId));
-                next.Updated = GetCurrentTimestamp();
+                next.Updated = owner.GetCurrentTimestamp();
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
                 owner.PublishRecordedPreferenceChanges(
@@ -670,7 +626,7 @@ public sealed class AppPreferences : IAppPreferences
             {
                 var next = owner.CloneDocument();
                 next.Theme.Mode = mode.ToString();
-                next.Updated = GetCurrentTimestamp();
+                next.Updated = owner.GetCurrentTimestamp();
                 await owner.WriteDocumentCoreAsync(next);
                 owner.document = next;
                 owner.PublishThemePreferenceChange(
@@ -685,7 +641,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class AppPreferencesDocument
+    internal sealed class AppPreferencesDocument
     {
         public int Version { get; set; } = CurrentVersion;
         public long Updated { get; set; }
@@ -744,7 +700,7 @@ public sealed class AppPreferences : IAppPreferences
             };
         }
 
-        public void ApplySyncData(AppPreferencesSyncData preferences, int targetVersion)
+        public void ApplySyncData(AppPreferencesSyncData preferences, int targetVersion, long timestamp)
         {
             var maps = preferences.Maps ?? new MapPreferencesSyncData();
             var session = preferences.Session ?? new SessionPreferencesSyncData();
@@ -752,7 +708,7 @@ public sealed class AppPreferences : IAppPreferences
 
             Updated = preferences.Updated > 0
                 ? preferences.Updated
-                : GetCurrentTimestamp();
+                : timestamp;
             Maps = new MapPreferencesDocument
             {
                 SelectedLayerId = maps.SelectedLayerId?.ToString("D"),
@@ -777,20 +733,17 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class UiPreferencesDocument
+    internal sealed class UiPreferencesDocument
     {
         public string? LayoutProfile { get; set; }
 
-        public UiPreferences ToModel()
-        {
-            return new UiPreferences(
-                Enum.TryParse<UiLayoutProfile>(LayoutProfile, ignoreCase: false, out var parsed)
-                    ? parsed
-                    : null);
-        }
+        public UiLayoutProfile? GetLayoutProfile() =>
+            Enum.TryParse<UiLayoutProfile>(LayoutProfile, ignoreCase: false, out var parsed)
+                ? parsed
+                : null;
     }
 
-    private sealed class ThemePreferencesDocument
+    internal sealed class ThemePreferencesDocument
     {
         public string? Mode { get; set; }
 
@@ -802,7 +755,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class MapPreferencesDocument
+    internal sealed class MapPreferencesDocument
     {
         public string? SelectedLayerId { get; set; }
         public List<TileLayerConfig>? CustomLayers { get; set; } = [];
@@ -833,7 +786,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionPreferencesGroupDocument
+    internal sealed class SessionPreferencesGroupDocument
     {
         public Dictionary<string, SessionPreferencesDocument?> Sessions { get; set; } = [];
 
@@ -865,7 +818,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionPreferencesDocument
+    internal sealed class SessionPreferencesDocument
     {
         public SignalDisplayPreferencesDocument? SignalDisplay { get; set; }
         public SignalDisplayPreferencesDocument? Plots { get; set; }
@@ -903,7 +856,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SignalDisplayPreferencesDocument
+    internal sealed class SignalDisplayPreferencesDocument
     {
         public bool? Travel { get; set; }
         public bool? Velocity { get; set; }
@@ -963,7 +916,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class AnalysisPreferencesDocument
+    internal sealed class AnalysisPreferencesDocument
     {
         public string? TravelDistributionMode { get; set; }
         public string? TravelHistogramMode { get; set; }
@@ -1004,7 +957,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionProcessingPreferencesDocument
+    internal sealed class SessionProcessingPreferencesDocument
     {
         public int? VelocityFilterWindowMilliseconds { get; set; }
 
@@ -1024,7 +977,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SignalLayoutPreferencesDocument
+    internal sealed class SignalLayoutPreferencesDocument
     {
         public List<SignalLayoutRowPreferencesDocument?>? Rows { get; set; }
 
@@ -1052,7 +1005,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SignalLayoutRowPreferencesDocument
+    internal sealed class SignalLayoutRowPreferencesDocument
     {
         public string? RowId { get; set; }
         public bool? IsExpanded { get; set; }
@@ -1086,7 +1039,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionLayoutPreferencesDocument
+    internal sealed class SessionLayoutPreferencesDocument
     {
         public SessionPaneGroupPreferencesDocument? DesktopShellRows { get; set; }
         public SessionPaneGroupPreferencesDocument? DesktopSignalsMediaColumns { get; set; }
@@ -1123,7 +1076,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionPaneGroupPreferencesDocument
+    internal sealed class SessionPaneGroupPreferencesDocument
     {
         public List<SessionPaneSizePreferenceDocument?>? Panes { get; set; }
 
@@ -1152,7 +1105,7 @@ public sealed class AppPreferences : IAppPreferences
         }
     }
 
-    private sealed class SessionPaneSizePreferenceDocument
+    internal sealed class SessionPaneSizePreferenceDocument
     {
         public string? PaneId { get; set; }
         public double? Ratio { get; set; }

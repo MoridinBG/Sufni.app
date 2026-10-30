@@ -105,4 +105,4 @@ clips to the second part with that shift applied. See
 | macOS | `MacOsVideoPlayerFactory` | `AppleAvPlaybackBackend` (AVFoundation) in `Sufni.App/AppleShared/` |
 | iOS | `IosVideoPlayerFactory` | `AppleAvPlaybackBackend` |
 
-Each head registers its factory on `App.ServiceCollection` with its other platform services.
+Each head registers its factory through `PlatformRoot` with its other platform services. `AppComposition` validates that player registration agrees with `CanPlayVideo`.

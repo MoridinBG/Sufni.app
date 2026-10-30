@@ -65,6 +65,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 
 - Use xUnit.
 - Use NSubstitute for collaborators.
+- Use `Microsoft.Extensions.TimeProvider.Testing.FakeTimeProvider` for injected clock behavior.
 - Use `Avalonia.Headless` when the code touches Avalonia objects, UI-thread-bound state, or actual views.
 - Prefer `Fact` for non-UI tests and `AvaloniaFact` only when it is actually required.
 
@@ -87,6 +88,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - Check `Sufni.App.Tests/TestSupport/` before creating a new local helper. It carries the shared fixtures: `TempDatabase` and `TempDirectory` (`Io/`), `InlineUiThreadDispatcher` and `InlineBackgroundTaskRunner` (`Async/`), and `TestRecordedSessionTimeline` and the golden telemetry fixtures (`Fixtures/`). The golden telemetry fixtures live in `Sufni.Telemetry.Tests` and are linked into the app tests.
 - Reuse shared builders, snapshot factories, app/test-environment helpers, and synchronization helpers when they fit the test.
 - If the same helper pattern starts appearing in multiple test classes, move it into shared test infrastructure.
+- `TestAppPreferences.Load` supplies isolated launch preferences and a fake clock for file-backed preference tests.
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
 
 ## Async Test Control
@@ -105,7 +107,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - The suite runs xunit's default parallel collections; the assembly-level serialization is gone.
 - The **UI tier** is the one named collection: `[Collection("Ui")]` (defined in `Infrastructure/UiCollection.cs`, `DisableParallelization = true`). It serializes tests that share process-global state: anything touching `TestApp`, `Application.Current` resources, `ViewTestHelpers`, `[AvaloniaFact]`/`[AvaloniaTheory]` bodies on the headless dispatcher, `PeriodicUiTimer`, or anything that creates an Avalonia object or a `DispatcherTimer` (controls, resource dictionaries, services that own a `DispatcherTimer`). The Ui collection runs at the same time as the parallel collections. Each headless test resets the Avalonia dispatcher, and a parallel test that creates an Avalonia object in that window takes the UI dispatcher to its own thread, which stops the headless session and hangs the run.
 - **A new test that touches any of those must carry `[Collection("Ui")]`.** Persistence-tier tests (isolated per test by `TempDatabase`/`TempDirectory`) and pure unit tests stay in the default parallel collections — do not add them to the Ui collection.
-- Audited process-global state: `App.ServiceCollection` is only written during startup composition (no test mutates it); `PeriodicUiTimer` is UI-tier only; dispatcher fakes are per-test instances.
+- Composition tests build fresh collections from typed platform roots and fake platform services. `PeriodicUiTimer` is still UI-tier only; dispatcher fakes are per-test instances.
 
 ## Platform, Profile, And Capability Branches
 

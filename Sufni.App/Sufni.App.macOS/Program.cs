@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Native;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.IO;
 using Sufni.App.Desktop;
 
 using Sufni.App.Infrastructure;
@@ -20,8 +21,10 @@ namespace Sufni.App.macOS
         // Avalonia configuration, don't remove; also used by visual designer.
         public static AppBuilder BuildAvaloniaApp()
         {
-            App.ServiceCollection.AddAppEnvironment(
-                UiLayoutProfile.Workspace,
+            var paths = new AppPaths(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sufni.App"));
+            LoggingBootstrapper.Initialize("macOS", paths, TimeProvider.System);
+            var root = new PlatformRoot(
                 new AppCapabilities(
                     CanHostSyncServer: true,
                     CanPairAsClient: false,
@@ -32,14 +35,18 @@ namespace Sufni.App.macOS
                     HasPointer: true,
                     HasTouch: false,
                     HasKeyboard: true,
-                    SupportsLongPressContextMenu: false));
-            App.ServiceCollection.AddSingleton<ISecureStorage, MacOsSecureStorage>();
-            App.ServiceCollection.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
-            DesktopAppBootstrapper.RegisterDesktopSync(App.ServiceCollection);
-            App.ServiceCollection.AddSingleton<IVideoPlayerFactory, MacOsVideoPlayerFactory>();
+                    SupportsLongPressContextMenu: false),
+                AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Workspace),
+                services =>
+                {
+                    services.AddSingleton<ISecureStorage, MacOsSecureStorage>();
+                    services.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
+                    DesktopAppBootstrapper.RegisterDesktopSync(services);
+                    services.AddSingleton<IVideoPlayerFactory, MacOsVideoPlayerFactory>();
+                },
+                paths);
             return DesktopAppBootstrapper.ConfigureAvaloniaApp(
-                AppBuilder.Configure<App>().UseSkia().UseAvaloniaNative(),
-                "macOS");
+                AppBuilder.Configure(() => new App(root)).UseSkia().UseAvaloniaNative());
         }
     }
 }

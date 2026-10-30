@@ -84,17 +84,21 @@ five samples and a trim removes at least one.
 
 ## Dependency Injection
 
-The DI container is a `ServiceCollection` exposed as a static field
-on `App` (`App.axaml.cs`). Each platform entry point
-(`Sufni.App.{Windows,macOS,Linux,Android,iOS}/Program.cs` or
-`AppDelegate.cs` / `MainApplication.cs`) adds its platform-specific
-registrations to `App.ServiceCollection` before
-`OnFrameworkInitializationCompleted` runs the shared registrations
-and calls `BuildServiceProvider()`. There is no separate
-`RegisteredServices` indirection — the `ServiceCollection` itself is
-the composition root.
+Each platform head constructs a `PlatformRoot` containing capabilities, input
+capabilities, `LaunchPreferences`, `IAppPaths`, and its platform-service
+registration delegate. It passes that root to `App` through the Avalonia
+application factory. `AppComposition.AddSharedServices` installs the platform
+and shared registrations into a new collection; `App` builds the provider with
+`ValidateOnBuild = true`. There is no static service collection.
 
-Shared registrations in `App.OnFrameworkInitializationCompleted`:
+`AppPreferences.ReadLaunchValues` reads the preferences document once. The launch
+snapshot supplies the first-frame theme and layout profile, and seeds runtime
+`AppPreferences` without another read. Each head chooses the default layout and
+app-data directory. Paths reach persistence, logging and certificate storage
+through the root. `TimeProvider.System` is registered once; preferences use the
+injected clock. Other clock seams are still being adopted.
+
+Shared registrations in `AppComposition`:
 
 - **Shell**: `ShellWorkspaceViewModel`, `ShellRootViewModel`, and the single
   `IShellCoordinator` implementation, `ShellWorkspaceCoordinator`, are shared
@@ -105,8 +109,7 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   SQLite repository interfaces, `ISyncDataStore`,
   `IFilesService`, `ITileLayerService`,
   `IMapViewModelFactory`, `ISessionTrackReader`, `IFullTrackPointReader`,
-  plus `IAppPreferences` and the two facets
-  it exposes — `IMapPreferences` and `ISessionPreferences` —
+  plus `IAppPreferences` and its `ISessionPreferences` and `IUiPreferences` facets —
   registered as singletons via factory delegates that resolve the
   same `IAppPreferences` instance. The concrete `DialogService`
   singleton is re-registered behind `IDialogService` (the `Show*`
@@ -117,8 +120,8 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   services (`IProcessingFingerprintService`,
   `IRecordedSessionReprocessor`, `IRecordedSessionAnalysisComputer`) are
   also singleton services. `IRecordedSessionAnalysisResultStateFactory` is
-  transient because each open recorded-session editor owns its own result
-  cache and cancellation scope. `IRecordedSessionSourceSyncQuery` is the
+  a singleton factory; each result state it creates belongs to one open editor
+  with its own cache and cancellation scope. `IRecordedSessionSourceSyncQuery` is the
   source-sync read helper that combines the repository's missing recording
   sources with the sources referenced by derived sessions. The recorded-source
   factory is static and stays in `RecordedSessionProjection/` beside the
@@ -135,10 +138,10 @@ Shared registrations in `App.OnFrameworkInitializationCompleted`:
   Persisted writer interfaces expose semantic commit methods plus
   publish-only changed/removed batches; `LiveDaqStore` remains runtime-only.
 - **Coordinators**: every shared entity coordinator plus `SyncCoordinator`,
-  `ImportSessionsCoordinator` (the latter takes both an
-  `IBackgroundTaskRunner` and a `Func<ImportSessionsViewModel>` so it
-  can open / focus the singleton import page while keeping the import
-  workflow itself view-model-free).
+  `ImportSessionsCoordinator`. The import coordinator opens its page through
+  `IEditorFactory`; `Func<ImportSessionsViewModel>` belongs to the editor factory.
+  It and `Func<IEditorFactory>` still break the editor/coordinator construction
+  cycle pending navigation-ownership adoption.
 - **Queries, indexes, and read graphs**: `IBikeDependencyQuery`,
   `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`,
   `IProcessingDependencyHashIndex`, and `IRecordedSessionProjection`.
@@ -185,9 +188,8 @@ as overlay host with `DialogPresentationMode.Overlay`. View models
 never see this contract — they consume `IDialogService` only.
 
 `App` also eagerly resolves
-`ISessionTrackReader`, `SessionSyncApplier`, `PairedDeviceCoordinator`,
-`SyncCoordinator`, plus the desktop-only
-`IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
+`ISessionTrackReader`, `PairedDeviceCoordinator`, `SyncCoordinator`, plus the
+desktop-only `SessionSyncApplier`, `IPairingServerCoordinator` and `IInboundSyncCoordinator` (or the
 mobile-only `IPairingClientCoordinator`). This is necessary because
 their constructors subscribe to session-store, synchronization-server, pairing,
 or service-discovery changes before the first refresh or arrival.

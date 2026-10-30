@@ -16,7 +16,7 @@ public class TileLayerServiceTests
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         using var service = new TileLayerService(preferences);
         await service.InitializeAsync();
 
@@ -32,7 +32,7 @@ public class TileLayerServiceTests
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         using var service = new TileLayerService(preferences);
 
         var emissions = 0;
@@ -48,8 +48,8 @@ public class TileLayerServiceTests
         var preferencesPathA = Path.Combine(tempDirectoryA.Path, "app-preferences.json");
         using var tempDirectoryB = new TempDirectory("sufni-tilelayer-test");
         var preferencesPathB = Path.Combine(tempDirectoryB.Path, "app-preferences.json");
-        using var serviceA = new TileLayerService(new AppPreferences(preferencesPathA));
-        using var serviceB = new TileLayerService(new AppPreferences(preferencesPathB));
+        using var serviceA = new TileLayerService(TestAppPreferences.Load(preferencesPathA));
+        using var serviceB = new TileLayerService(TestAppPreferences.Load(preferencesPathB));
         await serviceA.InitializeAsync();
         await serviceB.InitializeAsync();
 
@@ -65,7 +65,7 @@ public class TileLayerServiceTests
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         using var service = new TileLayerService(preferences);
         await service.InitializeAsync();
 
@@ -87,7 +87,7 @@ public class TileLayerServiceTests
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         using var service = new TileLayerService(preferences);
         await service.InitializeAsync();
 
@@ -131,7 +131,7 @@ public class TileLayerServiceTests
     {
         using var tempDirectory = new TempDirectory("sufni-tilelayer-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         using var service = new TileLayerService(preferences);
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData

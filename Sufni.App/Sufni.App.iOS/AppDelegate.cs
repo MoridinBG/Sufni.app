@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using Avalonia;
 using Avalonia.iOS;
 using Foundation;
@@ -12,17 +14,18 @@ namespace Sufni.App.iOS
     // User Interface of the application, as well as listening (and optionally responding) to 
     // application events from iOS.
     [Register("AppDelegate")]
-    public partial class AppDelegate : AvaloniaAppDelegate<App>
+    public partial class AppDelegate : AvaloniaAppDelegate<Avalonia.Application>
     {
         private NSObject? didEnterBackgroundObserver;
         private NSObject? willTerminateObserver;
 
-        protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
+        protected override AppBuilder CreateAppBuilder()
         {
-            LoggingBootstrapper.Initialize("iOS", new OsLogSink(LoggingBootstrapper.OutputTemplate));
+            var paths = new AppPaths(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sufni.App"));
+            LoggingBootstrapper.Initialize("iOS", paths, TimeProvider.System, new OsLogSink(LoggingBootstrapper.OutputTemplate));
             InstallLifecycleObservers();
-            App.ServiceCollection.AddAppEnvironment(
-                UiLayoutProfile.Compact,
+            var root = new PlatformRoot(
                 new AppCapabilities(
                     CanHostSyncServer: false,
                     CanPairAsClient: true,
@@ -33,17 +36,22 @@ namespace Sufni.App.iOS
                     HasPointer: false,
                     HasTouch: true,
                     HasKeyboard: false,
-                    SupportsLongPressContextMenu: true));
-            MobileAppBootstrapper.RegisterMobileSync(
-                App.ServiceCollection,
-                static () => new IosSecureStorage(),
-                static () => new IosFriendlyNameProvider(),
-                static _ => new BonjourServiceDiscovery(),
-                static () => new IosHapticFeedback());
-            App.ServiceCollection.AddSingleton<IVideoPlayerFactory, IosVideoPlayerFactory>();
+                    SupportsLongPressContextMenu: true),
+                AppPreferences.ReadLaunchValues(paths.PreferencesPath, UiLayoutProfile.Compact),
+                services =>
+                {
+                    MobileAppBootstrapper.RegisterMobileSync(
+                        services,
+                        static () => new IosSecureStorage(),
+                        static () => new IosFriendlyNameProvider(),
+                        static _ => new BonjourServiceDiscovery(),
+                        static () => new IosHapticFeedback());
+                    services.AddSingleton<IVideoPlayerFactory, IosVideoPlayerFactory>();
+                },
+                paths);
 
             return MobileAppBootstrapper.ConfigureMobileAvalonia(
-                base.CustomizeAppBuilder(builder));
+                AppBuilder.Configure(() => new App(root)).UseiOS(this));
         }
 
         private void InstallLifecycleObservers()

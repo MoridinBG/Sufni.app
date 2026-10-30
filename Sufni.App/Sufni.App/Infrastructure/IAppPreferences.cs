@@ -34,9 +34,7 @@ public interface IAppPreferences
 
 public interface IUiPreferences
 {
-    Task<UiPreferences> GetAsync();
     Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile);
-    IObservable<PreferenceValueChange<UiPreferences>> ObserveChanges();
 }
 
 public interface IMapPreferences

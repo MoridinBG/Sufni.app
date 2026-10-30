@@ -19,9 +19,11 @@ public static class DesktopAppBootstrapper
         services.AddSingleton<PairingServerViewModel>();
     }
 
-    public static AppBuilder ConfigureAvaloniaApp(AppBuilder builder, string platformName)
+    public static AppBuilder ConfigureAvaloniaApp(AppBuilder builder)
     {
-        LoggingBootstrapper.Initialize(platformName);
+#if DEBUG
+        builder.AfterSetup(app => app.Instance!.AttachDeveloperTools());
+#endif
         Logger.Sink = new AvaloniaSerilogSink(LogEventLevel.Warning);
 
         return builder

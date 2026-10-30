@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using System.Text.Json;
@@ -34,6 +35,43 @@ public class AppPreferencesTests
         ReplayCurrentValue,
     }
 
+    [Theory]
+    [InlineData(null, UiLayoutProfile.Compact)]
+    [InlineData("{broken", UiLayoutProfile.Workspace)]
+    [InlineData("{}", UiLayoutProfile.Compact)]
+    public async Task LaunchPreferences_UsesPlatformDefaults_WhenPreferencesAreAbsentOrInvalid(string? json, UiLayoutProfile fallback)
+    {
+        using var directory = new TempDirectory("sufni-launch-preferences-test");
+        var path = Path.Combine(directory.Path, "app-preferences.json");
+        if (json is not null)
+        {
+            await File.WriteAllTextAsync(path, json, TestContext.Current.CancellationToken);
+        }
+
+        var launch = AppPreferences.ReadLaunchValues(path, fallback);
+
+        Assert.Equal(fallback, launch.LayoutProfile);
+        Assert.Equal(SufniThemeMode.Dark, launch.ThemeMode);
+    }
+
+    [Fact]
+    public async Task LocalPreferenceWrite_UsesInjectedClockForSyncWindow()
+    {
+        using var directory = new TempDirectory("sufni-preferences-clock-test");
+        var path = Path.Combine(directory.Path, "app-preferences.json");
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+        var preferences = TestAppPreferences.Load(path, time);
+        var before = time.GetUtcNow().ToUnixTimeSeconds();
+        time.Advance(TimeSpan.FromSeconds(5));
+
+        await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
+
+        Assert.Null(await preferences.GetSyncDataAsync(0, before));
+        var changes = await preferences.GetSyncDataAsync(before, before + 5);
+        Assert.NotNull(changes);
+        Assert.Equal(before + 5, changes.Updated);
+    }
+
     [Fact]
     public async Task MapPreferences_PersistSelectedLayerAndCustomLayers_UnderMapsGroup()
     {
@@ -50,12 +88,12 @@ public class AppPreferencesTests
             IsCustom = true,
         };
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await preferences.Map.SetSelectedLayerIdAsync(layer.Id);
         await preferences.Map.SetCustomLayersAsync([layer]);
 
-        var reloaded = new AppPreferences(preferencesPath);
+        var reloaded = TestAppPreferences.Load(preferencesPath);
         var selectedLayerId = await reloaded.Map.GetSelectedLayerIdAsync();
         var customLayers = await reloaded.Map.GetCustomLayersAsync();
 
@@ -76,7 +114,7 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task Preferences_ReadsFromLoadedDocument_WhenFileChangesAfterConstruction()
+    public async Task Preferences_UsesLaunchSnapshot_WhenFileChangesBeforeRuntimeConstruction()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
@@ -94,7 +132,7 @@ public class AppPreferencesTests
               }
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = new AppPreferences(preferencesPath);
+        var launch = AppPreferences.ReadLaunchValues(preferencesPath, UiLayoutProfile.Compact);
 
         await File.WriteAllTextAsync(
             preferencesPath,
@@ -108,9 +146,10 @@ public class AppPreferencesTests
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
 
+        var preferences = new AppPreferences(preferencesPath, launch, new FakeTimeProvider());
         Assert.Equal(initialLayerId, await preferences.Map.GetSelectedLayerIdAsync());
 
-        var reloaded = new AppPreferences(preferencesPath);
+        var reloaded = TestAppPreferences.Load(preferencesPath);
         Assert.Equal(externalLayerId, await reloaded.Map.GetSelectedLayerIdAsync());
     }
 
@@ -130,7 +169,7 @@ public class AppPreferencesTests
             MaxZoom = 18,
             IsCustom = true,
         };
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var initialEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var localEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -194,10 +233,10 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = CreatePreferencesPath(tempDirectory);
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         await preferences.Theme.SetModeAsync(mode);
 
-        var reloaded = new AppPreferences(preferencesPath);
+        var reloaded = TestAppPreferences.Load(preferencesPath);
         Assert.Equal(mode, await reloaded.Theme.GetModeAsync());
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
@@ -209,7 +248,7 @@ public class AppPreferencesTests
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var initialEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var localEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -270,45 +309,24 @@ public class AppPreferencesTests
             await File.WriteAllTextAsync(preferencesPath, document, cancellationToken: TestContext.Current.CancellationToken);
         }
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         Assert.Equal(expectedMode, await preferences.Theme.GetModeAsync());
     }
 
     [Fact]
-    public async Task UiPreferences_ObserveChanges_ReplaysAndReportsNoClockLocalWrites()
+    public async Task UiPreferences_PersistsNextLaunchLayout_WithoutAdvancingSyncClock()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = new AppPreferences(preferencesPath);
-
-        var initialEmission = new TaskCompletionSource<PreferenceValueChange<UiPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var localEmission = new TaskCompletionSource<PreferenceValueChange<UiPreferences>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var emissions = 0;
-        using var subscription = preferences.Ui.ObserveChanges()
-            .Subscribe(change =>
-            {
-                if (Interlocked.Increment(ref emissions) == 1)
-                {
-                    initialEmission.TrySetResult(change);
-                }
-                else
-                {
-                    localEmission.TrySetResult(change);
-                }
-            });
-
-        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
-        Assert.False(initial.AdvancesSyncClock);
-        Assert.Null(initial.Value.LayoutProfile);
+        var launch = AppPreferences.ReadLaunchValues(preferencesPath, UiLayoutProfile.Compact);
+        var preferences = new AppPreferences(preferencesPath, launch, new FakeTimeProvider());
 
         await preferences.Ui.SetLayoutProfileAsync(UiLayoutProfile.Workspace);
 
-        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.LocalNoSyncClockWrite, local.Origin);
-        Assert.False(local.AdvancesSyncClock);
-        Assert.Equal(UiLayoutProfile.Workspace, local.Value.LayoutProfile);
+        Assert.Equal(UiLayoutProfile.Compact, launch.LayoutProfile);
+        Assert.Equal(UiLayoutProfile.Workspace,
+            AppPreferences.ReadLaunchValues(preferencesPath, UiLayoutProfile.Compact).LayoutProfile);
         Assert.Null(await preferences.GetSyncDataAsync(0, long.MaxValue));
     }
 
@@ -318,7 +336,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var missingFilePreferences = await preferences.Session.GetRecordedAsync(Guid.NewGuid());
         AssertDefaultSessionPreferences(missingFilePreferences);
@@ -342,11 +360,11 @@ public class AppPreferencesTests
         var preferencesPath = CreatePreferencesPath(tempDirectory);
         var sessionId = Guid.NewGuid();
         var testCase = CreateRecordedPreferenceCase(persistenceCase);
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await preferences.Session.UpdateRecordedAsync(sessionId, testCase.Update);
 
-        var reloaded = new AppPreferences(preferencesPath);
+        var reloaded = TestAppPreferences.Load(preferencesPath);
         var stored = await reloaded.Session.GetRecordedAsync(sessionId);
 
         testCase.AssertStored(stored);
@@ -363,7 +381,7 @@ public class AppPreferencesTests
         var firstSessionId = Guid.NewGuid();
         var secondSessionId = Guid.NewGuid();
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await preferences.Session.UpdateRecordedAsync(firstSessionId, current => current with
         {
@@ -426,7 +444,7 @@ public class AppPreferencesTests
               }
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
 
@@ -490,7 +508,7 @@ public class AppPreferencesTests
               }
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
 
@@ -580,7 +598,7 @@ public class AppPreferencesTests
               }
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
 
@@ -598,7 +616,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
@@ -765,7 +783,7 @@ public class AppPreferencesTests
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionIds = Enumerable.Range(0, 20).Select(_ => Guid.NewGuid()).ToArray();
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await Task.WhenAll(sessionIds.Select((sessionId, index) =>
             preferences.Session.UpdateRecordedAsync(sessionId, current => current with
@@ -802,7 +820,7 @@ public class AppPreferencesTests
         };
 
         await File.WriteAllTextAsync(preferencesPath, jsonText, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var stored = await preferences.Session.GetRecordedAsync(sessionId);
         if (fallbackCase == RecordedPreferenceFallbackCase.UnknownEnumValues)
@@ -841,7 +859,7 @@ public class AppPreferencesTests
             IsCustom = true,
         };
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await preferences.Map.SetSelectedLayerIdAsync(layer.Id);
         await preferences.Map.SetCustomLayersAsync([layer]);
@@ -879,7 +897,7 @@ public class AppPreferencesTests
               }
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var snapshot = await preferences.GetSyncDataAsync(1, long.MaxValue);
 
@@ -900,7 +918,7 @@ public class AppPreferencesTests
         var selectedLayerId = Guid.NewGuid();
         var olderLayerId = Guid.NewGuid();
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
         {
@@ -947,7 +965,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = CreatePreferencesPath(tempDirectory);
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         if (valueCase == ObserveRecordedValueCase.ReplayCurrentValue)
         {
@@ -1023,7 +1041,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var initialEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
         var localEmission = new TaskCompletionSource<SessionPreferences>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1076,7 +1094,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var initialEmission = new TaskCompletionSource<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var localEmission = new TaskCompletionSource<PreferenceValueChange<IReadOnlyDictionary<Guid, SessionPreferences>>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1118,7 +1136,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var initialEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstStoredEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1179,7 +1197,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
 
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
         Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
 
         await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
@@ -1197,7 +1215,7 @@ public class AppPreferencesTests
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var sessionId = Guid.NewGuid();
-        var preferences = new AppPreferences(preferencesPath);
+        var preferences = TestAppPreferences.Load(preferencesPath);
 
         var emissions = 0;
         var initialEmission = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

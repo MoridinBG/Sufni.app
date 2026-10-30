@@ -45,7 +45,7 @@ internal static class PersistenceTestData
     }.BinaryForm;
 
     public static SqliteConnectionContext CreateConnectionContext(string databasePath) =>
-        new(databasePath, createAppDirectories: false);
+        new(databasePath);
 }
 
 internal sealed class TableColumnInfo

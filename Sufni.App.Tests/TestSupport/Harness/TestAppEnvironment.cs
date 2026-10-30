@@ -1,9 +1,18 @@
 using Sufni.App.Infrastructure;
+using NSubstitute;
 
 namespace Sufni.App.Tests.TestSupport.Harness;
 
 internal static class TestAppEnvironment
 {
+    public static PlatformRoot CreateRoot(LaunchPreferences? launchPreferences = null)
+    {
+        var environment = Create(UiLayoutProfile.Workspace);
+        return new PlatformRoot(environment.Capabilities, environment.Input,
+            launchPreferences ?? new LaunchPreferences(environment.LayoutProfile),
+            _ => { }, Substitute.For<IAppPaths>());
+    }
+
     public static IAppEnvironment Create(
         UiLayoutProfile layoutProfile,
         AppCapabilities? capabilities = null,

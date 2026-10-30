@@ -213,7 +213,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private WebApplication? application;
     private Task? startTask;
 
-    private readonly string certPath = AppPaths.CertificatePath;
+    private readonly string certPath;
 
     private Task Initialization { get; }
 
@@ -237,7 +237,8 @@ public class SynchronizationServerService : ISynchronizationServerService
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IAppPreferences appPreferences,
         ISecureStorage secureStorage,
-        ISessionBlobSwapRequestStore swapRequestStore)
+        ISessionBlobSwapRequestStore swapRequestStore,
+        IAppPaths paths)
     {
         this.syncDataStore = syncDataStore;
         this.pairedDeviceRepository = pairedDeviceRepository;
@@ -248,6 +249,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
         this.swapRequestStore = swapRequestStore;
+        certPath = paths.CertificatePath;
         Initialization = Init();
     }
 
@@ -372,7 +374,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private async Task GenerateCertificate()
     {
-        AppPaths.CreateRequiredDirectories();
+        Directory.CreateDirectory(Path.GetDirectoryName(certPath)!);
         logger.Verbose("Generating synchronization server certificate at {CertificatePath}", certPath);
 
         var ecdsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);

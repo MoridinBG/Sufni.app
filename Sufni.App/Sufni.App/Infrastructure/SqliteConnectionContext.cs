@@ -8,21 +8,12 @@ namespace Sufni.App.Infrastructure;
 
 internal sealed class SqliteConnectionContext
 {
-    internal SqliteConnectionContext(
-        string databasePath,
-        bool createAppDirectories)
+    internal SqliteConnectionContext(string databasePath)
     {
-        if (createAppDirectories)
+        var directory = Path.GetDirectoryName(databasePath);
+        if (!string.IsNullOrWhiteSpace(directory))
         {
-            AppPaths.CreateRequiredDirectories();
-        }
-        else
-        {
-            var directory = Path.GetDirectoryName(databasePath);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            Directory.CreateDirectory(directory);
         }
 
         Connection = new SQLiteAsyncConnection(databasePath);

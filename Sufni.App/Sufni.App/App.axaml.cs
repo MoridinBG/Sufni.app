@@ -1,50 +1,16 @@
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Markup.Xaml;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
 using System.Diagnostics;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
-
-using Sufni.App.Acquisition.Coordinators;
-using Sufni.App.Acquisition.Services;
-using Sufni.App.Acquisition.Services.Management;
-using Sufni.App.Acquisition.ViewModels;
-using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.Queries;
-using Sufni.App.Bikes.Services;
-using Sufni.App.Bikes.Stores;
-using Sufni.App.Bikes.ViewModels.ItemLists;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
+using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Infrastructure;
-using Sufni.App.Infrastructure.Theming;
-using Sufni.App.LiveDaq.Coordinators;
-using Sufni.App.LiveDaq.Queries;
-using Sufni.App.LiveDaq.Services;
-using Sufni.App.LiveDaq.Services.LiveStreaming;
-using Sufni.App.LiveDaq.Stores;
-using Sufni.App.LiveDaq.ViewModels.ItemLists;
-using Sufni.App.MapsAndTracks.Coordinators;
-using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Analysis.Services;
-using Sufni.App.Sessions.Insights.Services;
-using Sufni.App.Sessions.Insights.Services.SessionInsights;
+using Sufni.App.Infrastructure.Theming;
 using Sufni.App.Sessions.Coordination;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Processing.Services;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
-using Sufni.App.Sessions.Store;
-using Sufni.App.Setups.Coordinators;
-using Sufni.App.Setups.Models;
-using Sufni.App.Setups.Stores;
-using Sufni.App.Setups.ViewModels.ItemLists;
 using Sufni.App.Shell.Behaviors;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
@@ -53,47 +19,26 @@ using Sufni.App.Shell.Views;
 using Sufni.App.Shared.Views.Input;
 using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.SyncAndPairing.Coordinators;
-using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.SyncAndPairing.Stores;
-using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
-using Sufni.App.Segments.Coordinators;
-using Sufni.App.Segments.Services;
-using Sufni.App.Segments.Stores;
-using Sufni.App.Segments.Services.Matching;
-using Sufni.App.Segments.ViewModels;
-using Sufni.App.Video.Coordinators;
-using Sufni.App.Video.Services;
-using Sufni.App.Video.Stores;
-using Sufni.App.Video.ViewModels;
+
 namespace Sufni.App;
 
 public partial class App : Application
 {
-    internal static IServiceCollection ServiceCollection { get; } = new ServiceCollection();
+    private readonly PlatformRoot root;
+
+    public App(PlatformRoot root)
+    {
+        this.root = root;
+    }
 
     public new static App? Current => Application.Current as App;
     public IServiceProvider? Services { get; private set; }
 
-#if DEBUG
-    protected virtual bool ShouldAttachDeveloperTools => !OperatingSystem.IsIOS() && !OperatingSystem.IsAndroid();
-#endif
-
     public override void Initialize()
     {
-        // Read the persisted theme mode before XAML loads so the first frame
-        // renders the right variant. Without this, the user briefly sees the
-        // dark variant set in App.axaml before the theme service applies the
-        // persisted choice.
-        ThemeBootstrap.ApplyPersistedVariant(this);
-
+        // Apply before XAML resolution to avoid a default-theme first frame.
+        RequestedThemeVariant = SufniThemes.ToVariant(root.LaunchPreferences.ThemeMode);
         AvaloniaXamlLoader.Load(this);
-
-#if DEBUG
-        if (ShouldAttachDeveloperTools)
-        {
-            this.AttachDeveloperTools();
-        }
-#endif
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -107,209 +52,14 @@ public partial class App : Application
 
         LoggingBootstrapper.InstallGlobalExceptionHooks();
 
-        ServiceCollection.AddSingleton<IShellCoordinator, ShellWorkspaceCoordinator>();
-
-        ServiceCollection.AddSingleton<ViewLocator>(sp => new ViewLocator(
-            sp.GetRequiredService<IAppEnvironment>()));
-        ServiceCollection.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
-        ServiceCollection.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
-        ServiceCollection.AddSingleton<ILayoutProfileTransitionState, LayoutProfileTransitionState>();
-        ServiceCollection.AddSingleton<IKinematicSolutionCache, KinematicSolutionCache>();
-        ServiceCollection.AddSingleton<IRearTravelCalibrationBuilder, RearTravelCalibrationBuilder>();
-        ServiceCollection.AddSingleton<IBikeRearSuspensionValidator, BikeRearSuspensionValidator>();
-        ServiceCollection.AddSingleton<ITelemetryBikeProcessingContextFactory, TelemetryBikeProcessingContextFactory>();
-        ServiceCollection.AddSingleton<IBikeEditorService, BikeEditorService>();
-        ServiceCollection.AddSingleton<ISessionPresentationService, SessionPresentationService>();
-        ServiceCollection.AddSingleton<ISessionInsightsService, SessionInsightsService>();
-        ServiceCollection.AddSingleton<IRecordedSessionAnalysisComputer, RecordedSessionAnalysisComputer>();
-        ServiceCollection.AddTransient<IRecordedSessionAnalysisResultStateFactory, RecordedSessionAnalysisResultStateFactory>();
-        ServiceCollection.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
-        ServiceCollection.AddSingleton<ISessionProcessedTelemetryReader, SessionProcessedTelemetryReader>();
-        ServiceCollection.AddSingleton<IDaqManagementService, DaqManagementService>();
-        ServiceCollection.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
-        ServiceCollection.AddSingleton<SqliteConnectionContext>(sp =>
-            new SqliteConnectionContext(
-                AppPaths.DatabasePath,
-                createAppDirectories: true));
-        ServiceCollection.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
-        ServiceCollection.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
-        ServiceCollection.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
-        ServiceCollection.AddSingleton<ITrackRepository, TrackRepository>();
-        ServiceCollection.AddSingleton<ISessionTrackReader, SessionTrackReader>();
-        ServiceCollection.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();
-        ServiceCollection.AddSingleton<ISessionRepository, SessionRepository>();
-        ServiceCollection.AddSingleton<ISessionTelemetryWriter, SessionTelemetryWriter>();
-        ServiceCollection.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();
-        ServiceCollection.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
-        ServiceCollection.AddSingleton<ISessionContentReader, SessionContentReader>();
-        ServiceCollection.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
-        ServiceCollection.AddSingleton<IAppPreferences, AppPreferences>();
-        ServiceCollection.AddSingleton<IThemeService, ThemeService>();
-        ServiceCollection.AddSingleton<IMapPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Map);
-        ServiceCollection.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
-        ServiceCollection.AddSingleton<IUiPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Ui);
-        ServiceCollection.AddSingleton<ITileLayerService, TileLayerService>();
-        ServiceCollection.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
-        ServiceCollection.AddSingleton<FilesService>();
-        ServiceCollection.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
-        ServiceCollection.AddSingleton<DialogService>();
-        ServiceCollection.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());
-        ServiceCollection.AddSingleton<IDialogHost>(sp => sp.GetRequiredService<DialogService>());
-        ServiceCollection.AddSingleton<IPlotZoomState, PlotZoomState>();
-        ServiceCollection.AddSingleton<BikeStore>();
-        ServiceCollection.AddSingleton<IBikeStore>(sp => sp.GetRequiredService<BikeStore>());
-        ServiceCollection.AddSingleton<IBikeStoreWriter>(sp => sp.GetRequiredService<BikeStore>());
-        ServiceCollection.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
-        ServiceCollection.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
-        ServiceCollection.AddSingleton<Func<ImportSessionsViewModel>>(sp =>
-            () => sp.GetRequiredService<ImportSessionsViewModel>());
-        ServiceCollection.AddSingleton<IEditorFactory, EditorFactory>();
-        ServiceCollection.AddSingleton<Func<IEditorFactory>>(sp => () => sp.GetRequiredService<IEditorFactory>());
-        ServiceCollection.AddSingleton<BikeCoordinator>();
-        ServiceCollection.AddSingleton<IBikeCoordinator>(sp => sp.GetRequiredService<BikeCoordinator>());
-        ServiceCollection.AddSingleton<SetupStore>();
-        ServiceCollection.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
-        ServiceCollection.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
-        ServiceCollection.AddSingleton<ISetupPersistenceTransactionRunner, SetupPersistenceTransactionRunner>();
-        ServiceCollection.AddSingleton<SetupCoordinator>();
-        ServiceCollection.AddSingleton<ISetupCoordinator>(sp => sp.GetRequiredService<SetupCoordinator>());
-        ServiceCollection.AddSingleton<SessionStore>();
-        ServiceCollection.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
-        ServiceCollection.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
-        ServiceCollection.AddSingleton<RecordedSessionSourceStore>();
-        ServiceCollection.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
-        ServiceCollection.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
-        ServiceCollection.AddSingleton<ISessionVideoRepository, SessionVideoRepository>();
-        ServiceCollection.AddSingleton<IVideoMetadataReader, Mp4VideoMetadataReader>();
-        ServiceCollection.AddSingleton<SessionVideoStore>();
-        ServiceCollection.AddSingleton<ISessionVideoStore>(sp => sp.GetRequiredService<SessionVideoStore>());
-        ServiceCollection.AddSingleton<ISessionVideoStoreWriter>(sp => sp.GetRequiredService<SessionVideoStore>());
-        ServiceCollection.AddSingleton<IVideoCoordinator, VideoCoordinator>();
-        ServiceCollection.AddSingleton<IVideoPaneFactory, VideoPaneFactory>();
-        ServiceCollection.AddSingleton<ISessionSegmentRepository, SessionSegmentRepository>();
-        ServiceCollection.AddSingleton<SessionSegmentStore>();
-        ServiceCollection.AddSingleton<ISessionSegmentStore>(sp => sp.GetRequiredService<SessionSegmentStore>());
-        ServiceCollection.AddSingleton<ISessionSegmentStoreWriter>(sp => sp.GetRequiredService<SessionSegmentStore>());
-        ServiceCollection.AddSingleton<ISegmentMatcher, SegmentMatcher>();
-        ServiceCollection.AddSingleton<ISegmentCoordinator, SegmentCoordinator>();
-        ServiceCollection.AddSingleton<IStravaSegmentService, StravaSegmentService>();
-        ServiceCollection.AddSingleton<ISegmentPickerFactory, SegmentPickerFactory>();
-        ServiceCollection.AddSingleton<ISegmentComparisonFactory, SegmentComparisonFactory>();
-        ServiceCollection.AddSingleton<IAppDataRefresher, AppDataRefresher>();
-        ServiceCollection.AddSingleton<IProcessingFingerprintService, ProcessingFingerprintService>();
-        ServiceCollection.AddSingleton<IRecordedSessionProcessingOptionCache, RecordedSessionProcessingOptionCache>();
-        ServiceCollection.AddSingleton<IProcessingDependencyHashIndex, ProcessingDependencyHashIndex>();
-        ServiceCollection.AddSingleton<IRecordedSessionDomainQuery, RecordedSessionDomainQuery>();
-        ServiceCollection.AddSingleton<IRecordedSessionProjection, RecordedSessionProjection>();
-        ServiceCollection.AddSingleton<IRecordedSessionReprocessor, RecordedSessionReprocessor>();
-        ServiceCollection.AddSingleton<IRecordedSessionSourceSyncQuery, RecordedSessionSourceSyncQuery>();
-        ServiceCollection.AddSingleton<TrackCoordinator>();
-        ServiceCollection.AddSingleton<ITrackCoordinator>(sp => sp.GetRequiredService<TrackCoordinator>());
-        ServiceCollection.AddSingleton<SessionLoader>(sp => new SessionLoader(
-            sp.GetRequiredService<ISessionStore>(),
-            sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
-            sp.GetRequiredService<ITrackCoordinator>(),
-            sp.GetRequiredService<IRecordedSessionDomainQuery>()));
-        ServiceCollection.AddSingleton<ISessionRecomputeEngine>(sp => new SessionRecomputeEngine(
-            sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
-            sp.GetRequiredService<ISynchronizableRepository<Track>>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<IRecordedSessionProcessingOptionCache>(),
-            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IRecordedSessionDomainQuery>(),
-            sp.GetRequiredService<IRecordedSessionReprocessor>()));
-        ServiceCollection.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
-        ServiceCollection.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
-        ServiceCollection.AddSingleton<SessionCommandService>(sp => new SessionCommandService(
-            sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<ISessionTelemetryWriter>(),
-            sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
-            sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
-            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IRecordedSessionReprocessor>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>(),
-            sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<IShellCoordinator>(),
-            sp.GetRequiredService<IAppEnvironment>(),
-            sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<Func<IEditorFactory>>(),
-            sp.GetRequiredService<ISessionPersistenceTransactionRunner>()));
-        ServiceCollection.AddSingleton<SessionSyncApplier>(sp => new SessionSyncApplier(
-            sp.GetRequiredService<ISessionStoreWriter>(),
-            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetService<ISynchronizationServerService>()));
-        ServiceCollection.AddSingleton<ISessionCoordinator, SessionCoordinator>();
-        ServiceCollection.AddSingleton<ProcessingOptionsResetMigration>(sp => new ProcessingOptionsResetMigration(
-            sp.GetRequiredService<SqliteConnectionContext>(),
-            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<ISessionRepository>(),
-            sp.GetRequiredService<IAppDataRefresher>(),
-            sp.GetRequiredService<ISessionPreferences>(),
-            sp.GetRequiredService<ISessionRecomputeEngine>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>()));
-        ServiceCollection.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(
-            sp.GetRequiredService<SqliteConnectionContext>(),
-            sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-            sp.GetRequiredService<IBackgroundTaskRunner>()));
-        ServiceCollection.AddSingleton<LiveDaqStore>();
-        ServiceCollection.AddSingleton<ILiveDaqStore>(sp => sp.GetRequiredService<LiveDaqStore>());
-        ServiceCollection.AddSingleton<ILiveDaqStoreWriter>(sp => sp.GetRequiredService<LiveDaqStore>());
-        ServiceCollection.AddSingleton<IDaqBrowseOwner, DaqBrowseOwner>();
-        ServiceCollection.AddSingleton<ILiveDaqBoardIdInspector, LiveDaqBoardIdInspector>();
-        ServiceCollection.AddSingleton<LiveDaqCatalogService>();
-        ServiceCollection.AddSingleton<ILiveDaqCatalogService>(sp =>
-            sp.GetRequiredService<LiveDaqCatalogService>());
-        ServiceCollection.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
-        ServiceCollection.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
-        ServiceCollection.AddSingleton<LiveSignalPipelineFactory>();
-        ServiceCollection.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
-        ServiceCollection.AddSingleton<LiveDaqCoordinator>();
-        ServiceCollection.AddSingleton<ILiveDaqCoordinator>(sp => sp.GetRequiredService<LiveDaqCoordinator>());
-        ServiceCollection.AddSingleton<PairedDeviceStore>();
-        ServiceCollection.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
-        ServiceCollection.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());
-        ServiceCollection.AddSingleton<PairedDeviceCoordinator>();
-        ServiceCollection.AddSingleton<IPairedDeviceCoordinator>(sp => sp.GetRequiredService<PairedDeviceCoordinator>());
-        ServiceCollection.AddSingleton<SyncCoordinator>();
-        ServiceCollection.AddSingleton<ISyncCoordinator>(sp => sp.GetRequiredService<SyncCoordinator>());
-        ServiceCollection.AddSingleton<ImportSessionsCoordinator>(sp =>
-            new ImportSessionsCoordinator(
-                sp.GetRequiredService<ISessionTelemetryWriter>(),
-                sp.GetRequiredService<ISynchronizableRepository<Setup>>(),
-                sp.GetRequiredService<ISynchronizableRepository<Bike>>(),
-                sp.GetRequiredService<ISessionStoreWriter>(),
-                sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
-                sp.GetRequiredService<IBackgroundTaskRunner>(),
-                sp.GetRequiredService<IDaqManagementService>(),
-                sp.GetRequiredService<IRecordedSessionReprocessor>(),
-                sp.GetRequiredService<IEditorFactory>()));
-        ServiceCollection.AddSingleton<IImportSessionsCoordinator>(sp =>
-            sp.GetRequiredService<ImportSessionsCoordinator>());
-        ServiceCollection.AddSingleton<BikeListViewModel>();
-        ServiceCollection.AddSingleton<SessionListViewModel>();
-        ServiceCollection.AddSingleton<LiveDaqListViewModel>();
-        ServiceCollection.AddSingleton<PairedDeviceListViewModel>();
-        ServiceCollection.AddSingleton<ImportSessionsViewModel>();
-        ServiceCollection.AddSingleton<SetupListViewModel>();
-        ServiceCollection.AddSingleton<MainPagesViewModel>();
-        ServiceCollection.AddSingleton<ShellWorkspaceViewModel>();
-        ServiceCollection.AddSingleton<ShellRootViewModel>();
-
-        Services = ServiceCollection.BuildServiceProvider();
+        var services = new ServiceCollection().AddSharedServices(root);
+        Services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
 
         if (!DataTemplates.OfType<ViewLocator>().Any())
         {
             DataTemplates.Add(Services.GetRequiredService<ViewLocator>());
         }
 
-        // Resolve the theme service early so its constructor reads the
-        // bootstrap-applied RequestedThemeVariant. InitializeAsync reconciles
-        // against the persisted JSON if it diverges (e.g. file written after
-        // ThemeBootstrap ran).
         var themeService = Services.GetRequiredService<IThemeService>();
         _ = themeService.InitializeAsync();
 
@@ -317,7 +67,6 @@ public partial class App : Application
         // eagerly resolved here so the subscriptions are wired before any
         // sync, pairing, or telemetry arrival can happen.
         _ = Services.GetRequiredService<ISessionTrackReader>();
-        _ = Services.GetRequiredService<SessionSyncApplier>();
         _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
         _ = Services.GetRequiredService<ISyncCoordinator>();
 
@@ -425,6 +174,7 @@ public partial class App : Application
             // Resolve so pairing and inbound-sync event subscriptions wire up before views load.
             _ = services.GetService<IPairingServerCoordinator>();
             _ = services.GetService<IInboundSyncCoordinator>();
+            _ = services.GetService<SessionSyncApplier>();
         }
     }
 }
