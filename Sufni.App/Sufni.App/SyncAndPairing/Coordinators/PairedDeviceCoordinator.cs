@@ -5,7 +5,7 @@ using Serilog;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Infrastructure;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>
@@ -16,20 +16,25 @@ namespace Sufni.App.SyncAndPairing.Coordinators;
 /// eagerly resolved at app startup so the constructor's event
 /// subscriptions wire up before any pairing arrives.
 /// </summary>
-public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
+public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
 
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
+    private readonly ISynchronizationServerService? server;
+    private readonly IPairedDeviceRepository repository;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
 
     public PairedDeviceCoordinator(
         IPairedDeviceStoreWriter pairedDeviceStore,
-        IUiThreadDispatcher uiThreadDispatcher,
+        IPairedDeviceRepository repository,
+        IBackgroundTaskRunner backgroundTaskRunner,
         ISynchronizationServerService? synchronizationServer = null)
     {
         this.pairedDeviceStore = pairedDeviceStore;
-        this.uiThreadDispatcher = uiThreadDispatcher;
+        server = synchronizationServer;
+        this.repository = repository;
+        this.backgroundTaskRunner = backgroundTaskRunner;
 
         if (synchronizationServer is not null)
         {
@@ -44,44 +49,35 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 
         try
         {
-            var result = await pairedDeviceStore.CommitLocalUnpairAsync(deviceId);
-            switch (result)
-            {
-                case StoreDeleteResult<PairedDeviceSnapshot>.Deleted:
-                    logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
-                    return new PairedDeviceUnpairResult.Unpaired();
-
-                case StoreDeleteResult<PairedDeviceSnapshot>.Failed failed:
-                    logger.Error("Paired-device unpair failed for {DeviceId}: {ErrorMessage}", deviceId, failed.ErrorMessage);
-                    return new PairedDeviceUnpairResult.Failed(failed.ErrorMessage);
-
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(result));
-            }
+            await backgroundTaskRunner.RunAsync(() => repository.DeletePairedDeviceAsync(deviceId));
+            await pairedDeviceStore.PublishPairedDevicesRemovedAsync([deviceId]);
+            logger.Information("Paired-device unpair completed for {DeviceId}", deviceId);
+            return new PairedDeviceUnpairResult.Unpaired();
         }
         catch (Exception e)
         {
             logger.Error(e, "Paired-device unpair failed for {DeviceId}", deviceId);
-            return new PairedDeviceUnpairResult.Failed(e.Message);
+            return new PairedDeviceUnpairResult.Failed(PairedDeviceUnpairFailureReason.Unpair, e.Message);
         }
+    }
+
+    public void Dispose()
+    {
+        if (server is null) return;
+        server.PairingConfirmed -= OnPairingConfirmed;
+        server.Unpaired -= OnUnpaired;
     }
 
     private void OnPairingConfirmed(object? sender, PairingEventArgs e)
     {
         logger.Verbose("Received inbound pairing confirmation for {DeviceId}", e.Device.DeviceId);
-        _ = uiThreadDispatcher.InvokeAsync(() =>
-        {
-            return pairedDeviceStore.PublishPairedDevicesChangedAsync([e.Device.DeviceId]);
-        });
+        _ = pairedDeviceStore.PublishPairedDevicesChangedAsync([PairedDeviceSnapshot.From(e.Device)]);
     }
 
     private void OnUnpaired(object? sender, PairingEventArgs e)
     {
         logger.Verbose("Received inbound unpair for {DeviceId}", e.Device.DeviceId);
-        _ = uiThreadDispatcher.InvokeAsync(() =>
-        {
-            return pairedDeviceStore.PublishPairedDevicesRemovedAsync([e.Device.DeviceId]);
-        });
+        _ = pairedDeviceStore.PublishPairedDevicesRemovedAsync([e.Device.DeviceId]);
     }
 }
 
@@ -90,5 +86,5 @@ public abstract record PairedDeviceUnpairResult
     private PairedDeviceUnpairResult() { }
 
     public sealed record Unpaired : PairedDeviceUnpairResult;
-    public sealed record Failed(string ErrorMessage) : PairedDeviceUnpairResult;
+    public sealed record Failed(PairedDeviceUnpairFailureReason Reason, string? Details = null) : PairedDeviceUnpairResult;
 }

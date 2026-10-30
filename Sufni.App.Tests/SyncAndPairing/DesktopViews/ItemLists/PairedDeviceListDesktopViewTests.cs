@@ -29,7 +29,7 @@ public class PairedDeviceListDesktopViewTests
             DisplayName: "Phone",
             Expires: new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc));
         var store = new PairedDeviceStoreStub(snapshot);
-        var viewModel = new PairedDeviceListViewModel(store, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(pairedDevices: CreateCoordinator()), timeProvider: new FakeTimeProvider());
+        var viewModel = new PairedDeviceListViewModel(store, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider());
         var view = new PairedDeviceListDesktopView
         {
             DataContext = viewModel,
@@ -56,7 +56,7 @@ public class PairedDeviceListDesktopViewTests
 
         var view = new PairedDeviceListDesktopView
         {
-            DataContext = new PairedDeviceListViewModel(new PairedDeviceStoreStub(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(pairedDevices: CreateCoordinator()), timeProvider: new FakeTimeProvider()),
+            DataContext = new PairedDeviceListViewModel(new PairedDeviceStoreStub(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider()),
         };
 
         await using var mounted = await MountAsync(view);
@@ -73,8 +73,6 @@ public class PairedDeviceListDesktopViewTests
         return new MountedPairedDeviceListDesktopView(host, view);
     }
 
-    private static PairedDeviceCoordinator CreateCoordinator() =>
-        new(Substitute.For<IPairedDeviceStoreWriter>(), new InlineUiThreadDispatcher());
 }
 
 internal sealed class MountedPairedDeviceListDesktopView(Window host, PairedDeviceListDesktopView view) : IAsyncDisposable

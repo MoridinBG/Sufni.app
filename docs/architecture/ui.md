@@ -195,6 +195,11 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+`PairedDeviceUnpairResult` is `Unpaired | Failed(reason, details)`;
+`PairedDeviceUnpairFailureReason.Unpair` maps to a fixed summary. Pending-delete
+completion carries `FailurePresentation`, retaining details for the error bar
+without putting exception text in the summary.
+
 Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | Failed`;
 alignment returns `VideoAlignmentResult.Updated | ClipMissing | Failed`. Their
 failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with

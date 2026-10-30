@@ -35,4 +35,15 @@ public sealed record FailurePresentation
         VideoAlignmentFailureReason.Save => "Session video alignment could not be saved. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(PairedDeviceUnpairFailureReason reason, string? details = null) => new(reason switch
+    {
+        PairedDeviceUnpairFailureReason.Unpair => "The device could not be unpaired. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(PendingDeleteFailureReason reason, string? details = null) => new(reason switch
+    {
+        PendingDeleteFailureReason.Delete => "The item could not be deleted. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

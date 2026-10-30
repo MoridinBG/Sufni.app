@@ -116,9 +116,7 @@ internal static class MainPagesViewModelTestFactory
         new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
-        new(new PairedDeviceStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(pairedDevices: CreatePairedDeviceCoordinator()), timeProvider: new FakeTimeProvider());
+        new(new PairedDeviceStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider());
 
-    private static PairedDeviceCoordinator CreatePairedDeviceCoordinator() =>
-        new(Substitute.For<IPairedDeviceStoreWriter>(), new InlineUiThreadDispatcher());
 
 }

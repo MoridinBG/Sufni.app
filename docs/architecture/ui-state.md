@@ -67,7 +67,11 @@ Each persisted writer interface additionally exposes:
   cancellation or load failure leaves the previously published state intact.
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
-- Semantic commit methods for local writes that belong to that aggregate
+- `PairedDeviceStore` is publish-only: its writer accepts prepared snapshots
+  or device ids to remove, and has no repository dependency.
+  `PairedDeviceCoordinator` persists an explicit unpair before removing the
+  snapshot; server events already carry the persisted device snapshot.
+- Remaining semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
   `CommitTrackPatchAsync`, and
   `CommitLocalUnpairAsync`. These methods persist one aggregate family,

@@ -91,7 +91,7 @@ public partial class ItemListViewModelBase : ViewModelBase, IDisposable
         }));
         EventHandler<PendingDeleteCompletion> completed = (_, result) =>
         {
-            if (result.Key is TKey && result.Error is { } error) ErrorMessages.Add(new FailurePresentation(error));
+            if (result.Key is TKey && result.Error is { } error) ErrorMessages.Add(error);
         };
         owner.Completed += completed;
         pendingDeleteSubscriptions.Add(Disposable.Create(() => owner.Completed -= completed));

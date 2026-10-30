@@ -1,96 +1,64 @@
-using Sufni.App.Tests.TestSupport.Async;
+using System.Reactive.Linq;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
-
+using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Tests.TestSupport.Persistence;
+
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
 public class PairedDeviceCoordinatorTests
 {
-    private readonly IPairedDeviceStoreWriter pairedDeviceStore = Substitute.For<IPairedDeviceStoreWriter>();
+    private static PairedDevice CreateDevice() => new("device-123", "Phone", new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc));
 
-    private PairedDeviceCoordinator CreateCoordinator(ISynchronizationServerService? server = null) =>
-        new(pairedDeviceStore, new InlineUiThreadDispatcher(), server);
-
-    public PairedDeviceCoordinatorTests()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnpairAsync_RemovesPersistedAndPublishedDevice_OnlyWhenPersistenceSucceeds(bool fail)
     {
-        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>())
-            .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
-                new StoreDeleteResult<PairedDeviceSnapshot>.Deleted()));
+        var device = CreateDevice();
+        var repository = new InMemoryPairedDeviceRepository(device);
+        if (fail) repository.DeleteFailure = new IOException("database unavailable");
+        using var store = new PairedDeviceStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync([PairedDeviceSnapshot.From(device)]);
+        using var coordinator = new PairedDeviceCoordinator(store, repository, new InlineBackgroundTaskRunner());
+
+        var result = await coordinator.UnpairAsync(device.DeviceId);
+
+        if (fail)
+        {
+            Assert.Equal(PairedDeviceUnpairFailureReason.Unpair, Assert.IsType<PairedDeviceUnpairResult.Failed>(result).Reason);
+            Assert.NotNull(await repository.GetPairedDeviceAsync(device.DeviceId));
+            Assert.NotNull(store.Get(device.DeviceId));
+        }
+        else
+        {
+            Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
+            Assert.Null(await repository.GetPairedDeviceAsync(device.DeviceId));
+            Assert.Null(store.Get(device.DeviceId));
+        }
     }
 
-    // ----- UnpairAsync -----
-
     [Fact]
-    public async Task UnpairAsync_CommitsLocalUnpair_AndReturnsUnpaired()
+    public async Task ServerPairingAndUnpairing_PublishTheDeviceState()
     {
-        var coordinator = CreateCoordinator();
-
-        var result = await coordinator.UnpairAsync("device-123");
-
-        Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123");
-    }
-
-    [Fact]
-    public async Task UnpairAsync_ReturnsFailed_AndDoesNotRemoveFromStore_WhenDatabaseThrows()
-    {
-        pairedDeviceStore.CommitLocalUnpairAsync(Arg.Any<string>())
-            .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
-                new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
-        var coordinator = CreateCoordinator();
-
-        var result = await coordinator.UnpairAsync("device-123");
-
-        Assert.IsType<PairedDeviceUnpairResult.Failed>(result);
-        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-123");
-    }
-
-    // ----- Constructor tolerates null server -----
-
-    [Fact]
-    public async Task Constructor_WithNullServer_LeavesOnlyExplicitUnpairPathAvailable()
-    {
-        var coordinator = CreateCoordinator(server: null);
-
-        var result = await coordinator.UnpairAsync("device-abc");
-        Assert.IsType<PairedDeviceUnpairResult.Unpaired>(result);
-        await pairedDeviceStore.Received(1).CommitLocalUnpairAsync("device-abc");
-    }
-
-    // ----- Server event subscriptions -----
-
-    [Fact]
-    public async Task PairingConfirmed_UpsertsSnapshotOntoStore()
-    {
+        var device = CreateDevice();
         var server = Substitute.For<ISynchronizationServerService>();
-        var coordinator = CreateCoordinator(server);
+        using var store = new PairedDeviceStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var coordinator = new PairedDeviceCoordinator(store, new InMemoryPairedDeviceRepository(), new InlineBackgroundTaskRunner(), server);
+        var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var changes = store.Connect().Subscribe(_ => published.TrySetResult());
 
-        var device = new PairedDevice("device-xyz", "My Phone", new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc));
         server.PairingConfirmed += Raise.EventWith(server, new PairingEventArgs(device));
+        await published.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PairedDeviceSnapshot.From(device), store.Get(device.DeviceId));
 
-
-        await pairedDeviceStore.Received(1).PublishPairedDevicesChangedAsync(
-            Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 1 && ids.Contains("device-xyz")),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Unpaired_RemovesDeviceFromStore()
-    {
-        var server = Substitute.For<ISynchronizationServerService>();
-        var coordinator = CreateCoordinator(server);
-
-        var device = new PairedDevice("device-xyz", "My Phone", DateTime.UtcNow);
+        published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         server.Unpaired += Raise.EventWith(server, new PairingEventArgs(device));
-
-
-        await pairedDeviceStore.Received(1).PublishPairedDevicesRemovedAsync(
-            Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 1 && ids.Contains("device-xyz")),
-            Arg.Any<CancellationToken>());
+        await published.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(store.Get(device.DeviceId));
     }
 }

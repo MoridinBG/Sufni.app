@@ -13,3 +13,13 @@ public enum VideoAlignmentFailureReason
 {
     Save
 }
+
+public enum PairedDeviceUnpairFailureReason
+{
+    Unpair
+}
+
+public enum PendingDeleteFailureReason
+{
+    Delete
+}

@@ -193,3 +193,12 @@ it when a push carries segments.
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`. Their bodies are binary `application/octet-stream`; row metadata travels in HTTP headers so large BLOBs are not base64-encoded in JSON.
 
+
+### Paired-device publication
+
+`PairedDeviceCoordinator` owns local unpair persistence through
+`IPairedDeviceRepository`, then removes the device from the publish-only store.
+Failure leaves the published device present and returns a typed reason with
+optional diagnostic details. Server pairing/unpairing events publish their
+already-persisted snapshots/removals without another database read. The
+coordinator releases its server subscriptions when the application is disposed.

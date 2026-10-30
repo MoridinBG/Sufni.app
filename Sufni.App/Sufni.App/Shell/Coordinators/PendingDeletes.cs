@@ -6,6 +6,7 @@ using System.Reactive.Subjects;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Shared.Models;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Coordination;
@@ -24,7 +25,7 @@ public abstract record PendingDeleteKey
 }
 
 public sealed record PendingDelete(PendingDeleteKey Key, string Name);
-public sealed record PendingDeleteCompletion(PendingDeleteKey Key, string? Error);
+public sealed record PendingDeleteCompletion(PendingDeleteKey Key, FailurePresentation? Error);
 
 public interface IPendingDeletes
 {
@@ -110,7 +111,7 @@ public sealed class PendingDeletes(
 
     private async Task CompleteAsync(Entry entry, TaskCompletionSource completion)
     {
-        string? error = null;
+        FailurePresentation? error = null;
         try
         {
             var result = await backgroundTaskRunner.RunAsync(() => DeleteAsync(entry.Value.Key));
@@ -121,7 +122,7 @@ public sealed class PendingDeletes(
         catch (Exception exception)
         {
             logger.Error(exception, "Pending delete failed for {Key}", entry.Value.Key);
-            error = exception.Message;
+            error = FailurePresentation.From(PendingDeleteFailureReason.Delete, exception.Message);
         }
 
         await dispatcher.InvokeAsync(() =>
@@ -133,7 +134,7 @@ public sealed class PendingDeletes(
         completion.SetResult();
     }
 
-    private async Task<(string? Error, EditorKey? Editor)> DeleteAsync(PendingDeleteKey key)
+    private async Task<(FailurePresentation? Error, EditorKey? Editor)> DeleteAsync(PendingDeleteKey key)
     {
         switch (key)
         {
@@ -142,22 +143,22 @@ public sealed class PendingDeletes(
                 return bikeResult.Outcome switch
                 {
                     BikeDeleteOutcome.Deleted => (null, new EditorKey.Bike(bike.Id)),
-                    BikeDeleteOutcome.InUse => ("Bike is referenced by a setup and cannot be deleted.", null),
-                    _ => ($"Bike could not be deleted: {bikeResult.ErrorMessage}", null)
+                    BikeDeleteOutcome.InUse => (new FailurePresentation("Bike is referenced by a setup and cannot be deleted."), null),
+                    _ => (new FailurePresentation("Bike could not be deleted.", bikeResult.ErrorMessage), null)
                 };
             case PendingDeleteKey.Setup setup:
                 var setupResult = await setups.DeleteAsync(setup.Id);
                 return setupResult.Outcome == SetupDeleteOutcome.Deleted
                     ? (null, new EditorKey.Setup(setup.Id))
-                    : ($"Setup could not be deleted: {setupResult.ErrorMessage}", null);
+                    : (new FailurePresentation("Setup could not be deleted.", setupResult.ErrorMessage), null);
             case PendingDeleteKey.Session session:
                 var sessionResult = await sessions.DeleteAsync(session.Id);
                 return sessionResult.Outcome == SessionDeleteOutcome.Deleted
                     ? (null, new EditorKey.Session(session.Id))
-                    : ($"Session could not be deleted: {sessionResult.ErrorMessage}", null);
+                    : (new FailurePresentation("Session could not be deleted.", sessionResult.ErrorMessage), null);
             case PendingDeleteKey.PairedDevice device:
                 var result = await pairedDevices.UnpairAsync(device.Id);
-                return (result is PairedDeviceUnpairResult.Failed failed ? failed.ErrorMessage : null, null);
+                return (result is PairedDeviceUnpairResult.Failed failed ? FailurePresentation.From(failed.Reason, failed.Details) : null, null);
             default:
                 throw new ArgumentOutOfRangeException(nameof(key));
         }

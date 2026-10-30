@@ -5,7 +5,7 @@ using NSubstitute;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.SyncAndPairing.ViewModels.ItemLists;
-using Sufni.App.Shared.Stores;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.Tests.SyncAndPairing.ViewModels.ItemLists;
 
 public class PairedDeviceListViewModelTests
@@ -27,12 +27,11 @@ public class PairedDeviceListViewModelTests
         pairedDeviceStore.Connect().Returns(pairedDeviceCache.Connect());
         pairedDeviceStore.Get(snapshot.DeviceId).Returns(snapshot);
 
-        var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
+        var coordinator = Substitute.For<IPairedDeviceCoordinator>();
         var deleteTcs = new TaskCompletionSource();
-        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId)
+        coordinator.UnpairAsync(snapshot.DeviceId)
             .Returns(_ => CompleteUnpairAsync());
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter, new InlineUiThreadDispatcher());
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(pairedDevices: coordinator), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
@@ -49,11 +48,11 @@ public class PairedDeviceListViewModelTests
 
         Assert.Empty(viewModel.Items);
 
-        async Task<StoreDeleteResult<PairedDeviceSnapshot>> CompleteUnpairAsync()
+        async Task<PairedDeviceUnpairResult> CompleteUnpairAsync()
         {
-            await deleteTcs.Task;
+            await deleteTcs.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
             pairedDeviceCache.RemoveKey(snapshot.DeviceId);
-            return new StoreDeleteResult<PairedDeviceSnapshot>.Deleted(snapshot);
+            return new PairedDeviceUnpairResult.Unpaired();
         }
     }
 
@@ -105,12 +104,11 @@ public class PairedDeviceListViewModelTests
         pairedDeviceStore.Connect().Returns(pairedDeviceCache.Connect());
         pairedDeviceStore.Get(snapshot.DeviceId).Returns(snapshot);
 
-        var storeWriter = Substitute.For<IPairedDeviceStoreWriter>();
-        storeWriter.CommitLocalUnpairAsync(snapshot.DeviceId)
-            .Returns(Task.FromResult<StoreDeleteResult<PairedDeviceSnapshot>>(
-                new StoreDeleteResult<PairedDeviceSnapshot>.Failed("boom")));
+        var coordinator = Substitute.For<IPairedDeviceCoordinator>();
+        coordinator.UnpairAsync(snapshot.DeviceId)
+            .Returns(Task.FromResult<PairedDeviceUnpairResult>(
+                new PairedDeviceUnpairResult.Failed(PairedDeviceUnpairFailureReason.Unpair, "boom")));
 
-        var coordinator = new PairedDeviceCoordinator(storeWriter, new InlineUiThreadDispatcher());
         var viewModel = new PairedDeviceListViewModel(pairedDeviceStore, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(pairedDevices: coordinator), timeProvider: new FakeTimeProvider());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
