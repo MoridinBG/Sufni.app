@@ -1275,32 +1275,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         splitCommand.IsRunning ||
         undoTrimCommand.IsRunning;
 
-    // A trim removes at least one sample, and every remaining part keeps at least five.
-    private bool CanEditWindowAt(
-        TelemetryPlotContextMenuContext? context,
-        int samplesBefore,
-        int samplesAfter)
-    {
-        if (IsSessionEditRunning ||
-            !IsTelemetryPlotContext(context) ||
-            !double.IsFinite(context!.DurationSeconds) ||
-            telemetryData is not { Metadata.SampleRate: > 0 and var sampleRate })
-        {
-            return false;
-        }
-
-        return context.ClickSeconds * sampleRate >= samplesBefore &&
-               (context.DurationSeconds - context.ClickSeconds) * sampleRate >= samplesAfter;
-    }
+    private bool CanEditWindowAt(TelemetryPlotContextMenuContext? context, SessionWindowEditKind kind) =>
+        !IsSessionEditRunning && IsTelemetryPlotContext(context) && telemetryData is { } telemetry &&
+        SessionWindowEditPolicy.CanEditAt(kind, context!.ClickSeconds, context.DurationSeconds, telemetry.Metadata.SampleRate);
 
     private bool CanTrimFromBeginningFromPlotContext(TelemetryPlotContextMenuContext? context) =>
-        CanEditWindowAt(context, samplesBefore: 1, samplesAfter: 5);
+        CanEditWindowAt(context, SessionWindowEditKind.TrimFromBeginning);
 
     private bool CanTrimUntilEndFromPlotContext(TelemetryPlotContextMenuContext? context) =>
-        CanEditWindowAt(context, samplesBefore: 5, samplesAfter: 1);
+        CanEditWindowAt(context, SessionWindowEditKind.TrimUntilEnd);
 
     private bool CanSplitFromPlotContext(TelemetryPlotContextMenuContext? context) =>
-        CanEditWindowAt(context, samplesBefore: 5, samplesAfter: 5);
+        CanEditWindowAt(context, SessionWindowEditKind.Split);
 
     private bool CanUndoTrimFromPlotContext(TelemetryPlotContextMenuContext? context) =>
         !IsSessionEditRunning &&

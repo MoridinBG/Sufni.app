@@ -45,7 +45,7 @@ Segments travel as the `segment` list of `SynchronizationData` (protocol v5) thr
 
 ## Trim And Split
 
-The trim and split transactions in `SessionPersistenceTransactionRunner` move the session's segments in the same transaction (see [Trim and split](ui-workflows.md#trim-and-split)):
+`SessionWindowEditPolicy` computes the source-relative windows and segment/clip offsets without persistence. The trim and split transactions in `SessionPersistenceTransactionRunner` apply that plan and move the session's segments in the same transaction (see [Trim and split](ui-workflows.md#trim-and-split)):
 
 - Trim from beginning and undo trim shift every live segment of the session by the change of the session origin, so a segment keeps its place in the recording. A segment is never deleted by a trim.
 - Split moves the segments that start at or after the click to the new second part, shifted to its origin. The other segments stay with the first part.

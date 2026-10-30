@@ -141,7 +141,11 @@ list feedback; hiding rows derives from the shell owner's current keys.
 `ISessionEditingCoordinator` (`SessionEditingCoordinator`, singleton) runs the
 recorded-session window edits from the signal-row context menu of the session
 editor: "Trim from beginning", "Trim until end", "Split here", and "Undo trim".
-Each command is one `SessionPersistenceTransactionRunner` transaction:
+`SessionWindowEditPolicy` owns the pure sample-count gate and window/origin
+arithmetic. The editor combines that gate with its screen state. Inside each
+`SessionPersistenceTransactionRunner` transaction, the runner checks the expected
+window, asks the policy for immutable patches, and applies the planned session,
+clip-alignment and segment-offset changes:
 
 - **Trim until end** ends the window at the click.
 - **Trim from beginning** moves the window start and the session origin to the

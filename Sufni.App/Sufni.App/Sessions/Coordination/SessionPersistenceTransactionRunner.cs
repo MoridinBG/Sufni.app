@@ -75,80 +75,38 @@ internal sealed class SessionPersistenceTransactionRunner(
     }
 
     public Task<SessionEditCommit> TrimUntilEndAsync(SessionSnapshot session, double clickSeconds) =>
-        EditAsync(session, (connection, row, now) =>
+        EditAsync(session, SessionWindowEditKind.TrimUntilEnd, clickSeconds, (connection, row, plan, now) =>
         {
-            var window = EditWindow.Of(row);
-            var split = window.Start + clickSeconds;
-            if (!window.Contains(split))
-            {
-                return InvalidPosition;
-            }
-
-            Update(connection, row, window with { End = split }, previous: window, row.Name, now);
+            Update(connection, row.Id, plan.Current, now);
             return new SessionEditCommit.Committed([row.Id], [], []);
         });
 
     public Task<SessionEditCommit> TrimFromBeginningAsync(SessionSnapshot session, double clickSeconds) =>
-        EditAsync(session, (connection, row, now) =>
-        {
-            var window = EditWindow.Of(row);
-            var split = window.Start + clickSeconds;
-            if (!window.Contains(split))
-            {
-                return InvalidPosition;
-            }
-
-            MoveOrigin(row, window.Start, split);
-            Update(connection, row, window with { Start = split }, previous: window, row.Name, now);
-            var clips = SessionVideoRepository.ShiftAlignmentInTransaction(
-                connection,
-                row.Id,
-                FractionDelta(window.Start, split));
-            var segments = SessionSegmentRepository.ShiftInTransaction(connection, row.Id, window.Start - split, now);
-            return new SessionEditCommit.Committed([row.Id], clips, segments);
-        });
+        EditAsync(session, SessionWindowEditKind.TrimFromBeginning, clickSeconds, ApplyOriginEdit);
 
     public Task<SessionEditCommit> UndoTrimAsync(SessionSnapshot session) =>
-        EditAsync(session, (connection, row, now) =>
-        {
-            if (row.PreviousWindowStartSeconds is not { } previousStart)
-            {
-                return new SessionEditCommit.Rejected("Session has no trim to undo.");
-            }
+        EditAsync(session, SessionWindowEditKind.UndoTrim, 0, ApplyOriginEdit);
 
-            var window = EditWindow.Of(row);
-            var restored = window with { Start = previousStart, End = row.PreviousWindowEndSeconds };
-            MoveOrigin(row, window.Start, restored.Start);
-            Update(connection, row, restored, previous: null, row.Name, now);
-            var clips = SessionVideoRepository.ShiftAlignmentInTransaction(
-                connection,
-                row.Id,
-                FractionDelta(window.Start, restored.Start));
-            var segments = SessionSegmentRepository.ShiftInTransaction(
-                connection,
-                row.Id,
-                window.Start - restored.Start,
-                now);
-            return new SessionEditCommit.Committed([row.Id], clips, segments);
-        });
+    private static SessionEditCommit ApplyOriginEdit(SQLiteConnection connection, Session row,
+        SessionWindowEditPlan.Planned plan, long now)
+    {
+        Update(connection, row.Id, plan.Current, now);
+        var clips = SessionVideoRepository.ShiftAlignmentInTransaction(connection, row.Id, plan.ClipAlignmentDelta);
+        var segments = SessionSegmentRepository.ShiftInTransaction(connection, row.Id, plan.SegmentShiftSeconds, now);
+        return new SessionEditCommit.Committed([row.Id], clips, segments);
+    }
 
     public Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds) =>
-        EditAsync(session, (connection, row, now) =>
+        EditAsync(session, SessionWindowEditKind.Split, clickSeconds, (connection, row, plan, now) =>
         {
-            var window = EditWindow.Of(row);
-            var split = window.Start + clickSeconds;
-            if (!window.Contains(split))
-            {
-                return InvalidPosition;
-            }
-
-            var part2 = new Session(Guid.NewGuid(), $"{row.Name} (2)", row.Description, row.Setup, row.Timestamp)
+            var second = plan.Created!;
+            var part2 = new Session(Guid.NewGuid(), second.Name, row.Description, row.Setup, second.Timestamp)
             {
                 VelocityFilterWindowMilliseconds = row.VelocityFilterWindowMilliseconds,
-                GpsOffsetSeconds = row.GpsOffsetSeconds,
-                SourceSessionId = window.Source,
-                WindowStartSeconds = split,
-                WindowEndSeconds = window.End,
+                GpsOffsetSeconds = second.GpsOffsetSeconds,
+                SourceSessionId = second.Window!.SourceSessionId,
+                WindowStartSeconds = second.Window.StartSeconds,
+                WindowEndSeconds = second.Window.EndSeconds,
                 FrontSpringRate = row.FrontSpringRate,
                 FrontHighSpeedCompression = row.FrontHighSpeedCompression,
                 FrontLowSpeedCompression = row.FrontLowSpeedCompression,
@@ -161,31 +119,29 @@ internal sealed class SessionPersistenceTransactionRunner(
                 RearHighSpeedRebound = row.RearHighSpeedRebound,
                 Updated = now,
             };
-            MoveOrigin(part2, window.Start, split);
             PersistenceGuards.InsertEntity(connection, part2);
 
-            Update(connection, row, window with { End = split }, previous: null, $"{row.Name} (1)", now);
+            Update(connection, row.Id, plan.Current, now);
             var clips = SessionVideoRepository.CopyToSessionInTransaction(
                 connection,
                 row.Id,
                 part2.Id,
-                FractionDelta(window.Start, split),
+                plan.ClipAlignmentDelta,
                 timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
             var segments = SessionSegmentRepository.MoveToSessionInTransaction(
                 connection,
                 row.Id,
                 part2.Id,
-                clickSeconds,
+                plan.SplitSeconds!.Value,
                 now);
             return new SessionEditCommit.Committed([row.Id, part2.Id], clips, segments, part2.Id);
         });
 
-    private static readonly SessionEditCommit InvalidPosition =
-        new SessionEditCommit.Rejected("The position is outside the session.");
-
     private Task<SessionEditCommit> EditAsync(
         SessionSnapshot expected,
-        Func<SQLiteConnection, Session, long, SessionEditCommit> edit) =>
+        SessionWindowEditKind kind,
+        double clickSeconds,
+        Func<SQLiteConnection, Session, SessionWindowEditPlan.Planned, long, SessionEditCommit> edit) =>
         connectionContext.RunInTransactionAsync(connection =>
         {
             var rows = connection.Query<Session>(EditableSessionProjection, expected.Id);
@@ -204,57 +160,25 @@ internal sealed class SessionPersistenceTransactionRunner(
                 return new SessionEditCommit.Rejected("Session changed while editing.");
             }
 
-            return edit(connection, row, timeProvider.GetUtcNow().ToUnixTimeSeconds());
+            return SessionWindowEditPolicy.Plan(SessionSnapshot.From(row), kind, clickSeconds) switch
+            {
+                SessionWindowEditPlan.Rejected rejected => new SessionEditCommit.Rejected(rejected.Message),
+                SessionWindowEditPlan.Planned plan => edit(connection, row, plan, timeProvider.GetUtcNow().ToUnixTimeSeconds()),
+                _ => throw new InvalidOperationException("Unknown session window plan.")
+            };
         });
 
-    private static void Update(
-        SQLiteConnection connection,
-        Session row,
-        EditWindow window,
-        EditWindow? previous,
-        string name,
-        long now)
-    {
-        // The full own range is "no window".
-        var hasWindow = window.Source != row.Id || window.Start != 0 || window.End is not null;
+    private static void Update(SQLiteConnection connection, Guid sessionId, SessionWindowPatch patch, long now) =>
         connection.Execute(
             UpdateEditedSessionSql,
-            name,
-            row.Timestamp,
-            row.GpsOffsetSeconds,
-            hasWindow ? window.Source : null,
-            hasWindow ? window.Start : 0,
-            hasWindow ? window.End : null,
-            previous?.Start,
-            previous?.End,
+            patch.Name,
+            patch.Timestamp,
+            patch.GpsOffsetSeconds,
+            patch.Window?.SourceSessionId,
+            patch.Window?.StartSeconds ?? 0,
+            patch.Window?.EndSeconds,
+            patch.PreviousWindow?.StartSeconds,
+            patch.PreviousWindow?.EndSeconds,
             now,
-            row.Id);
-    }
-
-    // The timestamp carries the whole seconds of the window start and the GPS
-    // offset the fraction, so the telemetry and GPS timelines stay aligned.
-    private static void MoveOrigin(Session session, double fromStartSeconds, double toStartSeconds)
-    {
-        if (session.Timestamp is not { } timestamp)
-        {
-            session.GpsOffsetSeconds = 0;
-            return;
-        }
-
-        session.Timestamp = timestamp - (long)Math.Floor(fromStartSeconds) + (long)Math.Floor(toStartSeconds);
-        session.GpsOffsetSeconds += FractionDelta(fromStartSeconds, toStartSeconds);
-    }
-
-    private static double FractionDelta(double fromSeconds, double toSeconds) =>
-        toSeconds - Math.Floor(toSeconds) - (fromSeconds - Math.Floor(fromSeconds));
-
-    private sealed record EditWindow(Guid Source, double Start, double? End)
-    {
-        public static EditWindow Of(Session session) => session.SourceSessionId is { } source
-            ? new EditWindow(source, session.WindowStartSeconds, session.WindowEndSeconds)
-            : new EditWindow(session.Id, 0, null);
-
-        public bool Contains(double seconds) =>
-            double.IsFinite(seconds) && Start < seconds && seconds < (End ?? double.PositiveInfinity);
-    }
+            sessionId);
 }
