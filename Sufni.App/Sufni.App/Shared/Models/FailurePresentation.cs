@@ -197,4 +197,9 @@ public sealed record FailurePresentation
         SessionImportFailureReason.Batch => "The import could not be completed. Check the setup and source, then try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SessionDeleteFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionDeleteFailureReason.Delete => "Session deletion could not be completed. Reload the list and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

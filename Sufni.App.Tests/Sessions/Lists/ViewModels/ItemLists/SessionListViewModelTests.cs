@@ -57,7 +57,7 @@ public class SessionListViewModelTests
             Assert.Empty(viewModel.Items);
 
             sessionCache.Remove(summary.Id);
-            deleteTcs.SetResult(new SessionDeleteResult(SessionDeleteOutcome.Deleted));
+            deleteTcs.SetResult(new SessionDeleteResult.Deleted());
             await finalizeTask;
 
             Assert.Empty(viewModel.Items);
@@ -75,7 +75,7 @@ public class SessionListViewModelTests
 
             var sessionCoordinator = TestCoordinatorSubstitutes.Session();
             sessionCoordinator.DeleteAsync(summary.Id)
-                .Returns(new SessionDeleteResult(SessionDeleteOutcome.Failed, "boom"));
+                .Returns(new SessionDeleteResult.Failed(SessionDeleteFailureReason.Delete, "boom"));
 
             var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
             Assert.Single(viewModel.Items);

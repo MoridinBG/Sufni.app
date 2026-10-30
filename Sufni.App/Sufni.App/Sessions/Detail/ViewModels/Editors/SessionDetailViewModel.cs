@@ -2353,13 +2353,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override async Task DeleteImplementation(bool navigateBack)
     {
         var result = await sessionCoordinator.DeleteAsync(Id);
-        switch (result.Outcome)
+        switch (result)
         {
-            case SessionDeleteOutcome.Deleted:
+            case SessionDeleteResult.Deleted:
                 await shell.CloseEditorAsync(new EditorKey.Session(Id));
                 break;
-            case SessionDeleteOutcome.Failed:
-                ErrorMessages.Add(new FailurePresentation($"Session could not be deleted: {result.ErrorMessage}"));
+            case SessionDeleteResult.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }

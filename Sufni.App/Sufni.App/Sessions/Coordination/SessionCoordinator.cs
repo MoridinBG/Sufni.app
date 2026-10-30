@@ -130,10 +130,9 @@ public sealed record SessionRecomputeAllResult(
 /// </summary>
 public sealed record SessionRecomputeAllProgress(int Completed, int Total);
 
-public sealed record SessionDeleteResult(SessionDeleteOutcome Outcome, string? ErrorMessage = null);
-
-public enum SessionDeleteOutcome
+public abstract record SessionDeleteResult
 {
-    Deleted,
-    Failed
+    private SessionDeleteResult() { }
+    public sealed record Deleted : SessionDeleteResult;
+    public sealed record Failed(SessionDeleteFailureReason Reason, string? Details = null) : SessionDeleteResult;
 }

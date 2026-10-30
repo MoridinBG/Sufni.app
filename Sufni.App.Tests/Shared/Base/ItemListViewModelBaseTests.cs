@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using NSubstitute;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Shell.Coordinators;
@@ -11,7 +12,7 @@ public class ItemListViewModelBaseTests
     public async Task FailedPendingDelete_RemovesUndoEntryAndShowsError()
     {
         var coordinator = TestCoordinatorSubstitutes.Session();
-        coordinator.DeleteAsync(Arg.Any<Guid>()).Returns(new SessionDeleteResult(SessionDeleteOutcome.Failed, "failure"));
+        coordinator.DeleteAsync(Arg.Any<Guid>()).Returns(new SessionDeleteResult.Failed(SessionDeleteFailureReason.Delete, "failure"));
         using var owner = TestPendingDeletes.Create(sessions: coordinator);
         using var viewModel = new TestPendingDeleteListViewModel(owner);
         var key = new PendingDeleteKey.Session(Guid.NewGuid());

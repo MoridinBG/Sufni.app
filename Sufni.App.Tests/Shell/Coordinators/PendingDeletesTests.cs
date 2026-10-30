@@ -20,7 +20,7 @@ public class PendingDeletesTests
         sessions.DeleteAsync(id).Returns(_ =>
         {
             persisted.Remove(id);
-            return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
+            return new SessionDeleteResult.Deleted();
         });
         using var owner = TestPendingDeletes.Create(sessions: sessions, timeProvider: clock);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -69,7 +69,7 @@ public class PendingDeletesTests
         Assert.False(finalize.IsCompleted);
         Assert.True(owner.IsPending(key));
 
-        committed.SetResult(new SessionDeleteResult(SessionDeleteOutcome.Deleted));
+        committed.SetResult(new SessionDeleteResult.Deleted());
         await Task.WhenAll(commit, finalize).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.False(owner.IsPending(key));

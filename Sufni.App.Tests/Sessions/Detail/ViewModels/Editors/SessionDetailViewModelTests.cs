@@ -245,7 +245,7 @@ public class SessionDetailViewModelTests
         var snapshot = harness.CreateRecordedSession();
         var editor = harness.CreateLoadedRecordedSession(snapshot);
         harness.SessionCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new SessionDeleteResult(SessionDeleteOutcome.Deleted));
+            .Returns(new SessionDeleteResult.Deleted());
 
         await harness.DeleteAsync(editor);
 

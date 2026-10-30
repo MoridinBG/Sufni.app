@@ -295,7 +295,26 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task DeleteAsync_DeletesOrphanedTrack_ClosesAndRemoves()
+    public async Task DeleteAsync_WhenTransactionFails_KeepsSessionAndPreferences()
+    {
+        var original = TestSnapshots.Session();
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        repository.Seed(original);
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync([original]);
+        sessionPersistenceTransactions.DeleteSessionAsync(original.Id, null, false, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new IOException("database diagnostic"));
+
+        var result = await CreateCoordinator(store, repository.Repository).DeleteAsync(original.Id);
+
+        Assert.Equal(SessionDeleteFailureReason.Delete, Assert.IsType<SessionDeleteResult.Failed>(result).Reason);
+        Assert.Equal(original, store.Get(original.Id));
+        Assert.Equal(original, SessionSnapshot.From((await repository.Repository.GetSessionAsync(original.Id))!));
+        await sessionPreferences.DidNotReceive().RemoveRecordedAsync(original.Id);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_DeletesOrphanedTrackAndPublishesRemovals()
     {
         var id = Guid.NewGuid();
         var trackId = Guid.NewGuid();
@@ -304,7 +323,7 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
-        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        Assert.IsType<SessionDeleteResult.Deleted>(result);
         await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(
             id,
             trackId,
@@ -329,7 +348,7 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
-        Assert.Equal(SessionDeleteOutcome.Deleted, result.Outcome);
+        Assert.IsType<SessionDeleteResult.Deleted>(result);
         await sourceStore.DidNotReceive().PublishSourcesRemovedAsync(
             Arg.Any<IReadOnlyCollection<Guid>>(),
             Arg.Any<CancellationToken>());

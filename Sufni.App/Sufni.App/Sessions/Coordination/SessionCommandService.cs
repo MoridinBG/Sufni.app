@@ -231,7 +231,7 @@ public sealed class SessionCommandService
         catch (Exception e)
         {
             logger.Error(e, "Session delete failed for {SessionId}", sessionId);
-            return new SessionDeleteResult(SessionDeleteOutcome.Failed, e.Message);
+            return new SessionDeleteResult.Failed(SessionDeleteFailureReason.Delete, e.Message);
         }
 
         try
@@ -245,6 +245,6 @@ public sealed class SessionCommandService
 
         await sessionStore.PublishSessionsRemovedAsync([sessionId]);
         logger.Information("Session delete completed for {SessionId}", sessionId);
-        return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
+        return new SessionDeleteResult.Deleted();
     }
 }

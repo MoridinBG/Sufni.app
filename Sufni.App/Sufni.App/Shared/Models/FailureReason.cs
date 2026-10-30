@@ -60,3 +60,5 @@ public enum SessionProcessingFailureReason { InvalidCalibration, Calibration, No
 public enum SessionRecomputeFailureReason { Recompute }
 public enum LiveSessionSaveFailureReason { Save }
 public enum SessionImportFailureReason { Import, InvalidFile, Publish, Trash, Acknowledge, Batch }
+
+public enum SessionDeleteFailureReason { Delete }

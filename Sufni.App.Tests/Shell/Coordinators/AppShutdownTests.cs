@@ -64,7 +64,7 @@ public class AppShutdownTests
         sessions.DeleteAsync(key.Id).Returns(_ =>
         {
             persisted = false;
-            return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
+            return new SessionDeleteResult.Deleted();
         });
         using var pending = TestPendingDeletes.Create(sessions: sessions);
         pending.Schedule(key, "ride");
@@ -110,7 +110,7 @@ public class AppShutdownTests
         sessions.DeleteAsync(key.Id).Returns(_ =>
         {
             persisted = false;
-            return new SessionDeleteResult(SessionDeleteOutcome.Deleted);
+            return new SessionDeleteResult.Deleted();
         });
         using var pending = TestPendingDeletes.Create(sessions: sessions);
         pending.Schedule(key, "ride");

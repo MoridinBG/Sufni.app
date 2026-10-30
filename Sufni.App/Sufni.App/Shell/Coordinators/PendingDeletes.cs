@@ -157,9 +157,12 @@ public sealed class PendingDeletes(
                 };
             case PendingDeleteKey.Session session:
                 var sessionResult = await sessions.DeleteAsync(session.Id);
-                return sessionResult.Outcome == SessionDeleteOutcome.Deleted
-                    ? (null, new EditorKey.Session(session.Id))
-                    : (new FailurePresentation("Session could not be deleted.", sessionResult.ErrorMessage), null);
+                return sessionResult switch
+                {
+                    SessionDeleteResult.Deleted => (null, new EditorKey.Session(session.Id)),
+                    SessionDeleteResult.Failed failure => (FailurePresentation.From(failure.Reason, failure.Details), null),
+                    _ => throw new ArgumentOutOfRangeException(nameof(sessionResult))
+                };
             case PendingDeleteKey.PairedDevice device:
                 var result = await pairedDevices.UnpairAsync(device.Id);
                 return (result is PairedDeviceUnpairResult.Failed failed ? FailurePresentation.From(failed.Reason, failed.Details) : null, null);

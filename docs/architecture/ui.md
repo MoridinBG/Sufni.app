@@ -195,6 +195,11 @@ Result application must still enforce coherence after awaited work returns:
 
 ## Result Shapes
 
+`SessionDeleteResult` is `Deleted | Failed(reason, details)` with
+`SessionDeleteFailureReason.Delete`. Both editor deletion and pending-delete
+feedback use the fixed summary and preserve diagnostic details. A failed
+transaction retains the session and its preferences.
+
 `RecordedSessionReprocessResult` is `Processed | Failed(reason, details)`.
 `SessionProcessingFailureReason` distinguishes invalid rear configuration,
 calibration calculation failure, no usable travel, and invalid travel data.
