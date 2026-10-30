@@ -31,14 +31,6 @@ internal sealed class SessionStore(
             .Where(c => c.Reason is ChangeReason.Add or ChangeReason.Update)
             .Select(c => c.Current);
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var sessions = await sessionRepository.GetSessionsAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-        await ReplaceWithAsync(sessions.Select(SessionSnapshot.From));
-    }
-
     public async Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
         Session session,
         long? baselineUpdated = null)

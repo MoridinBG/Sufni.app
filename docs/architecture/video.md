@@ -38,6 +38,12 @@ Video playback is a capability. `AppCapabilities.CanPlayVideo` is true on Window
 
 ## Store And Coordinator
 
+Full clip refreshes are loaded and mapped by `VideoCoordinator.RefreshAsync`
+through its background runner, then published through the store's
+`ReplaceAllAsync`. Startup prepares the same snapshots in `AppDataRefresher`'s
+whole-app batch; the store itself has no repository dependency.
+
+
 `SessionVideoStore` holds a `SessionVideoSnapshot` per clip. The snapshot records `FileExists` when it is created, and a refresh checks the file again. `AppDataRefresher` refreshes the store with the other core stores.
 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:

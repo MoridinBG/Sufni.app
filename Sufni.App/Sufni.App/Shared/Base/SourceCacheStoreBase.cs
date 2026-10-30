@@ -59,11 +59,8 @@ public abstract class SourceCacheStoreBase<TSnapshot, TKey> : IDisposable
         return MutateAsync(() => source.RemoveKeys(keyList));
     }
 
-    protected Task ReplaceWithAsync(IEnumerable<TSnapshot> snapshots)
-    {
-        var snapshotList = snapshots.ToArray();
-        return MutateAsync(() => source.EditDiff(snapshotList, EqualityComparer<TSnapshot>.Default));
-    }
+    public Task ReplaceAllAsync(IReadOnlyList<TSnapshot> snapshots) =>
+        MutateAsync(() => source.EditDiff(snapshots, EqualityComparer<TSnapshot>.Default));
 
     private Task MutateAsync(Action mutation) =>
         publication.MutateAsync(this, source.SuspendNotifications, mutation);

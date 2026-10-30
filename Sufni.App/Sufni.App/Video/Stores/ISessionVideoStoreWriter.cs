@@ -11,7 +11,7 @@ public interface ISessionVideoStoreWriter : ISessionVideoStore
     /// Loads the clips of live sessions, observes file presence again, and
     /// replaces the current contents.
     /// </summary>
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task ReplaceAllAsync(IReadOnlyList<SessionVideoSnapshot> snapshots);
 
     Task PublishClipsAsync(IReadOnlyCollection<SessionVideoClip> clips);
 }

@@ -10,8 +10,8 @@ namespace Sufni.App.Bikes.Stores;
 /// Write surface for the bike store.
 public interface IBikeStoreWriter : IBikeStore
 {
-    /// Load all bikes from the database and replace the current contents.
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    /// Replace the published contents with prepared snapshots.
+    Task ReplaceAllAsync(IReadOnlyList<BikeSnapshot> snapshots);
 
     Task<StoreMutationResult<BikeSnapshot>> CommitBikeAsync(
         Bike bike,

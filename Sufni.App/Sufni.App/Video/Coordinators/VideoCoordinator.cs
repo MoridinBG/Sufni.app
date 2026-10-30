@@ -99,7 +99,12 @@ internal sealed class VideoCoordinator(
         return true;
     }
 
-    public Task RefreshAsync() => videoStore.RefreshAsync();
+    public async Task RefreshAsync()
+    {
+        var snapshots = await backgroundTaskRunner.RunAsync(async () =>
+            (await videoRepository.GetLiveAsync()).Select(SessionVideoSnapshot.From).ToArray());
+        await videoStore.ReplaceAllAsync(snapshots);
+    }
 
     private async Task<VideoImportResult> ImportCoreAsync(
         IStorageFile file,

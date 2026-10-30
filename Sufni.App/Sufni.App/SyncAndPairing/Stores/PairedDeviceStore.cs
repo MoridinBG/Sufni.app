@@ -9,27 +9,12 @@ using Sufni.App.Shared.Base;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.SyncAndPairing.Stores;
 
-/// <summary>
-/// Single source of truth for "what paired devices exist". Loaded from
-/// the database via <see cref="RefreshAsync"/> and updated by the
-/// <see cref="Coordinators.PairedDeviceCoordinator"/> via
-/// <see cref="IPairedDeviceStoreWriter"/>. Registered as a singleton
-/// behind both <see cref="IPairedDeviceStore"/> and
-/// <see cref="IPairedDeviceStoreWriter"/>.
-/// </summary>
+/// <summary>Shared paired-device snapshots, keyed by device identity.</summary>
 internal sealed class PairedDeviceStore(
     IPairedDeviceRepository pairedDeviceRepository,
     StorePublication publication)
     : SourceCacheStoreBase<PairedDeviceSnapshot, string>(s => s.DeviceId, publication), IPairedDeviceStoreWriter
 {
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var devices = await pairedDeviceRepository.GetPairedDevicesAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-        await ReplaceWithAsync(devices.Select(PairedDeviceSnapshot.From));
-    }
-
     public async Task<StoreDeleteResult<PairedDeviceSnapshot>> CommitLocalUnpairAsync(
         string deviceId)
     {

@@ -26,14 +26,6 @@ internal sealed class RecordedSessionSourceStore(
         return sourceRepository.GetRecordedSessionSourceAsync(sessionId);
     }
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-        await ReplaceWithAsync(sources);
-    }
-
     public async Task PublishSourcesChangedAsync(
         IReadOnlyCollection<Guid> sessionIds,
         CancellationToken cancellationToken = default)

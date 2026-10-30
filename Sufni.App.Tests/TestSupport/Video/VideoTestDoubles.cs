@@ -121,13 +121,13 @@ internal sealed class VideoFixture : IDisposable
     }
 
     public static SessionVideoStore CreateEmptyStore() =>
-        new(Substitute.For<ISessionVideoRepository>(), new StorePublication(new InlineUiThreadDispatcher()));
+        new(new StorePublication(new InlineUiThreadDispatcher()));
 
     public async Task<SessionVideoStore> CreateStoreAsync(params SessionVideoClip[] clips)
     {
         Repository.GetLiveAsync().Returns([.. clips]);
-        var store = new SessionVideoStore(Repository, new StorePublication(new InlineUiThreadDispatcher()));
-        await store.RefreshAsync(TestContext.Current.CancellationToken);
+        var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.ReplaceAllAsync(clips.Select(SessionVideoSnapshot.From).ToArray());
         return store;
     }
 

@@ -7,7 +7,7 @@ namespace Sufni.App.Segments.Stores;
 
 public interface ISessionSegmentStoreWriter : ISessionSegmentStore
 {
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task ReplaceAllAsync(IReadOnlyList<SessionSegmentSnapshot> snapshots);
 
     /// <summary>
     /// Publishes written rows; deleted rows leave the store.

@@ -17,10 +17,10 @@ namespace Sufni.App.Sessions.Store;
 public interface ISessionStoreWriter : ISessionStore
 {
     /// <summary>
-    /// Load all sessions from the database and replace the current
+    /// Replace the published contents with prepared snapshots.
     /// contents.
     /// </summary>
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task ReplaceAllAsync(IReadOnlyList<SessionSnapshot> snapshots);
 
     Task<StoreMutationResult<SessionSnapshot>> CommitSessionMetadataAsync(
         Session session,

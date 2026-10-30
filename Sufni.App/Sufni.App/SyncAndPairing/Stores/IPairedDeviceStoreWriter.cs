@@ -18,7 +18,7 @@ public interface IPairedDeviceStoreWriter : IPairedDeviceStore
     /// Load paired devices from the database and replace the current
     /// contents.
     /// </summary>
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task ReplaceAllAsync(IReadOnlyList<PairedDeviceSnapshot> snapshots);
 
     Task<StoreDeleteResult<PairedDeviceSnapshot>> CommitLocalUnpairAsync(
         string deviceId);

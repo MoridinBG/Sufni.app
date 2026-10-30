@@ -1,3 +1,5 @@
+using System.Linq;
+using Sufni.App.Segments.Services;
 using System;
 using System.Collections.Generic;
 using Serilog;
@@ -28,6 +30,8 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
     private readonly IBikeStoreWriter bikeStoreWriter;
     private readonly ISetupStoreWriter setupStoreWriter;
     private readonly ISessionSegmentStoreWriter segmentStoreWriter;
+    private readonly ISessionSegmentRepository segmentRepository;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     public InboundSyncCoordinator(
@@ -37,7 +41,9 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         ISetupStoreWriter setupStoreWriter,
         ISessionSegmentStoreWriter segmentStoreWriter,
         ISynchronizationServerService synchronizationServer,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        ISessionSegmentRepository segmentRepository,
+        IBackgroundTaskRunner backgroundTaskRunner)
     {
         this.bikeRepository = bikeRepository;
         this.setupRepository = setupRepository;
@@ -45,6 +51,8 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         this.setupStoreWriter = setupStoreWriter;
         this.segmentStoreWriter = segmentStoreWriter;
         this.uiThreadDispatcher = uiThreadDispatcher;
+        this.segmentRepository = segmentRepository;
+        this.backgroundTaskRunner = backgroundTaskRunner;
 
         synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
     }
@@ -115,7 +123,9 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
 
                 if (e.Data.Segments.Count > 0)
                 {
-                    await segmentStoreWriter.RefreshAsync();
+                    var snapshots = await backgroundTaskRunner.RunAsync(async () =>
+                        (await segmentRepository.GetLiveAsync()).Select(SessionSegmentSnapshot.From).ToArray());
+                    await segmentStoreWriter.ReplaceAllAsync(snapshots);
                 }
 
                 logger.Verbose(

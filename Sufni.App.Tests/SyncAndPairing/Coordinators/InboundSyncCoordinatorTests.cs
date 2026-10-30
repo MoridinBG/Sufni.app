@@ -1,3 +1,4 @@
+using Sufni.App.Segments.Services;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 
@@ -19,10 +20,11 @@ public class InboundSyncCoordinatorTests
     private readonly IBikeStoreWriter bikeStore = Substitute.For<IBikeStoreWriter>();
     private readonly ISetupStoreWriter setupStore = Substitute.For<ISetupStoreWriter>();
     private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
+    private readonly ISessionSegmentRepository segmentRepository = Substitute.For<ISessionSegmentRepository>();
     private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
 
     private InboundSyncCoordinator CreateCoordinator() =>
-        new(bikeRepository, setupRepository, bikeStore, setupStore, segmentStore, server, new InlineUiThreadDispatcher());
+        new(bikeRepository, setupRepository, bikeStore, setupStore, segmentStore, server, new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner());
 
     // ----- Bikes -----
 
@@ -137,6 +139,8 @@ public class InboundSyncCoordinatorTests
     [Fact]
     public async Task SynchronizationDataArrived_WithSegments_RefreshesSegmentStore()
     {
+        var authoritative = new SessionSegment { Id = Guid.NewGuid(), SessionId = Guid.NewGuid(), Name = "current", StartSeconds = 2, EndSeconds = 4 };
+        segmentRepository.GetLiveAsync().Returns([authoritative]);
         var coordinator = CreateCoordinator();
         var data = new SynchronizationData
         {
@@ -145,6 +149,7 @@ public class InboundSyncCoordinatorTests
 
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
 
-        await segmentStore.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
+        await segmentStore.Received(1).ReplaceAllAsync(Arg.Is<IReadOnlyList<SessionSegmentSnapshot>>(rows =>
+            rows.Count == 1 && rows[0].Id == authoritative.Id && rows[0].Name == "current"));
     }
 }

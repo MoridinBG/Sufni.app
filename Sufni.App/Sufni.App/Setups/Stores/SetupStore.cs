@@ -20,20 +20,6 @@ internal sealed class SetupStore(
     public SetupSnapshot? FindByBoardId(Guid boardId) =>
         Items.FirstOrDefault(s => s.BoardId == boardId);
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var setups = await setupRepository.GetAllAsync();
-        var boards = await boardRepository.GetAllAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-
-        await ReplaceWithAsync(setups.Select(setup =>
-        {
-            var board = boards.FirstOrDefault(b => b?.SetupId == setup.Id, null);
-            return SetupSnapshot.From(setup, board?.Id);
-        }));
-    }
-
     public async Task PublishSetupsChangedAsync(
         IReadOnlyCollection<Guid> setupIds,
         CancellationToken cancellationToken = default)

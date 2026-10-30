@@ -47,6 +47,5 @@ public class RecordedSessionSourceRetentionCleanupTests
         await store.Received(1).PublishSourcesRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.SequenceEqual(new[] { orphanSourceId })),
             Arg.Any<CancellationToken>());
-        await store.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 }

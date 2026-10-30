@@ -1,13 +1,25 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-
+using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Stores;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Video.Services;
 using Sufni.App.Video.Stores;
+
 namespace Sufni.App.Shell.Coordinators;
 
 public interface IAppDataRefresher
@@ -23,22 +35,81 @@ internal sealed class AppDataRefresher(
     IPairedDeviceStoreWriter pairedDeviceStore,
     ISessionVideoStoreWriter sessionVideoStore,
     ISessionSegmentStoreWriter sessionSegmentStore,
-    IRecordedSessionProcessingOptionCache processingOptionCache) : IAppDataRefresher
+    ISynchronizableRepository<Bike> bikeRepository,
+    ISynchronizableRepository<Setup> setupRepository,
+    ISynchronizableRepository<Board> boardRepository,
+    ISessionRepository sessionRepository,
+    IRecordedSessionSourceRepository sourceRepository,
+    IPairedDeviceRepository pairedDeviceRepository,
+    ISessionVideoRepository videoRepository,
+    ISessionSegmentRepository segmentRepository,
+    IRecordedSessionProcessingOptionCache processingOptionCache,
+    IBackgroundTaskRunner backgroundTaskRunner,
+    IUiThreadDispatcher dispatcher,
+    StorePublication publication) : IAppDataRefresher
 {
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
-    {
-        // Hydrate the per-session processing-option cache before populating the
-        // stores so the recorded-session projection's first sweep (triggered by these
-        // store refreshes) evaluates staleness with each session's real option
-        // instead of the default (ordering gate).
-        await processingOptionCache.HydrateAsync();
+    private readonly Lock refreshGate = new();
+    private Task? activeRefresh;
 
-        await bikeStore.RefreshAsync(cancellationToken);
-        await setupStore.RefreshAsync(cancellationToken);
-        await sessionStore.RefreshAsync(cancellationToken);
-        await recordedSessionSourceStore.RefreshAsync(cancellationToken);
-        await pairedDeviceStore.RefreshAsync(cancellationToken);
-        await sessionVideoStore.RefreshAsync(cancellationToken);
-        await sessionSegmentStore.RefreshAsync(cancellationToken);
+    public Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        lock (refreshGate)
+        {
+            if (activeRefresh is { IsCompleted: false })
+                return activeRefresh.WaitAsync(cancellationToken);
+
+            activeRefresh = RefreshCoreAsync(cancellationToken);
+            return activeRefresh;
+        }
     }
+
+    private async Task RefreshCoreAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await backgroundTaskRunner.RunAsync(async () =>
+        {
+            // Hydration precedes publication so the projection sees the saved options.
+            await processingOptionCache.HydrateAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            var bikes = await bikeRepository.GetAllAsync();
+            var setups = await setupRepository.GetAllAsync();
+            var boards = await boardRepository.GetAllAsync();
+            var sessions = await sessionRepository.GetSessionsAsync();
+            var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
+            var devices = await pairedDeviceRepository.GetPairedDevicesAsync();
+            var clips = await videoRepository.GetLiveAsync();
+            var segments = await segmentRepository.GetLiveAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            return new AppDataSnapshot(
+                bikes.Select(BikeSnapshot.From).ToArray(),
+                setups.Select(setup => SetupSnapshot.From(setup, boards.FirstOrDefault(board => board.SetupId == setup.Id)?.Id)).ToArray(),
+                sessions.Select(SessionSnapshot.From).ToArray(),
+                sources.ToArray(),
+                devices.Select(PairedDeviceSnapshot.From).ToArray(),
+                clips.Select(SessionVideoSnapshot.From).ToArray(),
+                segments.Select(SessionSegmentSnapshot.From).ToArray());
+        }, cancellationToken);
+
+        await dispatcher.InvokeAsync(async () =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // These replacements complete synchronously on the shared dispatcher.
+            using var batch = publication.BeginBatch();
+            await bikeStore.ReplaceAllAsync(snapshot.Bikes);
+            await setupStore.ReplaceAllAsync(snapshot.Setups);
+            await sessionStore.ReplaceAllAsync(snapshot.Sessions);
+            await recordedSessionSourceStore.ReplaceAllAsync(snapshot.Sources);
+            await pairedDeviceStore.ReplaceAllAsync(snapshot.Devices);
+            await sessionVideoStore.ReplaceAllAsync(snapshot.Videos);
+            await sessionSegmentStore.ReplaceAllAsync(snapshot.Segments);
+        });
+    }
+
+    private sealed record AppDataSnapshot(
+        IReadOnlyList<BikeSnapshot> Bikes,
+        IReadOnlyList<SetupSnapshot> Setups,
+        IReadOnlyList<SessionSnapshot> Sessions,
+        IReadOnlyList<RecordedSessionSourceSnapshot> Sources,
+        IReadOnlyList<PairedDeviceSnapshot> Devices,
+        IReadOnlyList<SessionVideoSnapshot> Videos,
+        IReadOnlyList<SessionSegmentSnapshot> Segments);
 }

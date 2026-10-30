@@ -11,7 +11,7 @@ namespace Sufni.App.Sessions.Store;
 /// </summary>
 public interface IRecordedSessionSourceStoreWriter : IRecordedSessionSourceStore
 {
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task ReplaceAllAsync(IReadOnlyList<RecordedSessionSourceSnapshot> snapshots);
     Task PublishSourcesChangedAsync(
         IReadOnlyCollection<Guid> sessionIds,
         CancellationToken cancellationToken = default);

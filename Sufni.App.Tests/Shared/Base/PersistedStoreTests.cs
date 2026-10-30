@@ -26,7 +26,7 @@ public class PersistedStoreTests
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
 
     [Fact]
-    public async Task BikeStore_RefreshLoadsSnapshots_AndCommitMutationsUpdateCache()
+    public async Task BikeStore_ReplacesSnapshots_AndCommitMutationsUpdateCache()
     {
         var bikeId = Guid.NewGuid();
         var bike = new Bike
@@ -44,7 +44,7 @@ public class PersistedStoreTests
         var store = new BikeStore(bikeRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([BikeSnapshot.From(bike)]);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(bikeId, snapshot.Id);
@@ -82,7 +82,7 @@ public class PersistedStoreTests
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([BikeSnapshot.From(bike)]);
         await store.CommitBikeAsync(new Bike
         {
             Id = bikeId,
@@ -100,7 +100,7 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task RefreshAsync_DispatchesCacheReplacement_WhenOffUiThread()
+    public async Task ReplaceAllAsync_DispatchesCacheReplacement_WhenOffUiThread()
     {
         var bike = new Bike
         {
@@ -115,7 +115,7 @@ public class PersistedStoreTests
         var store = new BikeStore(bikeRepository, new StorePublication(dispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([BikeSnapshot.From(bike)]);
 
         Assert.Equal(1, dispatcher.InvokeCount);
         Assert.Single(snapshots);
@@ -137,7 +137,7 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task RefreshAsync_DoesNotPublishChanges_WhenSnapshotsAreUnchanged()
+    public async Task ReplaceAllAsync_DoesNotPublishChanges_WhenSnapshotsAreUnchanged()
     {
         var bikeId = Guid.NewGuid();
         var first = new Bike
@@ -162,8 +162,8 @@ public class PersistedStoreTests
         var changeSets = new List<IChangeSet<BikeSnapshot, Guid>>();
         using var subscription = store.Connect().Subscribe(changeSets.Add);
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([BikeSnapshot.From(first)]);
+        await store.ReplaceAllAsync([BikeSnapshot.From(second)]);
 
         var changeSet = Assert.Single(changeSets);
         var change = Assert.Single(changeSet);
@@ -172,7 +172,7 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task SetupStore_RefreshLoadsBoardAssociations_AndFindsByBoardId()
+    public async Task SetupStore_ReplacesBoardAssociations_AndFindsByBoardId()
     {
         var setupId = Guid.NewGuid();
         var bikeId = Guid.NewGuid();
@@ -190,7 +190,7 @@ public class PersistedStoreTests
         var store = new SetupStore(setupRepository, boardRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([SetupSnapshot.From(setup, boardId)]);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(setupId, snapshot.Id);
@@ -200,7 +200,7 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task SessionStore_RefreshLoadsMetadata_AndPublishMutationsUpdateCache()
+    public async Task SessionStore_ReplacesMetadata_AndPublishMutationsUpdateCache()
     {
         var sessionId = Guid.NewGuid();
         var session = new Session(sessionId, "Morning run", "desc", null, 100)
@@ -214,7 +214,7 @@ public class PersistedStoreTests
         var watched = new List<SessionSnapshot>();
         using var watchSubscription = store.Watch(sessionId).Subscribe(watched.Add);
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([SessionSnapshot.From(session)]);
         await store.PublishSessionsRemovedAsync([sessionId], cancellationToken: TestContext.Current.CancellationToken);
         var updatedSession = new Session(sessionId, "Evening run", "desc", null, 100)
         {
@@ -245,7 +245,7 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task PairedDeviceStore_RefreshUsesDeviceIdKeys_AndCommitPublishMutationsUpdateCache()
+    public async Task PairedDeviceStore_ReplacementUsesDeviceIdKeys_AndCommitPublishMutationsUpdateCache()
     {
         var expires = DateTime.UtcNow.AddHours(1);
         var device = new PairedDevice("device-1", "Phone", expires);
@@ -255,7 +255,7 @@ public class PersistedStoreTests
         var store = new PairedDeviceStore(pairedDeviceRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([PairedDeviceSnapshot.From(device)]);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal("device-1", snapshot.DeviceId);
@@ -353,7 +353,7 @@ public class PersistedStoreTests
 
         public Task RemoveAsync(Guid id) => PublishRemoveAsync(id);
 
-        public Task ReplaceAsync(IEnumerable<TestSourceCacheSnapshot> snapshots) => ReplaceWithAsync(snapshots);
+        public Task ReplaceAsync(IReadOnlyList<TestSourceCacheSnapshot> snapshots) => ReplaceAllAsync(snapshots);
     }
 
     private static void AssertChange(

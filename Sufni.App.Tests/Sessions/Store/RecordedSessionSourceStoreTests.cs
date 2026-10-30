@@ -35,7 +35,7 @@ public class RecordedSessionSourceStoreTests
     }
 
     [Fact]
-    public async Task RefreshAsync_ReplacesCachedMetadataFromDatabase()
+    public async Task ReplaceAllAsync_ReplacesCachedMetadata()
     {
         var store = new RecordedSessionSourceStore(sourceRepository, new StorePublication(UiThreadDispatcher));
         using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
@@ -45,9 +45,8 @@ public class RecordedSessionSourceStoreTests
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(removed.SessionId)
             .Returns(Task.FromResult<RecordedSessionSourceSnapshot?>(RecordedSessionSourceSnapshot.From(removed)));
         await store.PublishSourcesChangedAsync([removed.SessionId], cancellationToken: TestContext.Current.CancellationToken);
-        sourceRepository.GetRecordedSessionSourceSnapshotsAsync().Returns([RecordedSessionSourceSnapshot.From(kept)]);
 
-        await store.RefreshAsync(cancellationToken: TestContext.Current.CancellationToken);
+        await store.ReplaceAllAsync([RecordedSessionSourceSnapshot.From(kept)]);
 
         var snapshot = Assert.Single(snapshots);
         Assert.Equal(kept.SessionId, snapshot.SessionId);

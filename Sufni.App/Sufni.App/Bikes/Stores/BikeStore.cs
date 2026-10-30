@@ -21,14 +21,6 @@ internal sealed class BikeStore(
     StorePublication publication)
     : SourceCacheStoreBase<BikeSnapshot, Guid>(b => b.Id, publication), IBikeStoreWriter
 {
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var bikes = await bikeRepository.GetAllAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-        await ReplaceWithAsync(bikes.Select(BikeSnapshot.From));
-    }
-
     public async Task<StoreMutationResult<BikeSnapshot>> CommitBikeAsync(
         Bike bike,
         long? baselineUpdated = null)

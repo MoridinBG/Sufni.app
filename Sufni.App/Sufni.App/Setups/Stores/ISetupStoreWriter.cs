@@ -17,7 +17,7 @@ public interface ISetupStoreWriter : ISetupStore
     /// Load setups (and their board associations) from the database
     /// and replace the current contents.
     /// </summary>
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task ReplaceAllAsync(IReadOnlyList<SetupSnapshot> snapshots);
 
     Task PublishSetupsChangedAsync(
         IReadOnlyCollection<Guid> setupIds,

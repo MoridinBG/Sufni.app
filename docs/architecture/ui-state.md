@@ -28,15 +28,15 @@ Persisted stores share
 repeated DynamicData mechanics. The base owns the cache lifetime, `Connect()`,
 `Get(key)`, watch helpers, and UI-thread-dispatched protected publication
 methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
-`PublishRemovalsAsync`, and `ReplaceWithAsync`). `StorePublication` owns their shared UI dispatcher and batch boundary.
+`PublishRemovalsAsync`, and `ReplaceAllAsync`). `StorePublication` owns their shared UI dispatcher and batch boundary.
 Each store keeps its own
 read/write interfaces, persistence semantics, and domain-specific lookups. Raw cache
 mutation stays inside the store; writer interfaces expose semantic commit
 methods for local writes and publish-only methods for already-persisted external
 changes.
 Startup and post-sync refresh are coordinated by `IAppDataRefresher`. `LiveDaqStore` remains separate
-because it is runtime-only and publishes `Clear()` / `ReplaceAll(...)` rather
-than database refresh.
+because it is runtime-only and publishes `ReplaceAll(...)` rather than
+loading persisted rows.
 
 `StorePublication.BeginBatch()` groups already-prepared cache edits on the UI
 thread. Stores defer their DynamicData notifications until the outer batch ends;
@@ -59,11 +59,14 @@ Each persisted store read interface exposes:
 
 Each persisted writer interface additionally exposes:
 
-- `RefreshAsync()` — load (or reload) all rows from the database via the
-  store's repository interface and replace the cache contents. Core refresh
-  `IAppDataRefresher` hydrates processing-option state first, then refreshes
-  bikes, setups, sessions, recorded-session sources, paired devices, session
-  videos, and session segments.
+- `ReplaceAllAsync(snapshots)` — replace cache contents with snapshots prepared
+  by the requesting workflow. Stores do not load full refreshes. `AppDataRefresher`
+  hydrates processing options, loads all seven families through repositories and
+  constructs their snapshots off-thread, then publishes them inside one shared
+  UI-thread batch. Concurrent full-refresh requests share the active run; a
+  cancellation or load failure leaves the previously published state intact.
+  Video and inbound-segment refreshes load their narrower snapshot sets through
+  their coordinators before replacing those stores.
 - Semantic commit methods for local writes that belong to that aggregate
   family, for example `CommitBikeAsync`, `CommitSessionMetadataAsync`,
   `CommitTrackPatchAsync`, and
@@ -117,9 +120,8 @@ own read model, not a cross-domain business query.
 `LiveDaqStore` is a runtime-only store that does not persist to the
 database. It has no `RefreshAsync()`, its snapshots carry no `Updated`
 timestamp, and it is populated entirely by `LiveDaqCoordinator` from
-discovery and known-board query results. Its writer interface adds
-`Clear()` and `ReplaceAll(IEnumerable<LiveDaqSnapshot>)` on top of
-`Upsert` / `Remove`; `LiveDaqCoordinator.ReconcileLocked` uses
+discovery and known-board query results. Its writer interface exposes
+`ReplaceAll(IEnumerable<LiveDaqSnapshot>)`; `LiveDaqCoordinator.ReconcileLocked` uses
 `ReplaceAll` to publish a fresh reconciled set in one update. See
 [Live DAQ Streaming](live-streaming.md) for the full feature
 architecture.
