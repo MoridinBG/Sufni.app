@@ -28,33 +28,16 @@ internal sealed class RecordedSessionReprocessor(
     private static readonly ILogger logger = Log.ForContext<RecordedSessionReprocessor>();
 
     public Task<RecordedSessionReprocessResult> ReprocessAsync(
-        RecordedSessionDomainSnapshot domain,
-        RecordedSessionSource source,
+        RecordedSessionDerivationInput input,
         CancellationToken cancellationToken = default)
     {
-        return ReprocessAsync(domain, source, TelemetryProcessingOptions.Default, cancellationToken);
-    }
-
-    public Task<RecordedSessionReprocessResult> ReprocessAsync(
-        RecordedSessionDomainSnapshot domain,
-        RecordedSessionSource source,
-        TelemetryProcessingOptions processingOptions,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(processingOptions);
         cancellationToken.ThrowIfCancellationRequested();
+        var source = input.Source;
+        var processingOptions = input.ProcessingOptions;
+        if (source.SessionId != input.Session.RecordingSourceSessionId)
+            throw new InvalidOperationException("Recorded source does not match the derivation session.");
 
-        if (domain.Setup is null || domain.Bike is null || domain.Source is null)
-        {
-            throw new InvalidOperationException("Recorded session cannot be reprocessed without setup, bike, and source metadata.");
-        }
-
-        if (source.SessionId != domain.Session.RecordingSourceSessionId || domain.Source.SessionId != source.SessionId)
-        {
-            throw new InvalidOperationException("Recorded source does not match the domain session.");
-        }
-
-        var bikeProcessingContext = bikeProcessingContextFactory.Create(domain.Setup, domain.Bike);
+        var bikeProcessingContext = bikeProcessingContextFactory.Create(input.Setup, input.Bike);
         if (bikeProcessingContext.RearFailure is { } calibrationFailure)
             return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Failed(
                 calibrationFailure.Reason == RearCalibrationFailureReason.Configuration
@@ -67,15 +50,15 @@ internal sealed class RecordedSessionReprocessor(
         {
             telemetryData = source.SourceKind switch
             {
-                RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, bikeData, processingOptions, domain.Session.DerivationWindow),
-                RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(source, bikeData, processingOptions, domain.Session.DerivationWindow),
+                RecordedSessionSourceKind.ImportedSst => ReprocessImportedSst(source, input.Payload, bikeData, processingOptions, input.Session.DerivationWindow),
+                RecordedSessionSourceKind.LiveCapture => ReprocessLiveCapture(input.Payload, bikeData, processingOptions, input.Session.DerivationWindow),
                 _ => throw new ArgumentOutOfRangeException(nameof(source.SourceKind), source.SourceKind, "Unknown recorded source kind.")
             };
         }
         catch (TelemetryProcessingException e)
         {
             logger.Warning(e, "Processing failed for session {SessionId}, source {SourceName}: {Reason}",
-                domain.Session.Id, source.SourceName, e.Reason);
+                input.Session.Id, source.SourceName, e.Reason);
             var reason = e.Reason == TelemetryProcessingFailureReason.NoTravelData
                 ? SessionProcessingFailureReason.NoTravelData : SessionProcessingFailureReason.InvalidRecording;
             return Task.FromResult<RecordedSessionReprocessResult>(new RecordedSessionReprocessResult.Failed(reason, e.Message));
@@ -85,10 +68,11 @@ internal sealed class RecordedSessionReprocessor(
             ? Track.FromGpsRecords(telemetryData.GpsData)
             : null;
         var fingerprint = fingerprintService.CreateCurrent(
-            domain.Session,
-            domain.Setup,
-            domain.Bike,
-            RecordedSessionSourceSnapshot.From(source),
+            input.Session,
+            input.Setup,
+            input.Bike,
+            source,
+            bikeProcessingContext.DependencyHash,
             processingOptions);
         var fingerprintJson = AppJson.Serialize(fingerprint);
         var processedTelemetry = new ProcessedTelemetryPayload(
@@ -100,12 +84,13 @@ internal sealed class RecordedSessionReprocessor(
     }
 
     private static TelemetryData ReprocessImportedSst(
-        RecordedSessionSource source,
+        RecordedSessionSourceSnapshot source,
+        ReadOnlyMemory<byte> payload,
         BikeData bikeData,
         TelemetryProcessingOptions processingOptions,
         RecordedSessionDerivationWindow? window)
     {
-        var sstBytes = RecordedSessionSourcePayloadCodec.DecompressImportedSst(source.Payload);
+        var sstBytes = RecordedSessionSourcePayloadCodec.DecompressImportedSst(payload);
         var rawTelemetryData = RawTelemetryData.FromByteArray(sstBytes);
         if (window is not null)
         {
@@ -117,12 +102,12 @@ internal sealed class RecordedSessionReprocessor(
     }
 
     private static TelemetryData ReprocessLiveCapture(
-        RecordedSessionSource source,
+        ReadOnlyMemory<byte> sourcePayload,
         BikeData bikeData,
         TelemetryProcessingOptions processingOptions,
         RecordedSessionDerivationWindow? window)
     {
-        var payload = JsonSerializer.Deserialize(source.Payload, AppJson.Context.RecordedLiveCaptureSourcePayload)
+        var payload = JsonSerializer.Deserialize(sourcePayload.Span, AppJson.Context.RecordedLiveCaptureSourcePayload)
                       ?? throw new JsonException("Recorded live-capture source payload is invalid.");
         var hasSegmentPayload = payload.FrontSegments is not null || payload.RearSegments is not null;
         var capture = new LiveTelemetryCapture(

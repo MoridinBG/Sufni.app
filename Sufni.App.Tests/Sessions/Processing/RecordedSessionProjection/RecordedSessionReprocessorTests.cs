@@ -58,7 +58,7 @@ public class RecordedSessionReprocessorTests
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
         Assert.Equal("compressed-source.SST", telemetryData.Metadata.SourceName);
@@ -115,7 +115,7 @@ public class RecordedSessionReprocessorTests
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
 
         Assert.Equal(1_700_000_001, telemetryData.Metadata.Timestamp);
@@ -192,7 +192,7 @@ public class RecordedSessionReprocessorTests
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
         Assert.Equal("live", telemetryData.Metadata.SourceName);
@@ -209,8 +209,7 @@ public class RecordedSessionReprocessorTests
         var source = CreateLiveCaptureSource(Guid.NewGuid(), "fingerprint", CreateTemperatureCompatibilityPayload([]));
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
-        var original = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(
-            domain, source, TestContext.Current.CancellationToken));
+        var original = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), TestContext.Current.CancellationToken));
         var changed = domain with
         {
             Setup = domain.Setup! with
@@ -226,8 +225,7 @@ public class RecordedSessionReprocessorTests
             Source = domain.Source! with { SourceHash = "outdated-projection-hash" }
         };
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(
-            changed, source, TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(changed, source, TelemetryProcessingOptions.Default), TestContext.Current.CancellationToken));
 
         Assert.NotEqual(original.Fingerprint.DependencyHash, result.Fingerprint.DependencyHash);
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
@@ -292,7 +290,7 @@ public class RecordedSessionReprocessorTests
             DerivedChangeKind.None);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
 
         Assert.Equal(1_700_000_001, telemetryData.Metadata.Timestamp);
@@ -368,7 +366,7 @@ public class RecordedSessionReprocessorTests
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Contains("\"front_segments\"", sourceJson);
         Assert.DoesNotContain("\"front_measurements\"", sourceJson);
@@ -418,7 +416,7 @@ public class RecordedSessionReprocessorTests
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         var telemetryData = result.ProcessedTelemetry.TelemetryData;
         Assert.Equal(4, telemetryData.Metadata.Version);
@@ -441,7 +439,7 @@ public class RecordedSessionReprocessorTests
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(JsonValueKind.Null, sourceDocument.RootElement.GetProperty("temperature_data").ValueKind);
         Assert.NotEmpty(result.ProcessedTelemetry.TelemetryData.Front.Travel);
@@ -463,7 +461,7 @@ public class RecordedSessionReprocessorTests
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
 
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(domain, source, cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.NotEmpty(result.ProcessedTelemetry.TelemetryData.Front.Travel);
         Assert.Empty(result.ProcessedTelemetry.TelemetryData.TemperatureAverages);
@@ -534,8 +532,7 @@ public class RecordedSessionReprocessorTests
         // The single derivation path (import / live-save / recompute all flow through
         // here) stamps the option it was produced with into the v3 fingerprint, so a
         // later velocity-filter change makes the stored BLOB read as stale.
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(
-            domain, source, new TelemetryProcessingOptions(100), CancellationToken.None));
+        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, new TelemetryProcessingOptions(100)), CancellationToken.None));
 
         Assert.Equal(3, result.Fingerprint.SchemaVersion);
         Assert.Equal(100, result.Fingerprint.VelocityFilterWindowMilliseconds);
@@ -559,7 +556,7 @@ public class RecordedSessionReprocessorTests
             }
         };
 
-        var result = await CreateReprocessor().ReprocessAsync(domain, source, TestContext.Current.CancellationToken);
+        var result = await CreateReprocessor().ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), TestContext.Current.CancellationToken);
 
         if (configured)
             Assert.Equal(SessionProcessingFailureReason.InvalidCalibration, Assert.IsType<RecordedSessionReprocessResult.Failed>(result).Reason);
@@ -577,7 +574,7 @@ public class RecordedSessionReprocessorTests
         var payload = CreateTemperatureCompatibilityPayload([], new ushort[64]);
         var source = CreateLiveCaptureSource(Guid.NewGuid(), "no-travel", payload);
 
-        var result = await CreateReprocessor().ReprocessAsync(CreateLiveCaptureDomain(source), source, TestContext.Current.CancellationToken);
+        var result = await CreateReprocessor().ReprocessAsync(TestDerivationInputs.Create(CreateLiveCaptureDomain(source), source, TelemetryProcessingOptions.Default), TestContext.Current.CancellationToken);
 
         Assert.Equal(SessionProcessingFailureReason.NoTravelData, Assert.IsType<RecordedSessionReprocessResult.Failed>(result).Reason);
     }
@@ -590,7 +587,7 @@ public class RecordedSessionReprocessorTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            CreateReprocessor().ReprocessAsync(CreateLiveCaptureDomain(source), source, cancellation.Token));
+            CreateReprocessor().ReprocessAsync(TestDerivationInputs.Create(CreateLiveCaptureDomain(source), source, TelemetryProcessingOptions.Default), cancellation.Token));
     }
 
     private static RecordedSessionDomainSnapshot CreateLiveCaptureDomain(RecordedSessionSource source)

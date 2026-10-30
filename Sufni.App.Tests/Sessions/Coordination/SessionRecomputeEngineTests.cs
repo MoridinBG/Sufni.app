@@ -131,8 +131,7 @@ public class SessionRecomputeEngineTests
         repository.Seed(existing);
         using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
         await store.ReplaceAllAsync([existing]);
-        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
-                Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.InvalidCalibration, "calibration diagnostic"));
         using var engine = CreateEngine(store, repository.Repository);
 
@@ -154,8 +153,7 @@ public class SessionRecomputeEngineTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<RecordedSessionReprocessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
-        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
-            Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>()).Returns(_ =>
         {
             if (++calls != 1) return Task.FromResult(ReprocessResult(TelemetryProcessingOptions.Default));
             entered.SetResult();
@@ -203,10 +201,10 @@ public class SessionRecomputeEngineTests
         var firstReprocessGate = new TaskCompletionSource<RecordedSessionReprocessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reprocessCalls = 0;
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var options = callInfo.ArgAt<TelemetryProcessingOptions>(2);
+                var options = callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions;
                 var callNumber = Interlocked.Increment(ref reprocessCalls);
                 if (callNumber == 1)
                 {
@@ -258,8 +256,8 @@ public class SessionRecomputeEngineTests
         ConfigureRecomputable(firstId);
         ConfigureRecomputable(secondId);
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
 
         var engine = CreateEngine();
         var firstTask = engine.RequestRecomputeAsync(firstId, RecomputeReason.ManualFromList);
@@ -277,8 +275,8 @@ public class SessionRecomputeEngineTests
         var sessionId = Guid.NewGuid();
         var persisted = ConfigureRecomputable(sessionId);
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
         // The in-transaction DB-input re-check rolls back once (passive dependency
         // change), then succeeds: the engine self-heals by looping, not by surfacing a
         // neutral result.
@@ -300,8 +298,7 @@ public class SessionRecomputeEngineTests
             Arg.Any<ProcessedTelemetryPayload>(),
             Arg.Any<Track?>(),
             Arg.Any<ProcessingFingerprint>());
-        await reprocessor.Received(2).ReprocessAsync(
-            Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>());
+        await reprocessor.Received(2).ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -340,8 +337,8 @@ public class SessionRecomputeEngineTests
         sessionRepository.GetSessionAsync(sessionId).Returns(persisted);
         processingOptionCache.Get(sessionId).Returns(TelemetryProcessingOptions.Default);
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
         sessionTelemetryWriter
             .UpdateProcessedDerivedDataAsync(
                 Arg.Any<Session>(),
@@ -357,11 +354,7 @@ public class SessionRecomputeEngineTests
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
         await sourceRepository.Received(1).GetRecordedSessionSourceAsync(sourceSessionId);
         await sourceRepository.DidNotReceive().GetRecordedSessionSourceAsync(sessionId);
-        await reprocessor.Received(1).ReprocessAsync(
-            Arg.Is<RecordedSessionDomainSnapshot>(value => value.Session.DerivationWindow == window),
-            Arg.Is<RecordedSessionSource>(value => value.SessionId == sourceSessionId),
-            Arg.Any<TelemetryProcessingOptions>(),
-            Arg.Any<CancellationToken>());
+        await reprocessor.Received(1).ReprocessAsync(Arg.Is<RecordedSessionDerivationInput>(value => value.Session.DerivationWindow == window && value.Source.SessionId == sourceSessionId), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -418,8 +411,8 @@ public class SessionRecomputeEngineTests
 
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id]);
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
 
         var engine = CreateEngine();
         var summary = await engine
@@ -448,8 +441,8 @@ public class SessionRecomputeEngineTests
         var deletedId = Guid.NewGuid();
         sessionRepository.GetActiveSessionIdsAsync().Returns([liveId]);
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
 
         var summary = await CreateEngine()
             .RequestRecomputeAllAsync(RecomputeReason.RecomputeAll)
@@ -494,8 +487,8 @@ public class SessionRecomputeEngineTests
         ConfigureRecomputable(secondId);
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstId, secondId]);
         reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<TelemetryProcessingOptions>(2))));
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions)));
 
         // A synchronous sink records every report deterministically: the engine
         // reports before each parallel body returns, and ForEachAsync awaits them all.

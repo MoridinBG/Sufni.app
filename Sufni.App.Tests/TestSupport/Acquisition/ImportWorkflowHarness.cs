@@ -97,8 +97,7 @@ internal sealed class ImportWorkflowHarness
     }
 
     public static RecordedSessionReprocessResult CreateReprocessResult(
-        RecordedSessionDomainSnapshot domain,
-        RecordedSessionSource source,
+        RecordedSessionDerivationInput input,
         TelemetryData? telemetryData = null,
         Track? generatedFullTrack = null)
     {
@@ -106,11 +105,11 @@ internal sealed class ImportWorkflowHarness
         var fingerprint = new ProcessingFingerprint(
             SchemaVersion: 2,
             ProcessingVersion: 1,
-            SetupId: domain.Setup!.Id,
-            BikeId: domain.Bike!.Id,
+            SetupId: input.Setup.Id,
+            BikeId: input.Bike.Id,
             TrackProjectionVersion: 1,
             DependencyHash: "dependency",
-            SourceHash: source.SourceHash);
+            SourceHash: input.Source.SourceHash);
         return new RecordedSessionReprocessResult.Processed(
             new ProcessedTelemetryPayload(
                 data,
@@ -123,15 +122,11 @@ internal sealed class ImportWorkflowHarness
     private void ConfigureDefaultReprocessor()
     {
         Reprocessor
-            .ReprocessAsync(
-                Arg.Any<RecordedSessionDomainSnapshot>(),
-                Arg.Any<RecordedSessionSource>(),
-                Arg.Any<CancellationToken>())
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
-                var source = callInfo.ArgAt<RecordedSessionSource>(1);
-                return Task.FromResult(CreateReprocessResult(domain, source));
+                var domain = callInfo.ArgAt<RecordedSessionDerivationInput>(0);
+                return Task.FromResult(CreateReprocessResult(domain));
             });
     }
 

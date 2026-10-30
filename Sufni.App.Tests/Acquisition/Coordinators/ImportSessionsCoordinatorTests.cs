@@ -30,7 +30,7 @@ public class ImportSessionsCoordinatorTests
         var (setup, _) = harness.SeedSetupAndBike();
         var file = CreateTelemetryFile(name: "ride", action: ImportFileAction.Import,
             source: new TelemetryFileSource("ride.SST", [1, 2, 3]));
-        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<CancellationToken>())
+        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.InvalidCalibration, "calibration diagnostic"));
         using var coordinator = harness.CreateCoordinator();
 
@@ -241,10 +241,7 @@ public class ImportSessionsCoordinatorTests
         await rejected.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
         await rejected.DidNotReceive().OnImported();
         await importable.Received(1).OnImported();
-        await harness.Reprocessor.Received(1).ReprocessAsync(
-            Arg.Is<RecordedSessionDomainSnapshot>(domain => domain.Session.Name == "trimmed"),
-            Arg.Any<RecordedSessionSource>(),
-            Arg.Any<CancellationToken>());
+        await harness.Reprocessor.Received(1).ReprocessAsync(Arg.Is<RecordedSessionDerivationInput>(domain => domain.Session.Name == "trimmed"), Arg.Any<CancellationToken>());
         Assert.Throws<ObjectDisposedException>(() => rejectedSource.SstBytes);
         Assert.Throws<ObjectDisposedException>(() => importableSource.SstBytes);
         Assert.Contains(coordinator.State.Events, e => e is SessionImportEvent.Failed { Failure.FileName: "bad" });
@@ -273,17 +270,14 @@ public class ImportSessionsCoordinatorTests
         else if (failurePoint is ImportFailurePoint.Reprocess)
         {
             harness.Reprocessor
-                .ReprocessAsync(
-                    Arg.Any<RecordedSessionDomainSnapshot>(),
-                    Arg.Any<RecordedSessionSource>(),
-                    Arg.Any<CancellationToken>())
+                .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
                 .Returns(callInfo =>
                 {
-                    var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
-                    var source = callInfo.ArgAt<RecordedSessionSource>(1);
+                    var domain = callInfo.ArgAt<RecordedSessionDerivationInput>(0);
+                    var source = domain.Source;
                     return source.SourceName == "broken.SST"
                         ? Task.FromException<RecordedSessionReprocessResult>(new InvalidOperationException("reprocess"))
-                        : Task.FromResult(ImportWorkflowHarness.CreateReprocessResult(domain, source));
+                        : Task.FromResult(ImportWorkflowHarness.CreateReprocessResult(domain));
                 });
         }
         else
@@ -360,21 +354,18 @@ public class ImportSessionsCoordinatorTests
                 return Task.FromResult(new TelemetryFileSource("second.SST", [1, 2, 3]));
             });
         harness.Reprocessor
-            .ReprocessAsync(
-                Arg.Any<RecordedSessionDomainSnapshot>(),
-                Arg.Any<RecordedSessionSource>(),
-                Arg.Any<CancellationToken>())
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(async callInfo =>
             {
-                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
-                var source = callInfo.ArgAt<RecordedSessionSource>(1);
+                var domain = callInfo.ArgAt<RecordedSessionDerivationInput>(0);
+                var source = domain.Source;
                 if (source.SourceName == "first.SST")
                 {
                     firstProcessingStarted.TrySetResult();
                     await releaseFirstProcessing.Task;
                 }
 
-                return ImportWorkflowHarness.CreateReprocessResult(domain, source);
+                return ImportWorkflowHarness.CreateReprocessResult(domain);
             });
 
         var importTask = coordinator.ImportAsync([first, second], setup.Id);
@@ -442,12 +433,11 @@ public class ImportSessionsCoordinatorTests
         using var coordinator = harness.CreateCoordinator();
         var processing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
-            Arg.Any<CancellationToken>()).Returns(async call =>
+        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>()).Returns(async call =>
         {
             processing.SetResult();
             await release.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-            return ImportWorkflowHarness.CreateReprocessResult(call.Arg<RecordedSessionDomainSnapshot>(), call.Arg<RecordedSessionSource>());
+            return ImportWorkflowHarness.CreateReprocessResult(call.Arg<RecordedSessionDerivationInput>());
         });
         var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var first = CreateTelemetryFile("queued", action: ImportFileAction.Import);

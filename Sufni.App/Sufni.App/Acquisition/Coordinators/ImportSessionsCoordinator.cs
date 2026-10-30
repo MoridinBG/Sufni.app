@@ -310,9 +310,10 @@ public class ImportSessionsCoordinator(
                                 setup: setupId,
                                 timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds());
 
-                            var domain = CreateImportDomain(session, setupSnapshot, bikeSnapshot, source);
+                            var input = RecordedSessionDerivationInput.Create(
+                                SessionSnapshot.From(session), setupSnapshot, bikeSnapshot, source, TelemetryProcessingOptions.Default);
                             logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
-                            var reprocessResult = await reprocessor.ReprocessAsync(domain, source);
+                            var reprocessResult = await reprocessor.ReprocessAsync(input);
                             if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
                             {
                                 ReportFailure(new SessionImportFailure.ProcessingFailed(telemetryFile.Name, failure.Reason, failure.Details));
@@ -427,24 +428,7 @@ public class ImportSessionsCoordinator(
         return new SessionImportResult(imported, failures);
     }
 
-    private static RecordedSessionDomainSnapshot CreateImportDomain(
-        Session session,
-        SetupSnapshot setup,
-        BikeSnapshot bike,
-        RecordedSessionSource source)
-    {
-        var sessionSnapshot = SessionSnapshot.From(session);
-        var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-        return new RecordedSessionDomainSnapshot(
-            sessionSnapshot,
-            setup,
-            bike,
-            CurrentFingerprint: null,
-            PersistedFingerprint: null,
-            sourceSnapshot,
-            new SessionStaleness.UnknownLegacyFingerprint(),
-            DerivedChangeKind.None);
-    }
+
 }
 
 public sealed record SessionImportResult(

@@ -1,3 +1,7 @@
+using System;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Setups.Stores;
+using Sufni.App.Sessions.Store;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
@@ -7,19 +11,29 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
-// Rebuilds derived telemetry from a durable raw source. The domain snapshot
-// supplies the setup/bike context, while processing options choose the pipeline.
+/// <summary>The captured inputs for one recorded-session derivation.</summary>
+public sealed record RecordedSessionDerivationInput(
+    SessionSnapshot Session,
+    SetupSnapshot Setup,
+    BikeSnapshot Bike,
+    RecordedSessionSourceSnapshot Source,
+    ReadOnlyMemory<byte> Payload,
+    TelemetryProcessingOptions ProcessingOptions)
+{
+    public static RecordedSessionDerivationInput Create(
+        SessionSnapshot session,
+        SetupSnapshot setup,
+        BikeSnapshot bike,
+        RecordedSessionSource source,
+        TelemetryProcessingOptions processingOptions) =>
+        new(session, setup, bike, RecordedSessionSourceSnapshot.From(source), source.Payload, processingOptions);
+}
+
+/// <summary>Derives telemetry and its fingerprint from one captured input.</summary>
 public interface IRecordedSessionReprocessor
 {
     Task<RecordedSessionReprocessResult> ReprocessAsync(
-        RecordedSessionDomainSnapshot domain,
-        RecordedSessionSource source,
-        CancellationToken cancellationToken = default);
-
-    Task<RecordedSessionReprocessResult> ReprocessAsync(
-        RecordedSessionDomainSnapshot domain,
-        RecordedSessionSource source,
-        TelemetryProcessingOptions processingOptions,
+        RecordedSessionDerivationInput input,
         CancellationToken cancellationToken = default);
 }
 

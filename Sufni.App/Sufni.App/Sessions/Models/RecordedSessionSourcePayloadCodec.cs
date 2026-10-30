@@ -21,9 +21,9 @@ public static class RecordedSessionSourcePayloadCodec
         return compressor.Wrap(sstBytes.Span).ToArray();
     }
 
-    public static byte[] DecompressImportedSst(byte[] payload)
+    public static byte[] DecompressImportedSst(ReadOnlyMemory<byte> payload)
     {
         using var decompressor = new Decompressor();
-        return decompressor.Unwrap(payload).ToArray();
+        return decompressor.Unwrap(payload.Span).ToArray();
     }
 }

@@ -140,18 +140,11 @@ public sealed class SessionCommandService
             var bikeSnapshot = BikeSnapshot.From(bike);
             var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
             var sessionSnapshot = SessionSnapshot.From(session);
-            var domain = new RecordedSessionDomainSnapshot(
-                sessionSnapshot,
-                setupSnapshot,
-                bikeSnapshot,
-                CurrentFingerprint: null,
-                PersistedFingerprint: null,
-                sourceSnapshot,
-                new SessionStaleness.UnknownLegacyFingerprint(),
-                DerivedChangeKind.None);
+            var input = new RecordedSessionDerivationInput(
+                sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload, processingOptions);
 
             var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
+                () => recordedSessionReprocessor.ReprocessAsync(input, cancellationToken),
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();

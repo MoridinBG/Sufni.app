@@ -353,14 +353,14 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 }
             }
 
-            // Read the processing option at run time so cancel-and-replace yields
-            // the last cached value. The reprocessor's fingerprint is exactly
-            // CreateCurrent(domain, option) — i.e. F_in, the input-coherence key;
-            // no separate signature is computed.
+            // Capture the current option for this run; a superseding run captures
+            // its own input before the commit-time coherence check.
             var processingOptions = processingOptionCache.Get(sessionId);
 
             var reprocessResult = await backgroundTaskRunner.RunAsync(
-                () => recordedSessionReprocessor.ReprocessAsync(domain, source, processingOptions, cancellationToken),
+                () => recordedSessionReprocessor.ReprocessAsync(
+                    RecordedSessionDerivationInput.Create(domain.Session, domain.Setup!, domain.Bike!, source, processingOptions),
+                    cancellationToken),
                 cancellationToken);
 
             // A superseding request cannot interrupt the synchronous pipeline above

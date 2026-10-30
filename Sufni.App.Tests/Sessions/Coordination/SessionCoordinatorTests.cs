@@ -130,8 +130,7 @@ public class SessionCoordinatorTests
     {
         var capture = CreateLiveCapturePackage(withGps: false);
         SeedLiveCaptureDependencies(capture);
-        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(),
-                Arg.Any<TelemetryProcessingOptions>(), Arg.Any<CancellationToken>())
+        reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.NoTravelData));
         using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
@@ -173,18 +172,13 @@ public class SessionCoordinatorTests
 
         var result = await CreateCoordinator().SaveLiveCaptureAsync(session, capture, SessionPreferences.Default, cancellationToken: TestContext.Current.CancellationToken);
 
-        await reprocessor.Received(1).ReprocessAsync(
-            Arg.Is<RecordedSessionDomainSnapshot>(domain =>
+        await reprocessor.Received(1).ReprocessAsync(Arg.Is<RecordedSessionDerivationInput>(domain =>
                 domain.Session.Id == session.Id &&
                 domain.Setup!.Id == capture.Context.SetupId &&
                 domain.Bike!.Id == capture.Context.BikeId &&
-                domain.Source!.SourceKind == RecordedSessionSourceKind.LiveCapture),
-            Arg.Is<RecordedSessionSource>(source =>
-                source.SessionId == session.Id &&
-                source.SourceKind == RecordedSessionSourceKind.LiveCapture &&
-                RecordedSessionSourceHash.Matches(source)),
-            Arg.Any<TelemetryProcessingOptions>(),
-            Arg.Any<CancellationToken>());
+                domain.Source!.SourceKind == RecordedSessionSourceKind.LiveCapture && domain.Source.SessionId == session.Id &&
+                domain.Source.SourceHash == RecordedSessionSourceHash.Compute(
+                    domain.Source.SourceKind, domain.Source.SourceName, domain.Source.SchemaVersion, domain.Payload.ToArray())), Arg.Any<CancellationToken>());
         await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(saved => saved.Id == session.Id),
             Arg.Is<ProcessedTelemetryPayload>(payload =>
@@ -582,16 +576,12 @@ public class SessionCoordinatorTests
         setupRepository.GetAsync(capture.Context.SetupId).Returns(Task.FromResult<Setup?>(setup));
         bikeRepository.GetAsync(capture.Context.BikeId).Returns(Task.FromResult<Bike?>(bike));
         reprocessor
-            .ReprocessAsync(
-                Arg.Any<RecordedSessionDomainSnapshot>(),
-                Arg.Any<RecordedSessionSource>(),
-                Arg.Any<TelemetryProcessingOptions>(),
-                Arg.Any<CancellationToken>())
+            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                var domain = callInfo.ArgAt<RecordedSessionDomainSnapshot>(0);
-                var source = callInfo.ArgAt<RecordedSessionSource>(1);
-                var processingOptions = callInfo.ArgAt<TelemetryProcessingOptions>(2);
+                var domain = callInfo.ArgAt<RecordedSessionDerivationInput>(0);
+                var source = domain.Source;
+                var processingOptions = callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions;
                 var telemetryData = TelemetryData.FromLiveCapture(capture.TelemetryCapture, processingOptions);
                 var fullTrack = telemetryData.GpsData is { Length: > 0 }
                     ? Track.FromGpsRecords(telemetryData.GpsData)

@@ -15,6 +15,7 @@ internal interface ITelemetryBikeProcessingContextFactory
 
 internal sealed record TelemetryBikeProcessingContext(
     BikeData BikeData,
+    string DependencyHash,
     RearTravelCalibrationResult.Failed? RearFailure = null);
 
 internal sealed class TelemetryBikeProcessingContextFactory(
@@ -25,6 +26,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
     private readonly SingleFlightLruCache<CacheRequest, TelemetryBikeProcessingContext> cache =
         new(Capacity, request => CreateUncached(
             rearTravelCalibrationBuilder,
+            request.Key,
             request.Setup,
             request.Bike));
 
@@ -39,6 +41,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
 
     private static TelemetryBikeProcessingContext CreateUncached(
         IRearTravelCalibrationBuilder rearTravelCalibrationBuilder,
+        ProcessingDependencyInputs inputs,
         SetupSnapshot setup,
         BikeSnapshot bike)
     {
@@ -50,6 +53,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
         return new TelemetryBikeProcessingContext(
             TelemetryBikeData.Create(frontSensorConfiguration,
                 rearTravelCalibration is RearTravelCalibrationResult.Built built ? built.Calibration : null),
+            ProcessingDependencyHash.Compute(inputs),
             rearTravelCalibration as RearTravelCalibrationResult.Failed);
     }
 
