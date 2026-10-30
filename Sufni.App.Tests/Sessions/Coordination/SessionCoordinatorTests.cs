@@ -228,8 +228,7 @@ public class SessionCoordinatorTests
                 domain.Setup!.Id == capture.Context.SetupId &&
                 domain.Bike!.Id == capture.Context.BikeId &&
                 domain.Source!.SourceKind == RecordedSessionSourceKind.LiveCapture && domain.Source.SessionId == session.Id &&
-                domain.Source.SourceHash == RecordedSessionSourceHash.Compute(
-                    domain.Source.SourceKind, domain.Source.SourceName, domain.Source.SchemaVersion, domain.Payload.ToArray())), Arg.Any<CancellationToken>());
+                domain.Source.SourceHash == RecordedSessionSourceHash.Compute(domain.Source.SourceKind, domain.Payload.ToArray())), Arg.Any<CancellationToken>());
         await sessionTelemetryWriter.Received(1).PutProcessedSessionAsync(
             Arg.Is<Session>(saved => saved.Id == session.Id),
             Arg.Is<ProcessedTelemetryPayload>(payload =>

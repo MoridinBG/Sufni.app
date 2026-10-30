@@ -351,11 +351,7 @@ public class RecordedSessionProjectionTests
     private static RecordedSessionSourceSnapshot CreateSource(Guid sessionId)
     {
         var payload = new byte[] { 7, 6, 5, 4 };
-        var hash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "projection.SST",
-            1,
-            payload);
+        var hash = RecordedSessionSourceHash.ComputeImportedSst(payload);
         return new RecordedSessionSourceSnapshot(
             sessionId,
             RecordedSessionSourceKind.ImportedSst,

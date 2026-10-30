@@ -71,6 +71,9 @@ internal sealed class DatabaseMigrationRunner(
 
     private Task MigrateSessionDomainAsync() => coreMigrations.ApplyAsync("session-domain-ownership", transaction =>
     {
+        foreach (var source in transaction.Table<RecordedSessionSource>())
+            transaction.Execute("UPDATE session_recording_source SET source_hash = ? WHERE session_id = ?",
+                RecordedSessionSourceHash.Compute(source.SourceKind, source.Payload), source.SessionId);
         foreach (var (sessionId, window) in legacyProcessingWindows)
             transaction.Execute("UPDATE session SET velocity_filter_window_ms = ? WHERE id = ? AND velocity_filter_window_ms IS NULL", window, sessionId);
     });

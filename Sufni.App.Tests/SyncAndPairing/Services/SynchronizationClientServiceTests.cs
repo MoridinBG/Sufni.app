@@ -434,6 +434,8 @@ public class SynchronizationClientServiceTests
     [Theory]
     [InlineData(PulledRecordedSourceOutcome.Persisted)]
     [InlineData(PulledRecordedSourceOutcome.InvalidHash)]
+    [InlineData(PulledRecordedSourceOutcome.InvalidSstPayload)]
+    [InlineData(PulledRecordedSourceOutcome.InvalidLivePayload)]
     [InlineData(PulledRecordedSourceOutcome.RepositoryFailure)]
     public async Task SyncAll_HandlesPulledRecordedSourceOutcome(PulledRecordedSourceOutcome outcome)
     {
@@ -447,6 +449,13 @@ public class SynchronizationClientServiceTests
                 "invalid",
                 source.Payload)
             : SyncTestServerHarness.ToPayload(source);
+        if (outcome is PulledRecordedSourceOutcome.InvalidSstPayload or PulledRecordedSourceOutcome.InvalidLivePayload)
+            transfer = transfer with
+            {
+                SourceKind = outcome == PulledRecordedSourceOutcome.InvalidSstPayload
+                    ? RecordedSessionSourceKind.ImportedSst : RecordedSessionSourceKind.LiveCapture,
+                Payload = [1, 2, 3]
+            };
 
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
@@ -533,6 +542,8 @@ public class SynchronizationClientServiceTests
     {
         Persisted,
         InvalidHash,
+        InvalidSstPayload,
+        InvalidLivePayload,
         RepositoryFailure
     }
 

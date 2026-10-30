@@ -200,7 +200,10 @@ The `session-domain-ownership` migration copies the launch snapshot's legacy
 processing options into nullable `session.velocity_filter_window_ms`, without
 changing authored timestamps or processed data. Its marker prevents later launches
 from replaying old preferences over a newly authored option. Runtime preferences
-and startup jobs no longer reset or recompute processing options.
+and startup jobs no longer reset or recompute processing options. The same
+migration rewrites source hashes using uncompressed SST content or live content
+without the setup display name. It preserves payloads, duplicate rows, session
+ids and split references; stored processing fingerprints are left stale.
 
 Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
 
@@ -280,7 +283,7 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 - `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids whose recording source (`source_session_id`, or the session's own id) has no source row, or whose source row hash differs from the persisted processing fingerprint's `SourceHash`
 - `GetMissingRecordingSourceIdsAsync()` — the same check, but returns the recording source ids instead of the session ids
 - `GetReferencedSourceSessionIdsAsync()` — returns the distinct `source_session_id` values of live sessions that derive from another session's source
-- `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs; startup normalization uses it to enumerate recomputable source-backed sessions
+- `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs; the source-sync query uses it to enumerate locally available source owners
 - `DeleteOrphanedRecordedSessionSourcesAsync()` — in one transaction, removes source rows whose owner session no longer exists and that no live session references through `source_session_id`, and returns their ids
 - `PutRecordedSessionSourceAsync(source)` — insert/replace a recorded source outside the processed-session transaction for source sync; source deletion stays inside session transactions and orphan retention cleanup
 

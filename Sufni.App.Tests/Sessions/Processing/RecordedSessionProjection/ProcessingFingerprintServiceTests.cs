@@ -689,11 +689,7 @@ public class ProcessingFingerprintServiceTests
     private static RecordedSessionSourceSnapshot CreateSource(Guid sessionId)
     {
         byte[] payload = [4, 3, 2, 1];
-        var hash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "session.SST",
-            1,
-            payload);
+        var hash = RecordedSessionSourceHash.ComputeImportedSst(payload);
         return new RecordedSessionSourceSnapshot(
             sessionId,
             RecordedSessionSourceKind.ImportedSst,

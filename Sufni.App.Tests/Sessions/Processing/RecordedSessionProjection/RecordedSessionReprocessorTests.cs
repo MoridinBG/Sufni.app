@@ -40,11 +40,7 @@ public class RecordedSessionReprocessorTests
             SourceKind = RecordedSessionSourceKind.ImportedSst,
             SourceName = "compressed-source.SST",
             SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "compressed-source.SST",
-                1,
-                payload),
+            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.ImportedSst, payload),
             Payload = payload
         };
         var domain = new RecordedSessionDomainSnapshot(
@@ -90,11 +86,7 @@ public class RecordedSessionReprocessorTests
             SourceKind = RecordedSessionSourceKind.ImportedSst,
             SourceName = "window-source.SST",
             SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "window-source.SST",
-                1,
-                payload),
+            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.ImportedSst, payload),
             Payload = payload
         };
         var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.1, 1.3);
@@ -511,11 +503,7 @@ public class RecordedSessionReprocessorTests
             SourceKind = RecordedSessionSourceKind.ImportedSst,
             SourceName = "source.SST",
             SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "source.SST",
-                1,
-                payload),
+            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.ImportedSst, payload),
             Payload = payload
         };
         var domain = new RecordedSessionDomainSnapshot(
@@ -706,11 +694,7 @@ public class RecordedSessionReprocessorTests
             SourceKind = RecordedSessionSourceKind.LiveCapture,
             SourceName = sourceName,
             SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.LiveCapture,
-                sourceName,
-                1,
-                payloadBytes),
+            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.LiveCapture, payloadBytes),
             Payload = payloadBytes,
         };
 }

@@ -16,12 +16,8 @@ internal static class PersistenceTestData
         SourceKind = RecordedSessionSourceKind.ImportedSst,
         SourceName = "source.SST",
         SchemaVersion = 1,
-        SourceHash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "source.SST",
-            1,
-            [1, 2, 3]),
-        Payload = [1, 2, 3]
+        SourceHash = RecordedSessionSourceHash.ComputeImportedSst([1, 2, 3]),
+        Payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(new byte[] { 1, 2, 3 })
     };
 
     public static Track CreateFullTrack() => new()

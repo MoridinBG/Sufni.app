@@ -264,11 +264,19 @@ public class SynchronizationClientService : ISynchronizationClientService
                 var source = await httpApiService.GetRecordedSessionSourceAsync(id, cancellationToken: cancellationToken);
                 if (source is not null)
                 {
-                    if (!RecordedSessionSourceHash.Matches(source))
+                    try
                     {
-                        logger.Warning(
-                            "Skipped recorded source {SessionId}: source hash does not match its payload",
-                            source.SessionId);
+                        if (!RecordedSessionSourceHash.Matches(source))
+                        {
+                            logger.Warning(
+                                "Skipped recorded source {SessionId}: source hash does not match its payload",
+                                source.SessionId);
+                            return;
+                        }
+                    }
+                    catch (Exception exception) when (exception is System.Text.Json.JsonException or ZstdSharp.ZstdException)
+                    {
+                        logger.Warning(exception, "Skipped invalid recorded source payload for {SessionId}", source.SessionId);
                         return;
                     }
 

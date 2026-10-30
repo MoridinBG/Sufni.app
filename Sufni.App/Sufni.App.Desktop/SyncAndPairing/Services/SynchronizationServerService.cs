@@ -986,8 +986,17 @@ public class SynchronizationServerService : ISynchronizationServerService
                             metadata.SourceHash,
                             await ReadRequestBodyAsync(request));
 
-                        if (!RecordedSessionSourceHash.Matches(transfer))
+                        try
                         {
+                            if (!RecordedSessionSourceHash.Matches(transfer))
+                            {
+                                logger.Warning("Recorded source hash does not match its payload for {SessionId}", id);
+                                return Results.BadRequest();
+                            }
+                        }
+                        catch (Exception exception) when (exception is System.Text.Json.JsonException or ZstdSharp.ZstdException)
+                        {
+                            logger.Warning(exception, "Recorded source payload is invalid for {SessionId}", id);
                             return Results.BadRequest();
                         }
 

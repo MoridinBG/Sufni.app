@@ -22,6 +22,59 @@ namespace Sufni.App.Tests.Infrastructure;
 public class DatabaseMigrationRunnerTests
 {
     [Fact]
+    public async Task Initialization_RewritesSourceHashes_WithoutMergingDuplicatesOrChangingSplitReferences()
+    {
+        using var temp = new TempDatabase();
+        var first = PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid());
+        var duplicate = PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid());
+        duplicate.SourceName = "renamed.SST";
+        var childId = Guid.NewGuid();
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.CreateTable<RecordedSessionSource>();
+            foreach (var source in new[] { first, duplicate })
+            {
+                source.SourceHash = "legacy-name-and-compression-hash";
+                legacy.Insert(new Session(source.SessionId, source.SourceName, "notes", null, 100)
+                {
+                    Updated = 42,
+                    ProcessingFingerprintJson = "legacy-fingerprint"
+                });
+                legacy.Insert(source);
+            }
+            legacy.Insert(new Session(childId, "split", "child notes", null, 101)
+            {
+                SourceSessionId = first.SessionId,
+                WindowStartSeconds = 1,
+                WindowEndSeconds = 2,
+                Updated = 43
+            });
+        }
+
+        await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+        await context.Initialization;
+        var sources = await context.Connection.Table<RecordedSessionSource>().ToListAsync();
+        Assert.Equal(2, sources.Count);
+        Assert.All(sources, source =>
+        {
+            Assert.Equal(RecordedSessionSourceHash.ComputeImportedSst([1, 2, 3]), source.SourceHash);
+            Assert.Equal(first.Payload, source.Payload);
+        });
+        Assert.Equal(new[] { first.SessionId, duplicate.SessionId }.Order(), sources.Select(source => source.SessionId).Order());
+        Assert.Equal(3, await context.Connection.Table<Session>().CountAsync());
+        var original = await context.Connection.FindAsync<Session>(first.SessionId);
+        Assert.Equal(42, original.Updated);
+        Assert.Equal("notes", original.Description);
+        Assert.Equal("legacy-fingerprint", original.ProcessingFingerprintJson);
+        var child = await context.Connection.FindAsync<Session>(childId);
+        Assert.Equal(first.SessionId, child.SourceSessionId);
+        Assert.Equal(1, child.WindowStartSeconds);
+        Assert.Equal(2, child.WindowEndSeconds);
+        Assert.Equal(43, child.Updated);
+    }
+
+    [Fact]
     public async Task Initialization_CopiesLegacyFilterOptionOnce_WithoutChangingSessionContent()
     {
         using var temp = new TempDatabase();

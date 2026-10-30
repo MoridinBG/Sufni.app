@@ -90,18 +90,14 @@ internal sealed class SyncTestServerHarness
 
     public static RecordedSessionSource CreateRecordedSource(byte[]? payload = null)
     {
-        var data = payload ?? [8, 6, 7, 5];
+        var data = RecordedSessionSourcePayloadCodec.CompressImportedSst(payload ?? [8, 6, 7, 5]);
         return new RecordedSessionSource
         {
             SessionId = Guid.NewGuid(),
             SourceKind = RecordedSessionSourceKind.ImportedSst,
             SourceName = "sync.SST",
             SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "sync.SST",
-                1,
-                data),
+            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.ImportedSst, data),
             Payload = data
         };
     }

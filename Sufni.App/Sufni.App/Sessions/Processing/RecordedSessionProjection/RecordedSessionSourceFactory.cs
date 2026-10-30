@@ -23,11 +23,7 @@ public static class RecordedSessionSourceFactory
             SourceKind = RecordedSessionSourceKind.ImportedSst,
             SourceName = source.FileName,
             SchemaVersion = SchemaVersion,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                source.FileName,
-                SchemaVersion,
-                payload),
+            SourceHash = RecordedSessionSourceHash.ComputeImportedSst(source.SstBytes.Span),
             Payload = payload
         };
     }
@@ -56,11 +52,7 @@ public static class RecordedSessionSourceFactory
             SourceKind = RecordedSessionSourceKind.LiveCapture,
             SourceName = capture.Metadata.SourceName,
             SchemaVersion = SchemaVersion,
-            SourceHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.LiveCapture,
-                capture.Metadata.SourceName,
-                SchemaVersion,
-                payloadBytes),
+            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.LiveCapture, payloadBytes),
             Payload = payloadBytes
         };
     }

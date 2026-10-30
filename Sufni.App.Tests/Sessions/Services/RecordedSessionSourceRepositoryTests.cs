@@ -37,7 +37,7 @@ public class RecordedSessionSourceRepositoryTests
         Assert.Equal("source.SST", loaded.SourceName);
         Assert.Equal(1, loaded.SchemaVersion);
         Assert.Equal(source.SourceHash, loaded.SourceHash);
-        Assert.Equal([1, 2, 3], loaded.Payload);
+        Assert.Equal([1, 2, 3], RecordedSessionSourcePayloadCodec.DecompressImportedSst(loaded.Payload));
         Assert.Equal(RecordedSessionSourceSnapshot.From(source), Assert.Single(allSnapshots));
         Assert.Equal(RecordedSessionSourceSnapshot.From(source), snapshot);
         Assert.DoesNotContain(sessionId, missingSourceIds);
@@ -221,11 +221,7 @@ public class RecordedSessionSourceRepositoryTests
             var staleDerivedSessionId = Guid.NewGuid();
             var matchingSource = PersistenceTestData.CreateRecordedSessionSource(matchingSourceSessionId);
             var staleSource = PersistenceTestData.CreateRecordedSessionSource(staleSourceSessionId);
-            var expectedReplacementHash = RecordedSessionSourceHash.Compute(
-                RecordedSessionSourceKind.ImportedSst,
-                "replacement.SST",
-                1,
-                [9, 8, 7]);
+            var expectedReplacementHash = RecordedSessionSourceHash.ComputeImportedSst([9, 8, 7]);
 
             await database.PutSessionWithRecordedSourceAsync(
                 new Session(matchingSourceSessionId, "matching source", "desc", null, 100),
@@ -259,11 +255,7 @@ public class RecordedSessionSourceRepositoryTests
         var staleSessionId = Guid.NewGuid();
         var directMatchingSource = PersistenceTestData.CreateRecordedSessionSource(matchingSessionId);
         var directStaleSource = PersistenceTestData.CreateRecordedSessionSource(staleSessionId);
-        var expectedStaleHash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "replacement.SST",
-            1,
-            [9, 8, 7]);
+        var expectedStaleHash = RecordedSessionSourceHash.ComputeImportedSst([9, 8, 7]);
 
         await database.PutSessionWithRecordedSourceAsync(new Session(matchingSessionId, "matching", "desc", null, 100)
         {

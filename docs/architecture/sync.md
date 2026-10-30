@@ -143,7 +143,9 @@ source ids that are absent locally. Push uses the
 stored source hash on the local row; it does not rehash the local payload before
 upload — the receiving server's patch gate (and the repository's put-time
 validation) still verifies it. Pull rehashes each downloaded payload against its
-advertised source hash before persisting: a mismatch is an item-level skip that
+advertised source hash before persisting. Imported payloads are decompressed for
+hashing; live payloads are normalized without their setup display name. A hash
+mismatch or malformed compressed/JSON payload is an item-level skip that
 leaves the source pending for a future run, while a failure from the repository
 put itself propagates and fails the run. The pull watermark has already advanced
 after metadata and processed-BLOB swaps; source completeness is retried

@@ -237,11 +237,7 @@ public class RecordedSessionDomainQueryTests
     private static RecordedSessionSourceSnapshot CreateSource(Guid sessionId)
     {
         var payload = new byte[] { 1, 9, 2, 8 };
-        var hash = RecordedSessionSourceHash.Compute(
-            RecordedSessionSourceKind.ImportedSst,
-            "domain.SST",
-            1,
-            payload);
+        var hash = RecordedSessionSourceHash.ComputeImportedSst(payload);
         return new RecordedSessionSourceSnapshot(
             sessionId,
             RecordedSessionSourceKind.ImportedSst,
