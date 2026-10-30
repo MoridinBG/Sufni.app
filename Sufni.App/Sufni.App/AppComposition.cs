@@ -92,6 +92,7 @@ public static class AppComposition
         services.AddSingleton<ISessionTelemetryProcessor, SessionTelemetryProcessor>();
         services.AddSingleton<ISessionProcessedTelemetryReader, SessionProcessedTelemetryReader>();
         services.AddSingleton<IDaqManagementService, DaqManagementService>();
+        services.AddSingleton<IDaqDriveProbe, DaqDriveProbe>();
         services.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
         services.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(

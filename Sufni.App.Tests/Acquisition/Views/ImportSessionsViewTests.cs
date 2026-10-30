@@ -109,7 +109,7 @@ public class ImportSessionsViewTests
         await using var mounted = await MountAsync(harness.CreateViewModel());
 
         var timestamp = Assert.Single(mounted.View.GetLogicalDescendants()
-            .OfType<TextBlock>().Where(text => text.Name == "FileStartTimeText"));
+            .OfType<TextBlock>(), text => text.Name == "FileStartTimeText");
         Assert.Equal(startUtc.ToLocalTime().ToString(" yyyy-MM-dd HH:mm"), timestamp.Text);
     }
 

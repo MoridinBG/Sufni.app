@@ -1,4 +1,5 @@
 using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services;
 using Sufni.App.Shared.Common;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Acquisition.Models;
@@ -16,16 +17,14 @@ public class MassStorageTelemetryDataStoreTests
         File.WriteAllBytes(Path.Combine(tempDirectory.Path, "newer.SST"), newerBytes);
         File.WriteAllText(Path.Combine(tempDirectory.Path, "broken.SST"), "not telemetry");
         File.WriteAllText(Path.Combine(tempDirectory.Path, "notes.txt"), "ignored");
-        var driveInfo = new DriveInfo(tempDirectory.Path);
+        var drive = new DaqDrive(tempDirectory.Path, "DAQ", "DAQ");
 
-        var dataStore = await MassStorageTelemetryDataStore.CreateAsync(driveInfo, cancellationToken: TestContext.Current.CancellationToken);
+        var dataStore = await MassStorageTelemetryDataStore.CreateAsync(drive, new DaqDriveProbe(), cancellationToken: TestContext.Current.CancellationToken);
         var files = await dataStore.GetFiles();
         using var source = await files[0].ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);
         Assert.True(Directory.Exists(Path.Combine(tempDirectory.Path, "uploaded")));
-        Assert.Same(driveInfo, dataStore.DriveInfo);
-        Assert.Contains(driveInfo.RootDirectory.Name, dataStore.Name);
         Assert.Collection(
             files,
             first => Assert.Equal("newer.SST", first.FileName),

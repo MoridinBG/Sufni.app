@@ -1,4 +1,7 @@
 using Avalonia.Platform.Storage;
+using Microsoft.Extensions.Time.Testing;
+using Sufni.App.Tests.TestSupport.Acquisition;
+using System.Threading.Channels;
 using System.Net;
 using NSubstitute;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestStorageItems;
@@ -11,16 +14,15 @@ using Sufni.App.Shared.Common;
 using Sufni.App.Tests.TestSupport.Async;
 namespace Sufni.App.Tests.Acquisition.Services;
 
-[Collection("Ui")]
 public class TelemetryDataStoreServiceTests
 {
     [Fact]
-    public void StartBrowse_AcquiresBrowseLeaseOnce_AndStopBrowseDisposesLeaseAndClearsStores()
+    public async Task StartBrowse_AcquiresBrowseLeaseOnce_AndStopBrowseDisposesLeaseAndClearsStores()
     {
         var browseOwner = Substitute.For<IDaqBrowseOwner>();
         var lease = Substitute.For<IDisposable>();
         browseOwner.AcquireBrowse().Returns(lease);
-        var service = CreateService(browseOwner: browseOwner);
+        await using var service = CreateService(browseOwner: browseOwner);
         service.DataStores.Add(CreateDataStore("DAQ"));
 
         service.StartBrowse();
@@ -36,7 +38,7 @@ public class TelemetryDataStoreServiceTests
     public async Task LoadFilesAsync_UsesBackgroundRunnerToReadDataStoreFiles()
     {
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
-        var service = CreateService(backgroundTaskRunner: backgroundTaskRunner);
+        await using var service = CreateService(backgroundTaskRunner: backgroundTaskRunner);
         var file = Substitute.For<ITelemetryFile>();
         var dataStore = CreateDataStore("DAQ");
         dataStore.GetFiles().Returns(Task.FromResult(new List<ITelemetryFile> { file }));
@@ -51,7 +53,7 @@ public class TelemetryDataStoreServiceTests
     [Fact]
     public async Task TryAddStorageProviderAsync_AddsInitializedStorageProvider()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         var expectedBoardId = UuidUtil.CreateDeviceUuid("abcdef1234567890");
         var folder = CreateStorageProviderFolder("/tmp/sufni-daq", "ABCDEF1234567890");
 
@@ -66,7 +68,7 @@ public class TelemetryDataStoreServiceTests
     [Fact]
     public async Task TryAddStorageProviderAsync_ReturnsAlreadyOpen_WhenLocalPathMatchesExistingStorageProvider()
     {
-        var service = CreateService();
+        await using var service = CreateService();
         var existingFolder = CreateStorageProviderFolder("/tmp/sufni-daq", "ABCDEF1234567890");
         var existingStore = new StorageProviderTelemetryDataStore(existingFolder);
         await existingStore.Initialization;
@@ -85,13 +87,13 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public void ServiceAdded_AddsDiscoveredNetworkDataStore()
+    public async Task ServiceAdded_AddsDiscoveredNetworkDataStore()
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
         boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<Guid?>(boardId));
-        var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         service.StartBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
@@ -103,13 +105,13 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public void ServiceAdded_AddsDiscoveredNetworkDataStore_WhenMassStorageUnsupported()
+    public async Task ServiceAdded_AddsDiscoveredNetworkDataStore_WhenMassStorageUnsupported()
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
         boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<Guid?>(boardId));
-        var service = CreateService(
+        await using var service = CreateService(
             serviceDiscovery: serviceDiscovery,
             boardIdInspector: boardIdInspector,
             appEnvironment: CreateEnvironment(supportsMassStorageImport: false));
@@ -124,10 +126,10 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public void ServiceAdded_DoesNotDuplicateExistingStore()
+    public async Task ServiceAdded_DoesNotDuplicateExistingStore()
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var service = CreateService(serviceDiscovery: serviceDiscovery);
+        await using var service = CreateService(serviceDiscovery: serviceDiscovery);
         service.StartBrowse();
         var announcement = new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2"));
 
@@ -138,7 +140,7 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public void ServiceAdded_ReportsError_WhenDiscoveryInitializationFails()
+    public async Task ServiceAdded_ReportsError_WhenDiscoveryInitializationFails()
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
@@ -147,7 +149,7 @@ public class TelemetryDataStoreServiceTests
                 Arg.Any<int>(),
                 cancellationToken: Arg.Any<CancellationToken>())
             .Returns<Task<Guid?>>(_ => throw new IOException("unreachable"));
-        var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         var errors = new List<string>();
         service.ErrorOccurred += (_, message) => errors.Add(message);
         service.StartBrowse();
@@ -160,10 +162,10 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public void ServiceRemoved_RemovesTheMatchingStoreOnly()
+    public async Task ServiceRemoved_RemovesTheMatchingStoreOnly()
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var service = CreateService(serviceDiscovery: serviceDiscovery);
+        await using var service = CreateService(serviceDiscovery: serviceDiscovery);
         service.StartBrowse();
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
@@ -178,10 +180,10 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
-    public void ServiceAnnouncements_AreIgnoredAfterStopBrowse()
+    public async Task ServiceAnnouncements_AreIgnoredAfterStopBrowse()
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var service = CreateService(serviceDiscovery: serviceDiscovery);
+        await using var service = CreateService(serviceDiscovery: serviceDiscovery);
         service.StartBrowse();
         service.StopBrowse();
 
@@ -196,21 +198,108 @@ public class TelemetryDataStoreServiceTests
     [InlineData("")]
     [InlineData("3")]
     [InlineData("4")]
-    public void ServiceAdded_IgnoresAnnouncementsWithoutV2Protocol(string? liveProto)
+    public async Task ServiceAdded_IgnoresAnnouncementsWithoutV2Protocol(string? liveProto)
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
+        await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         service.StartBrowse();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, liveProto)));
 
         Assert.Empty(service.DataStores);
-        boardIdInspector.DidNotReceive().InspectAsync(
+        await boardIdInspector.DidNotReceive().InspectAsync(
             Arg.Any<IPAddress>(),
             Arg.Any<int>(),
             cancellationToken: Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task BrowseTicks_PublishDriveArrivalAndRemoval()
+    {
+        var time = new FakeTimeProvider();
+        var drives = new FakeMassStorageDriveSource();
+        var drive = new DaqDrive("/daq", "DAQ", "Trail DAQ");
+        var boardId = Guid.NewGuid();
+        drives.Drives.Add(drive);
+        drives.BoardIds[drive.RootPath] = boardId;
+        await using var service = CreateService(driveProbe: drives, timeProvider: time);
+        var changes = Channel.CreateUnbounded<bool>();
+        service.DataStores.CollectionChanged += (_, _) => changes.Writer.TryWrite(true);
+        service.StartBrowse();
+
+        time.Advance(TimeSpan.FromMilliseconds(999));
+        Assert.Empty(service.DataStores);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        await changes.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        var store = Assert.Single(service.DataStores);
+        Assert.Equal(boardId, store.BoardId);
+        Assert.Equal("Trail DAQ", store.Name);
+
+        drives.Drives.Clear();
+        time.Advance(TimeSpan.FromSeconds(1));
+        await changes.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        Assert.Empty(service.DataStores);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopBrowse_DiscardsDriveInitializationThatFinishesAfterStop(bool restart)
+    {
+        var time = new SignalingFakeTimeProvider();
+        var probe = Substitute.For<IDaqDriveProbe>();
+        var drive = new DaqDrive("/daq", "DAQ", "DAQ");
+        probe.FindDrives().Returns([drive]);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<Guid>(TaskCreationOptions.RunContinuationsAsynchronously);
+        probe.InitializeAsync(drive, Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            started.SetResult();
+            return completion.Task;
+        });
+        await using var service = CreateService(driveProbe: probe, timeProvider: time);
+        service.StartBrowse();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromSeconds(1));
+        await started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        service.StopBrowse();
+        if (restart) service.StartBrowse();
+        completion.SetResult(Guid.NewGuid());
+        if (restart)
+            await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
+        else
+            await service.DisposeAsync();
+
+        Assert.Empty(service.DataStores);
+    }
+
+    [Fact]
+    public async Task ScanFailure_IsReported_AndNextTickCanDiscoverDrive()
+    {
+        var time = new FakeTimeProvider();
+        var probe = Substitute.For<IDaqDriveProbe>();
+        var scanFails = true;
+        var drive = new DaqDrive("/daq", "DAQ", "Recovered DAQ");
+        probe.FindDrives().Returns(_ => scanFails ? throw new IOException("drive unavailable") : [drive]);
+        probe.InitializeAsync(drive, Arg.Any<CancellationToken>()).Returns(Guid.NewGuid());
+        await using var service = CreateService(driveProbe: probe, timeProvider: time);
+        var error = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var added = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.ErrorOccurred += (_, message) => error.TrySetResult(message);
+        service.DataStores.CollectionChanged += (_, _) => added.TrySetResult();
+        service.StartBrowse();
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.Contains("drive unavailable", await error.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+
+        scanFails = false;
+        time.Advance(TimeSpan.FromSeconds(1));
+        await added.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal("Recovered DAQ", Assert.Single(service.DataStores).Name);
     }
 
     private static TelemetryDataStoreService CreateService(
@@ -218,7 +307,9 @@ public class TelemetryDataStoreServiceTests
         IBackgroundTaskRunner? backgroundTaskRunner = null,
         IServiceDiscovery? serviceDiscovery = null,
         ILiveDaqBoardIdInspector? boardIdInspector = null,
-        IAppEnvironment? appEnvironment = null)
+        IAppEnvironment? appEnvironment = null,
+        IDaqDriveProbe? driveProbe = null,
+        TimeProvider? timeProvider = null)
     {
         if (browseOwner is null)
         {
@@ -232,8 +323,10 @@ public class TelemetryDataStoreServiceTests
             Substitute.For<IDaqManagementService>(),
             boardIdInspector ?? Substitute.For<ILiveDaqBoardIdInspector>(),
             backgroundTaskRunner ?? new InlineBackgroundTaskRunner(),
+            driveProbe ?? new FakeMassStorageDriveSource(),
             new InlineUiThreadDispatcher(),
-            appEnvironment);
+            appEnvironment ?? CreateEnvironment(supportsMassStorageImport: true),
+            timeProvider ?? new FakeTimeProvider());
     }
 
     private static IAppEnvironment CreateEnvironment(bool supportsMassStorageImport) =>

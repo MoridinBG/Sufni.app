@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
-using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 
@@ -16,37 +14,20 @@ using Sufni.App.LiveDaq.Services;
 using Sufni.App.Shared.Common;
 namespace Sufni.App.Acquisition.Services;
 
-internal class DriveInfoComparer : IEqualityComparer<DriveInfo>
-{
-    public bool Equals(DriveInfo? ds1, DriveInfo? ds2)
-    {
-        if (ReferenceEquals(ds1, ds2))
-            return true;
-
-        if (ds1 is null || ds2 is null)
-            return false;
-
-        if (!ds1.IsReady || !ds2.IsReady)
-            return false;
-
-        return ds1.VolumeLabel == ds2.VolumeLabel;
-    }
-
-    public int GetHashCode(DriveInfo ds) => ds.IsReady ? ds.VolumeLabel.GetHashCode() : 0;
-}
-
-internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
+internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IAsyncDisposable
 {
     private static readonly ILogger logger = Log.ForContext<TelemetryDataStoreService>();
+    private readonly IDaqDriveProbe driveProbe;
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly IDaqBrowseOwner browseOwner;
     private readonly IDaqManagementService daqManagementService;
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly DispatcherTimer massStorageScanTimer;
+    private readonly TimeProvider timeProvider;
+    private CancellationTokenSource? massStorageScanCancellation;
+    private Task massStorageScanTask = Task.CompletedTask;
     private readonly bool supportsMassStorageImport;
-    private int massStorageRefreshInProgress;
     private volatile bool isBrowsing;
     private IDisposable? browseLease;
 
@@ -58,65 +39,50 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         if (!supportsMassStorageImport)
             return;
 
-        if (Interlocked.Exchange(ref massStorageRefreshInProgress, 1) == 1)
-            return;
+        var (knownMassStorageDrives, storageProviderDataStores) = await uiThreadDispatcher.InvokeAsync(() => (
+            DataStores.OfType<MassStorageTelemetryDataStore>().Select(store => store.Drive).ToArray(),
+            DataStores.OfType<StorageProviderTelemetryDataStore>().ToArray()));
 
-        var comparer = new DriveInfoComparer();
-        try
+        var currentMassStorageDrives = await GetCurrentMassStorageDrivesAsync(cancellationToken);
+        var removedStorageProviders = await backgroundTaskRunner.RunAsync(
+            () => GetRemovedStorageProviders(storageProviderDataStores),
+            cancellationToken);
+
+        var addedDrives = currentMassStorageDrives.ExceptBy(knownMassStorageDrives.Select(drive => drive.VolumeLabel), drive => drive.VolumeLabel).ToArray();
+        var removedDrives = knownMassStorageDrives.ExceptBy(currentMassStorageDrives.Select(drive => drive.VolumeLabel), drive => drive.VolumeLabel).ToArray();
+        var addedDataStores = new List<MassStorageTelemetryDataStore>(addedDrives.Length);
+
+        foreach (var drive in addedDrives)
         {
-            var knownMassStorageDrives = DataStores
-                .OfType<MassStorageTelemetryDataStore>()
-                .Select(ds => ds.DriveInfo)
-                .ToArray();
-            var storageProviderDataStores = DataStores
-                .OfType<StorageProviderTelemetryDataStore>()
-                .ToArray();
+            addedDataStores.Add(await CreateMassStorageDataStoreAsync(drive, cancellationToken));
+        }
 
-            var currentMassStorageDrives = await GetCurrentMassStorageDrivesAsync(cancellationToken);
-            var removedStorageProviders = await backgroundTaskRunner.RunAsync(
-                () => GetRemovedStorageProviders(storageProviderDataStores),
-                cancellationToken);
+        await uiThreadDispatcher.InvokeAsync(() =>
+        {
+            if (!isBrowsing || cancellationToken.IsCancellationRequested)
+                return;
 
-            var addedDrives = currentMassStorageDrives.Except(knownMassStorageDrives, comparer).ToArray();
-            var removedDrives = knownMassStorageDrives.Except(currentMassStorageDrives, comparer).ToArray();
-            var addedDataStores = new List<MassStorageTelemetryDataStore>(addedDrives.Length);
-
-            foreach (var drive in addedDrives)
+            foreach (var dataStore in removedStorageProviders)
             {
-                addedDataStores.Add(await CreateMassStorageDataStoreAsync(drive, cancellationToken));
+                DataStores.Remove(dataStore);
             }
 
-            await uiThreadDispatcher.InvokeAsync(() =>
+            foreach (var drive in removedDrives)
             {
-                if (!isBrowsing)
-                    return;
-
-                foreach (var dataStore in removedStorageProviders)
+                var toRemove = DataStores.FirstOrDefault(ds =>
+                    ds is MassStorageTelemetryDataStore massStorageDataStore &&
+                    massStorageDataStore.Drive.VolumeLabel == drive.VolumeLabel);
+                if (toRemove is not null)
                 {
-                    DataStores.Remove(dataStore);
+                    DataStores.Remove(toRemove);
                 }
+            }
 
-                foreach (var drive in removedDrives)
-                {
-                    var toRemove = DataStores.FirstOrDefault(ds =>
-                        ds is MassStorageTelemetryDataStore massStorageDataStore &&
-                        comparer.Equals(massStorageDataStore.DriveInfo, drive));
-                    if (toRemove is not null)
-                    {
-                        DataStores.Remove(toRemove);
-                    }
-                }
-
-                foreach (var dataStore in addedDataStores)
-                {
-                    DataStores.Add(dataStore);
-                }
-            });
-        }
-        finally
-        {
-            Interlocked.Exchange(ref massStorageRefreshInProgress, 0);
-        }
+            foreach (var dataStore in addedDataStores)
+            {
+                DataStores.Add(dataStore);
+            }
+        });
     }
 
     private async Task RemoveNetworkDataStoreAsync(ServiceAnnouncementEventArgs e)
@@ -165,19 +131,14 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         });
     }
 
-    private Task<IReadOnlyList<DriveInfo>> GetCurrentMassStorageDrivesAsync(CancellationToken cancellationToken = default) =>
-        backgroundTaskRunner.RunAsync<IReadOnlyList<DriveInfo>>(
-            () => DriveInfo.GetDrives()
-                .Where(drive => drive is { IsReady: true } &&
-                                File.Exists(Path.Combine(drive.RootDirectory.FullName, "BOARDID")))
-                .ToArray(),
-            cancellationToken);
+    private Task<IReadOnlyList<DaqDrive>> GetCurrentMassStorageDrivesAsync(CancellationToken cancellationToken = default) =>
+        backgroundTaskRunner.RunAsync(driveProbe.FindDrives, cancellationToken);
 
     private Task<MassStorageTelemetryDataStore> CreateMassStorageDataStoreAsync(
-        DriveInfo drive,
+        DaqDrive drive,
         CancellationToken cancellationToken = default) =>
         backgroundTaskRunner.RunAsync(
-            () => MassStorageTelemetryDataStore.CreateAsync(drive, cancellationToken),
+            () => MassStorageTelemetryDataStore.CreateAsync(drive, driveProbe, cancellationToken),
             cancellationToken);
 
     private static IReadOnlyList<StorageProviderTelemetryDataStore> GetRemovedStorageProviders(
@@ -201,23 +162,62 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
         IBackgroundTaskRunner backgroundTaskRunner,
-        IUiThreadDispatcher? uiThreadDispatcher = null,
-        IAppEnvironment? appEnvironment = null)
+        IDaqDriveProbe driveProbe,
+        IUiThreadDispatcher uiThreadDispatcher,
+        IAppEnvironment appEnvironment,
+        TimeProvider timeProvider)
     {
+        this.driveProbe = driveProbe;
         this.serviceDiscovery = serviceDiscovery;
         this.browseOwner = browseOwner;
         this.daqManagementService = daqManagementService;
         this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        this.uiThreadDispatcher = uiThreadDispatcher ?? new AvaloniaUiThreadDispatcher();
-        supportsMassStorageImport = appEnvironment?.Capabilities.SupportsMassStorageImport ?? true;
+        this.uiThreadDispatcher = uiThreadDispatcher;
+        supportsMassStorageImport = appEnvironment.Capabilities.SupportsMassStorageImport;
 
-        // Service edge case documented in ui.md: services may own a
-        // DispatcherTimer for cadence; PeriodicUiTimer is not used here because
-        // the drive scan deliberately ticks at Background priority.
-        massStorageScanTimer = new DispatcherTimer(DispatcherPriority.Background);
-        massStorageScanTimer.Interval = TimeSpan.FromSeconds(1);
-        massStorageScanTimer.Tick += async (_, _) => await RefreshMassStorageDataStoresAsync();
+        this.timeProvider = timeProvider;
+    }
+
+    private async Task RunMassStorageScanLoopAsync(Task previousScan, CancellationTokenSource cancellation)
+    {
+        using (cancellation)
+        {
+            var token = cancellation.Token;
+            try
+            {
+                await previousScan;
+                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1), timeProvider);
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    try
+                    {
+                        await RefreshMassStorageDataStoresAsync(token);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        await uiThreadDispatcher.InvokeAsync(() =>
+                        {
+                            if (!token.IsCancellationRequested)
+                                ErrorOccurred?.Invoke(this, $"Could not scan DAQ drives: {exception.Message}");
+                        });
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopBrowse();
+        await massStorageScanTask;
     }
 
     public void StartBrowse()
@@ -230,7 +230,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         serviceDiscovery.ServiceRemoved += OnServiceRemoved;
         if (supportsMassStorageImport)
         {
-            massStorageScanTimer.Start();
+            massStorageScanCancellation = new CancellationTokenSource();
+            massStorageScanTask = RunMassStorageScanLoopAsync(massStorageScanTask, massStorageScanCancellation);
         }
 
         browseLease = browseOwner.AcquireBrowse();
@@ -244,7 +245,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         isBrowsing = false;
         serviceDiscovery.ServiceAdded -= OnServiceAdded;
         serviceDiscovery.ServiceRemoved -= OnServiceRemoved;
-        massStorageScanTimer.Stop();
+        massStorageScanCancellation?.Cancel();
+        massStorageScanCancellation = null;
         browseLease?.Dispose();
         browseLease = null;
         DataStores.Clear();
@@ -312,7 +314,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService
         {
             MassStorageTelemetryDataStore massStorageDataStore =>
                 string.Equals(
-                    massStorageDataStore.DriveInfo.RootDirectory.FullName,
+                    massStorageDataStore.Drive.RootPath,
                     folderLocalPath,
                     StringComparison.OrdinalIgnoreCase),
             StorageProviderTelemetryDataStore storageProviderDataStore =>
