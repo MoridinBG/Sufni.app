@@ -56,8 +56,6 @@ public class SessionCoordinatorTests
             .Returns(Task.CompletedTask);
         sessionPersistenceTransactions.DeleteSessionAsync(
                 Arg.Any<Guid>(),
-                Arg.Any<Guid?>(),
-                Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(true);
     }
@@ -424,7 +422,7 @@ public class SessionCoordinatorTests
         repository.Seed(original);
         using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
         await store.ReplaceAllAsync([original]);
-        sessionPersistenceTransactions.DeleteSessionAsync(original.Id, null, false, Arg.Any<CancellationToken>())
+        sessionPersistenceTransactions.DeleteSessionAsync(original.Id, Arg.Any<CancellationToken>())
             .ThrowsAsync(new IOException("database diagnostic"));
 
         var result = await CreateCoordinator(store, repository.Repository).DeleteAsync(original.Id);
@@ -436,28 +434,23 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task DeleteAsync_DeletesOrphanedTrackAndPublishesRemovals()
+    public async Task DeleteAsync_PublishesRemovalAndClearsPreferencesAfterCommit()
     {
         var id = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null) { FullTrack = trackId });
-        sessionRepository.HasOtherActiveSessionWithFullTrackAsync(trackId, id).Returns(false);
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        await store.PublishSessionsChangedAsync([TestSnapshots.Session(id: id)]);
 
-        var result = await CreateCoordinator().DeleteAsync(id);
+        var result = await CreateCoordinator(store).DeleteAsync(id);
 
         Assert.IsType<SessionDeleteResult.Deleted>(result);
         await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(
             id,
-            trackId,
-            deleteFullTrack: true,
             Arg.Any<CancellationToken>());
         await sourceStore.Received(1).PublishSourcesRemovedAsync(
             Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
             Arg.Any<CancellationToken>());
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
-        await sessionStore.Received(1).PublishSessionsRemovedAsync(
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 1 && ids.Contains(id)),
-            Arg.Any<CancellationToken>());
+        Assert.Null(store.Get(id));
     }
 
     [Fact]
@@ -465,7 +458,7 @@ public class SessionCoordinatorTests
     {
         var id = Guid.NewGuid();
         sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null));
-        sessionPersistenceTransactions.DeleteSessionAsync(id, null, false, Arg.Any<CancellationToken>())
+        sessionPersistenceTransactions.DeleteSessionAsync(id, Arg.Any<CancellationToken>())
             .Returns(false);
 
         var result = await CreateCoordinator().DeleteAsync(id);

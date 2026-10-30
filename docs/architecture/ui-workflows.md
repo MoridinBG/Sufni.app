@@ -40,8 +40,10 @@ persisting and publishing; it never writes the session timestamp or GPS offset.
 `ShiftGpsOffsetAsync` owns alignment, deriving a track window from persisted
 inputs and publishing the aligned session after its repository write. Live save derives and persists the session, raw source
 and optional generated track, then publishes the resulting snapshots. Delete
-uses the transaction runner for session, source and track removal and clears
-recorded preferences before publishing session removal.
+uses the transaction runner for session, source and track removal. The runner
+reads the current track association and checks live references inside the delete
+transaction. The coordinator clears recorded preferences before publishing session
+removal.
 
 Recorded editors call `ISessionLoader` directly for staged telemetry and track
 reads. Session lists and the staleness reconciler call `ISessionRecomputeEngine`

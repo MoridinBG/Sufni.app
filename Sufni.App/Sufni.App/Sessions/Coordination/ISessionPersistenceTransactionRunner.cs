@@ -11,13 +11,11 @@ namespace Sufni.App.Sessions.Coordination;
 public interface ISessionPersistenceTransactionRunner
 {
     /// <summary>
-    /// Deletes the session and, when no other live session derives from it, its
-    /// recording source. Returns true when the recording source was deleted.
+    /// Deletes the session, its unshared track and its unreferenced recording
+    /// source in one transaction. Returns whether the source is no longer retained.
     /// </summary>
     Task<bool> DeleteSessionAsync(
         Guid sessionId,
-        Guid? fullTrackId,
-        bool deleteFullTrack,
         CancellationToken cancellationToken = default);
 
     // The edit commands take the session as the caller saw it and reject the

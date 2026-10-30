@@ -193,7 +193,7 @@ public class SessionEditTransactionTests : IDisposable
         await sources.PutRecordedSessionSourceAsync(PersistenceTestData.CreateRecordedSessionSource(session.Id));
         await runner.SplitAsync(session, 3);
 
-        var sourceDeleted = await runner.DeleteSessionAsync(session.Id, fullTrackId: null, deleteFullTrack: false);
+        var sourceDeleted = await runner.DeleteSessionAsync(session.Id);
 
         Assert.False(sourceDeleted);
         Assert.NotNull(await sources.GetRecordedSessionSourceAsync(session.Id));

@@ -271,21 +271,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 
         try
         {
-            var session = await sessionRepository.GetSessionAsync(sessionId);
-            var trackId = session?.FullTrack;
-            var shouldDeleteTrack = false;
-
-            if (trackId.HasValue)
-            {
-                shouldDeleteTrack = !await sessionRepository.HasOtherActiveSessionWithFullTrackAsync(
-                    trackId.Value,
-                    sessionId);
-            }
-
-            var sourceDeleted = await sessionPersistenceTransactions.DeleteSessionAsync(
-                sessionId,
-                trackId,
-                shouldDeleteTrack);
+            var sourceDeleted = await sessionPersistenceTransactions.DeleteSessionAsync(sessionId);
 
             if (sourceDeleted)
             {

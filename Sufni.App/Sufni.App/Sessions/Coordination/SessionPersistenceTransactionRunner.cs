@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SQLite;
@@ -46,13 +47,14 @@ internal sealed class SessionPersistenceTransactionRunner(
 
     public async Task<bool> DeleteSessionAsync(
         Guid sessionId,
-        Guid? fullTrackId,
-        bool deleteFullTrack,
         CancellationToken cancellationToken = default)
     {
         var sourceDeleted = false;
         await connectionContext.RunInTransactionAsync(connection =>
         {
+            var fullTrackId = connection.Query<Session>(
+                "SELECT full_track_id FROM session WHERE id = ? AND deleted IS NULL", sessionId)
+                .SingleOrDefault()?.FullTrack;
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId, now);
 
@@ -62,7 +64,8 @@ internal sealed class SessionPersistenceTransactionRunner(
                 sourceDeleted = true;
             }
 
-            if (deleteFullTrack && fullTrackId.HasValue)
+            if (fullTrackId.HasValue && connection.ExecuteScalar<int>(
+                    "SELECT COUNT(1) FROM session WHERE full_track_id = ? AND deleted IS NULL", fullTrackId.Value) == 0)
             {
                 SynchronizableRepository<Track>.DeleteInTransaction(connection, fullTrackId.Value, now);
             }
