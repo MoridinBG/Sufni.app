@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
@@ -27,6 +28,30 @@ namespace Sufni.App.Tests.Shell.DesktopViews;
 public class WorkspaceShellViewTests
 {
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
+
+    [AvaloniaFact]
+    public async Task MiddleClick_PromptsOnlyOnceAfterRecreatingTheWorkspaceView()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
+        EnsureFluentTheme();
+        await using (var previous = await MountAsync(new WorkspaceShellView { DataContext = CreateRoot() })) { }
+        var dialogs = Substitute.For<IDialogService>();
+        dialogs.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.Cancel);
+        var tab = new TestTabPageViewModel(dialogs) { Name = "Unsaved", IsDirty = true };
+        var root = CreateRoot();
+        root.Workspace.OpenOrFocus(tab);
+        await using var mounted = await MountAsync(new WorkspaceShellView { DataContext = root });
+        var item = Assert.Single(mounted.View.GetVisualDescendants().OfType<TabStripItem>());
+        var point = item.TranslatePoint(new Point(item.Bounds.Width / 2, item.Bounds.Height / 2), mounted.Host)!.Value;
+
+        mounted.Host.MouseDown(point, MouseButton.Middle, RawInputModifiers.None);
+        mounted.Host.MouseUp(point, MouseButton.Middle, RawInputModifiers.None);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        await dialogs.Received(1).ShowCloseConfirmationAsync(Arg.Any<bool>());
+        Assert.Same(tab, root.Workspace.CurrentTab);
+    }
 
     [AvaloniaFact]
     public void ViewLocator_BuildsWorkspaceShellView_ForWorkspaceShellRoot()

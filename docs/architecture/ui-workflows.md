@@ -320,7 +320,8 @@ layout profile controls presentation only:
   plot overlays, and hardware back requests are wired to the native host. Back
   closes transient surfaces first, then delegates to `shell.GoBack()`.
 - **Workspace profile** — `WorkspaceShellView` presents the same tab collection
-  with a persistent rail and tab strip. Reordering previews by fading the
+  with a persistent rail and tab strip. Its middle-click close class handler is
+  registered once, so recreating the shell cannot multiply close prompts. Reordering previews by fading the
   dragged tab and showing an insertion indicator, then commits through
   `ShellWorkspaceViewModel.MoveTab`.
 

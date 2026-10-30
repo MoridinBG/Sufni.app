@@ -61,10 +61,11 @@ public partial class WorkspaceShellView : UserControl
     private bool isAttached;
     private ShellWorkspaceViewModel? subscribedWorkspace;
 
+    static WorkspaceShellView() => TabStripMiddleClickHandler.Register();
+
     public WorkspaceShellView()
     {
         InitializeComponent();
-        TabStripMiddleClickHandler.Register();
         SizeChanged += (_, _) => UpdateResponsivePaneLength();
 
         TabControl.AddHandler<PointerPressedEventArgs>(
