@@ -34,6 +34,7 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 public class LiveSessionDetailViewModelTests : IDisposable
 {
     private readonly ManualPeriodicUiTimerScheduler uiTimers;
+    private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider time = new();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -177,6 +178,24 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
+    }
+
+    [AvaloniaFact]
+    public async Task SaveCommand_RefreshesAutomaticNameUsingLocalClock()
+    {
+        time.SetLocalTimeZone(TimeZoneInfo.Utc);
+        time.SetUtcNow(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await PublishSnapshotAsync(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
+        Assert.Equal("Live Session 02-01-2026 03:04:05", editor.Name);
+        time.Advance(TimeSpan.FromMinutes(2));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
+            Arg.Is<Session>(session => session.Name == "Live Session 02-01-2026 03:06:05"),
+            capturePackage, Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>());
     }
 
     [AvaloniaFact]
@@ -451,6 +470,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
             shell,
             dialogService,
             new InlineUiThreadDispatcher(),
+            time,
             bikeCoordinator);
         editor.SetTabActive(isTabActive);
         return editor;

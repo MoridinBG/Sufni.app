@@ -193,6 +193,10 @@ The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it
 
 ## Live Session Detail View Model
 
+The editor receives `TimeProvider` for automatic local-time names and elapsed
+capture duration. Automatic names refresh at save time; authored names remain
+unchanged. Capture timestamps still come from the recording metadata.
+
 `LiveSessionDetailViewModel` (`Sufni.App/Sufni.App/LiveDaq/ViewModels/Editors/LiveSessionDetailViewModel.cs`) extends `TabPageViewModelBase`, one instance per open live-session tab. It is the only writer of UI state for the tab and the only caller of `SessionCoordinator.SaveLiveCaptureAsync`.
 
 The view model wires together five things and owns no transport state:

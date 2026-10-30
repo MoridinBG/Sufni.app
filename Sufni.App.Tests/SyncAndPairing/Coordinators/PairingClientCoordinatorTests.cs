@@ -21,6 +21,7 @@ public class PairingClientCoordinatorTests
     private readonly IFriendlyNameProvider friendlyNameProvider = Substitute.For<IFriendlyNameProvider>();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly BehaviorSubject<bool> pairedState = new(false);
+    private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider time = new();
 
     public PairingClientCoordinatorTests()
     {
@@ -40,7 +41,7 @@ public class PairingClientCoordinatorTests
     }
 
     private PairingClientCoordinator CreateCoordinator() => new(
-        secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, shell);
+        secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, shell, time);
 
     /// <summary>
     /// Seeds the secure-storage / http substitutes with defaults
@@ -169,6 +170,22 @@ public class PairingClientCoordinatorTests
 
         Assert.True(coordinator.IsPaired);
         Assert.Equal(1, isPairedChanged);
+    }
+
+    [Fact]
+    public async Task ResolveServerUrlAsync_EndsTemporaryBrowseWhenDeadlineExpires()
+    {
+        SeedInitDefaults(isPaired: true);
+        var coordinator = CreateCoordinator();
+        await DrainInitializationAsync(coordinator);
+
+        var resolving = coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(5));
+        time.Advance(TimeSpan.FromSeconds(4));
+        Assert.False(resolving.IsCompleted);
+        time.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Null(await resolving.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+        serviceDiscovery.Received(1).StopBrowse();
     }
 
     [Fact]

@@ -251,5 +251,6 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher,
+            timeProvider,
             bikeCoordinator);
 }

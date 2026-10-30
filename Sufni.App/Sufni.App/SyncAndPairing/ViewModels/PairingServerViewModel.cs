@@ -14,6 +14,7 @@ namespace Sufni.App.SyncAndPairing.ViewModels;
 public partial class PairingServerViewModel : ViewModelBase
 {
     private readonly IPairingServerCoordinator coordinator;
+    private readonly TimeProvider timeProvider;
     private CancellationTokenSource? pairingCountdownCancellation;
 
     #region Observable properties
@@ -43,10 +44,12 @@ public partial class PairingServerViewModel : ViewModelBase
 
     public PairingServerViewModel(
         IPairingServerCoordinator coordinator,
-        IUiThreadDispatcher uiThreadDispatcher)
+        IUiThreadDispatcher uiThreadDispatcher,
+        TimeProvider timeProvider)
         : base(uiThreadDispatcher)
     {
         this.coordinator = coordinator;
+        this.timeProvider = timeProvider;
 
         // The desktop view's LoadedCommand is bound to AttachedToVisualTree
         // which can fire more than once per VM lifetime. This VM is a
@@ -115,7 +118,7 @@ public partial class PairingServerViewModel : ViewModelBase
         {
             while (true)
             {
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(1), timeProvider, cancellationToken);
                 await UiThreadDispatcher.InvokeAsync(() =>
                 {
                     Remaining -= 1.0 / SynchronizationProtocol.PinTtlSeconds;

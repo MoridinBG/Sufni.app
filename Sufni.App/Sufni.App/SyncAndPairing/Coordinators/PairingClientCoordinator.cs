@@ -31,6 +31,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly IFriendlyNameProvider friendlyNameProvider;
     private readonly IShellCoordinator shell;
+    private readonly TimeProvider timeProvider;
     private readonly List<string> discoveredServerUrls = [];
     private readonly System.Threading.Lock browseGate = new();
 
@@ -60,13 +61,15 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         IHttpApiService httpApiService,
         [FromKeyedServices("sync")] IServiceDiscovery serviceDiscovery,
         IFriendlyNameProvider friendlyNameProvider,
-        IShellCoordinator shell)
+        IShellCoordinator shell,
+        TimeProvider timeProvider)
     {
         this.secureStorage = secureStorage;
         this.httpApiService = httpApiService;
         this.serviceDiscovery = serviceDiscovery;
         this.friendlyNameProvider = friendlyNameProvider;
         this.shell = shell;
+        this.timeProvider = timeProvider;
 
         _ = httpApiService.PairedState.Subscribe(OnPairedStateChanged);
         serviceDiscovery.ServiceAdded += OnServiceAdded;
@@ -254,7 +257,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             StartBrowsing();
             browseStarted = true;
 
-            var completed = await Task.WhenAny(resolution.Task, Task.Delay(timeout));
+            var completed = await Task.WhenAny(resolution.Task, Task.Delay(timeout, timeProvider));
             var resolvedServerUrl = completed == resolution.Task
                 ? await resolution.Task
                 : null;

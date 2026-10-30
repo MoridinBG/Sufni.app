@@ -6,6 +6,10 @@ Desktop acts as a hub server; mobile devices sync with it.
 
 ## Pairing Flow
 
+The pairing client uses an injected `TimeProvider` for temporary discovery
+resolution deadlines. The server prompt uses the same seam for its one-second
+PIN countdown; confirmation cancels the countdown.
+
 ```mermaid
 sequenceDiagram
     participant Mobile

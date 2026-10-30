@@ -10,11 +10,37 @@ namespace Sufni.App.Tests.SyncAndPairing.ViewModels;
 public class PairingServerViewModelTests
 {
     [Fact]
+    public async Task PairingRequested_HidesPinAfterThirtySeconds()
+    {
+        var coordinator = Substitute.For<IPairingServerCoordinator>();
+        var time = new SignalingFakeTimeProvider();
+        var viewModel = new PairingServerViewModel(coordinator, new InlineUiThreadDispatcher(), time);
+        var expired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.PairingPin) && viewModel.PairingPin is null)
+                expired.TrySetResult();
+        };
+        coordinator.PairingRequested += Raise.EventWith(
+            coordinator, new PairingRequestedEventArgs("device-1", "Phone", "123456"));
+
+        for (var second = 0; second < 30; second++)
+        {
+            await time.WaitForTimerAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal("123456", viewModel.PairingPin);
+            time.Advance(TimeSpan.FromSeconds(1));
+        }
+
+        await expired.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        Assert.Null(viewModel.PairingPin);
+    }
+
+    [Fact]
     public void PairingRequested_AppliesPromptStateThroughUiDispatcher()
     {
         var coordinator = Substitute.For<IPairingServerCoordinator>();
         var dispatcher = new RecordingUiThreadDispatcher();
-        var viewModel = new PairingServerViewModel(coordinator, dispatcher);
+        var viewModel = new PairingServerViewModel(coordinator, dispatcher, new Microsoft.Extensions.Time.Testing.FakeTimeProvider());
 
         coordinator.PairingRequested += Raise.EventWith(
             coordinator,
@@ -33,7 +59,7 @@ public class PairingServerViewModelTests
     {
         var coordinator = Substitute.For<IPairingServerCoordinator>();
         var dispatcher = new RecordingUiThreadDispatcher();
-        var viewModel = new PairingServerViewModel(coordinator, dispatcher)
+        var viewModel = new PairingServerViewModel(coordinator, dispatcher, new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
         {
             PairingPin = "123456"
         };

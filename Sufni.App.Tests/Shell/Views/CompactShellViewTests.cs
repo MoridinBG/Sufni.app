@@ -212,7 +212,7 @@ public class CompactShellViewTests
         pairingServerCoordinator.StartServerAsync().Returns(Task.CompletedTask);
         var pairingServer = new PairingServerViewModel(
             pairingServerCoordinator,
-            new InlineUiThreadDispatcher())
+            new InlineUiThreadDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
         {
             PairingPin = "123456",
             RequestingId = "test-device",

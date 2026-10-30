@@ -111,7 +111,8 @@ public class LiveSessionDetailDesktopViewTests
             new TestMapViewModelFactory(tileLayerService),
             shell,
             dialogService,
-            new InlineUiThreadDispatcher())
+            new InlineUiThreadDispatcher(),
+            new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
         {
             Name = "Live Session 01"
         };
