@@ -27,7 +27,7 @@ public class ShellWorkspaceCoordinatorTests
         var original = TestSnapshots.Session(name: "original");
         store.Get(original.Id).Returns(original);
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
-            TestEditorFactories.Create(sessionStore: store));
+            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher);
         var previous = new TestTabPageViewModel();
         shell.Open(previous);
         var key = new EditorKey.Session(original.Id);
@@ -58,7 +58,7 @@ public class ShellWorkspaceCoordinatorTests
         var snapshot = TestSnapshots.Session();
         store.Get(snapshot.Id).Returns(snapshot);
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
-            TestEditorFactories.Create(sessionStore: store));
+            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher);
         var previous = new TestTabPageViewModel();
         shell.Open(previous);
         var key = new EditorKey.Session(snapshot.Id);
@@ -78,7 +78,7 @@ public class ShellWorkspaceCoordinatorTests
     {
         var workspace = CreateWorkspace();
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
-            TestEditorFactories.Create());
+            TestEditorFactories.Create(), Substitute.For<IUiPreferences>(), TestDispatcher);
         var key = new EditorKey.ImportSessions();
         shell.OpenEditor(key);
         var first = Assert.IsType<ImportSessionsViewModel>(workspace.CurrentTab);
@@ -107,7 +107,7 @@ public class ShellWorkspaceCoordinatorTests
         var workspace = CreateWorkspace();
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
             TestEditorFactories.Create(liveDaqStore: live.LiveDaqStore, knownBoards: live.KnownBoardsQuery,
-                streamRegistry: registry, liveSessionFactory: services));
+                streamRegistry: registry, liveSessionFactory: services), Substitute.For<IUiPreferences>(), TestDispatcher);
         var key = new EditorKey.LiveSession(snapshot.IdentityKey);
 
         shell.OpenEditor(key);
@@ -208,22 +208,75 @@ public class ShellWorkspaceCoordinatorTests
     [Theory]
     [InlineData(UiLayoutProfile.Compact)]
     [InlineData(UiLayoutProfile.Workspace)]
-    public void CompleteEdit_UsesCurrentLayoutProfile(UiLayoutProfile profile)
+    public async Task SwitchLayoutProfile_PersistsBeforeApplying_AndKeepsDirtyTabs(UiLayoutProfile target)
     {
         var workspace = CreateWorkspace();
-        var previous = new TestTabPageViewModel(id: 1);
-        var editor = new TestTabPageViewModel(id: 2);
-        workspace.OpenOrFocus(previous);
-        workspace.OpenOrFocus(editor);
+        var initial = target == UiLayoutProfile.Compact ? UiLayoutProfile.Workspace : UiLayoutProfile.Compact;
+        var environment = CreateEnvironment(initial);
+        var preferences = Substitute.For<IUiPreferences>();
+        var persisted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        preferences.SetLayoutProfileAsync(target).Returns(persisted.Task);
+        var shell = new ShellWorkspaceCoordinator(workspace, environment, Substitute.For<IEditorFactory>(),
+            preferences, TestDispatcher);
+        var background = new TestTabPageViewModel(1) { IsDirty = true };
+        var current = new TestTabPageViewModel(2) { IsDirty = true };
+        shell.Open(background);
+        shell.Open(current);
+
+        var transition = shell.SwitchLayoutProfileAsync(target);
+        Assert.Equal(initial, environment.LayoutProfile);
+        persisted.SetResult();
+        await transition.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(target, environment.LayoutProfile);
+        Assert.Equal([background, current], workspace.Tabs);
+        Assert.Same(current, workspace.CurrentTab);
+        Assert.True(background.IsDirty);
+        Assert.True(current.IsDirty);
+        Assert.Equal(0, background.CloseCount);
+        Assert.Equal(0, current.CloseCount);
+    }
+
+    [Theory]
+    [InlineData(UiLayoutProfile.Compact)]
+    [InlineData(UiLayoutProfile.Workspace)]
+    public async Task CompleteEdit_UsesCurrentLayoutProfile(UiLayoutProfile profile)
+    {
+        var workspace = CreateWorkspace();
+        var store = Substitute.For<ISessionStore>();
+        var snapshot = TestSnapshots.Session();
+        store.Get(snapshot.Id).Returns(snapshot);
         var environment = Substitute.For<IAppEnvironment>();
         environment.LayoutProfile.Returns(UiLayoutProfile.Workspace);
-        var coordinator = new ShellWorkspaceCoordinator(workspace, environment, Substitute.For<IEditorFactory>());
+        var coordinator = new ShellWorkspaceCoordinator(workspace, environment,
+            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher);
+        var previous = new TestTabPageViewModel();
+        coordinator.Open(previous);
+        var key = new EditorKey.Session(snapshot.Id);
+        coordinator.OpenEditor(key);
+        var editor = Assert.IsType<SessionDetailViewModel>(workspace.CurrentTab);
         environment.LayoutProfile.Returns(profile);
 
-        coordinator.CompleteEdit();
+        coordinator.CompleteEdit(key);
 
         Assert.Same(profile == UiLayoutProfile.Compact ? previous : editor, workspace.CurrentTab);
         Assert.Equal([previous, editor], workspace.Tabs);
+        await editor.PrepareCloseAsync();
+    }
+
+    [Fact]
+    public void CompleteEdit_DoesNotNavigateAnotherSurface_AfterFocusChanges()
+    {
+        var workspace = CreateWorkspace();
+        var previous = new TestTabPageViewModel(1);
+        var current = new TestTabPageViewModel(2);
+        workspace.OpenOrFocus(previous);
+        workspace.OpenOrFocus(current);
+        var coordinator = CreateCoordinator(workspace, UiLayoutProfile.Compact);
+
+        coordinator.CompleteEdit(new EditorKey.Session(Guid.NewGuid()));
+
+        Assert.Same(current, workspace.CurrentTab);
     }
 
     // ----- GoBack -----
@@ -317,7 +370,7 @@ public class ShellWorkspaceCoordinatorTests
     private static ShellWorkspaceCoordinator CreateCoordinator(
         ShellWorkspaceViewModel workspace,
         UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
-        new(workspace, CreateEnvironment(layoutProfile), Substitute.For<IEditorFactory>());
+        new(workspace, CreateEnvironment(layoutProfile), Substitute.For<IEditorFactory>(), Substitute.For<IUiPreferences>(), TestDispatcher);
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(

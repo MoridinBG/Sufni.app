@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System;
 using System.Linq;
@@ -137,12 +138,16 @@ public class CompactShellViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
-        var uiPreferences = Substitute.For<IUiPreferences>();
-        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
         var environment = CreateMobileCompactEnvironment();
+        var shell = Substitute.For<IShellCoordinator>();
+        shell.SwitchLayoutProfileAsync(UiLayoutProfile.Workspace).Returns(_ =>
+        {
+            environment.SetLayoutProfile(UiLayoutProfile.Workspace);
+            return Task.CompletedTask;
+        });
         var pages = MainPagesViewModelTestFactory.Create(
             appEnvironment: environment,
-            uiPreferences: uiPreferences);
+            shell: shell);
         var root = CreateRoot(pages, environment);
         var view = new CompactShellView
         {
@@ -164,7 +169,7 @@ public class CompactShellViewTests
 
         Assert.Equal(UiLayoutProfile.Workspace, pages.SelectedLayoutProfile);
         Assert.Equal("compact", menuItem.Header);
-        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
+        await shell.Received(1).SwitchLayoutProfileAsync(UiLayoutProfile.Workspace);
     }
 
     [AvaloniaFact]

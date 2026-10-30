@@ -18,7 +18,7 @@ and are registered as singletons.
 
 | Coordinator                                                               | Lifetime     | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IShellCoordinator` (`ShellWorkspaceCoordinator`)                         | shared       | `OpenEditor` / `CloseEditorAsync` / `CompleteEdit` / `Open` / `Close` / `GoBack` — the only navigation surface; delegates to `ShellWorkspaceViewModel` in both layout profiles                                                                                                                                                                                                                                                                              |
+| `IShellCoordinator` (`ShellWorkspaceCoordinator`)                         | shared       | `OpenEditor` / `CloseEditorAsync` / `CompleteEdit` / `SwitchLayoutProfileAsync` / `Open` / `Close` / `GoBack` — the only navigation surface; delegates to `ShellWorkspaceViewModel` in both layout profiles                                                                                                                                                                                                                                                                              |
 | `BikeCoordinator`                                                         | shared       | Save with conflict detection, delete (gated by `IBikeDependencyQuery`), and route bike-editor analysis/import/export/image requests through `IBikeEditorService`. Both interfaces expose neutral result records; image loading returns encoded bytes and a file name, leaving Avalonia bitmap decoding to the editor presentation edge                                                                                                                                                                              |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete); setup creation accepts a suggested board id from the selected import source                                                                                                                                                                                                                                                                                                                             |
 | `SessionCoordinator`                                                      | shared       | Thin router over `SessionLoader` (reads) and `SessionCommandService` (writes): telemetry-first detail loading and the later typed track-settling read both delegate to `SessionLoader`; save / delete / recompute requests delegate to `SessionCommandService`. It owns no event subscriptions and is not eagerly resolved                                                                                                                                                                                                                                                |
@@ -204,9 +204,9 @@ or service-discovery changes before the first refresh or arrival.
 Navigation is owned exclusively by `IShellCoordinator`. Features use
 `OpenEditor(EditorKey, background)` and `CloseEditorAsync(EditorKey)`; the shell
 also exposes `Open`, `Close` and `GoBack` for its existing non-editor surfaces.
-Successful editors request `CompleteEdit` after accepting the saved baseline.
-It returns to the previous surface in compact layout and leaves workspace focus
-unchanged. Feature coordinators neither open nor close tabs.
+Successful editors pass the key carried by their saved outcome to `CompleteEdit`
+after accepting the saved baseline. It returns to the previous surface in compact
+layout only while that editor is still current, and leaves workspace focus unchanged. Feature coordinators neither open nor close tabs.
 `GoBack()` returns `true` only when the shared workspace consumed the back
 request.
 
@@ -237,6 +237,11 @@ Import tabs are factory-created per open lifetime and dispose their run
 observation and datastore collection handler on final close. The coordinator
 retains the run and progress across those tab lifetimes. `GoBack` selects the
 previously focused tab or returns to the primary surface.
+
+`SwitchLayoutProfileAsync` persists the local preference and applies it on the UI
+dispatcher without closing background tabs. Recorded-session loads and subscriptions
+survive view replacement and end only on tab close; inactive-tab prompt deferral
+applies in both profiles.
 
 `ShellRootViewModel` is the data context for both platform lifetimes. The
 layout profile controls presentation only:

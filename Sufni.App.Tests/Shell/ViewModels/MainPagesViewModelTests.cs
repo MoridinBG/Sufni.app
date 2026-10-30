@@ -92,101 +92,27 @@ public class MainPagesViewModelTests
     }
 
     [Fact]
-    public async Task ChooseLayoutProfileCommand_SavesLocalPreference_AndAppliesProfileLive()
+    public async Task ChooseLayoutProfileCommand_RequestsShellSwitch()
     {
-        var uiPreferences = Substitute.For<IUiPreferences>();
-        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
-        var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact);
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            appEnvironment: appEnvironment,
-            uiPreferences: uiPreferences);
+        var viewModel = MainPagesViewModelTestFactory.Create(shell: shell);
 
-        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Workspace);
+        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Compact);
 
-        // The layout profile switches live: choosing a profile persists the preference and
-        // applies it to the environment in the same step, rather than deferring to a restart.
-        Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
-        Assert.Equal(UiLayoutProfile.Workspace, appEnvironment.LayoutProfile);
-        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
+        await shell.Received(1).SwitchLayoutProfileAsync(UiLayoutProfile.Compact);
     }
 
     [Fact]
-    public async Task ToggleLayoutProfileCommand_SavesTargetProfile()
+    public async Task ToggleLayoutProfileCommand_RequestsOppositeProfile()
     {
-        var uiPreferences = Substitute.For<IUiPreferences>();
-        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            appEnvironment: MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact),
-            uiPreferences: uiPreferences);
-
-        Assert.Equal(UiLayoutProfile.Workspace, viewModel.TargetLayoutProfile);
-        Assert.Equal("workspace", viewModel.LayoutProfileActionMenuText);
+        var environment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact);
+        var viewModel = MainPagesViewModelTestFactory.Create(shell: shell, appEnvironment: environment);
 
         await viewModel.ToggleLayoutProfileCommand.ExecuteAsync(null);
 
+        await shell.Received(1).SwitchLayoutProfileAsync(UiLayoutProfile.Workspace);
+        environment.SetLayoutProfile(UiLayoutProfile.Workspace);
         Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
         Assert.Equal(UiLayoutProfile.Compact, viewModel.TargetLayoutProfile);
-        Assert.Equal("compact", viewModel.LayoutProfileActionMenuText);
-        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Workspace);
-    }
-
-    [Fact]
-    public async Task ChooseLayoutProfileCommand_ToCompact_Cancels_WhenBackgroundDirtyTabCloseIsCancelled()
-    {
-        var uiPreferences = Substitute.For<IUiPreferences>();
-        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
-        var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
-        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher, timeProvider: new FakeTimeProvider());
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        dialogService.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.Cancel);
-        var backgroundTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: true);
-        var currentTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: false);
-        workspace.OpenOrFocus(backgroundTab);
-        workspace.OpenOrFocus(currentTab);
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            workspace: workspace,
-            appEnvironment: appEnvironment,
-            uiPreferences: uiPreferences);
-
-        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Compact);
-
-        Assert.Equal(UiLayoutProfile.Workspace, viewModel.SelectedLayoutProfile);
-        Assert.Equal(UiLayoutProfile.Workspace, appEnvironment.LayoutProfile);
-        Assert.Same(currentTab, workspace.CurrentTab);
-        Assert.Equal([backgroundTab, currentTab], workspace.Tabs);
-        Assert.Equal(0, backgroundTab.CloseCount);
-        await uiPreferences.DidNotReceive().SetLayoutProfileAsync(UiLayoutProfile.Compact);
-    }
-
-    [Fact]
-    public async Task ChooseLayoutProfileCommand_ToCompact_ClosesConfirmedBackgroundTabs()
-    {
-        var uiPreferences = Substitute.For<IUiPreferences>();
-        uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
-        var appEnvironment = MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Workspace);
-        var workspace = new ShellWorkspaceViewModel(UiThreadDispatcher, timeProvider: new FakeTimeProvider());
-        var shell = Substitute.For<IShellCoordinator>();
-        var dialogService = Substitute.For<IDialogService>();
-        dialogService.ShowCloseConfirmationAsync(Arg.Any<bool>()).Returns(PromptResult.No);
-        var backgroundTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: true);
-        var currentTab = new ConfirmableTabPageViewModel(shell, dialogService, dirty: false);
-        workspace.OpenOrFocus(backgroundTab);
-        workspace.OpenOrFocus(currentTab);
-        var viewModel = MainPagesViewModelTestFactory.Create(
-            workspace: workspace,
-            appEnvironment: appEnvironment,
-            uiPreferences: uiPreferences);
-
-        await viewModel.ChooseLayoutProfileCommand.ExecuteAsync(UiLayoutProfile.Compact);
-
-        Assert.Equal(UiLayoutProfile.Compact, viewModel.SelectedLayoutProfile);
-        Assert.Equal(UiLayoutProfile.Compact, appEnvironment.LayoutProfile);
-        Assert.Same(currentTab, workspace.CurrentTab);
-        Assert.Equal([currentTab], workspace.Tabs);
-        Assert.Equal(1, backgroundTab.ResetCount);
-        Assert.Equal(1, backgroundTab.CloseCount);
-        await uiPreferences.Received(1).SetLayoutProfileAsync(UiLayoutProfile.Compact);
     }
 
     [Fact]
@@ -338,39 +264,4 @@ public class MainPagesViewModelTests
             uiThreadDispatcher: new InlineUiThreadDispatcher(),
             timeProvider: new FakeTimeProvider());
 
-    private sealed class ConfirmableTabPageViewModel : TabPageViewModelBase
-    {
-        private bool underlyingDirty;
-
-        public ConfirmableTabPageViewModel(
-            IShellCoordinator shell,
-            IDialogService dialogService,
-            bool dirty)
-            : base(shell, dialogService, MainPagesViewModelTests.UiThreadDispatcher, timeProvider: new FakeTimeProvider())
-        {
-            underlyingDirty = dirty;
-            IsDirty = dirty;
-        }
-
-        public int CloseCount { get; private set; }
-        public int ResetCount { get; private set; }
-
-        protected override void EvaluateDirtiness()
-        {
-            IsDirty = underlyingDirty;
-        }
-
-        protected override Task ResetImplementation()
-        {
-            ResetCount++;
-            underlyingDirty = false;
-            return Task.CompletedTask;
-        }
-
-        protected override Task CloseImplementation()
-        {
-            CloseCount++;
-            return Task.CompletedTask;
-        }
-    }
 }

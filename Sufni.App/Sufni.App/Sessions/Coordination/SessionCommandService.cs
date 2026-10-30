@@ -115,7 +115,7 @@ public sealed class SessionCommandService
 
             var saved = savedResult.Snapshot;
             logger.Information("Session save completed for {SessionId}", session.Id);
-            return new SessionSaveResult.Saved(saved.Updated);
+            return new SessionSaveResult.Saved(saved.Id, saved.Updated);
         }
         catch (Exception e)
         {

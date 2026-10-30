@@ -108,15 +108,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
-    private readonly Subject<Unit> stalenessReplayInput = new();
     private readonly Subject<Unit> dirtyBaselineInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
     private readonly CompositeDisposable editorInputSubjects;
     private readonly RecordedSessionEditorStateController editorStateController;
     private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
-    private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
     private bool observedInitialDomain;
-    private bool replayStalenessOnNextLoad;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly RecordedPagePresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
@@ -145,7 +142,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     // past the unacknowledged edit, or the conflict would be silently lost.
     private bool metadataConflictPending;
     private bool viewLoaded;
-    private bool hasBeenActivated;
     private bool editorInputSubjectsDisposed;
     private readonly SignalRowActionsController signalRowActions;
     private readonly SignalAutozoomController signalAutozoomController;
@@ -1408,7 +1404,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionOperationRunner sessionOperationRunner,
         TimeProvider timeProvider,
         IBikeCoordinator? bikeCoordinator = null,
-        ILayoutProfileTransitionState? layoutProfileTransitionState = null,
         IVideoPaneFactory? videoPaneFactory = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
@@ -1439,8 +1434,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisSelectionInput,
             signalPlotContextMenuActionsInput,
             domainInput,
-            dirtyBaselineInput,
-            stalenessReplayInput);
+            dirtyBaselineInput);
         editorStateController = new RecordedSessionEditorStateController(
             new RecordedSessionEditorStateInputs(
                 editorActions.Intents,
@@ -1470,7 +1464,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ErrorMessages.Add,
             Notifications.Add);
         this.sessionEditingCoordinator = sessionEditingCoordinator;
-        this.layoutProfileTransitionState = layoutProfileTransitionState ?? new LayoutProfileTransitionState();
         recordedPreferenceStore = new RecordedPreferenceStore(
             sessionPreferences,
             () => Id,
@@ -1701,8 +1694,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
                 RecordedSessionEditorEffects.RecomputeStaleness(
-                    editorStateController.State,
-                    stalenessReplayInput),
+                    editorStateController.State),
                 RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
             ],
             ApplyRecordedSessionEditorEffect);
@@ -2064,26 +2056,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (effect is RecordedSessionEditorEffect.ReplayRecomputeStaleness stalenessReplay)
-        {
-            _ = ReplayStalenessOnLoadAsync(stalenessReplay.Domain);
-            return;
-        }
-
         if (effect is RecordedSessionEditorEffect.UpdateDirtyBaseline)
         {
             EvaluateDirtiness();
         }
-    }
-
-    private async Task ReplayStalenessOnLoadAsync(RecordedSessionDomainSnapshot domain)
-    {
-        if (!viewLoaded)
-        {
-            return;
-        }
-
-        await stalenessReconciler.HandleStalenessAsync(domain, RecomputeReason.StaleOnOpen);
     }
 
     private void ApplyMapMediaSync(RecordedSessionLoadedData loadedData)
@@ -2248,7 +2224,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 BaselineUpdated = saved.NewBaselineUpdated;
                 metadataConflictPending = false;
                 IsDirty = false;
-                shell.CompleteEdit();
+                shell.CompleteEdit(new EditorKey.Session(saved.Id));
                 break;
 
             case SessionSaveResult.Conflict conflict:
@@ -2427,11 +2403,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             s.Add(watch.Subscribe(snapshot => PublishEditorInput(domainInput, snapshot)));
             s.Add(operationWatch.Subscribe(state => PublishEditorInput(sessionOperationStateInput, state)));
         });
-        if (replayStalenessOnNextLoad)
-        {
-            replayStalenessOnNextLoad = false;
-            PublishEditorInput(stalenessReplayInput, Unit.Default);
-        }
 
         try
         {
@@ -2455,8 +2426,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     protected override void OnActivated()
     {
-        hasBeenActivated = true;
-
         if (!viewLoaded)
         {
             return;
@@ -2467,7 +2436,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool ShouldDeferDomainHandling() =>
         deferDomainHandlingWhenInactive &&
-        hasBeenActivated &&
         !IsTabActive;
 
     private void OnSyncedPreferencesArrived(SessionPreferences prefs)
@@ -2483,26 +2451,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         recordedPreferenceStore.ApplyWithoutPersisting(prefs, ApplyRecordedPreferences);
     }
 
-    [RelayCommand]
-    private void Unloaded()
-    {
-        if (layoutProfileTransitionState.IsTransitioning)
-        {
-            return;
-        }
-
-        StopLoadedSession();
-    }
-
     private void StopLoadedSession()
     {
         viewLoaded = false;
         viewLoadOperation.Cancel();
         loadOperation.Cancel();
         observedInitialDomain = false;
-        replayStalenessOnNextLoad = true;
         deferredDomain = null;
-        stalenessReconciler.ResetForUnload();
         sessionOperationRunner.Cancel(Id);
         segmentComparison.Clear();
         DisposeProcessedTelemetryRetention();

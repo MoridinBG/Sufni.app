@@ -82,12 +82,12 @@ internal sealed class SessionDetailHarness
         SessionSnapshot? snapshot = null,
         SessionDetailLoadResult? loadResult = null,
         IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null,
-        bool isDesktop = true)
+        bool deferDomainHandlingWhenInactive = true)
     {
         snapshot ??= CreateRecordedSession();
         ConfigureSnapshot(snapshot, projectionChanges);
         ConfigureLoad(snapshot, loadResult ?? CreateLoadedResult());
-        return CreateEditor(snapshot, isDesktop);
+        return CreateEditor(snapshot, deferDomainHandlingWhenInactive);
     }
 
     public Task LoadAsync(SessionDetailViewModel editor) =>
@@ -99,8 +99,7 @@ internal sealed class SessionDetailHarness
     public Task DeleteAsync(SessionDetailViewModel editor, bool navigateBack = true) =>
         editor.DeleteCommand.ExecuteAsync(navigateBack);
 
-    public void Unload(SessionDetailViewModel editor) =>
-        editor.UnloadedCommand.Execute(null);
+    public Task CloseAsync(SessionDetailViewModel editor) => editor.PrepareCloseAsync();
 
     public void ConfigureSnapshot(SessionSnapshot snapshot, IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null)
     {
@@ -163,13 +162,13 @@ internal sealed class SessionDetailHarness
 
     private SessionDetailViewModel CreateEditor(
         SessionSnapshot snapshot,
-        bool isDesktop)
+        bool deferDomainHandlingWhenInactive)
     {
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(
             new RecordedSessionAnalysisComputer(SessionInsightsService),
             new InlineBackgroundTaskRunner(),
             UiThreadDispatcher);
-        return new SessionDetailViewModel(
+        var editor = new SessionDetailViewModel(
             snapshot,
             SessionCoordinator,
             trackCoordinator,
@@ -180,7 +179,7 @@ internal sealed class SessionDetailHarness
             DialogService,
             SessionPreferences,
             UiThreadDispatcher,
-            deferDomainHandlingWhenInactive: isDesktop,
+            deferDomainHandlingWhenInactive,
             ProcessedTelemetryReader,
             analysisResultStateFactory,
             SessionEditingCoordinator,
@@ -189,5 +188,7 @@ internal sealed class SessionDetailHarness
             OperationRunner,
             videoPaneFactory: VideoPaneFactory,
             timeProvider: new FakeTimeProvider());
+        editor.SetTabActive(true);
+        return editor;
     }
 }

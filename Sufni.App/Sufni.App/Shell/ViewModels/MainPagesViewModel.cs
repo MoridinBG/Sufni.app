@@ -33,9 +33,6 @@ public partial class MainPagesViewModel : ViewModelBase
     private readonly IShellCoordinator shell;
     private readonly IThemeService themeService;
     private readonly IAppEnvironment appEnvironment;
-    private readonly ILayoutProfileTransitionState layoutProfileTransitionState;
-    private readonly IUiPreferences uiPreferences;
-    private readonly ShellWorkspaceViewModel workspace;
     private MainPrimaryPageViewModel? activePrimaryPage;
 
     #region Observable properties
@@ -91,11 +88,8 @@ public partial class MainPagesViewModel : ViewModelBase
         ITrackCoordinator trackCoordinator,
         ISyncCoordinator syncCoordinator,
         IShellCoordinator shell,
-        ShellWorkspaceViewModel workspace,
         IThemeService themeService,
         IAppEnvironment appEnvironment,
-        ILayoutProfileTransitionState layoutProfileTransitionState,
-        IUiPreferences uiPreferences,
         BikeListViewModel bikesPage,
         SessionListViewModel sessionsPage,
         SetupListViewModel setupsPage,
@@ -113,11 +107,8 @@ public partial class MainPagesViewModel : ViewModelBase
         this.videoCoordinator = videoCoordinator;
         this.syncCoordinator = syncCoordinator;
         this.shell = shell;
-        this.workspace = workspace;
         this.themeService = themeService;
         this.appEnvironment = appEnvironment;
-        this.layoutProfileTransitionState = layoutProfileTransitionState;
-        this.uiPreferences = uiPreferences;
         BikesPage = bikesPage;
         SessionsPage = sessionsPage;
         SetupsPage = setupsPage;
@@ -363,43 +354,7 @@ public partial class MainPagesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ChooseLayoutProfile(UiLayoutProfile profile)
-    {
-        if (profile == appEnvironment.LayoutProfile)
-        {
-            SelectedLayoutProfile = profile;
-            SyncLayoutProfileState();
-            await uiPreferences.SetLayoutProfileAsync(profile);
-            return;
-        }
-
-        if (profile == UiLayoutProfile.Compact)
-        {
-            if (!await workspace.CloseBackgroundTabsAsync())
-            {
-                SelectedLayoutProfile = appEnvironment.LayoutProfile;
-                SyncLayoutProfileState();
-                return;
-            }
-        }
-
-        await uiPreferences.SetLayoutProfileAsync(profile);
-
-        var transition = layoutProfileTransitionState.BeginTransition();
-        try
-        {
-            appEnvironment.SetLayoutProfile(profile);
-            SelectedLayoutProfile = profile;
-            SyncLayoutProfileState();
-        }
-        catch
-        {
-            transition.Dispose();
-            throw;
-        }
-
-        UiThreadDispatcher.Post(transition.Dispose, UiDispatchPriority.Background);
-    }
+    private Task ChooseLayoutProfile(UiLayoutProfile profile) => shell.SwitchLayoutProfileAsync(profile);
 
     [RelayCommand]
     private async Task ToggleLayoutProfile()

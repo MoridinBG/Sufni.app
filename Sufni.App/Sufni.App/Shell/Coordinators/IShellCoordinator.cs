@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 
 using Sufni.App.Shared.Base;
+using Sufni.App.Infrastructure;
 namespace Sufni.App.Shell.Coordinators;
 
 /// <summary>
@@ -12,6 +13,8 @@ public interface IShellCoordinator
     void OpenEditor(EditorKey key, bool background = false);
 
     Task CloseEditorAsync(EditorKey key);
+
+    Task SwitchLayoutProfileAsync(UiLayoutProfile profile);
 
     /// <summary>
     /// Open a view as the current workspace detail surface.
@@ -31,5 +34,5 @@ public interface IShellCoordinator
     bool GoBack();
 
     /// <summary>Apply post-save navigation for a successfully saved editor.</summary>
-    void CompleteEdit();
+    void CompleteEdit(EditorKey savedEditor);
 }

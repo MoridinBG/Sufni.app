@@ -316,7 +316,7 @@ public class SetupEditorViewModelTests
         Assert.True(sensor.IsDirty);
 
         setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
-            .Returns(new SetupSaveResult.Saved(11));
+            .Returns(new SetupSaveResult.Saved(snapshot.Id, 11));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -325,7 +325,7 @@ public class SetupEditorViewModelTests
             boardId,
             5);
         Assert.Equal(11, editor.BaselineUpdated);
-        shell.Received(1).CompleteEdit();
+        shell.Received(1).CompleteEdit(new EditorKey.Setup(snapshot.Id));
         Assert.False(sensor.IsDirty);
         Assert.False(editor.IsDirty);
         shell.DidNotReceive().GoBack();

@@ -53,8 +53,6 @@ internal sealed class EditorFactory(
     ILiveDaqStore liveDaqStore,
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
-    IAppEnvironment appEnvironment,
-    ILayoutProfileTransitionState layoutProfileTransitionState,
     IBackgroundTaskRunner backgroundTaskRunner,
     IImportSessionsCoordinator importSessionsCoordinator,
     ITelemetryDataStoreService telemetryDataStoreService,
@@ -119,7 +117,7 @@ internal sealed class EditorFactory(
             dialogService,
             sessionPreferences,
             uiThreadDispatcher,
-            appEnvironment.LayoutProfile == UiLayoutProfile.Workspace,
+            deferDomainHandlingWhenInactive: true,
             processedTelemetryReader,
             analysisResultStateFactory,
             sessionEditingCoordinator,
@@ -128,7 +126,6 @@ internal sealed class EditorFactory(
             sessionOperationRunner,
             timeProvider,
             bikeCoordinator,
-            layoutProfileTransitionState,
             videoPaneFactory);
 
     private LiveDaqDetailViewModel CreateLiveDaqDetail(

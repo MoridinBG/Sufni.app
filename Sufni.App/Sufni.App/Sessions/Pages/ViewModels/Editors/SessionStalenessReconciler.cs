@@ -66,12 +66,6 @@ internal sealed class SessionStalenessReconciler
         ReportNotRecomputableStale();
     }
 
-    public void ResetForUnload()
-    {
-        promptedRecomputeSignature = null;
-        reportedNotRecomputableStale = false;
-    }
-
     private async Task PromptForRecomputeAsync(RecordedSessionDomainSnapshot domain, RecomputeReason reason)
     {
         if (recomputePromptRunning)

@@ -161,7 +161,7 @@ internal class BikeCoordinator(
             {
                 case StoreMutationResult<BikeSnapshot>.Saved saved:
                     logger.Information("Bike save completed for {BikeId}", bike.Id);
-                    return new BikeSaveResult.Saved(saved.Snapshot.Updated, analysisResult);
+                    return new BikeSaveResult.Saved(saved.Snapshot.Id, saved.Snapshot.Updated, analysisResult);
 
                 case StoreMutationResult<BikeSnapshot>.Conflict conflict:
                     logger.Warning("Bike save conflict for {BikeId}", bike.Id);
@@ -306,7 +306,7 @@ public abstract record BikeSaveResult
 {
     private BikeSaveResult() { }
 
-    public sealed record Saved(long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
+    public sealed record Saved(Guid Id, long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
     public sealed record InvalidRearSuspension(string ErrorMessage) : BikeSaveResult;
     public sealed record Failed(string ErrorMessage) : BikeSaveResult;

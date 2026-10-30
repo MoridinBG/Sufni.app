@@ -65,7 +65,7 @@ public class SetupCoordinator(
             var saved = SetupSnapshot.From(setup, boardId);
             await setupStore.PublishSetupsChangedAsync([setup.Id]);
             logger.Information("Setup save completed for {SetupId}", setup.Id);
-            return new SetupSaveResult.Saved(saved.Updated);
+            return new SetupSaveResult.Saved(saved.Id, saved.Updated);
         }
         catch (Exception e)
         {
@@ -225,7 +225,7 @@ public abstract record SetupSaveResult
 {
     private SetupSaveResult() { }
 
-    public sealed record Saved(long NewBaselineUpdated) : SetupSaveResult;
+    public sealed record Saved(Guid Id, long NewBaselineUpdated) : SetupSaveResult;
     public sealed record Conflict(SetupSnapshot CurrentSnapshot) : SetupSaveResult;
     public sealed record Failed(string ErrorMessage) : SetupSaveResult;
 }

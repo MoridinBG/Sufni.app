@@ -45,10 +45,7 @@ internal static class MainPagesViewModelTestFactory
         IThemeService? themeService = null,
         ISyncCoordinator? syncCoordinator = null,
         IShellCoordinator? shell = null,
-        ShellWorkspaceViewModel? workspace = null,
         IAppEnvironment? appEnvironment = null,
-        ILayoutProfileTransitionState? layoutProfileTransitionState = null,
-        IUiPreferences? uiPreferences = null,
         IVideoCoordinator? videoCoordinator = null,
         PairingClientViewModel? pairingClientPage = null,
         PairingServerViewModel? pairingServerViewModel = null)
@@ -57,7 +54,6 @@ internal static class MainPagesViewModelTestFactory
         trackCoordinator ??= TestCoordinatorSubstitutes.Track();
         syncCoordinator ??= TestCoordinatorSubstitutes.Sync();
         shell ??= Substitute.For<IShellCoordinator>();
-        workspace ??= new ShellWorkspaceViewModel(UiThreadDispatcher, timeProvider: new FakeTimeProvider());
 
         appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
         if (themeService is null)
@@ -68,22 +64,13 @@ internal static class MainPagesViewModelTestFactory
             themeService.IsSystemThemeAvailable.Returns(false);
         }
         appEnvironment ??= CreateAppEnvironment();
-        if (uiPreferences is null)
-        {
-            uiPreferences = Substitute.For<IUiPreferences>();
-            uiPreferences.SetLayoutProfileAsync(Arg.Any<UiLayoutProfile?>()).Returns(Task.CompletedTask);
-        }
-
         return new MainPagesViewModel(
             appDataRefresher,
             trackCoordinator,
             syncCoordinator,
             shell,
-            workspace,
             themeService,
             appEnvironment,
-            layoutProfileTransitionState ?? new LayoutProfileTransitionState(),
-            uiPreferences,
             CreateBikeListPage(shell),
             CreateSessionListPage(shell),
             CreateSetupListPage(shell),

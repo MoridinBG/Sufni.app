@@ -561,7 +561,7 @@ public class BikeEditorViewModelTests
         await editor.CloseCommand.ExecuteAsync(null);
 
         shell.DidNotReceive().Close(editor);
-        shell.DidNotReceive().CompleteEdit();
+        shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
         Assert.True(editor.IsDirty);
         Assert.True(editor.SaveCommand.CanExecute(null));
         Assert.Equal(5, editor.BaselineUpdated);
@@ -578,7 +578,7 @@ public class BikeEditorViewModelTests
         editor.ImageCanvas.ImageRotationDegrees = 13.5;
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.Unavailable()));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -592,7 +592,7 @@ public class BikeEditorViewModelTests
                 b.ImageRotationDegrees == 0),
             5);
         Assert.Equal(11, editor.BaselineUpdated);
-        shell.Received(1).CompleteEdit();
+        shell.Received(1).CompleteEdit(new EditorKey.Bike(snapshot.Id));
         Assert.Empty(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
     }
@@ -605,7 +605,7 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.Unavailable()));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -684,7 +684,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.ShockStroke = 12.5;
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(11, new BikeEditorAnalysisResult.Unavailable()));
+            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.Unavailable()));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -882,7 +882,7 @@ public class BikeEditorViewModelTests
 
         bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
             .Returns(new BikeSaveResult.Saved(
-                11,
+                snapshot.Id, 11,
                 new BikeEditorAnalysisResult.Computed(PresentationData(data))));
 
         await editor.SaveCommand.ExecuteAsync(null);

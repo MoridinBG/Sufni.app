@@ -38,7 +38,7 @@ The UI has two local layout profiles:
 - `Compact` is the mobile-shaped presentation and is the default profile for mobile heads.
 - `Workspace` is the desktop-shaped presentation and is the default profile for desktop heads.
 
-The selected profile is a local preference read during startup through `IAppEnvironment.LayoutProfile`; it is not synced. Changing it saves the preference immediately and applies on the next app launch.
+The selected profile is a local preference read during startup through `IAppEnvironment.LayoutProfile`; it is not synced. `ShellWorkspaceCoordinator.SwitchLayoutProfileAsync` persists the choice and applies it live through the UI dispatcher. Switching keeps every tab, its draft and current focus; hidden editors are not closed. Recorded-session loads and subscriptions belong to the tab and survive the view replacement.
 
 `ViewLocator` chooses from three registries keyed by view-model type:
 

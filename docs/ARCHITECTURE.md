@@ -301,7 +301,7 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 - [Discovery & Catalog](architecture/live-streaming.md#discovery--catalog) — browse ownership, `_sufni._tcp`, TXT protocol and board identity, catalog service
 - [Known-Board Query](architecture/live-streaming.md#known-board-query) — board + setup + bike enrichment
 - [Runtime Store](architecture/live-streaming.md#runtime-store) — in-memory `LiveDaqStore`, no persistence
-- [Coordinator](architecture/live-streaming.md#coordinator) — activate/deactivate, reconcile, tab routing
+- [Coordinator](architecture/live-streaming.md#coordinator) — activate/deactivate and reconcile; shell tab routing
 - [View Models](architecture/live-streaming.md#view-models) — list, row, diagnostics tab
 - [Views](architecture/live-streaming.md#views) — desktop and shared/mobile axaml pairs
 - [Design Decisions](architecture/live-streaming.md#design-decisions) — separation from import, per-identity shared stream, throttled UI, lease-based browse

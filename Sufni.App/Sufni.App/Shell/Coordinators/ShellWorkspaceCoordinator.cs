@@ -16,9 +16,17 @@ namespace Sufni.App.Shell.Coordinators;
 public sealed class ShellWorkspaceCoordinator(
     ShellWorkspaceViewModel workspace,
     IAppEnvironment appEnvironment,
-    IEditorFactory editorFactory) : IShellCoordinator
+    IEditorFactory editorFactory,
+    IUiPreferences uiPreferences,
+    IUiThreadDispatcher dispatcher) : IShellCoordinator
 {
     private bool ShouldRememberClosedTabs => appEnvironment.LayoutProfile == UiLayoutProfile.Workspace;
+
+    public async Task SwitchLayoutProfileAsync(UiLayoutProfile profile)
+    {
+        await uiPreferences.SetLayoutProfileAsync(profile);
+        await dispatcher.InvokeAsync(() => appEnvironment.SetLayoutProfile(profile));
+    }
 
     public void OpenEditor(EditorKey key, bool background = false)
     {
@@ -84,9 +92,10 @@ public sealed class ShellWorkspaceCoordinator(
 
     public bool GoBack() => workspace.GoBack();
 
-    public void CompleteEdit()
+    public void CompleteEdit(EditorKey savedEditor)
     {
-        if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact)
+        if (appEnvironment.LayoutProfile == UiLayoutProfile.Compact &&
+            workspace.CurrentTab is { } current && Matches(savedEditor, current))
         {
             workspace.GoBack();
         }

@@ -50,6 +50,38 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task InactiveTab_RetainsLoadAcrossViewReattach_AndDefersStalenessPrompt()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateLoadedRecordedSession(snapshot, projectionChanges: changes);
+        var prompted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.DialogService.ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(_ =>
+            {
+                prompted.TrySetResult();
+                return Task.FromResult<string?>(null);
+            });
+        editor.SetTabActive(false);
+        await harness.LoadAsync(editor);
+        changes.OnNext(DomainFromSnapshot(snapshot, staleness: new SessionStaleness.DependencyHashChanged()));
+
+        await harness.LoadAsync(editor);
+
+        Assert.False(prompted.Task.IsCompleted);
+        Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.RetainedSessionIds);
+        Assert.Empty(harness.ProcessedTelemetryReader.ReleasedSessionIds);
+        await harness.SessionCoordinator.Received(1).LoadDetailAsync(snapshot.Id,
+            Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>());
+
+        editor.SetTabActive(true);
+        await prompted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await harness.CloseAsync(editor);
+        Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.ReleasedSessionIds);
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_PublishesTelemetryBeforeTrackCompletes()
     {
         var harness = new SessionDetailHarness();
@@ -89,7 +121,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Unloaded_DropsTrackCompletion_FromCanceledLoad()
+    public async Task Closed_DropsTrackCompletion_FromCanceledLoad()
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession();
@@ -109,7 +141,7 @@ public class SessionDetailViewModelTests
         var loadTask = harness.LoadAsync(editor);
         await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, telemetry));
 
-        harness.Unload(editor);
+        await harness.CloseAsync(editor);
         pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
             new SessionTrackPresentationData(
                 Guid.NewGuid(),
@@ -154,13 +186,13 @@ public class SessionDetailViewModelTests
         var editor = harness.CreateLoadedRecordedSession(snapshot);
         editor.Name = "renamed";
         harness.SessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
-            .Returns(new SessionSaveResult.Saved(11));
+            .Returns(new SessionSaveResult.Saved(snapshot.Id, 11));
 
         await harness.SaveAsync(editor);
 
         Assert.Equal(11, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
-        harness.Shell.Received(1).CompleteEdit();
+        harness.Shell.Received(1).CompleteEdit(new EditorKey.Session(snapshot.Id));
     }
 
     [AvaloniaFact]
@@ -180,7 +212,7 @@ public class SessionDetailViewModelTests
 
         Assert.Equal("remote-updated", editor.Name);
         Assert.Equal(12, editor.BaselineUpdated);
-        harness.Shell.DidNotReceive().CompleteEdit();
+        harness.Shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
     }
 
     [AvaloniaFact]
@@ -214,7 +246,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Unloaded_CancelsInFlightLoad_AndDropsResult()
+    public async Task Closed_CancelsInFlightLoad_AndDropsResult()
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(hasProcessedData: false);
@@ -233,7 +265,7 @@ public class SessionDetailViewModelTests
         var loadTask = harness.LoadAsync(editor);
         await Task.Yield();
 
-        harness.Unload(editor);
+        await harness.CloseAsync(editor);
         pending.SetResult(harness.CreateLoadedResult(TestTelemetryData.CreateProcessed()));
         await loadTask;
 
@@ -367,7 +399,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Loaded_RetainsProcessedTelemetry_AndUnloadedReleasesIt()
+    public async Task Loaded_RetainsProcessedTelemetry_AndClosingReleasesIt()
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(hasProcessedData: false);
@@ -378,7 +410,7 @@ public class SessionDetailViewModelTests
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.RetainedSessionIds);
         Assert.Empty(harness.ProcessedTelemetryReader.ReleasedSessionIds);
 
-        harness.Unload(editor);
+        await harness.CloseAsync(editor);
 
         Assert.Equal([snapshot.Id], harness.ProcessedTelemetryReader.ReleasedSessionIds);
     }

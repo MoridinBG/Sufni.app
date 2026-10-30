@@ -74,21 +74,6 @@ internal static class TestEditorFactories
             liveDaqStore ?? Substitute.For<ILiveDaqStore>(),
             Substitute.For<IDialogService>(),
             uiThreadDispatcher,
-            new AppEnvironment(
-                UiLayoutProfile.Workspace,
-                new AppCapabilities(
-                    CanHostSyncServer: true,
-                    CanPairAsClient: false,
-                    SupportsMassStorageImport: true,
-                    SupportsStorageProviderImport: true,
-                    CanPlayVideo: false),
-                new InputCapabilities(
-                    HasPointer: true,
-                    HasTouch: false,
-                    HasKeyboard: true,
-                    SupportsLongPressContextMenu: false,
-                    CommandModifier: CommandModifier.Control)),
-            new LayoutProfileTransitionState(),
             backgroundTaskRunner,
             importCoordinator ?? TestCoordinatorSubstitutes.ImportSessions(),
             CreateDataStoreService(),

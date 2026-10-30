@@ -81,7 +81,6 @@ public static class AppComposition
             sp.GetRequiredService<IAppEnvironment>()));
         services.AddSingleton<IBackgroundTaskRunner, BackgroundTaskRunner>();
         services.AddSingleton<IUiThreadDispatcher, AvaloniaUiThreadDispatcher>();
-        services.AddSingleton<ILayoutProfileTransitionState, LayoutProfileTransitionState>();
         services.AddSingleton<IKinematicSolutionCache, KinematicSolutionCache>();
         services.AddSingleton<IRearTravelCalibrationBuilder, RearTravelCalibrationBuilder>();
         services.AddSingleton<IBikeRearSuspensionValidator, BikeRearSuspensionValidator>();

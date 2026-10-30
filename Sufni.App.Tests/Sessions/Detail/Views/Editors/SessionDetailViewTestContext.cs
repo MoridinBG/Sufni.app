@@ -160,7 +160,7 @@ internal sealed class SessionDetailViewTestContext
             new RecordedSessionAnalysisComputer(sessionAnalysisService),
             new InlineBackgroundTaskRunner(),
             dispatcher);
-        return new SessionDetailViewModel(
+        var editor = new SessionDetailViewModel(
             snapshot,
             sessionCoordinator,
             trackCoordinator,
@@ -171,13 +171,15 @@ internal sealed class SessionDetailViewTestContext
             dialogService,
             sessionPreferences,
             dispatcher,
-            deferDomainHandlingWhenInactive: isDesktopLayout,
+            deferDomainHandlingWhenInactive: true,
             new TestSessionProcessedTelemetryReader(),
             analysisResultStateFactory,
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(dialogService: dialogService),
             TestSegmentComparisons.CreateFactory(),
             new SessionOperationRunner(), timeProvider: new FakeTimeProvider());
+        editor.SetTabActive(true);
+        return editor;
     }
 }
 
@@ -190,6 +192,7 @@ internal sealed class MountedSessionDetailView<TView>(Window host, TView view, S
 
     public async ValueTask DisposeAsync()
     {
+        await Editor.PrepareCloseAsync();
         Host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }

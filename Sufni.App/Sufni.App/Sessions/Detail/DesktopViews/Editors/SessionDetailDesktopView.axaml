@@ -19,7 +19,6 @@ x:Name="Root"
 x:DataType="vm:SessionDetailViewModel"
 Background="{DynamicResource SufniSurfacePage}"
 lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
-lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
 
     <UserControl.Styles>

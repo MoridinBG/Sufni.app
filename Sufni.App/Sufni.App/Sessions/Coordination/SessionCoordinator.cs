@@ -70,7 +70,7 @@ public abstract record SessionSaveResult
 {
     private SessionSaveResult() { }
 
-    public sealed record Saved(long NewBaselineUpdated) : SessionSaveResult;
+    public sealed record Saved(Guid Id, long NewBaselineUpdated) : SessionSaveResult;
     public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionSaveResult;
     public sealed record Failed(string ErrorMessage) : SessionSaveResult;
 }

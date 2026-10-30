@@ -207,7 +207,7 @@ There are five kinds of view model in the presentation layer:
   these collaborators and delegates; it no longer owns those flows. Session
   detail loading uses one local-only `SessionCoordinator.LoadDetailAsync` path;
   inactive-tab deferral is supplied
-  by `EditorFactory` as workspace/profile policy. Collaborators reach the
+  by `EditorFactory` for both profiles and evaluated against current tab activity. Collaborators reach the
   editor through the `ISessionOperationGateway` contract rather than delegate
   bundles.
   Recorded-session loading publishes decoded telemetry first through
@@ -226,10 +226,10 @@ There are five kinds of view model in the presentation layer:
   concrete message and normalized `0..1` progress fraction. Both workspace and
   compact session shells show progress while `IsLoading` is true.
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
-  in `Loaded` and disposes that subscription in `Unloaded`. Initial or
-  runtime domain snapshots that are recomputable prompt the user to
-  recompute; inactive desktop session tabs defer that prompt until the
-  tab is selected again. Unrecomputable stale snapshots report an
+  on its first `Loaded` and disposes that subscription on final tab close. View
+  detach/reattach and layout changes keep the active load and telemetry retention.
+  Initial or runtime domain snapshots that are recomputable prompt the user to
+  recompute; inactive tabs in both layouts defer that prompt until selected. Unrecomputable stale snapshots report an
   error; processed data arriving for a current session reloads the
   presentation data.
 

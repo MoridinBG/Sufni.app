@@ -18,12 +18,10 @@ public partial class SessionDetailView : UserControl
         {
             MobileShell.DataContext = viewModel.MobileWorkspace;
             MobileShell.LoadedCommand = viewModel.LoadedCommand;
-            MobileShell.UnloadedCommand = viewModel.UnloadedCommand;
             return;
         }
 
         MobileShell.DataContext = null;
         MobileShell.LoadedCommand = null;
-        MobileShell.UnloadedCommand = null;
     }
 }

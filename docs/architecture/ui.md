@@ -120,6 +120,7 @@ Thread ownership is explicit:
 - UI cadence uses `IUiTimerScheduler`, registered as `DispatcherUiTimerScheduler`. View models receive it through constructors; `App` and `DialogService` supply the inherited `UiTimers.Scheduler` property on each window/view root for XAML-created descendants. Plot refresh, gestures and zoom-close completion use that root scheduler. There is no static scheduler override.
 - Acquisition polling uses a clock-driven `PeriodicTimer`; collection snapshots and publication cross its required UI dispatcher. Drive probing and datastore creation run through the background runner.
 - Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`. In particular, `ItemListViewModelBase` owns this lifecycle for every entity list: concrete lists build their store projection in `AttachSubscriptions`, clear projected rows after detach, ignore duplicate `Loaded` calls while already attached, and rebuild from the store's current state when loaded again.
+- Recorded-session editors load once per tab, retain subscriptions and processed telemetry across view detach/reattach, and cancel/dispose on final close. Inactive tabs defer staleness prompts in both profiles. Layout switching belongs to the shell and keeps dirty background tabs.
 - Views connect those commands with the `ViewLifecycle` attached properties in `Shared/Views/ViewLifecycle.cs`, not with `Xaml.Behaviors` triggers: `LoadedCommand` (with optional `LoadedCommandParameter`) and `UnloadedCommand` follow Avalonia's `Loaded` / `Unloaded` events, and `AttachedToVisualTreeCommand` / `DetachedFromVisualTreeCommand` follow the visual-tree events for views that need that earlier timing. A command runs on every occurrence of its event and only when `CanExecute` allows it, so a view that is detached and attached again unloads and loads again.
 - Import/setup and recorded-session subscriptions observe on their injected UI dispatcher, with Rx owning queued-delivery cancellation when a subscription is disposed. Import progress uses the same explicit dispatcher; no ambient synchronization context is captured.
 - Persisted stores share `StorePublication`: cache edits in a UI-thread batch defer per-store notifications, then emit one commit identifying changed stores. Joined consumers derive on that commit; ordered per-store notifications alone do not make `CombineLatest` coherent.
@@ -157,7 +158,7 @@ Background workflows whose results can be superseded should take a
 `CancellationToken` from their caller and propagate it through the
 coordinator/service chain.
 
-- The owner that started the work — typically a page view model — cancels the token in `Unloaded` or before replacing the workflow with a newer request.
+- The owner cancels when its lifetime ends or before replacing a request. Page-scoped work ends on `Unloaded`; recorded-session loading ends on tab close.
 - Cancellation is a neutral exit, not a failure outcome. Do not translate `OperationCanceledException` into domain results such as `Failed`, `Unavailable`, or user-facing errors.
 - Replaceable read/refresh workflows should be cancellable. Once a workflow has crossed into persistence or other committed side effects, prefer explicit result shapes over best-effort cancellation.
 
@@ -188,7 +189,7 @@ and `LiveSessionSaveResult` instead of leaking store-specific contracts into
 editors.
 
 `SaveAsync` on the entity coordinators follows this pattern with
-`Saved(NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
+`Saved(Id, NewBaselineUpdated)`, `Conflict(CurrentSnapshot)`, or
 `Failed(ErrorMessage)`. `BikeSaveResult.Saved` additionally carries
 a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
 to leverage-ratio recomputation without a second round-trip; the

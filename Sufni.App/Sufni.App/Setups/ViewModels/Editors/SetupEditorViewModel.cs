@@ -304,7 +304,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
                 IsInDatabase = true;
                 EvaluateDirtiness();
-                shell.CompleteEdit();
+                shell.CompleteEdit(new EditorKey.Setup(saved.Id));
                 break;
 
             case SetupSaveResult.Conflict conflict:
