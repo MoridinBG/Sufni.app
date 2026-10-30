@@ -11,6 +11,24 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 public class SynchronizableRepositoryTests
 {
     [Fact]
+    public async Task AuthoredWriteAndDeletion_UseInjectedTimeInChangeWindow()
+    {
+        using var tempDatabase = new TempDatabase("board-clock.db");
+        var time = PersistenceTestData.CreateTimeProvider();
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath, time);
+        var board = new Board(Guid.NewGuid(), null);
+        var createdAt = time.GetUtcNow().ToUnixTimeSeconds();
+        await database.PutAsync(board);
+        time.Advance(TimeSpan.FromSeconds(10));
+
+        await database.DeleteAsync(board);
+
+        var deleted = Assert.Single(await database.GetChangedAsync<Board>(createdAt, createdAt + 10));
+        Assert.Equal(createdAt, deleted.Updated);
+        Assert.Equal(createdAt + 10, deleted.Deleted);
+    }
+
+    [Fact]
     public async Task PutAsync_ReusesSoftDeletedBoardRow_InsteadOfInserting()
     {
         using var tempDatabase = new TempDatabase("board-revive.db");

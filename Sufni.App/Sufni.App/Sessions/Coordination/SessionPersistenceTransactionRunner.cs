@@ -14,7 +14,8 @@ using Sufni.App.Video.Services;
 namespace Sufni.App.Sessions.Coordination;
 
 internal sealed class SessionPersistenceTransactionRunner(
-    SqliteConnectionContext connectionContext)
+    SqliteConnectionContext connectionContext,
+    TimeProvider timeProvider)
     : ISessionPersistenceTransactionRunner
 {
     private const string EditableSessionProjection = """
@@ -52,7 +53,8 @@ internal sealed class SessionPersistenceTransactionRunner(
         var sourceDeleted = false;
         await connectionContext.RunInTransactionAsync(connection =>
         {
-            SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId);
+            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+            SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId, now);
 
             if (!RecordedSessionSourceRepository.IsSourceReferencedInTransaction(connection, sessionId))
             {
@@ -62,7 +64,7 @@ internal sealed class SessionPersistenceTransactionRunner(
 
             if (deleteFullTrack && fullTrackId.HasValue)
             {
-                SynchronizableRepository<Track>.DeleteInTransaction(connection, fullTrackId.Value);
+                SynchronizableRepository<Track>.DeleteInTransaction(connection, fullTrackId.Value, now);
             }
         }, cancellationToken);
 
@@ -164,7 +166,7 @@ internal sealed class SessionPersistenceTransactionRunner(
                 row.Id,
                 part2.Id,
                 FractionDelta(window.Start, split),
-                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
             var segments = SessionSegmentRepository.MoveToSessionInTransaction(
                 connection,
                 row.Id,
@@ -198,7 +200,7 @@ internal sealed class SessionPersistenceTransactionRunner(
                 return new SessionEditCommit.Rejected("Session changed while editing.");
             }
 
-            return edit(connection, row, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            return edit(connection, row, timeProvider.GetUtcNow().ToUnixTimeSeconds());
         });
 
     private static void Update(

@@ -20,7 +20,8 @@ namespace Sufni.App.Infrastructure;
 
 internal sealed class DatabaseMigrationRunner(
     string databasePath,
-    SQLiteAsyncConnection connection)
+    SQLiteAsyncConnection connection,
+    TimeProvider timeProvider)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
     private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment"];
@@ -565,7 +566,7 @@ internal sealed class DatabaseMigrationRunner(
 
     private async Task<CleanupSummary> Cleanup()
     {
-        var oneDayAgo = DateTimeOffset.Now.AddDays(-1).ToUnixTimeSeconds();
+        var oneDayAgo = timeProvider.GetLocalNow().AddDays(-1).ToUnixTimeSeconds();
 
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
@@ -577,7 +578,8 @@ internal sealed class DatabaseMigrationRunner(
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(setup => setup.Deleted != null && setup.Deleted < oneDayAgo);
         var deletedBikes = await connection.Table<Bike>().DeleteAsync(bike => bike.Deleted != null && bike.Deleted < oneDayAgo);
-        var deletedPairedDevices = await connection.Table<PairedDevice>().DeleteAsync(device => device.Expires < DateTime.UtcNow);
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var deletedPairedDevices = await connection.Table<PairedDevice>().DeleteAsync(device => device.Expires < now);
 
         return new CleanupSummary(
             deletedSessions,
@@ -619,7 +621,7 @@ internal sealed class DatabaseMigrationRunner(
             .CountBy(reference => reference.FullTrackId!.Value)
             .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         var removed = 0;
         foreach (var group in duplicates)
         {

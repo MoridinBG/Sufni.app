@@ -8,7 +8,7 @@ namespace Sufni.App.Infrastructure;
 
 internal sealed class SqliteConnectionContext
 {
-    internal SqliteConnectionContext(string databasePath)
+    internal SqliteConnectionContext(string databasePath, TimeProvider timeProvider)
     {
         var directory = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrWhiteSpace(directory))
@@ -17,7 +17,7 @@ internal sealed class SqliteConnectionContext
         }
 
         Connection = new SQLiteAsyncConnection(databasePath);
-        Initialization = new DatabaseMigrationRunner(databasePath, Connection).RunAsync();
+        Initialization = new DatabaseMigrationRunner(databasePath, Connection, timeProvider).RunAsync();
     }
 
     internal SQLiteAsyncConnection Connection { get; }

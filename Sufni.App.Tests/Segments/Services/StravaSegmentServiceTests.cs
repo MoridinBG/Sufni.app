@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using System.Net;
 using System.Text;
 using Sufni.App.Segments.Models;
@@ -174,7 +175,7 @@ public class StravaSegmentServiceTests
             cancellationToken.ThrowIfCancellationRequested();
             return queue.Dequeue()(request);
         });
-        return new StravaSegmentService(storage, new HttpClient(handler), () => Now);
+        return new StravaSegmentService(storage, new HttpClient(handler), new FakeTimeProvider(Now));
     }
 
     private async Task StoreConnectionAsync(string? accessToken)

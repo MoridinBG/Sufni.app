@@ -1028,7 +1028,8 @@ public class DatabaseMigrationRunnerTests
         var purgedSessionId = Guid.NewGuid();
         var keptSessionId = Guid.NewGuid();
         var keptSegmentId = Guid.NewGuid();
-        var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds();
+        var time = PersistenceTestData.CreateTimeProvider();
+        var twoDaysAgo = time.GetUtcNow().AddDays(-2).ToUnixTimeSeconds();
 
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
@@ -1041,7 +1042,7 @@ public class DatabaseMigrationRunnerTests
             connection.Insert(new SessionSegment { Id = keptSegmentId, SessionId = keptSessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 });
         }
 
-        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+        await new TestPersistenceHarness(tempDatabase.DatabasePath, time).GetInitializedConnectionAsync();
 
         using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
         Assert.Equal(keptSegmentId, Assert.Single(verificationConnection.Table<SessionSegment>().ToList()).Id);
@@ -1054,7 +1055,8 @@ public class DatabaseMigrationRunnerTests
         var purgedSessionId = Guid.NewGuid();
         var keptSessionId = Guid.NewGuid();
         var keptClipId = Guid.NewGuid();
-        var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2).ToUnixTimeSeconds();
+        var time = PersistenceTestData.CreateTimeProvider();
+        var twoDaysAgo = time.GetUtcNow().AddDays(-2).ToUnixTimeSeconds();
 
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
@@ -1066,7 +1068,7 @@ public class DatabaseMigrationRunnerTests
             connection.Insert(new SessionVideoClip { Id = keptClipId, SessionId = keptSessionId, Path = "/videos/kept.mp4" });
         }
 
-        await new TestPersistenceHarness(tempDatabase.DatabasePath).GetInitializedConnectionAsync();
+        await new TestPersistenceHarness(tempDatabase.DatabasePath, time).GetInitializedConnectionAsync();
 
         using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
         Assert.Equal(keptClipId, Assert.Single(verificationConnection.Table<SessionVideoClip>().ToList()).Id);

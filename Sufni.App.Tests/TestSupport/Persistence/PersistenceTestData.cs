@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using SQLite;
 using Sufni.Telemetry;
 
@@ -44,8 +45,11 @@ internal static class PersistenceTestData
         }
     }.BinaryForm;
 
-    public static SqliteConnectionContext CreateConnectionContext(string databasePath) =>
-        new(databasePath);
+    public static FakeTimeProvider CreateTimeProvider() =>
+        new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+
+    public static SqliteConnectionContext CreateConnectionContext(string databasePath, TimeProvider? timeProvider = null) =>
+        new(databasePath, timeProvider ?? CreateTimeProvider());
 }
 
 internal sealed class TableColumnInfo

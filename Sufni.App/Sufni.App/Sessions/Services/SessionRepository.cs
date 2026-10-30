@@ -97,7 +97,8 @@ public sealed record SessionPsstPayloadMetadata(
 
 internal sealed class SessionRepository(
     SqliteConnectionContext connectionContext,
-    IProcessingFingerprintService fingerprintService) : ISessionRepository
+    IProcessingFingerprintService fingerprintService,
+    TimeProvider timeProvider) : ISessionRepository
 {
     private sealed class RollbackWithoutResultException : Exception
     {
@@ -399,7 +400,7 @@ internal sealed class SessionRepository(
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
         var existing = await EntityExistsAsync<Session>(connection, session.Id);
-        session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         session.Deleted = null;
         if (existing)
         {
@@ -445,7 +446,7 @@ internal sealed class SessionRepository(
                 if (newFullTrack is not null)
                 {
                     var existingTrack = EntityExists<Track>(connection, newFullTrack.Id);
-                    newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    newFullTrack.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                     newFullTrack.Deleted = null;
 
                     if (existingTrack)
@@ -460,7 +461,7 @@ internal sealed class SessionRepository(
                     session.FullTrack = newFullTrack.Id;
                 }
 
-                session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                 var updatedRows = connection.Execute(
                     UpdateProcessedDerivedDataSql,
                     CreateDerivedDataUpdateValuesWithId(session));
@@ -575,7 +576,7 @@ internal sealed class SessionRepository(
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
         var pointsJson = AppJson.Serialize(points);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         var updatedRows = await connection.ExecuteAsync(
             """
             UPDATE session
@@ -620,7 +621,7 @@ internal sealed class SessionRepository(
                 if (newFullTrack is not null)
                 {
                     var existingTrack = EntityExists<Track>(connection, newFullTrack.Id);
-                    newFullTrack.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    newFullTrack.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                     newFullTrack.Deleted = null;
 
                     if (existingTrack)
@@ -636,7 +637,7 @@ internal sealed class SessionRepository(
                 }
 
                 var existingSession = EntityExists<Session>(connection, session.Id);
-                session.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                 session.Deleted = null;
 
                 if (existingSession)

@@ -58,23 +58,23 @@ internal sealed class StravaSegmentService : IStravaSegmentService
 
     private readonly ISecureStorage secureStorage;
     private readonly HttpClient httpClient;
-    private readonly Func<DateTimeOffset> getNow;
+    private readonly TimeProvider timeProvider;
     private readonly System.Threading.Lock segmentCacheLock = new();
     private readonly Dictionary<SegmentCacheKey, StravaSegmentFetchResult> segmentCache = [];
 
-    public StravaSegmentService(ISecureStorage secureStorage)
-        : this(secureStorage, new HttpClient())
+    public StravaSegmentService(ISecureStorage secureStorage, TimeProvider timeProvider)
+        : this(secureStorage, new HttpClient(), timeProvider)
     {
     }
 
     public StravaSegmentService(
         ISecureStorage secureStorage,
         HttpClient httpClient,
-        Func<DateTimeOffset>? getNow = null)
+        TimeProvider timeProvider)
     {
         this.secureStorage = secureStorage;
         this.httpClient = httpClient;
-        this.getNow = getNow ?? (() => DateTimeOffset.UtcNow);
+        this.timeProvider = timeProvider;
     }
 
     public async Task<StravaConnectionSnapshot> GetConnectionSnapshotAsync(
@@ -317,7 +317,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
 
         if (!string.IsNullOrWhiteSpace(accessToken) &&
             TryParseUnixExpiry(expiresAt, out var expiry) &&
-            expiry > getNow().Add(TokenRefreshMargin))
+            expiry > timeProvider.GetUtcNow().Add(TokenRefreshMargin))
         {
             return new AccessTokenResult.Available(accessToken);
         }

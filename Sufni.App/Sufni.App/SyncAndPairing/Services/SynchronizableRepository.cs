@@ -30,7 +30,8 @@ public interface ISynchronizableRepository<
 
 internal sealed class SynchronizableRepository<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-    SqliteConnectionContext connectionContext)
+    SqliteConnectionContext connectionContext,
+    TimeProvider timeProvider)
     : ISynchronizableRepository<T>
     where T : Synchronizable, new()
 {
@@ -69,14 +70,14 @@ internal sealed class SynchronizableRepository<
     }
 
     public Task DeleteAsync(Guid id) =>
-        connectionContext.RunInTransactionAsync(connection => DeleteInTransaction(connection, id));
+        connectionContext.RunInTransactionAsync(connection => DeleteInTransaction(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds()));
 
     public Task DeleteAsync(T item) => DeleteAsync(item.Id);
 
-    internal static Guid PutInTransaction(SQLiteConnection connection, T item)
+    internal static Guid PutInTransaction(SQLiteConnection connection, T item, long now)
     {
         var existing = EntityExists<T>(connection, item.Id);
-        item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        item.Updated = now;
         item.Deleted = null;
         if (existing)
         {
@@ -90,20 +91,20 @@ internal sealed class SynchronizableRepository<
         return item.Id;
     }
 
-    internal static void DeleteInTransaction(SQLiteConnection connection, Guid id)
+    internal static void DeleteInTransaction(SQLiteConnection connection, Guid id, long now)
     {
         var itemFromDatabase = connection.Find<T>(id);
         if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
         {
-            itemFromDatabase.Deleted = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            itemFromDatabase.Deleted = now;
             UpdateEntity(connection, itemFromDatabase);
         }
     }
 
-    private static async Task<Guid> PutCoreAsync(SQLiteAsyncConnection connection, T item)
+    private async Task<Guid> PutCoreAsync(SQLiteAsyncConnection connection, T item)
     {
         var existing = await EntityExistsAsync<T>(connection, item.Id);
-        item.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        item.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         item.Deleted = null;
         if (existing)
         {

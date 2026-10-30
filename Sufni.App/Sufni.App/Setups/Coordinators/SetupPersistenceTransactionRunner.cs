@@ -11,7 +11,8 @@ using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Setups.Coordinators;
 
 internal sealed class SetupPersistenceTransactionRunner(
-    SqliteConnectionContext connectionContext)
+    SqliteConnectionContext connectionContext,
+    TimeProvider timeProvider)
     : ISetupPersistenceTransactionRunner
 {
     public Task SaveSetupAsync(
@@ -22,8 +23,9 @@ internal sealed class SetupPersistenceTransactionRunner(
     {
         return connectionContext.RunInTransactionAsync(connection =>
         {
-            SynchronizableRepository<Setup>.PutInTransaction(connection, setup);
-            ReassignBoardInTransaction(connection, originalBoardId, newBoardId, setup.Id);
+            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+            SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now);
+            ReassignBoardInTransaction(connection, originalBoardId, newBoardId, setup.Id, now);
         }, cancellationToken);
     }
 
@@ -34,8 +36,9 @@ internal sealed class SetupPersistenceTransactionRunner(
     {
         return connectionContext.RunInTransactionAsync(connection =>
         {
-            SynchronizableRepository<Setup>.DeleteInTransaction(connection, setupId);
-            ReassignBoardInTransaction(connection, boardId, null, setupId);
+            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+            SynchronizableRepository<Setup>.DeleteInTransaction(connection, setupId, now);
+            ReassignBoardInTransaction(connection, boardId, null, setupId, now);
         }, cancellationToken);
     }
 
@@ -47,9 +50,10 @@ internal sealed class SetupPersistenceTransactionRunner(
     {
         return connectionContext.RunInTransactionAsync(connection =>
         {
-            SynchronizableRepository<Bike>.PutInTransaction(connection, bike);
-            SynchronizableRepository<Setup>.PutInTransaction(connection, setup);
-            ReassignBoardInTransaction(connection, originalBoardId: null, boardId, setup.Id);
+            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+            SynchronizableRepository<Bike>.PutInTransaction(connection, bike, now);
+            SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now);
+            ReassignBoardInTransaction(connection, originalBoardId: null, boardId, setup.Id, now);
         }, cancellationToken);
     }
 
@@ -57,18 +61,19 @@ internal sealed class SetupPersistenceTransactionRunner(
         SQLiteConnection connection,
         Guid? originalBoardId,
         Guid? newBoardId,
-        Guid setupId)
+        Guid setupId,
+        long now)
     {
         if (originalBoardId == newBoardId) return;
 
         if (originalBoardId.HasValue)
         {
-            SynchronizableRepository<Board>.PutInTransaction(connection, new Board(originalBoardId.Value, null));
+            SynchronizableRepository<Board>.PutInTransaction(connection, new Board(originalBoardId.Value, null), now);
         }
 
         if (newBoardId.HasValue)
         {
-            SynchronizableRepository<Board>.PutInTransaction(connection, new Board(newBoardId.Value, setupId));
+            SynchronizableRepository<Board>.PutInTransaction(connection, new Board(newBoardId.Value, setupId), now);
         }
     }
 }

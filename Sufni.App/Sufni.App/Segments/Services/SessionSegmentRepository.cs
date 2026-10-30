@@ -28,7 +28,7 @@ public interface ISessionSegmentRepository
     Task<SessionSegment?> DeleteAsync(Guid segmentId);
 }
 
-internal sealed class SessionSegmentRepository(SqliteConnectionContext connectionContext) : ISessionSegmentRepository
+internal sealed class SessionSegmentRepository(SqliteConnectionContext connectionContext, TimeProvider timeProvider) : ISessionSegmentRepository
 {
     public async Task<List<SessionSegment>> GetLiveAsync()
     {
@@ -45,7 +45,7 @@ internal sealed class SessionSegmentRepository(SqliteConnectionContext connectio
     public async Task InsertAsync(SessionSegment segment)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        segment.Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        segment.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         await connection.InsertAsync(segment);
     }
 
@@ -64,7 +64,7 @@ internal sealed class SessionSegmentRepository(SqliteConnectionContext connectio
             return null;
         }
 
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         change(segment, now);
         segment.Updated = now;
         await connection.UpdateAsync(segment);

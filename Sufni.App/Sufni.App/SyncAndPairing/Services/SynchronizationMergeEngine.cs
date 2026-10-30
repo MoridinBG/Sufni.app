@@ -52,7 +52,8 @@ public interface ISyncDataStore
 internal sealed class SynchronizationMergeEngine(
     SqliteConnectionContext connectionContext,
     ITrackRepository trackRepository,
-    IProcessingFingerprintService fingerprintService) : ISyncDataStore
+    IProcessingFingerprintService fingerprintService,
+    TimeProvider timeProvider) : ISyncDataStore
 {
     private static readonly string SessionSynchronizationProjection = $"""
                                                                       id,
@@ -257,12 +258,13 @@ internal sealed class SynchronizationMergeEngine(
     {
         await connectionContext.RunInTransactionAsync(connection =>
         {
-            foreach (var bike in data.Bikes) Merge(connection, bike, MergeGenericAcceptedContent);
-            foreach (var setup in data.Setups) Merge(connection, setup, MergeGenericAcceptedContent);
-            foreach (var board in data.Boards) Merge(connection, board, MergeGenericAcceptedContent);
-            foreach (var session in data.Sessions) Merge(connection, session, MergeSessionAcceptedContent);
-            foreach (var track in data.Tracks) Merge(connection, track, MergeGenericAcceptedContent);
-            foreach (var segment in data.Segments) Merge(connection, segment, MergeGenericAcceptedContent);
+            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+            foreach (var bike in data.Bikes) Merge(connection, bike, now, MergeGenericAcceptedContent);
+            foreach (var setup in data.Setups) Merge(connection, setup, now, MergeGenericAcceptedContent);
+            foreach (var board in data.Boards) Merge(connection, board, now, MergeGenericAcceptedContent);
+            foreach (var session in data.Sessions) Merge(connection, session, now, MergeSessionAcceptedContent);
+            foreach (var track in data.Tracks) Merge(connection, track, now, MergeGenericAcceptedContent);
+            foreach (var segment in data.Segments) Merge(connection, segment, now, MergeGenericAcceptedContent);
         });
     }
 
@@ -365,10 +367,10 @@ internal sealed class SynchronizationMergeEngine(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteConnection connection,
         T entity,
+        long now,
         Action<SQLiteConnection, T, T?, long, bool> applyAcceptedContent) where T : Synchronizable, new()
     {
         var existing = Find<T>(connection, entity.Id);
-        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         if (existing is null)
         {

@@ -13,7 +13,7 @@ public class SetupPersistenceTransactionRunnerTests
         using var tempDatabase = new TempDatabase("setup-save-transaction.db");
         var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var runner = new SetupPersistenceTransactionRunner(context);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider());
         var setupId = Guid.NewGuid();
         var oldBoardId = Guid.NewGuid();
         var newBoardId = Guid.NewGuid();
@@ -41,7 +41,7 @@ public class SetupPersistenceTransactionRunnerTests
         using var tempDatabase = new TempDatabase("setup-import-transaction.db");
         var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var runner = new SetupPersistenceTransactionRunner(context);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider());
         var bike = new Bike(Guid.NewGuid(), "bike");
         var setup = new Setup(Guid.NewGuid(), "imported setup") { BikeId = bike.Id };
         var boardId = Guid.NewGuid();
@@ -65,7 +65,7 @@ public class SetupPersistenceTransactionRunnerTests
         var boardId = Guid.NewGuid();
         var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var runner = new SetupPersistenceTransactionRunner(context);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider());
         await connection.InsertAsync(new Setup(setupId, "setup") { BikeId = Guid.NewGuid(), Updated = 10 });
         await connection.InsertAsync(new Board(boardId, setupId) { Updated = 10 });
 

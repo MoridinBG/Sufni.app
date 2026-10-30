@@ -166,6 +166,11 @@ erDiagram
 
 `SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives the database path from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner`, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and repairs duplicate track ranges.
 
+The connection context supplies the injected clock to startup migrations.
+Repositories and transaction runners receive `TimeProvider` for authored writes,
+tombstones, merge timestamps and cleanup cutoffs. Transaction runners pass sampled timestamps into synchronous helpers; those
+helpers do not read the wall clock.
+
 The connection context is also the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization, then delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`, so the connection/transaction lock is held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations; raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences are not used.
 
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
@@ -318,7 +323,7 @@ On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
 - `session_segment` and `session_video` rows whose session row no longer exists
-- `paired_device` rows where `Expires < DateTime.UtcNow`
+- `paired_device` rows whose `Expires` precedes the injected clock’s UTC time
 
 Recorded-source orphan cleanup runs after initialization through
 `RecordedSessionSourceRetentionCleanup`, not inside the schema cleanup pass. It
