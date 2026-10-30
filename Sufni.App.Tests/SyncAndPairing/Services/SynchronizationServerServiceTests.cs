@@ -139,7 +139,6 @@ public class SynchronizationServerServiceTests
             AscentMeters: 8,
             DescentMeters: 3,
             FullTrackId: Guid.NewGuid(),
-            GpsOffsetSeconds: 1.25,
             Track: [new Sufni.App.MapsAndTracks.Models.TrackPoint(100, 1, 2, 3)]);
         var sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
         var swapRequestStore = Substitute.For<ISessionBlobSwapRequestStore>();

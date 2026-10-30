@@ -304,7 +304,7 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(setupId, session.Setup);
         Assert.Equal(1234, session.Timestamp);
         Assert.Equal(beforeMerge!.FullTrack, session.FullTrack);
-        Assert.Equal(beforeMerge.GpsOffsetSeconds, session.GpsOffsetSeconds);
+        Assert.Equal(1.25, session.GpsOffsetSeconds);
         // The held-BLOB row retains every processed-generation field until the
         // matching BLOB arrives. Independent session metadata still syncs now.
         Assert.Equal(beforeMerge.ProcessingFingerprintJson, session.ProcessingFingerprintJson);
@@ -318,7 +318,7 @@ public class SynchronizationMergeEngineTests
         Assert.Null(sessionTrack);
         Assert.Equal(originalPsst, rawPsst);
         Assert.Equal(beforeMerge.ProcessedTelemetryRevision, session.ProcessedTelemetryRevision);
-        Assert.Equal(beforeMerge.TrackProjectionRevision, session.TrackProjectionRevision);
+        Assert.Equal(beforeMerge.TrackProjectionRevision + 1, session.TrackProjectionRevision);
         Assert.NotNull(fullTrack);
         Assert.Equal(2, fullTrack!.Points.Count);
         Assert.Equal(1, fullTrack.PointsRevision);
@@ -387,7 +387,7 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(setupId, session.Setup);
         Assert.Equal(1234, session.Timestamp);
         Assert.Equal(beforeMerge!.FullTrack, session.FullTrack);
-        Assert.Equal(beforeMerge.GpsOffsetSeconds, session.GpsOffsetSeconds);
+        Assert.Equal(1.25, session.GpsOffsetSeconds);
         Assert.Equal(beforeMerge.ProcessingFingerprintJson, session.ProcessingFingerprintJson);
         Assert.Equal(beforeMerge.DurationSeconds, session.DurationSeconds);
         Assert.Equal(beforeMerge.DistanceMeters, session.DistanceMeters);
@@ -487,7 +487,7 @@ public class SynchronizationMergeEngineTests
             Assert.NotNull(targetGeneration);
             Assert.Equal(80, targetGeneration!.DurationSeconds);
             Assert.Equal(targetTrackId, targetGeneration.FullTrackId);
-            Assert.Equal(1.25, targetGeneration.GpsOffsetSeconds);
+
             Assert.Equal(100, Assert.Single(targetGeneration.Track!).Time);
         }
     }
@@ -547,12 +547,12 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(20, swap.TargetGeneration.DistanceMeters);
         Assert.Equal(8, swap.TargetGeneration.AscentMeters);
         Assert.Equal(3, swap.TargetGeneration.DescentMeters);
-        Assert.Equal(1.25, swap.TargetGeneration.GpsOffsetSeconds);
+
         Assert.Equal(100, Assert.Single(swap.TargetGeneration.Track!).Time);
     }
 
     [Fact]
-    public async Task PulledSwap_ExposesOnlyHeldGenerationUntilCompleteTargetCommit()
+    public async Task PulledSwap_PublishesAlignmentBeforeReplacingHeldGeneration()
     {
         using var tempDatabase = new TempDatabase("pulled-generation-boundary.db");
         var sessionId = Guid.NewGuid();
@@ -612,13 +612,14 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(100, afterMetadata.VelocityFilterWindowMilliseconds);
         Assert.Equal(held.ProcessingFingerprintJson, afterMetadata.ProcessingFingerprintJson);
         Assert.Equal(held.FullTrack, afterMetadata.FullTrack);
-        Assert.Equal(held.GpsOffsetSeconds, afterMetadata.GpsOffsetSeconds);
+        Assert.Equal(1.25, afterMetadata.GpsOffsetSeconds);
         Assert.Equal(heldData, await database.SessionRepository.GetSessionRawPsstAsync(
             sessionId,
             held.ProcessedTelemetryRevision));
+        Assert.Null(await database.SessionRepository.GetSessionTrackAsync(sessionId, held.TrackProjectionRevision));
         Assert.Equal(100, Assert.Single((await database.SessionRepository.GetSessionTrackAsync(
             sessionId,
-            held.TrackProjectionRevision))!).Time);
+            afterMetadata.TrackProjectionRevision))!).Time);
 
         await database.SessionTelemetryWriter.SwapSessionPsstAsync(
             sessionId,

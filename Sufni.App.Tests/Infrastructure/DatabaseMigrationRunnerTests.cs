@@ -994,7 +994,6 @@ public class DatabaseMigrationRunnerTests
             AscentMeters: 8,
             DescentMeters: 3,
             FullTrackId: Guid.NewGuid(),
-            GpsOffsetSeconds: 1.25,
             Track: [new TrackPoint(100, 1, 2, 3)]);
         verificationConnection.Execute(
             $"UPDATE {SessionBlobSwapRequestStore.TableName} SET target_generation = ? WHERE session_id = ?",
@@ -1004,7 +1003,6 @@ public class DatabaseMigrationRunnerTests
         var migratedRequest = await database.GetSessionBlobSwapRequestAsync(sessionId);
         Assert.NotNull(migratedRequest?.TargetGeneration);
         Assert.Equal(80, migratedRequest!.TargetGeneration!.DurationSeconds);
-        Assert.Equal(1.25, migratedRequest.TargetGeneration.GpsOffsetSeconds);
         Assert.Equal(100, Assert.Single(migratedRequest.TargetGeneration.Track!).Time);
     }
 

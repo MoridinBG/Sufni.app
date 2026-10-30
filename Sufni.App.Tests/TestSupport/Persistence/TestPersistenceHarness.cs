@@ -145,9 +145,6 @@ internal sealed class TestPersistenceHarness
     public Task SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
         sessionTelemetryWriter.SwapSessionPsstAsync(id, data, fingerprint);
 
-    public Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null) =>
-        sessionTelemetryWriter.PatchSessionTrackAsync(id, points, gpsOffsetSeconds);
-
     public Task<RecordedSessionSource?> GetRecordedSessionSourceAsync(Guid id) =>
         recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
 

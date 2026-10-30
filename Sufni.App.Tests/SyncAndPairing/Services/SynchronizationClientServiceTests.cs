@@ -240,7 +240,6 @@ public class SynchronizationClientServiceTests
             AscentMeters: 8,
             DescentMeters: 3,
             FullTrackId: Guid.NewGuid(),
-            GpsOffsetSeconds: 1.25,
             Track: [new TrackPoint(100, 1, 2, 3)]);
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);

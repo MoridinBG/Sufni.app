@@ -63,7 +63,6 @@ public interface ISessionTelemetryWriter
         string? fingerprint,
         SessionProcessedGeneration generation);
 
-    Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null);
 }
 
 internal sealed class SessionTelemetryWriter(
@@ -149,28 +148,6 @@ internal sealed class SessionTelemetryWriter(
             hasTrackPoints ? metrics.DescentMeters : current.DescentMeters);
 
         await sessionRepository.UpdateSessionPsstAsync(id, data, fingerprint, finalMetrics);
-    }
-
-    public async Task PatchSessionTrackAsync(Guid id, List<TrackPoint> points, double? gpsOffsetSeconds = null)
-    {
-        var current = await sessionRepository.GetSessionAsync(id)
-                       ?? throw new Exception($"Session {id} does not exist.");
-
-        var durationSeconds = await ResolvePatchDurationSecondsAsync(current);
-        var metrics = sessionTelemetryProcessor.ComputeSummaryMetrics(durationSeconds, points);
-
-        await sessionRepository.UpdateSessionTrackAsync(id, points, metrics, gpsOffsetSeconds);
-    }
-
-    private async Task<double?> ResolvePatchDurationSecondsAsync(Session current)
-    {
-        if (current.DurationSeconds is { } durationSeconds)
-        {
-            return durationSeconds;
-        }
-
-        var raw = await sessionRepository.GetSessionRawPsstAsync(current.Id);
-        return sessionTelemetryProcessor.ReadProcessedDurationSeconds(raw);
     }
 
     private async Task PrepareProcessedSessionAsync(

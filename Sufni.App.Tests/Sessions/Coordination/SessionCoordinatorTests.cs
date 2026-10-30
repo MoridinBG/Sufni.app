@@ -33,6 +33,8 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionCoordinatorTests
 {
+    private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
+    private readonly InMemorySynchronizableRepository<Track> trackRepository = new(new FakeTimeProvider());
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionTelemetryWriter sessionTelemetryWriter = Substitute.For<ISessionTelemetryWriter>();
@@ -58,6 +60,82 @@ public class SessionCoordinatorTests
                 Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(true);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(65.0)]
+    public async Task ShiftGpsOffsetAsync_UsesPersistedOffset_AndPublishesTrackMetrics(double? storedDuration)
+    {
+        var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(20));
+        var repository = new InMemorySessionRepository(clock);
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var original = PrepareAlignment(repository, storedDuration);
+        await store.PublishSessionsChangedAsync([original with { GpsOffsetSeconds = 0 }]);
+
+        var result = await CreateCoordinator(store, repository.Repository).ShiftGpsOffsetAsync(original.Id, 1.25, TestContext.Current.CancellationToken);
+
+        Assert.IsType<GpsOffsetResult.Applied>(result);
+        var saved = (await repository.Repository.GetSessionAsync(original.Id))!;
+        Assert.Equal(2.5, saved.GpsOffsetSeconds);
+        Assert.Equal(storedDuration ?? 3, saved.DurationSeconds);
+        Assert.True(saved.DistanceMeters > 0);
+        Assert.Equal(20, saved.Updated);
+        Assert.Equal(SessionSnapshot.From(saved), store.Get(original.Id));
+        var points = await repository.Repository.GetSessionTrackAsync(original.Id);
+        Assert.Equal(original.Timestamp!.Value + 2.5, points![0].Time);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ShiftGpsOffsetAsync_DistinguishesMissingSessionFromPersistenceFailure(bool missing)
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var original = PrepareAlignment(repository, 3);
+        await store.PublishSessionsChangedAsync([original]);
+        if (missing) repository.Repository.GetSessionAsync(original.Id).Returns((Session?)null);
+        else repository.WriteFailure = new IOException("disk full");
+
+        var result = await CreateCoordinator(store, repository.Repository).ShiftGpsOffsetAsync(original.Id, 1.25, TestContext.Current.CancellationToken);
+
+        if (missing) Assert.IsType<GpsOffsetResult.SessionMissing>(result);
+        else Assert.Equal(GpsOffsetFailureReason.Save, Assert.IsType<GpsOffsetResult.Failed>(result).Reason);
+        Assert.Equal(original, store.Get(original.Id));
+    }
+
+    [Fact]
+    public async Task ShiftGpsOffsetAsync_LeavesSessionUnchanged_WhenNoTrackSegmentMatches()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var original = PrepareAlignment(repository, 3);
+        await store.PublishSessionsChangedAsync([original]);
+
+        var result = await CreateCoordinator(store, repository.Repository).ShiftGpsOffsetAsync(original.Id, 100, TestContext.Current.CancellationToken);
+
+        Assert.IsType<GpsOffsetResult.NoMatchingTrack>(result);
+        Assert.Equal(original, store.Get(original.Id));
+        Assert.Equal(original, SessionSnapshot.From((await repository.Repository.GetSessionAsync(original.Id))!));
+        Assert.Null(await repository.Repository.GetSessionTrackAsync(original.Id));
+    }
+
+    private SessionSnapshot PrepareAlignment(InMemorySessionRepository repository, double? storedDuration)
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        telemetry.Metadata.Duration = 3;
+        var track = new Track
+        {
+            Id = Guid.NewGuid(),
+            Points = Enumerable.Range(0, 7).Select(index => new TrackPoint(telemetry.Metadata.Timestamp + index, index, index, 100)).ToList()
+        };
+        trackRepository.Seed(track);
+        var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5, timestamp: telemetry.Metadata.Timestamp)
+            with { FullTrackId = track.Id, GpsOffsetSeconds = 1.25, DurationSeconds = storedDuration };
+        repository.Seed(snapshot);
+        processedTelemetryReader.Set(snapshot.Id, telemetry);
+        return snapshot;
     }
 
     [Theory]
@@ -411,7 +489,9 @@ public class SessionCoordinatorTests
             sessionPreferences,
             recomputeEngine,
             sessionPersistenceTransactions,
-            new InlineUiThreadDispatcher());
+            new InlineUiThreadDispatcher(),
+            processedTelemetryReader,
+            trackRepository);
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

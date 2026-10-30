@@ -34,7 +34,6 @@ namespace Sufni.App.Tests.TestSupport.Sessions;
 
 internal sealed class SessionDetailHarness
 {
-    private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
     public SessionDetailHarness()
@@ -174,7 +173,6 @@ internal sealed class SessionDetailHarness
             SessionCoordinator,
             SessionLoader,
             RecomputeEngine,
-            trackCoordinator,
             SessionStore,
             RecordedSessionProjection,
             new TestMapViewModelFactory(tileLayerService),

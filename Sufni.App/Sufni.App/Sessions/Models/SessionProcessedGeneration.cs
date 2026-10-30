@@ -10,7 +10,6 @@ public sealed record SessionProcessedGeneration(
     double? AscentMeters,
     double? DescentMeters,
     Guid? FullTrackId,
-    double GpsOffsetSeconds,
     List<TrackPoint>? Track)
 {
     public static SessionProcessedGeneration From(Session session) => new(
@@ -19,6 +18,5 @@ public sealed record SessionProcessedGeneration(
         session.AscentMeters,
         session.DescentMeters,
         session.FullTrack,
-        session.GpsOffsetSeconds,
         session.Track is null ? null : [.. session.Track]);
 }

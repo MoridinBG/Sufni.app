@@ -9,8 +9,6 @@ namespace Sufni.App.Sessions.Processing.Services;
 
 internal interface ISessionTelemetryProcessor
 {
-    double? ReadProcessedDurationSeconds(byte[]? processedData);
-
     TelemetryData ReadProcessedTelemetryData(byte[] processedData);
 
     SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points);
@@ -24,23 +22,6 @@ internal interface ISessionTelemetryProcessor
 
 internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
 {
-    public double? ReadProcessedDurationSeconds(byte[]? processedData)
-    {
-        if (processedData is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return TelemetryData.FromBinary(processedData).Metadata?.Duration;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     public TelemetryData ReadProcessedTelemetryData(byte[] processedData)
     {
         try

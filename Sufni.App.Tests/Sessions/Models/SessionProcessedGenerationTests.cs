@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -7,7 +8,7 @@ namespace Sufni.App.Tests.Sessions.Models;
 public class SessionProcessedGenerationTests
 {
     [Fact]
-    public void From_CapturesAndSerializesProcessedGeneration()
+    public void From_CapturesGenerationWithoutAuthoredAlignment()
     {
         var fullTrackId = Guid.NewGuid();
         var session = new Session(Guid.NewGuid(), "session", string.Empty, null)
@@ -23,8 +24,10 @@ public class SessionProcessedGenerationTests
 
         var generation = SessionProcessedGeneration.From(session);
         session.Track.Clear();
-        var roundTrip = AppJson.Deserialize<SessionProcessedGeneration>(
-            AppJson.Serialize(generation));
+        var json = AppJson.Serialize(generation);
+        using var document = JsonDocument.Parse(json);
+        Assert.False(document.RootElement.TryGetProperty("GpsOffsetSeconds", out _));
+        var roundTrip = AppJson.Deserialize<SessionProcessedGeneration>(json);
 
         Assert.NotNull(roundTrip);
         Assert.Equal(12, roundTrip!.DurationSeconds);
@@ -32,7 +35,6 @@ public class SessionProcessedGenerationTests
         Assert.Equal(5, roundTrip.AscentMeters);
         Assert.Equal(6, roundTrip.DescentMeters);
         Assert.Equal(fullTrackId, roundTrip.FullTrackId);
-        Assert.Equal(1.25, roundTrip.GpsOffsetSeconds);
         var point = Assert.Single(roundTrip.Track!);
         Assert.Equal(100, point.Time);
         Assert.Equal(1, point.X);

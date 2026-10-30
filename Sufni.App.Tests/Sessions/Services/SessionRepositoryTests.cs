@@ -147,7 +147,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutSessionAsync_UpdatesGpsOffset_OnMetadataUpdate()
+    public async Task PutSessionAsync_PreservesAlignmentAndTimestamp_OnMetadataUpdate()
     {
         using var tempDatabase = new TempDatabase("session-gps-offset-metadata-save.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -159,7 +159,7 @@ public class SessionRepositoryTests
             GpsOffsetSeconds = 1.25
         });
 
-        await database.PutSessionAsync(new Session(sessionId, "renamed", "desc", null, 100)
+        await database.PutSessionAsync(new Session(sessionId, "renamed", "desc", null, 200)
         {
             GpsOffsetSeconds = 3.75
         });
@@ -167,7 +167,9 @@ public class SessionRepositoryTests
         var loaded = await database.GetSessionAsync(sessionId);
 
         Assert.NotNull(loaded);
-        Assert.Equal(3.75, loaded!.GpsOffsetSeconds);
+        Assert.Equal(1.25, loaded!.GpsOffsetSeconds);
+        Assert.Equal(100, loaded.Timestamp);
+        Assert.Equal("renamed", loaded.Name);
     }
 
     [Fact]
@@ -516,7 +518,6 @@ public class SessionRepositoryTests
             AscentMeters: 8,
             DescentMeters: 3,
             FullTrackId: targetTrackId,
-            GpsOffsetSeconds: 1.25,
             Track: [new TrackPoint(101, 4, 5, 6)]);
 
         await database.SessionRepository.UpdateSessionProcessedGenerationAsync(
@@ -533,7 +534,7 @@ public class SessionRepositoryTests
         Assert.Equal(8, after.AscentMeters);
         Assert.Equal(3, after.DescentMeters);
         Assert.Equal(targetTrackId, after.FullTrack);
-        Assert.Equal(1.25, after.GpsOffsetSeconds);
+        Assert.Equal(before.GpsOffsetSeconds, after.GpsOffsetSeconds);
         Assert.Equal(before.ProcessedTelemetryRevision + 1, after.ProcessedTelemetryRevision);
         Assert.Equal(before.TrackProjectionRevision + 1, after.TrackProjectionRevision);
         Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(
@@ -670,7 +671,7 @@ public class SessionRepositoryTests
         Assert.Equal("new", session!.Name);
         Assert.Equal("new desc", session.Description);
         Assert.Equal(setupId, session.Setup);
-        Assert.Equal(1234, session.Timestamp);
+        Assert.Equal(50, session.Timestamp);
         Assert.Null(session.Deleted);
         // Derived columns are preserved from the existing row, not taken from the
         // incoming metadata save.
@@ -678,7 +679,7 @@ public class SessionRepositoryTests
         Assert.Equal("""{"existing":true}""", session.ProcessingFingerprintJson);
         Assert.True(session.HasProcessedData);
         Assert.Equal(1, session.ProcessedTelemetryRevision);
-        Assert.Equal(2, session.TrackProjectionRevision);
+        Assert.Equal(1, session.TrackProjectionRevision);
         Assert.Equal(originalPsst, rawPsst);
         Assert.NotNull(sessionTrack);
         Assert.Equal(2, sessionTrack!.Count);

@@ -11,6 +11,8 @@ public interface ISessionCoordinator
 {
     Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds);
 
+    Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default);
+
     Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated);
 
     Task<LiveSessionSaveResult> SaveLiveCaptureAsync(

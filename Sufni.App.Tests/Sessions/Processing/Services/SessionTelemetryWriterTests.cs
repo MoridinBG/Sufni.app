@@ -36,7 +36,6 @@ public class SessionTelemetryWriterTests
         Assert.Equal("""{"schemaVersion":3}""", session.ProcessingFingerprintJson);
         Assert.Equal(65, session.DurationSeconds);
         Assert.Equal(0, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
-        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
     }
 
     [Fact]
@@ -64,7 +63,6 @@ public class SessionTelemetryWriterTests
         Assert.Equal("""{"schemaVersion":3}""", session.ProcessingFingerprintJson);
         Assert.Equal(66, session.DurationSeconds);
         Assert.Equal(0, telemetryProcessor.ReadProcessedTelemetryDataCallCount);
-        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
     }
 
     [Fact]
@@ -353,7 +351,6 @@ public class SessionTelemetryWriterTests
             AscentMeters: 8,
             DescentMeters: 3,
             FullTrackId: Guid.NewGuid(),
-            GpsOffsetSeconds: 1.25,
             Track: [new TrackPoint(100, 1, 2, 3)]);
         var sessionRepository = Substitute.For<ISessionRepository>();
         var telemetryProcessor = new TestSessionTelemetryProcessor();
@@ -404,156 +401,4 @@ public class SessionTelemetryWriterTests
         Assert.Equal(80, session.DurationSeconds);
     }
 
-    [Fact]
-    public async Task PatchSessionTrackAsync_RecomputesMetrics_AndBumpsSessionUpdated()
-    {
-        using var tempDatabase = new TempDatabase("writer-track-patch.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
-            {
-                DurationSeconds = 65,
-                Updated = 1,
-                ClientUpdated = 1
-            });
-        }
-
-        var before = await database.GetSessionAsync(sessionId);
-
-        await database.PatchSessionTrackAsync(sessionId,
-        [
-            new TrackPoint(100, 1, 1, 0),
-            new TrackPoint(101, 2, 2, 0)
-        ],
-        gpsOffsetSeconds: 2.5);
-
-        var after = await database.GetSessionAsync(sessionId);
-        var track = await database.GetSessionTrackAsync(sessionId);
-
-        Assert.NotNull(before);
-        Assert.NotNull(after);
-        Assert.NotNull(track);
-        Assert.Equal(2, track!.Count);
-        Assert.Equal(65, after!.DurationSeconds);
-        Assert.InRange(after.DistanceMeters!.Value, 1.41, 1.42);
-        Assert.Equal(0, after.AscentMeters);
-        Assert.Equal(0, after.DescentMeters);
-        Assert.Equal(2.5, after.GpsOffsetSeconds);
-        Assert.True(after!.Updated > before!.Updated);
-
-    }
-
-    [Fact]
-    public async Task PatchSessionTrackAsync_UsesStoredDuration_WithoutReadingProcessedBytes()
-    {
-        var sessionRepository = Substitute.For<ISessionRepository>();
-        var trackRepository = Substitute.For<ITrackRepository>();
-        var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
-        var sessionId = Guid.NewGuid();
-        var points = new List<TrackPoint>
-        {
-            new(100, 0, 0, 10),
-            new(101, 3, 4, 14)
-        };
-        sessionRepository.GetSessionAsync(sessionId)
-            .Returns(new Session(sessionId, "session", "desc", null, 100)
-            {
-                DurationSeconds = 65
-            });
-        sessionRepository
-            .UpdateSessionTrackAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<List<TrackPoint>>(),
-                Arg.Any<SessionSummaryMetrics>(),
-                Arg.Any<double?>())
-            .Returns(Task.CompletedTask);
-
-        await writer.PatchSessionTrackAsync(sessionId, points);
-
-        await sessionRepository.DidNotReceive().GetSessionRawPsstAsync(sessionId);
-        Assert.Equal(0, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
-        await sessionRepository.Received(1).UpdateSessionTrackAsync(
-            sessionId,
-            points,
-            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == 65),
-            null);
-    }
-
-    [Fact]
-    public async Task PatchSessionTrackAsync_ReadsProcessedDuration_WhenStoredDurationIsMissing()
-    {
-        var sessionRepository = Substitute.For<ISessionRepository>();
-        var trackRepository = Substitute.For<ITrackRepository>();
-        var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
-        var sessionId = Guid.NewGuid();
-        var points = new List<TrackPoint>
-        {
-            new(100, 0, 0, 10),
-            new(101, 3, 4, 14)
-        };
-        sessionRepository.GetSessionAsync(sessionId)
-            .Returns(new Session(sessionId, "session", "desc", null, 100));
-        var raw = TestTelemetryData.CreateMinimal(duration: 65).BinaryForm;
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns(raw);
-        sessionRepository
-            .UpdateSessionTrackAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<List<TrackPoint>>(),
-                Arg.Any<SessionSummaryMetrics>(),
-                Arg.Any<double?>())
-            .Returns(Task.CompletedTask);
-
-        await writer.PatchSessionTrackAsync(sessionId, points);
-
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
-        Assert.Equal(1, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
-        await sessionRepository.Received(1).UpdateSessionTrackAsync(
-            sessionId,
-            points,
-            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == 65),
-            null);
-    }
-
-    [Fact]
-    public async Task PatchSessionTrackAsync_KeepsNullDuration_WhenStoredAndProcessedDurationAreMissing()
-    {
-        var sessionRepository = Substitute.For<ISessionRepository>();
-        var trackRepository = Substitute.For<ITrackRepository>();
-        var telemetryProcessor = new TestSessionTelemetryProcessor();
-        var writer = new SessionTelemetryWriter(sessionRepository, trackRepository, telemetryProcessor);
-        var sessionId = Guid.NewGuid();
-        var points = new List<TrackPoint>
-        {
-            new(100, 0, 0, 10),
-            new(101, 3, 4, 14)
-        };
-        sessionRepository.GetSessionAsync(sessionId)
-            .Returns(new Session(sessionId, "session", "desc", null, 100));
-        sessionRepository.GetSessionRawPsstAsync(sessionId).Returns((byte[]?)null);
-        sessionRepository
-            .UpdateSessionTrackAsync(
-                Arg.Any<Guid>(),
-                Arg.Any<List<TrackPoint>>(),
-                Arg.Any<SessionSummaryMetrics>(),
-                Arg.Any<double?>())
-            .Returns(Task.CompletedTask);
-
-        await writer.PatchSessionTrackAsync(sessionId, points);
-
-        await sessionRepository.Received(1).GetSessionRawPsstAsync(sessionId);
-        Assert.Equal(1, telemetryProcessor.ReadProcessedDurationSecondsCallCount);
-        await sessionRepository.Received(1).UpdateSessionTrackAsync(
-            sessionId,
-            points,
-            Arg.Is<SessionSummaryMetrics>(metrics => metrics.DurationSeconds == null),
-            null);
-    }
 }

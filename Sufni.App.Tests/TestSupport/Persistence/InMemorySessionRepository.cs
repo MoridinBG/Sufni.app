@@ -1,5 +1,6 @@
 using NSubstitute;
 using Sufni.App.Sessions.Models;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 
@@ -8,6 +9,7 @@ namespace Sufni.App.Tests.TestSupport.Persistence;
 internal sealed class InMemorySessionRepository
 {
     private readonly Dictionary<Guid, SessionSnapshot> snapshots = [];
+    private readonly Dictionary<Guid, List<TrackPoint>> tracks = [];
     public ISessionRepository Repository { get; } = Substitute.For<ISessionRepository>();
     public Exception? WriteFailure { get; set; }
 
@@ -16,6 +18,26 @@ internal sealed class InMemorySessionRepository
         Repository.GetSessionAsync(Arg.Any<Guid>()).Returns(call =>
             snapshots.GetValueOrDefault(call.Arg<Guid>())?.ToMetadataEntity());
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => snapshot.ToMetadataEntity()).ToList());
+        Repository.GetSessionTrackAsync(Arg.Any<Guid>()).Returns(call => tracks.GetValueOrDefault(call.Arg<Guid>()));
+        Repository.UpdateSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>())
+            .Returns(call =>
+            {
+                if (WriteFailure is { } failure) return Task.FromException(failure);
+                var id = call.Arg<Guid>();
+                var current = snapshots[id];
+                var metrics = call.Arg<SessionSummaryMetrics>();
+                snapshots[id] = current with
+                {
+                    GpsOffsetSeconds = call.Arg<double?>() ?? current.GpsOffsetSeconds,
+                    DurationSeconds = metrics.DurationSeconds,
+                    DistanceMeters = metrics.DistanceMeters,
+                    AscentMeters = metrics.AscentMeters,
+                    DescentMeters = metrics.DescentMeters,
+                    Updated = clock.GetUtcNow().ToUnixTimeSeconds()
+                };
+                tracks[id] = [.. call.Arg<List<TrackPoint>>()];
+                return Task.CompletedTask;
+            });
         Repository.SetProcessingOptionAsync(Arg.Any<Guid>(), Arg.Any<int>()).Returns(call =>
             SetWindow(call.Arg<Guid>(), call.ArgAt<int>(1)));
         Repository.RestoreProcessingOptionAsync(Arg.Any<Guid>(), Arg.Any<int>(), Arg.Any<int?>()).Returns(call =>
@@ -44,6 +66,8 @@ internal sealed class InMemorySessionRepository
             {
                 saved = saved with
                 {
+                    Timestamp = current.Timestamp,
+                    GpsOffsetSeconds = current.GpsOffsetSeconds,
                     HasProcessedData = current.HasProcessedData,
                     ProcessingFingerprintJson = current.ProcessingFingerprintJson,
                     FullTrackId = current.FullTrackId,

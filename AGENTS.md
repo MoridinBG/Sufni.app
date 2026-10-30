@@ -356,8 +356,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   server startup or user-driven arrivals. `AppStartup` gates pages on schema
   initialization and the first store refresh; `AppShutdown` owns close prompts,
   work drainage, pending deletes, server stop and provider disposal.
-  `SessionCoordinator` owns metadata save, processing-option changes, live-capture
-  save and deletion. Recorded editors use `ISessionLoader` for staged reads;
+  `SessionCoordinator` owns metadata save, processing-option changes, GPS alignment,
+  live-capture save and deletion. Recorded editors use `ISessionLoader` for staged reads;
   lists and staleness prompts call `ISessionRecomputeEngine` directly. The engine
   owns recompute liveness and commit guards; `SessionSyncApplier` owns inbound
   publication — see [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).

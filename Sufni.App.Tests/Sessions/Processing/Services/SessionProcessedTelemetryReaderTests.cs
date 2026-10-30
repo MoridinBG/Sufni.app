@@ -363,9 +363,6 @@ public class SessionProcessedTelemetryReaderTests
 
         public void ReleaseDecode() => releaseDecode.Set();
 
-        public double? ReadProcessedDurationSeconds(byte[]? processedData) =>
-            throw new NotSupportedException();
-
         public TelemetryData ReadProcessedTelemetryData(byte[] processedData)
         {
             ReadProcessedTelemetryDataCallCount++;
@@ -388,9 +385,6 @@ public class SessionProcessedTelemetryReaderTests
     private sealed class FailingThenSuccessfulTelemetryProcessor(TelemetryData telemetryData) : ISessionTelemetryProcessor
     {
         public int ReadProcessedTelemetryDataCallCount { get; private set; }
-
-        public double? ReadProcessedDurationSeconds(byte[]? processedData) =>
-            throw new NotSupportedException();
 
         public TelemetryData ReadProcessedTelemetryData(byte[] processedData)
         {

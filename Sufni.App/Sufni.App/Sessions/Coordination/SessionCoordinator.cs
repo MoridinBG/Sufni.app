@@ -20,12 +20,14 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Models;
 namespace Sufni.App.Sessions.Coordination;
 
-/// <summary>Owns session metadata, processing-option, live-save and delete workflows.</summary>
-public sealed class SessionCoordinator : ISessionCoordinator
+/// <summary>Owns session metadata, processing options, GPS alignment, live saves and deletion.</summary>
+internal sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
 
     private readonly IUiThreadDispatcher dispatcher;
+    private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
+    private readonly ISynchronizableRepository<Track> trackRepository;
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionTelemetryWriter sessionTelemetryWriter;
@@ -50,9 +52,13 @@ public sealed class SessionCoordinator : ISessionCoordinator
         ISessionPreferences sessionPreferences,
         ISessionRecomputeEngine recomputeEngine,
         ISessionPersistenceTransactionRunner sessionPersistenceTransactions,
-        IUiThreadDispatcher dispatcher)
+        IUiThreadDispatcher dispatcher,
+        ISessionProcessedTelemetryReader processedTelemetryReader,
+        ISynchronizableRepository<Track> trackRepository)
     {
         this.dispatcher = dispatcher;
+        this.processedTelemetryReader = processedTelemetryReader;
+        this.trackRepository = trackRepository;
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
         this.sessionTelemetryWriter = sessionTelemetryWriter;
@@ -101,6 +107,45 @@ public sealed class SessionCoordinator : ISessionCoordinator
         {
             logger.Error(exception, "Processing option change failed for {SessionId}", sessionId);
             return new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.ProcessingOption, exception.Message);
+        }
+    }
+
+    public async Task<GpsOffsetResult> ShiftGpsOffsetAsync(
+        Guid sessionId,
+        double deltaSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var current = await sessionRepository.GetSessionAsync(sessionId);
+                if (current is null) return (GpsOffsetResult)new GpsOffsetResult.SessionMissing();
+                if (current.FullTrack is not { } trackId || await trackRepository.GetAsync(trackId) is not { } track)
+                    return new GpsOffsetResult.NoMatchingTrack();
+                var telemetry = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
+                if (telemetry is null) return new GpsOffsetResult.NoMatchingTrack();
+
+                var offset = SessionTrackProjection.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
+                var points = SessionTrackProjection.GenerateSessionTrack(track, telemetry, offset);
+                if (points.Count == 0) return new GpsOffsetResult.NoMatchingTrack();
+                var metrics = SessionSummaryMetricsCalculator.Calculate(current.DurationSeconds ?? telemetry.Metadata.Duration, points);
+                cancellationToken.ThrowIfCancellationRequested();
+                await sessionRepository.UpdateSessionTrackAsync(sessionId, points, metrics, offset);
+                var fresh = await sessionRepository.GetSessionAsync(sessionId);
+                if (fresh is null)
+                {
+                    await sessionStore.PublishSessionsRemovedAsync([sessionId]);
+                    return new GpsOffsetResult.SessionMissing();
+                }
+                await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
+                return new GpsOffsetResult.Applied();
+            }, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.Error(exception, "GPS alignment failed for {SessionId}", sessionId);
+            return new GpsOffsetResult.Failed(GpsOffsetFailureReason.Save, exception.Message);
         }
     }
 
@@ -335,4 +380,13 @@ public abstract record SessionDeleteResult
     private SessionDeleteResult() { }
     public sealed record Deleted : SessionDeleteResult;
     public sealed record Failed(SessionDeleteFailureReason Reason, string? Details = null) : SessionDeleteResult;
+}
+
+public abstract record GpsOffsetResult
+{
+    private GpsOffsetResult() { }
+    public sealed record Applied : GpsOffsetResult;
+    public sealed record NoMatchingTrack : GpsOffsetResult;
+    public sealed record SessionMissing : GpsOffsetResult;
+    public sealed record Failed(GpsOffsetFailureReason Reason, string? Details = null) : GpsOffsetResult;
 }

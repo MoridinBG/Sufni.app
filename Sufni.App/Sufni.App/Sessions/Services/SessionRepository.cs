@@ -155,17 +155,11 @@ internal sealed class SessionRepository(
                                                              deleted=NULL
                                                              """;
 
-    // Metadata save writes user-authored columns plus gps_offset_seconds. The
-    // offset is owned by explicit alignment/origin commands; full_track_id and
-    // session_processing_fingerprint remain derived columns preserved from the
-    // processed-write path.
     private const string SessionMetadataSaveUpdateAssignments = """
                                                                 name=?,
                                                                 setup_id=?,
                                                                 description=?,
-                                                                timestamp=?,
                                                                 velocity_filter_window_ms=?,
-                                                                gps_offset_seconds=?,
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                 updated=?,
@@ -568,7 +562,6 @@ internal sealed class SessionRepository(
                 ascent_meters=?,
                 descent_meters=?,
                 full_track_id=?,
-                gps_offset_seconds=?,
                 track=?
             WHERE id=? AND deleted IS NULL
             """,
@@ -579,7 +572,6 @@ internal sealed class SessionRepository(
             generation.AscentMeters,
             generation.DescentMeters,
             generation.FullTrackId,
-            NormalizeGpsOffsetSeconds(generation.GpsOffsetSeconds),
             trackJson,
             id);
         if (updatedRows == 0)
@@ -758,9 +750,7 @@ internal sealed class SessionRepository(
         session.Name,
         session.Setup,
         session.Description,
-        session.Timestamp,
         session.VelocityFilterWindowMilliseconds,
-        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.FrontSpringRate,
         session.FrontHighSpeedCompression,
         session.FrontLowSpeedCompression,

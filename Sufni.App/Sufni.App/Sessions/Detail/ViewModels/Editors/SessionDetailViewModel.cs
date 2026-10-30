@@ -83,7 +83,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ISessionLoader sessionLoader;
-    private readonly ITrackCoordinator trackCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionProjection recordedSessionProjection;
@@ -1169,19 +1168,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         if (!CanMarkGpsTelemetryEventFromPlotContext(context) ||
             pendingTimelineAlignmentMark is not TimelineAlignmentMark.GpsTrack mark ||
-            telemetryData is not { } telemetry)
+            telemetryData is null)
         {
             return;
         }
 
         SetPendingTimelineAlignmentMark(null);
         var offsetDeltaSeconds = mark.Seconds - context!.ClickSeconds;
-        var newOffsetSeconds = NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds + offsetDeltaSeconds);
-        var applied = await trackCoordinator.UpdateSessionGpsOffsetAsync(
-            Id,
-            session.FullTrack,
-            telemetry,
-            newOffsetSeconds);
+        var applied = await sessionCoordinator.ShiftGpsOffsetAsync(Id, offsetDeltaSeconds);
 
         switch (applied)
         {
@@ -1385,9 +1379,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ErrorMessages.Add(new FailurePresentation($"The edit was applied. {failure.Summary}", failure.Details));
     }
 
-    private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
-        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
-
     void ISessionOperationGateway.AddError(FailurePresentation failure) => ErrorMessages.Add(failure);
 
     void ISessionOperationGateway.Notify(string message) => Notifications.Add(message);
@@ -1414,7 +1405,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionCoordinator sessionCoordinator,
         ISessionLoader sessionLoader,
         ISessionRecomputeEngine recomputeEngine,
-        ITrackCoordinator trackCoordinator,
         ISessionStore sessionStore,
         IRecordedSessionProjection recordedSessionProjection,
         IMapViewModelFactory mapViewModelFactory,
@@ -1440,7 +1430,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.sessionCoordinator = sessionCoordinator;
         this.sessionLoader = sessionLoader;
         this.sessionOperationRunner = sessionOperationRunner;
-        this.trackCoordinator = trackCoordinator;
         this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
         this.recordedSessionProjection = recordedSessionProjection;
