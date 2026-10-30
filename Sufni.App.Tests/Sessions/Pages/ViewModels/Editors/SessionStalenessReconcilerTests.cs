@@ -256,8 +256,7 @@ public class SessionStalenessReconcilerTests
         currentFingerprint,
         null,
         null,
-        staleness,
-        DerivedChangeKind.None);
+        staleness);
 
     private sealed class ReconcilerHarness
     {

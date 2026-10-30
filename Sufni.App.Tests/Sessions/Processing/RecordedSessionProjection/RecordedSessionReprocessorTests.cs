@@ -50,8 +50,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -103,8 +102,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -181,8 +179,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -280,8 +277,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
@@ -516,8 +512,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
         var reprocessor = CreateReprocessor();
 
         // The single derivation path (import / live-save / recompute all flow through
@@ -648,8 +643,7 @@ public class RecordedSessionReprocessorTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
     }
 
     private static RecordedSessionReprocessor CreateReprocessor() =>

@@ -223,13 +223,9 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         try
         {
             results = await backgroundTaskRunner.RunAsync(() => inputs.Select(input =>
-            {
-                var change = input.Previous is null ? DerivedChangeKind.Initial : ComputeChangeKind(
-                    input.Previous, input.Session, input.Setup, input.Bike, input.Source, input.DependencyHash);
-                return (Input: input, Domain: RecordedSessionDomainSnapshotFactory.Create(
+                (Input: input, Domain: RecordedSessionDomainSnapshotFactory.Create(
                     input.Session, input.Setup, input.Bike, input.Source,
-                    fingerprintService, input.DependencyHash, change));
-            }).ToArray()).ConfigureAwait(false);
+                    fingerprintService, input.DependencyHash))).ToArray()).ConfigureAwait(false);
         }
         catch
         {
@@ -282,7 +278,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         var setup = session.SetupId is { } setupId ? setupStore.Get(setupId) : null;
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
         return new ProjectionInput(session, setup, bike, sourceStore.Get(session.RecordingSourceSessionId),
-            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), domains.GetValueOrDefault(id));
+            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id));
     }
 
     private bool IsCurrent(ProjectionInput input)
@@ -312,82 +308,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     }
 
     private sealed record ProjectionInput(SessionSnapshot Session, SetupSnapshot? Setup, BikeSnapshot? Bike,
-        RecordedSessionSourceSnapshot? Source, string? DependencyHash, RecordedSessionDomainSnapshot? Previous);
+        RecordedSessionSourceSnapshot? Source, string? DependencyHash);
 
-    private static DerivedChangeKind ComputeChangeKind(
-        RecordedSessionDomainSnapshot previous,
-        SessionSnapshot session,
-        SetupSnapshot? setup,
-        BikeSnapshot? bike,
-        RecordedSessionSourceSnapshot? source,
-        string? dependencyHash)
-    {
-        var changeKind = DerivedChangeKind.None;
-
-        if (SessionMetadataChanged(previous.Session, session))
-        {
-            changeKind |= DerivedChangeKind.SessionMetadataChanged;
-        }
-
-        if (SessionTrackChanged(previous.Session, session))
-        {
-            changeKind |= DerivedChangeKind.DerivedTrackChanged;
-        }
-
-        if (previous.Session.HasProcessedData != session.HasProcessedData)
-        {
-            changeKind |= DerivedChangeKind.ProcessedDataAvailabilityChanged;
-        }
-
-        if (!SourceEquals(previous.Source, source))
-        {
-            changeKind |= DerivedChangeKind.SourceAvailabilityChanged;
-        }
-
-        if (!string.Equals(previous.DependencyHash, dependencyHash, StringComparison.Ordinal))
-        {
-            changeKind |= DerivedChangeKind.DependencyChanged;
-        }
-
-        if (!string.Equals(previous.Session.ProcessingFingerprintJson, session.ProcessingFingerprintJson, StringComparison.Ordinal))
-        {
-            changeKind |= DerivedChangeKind.FingerprintChanged;
-        }
-
-        if (previous.Session.DerivationWindow != session.DerivationWindow)
-        {
-            changeKind |= DerivedChangeKind.FingerprintChanged;
-        }
-
-        return changeKind;
-    }
-
-    private static bool SessionTrackChanged(SessionSnapshot previous, SessionSnapshot current) =>
-        previous.FullTrackId != current.FullTrackId ||
-        previous.GpsOffsetSeconds != current.GpsOffsetSeconds;
-
-    private static bool SessionMetadataChanged(SessionSnapshot previous, SessionSnapshot current) =>
-        previous.Name != current.Name ||
-        previous.Description != current.Description ||
-        previous.SetupId != current.SetupId ||
-        previous.Timestamp != current.Timestamp ||
-        previous.FrontSpringRate != current.FrontSpringRate ||
-        previous.FrontHighSpeedCompression != current.FrontHighSpeedCompression ||
-        previous.FrontLowSpeedCompression != current.FrontLowSpeedCompression ||
-        previous.FrontLowSpeedRebound != current.FrontLowSpeedRebound ||
-        previous.FrontHighSpeedRebound != current.FrontHighSpeedRebound ||
-        previous.RearSpringRate != current.RearSpringRate ||
-        previous.RearHighSpeedCompression != current.RearHighSpeedCompression ||
-        previous.RearLowSpeedCompression != current.RearLowSpeedCompression ||
-        previous.RearLowSpeedRebound != current.RearLowSpeedRebound ||
-        previous.RearHighSpeedRebound != current.RearHighSpeedRebound;
-
-    private static bool SourceEquals(RecordedSessionSourceSnapshot? previous, RecordedSessionSourceSnapshot? current) =>
-        previous?.SessionId == current?.SessionId &&
-        previous?.SourceKind == current?.SourceKind &&
-        previous?.SourceName == current?.SourceName &&
-        previous?.SchemaVersion == current?.SchemaVersion &&
-        previous?.SourceHash == current?.SourceHash;
 
 }
 

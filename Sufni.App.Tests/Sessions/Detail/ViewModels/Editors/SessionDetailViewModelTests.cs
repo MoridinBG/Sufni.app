@@ -336,10 +336,9 @@ public class SessionDetailViewModelTests
 
         var firstLoadTask = harness.LoadAsync(editor);
         await WaitForAsync(() => trackLoadCount == 1);
-        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot));
         watch.OnNext(DomainFromSnapshot(
-            snapshot with { Updated = 2 },
-            DerivedChangeKind.FingerprintChanged));
+            snapshot with { Updated = 2, ProcessedTelemetryRevision = 2 }));
         await WaitForAsync(() => trackLoadCount == 2);
         await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, latestTelemetry));
         await WaitForAsync(() => editor.CurrentTrackPoints?.SequenceEqual(latestTrack) == true);
@@ -383,14 +382,12 @@ public class SessionDetailViewModelTests
             });
 
         await harness.LoadAsync(editor);
-        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot));
         watch.OnNext(DomainFromSnapshot(
-            snapshot with { Updated = 2 },
-            DerivedChangeKind.FingerprintChanged));
+            snapshot with { Updated = 2, ProcessedTelemetryRevision = 2 }));
         await WaitForAsync(() => loadCount == 2);
         watch.OnNext(DomainFromSnapshot(
-            snapshot with { Updated = 3 },
-            DerivedChangeKind.FingerprintChanged));
+            snapshot with { Updated = 3, ProcessedTelemetryRevision = 3 }));
         await WaitForAsync(() => loadCount == 3);
 
         latestRefresh.SetResult(harness.CreateLoadedResult(latestTelemetry));
@@ -530,10 +527,10 @@ public class SessionDetailViewModelTests
             watch.AsObservable());
 
         await harness.LoadAsync(editor);
-        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot));
         editor.DescriptionText = "dirty draft";
 
-        watch.OnNext(DomainFromSnapshot(updatedSnapshot, DerivedChangeKind.SessionMetadataChanged));
+        watch.OnNext(DomainFromSnapshot(updatedSnapshot));
         await Task.Yield();
 
         Assert.True(editor.IsDirty);
@@ -549,8 +546,10 @@ public class SessionDetailViewModelTests
             Arg.Any<string>());
     }
 
-    [AvaloniaFact]
-    public async Task CombinedMetadataAndDerivedChange_RefreshesTelemetry_AndStillPromptsForMetadata()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MetadataAndTelemetryChanges_RefreshTelemetry_AndKeepDirtyConflict(bool deferred)
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(
@@ -558,7 +557,8 @@ public class SessionDetailViewModelTests
             description: "persisted",
             hasProcessedData: true,
             updated: 5);
-        var combinedSnapshot = snapshot with { Updated = 8, Description = "remote" };
+        var metadataSnapshot = snapshot with { Updated = 8, Description = "remote" };
+        var combinedSnapshot = metadataSnapshot with { ProcessedTelemetryRevision = snapshot.ProcessedTelemetryRevision + 1 };
         var watch = new Subject<RecordedSessionDomainSnapshot>();
         var oldTelemetry = TestTelemetryData.CreateProcessed();
         var freshTelemetry = TestTelemetryData.CreateProcessed();
@@ -582,12 +582,20 @@ public class SessionDetailViewModelTests
             .Returns(false);
 
         await harness.LoadAsync(editor);
-        watch.OnNext(DomainFromSnapshot(snapshot, DerivedChangeKind.Initial));
+        watch.OnNext(DomainFromSnapshot(snapshot));
         editor.DescriptionText = "dirty draft";
 
-        watch.OnNext(DomainFromSnapshot(
-            combinedSnapshot,
-            DerivedChangeKind.FingerprintChanged | DerivedChangeKind.SessionMetadataChanged));
+        if (deferred)
+        {
+            editor.SetTabActive(false);
+            watch.OnNext(DomainFromSnapshot(metadataSnapshot));
+        }
+        watch.OnNext(DomainFromSnapshot(combinedSnapshot));
+        if (deferred)
+        {
+            await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+            editor.SetTabActive(true);
+        }
 
         await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, freshTelemetry));
 
@@ -792,7 +800,6 @@ public class SessionDetailViewModelTests
 
     private static RecordedSessionDomainSnapshot DomainFromSnapshot(
         SessionSnapshot snapshot,
-        DerivedChangeKind changeKind = DerivedChangeKind.None,
         SessionStaleness? staleness = null) => new(
         snapshot,
         null,
@@ -800,8 +807,7 @@ public class SessionDetailViewModelTests
         null,
         null,
         null,
-        staleness ?? new SessionStaleness.Current(),
-        changeKind);
+        staleness ?? new SessionStaleness.Current());
 
     private static SessionDetailLoadResult IncompleteResult(Guid sessionId) =>
         new SessionDetailLoadResult.IncompleteLocalData(

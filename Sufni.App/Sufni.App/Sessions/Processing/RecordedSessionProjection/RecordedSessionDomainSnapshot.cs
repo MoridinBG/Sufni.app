@@ -6,8 +6,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// <summary>
 /// Complete derived state for one recorded session.
 /// It combines the persisted session snapshot, processing dependencies,
-/// recorded-source metadata, fingerprint comparison values, staleness, and the
-/// reason for the latest emitted change.
+/// recorded-source metadata, fingerprint comparison values, and staleness.
 /// </summary>
 public sealed record RecordedSessionDomainSnapshot(
     SessionSnapshot Session,
@@ -17,5 +16,4 @@ public sealed record RecordedSessionDomainSnapshot(
     ProcessingFingerprint? PersistedFingerprint,
     RecordedSessionSourceSnapshot? Source,
     SessionStaleness Staleness,
-    DerivedChangeKind ChangeKind,
     string? DependencyHash = null);

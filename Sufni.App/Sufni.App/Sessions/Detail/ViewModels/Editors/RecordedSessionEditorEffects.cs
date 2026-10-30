@@ -5,6 +5,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.Telemetry;
 
@@ -141,6 +142,31 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
             .DistinctUntilChanged()
             .Select(static _ => new RecordedSessionEditorEffect.RefreshCommands());
     }
+
+    public static bool RequiresDraftReconciliation(SessionSnapshot previous, SessionSnapshot current) =>
+        previous.Name != current.Name ||
+        previous.Description != current.Description ||
+        previous.SetupId != current.SetupId ||
+        previous.Timestamp != current.Timestamp ||
+        previous.FrontSpringRate != current.FrontSpringRate ||
+        previous.FrontHighSpeedCompression != current.FrontHighSpeedCompression ||
+        previous.FrontLowSpeedCompression != current.FrontLowSpeedCompression ||
+        previous.FrontLowSpeedRebound != current.FrontLowSpeedRebound ||
+        previous.FrontHighSpeedRebound != current.FrontHighSpeedRebound ||
+        previous.RearSpringRate != current.RearSpringRate ||
+        previous.RearHighSpeedCompression != current.RearHighSpeedCompression ||
+        previous.RearLowSpeedCompression != current.RearLowSpeedCompression ||
+        previous.RearLowSpeedRebound != current.RearLowSpeedRebound ||
+        previous.RearHighSpeedRebound != current.RearHighSpeedRebound;
+
+    public static bool RequiresTelemetryReload(SessionSnapshot previous, SessionSnapshot current) =>
+        previous.HasProcessedData != current.HasProcessedData ||
+        previous.ProcessedTelemetryRevision != current.ProcessedTelemetryRevision ||
+        previous.ProcessingFingerprintJson != current.ProcessingFingerprintJson ||
+        previous.DerivationWindow != current.DerivationWindow ||
+        previous.FullTrackId != current.FullTrackId ||
+        previous.GpsOffsetSeconds != current.GpsOffsetSeconds ||
+        previous.TrackProjectionRevision != current.TrackProjectionRevision;
 
     public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
         IObservable<RecordedSessionEditorState> states) =>

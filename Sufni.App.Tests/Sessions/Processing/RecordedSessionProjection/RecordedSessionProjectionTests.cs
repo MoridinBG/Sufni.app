@@ -205,7 +205,7 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public async Task WatchSession_EmitsInitialThenCombinedSessionChangeKind_WhenSessionChanges()
+    public async Task WatchSession_EmitsUpdatedSessionFacts_WhenSessionChanges()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -218,7 +218,7 @@ public class RecordedSessionProjectionTests
         await stores.AddAsync(context);
         await scheduler.DrainAsync();
         var initial = Assert.Single(emissions);
-        Assert.Equal(DerivedChangeKind.Initial, initial.ChangeKind);
+        Assert.Equal(context.Session, initial.Session);
 
         await stores.Sessions.PublishSessionsChangedAsync([context.Session with
         {
@@ -229,14 +229,14 @@ public class RecordedSessionProjectionTests
         await scheduler.DrainAsync();
 
         var latest = emissions.Last();
-        Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.SessionMetadataChanged));
-        Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged));
-        Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.FingerprintChanged));
+        Assert.Equal("renamed session", latest.Session.Name);
+        Assert.False(latest.Session.HasProcessedData);
+        Assert.Null(latest.Session.ProcessingFingerprintJson);
         Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]
-    public async Task WatchSession_EmitsSourceAvailabilityChanged_WhenSourceHashChanges()
+    public async Task WatchSession_EmitsStaleSourceFacts_WhenSourceHashChanges()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -252,13 +252,12 @@ public class RecordedSessionProjectionTests
         await scheduler.DrainAsync();
 
         var latest = emissions.Last();
-        Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, latest.ChangeKind);
         Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
         Assert.Equal("changed-source-hash", latest.CurrentFingerprint!.SourceHash);
     }
 
     [Fact]
-    public async Task WatchSession_EmitsFingerprintChanged_WhenDerivationWindowChanges()
+    public async Task WatchSession_EmitsUpdatedFingerprint_WhenDerivationWindowChanges()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -277,7 +276,6 @@ public class RecordedSessionProjectionTests
 
         var latest = Assert.Single(emissions);
         Assert.Equal(2, latest.Session.DerivationWindow!.StartSeconds);
-        Assert.Equal(DerivedChangeKind.FingerprintChanged, latest.ChangeKind);
         Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
@@ -302,12 +300,11 @@ public class RecordedSessionProjectionTests
         var latest = Assert.Single(emissions);
         Assert.Equal(context.Session.Id, latest.Session.Id);
         Assert.Equal("changed-source-hash", latest.CurrentFingerprint!.SourceHash);
-        Assert.True(latest.ChangeKind.HasFlag(DerivedChangeKind.SourceAvailabilityChanged));
         Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
     [Fact]
-    public async Task WatchSession_EmitsDependencyChanged_WhenBikeProcessingDependencyChanges()
+    public async Task WatchSession_EmitsUpdatedDependency_WhenBikeProcessingDependencyChanges()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -323,7 +320,6 @@ public class RecordedSessionProjectionTests
         await scheduler.DrainAsync();
 
         var latest = emissions.Last();
-        Assert.Equal(DerivedChangeKind.DependencyChanged, latest.ChangeKind);
         Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
@@ -354,7 +350,7 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public async Task WatchSession_CoalescesSameTurnStoreChangesIntoSingleMultiCauseEmission()
+    public async Task WatchSession_CoalescesSameTurnStoreChangesIntoOneDomain()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -376,11 +372,9 @@ public class RecordedSessionProjectionTests
         await scheduler.DrainAsync();
 
         var latest = Assert.Single(emissions);
-        var expected =
-            DerivedChangeKind.SessionMetadataChanged |
-            DerivedChangeKind.SourceAvailabilityChanged |
-            DerivedChangeKind.DependencyChanged;
-        Assert.Equal(expected, latest.ChangeKind);
+        Assert.Equal("renamed session", latest.Session.Name);
+        Assert.Equal(context.Bike.HeadAngle + 0.5, latest.Bike!.HeadAngle);
+        Assert.Equal("changed-source-hash", latest.Source!.SourceHash);
         Assert.IsType<SessionStaleness.Stale>(latest.Staleness);
     }
 
@@ -451,13 +445,11 @@ public class RecordedSessionProjectionTests
         Assert.False(completed);
         Assert.Equal(2, emissions.Count);
         Assert.Equal("refreshed session", emissions[^1].Session.Name);
-        Assert.Equal(DerivedChangeKind.SessionMetadataChanged, emissions[^1].ChangeKind);
 
         await stores.Sources.PublishSourcesChangedAsync([context.Source with { SourceHash = "changed-after-refresh" }]);
         await scheduler.DrainAsync();
 
         Assert.Equal(3, emissions.Count);
-        Assert.Equal(DerivedChangeKind.SourceAvailabilityChanged, emissions[^1].ChangeKind);
     }
 
     private static TestContext CreateCurrentContext(ProcessingFingerprintService fingerprintService)

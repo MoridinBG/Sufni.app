@@ -149,17 +149,18 @@ window is part of the session snapshot), evaluates processing staleness, and pub
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
   persisted fingerprint, source metadata (of the session's recording
-  source), staleness result, and a `DerivedChangeKind` flags value describing what
-  changed since the previous domain snapshot.
+  source), and staleness result. It carries facts, with no emitted-change flags.
 
-The recorded detail editor consumes this stream through a single
-reaction that treats two axes orthogonally. The *derived* axis
+The recorded detail editor compares each domain against its last handled domain,
+so deferred updates are compared with the state the editor actually consumed.
+Its presentation effects classify draft reconciliation and telemetry reloads from
+those facts, including persisted telemetry/track revisions. The single reaction
+treats two axes orthogonally. The *derived* axis
 (processed-data availability, fingerprint, or the session-window track)
 always refreshes the displayed telemetry/track and advances the
 editor's optimistic-concurrency baseline — even while a metadata prompt
 is pending, and without resetting unsaved edits. The *metadata* axis
-(`SessionMetadataChanged`, now user-authored fields only: name,
-description, setup, timestamp, tuning) is decided independently: an
+(name, description, setup, timestamp, tuning) is decided independently: an
 external metadata change with no local edits is absorbed, while a change
 against unsaved edits prompts to discard-and-reload and otherwise holds
 the baseline back so the next save still detects the conflict. That
@@ -168,8 +169,7 @@ emission (e.g. a recompute result) refreshes telemetry but does **not**
 advance the baseline past the unacknowledged metadata edit, so it cannot
 silently clear the pending conflict; the pin lifts only when the conflict
 resolves (reload, save, or absorb).
-`FullTrackId`/`GpsOffsetSeconds` are classified as `DerivedTrackChanged`
-rather than metadata, so a recompute or GPS-offset adjustment refreshes
+`FullTrackId`/`GpsOffsetSeconds` affect telemetry/track reloads rather than draft reconciliation, so a recompute or GPS-offset adjustment refreshes
 the track without a discard prompt.
 
 Recompute and GPS-offset adjustment are one-way: they persist and upsert

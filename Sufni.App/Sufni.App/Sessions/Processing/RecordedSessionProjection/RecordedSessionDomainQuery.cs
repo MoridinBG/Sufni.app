@@ -30,11 +30,10 @@ public sealed class RecordedSessionDomainQuery(
             : RecordedSessionDomainSnapshotFactory.Create(
                 session,
                 setup,
-                bikeStore,
+                setup is null ? null : bikeStore.Get(setup.BikeId),
                 sourceStore.Get(session.RecordingSourceSessionId),
                 fingerprintService,
-                setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
-                DerivedChangeKind.None);
+                setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id));
     }
 }
 
@@ -43,24 +42,10 @@ internal static class RecordedSessionDomainSnapshotFactory
     public static RecordedSessionDomainSnapshot Create(
         SessionSnapshot session,
         SetupSnapshot? setup,
-        IBikeStore bikeStore,
-        RecordedSessionSourceSnapshot? source,
-        IProcessingFingerprintService fingerprintService,
-        string? dependencyHash,
-        DerivedChangeKind changeKind)
-    {
-        var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
-        return Create(session, setup, bike, source, fingerprintService, dependencyHash, changeKind);
-    }
-
-    public static RecordedSessionDomainSnapshot Create(
-        SessionSnapshot session,
-        SetupSnapshot? setup,
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
-        string? dependencyHash,
-        DerivedChangeKind changeKind)
+        string? dependencyHash)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
@@ -75,7 +60,6 @@ internal static class RecordedSessionDomainSnapshotFactory
             evaluation.Persisted,
             source,
             evaluation.Staleness,
-            changeKind,
             effectiveDependencyHash);
     }
 }

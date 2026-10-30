@@ -115,7 +115,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CompositeDisposable editorInputSubjects;
     private readonly RecordedSessionEditorStateController editorStateController;
     private RecordedSessionEditorState currentEditorState = RecordedSessionEditorState.CreateInitial();
-    private bool observedInitialDomain;
+    private RecordedSessionDomainSnapshot? handledDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly RecordedPagePresentationApplier presentationApplier;
     private readonly RecordedPreferenceStore recordedPreferenceStore;
@@ -942,27 +942,23 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         deferredDomain = null;
 
-        var initial = !observedInitialDomain;
-        observedInitialDomain = true;
+        var previous = handledDomain;
+        handledDomain = domain;
 
-        if (!initial)
+        if (previous is not null)
         {
             // The initial replay already matches the loaded state, so only real
             // changes drive the derived/metadata reaction.
-            await ApplyDomainReactionAsync(domain);
+            await ApplyDomainReactionAsync(previous.Session, domain.Session);
         }
 
         await stalenessReconciler.HandleStalenessAsync(domain);
     }
 
-    private async Task ApplyDomainReactionAsync(RecordedSessionDomainSnapshot domain)
+    private async Task ApplyDomainReactionAsync(SessionSnapshot previous, SessionSnapshot snapshot)
     {
-        var snapshot = domain.Session;
-        var metadataChanged = domain.ChangeKind.HasFlag(DerivedChangeKind.SessionMetadataChanged);
-        var reloadTelemetry =
-            domain.ChangeKind.HasFlag(DerivedChangeKind.ProcessedDataAvailabilityChanged) ||
-            domain.ChangeKind.HasFlag(DerivedChangeKind.FingerprintChanged) ||
-            domain.ChangeKind.HasFlag(DerivedChangeKind.DerivedTrackChanged);
+        var metadataChanged = RecordedSessionEditorEffects.RequiresDraftReconciliation(previous, snapshot);
+        var reloadTelemetry = RecordedSessionEditorEffects.RequiresTelemetryReload(previous, snapshot);
 
         if (metadataChanged && IsDirty)
         {
@@ -2462,7 +2458,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         viewLoaded = false;
         viewLoadOperation.Cancel();
         loadOperation.Cancel();
-        observedInitialDomain = false;
+        handledDomain = null;
         deferredDomain = null;
         sessionOperationRunner.Cancel(Id);
         segmentComparison.Clear();

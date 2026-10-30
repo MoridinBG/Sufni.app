@@ -64,8 +64,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
 
         domainQuery.Get(sessionId).Returns(domain);
         sessionRepository.GetProcessingInputBundleAsync(sessionId).Returns(_ => TestDerivationInputs.DatabaseInputs(domainQuery.Get(sessionId)!));
@@ -345,8 +344,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale(),
-            DerivedChangeKind.None);
+            new SessionStaleness.Stale());
         domainQuery.Get(sessionId).Returns(domain);
         sessionRepository.GetProcessingInputBundleAsync(sessionId).Returns(TestDerivationInputs.DatabaseInputs(domain));
         sourceRepository.GetRecordedSessionSourceAsync(sourceSessionId).Returns(source);
@@ -387,8 +385,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             null,
-            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false),
-            DerivedChangeKind.None));
+            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false)));
 
         var engine = CreateEngine();
         var result = await engine
@@ -427,8 +424,7 @@ public class SessionRecomputeEngineTests
             null,
             null,
             null,
-            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false),
-            DerivedChangeKind.None));
+            new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false)));
         var skippedPersisted = new Session(skippedId, "skipped", "desc", Guid.NewGuid(), 100);
 
         sessionRepository.GetActiveSessionIdsAsync().Returns([firstPersisted.Id, secondPersisted.Id, skippedPersisted.Id, currentId, missingId]);

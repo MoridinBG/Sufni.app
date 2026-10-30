@@ -53,7 +53,6 @@ public class RecordedSessionDomainQueryTests
         Assert.Equal(context.Setup, domain.Setup);
         Assert.Equal(context.Bike, domain.Bike);
         Assert.Equal(context.Source, domain.Source);
-        Assert.Equal(DerivedChangeKind.None, domain.ChangeKind);
         Assert.IsType<SessionStaleness.Current>(domain.Staleness);
         Assert.NotNull(domain.CurrentFingerprint);
         Assert.Equal(domain.CurrentFingerprint, domain.PersistedFingerprint);
