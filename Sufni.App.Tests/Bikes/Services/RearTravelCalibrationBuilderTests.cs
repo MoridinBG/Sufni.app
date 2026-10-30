@@ -1,4 +1,5 @@
 using Sufni.Kinematics;
+using Sufni.App.Shared.Models;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
@@ -28,21 +29,18 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.True(success);
-        Assert.Null(errorMessage);
-        Assert.NotNull(calibration);
+        var calibration = Assert.IsType<RearTravelCalibrationResult.Built>(result).Calibration;
         Assert.Equal(50, calibration!.MaxTravel, 6);
         Assert.False(calibration.MeasurementWraps);
-        Assert.IsType<AdcTravelLookupTable>(calibration.MeasurementToTravel.Target);
         Assert.Equal(12, calibration.MeasurementToTravel(3), 6);
         Assert.Equal(20, calibration.MeasurementToTravel(5), 6);
         Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
     }
 
     [Fact]
-    public void TryBuild_ReturnsFalse_WhenLeverageRatioShockStrokeDoesNotMatchCurveMax()
+    public void TryBuild_ReturnsConfigurationFailure_WhenLeverageRatioShockStrokeDoesNotMatchCurveMax()
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
@@ -58,14 +56,13 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.False(success);
-        Assert.Null(calibration);
+        Assert.Equal(RearCalibrationFailureReason.Configuration, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
     }
 
     [Fact]
-    public void TryBuild_ReturnsFalse_WhenLeverageRatioShockStrokeIsMissing()
+    public void TryBuild_ReturnsConfigurationFailure_WhenLeverageRatioShockStrokeIsMissing()
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
@@ -81,10 +78,9 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.False(success);
-        Assert.Null(calibration);
+        Assert.Equal(RearCalibrationFailureReason.Configuration, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
     }
 
     [Fact]
@@ -104,11 +100,9 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.True(success);
-        Assert.Null(errorMessage);
-        Assert.NotNull(calibration);
+        var calibration = Assert.IsType<RearTravelCalibrationResult.Built>(result).Calibration;
         Assert.Equal(50, calibration!.MaxTravel, 6);
     }
 
@@ -134,21 +128,18 @@ public class RearTravelCalibrationBuilderTests
         };
         var kinematicSolutionCache = new TrackingKinematicSolutionCache();
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage, kinematicSolutionCache);
+        var result = TryBuild(setup, bike, kinematicSolutionCache);
 
-        Assert.True(success);
-        Assert.Null(errorMessage);
-        Assert.NotNull(calibration);
+        var calibration = Assert.IsType<RearTravelCalibrationResult.Built>(result).Calibration;
         Assert.Equal(0, calibration!.MeasurementToTravel(0), 6);
         Assert.False(calibration.MeasurementWraps);
-        Assert.IsType<AdcTravelLookupTable>(calibration.MeasurementToTravel.Target);
         Assert.True(calibration.MeasurementToTravel(5) > 0);
         Assert.Equal(calibration.MaxTravel, calibration.MeasurementToTravel(15), 6);
         Assert.Equal(1, kinematicSolutionCache.GetOrSolveCount);
     }
 
     [Fact]
-    public void TryBuild_ReturnsSuccessfulNullCalibration_ForHardtail()
+    public void TryBuild_ReturnsNotApplicable_ForHardtail()
     {
         var bike = new Bike(Guid.NewGuid(), "hardtail")
         {
@@ -159,11 +150,9 @@ public class RearTravelCalibrationBuilderTests
             BikeId = bike.Id,
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.True(success);
-        Assert.Null(calibration);
-        Assert.Null(errorMessage);
+        Assert.IsType<RearTravelCalibrationResult.NotApplicable>(result);
     }
 
     public static TheoryData<RearSuspensionSpec> DraftRearSuspensions => new()
@@ -174,7 +163,7 @@ public class RearTravelCalibrationBuilderTests
 
     [Theory]
     [MemberData(nameof(DraftRearSuspensions))]
-    public void TryBuild_ReturnsFalse_WhenRearSuspensionStateIsDraft(RearSuspensionSpec rearSuspension)
+    public void TryBuild_ReturnsConfigurationFailure_WhenRearSuspensionStateIsDraft(RearSuspensionSpec rearSuspension)
     {
         var bike = new Bike(Guid.NewGuid(), "invalid bike")
         {
@@ -191,15 +180,13 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.False(success);
-        Assert.Null(calibration);
-        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+        Assert.Equal(RearCalibrationFailureReason.Configuration, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
     }
 
     [Fact]
-    public void TryBuild_ReturnsFalse_WhenRearSensorConfigurationIsMissing()
+    public void TryBuild_ReturnsNotApplicable_WhenRearSensorConfigurationIsMissing()
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))));
@@ -208,11 +195,9 @@ public class RearTravelCalibrationBuilderTests
             BikeId = bike.Id,
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.False(success);
-        Assert.Null(calibration);
-        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+        Assert.IsType<RearTravelCalibrationResult.NotApplicable>(result);
     }
 
     [Fact]
@@ -239,13 +224,10 @@ public class RearTravelCalibrationBuilderTests
         };
         var kinematicSolutionCache = new TrackingKinematicSolutionCache();
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage, kinematicSolutionCache);
+        var result = TryBuild(setup, bike, kinematicSolutionCache);
 
-        Assert.True(success);
-        Assert.Null(errorMessage);
-        Assert.NotNull(calibration);
+        var calibration = Assert.IsType<RearTravelCalibrationResult.Built>(result).Calibration;
         Assert.True(calibration!.MeasurementWraps);
-        Assert.IsType<AdcTravelLookupTable>(calibration.MeasurementToTravel.Target);
         Assert.True(calibration!.MaxTravel > 0);
         Assert.True(double.IsFinite(calibration.MeasurementToTravel(0)));
         Assert.True(double.IsFinite(calibration.MeasurementToTravel(128)));
@@ -254,7 +236,7 @@ public class RearTravelCalibrationBuilderTests
     }
 
     [Fact]
-    public void TryBuild_ReturnsFalse_ForIncompatibleSensorAndBikePair()
+    public void TryBuild_ReturnsConfigurationFailure_ForIncompatibleSensorAndBikePair()
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))));
@@ -269,19 +251,15 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.False(success);
-        Assert.Null(calibration);
-        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+        Assert.Equal(RearCalibrationFailureReason.Configuration, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
     }
 
     [Theory]
-    [InlineData(1601, true)]
-    [InlineData(1602, false)]
-    public void TryBuild_AdmitsLookupOnlyThroughTheMaximumLeverageCurveSize(
-        int pointCount,
-        bool expectsLookup)
+    [InlineData(1601)]
+    [InlineData(1602)]
+    public void TryBuild_PreservesCalibration_AcrossLookupCurveSizeBoundary(int pointCount)
     {
         var points = Enumerable.Range(0, pointCount)
             .Select(index =>
@@ -304,16 +282,15 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.True(success);
-        Assert.Null(errorMessage);
-        Assert.NotNull(calibration);
-        Assert.Equal(expectsLookup, calibration!.MeasurementToTravel.Target is AdcTravelLookupTable);
+        var calibration = Assert.IsType<RearTravelCalibrationResult.Built>(result).Calibration;
+        Assert.Equal(160, calibration.MeasurementToTravel(4095), 6);
+        Assert.Equal(80, calibration.MeasurementToTravel(2048), 1);
     }
 
     [Fact]
-    public void TryBuild_ReturnsFalse_WhenRotationalSensorGeometryIsDegenerate()
+    public void TryBuild_ReturnsConfigurationFailure_WhenRotationalSensorGeometryIsDegenerate()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(Guid.NewGuid(), "degenerate rotational bike")
@@ -335,37 +312,62 @@ public class RearTravelCalibrationBuilderTests
             })
         };
 
-        var success = TryBuild(setup, bike, out var calibration, out var errorMessage);
+        var result = TryBuild(setup, bike);
 
-        Assert.False(success);
-        Assert.Null(calibration);
-        Assert.False(string.IsNullOrWhiteSpace(errorMessage));
+        Assert.Equal(RearCalibrationFailureReason.Configuration, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
     }
 
-    private static bool TryBuild(
+    [Fact]
+    public void TryBuild_ReturnsConfigurationFailure_ForMalformedSensorJson()
+    {
+        var bike = TestSnapshots.LeverageRatioBike(
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)), shockStroke: 20);
+        var setup = TestSnapshots.Setup(bikeId: bike.Id) with { RearSensorConfigurationJson = "{broken" };
+        var builder = new RearTravelCalibrationBuilder(new KinematicSolutionCache());
+
+        var result = builder.TryBuild(setup, bike);
+
+        Assert.Equal(RearCalibrationFailureReason.Configuration, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
+    }
+
+    [Fact]
+    public void TryBuild_ReturnsCalculationFailure_WhenSolverFailsUnexpectedly()
+    {
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var bike = TestSnapshots.Bike() with { RearSuspension = new RearSuspensionSpec.Linkage(linkage), ShockStroke = linkage.ShockStroke };
+        var setup = TestSnapshots.Setup(bikeId: bike.Id) with
+        {
+            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
+            {
+                Length = linkage.ShockStroke,
+                Resolution = 12
+            })
+        };
+        var builder = new RearTravelCalibrationBuilder(new TrackingKinematicSolutionCache { Failure = new IOException("solver failed") });
+
+        var result = builder.TryBuild(setup, bike);
+
+        Assert.Equal(RearCalibrationFailureReason.Calculation, Assert.IsType<RearTravelCalibrationResult.Failed>(result).Reason);
+    }
+
+    private static RearTravelCalibrationResult TryBuild(
         Setup setup,
         Bike bike,
-        out RearTravelCalibration? calibration,
-        out string? errorMessage,
         IKinematicSolutionCache? kinematicSolutionCache = null)
     {
         var builder = new RearTravelCalibrationBuilder(kinematicSolutionCache ?? new KinematicSolutionCache());
-        var result = builder.TryBuild(
-            SetupSnapshot.From(setup, boardId: null),
-            BikeSnapshot.From(bike));
-
-        calibration = result.Calibration;
-        errorMessage = result.ErrorMessage;
-        return result.Succeeded;
+        return builder.TryBuild(SetupSnapshot.From(setup, boardId: null), BikeSnapshot.From(bike));
     }
 
     private sealed class TrackingKinematicSolutionCache : IKinematicSolutionCache
     {
         public int GetOrSolveCount { get; private set; }
+        public Exception? Failure { get; init; }
 
         public KinematicSolution GetOrSolve(LinkageSpec linkage, int steps = 200, int iterations = 1000)
         {
             GetOrSolveCount++;
+            if (Failure is { } failure) throw failure;
             return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
         }
     }

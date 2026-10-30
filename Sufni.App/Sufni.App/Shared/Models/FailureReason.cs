@@ -53,3 +53,5 @@ public enum DataStoreDiscoveryFailureReason { Scan, Connect }
 public enum GpxImportFailureReason { InvalidFile, Import }
 
 public enum MapLayerFailureReason { Add, Select }
+
+public enum RearCalibrationFailureReason { Configuration, Calculation }

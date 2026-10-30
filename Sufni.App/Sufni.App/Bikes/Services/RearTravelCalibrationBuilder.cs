@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Text.Json;
+using Serilog;
+using Sufni.App.Shared.Models;
 using MathNet.Numerics;
 using Sufni.Kinematics;
 
@@ -11,53 +14,52 @@ namespace Sufni.App.Bikes.Services;
 
 internal interface IRearTravelCalibrationBuilder
 {
-    RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike);
+    RearTravelCalibrationResult TryBuild(SetupSnapshot setup, BikeSnapshot bike);
 }
 
-internal sealed record RearTravelCalibrationBuildResult(
-    bool Succeeded,
-    RearTravelCalibration? Calibration,
-    string? ErrorMessage);
+internal abstract record RearTravelCalibrationResult
+{
+    private RearTravelCalibrationResult() { }
+    public sealed record Built(RearTravelCalibration Calibration) : RearTravelCalibrationResult;
+    public sealed record NotApplicable : RearTravelCalibrationResult;
+    public sealed record Failed(RearCalibrationFailureReason Reason, string? Details = null) : RearTravelCalibrationResult;
+}
 
 internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinematicSolutionCache) : IRearTravelCalibrationBuilder
 {
+    private static readonly ILogger logger = Log.ForContext<RearTravelCalibrationBuilder>();
     private const double MeasurementToAngle = 2.0 * Math.PI / 4096;
     private const int MaximumLookupLeveragePointCount = 1601;
 
-    public RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
+    public RearTravelCalibrationResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
     {
         ArgumentNullException.ThrowIfNull(setup);
         ArgumentNullException.ThrowIfNull(bike);
 
         var rearSuspension = bike.RearSuspension;
-        if (rearSuspension is RearSuspensionSpec.Hardtail)
+        if (rearSuspension is RearSuspensionSpec.Hardtail || setup.RearSensorConfigurationJson is null)
         {
-            return Success(null);
+            return new RearTravelCalibrationResult.NotApplicable();
         }
 
         if (rearSuspension is RearSuspensionSpec.LinkageDraft or RearSuspensionSpec.LeverageRatioDraft)
         {
-            return Failure("Rear suspension is incomplete.");
+            return InvalidConfiguration("Rear suspension is incomplete.");
         }
 
         if (rearSuspension is not (RearSuspensionSpec.Linkage or RearSuspensionSpec.LeverageRatio))
         {
-            return Failure("Unknown rear suspension.");
-        }
-
-        if (setup.RearSensorConfigurationJson is null)
-        {
-            return Failure("Rear sensor configuration is missing.");
-        }
-
-        var payload = SensorConfiguration.FromJson(setup.RearSensorConfigurationJson);
-        if (payload is null)
-        {
-            return Failure("Rear sensor configuration is invalid.");
+            return InvalidConfiguration("Unknown rear suspension.");
         }
 
         try
         {
+            var payload = SensorConfiguration.FromJson(setup.RearSensorConfigurationJson);
+            if (payload is null) return InvalidConfiguration("Rear sensor configuration is invalid.");
+            if (rearSuspension is RearSuspensionSpec.LeverageRatio leverageRatio &&
+                !LeverageRatioShockStrokeRules.TryValidate(bike.ShockStroke, leverageRatio.Spec, out _, out var error))
+                return InvalidConfiguration(error);
+
             var calibration = payload switch
             {
                 LinearShockSensorConfiguration linearShock when IsCompatibleLinearShock(linearShock.Type, rearSuspension) =>
@@ -78,14 +80,27 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
 
             if (calibration is null)
             {
-                return Failure("Rear sensor configuration is not compatible with the selected bike rear suspension.");
+                return InvalidConfiguration("Rear sensor configuration is not compatible with the selected bike rear suspension.");
             }
 
-            return Success(calibration);
+            return new RearTravelCalibrationResult.Built(calibration);
         }
-        catch (Exception exception)
+        catch (Exception e) when (e is JsonException or ArgumentException or LinkageValidationException or
+                                  LeverageRatioValidationException or KinematicCalculationException)
         {
-            return Failure(exception.Message);
+            logger.Warning(e, "Rear calibration configuration is invalid for {SetupId} and {BikeId}", setup.Id, bike.Id);
+            return new RearTravelCalibrationResult.Failed(RearCalibrationFailureReason.Configuration, e.Message);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            logger.Error(e, "Rear calibration failed for {SetupId} and {BikeId}", setup.Id, bike.Id);
+            return new RearTravelCalibrationResult.Failed(RearCalibrationFailureReason.Calculation, e.Message);
+        }
+
+        RearTravelCalibrationResult InvalidConfiguration(string? details)
+        {
+            logger.Warning("Rear calibration configuration is invalid for {SetupId} and {BikeId}: {Details}", setup.Id, bike.Id, details);
+            return new RearTravelCalibrationResult.Failed(RearCalibrationFailureReason.Configuration, details);
         }
     }
 
@@ -106,14 +121,7 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
         var measurementToStroke = LinearSensorCalibrationMath.MeasurementToStroke(configuration.Length, configuration.Resolution);
         var maxShockStroke = rearSuspension switch
         {
-            RearSuspensionSpec.LeverageRatio leverageRatio =>
-                LeverageRatioShockStrokeRules.TryValidate(
-                    shockStroke,
-                    leverageRatio.Spec,
-                    out var validatedShockStroke,
-                    out var errorMessage)
-                    ? validatedShockStroke
-                    : throw new InvalidOperationException(errorMessage),
+            RearSuspensionSpec.LeverageRatio => shockStroke!.Value,
             RearSuspensionSpec.Linkage => shockStroke ?? configuration.Length,
             _ => throw new ArgumentOutOfRangeException(nameof(rearSuspension)),
         };
@@ -144,7 +152,7 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
         var adjacent2 = linkage.Joints.FirstOrDefault(joint => joint.Name == configuration.AdjacentJoint2);
         if (central is null || adjacent1 is null || adjacent2 is null)
         {
-            throw new InvalidOperationException("Rotational shock sensor joints could not be resolved from the linkage.");
+            throw new ArgumentException("Rotational shock sensor joints could not be resolved from the linkage.", nameof(configuration));
         }
 
         var startAngle = GeometryUtils.CalculateAngleAtPoint(
@@ -188,7 +196,7 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
         return rearSuspension switch
         {
             RearSuspensionSpec.Linkage => BuildLinkageTravelCalibration(
-                linkageCharacteristics ?? throw new InvalidOperationException("Linkage movement could not be calculated."),
+                linkageCharacteristics!,
                 maxShockStroke,
                 measurementToShockStroke,
                 measurementWraps),
@@ -225,9 +233,4 @@ internal sealed class RearTravelCalibrationBuilder(IKinematicSolutionCache kinem
         return calibration with { MeasurementToTravel = table.MeasurementToTravel };
     }
 
-    private static RearTravelCalibrationBuildResult Success(RearTravelCalibration? calibration) =>
-        new(true, calibration, null);
-
-    private static RearTravelCalibrationBuildResult Failure(string? errorMessage) =>
-        new(false, null, errorMessage);
 }

@@ -1,4 +1,5 @@
 using Sufni.Kinematics;
+using Sufni.App.Shared.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
@@ -177,7 +178,7 @@ public class TelemetryBikeProcessingContextFactoryTests
     public void Create_CachesUnsuccessfulRearCalibrationResult()
     {
         var rearCalibrationBuilder = new CountingRearTravelCalibrationBuilder(
-            new RearTravelCalibrationBuildResult(false, null, "invalid"));
+            new RearTravelCalibrationResult.Failed(RearCalibrationFailureReason.Configuration, "invalid"));
         var factory = new TelemetryBikeProcessingContextFactory(rearCalibrationBuilder);
         var bike = CreateBike();
         var setup = CreateSetup(bike.Id);
@@ -188,6 +189,7 @@ public class TelemetryBikeProcessingContextFactoryTests
         Assert.Same(first, second);
         Assert.Null(first.BikeData.RearMeasurementToTravel);
         Assert.Null(first.BikeData.RearMaxTravel);
+        Assert.Equal(RearCalibrationFailureReason.Configuration, first.RearFailure!.Reason);
         Assert.Equal(1, rearCalibrationBuilder.Calls);
     }
 
@@ -195,7 +197,7 @@ public class TelemetryBikeProcessingContextFactoryTests
         out CountingRearTravelCalibrationBuilder rearCalibrationBuilder)
     {
         rearCalibrationBuilder = new CountingRearTravelCalibrationBuilder(
-            new RearTravelCalibrationBuildResult(true, null, null));
+            new RearTravelCalibrationResult.NotApplicable());
         return new TelemetryBikeProcessingContextFactory(rearCalibrationBuilder);
     }
 
@@ -244,12 +246,12 @@ public class TelemetryBikeProcessingContextFactoryTests
         });
 
     private sealed class CountingRearTravelCalibrationBuilder(
-        RearTravelCalibrationBuildResult result) : IRearTravelCalibrationBuilder
+        RearTravelCalibrationResult result) : IRearTravelCalibrationBuilder
     {
         public int Calls { get; private set; }
         public BikeSnapshot? LastBike { get; private set; }
 
-        public RearTravelCalibrationBuildResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
+        public RearTravelCalibrationResult TryBuild(SetupSnapshot setup, BikeSnapshot bike)
         {
             Calls++;
             LastBike = bike;
