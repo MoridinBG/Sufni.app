@@ -182,7 +182,7 @@ mc:Ignorable="d">
                                     Classes="importchoice"
                                     Loaded="ActionSelector_OnLoaded"
                                     SelectionChanged="ActionSelector_OnSelectionChanged"
-                                    SelectedIndex="{Binding ShouldBeImported, Converter={StaticResource ImportActionConverter}, Mode=TwoWay}">
+                                    SelectedIndex="{Binding Action, Converter={StaticResource ImportActionConverter}, Mode=TwoWay}">
                                         <ComboBox.IsEnabled>
                                             <MultiBinding Converter="{x:Static BoolConverters.And}">
                                                 <Binding Path="CanImport" />

@@ -69,6 +69,33 @@ public class ImportSessionsViewTests
     }
 
     [AvaloniaFact]
+    public async Task ActionSelector_MapsUserChoicesToImportTrashAndIgnore()
+    {
+        var harness = new ImportWorkflowHarness();
+        var dataStore = CreateDataStore();
+        var file = CreateTelemetryFile("lap", action: ImportFileAction.Ignore);
+        harness.DataStores.Add(dataStore);
+        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]));
+        await using var mounted = await MountAsync(harness.CreateViewModel());
+        var selector = Assert.Single(mounted.View.GetLogicalDescendants().OfType<ComboBox>(),
+            combo => combo.Name == "ActionSelector");
+        Assert.Equal(0, selector.SelectedIndex);
+
+        selector.SelectedIndex = 1;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(ImportFileAction.Import, file.Action);
+
+        selector.SelectedIndex = 2;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(ImportFileAction.Trash, file.Action);
+
+        selector.SelectedIndex = 0;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(ImportFileAction.Ignore, file.Action);
+    }
+
+    [AvaloniaFact]
     public async Task ImportSessionsView_ShowsMalformedFileReason()
     {
         var harness = new ImportWorkflowHarness();

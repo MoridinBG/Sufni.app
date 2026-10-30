@@ -13,7 +13,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public string Name { get; set; }
     public string FileName { get; }
-    public bool? ShouldBeImported { get; set; }
+    public ImportFileAction Action { get; set; }
     public string Description { get; set; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
@@ -85,7 +85,6 @@ public class NetworkTelemetryFile : ITelemetryFile
 
         var effectiveDuration = duration;
         CanImport = canImport;
-        ShouldBeImported = false;
         StartTime = (timestampUtc ?? FallbackStartTimeUtc).UtcDateTime;
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
         MalformedMessage = malformedMessage;

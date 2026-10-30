@@ -13,7 +13,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
     public string Name { get; set; }
     public string FileName => storageFile.Name;
-    public bool? ShouldBeImported { get; set; }
+    public ImportFileAction Action { get; set; }
     public string Description { get; set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; }
@@ -83,7 +83,6 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
     private void ApplyInspection(TelemetryFileInspectionState state)
     {
-        ShouldBeImported = state.ShouldBeImported;
         StartTime = state.StartTime;
         Duration = state.Duration;
         MalformedMessage = state.MalformedMessage;

@@ -10,13 +10,11 @@ internal static class TelemetryFileInspectionMapper
         return inspection switch
         {
             ValidSstFileInspection valid => new TelemetryFileInspectionState(
-                ShouldBeImported: false,
                 StartTime: valid.StartTime,
                 Duration: valid.Duration.ToString(@"hh\:mm\:ss"),
                 MalformedMessage: valid.MalformedMessage,
                 CanImport: true),
             MalformedSstFileInspection malformed => new TelemetryFileInspectionState(
-                ShouldBeImported: false,
                 StartTime: malformed.StartTime ?? fallbackStartTime,
                 Duration: malformed.Duration?.ToString(@"hh\:mm\:ss") ?? "unknown",
                 MalformedMessage: malformed.Message,
@@ -27,7 +25,6 @@ internal static class TelemetryFileInspectionMapper
 }
 
 internal sealed record TelemetryFileInspectionState(
-    bool? ShouldBeImported,
     DateTime StartTime,
     string Duration,
     string? MalformedMessage,

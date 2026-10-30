@@ -72,14 +72,14 @@ public class NetworkTelemetryDataStoreTests
             first =>
             {
                 Assert.Equal("RIDE-NEW.SST", first.FileName);
-                Assert.False(first.ShouldBeImported);
+                Assert.Equal(ImportFileAction.Ignore, first.Action);
                 Assert.Equal("00:00:06", first.Duration);
                 Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(222).UtcDateTime, first.StartTime);
             },
             second =>
             {
                 Assert.Equal("RIDE-OLD.SST", second.FileName);
-                Assert.False(second.ShouldBeImported);
+                Assert.Equal(ImportFileAction.Ignore, second.Action);
                 Assert.Equal("00:00:03", second.Duration);
                 Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(111).UtcDateTime, second.StartTime);
             });
@@ -142,13 +142,13 @@ public class NetworkTelemetryDataStoreTests
             first =>
             {
                 Assert.Equal("RIDE-NEW.SST", first.FileName);
-                Assert.False(first.ShouldBeImported);
+                Assert.Equal(ImportFileAction.Ignore, first.Action);
                 Assert.Null(first.MalformedMessage);
             },
             second =>
             {
                 Assert.Equal("00012.SST", second.FileName);
-                Assert.False(second.ShouldBeImported);
+                Assert.Equal(ImportFileAction.Ignore, second.Action);
                 Assert.Equal("00:00:06", second.Duration);
                 Assert.Equal(DateTimeOffset.UnixEpoch.UtcDateTime, second.StartTime);
                 Assert.Contains("invalid SST timestamp", second.MalformedMessage);

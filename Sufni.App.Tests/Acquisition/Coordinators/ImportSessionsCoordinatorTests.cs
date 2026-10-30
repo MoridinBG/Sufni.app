@@ -28,7 +28,7 @@ public class ImportSessionsCoordinatorTests
     {
         var harness = new ImportWorkflowHarness();
         var (setup, _) = harness.SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "ride", shouldBeImported: true,
+        var file = CreateTelemetryFile(name: "ride", action: ImportFileAction.Import,
             source: new TelemetryFileSource("ride.SST", [1, 2, 3]));
         harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<RecordedSessionSource>(), Arg.Any<CancellationToken>())
             .Returns(new RecordedSessionReprocessResult.Failed(SessionProcessingFailureReason.InvalidCalibration, "calibration diagnostic"));
@@ -59,7 +59,7 @@ public class ImportSessionsCoordinatorTests
             name: "ride-01",
             description: "morning lap",
             startTime: startTime,
-            shouldBeImported: true,
+            action: ImportFileAction.Import,
             source: telemetrySource);
         var sessionsPublished = false;
         var sourcesPublished = false;
@@ -131,7 +131,7 @@ public class ImportSessionsCoordinatorTests
         var harness = new ImportWorkflowHarness();
         using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "ride", shouldBeImported: true);
+        var file = CreateTelemetryFile(name: "ride", action: ImportFileAction.Import);
         if (sourcePublicationFails)
         {
             harness.SourceStore.PublishSourcesChangedAsync(
@@ -165,38 +165,37 @@ public class ImportSessionsCoordinatorTests
     }
 
     [Theory]
-    [InlineData(true, ImportAction.Import)]
-    [InlineData(null, ImportAction.Trash)]
-    [InlineData(false, ImportAction.Ignore)]
+    [InlineData(ImportFileAction.Import)]
+    [InlineData(ImportFileAction.Trash)]
+    [InlineData(ImportFileAction.Ignore)]
     public async Task ImportAsync_RoutesImportTrashAndIgnoreActions(
-        bool? shouldBeImported,
-        ImportAction expectedAction)
+        ImportFileAction action)
     {
         var harness = new ImportWorkflowHarness();
         using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
-        var file = CreateTelemetryFile(name: "candidate", shouldBeImported: shouldBeImported);
+        var file = CreateTelemetryFile(name: "candidate", action: action);
 
         await coordinator.ImportAsync([file], setup.Id);
         var result = Assert.IsType<SessionImportState.Completed>(coordinator.State).Result;
 
-        switch (expectedAction)
+        switch (action)
         {
-            case ImportAction.Import:
+            case ImportFileAction.Import:
                 Assert.Single(result.Imported);
                 Assert.Empty(result.Failures);
                 await file.Received(1).ReadSourceAsync(Arg.Any<CancellationToken>());
                 await file.Received(1).OnImported();
                 await file.DidNotReceive().OnTrashed();
                 break;
-            case ImportAction.Trash:
+            case ImportFileAction.Trash:
                 Assert.Empty(result.Imported);
                 Assert.Empty(result.Failures);
                 await file.Received(1).OnTrashed();
                 await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
                 await file.DidNotReceive().OnImported();
                 break;
-            case ImportAction.Ignore:
+            case ImportFileAction.Ignore:
                 Assert.Empty(result.Imported);
                 Assert.Empty(result.Failures);
                 await file.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
@@ -204,7 +203,7 @@ public class ImportSessionsCoordinatorTests
                 await file.DidNotReceive().OnTrashed();
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(expectedAction), expectedAction, null);
+                throw new ArgumentOutOfRangeException(nameof(action), action, null);
         }
     }
 
@@ -218,12 +217,12 @@ public class ImportSessionsCoordinatorTests
         var importableSource = new TelemetryFileSource("trimmed.SST", [4, 5, 6]);
         var rejected = CreateTelemetryFile(
             name: "bad",
-            shouldBeImported: true,
+            action: ImportFileAction.Import,
             malformedMessage: "invalid telemetry payload",
             source: rejectedSource);
         var importable = CreateTelemetryFile(
             name: "trimmed",
-            shouldBeImported: true,
+            action: ImportFileAction.Import,
             malformedMessage: "trailing chunk was trimmed",
             canImport: true,
             source: importableSource);
@@ -264,8 +263,8 @@ public class ImportSessionsCoordinatorTests
             ? null
             : new TelemetryFileSource("broken.SST", [1, 2, 3]);
         var goodSource = new TelemetryFileSource("ok.SST", [4, 5, 6]);
-        var broken = CreateTelemetryFile(name: "broken", shouldBeImported: true, source: brokenSource);
-        var good = CreateTelemetryFile(name: "ok", shouldBeImported: true, source: goodSource);
+        var broken = CreateTelemetryFile(name: "broken", action: ImportFileAction.Import, source: brokenSource);
+        var good = CreateTelemetryFile(name: "ok", action: ImportFileAction.Import, source: goodSource);
         if (failurePoint is ImportFailurePoint.ReadSource)
         {
             broken.ReadSourceAsync(Arg.Any<CancellationToken>())
@@ -349,8 +348,8 @@ public class ImportSessionsCoordinatorTests
         var harness = new ImportWorkflowHarness();
         using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
-        var first = CreateTelemetryFile(name: "first", shouldBeImported: true);
-        var second = CreateTelemetryFile(name: "second", shouldBeImported: true);
+        var first = CreateTelemetryFile(name: "first", action: ImportFileAction.Import);
+        var second = CreateTelemetryFile(name: "second", action: ImportFileAction.Import);
         var secondReadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstProcessingStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirstProcessing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -396,9 +395,9 @@ public class ImportSessionsCoordinatorTests
         var (setup, _) = harness.SeedSetupAndBike();
         using var coordinator = harness.CreateCoordinator();
         var source = new TaskCompletionSource<TelemetryFileSource>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var file = CreateTelemetryFile("first", shouldBeImported: true);
+        var file = CreateTelemetryFile("first", action: ImportFileAction.Import);
         file.ReadSourceAsync(Arg.Any<CancellationToken>()).Returns(source.Task);
-        var anotherFile = CreateTelemetryFile("second", shouldBeImported: true);
+        var anotherFile = CreateTelemetryFile("second", action: ImportFileAction.Import);
 
         var firstRun = coordinator.ImportAsync([file], setup.Id);
         var secondRun = coordinator.ImportAsync([anotherFile], setup.Id);
@@ -429,7 +428,7 @@ public class ImportSessionsCoordinatorTests
 
         Assert.IsType<SessionImportState.Failed>(coordinator.State);
         var (setup, _) = harness.SeedSetupAndBike();
-        await coordinator.ImportAsync([CreateTelemetryFile("recovered", shouldBeImported: true)], setup.Id);
+        await coordinator.ImportAsync([CreateTelemetryFile("recovered", action: ImportFileAction.Import)], setup.Id);
 
         var completed = Assert.IsType<SessionImportState.Completed>(coordinator.State);
         Assert.Equal("recovered", Assert.Single(completed.Result.Imported).Name);
@@ -451,9 +450,9 @@ public class ImportSessionsCoordinatorTests
             return ImportWorkflowHarness.CreateReprocessResult(call.Arg<RecordedSessionDomainSnapshot>(), call.Arg<RecordedSessionSource>());
         });
         var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var first = CreateTelemetryFile("queued", shouldBeImported: true);
-        var second = CreateTelemetryFile("reading", shouldBeImported: true);
-        var third = CreateTelemetryFile("unread", shouldBeImported: true);
+        var first = CreateTelemetryFile("queued", action: ImportFileAction.Import);
+        var second = CreateTelemetryFile("reading", action: ImportFileAction.Import);
+        var third = CreateTelemetryFile("unread", action: ImportFileAction.Import);
         second.ReadSourceAsync(Arg.Any<CancellationToken>()).Returns(call =>
         {
             reading.SetResult();
@@ -477,14 +476,7 @@ public class ImportSessionsCoordinatorTests
     private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>
         new(endpoint, id, $"{id:00000}.SST",
             DateTimeOffset.FromUnixTimeSeconds(111 + id), TimeSpan.FromSeconds(6))
-        { ShouldBeImported = null };
-
-    public enum ImportAction
-    {
-        Import,
-        Trash,
-        Ignore
-    }
+        { Action = ImportFileAction.Trash };
 
     public enum ImportFailurePoint
     {

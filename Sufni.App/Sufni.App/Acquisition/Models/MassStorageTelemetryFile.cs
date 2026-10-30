@@ -12,7 +12,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
     public string Name { get; set; }
     public string FileName => fileInfo.Name;
-    public bool? ShouldBeImported { get; set; }
+    public ImportFileAction Action { get; set; }
     public string Description { get; set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; } = "unknown";
@@ -52,7 +52,6 @@ public class MassStorageTelemetryFile : ITelemetryFile
 
     private void ApplyInspection(TelemetryFileInspectionState state)
     {
-        ShouldBeImported = state.ShouldBeImported;
         StartTime = state.StartTime;
         Duration = state.Duration;
         MalformedMessage = state.MalformedMessage;

@@ -43,7 +43,7 @@ closing its tab does not cancel it. There is no user-facing cancel action.
 
 **`ITelemetryFile`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryFile.cs`) represents a single SST file. Key members:
 
-- `ShouldBeImported` — tri-state nullable bool driving the per-row import action selector (legacy semantics): `false` (default) "Ignore" / leave alone, `true` "Import", `null` "Trash". `ImportSessionsCoordinator` only imports rows with `ShouldBeImported is true` and only trashes rows with `ShouldBeImported is null`.
+- `Action` — `ImportFileAction.Ignore` (default), `Import`, or `Trash`, driving the row selector and the coordinator's explicit routing. Inspection determines importability without choosing an action.
 - `CanImport` — set from inspection; `false` for malformed files, which forces the action selector to stay disabled.
 - `MalformedMessage` — inspection warning surfaced by the import row UI.
 - `ReadSourceAsync(CancellationToken)` — returns the original recording bytes as `TelemetryFileSource(FileName, SstBytes)`. The coordinator passes those bytes through `RecordedSessionSourceFactory.CreateImportedSst(...)`, then asks the recorded-session reprocessor to derive `TelemetryData`, generated GPS track data, and the processing fingerprint.

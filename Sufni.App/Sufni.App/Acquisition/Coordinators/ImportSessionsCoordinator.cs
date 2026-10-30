@@ -163,7 +163,7 @@ public class ImportSessionsCoordinator(
                     SingleReader = false,
                     SingleWriter = true,
                 });
-            var totalToProcess = files.Count(f => f.ShouldBeImported is not false);
+            var totalToProcess = files.Count(f => f.Action != ImportFileAction.Ignore);
             var processedCount = 0;
             var progressGate = new object();
             var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot Snapshot, RecordedSessionSourceSnapshot Source)>();
@@ -232,12 +232,12 @@ public class ImportSessionsCoordinator(
                 foreach (var telemetryFile in files)
                 {
                     if (cancellationToken.IsCancellationRequested) break;
-                    if (telemetryFile.ShouldBeImported is false)
+                    if (telemetryFile.Action == ImportFileAction.Ignore)
                     {
                         continue;
                     }
 
-                    if (telemetryFile.ShouldBeImported is null)
+                    if (telemetryFile.Action == ImportFileAction.Trash)
                     {
                         ReportProgress();
                         try
