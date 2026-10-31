@@ -207,7 +207,7 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
-            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""")]);
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""", new SessionProcessedGeneration(80))]);
         sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
         httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionBlobPayload?)null);
@@ -241,20 +241,20 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
-            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(id, "target")]);
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(id, "target", new SessionProcessedGeneration(80))]);
         httpApiService.GetSessionPsstAsync(id).Returns(_ =>
         {
             current = new Session(id, "ride", "notes", null) { ProcessingFingerprintJson = "newer", ProcessedTelemetryRevision = 2 };
             return new SessionBlobPayload("target", [1, 2, 3]);
         });
-        harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), "target", null)
+        harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), "target", new SessionProcessedGeneration(80))
             .Returns(SessionDataApplyResult.Superseded);
 
         await CreateService().SyncAll();
 
         await harness.SessionSyncApplier.Received(1).ApplyDownloadedAsync(
             Arg.Is<SessionSnapshot>(expected => expected.ProcessingFingerprintJson == "held" && expected.ProcessedTelemetryRevision == 1),
-            Arg.Any<SessionBlobPayload>(), "target", null);
+            Arg.Any<SessionBlobPayload>(), "target", new SessionProcessedGeneration(80));
         await syncDataStore.DidNotReceive().UpdateLastPullTimeAsync(SynchronizationClientService.SyncStateKey, Arg.Any<long>());
     }
 
@@ -302,7 +302,7 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(4).Returns(new SynchronizationData { UpperBound = 12 });
         syncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>())
-            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(swapId, swapTarget)]);
+            .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(swapId, swapTarget, new SessionProcessedGeneration(80))]);
         sessionRepository.GetIncompleteSessionIdsWithFingerprintAsync()
             .Returns([(fillId, fillFingerprint)]);
 

@@ -789,8 +789,8 @@ public class SessionRepositoryTests
         await database.PutProcessedSessionAsync(session, null, null);
         var expected = SessionProcessedWriteGuard.From(SessionSnapshot.From((await database.GetSessionAsync(session.Id))!), "target");
         var connection = await database.GetInitializedConnectionAsync();
-        await connection.ExecuteAsync("INSERT INTO session_blob_swap_request (session_id, target_fingerprint) VALUES (?, ?)",
-            session.Id, requestChanged ? "new-target" : "target");
+        await connection.ExecuteAsync("INSERT INTO session_blob_swap_request (session_id, target_fingerprint, target_generation) VALUES (?, ?, ?)",
+            session.Id, requestChanged ? "new-target" : "target", AppJson.Serialize(new SessionProcessedGeneration(80)));
         var incoming = PersistenceTestData.CreateTelemetryBlob(80);
 
         var applied = await database.SessionRepository.UpdateSessionProcessedGenerationAsync(session.Id, incoming, "target",

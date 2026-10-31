@@ -38,7 +38,7 @@ public class SessionSyncGenerationTests : IDisposable
         string fingerprint, bool valid, SessionDataApplyResult expectedResult)
     {
         var session = SeedSession();
-        repository.SeedSwap(new SessionBlobSwap(session.Id, "target"));
+        repository.SeedSwap(new SessionBlobSwap(session.Id, "target", new SessionProcessedGeneration(80)));
         var incoming = valid ? PersistenceTestData.CreateTelemetryBlob(80) : new byte[] { 1, 2, 3 };
 
         var result = await applier.ApplyUploadedAsync(session.Id, new SessionBlobPayload(fingerprint, incoming));
@@ -68,7 +68,7 @@ public class SessionSyncGenerationTests : IDisposable
             80, SessionProcessedWriteGuard.From(captured)));
 
         var result = await applier.ApplyDownloadedAsync(captured,
-            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(90)), "target");
+            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(90)), "target", new SessionProcessedGeneration(90));
 
         Assert.Equal(SessionDataApplyResult.Superseded, result);
         Assert.Equal(newer, await repository.Repository.GetSessionRawPsstAsync(session.Id));
@@ -132,17 +132,16 @@ public class SessionSyncGenerationTests : IDisposable
     }
 
     [Fact]
-    public async Task ApplyDownloadedAsync_LegacySwap_ReplacesHeldFingerprintAndBytes()
+    public async Task ApplyDownloadedAsync_FillCannotReplaceHeldGeneration()
     {
         var session = SeedSession();
         var data = PersistenceTestData.CreateTelemetryBlob(80);
 
         var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), new SessionBlobPayload("target", data), "target");
 
-        Assert.Equal(SessionDataApplyResult.Applied, result);
-        Assert.Equal(data, await repository.Repository.GetSessionRawPsstAsync(session.Id));
-        Assert.Equal("target", sessions.Get(session.Id)!.ProcessingFingerprintJson);
-        Assert.Equal(80, sessions.Get(session.Id)!.DurationSeconds);
+        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
+        Assert.Null(sessions.Get(session.Id));
     }
 
     [Fact]
@@ -154,7 +153,7 @@ public class SessionSyncGenerationTests : IDisposable
         repository.WriteFailure = new IOException("disk full");
 
         var result = await applier.ApplyDownloadedAsync(original,
-            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(80)), "target");
+            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(80)), "target", new SessionProcessedGeneration(80));
 
         Assert.Equal(SessionDataApplyResult.Failed, result);
         Assert.Equal(original, sessions.Get(session.Id));

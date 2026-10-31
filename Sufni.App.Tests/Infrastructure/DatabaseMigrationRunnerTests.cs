@@ -1151,50 +1151,39 @@ public class DatabaseMigrationRunnerTests
         AssertProcessedSessionFingerprintCase(fingerprintCase, evaluation, staleFingerprint);
     }
 
-    [Fact]
-    public async Task Initialization_AddsGenerationToLegacySessionBlobSwapRequests()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Initialization_DropsLegacySwapRequests_AndRetainsCompleteTargetsAcrossRestart(bool hasGenerationColumn)
     {
-        using var tempDatabase = new TempDatabase("legacy-session-blob-swap-request.db");
-        var sessionId = Guid.NewGuid();
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
+        using var temp = new TempDatabase();
+        var legacyId = Guid.NewGuid();
+        var completeId = Guid.NewGuid();
+        var generation = new SessionProcessedGeneration(80);
+        using (var connection = new SQLiteConnection(temp.DatabasePath))
         {
             connection.CreateTable<Session>();
-            connection.Execute(
-                $"CREATE TABLE {SessionBlobSwapRequestStore.TableName} (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL)");
-            connection.Insert(new Session(sessionId, "session", string.Empty, null)
-            {
-                Updated = 10,
-                ClientUpdated = 10,
-            });
-            connection.Execute(
-                $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
-                sessionId,
-                "target");
+            connection.Insert(new Session(legacyId, "legacy", "", null));
+            connection.Insert(new Session(completeId, "complete", "", null));
+            connection.Execute("CREATE TABLE session_blob_swap_request (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL)");
+            if (hasGenerationColumn)
+                connection.Execute("ALTER TABLE session_blob_swap_request ADD COLUMN target_generation TEXT");
+            connection.Execute("INSERT INTO session_blob_swap_request (session_id, target_fingerprint) VALUES (?, 'legacy')", legacyId);
+            if (hasGenerationColumn)
+                connection.Execute("INSERT INTO session_blob_swap_request VALUES (?, 'complete', ?)", completeId, AppJson.Serialize(generation));
         }
 
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var legacyRequest = await database.GetSessionBlobSwapRequestAsync(sessionId);
-
-        Assert.NotNull(legacyRequest);
-        Assert.Equal("target", legacyRequest!.TargetFingerprint);
-        Assert.Null(legacyRequest.TargetGeneration);
-        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Contains(
-            verificationConnection.Query<TableColumnInfo>(
-                $"PRAGMA table_info({SessionBlobSwapRequestStore.TableName})"),
-            column => column.Name == "target_generation");
-
-        var generation = new SessionProcessedGeneration(
-            DurationSeconds: 80);
-        verificationConnection.Execute(
-            $"UPDATE {SessionBlobSwapRequestStore.TableName} SET target_generation = ? WHERE session_id = ?",
-            AppJson.Serialize(generation),
-            sessionId);
-
-        var migratedRequest = await database.GetSessionBlobSwapRequestAsync(sessionId);
-        Assert.NotNull(migratedRequest?.TargetGeneration);
-        Assert.Equal(80, migratedRequest!.TargetGeneration!.DurationSeconds);
-
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+            await context.Initialization;
+            var requests = new SessionBlobSwapRequestStore(context);
+            Assert.Null(await requests.GetRequestAsync(legacyId));
+            if (hasGenerationColumn)
+                Assert.Equal(generation, (await requests.GetRequestAsync(completeId))!.TargetGeneration);
+            else
+                Assert.Empty(await requests.GetRequestedSessionIdsAsync());
+        }
     }
 
     [Fact]
@@ -1228,9 +1217,9 @@ public class DatabaseMigrationRunnerTests
             foreach (var sessionId in new[] { activeSessionId, deletedSessionId, Guid.NewGuid() })
             {
                 connection.Execute(
-                    $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
+                    $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint, target_generation) VALUES (?, ?, ?)",
                     sessionId,
-                    "target");
+                    "target", AppJson.Serialize(new SessionProcessedGeneration(80)));
             }
         }
 
@@ -1247,9 +1236,9 @@ public class DatabaseMigrationRunnerTests
         Assert.Empty(await database.GetRequestedSessionBlobSwapIdsAsync());
 
         verificationConnection.Execute(
-            $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint) VALUES (?, ?)",
+            $"INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint, target_generation) VALUES (?, ?, ?)",
             hardDeletedSessionId,
-            "target");
+            "target", AppJson.Serialize(new SessionProcessedGeneration(80)));
         verificationConnection.Execute("DELETE FROM session WHERE id = ?", hardDeletedSessionId);
         Assert.Empty(await database.GetRequestedSessionBlobSwapIdsAsync());
     }

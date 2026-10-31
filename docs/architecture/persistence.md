@@ -254,7 +254,7 @@ persist first and inbound appliers prepare and publish the resulting snapshots.
 - `PutSessionAsync()` — updates user-authored session metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. Existing derived summary metrics are preserved on metadata updates. Metadata SQL does not name the multi-megabyte `data` BLOB, so its fingerprint, linkage and local revision remain untouched. Soft-deleted-row reuse still restores the complete supplied aggregate through its dedicated insert/reuse path.
 - `ImportProcessedSessionAsync(session, newFullTrack, source)` — classifies the recording and atomically inserts a new session, full track and source, or adds only the source to existing metadata. Duplicate source hashes preserve the existing recording. The returned session/source snapshots reflect the retained rows. Any failed write rolls back the transaction.
 - `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputs)` — the recompute owner first validates its result fingerprint against a captured database input bundle. In one transaction the repository re-reads those scalar inputs and compares them with the expected bundle; a mismatch or missing dependency rolls back the generation and optional track together. On a match it writes only derived columns (`data`, fingerprint and duration), preserving authored metadata and `updated`. The repository has no fingerprint-service dependency.
-- `UpdateSessionPsstAsync(id, data, fingerprintJson, durationSeconds, expected)` — the legacy/fill write path. It atomically replaces the BLOB/fingerprint and supplied duration only while the stored fingerprint and telemetry revision match the captured guard. It preserves authored fields and never advances `updated`.
+- `UpdateSessionPsstAsync(id, data, fingerprintJson, durationSeconds, expected)` — the missing-BLOB fill write path. It atomically replaces the BLOB/fingerprint and supplied duration only while the stored fingerprint and telemetry revision match the captured guard. It preserves authored fields and never advances `updated`.
 - `UpdateSessionProcessedGenerationAsync(id, data, fingerprintJson, generation, expected)` — the complete-generation swap path, with the same transaction guard. It replaces the BLOB, fingerprint and duration together while preserving authored GPS alignment. Both write methods also compare the expected hub swap target and clear a matching request inside the successful write transaction; a replaced request or changed generation returns false without modifying any rows.
 - `UpdateGpsAlignmentAsync(id, gpsOffsetSeconds)` — persists only the authored GPS offset, advancing `updated`; window points remain a read-time derivation.
 - `GetSessionRawPsstAsync(id)` / `GetSessionRawPsstWithFingerprintAsync(id)` — return the latest raw MessagePack blob (sync transfer, consumer-side deserialization); the second also returns the fingerprint of those bytes so the session-data push can carry both. The revision-constrained `GetSessionRawPsstAsync(id, processedTelemetryRevision)` returns bytes only while that exact local payload generation still exists.
@@ -267,8 +267,10 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 processed generations on hub and client. `ApplyUploadedAsync` and
 `ApplyDownloadedAsync` validate transferred MessagePack, submit the captured
 fingerprint/revision guard, and publish the authoritative session after success.
-Without a complete generation, they normalize the incoming duration and preserve
-the current GPS metrics; they never reconstruct a session-window payload.
+Missing-BLOB fills normalize the incoming duration and preserve the current GPS
+metrics. Replacing a held BLOB requires a complete target generation; a fill whose
+row gained a BLOB in the meantime is superseded. Neither path reconstructs a
+session-window payload.
 A complete generation supplies the accepted duration. Track selection is derived locally.
 Invalid or superseded transfers leave persisted and published data unchanged.
 
@@ -293,12 +295,12 @@ metric writes never change `session.updated`. The table is not synchronized.
 
 `session_blob_swap_request` is local durable coordination state for the desktop
 hub's push-direction processed-generation swaps. Each row stores the session id,
-target fingerprint, and nullable serialized `SessionProcessedGeneration`; the
-nullable column preserves compatibility with legacy fingerprint-only requests.
+target fingerprint, and serialized `SessionProcessedGeneration`. The
+`sync-authority` migration removes fingerprint-only requests; their session rows
+and held BLOBs remain intact. New requests require a complete target generation.
 The merge engine inserts, replaces, or clears the request inside the same
 transaction that accepts the corresponding deferred session metadata. Startup
-adds the generation column when needed, removes requests for missing or
-soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
+removes requests for missing or soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
 request with its owner session. Listing pending requests only reads the table; a
 matching request is cleared after the validated generation write succeeds.
 

@@ -118,6 +118,7 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         var current = await sessionRepository.GetSessionAsync(expected.Id);
         if (current is null) return SessionDataApplyResult.Missing;
         var telemetry = telemetryProcessor.ReadProcessedTelemetryData(payload.Data);
+        if (generation is null && current.HasProcessedData) return SessionDataApplyResult.Superseded;
         var guard = SessionProcessedWriteGuard.From(expected, pendingSwapFingerprint);
         bool committed;
         if (generation is not null)

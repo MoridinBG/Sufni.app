@@ -35,7 +35,7 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
     public const string TableName = "session_blob_swap_request";
 
     public const string CreateTableSql =
-        $"CREATE TABLE IF NOT EXISTS {TableName} (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL, target_generation TEXT)";
+        $"CREATE TABLE IF NOT EXISTS {TableName} (session_id TEXT PRIMARY KEY, target_fingerprint TEXT NOT NULL, target_generation TEXT NOT NULL)";
 
     public async Task<List<Guid>> GetRequestedSessionIdsAsync()
     {
@@ -56,9 +56,8 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
         }
 
         var row = rows[0];
-        var generation = row.TargetGenerationJson is null
-            ? null
-            : AppJson.Deserialize<SessionProcessedGeneration>(row.TargetGenerationJson);
+        var generation = AppJson.Deserialize<SessionProcessedGeneration>(row.TargetGenerationJson)
+            ?? throw new InvalidOperationException("A processed swap request must carry its target generation.");
         return new SessionBlobSwap(row.SessionId, row.TargetFingerprint, generation);
     }
 
@@ -78,6 +77,6 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
         public string TargetFingerprint { get; set; } = string.Empty;
 
         [Column("target_generation")]
-        public string? TargetGenerationJson { get; set; }
+        public string TargetGenerationJson { get; set; } = string.Empty;
     }
 }

@@ -47,8 +47,7 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("CREATE TABLE database_identity (id INTEGER PRIMARY KEY CHECK (id = 1), db_incarnation TEXT NOT NULL)");
             transaction.Execute("INSERT INTO database_identity (id, db_incarnation) VALUES (1, ?)", Guid.NewGuid().ToString());
         });
-        await connection.ExecuteAsync(SessionBlobSwapRequestStore.CreateTableSql);
-        await EnsureSessionBlobSwapRequestColumnsAsync();
+        await MigrateSyncAuthorityAsync();
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-video");
         await MigrateSessionDerivationWindowsAsync();
@@ -196,10 +195,14 @@ internal sealed class DatabaseMigrationRunner(
             ("last_push_time", "INTEGER NOT NULL DEFAULT 0"),
             ("last_pull_time", "INTEGER NOT NULL DEFAULT 0"));
 
-    private Task EnsureSessionBlobSwapRequestColumnsAsync() =>
-        EnsureColumnsAsync(
-            SessionBlobSwapRequestStore.TableName,
-            ("target_generation", "TEXT"));
+    private Task MigrateSyncAuthorityAsync() => coreMigrations.ApplyAsync("sync-authority", transaction =>
+    {
+        var columns = transaction.GetTableInfo(SessionBlobSwapRequestStore.TableName);
+        if (columns.Count > 0 && columns.All(column => column.Name != "target_generation"))
+            transaction.Execute($"DROP TABLE {SessionBlobSwapRequestStore.TableName}");
+        transaction.Execute(SessionBlobSwapRequestStore.CreateTableSql);
+        transaction.Execute($"DELETE FROM {SessionBlobSwapRequestStore.TableName} WHERE target_generation IS NULL");
+    });
 
     private async Task EnsureSessionBlobSwapRequestIntegrityAsync()
     {
