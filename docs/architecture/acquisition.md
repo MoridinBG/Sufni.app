@@ -39,10 +39,12 @@ closing its tab does not cancel it. There is no user-facing cancel action.
 
 The import transaction classifies by source hash before inserting. An existing
 hash, including a legacy recording with a random id, yields `AlreadyImported`
-and preserves its session/source. If the content-id session arrived by sync but
+and preserves its session/source. If a live content-id session arrived by sync but
 has no source, the transaction inserts only that source and reports `Imported`;
 authored metadata and any existing processed generation remain unchanged.
-Otherwise it inserts the session, source and optional generated track atomically.
+A retained soft-deleted content-id row without a source is restored on explicit
+re-import using the newly prepared recording. New inserts and restorations commit
+the session, source and optional generated track atomically.
 Committed session/source snapshots publish in one dispatcher-owned
 `StorePublication` batch before acknowledgement, including duplicate
 imports, so retrying a publication failure can restore visible state without

@@ -332,10 +332,14 @@ Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values,
 
 `ISessionRepository.ImportProcessedSessionAsync` performs the source-hash and
 content-id classification inside the write transaction. An existing source hash
-returns `AlreadyImported` without changing any rows. A content-id session with
-no source receives only the source row; its authored fields, clock and processed
-data are preserved. A new recording inserts its session, source and optional
-track together. Concurrent imports therefore converge on one session, and
+returns `AlreadyImported` without changing any rows. A live content-id session
+with no source receives only the source row; its authored fields, clock and
+processed data are preserved. If that retained row is soft-deleted, explicit
+re-import restores the same id with the newly prepared recording, clears its
+old window/deletion state and advances `Updated`, retaining `ClientUpdated`.
+Revision triggers preserve payload-generation continuity. Restoration, source
+insertion and the optional generated track commit or roll back together.
+A new recording inserts those same values atomically. Concurrent imports therefore converge on one session, and
 pre-upgrade random ids are retained when their source hash already exists.
 
 ## Soft Delete

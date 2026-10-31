@@ -75,6 +75,77 @@ public class SessionRepositoryTests
         Assert.Null(await database.GetAsync<Track>(candidateTrack.Id));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ImportProcessedSessionAsync_RestoresRetainedDeletedRowAtomically(bool validSource)
+    {
+        using var temp = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var database = new TestPersistenceHarness(temp.DatabasePath, clock);
+        using var file = new TelemetryFileSource("ride.SST", [1, 2, 3]);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+        var oldTrack = PersistenceTestData.CreateFullTrack();
+        var original = new Session(source.SessionId, "old name", "old notes", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
+            ProcessingFingerprintJson = "old-generation", DurationSeconds = 65,
+            Track = oldTrack.Points, ClientUpdated = 41,
+            SourceSessionId = source.SessionId, WindowStartSeconds = 1.25, WindowEndSeconds = 66.25,
+            PreviousWindowStartSeconds = 0
+        };
+        var first = await database.SessionRepository.ImportProcessedSessionAsync(original, oldTrack, source);
+        Assert.True(await database.SessionTransactions.DeleteSessionAsync(original.Id, TestContext.Current.CancellationToken));
+        Assert.Null(await database.GetRecordedSessionSourceAsync(original.Id));
+        var connection = await database.GetInitializedConnectionAsync();
+        var deleted = (await connection.FindAsync<Session>(original.Id))!;
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var newTrack = PersistenceTestData.CreateFullTrack();
+        var imported = new Session(source.SessionId, "re-imported", "new notes", null, 200)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(80),
+            ProcessingFingerprintJson = "new-generation", DurationSeconds = 80,
+            Track = newTrack.Points
+        };
+        if (!validSource) source.SourceHash = "invalid-hash";
+
+        if (validSource)
+        {
+            var result = await database.SessionRepository.ImportProcessedSessionAsync(imported, newTrack, source);
+
+            Assert.False(result.AlreadyImported);
+            var restored = Assert.IsAssignableFrom<Session>(result.Session);
+            Assert.Equal(original.Id, restored.Id);
+            Assert.Equal("re-imported", restored.Name);
+            Assert.Equal("new notes", restored.Description);
+            Assert.Equal(200, restored.Timestamp);
+            Assert.Null(restored.SourceSessionId);
+            Assert.Null(restored.PreviousWindowStartSeconds);
+            Assert.True(restored.Updated > deleted.Deleted);
+            Assert.True(restored.ProcessedTelemetryRevision > first.Session!.ProcessedTelemetryRevision);
+            Assert.True(restored.TrackProjectionRevision > first.Session.TrackProjectionRevision);
+            Assert.Equal(imported.ProcessedData, await database.GetSessionRawPsstAsync(restored.Id));
+            Assert.Equal(newTrack.Id, restored.FullTrack);
+            Assert.NotNull(await database.GetAsync<Track>(newTrack.Id));
+            Assert.Equal(source.Payload, (await database.GetRecordedSessionSourceAsync(restored.Id))!.Payload);
+            Assert.Equal(41, (await connection.FindAsync<Session>(restored.Id))!.ClientUpdated);
+            Assert.Single(await database.GetSessionsAsync());
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                database.SessionRepository.ImportProcessedSessionAsync(imported, newTrack, source));
+
+            Assert.Null(await database.GetSessionAsync(original.Id));
+            var retained = (await connection.FindAsync<Session>(original.Id))!;
+            Assert.Equal(deleted.Deleted, retained.Deleted);
+            Assert.Equal(original.ProcessedData, retained.ProcessedData);
+            Assert.Equal("old name", retained.Name);
+            Assert.Null(await database.GetRecordedSessionSourceAsync(original.Id));
+            Assert.Null(await database.GetAsync<Track>(newTrack.Id));
+        }
+    }
+
     [Fact]
     public async Task ImportProcessedSessionAsync_ConcurrentImports_CommitOneRecordingAndTrack()
     {

@@ -425,7 +425,9 @@ internal sealed class SessionRepository(
             if (existingSource is not null)
                 return (Source: RecordedSessionSourceSnapshot.From(existingSource), AlreadyImported: true);
 
-            if (!EntityExists<Session>(connection, session.Id))
+            var existingSession = connection.FindWithQuery<Session>(
+                "SELECT id, deleted, client_updated FROM session WHERE id = ?", session.Id);
+            if (existingSession is null || existingSession.Deleted is not null)
             {
                 if (newFullTrack is not null)
                 {
@@ -436,7 +438,15 @@ internal sealed class SessionRepository(
                 }
                 session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                 session.Deleted = null;
-                InsertEntity(connection, session);
+                if (existingSession is null)
+                {
+                    InsertEntity(connection, session);
+                }
+                else
+                {
+                    session.ClientUpdated = existingSession.ClientUpdated;
+                    UpdateEntity(connection, session);
+                }
             }
             RecordedSessionSourceRepository.PutRecordedSessionSourceInTransaction(connection, source);
             return (Source: RecordedSessionSourceSnapshot.From(source), AlreadyImported: false);
