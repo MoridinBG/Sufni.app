@@ -133,8 +133,9 @@ public class SessionCoordinatorTests
             Points = Enumerable.Range(0, 7).Select(index => new TrackPoint(telemetry.Metadata.Timestamp + index, index, index, 100)).ToList()
         };
         trackRepository.Seed(track);
+        trackStore.GetAll().Returns([new TrackSnapshot(track.Id, track.StartTime, track.EndTime, 1)]);
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5, timestamp: telemetry.Metadata.Timestamp)
-            with { FullTrackId = track.Id, GpsOffsetSeconds = 1.25, DurationSeconds = storedDuration };
+            with { FullTrackId = null, GpsOffsetSeconds = 1.25, DurationSeconds = storedDuration };
         repository.Seed(snapshot);
         processedTelemetryReader.Set(snapshot.Id, telemetry);
         return snapshot;

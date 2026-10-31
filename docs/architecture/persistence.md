@@ -232,8 +232,10 @@ no-op watched assignments; effective content changes advance exactly one step,
 and payload-aware fallback arithmetic prevents nullable legacy state from
 remaining null after a watched write. An incoming revision assignment that
 accompanies a watched write is restored or replaced by the SQLite-owned value.
-These values are excluded from JSON/sync contracts; they are local
-cache/read-coherence keys, not conflict versions.
+These values are excluded from JSON/sync contracts and are not conflict versions.
+Map and comparison readers now derive session windows from the selected full
+track's exact points revision plus the window inputs. The persisted session-window
+revision remains on the write/sync paths and no longer keys those readers.
 
 Repositories do not publish UI state. Workflow owners persist, prepare any
 fresh database-computed snapshot fields, then publish through store writer

@@ -10,7 +10,7 @@ namespace Sufni.App.Tests.TestSupport.Fixtures;
 /// </summary>
 internal static class TestSegmentMatches
 {
-    public static SessionContentToken Token { get; } = new(1, 1, null, null, 1000, null, 0);
+    public static SessionContentToken Token { get; } = new(1, null, null, 1000, null, 0);
 
     /// <summary>A match whose source and matched seconds are equal.</summary>
     public static SegmentMatch Match(double startSeconds, double endSeconds, Guid? sessionId = null) =>

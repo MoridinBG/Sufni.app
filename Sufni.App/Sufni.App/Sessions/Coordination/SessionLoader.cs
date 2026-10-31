@@ -6,6 +6,8 @@ using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -31,6 +33,7 @@ public sealed class SessionLoader : ISessionLoader
     private static readonly ILogger logger = Log.ForContext<SessionLoader>();
 
     private readonly ISessionStore sessionStore;
+    private readonly ITrackStore trackStore;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly IRecordedSessionDomainQuery recordedSessionDomainQuery;
@@ -39,9 +42,11 @@ public sealed class SessionLoader : ISessionLoader
         ISessionStore sessionStore,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         ITrackCoordinator trackCoordinator,
-        IRecordedSessionDomainQuery recordedSessionDomainQuery)
+        IRecordedSessionDomainQuery recordedSessionDomainQuery,
+        ITrackStore trackStore)
     {
         this.sessionStore = sessionStore;
+        this.trackStore = trackStore;
         this.processedTelemetryReader = processedTelemetryReader;
         this.trackCoordinator = trackCoordinator;
         this.recordedSessionDomainQuery = recordedSessionDomainQuery;
@@ -76,12 +81,16 @@ public sealed class SessionLoader : ISessionLoader
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            var snapshot = sessionStore.Get(sessionId);
+            var selectedTrack = SessionTrackSelection.Select(trackStore.GetAll(),
+                snapshot?.Timestamp ?? telemetryData.Metadata.Timestamp,
+                snapshot?.DurationSeconds ?? telemetryData.Metadata.Duration, snapshot?.GpsOffsetSeconds ?? 0);
             logger.Information("Session telemetry load completed for {SessionId}", sessionId);
             return new SessionDetailLoadResult.Loaded(
                 new SessionDetailData(
                     new SessionTelemetryPresentationData(
                         telemetryData,
-                        sessionStore.Get(sessionId)?.FullTrackId,
+                        selectedTrack?.Id,
                         FullTrackPoints: null,
                         TrackPoints: null,
                         MediaColumnWidth: null,
@@ -109,12 +118,10 @@ public sealed class SessionLoader : ISessionLoader
 
         try
         {
-            var fullTrackId = sessionStore.Get(sessionId)?.FullTrackId;
             logger.Verbose("Resolving track data for session {SessionId}", sessionId);
             progress.Report(SessionDetailLoadProgress.LoadingMapData);
             var trackData = await trackCoordinator.LoadSessionTrackAsync(
                 sessionId,
-                fullTrackId,
                 telemetryData,
                 cancellationToken);
 

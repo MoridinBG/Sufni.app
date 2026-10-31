@@ -179,7 +179,8 @@ public static class AppComposition
             sp.GetRequiredService<ISessionStore>(),
             sp.GetRequiredService<ISessionProcessedTelemetryReader>(),
             sp.GetRequiredService<ITrackCoordinator>(),
-            sp.GetRequiredService<IRecordedSessionDomainQuery>()));
+            sp.GetRequiredService<IRecordedSessionDomainQuery>(),
+            sp.GetRequiredService<ITrackStore>()));
         services.AddSingleton<ISessionRecomputeEngine>(sp => new SessionRecomputeEngine(
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),

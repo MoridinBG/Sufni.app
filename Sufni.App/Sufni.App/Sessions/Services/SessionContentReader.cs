@@ -7,6 +7,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Services;
@@ -31,8 +32,7 @@ public interface ISessionContentReader
 internal sealed class SessionContentReader(
     ISessionRepository sessionRepository,
     ISessionTrackReader sessionTrackReader,
-    IFullTrackPointReader fullTrackPointReader,
-    ITrackRepository trackRepository,
+    ITrackStore trackStore,
     ISessionProcessedTelemetryReader processedTelemetryReader) : ISessionContentReader
 {
     public async Task<IReadOnlyList<SessionCatalogItem>> GetSessionsAsync(
@@ -42,22 +42,9 @@ internal sealed class SessionContentReader(
         var sessions = await sessionRepository.GetSessionsAsync();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var fullTrackIds = sessions
-            .Where(session => session.FullTrack.HasValue)
-            .Select(session => session.FullTrack!.Value)
-            .Distinct()
-            .ToArray();
-        var fullTrackMetadata = await trackRepository.GetTrackPayloadMetadataByIdsAsync(fullTrackIds);
-        cancellationToken.ThrowIfCancellationRequested();
-        var fullTrackVersions = fullTrackMetadata.ToDictionary(item => item.Id, item => item.PointsRevision);
-
-        return sessions
-            .Select(session => CreateCatalogItem(
-                session,
-                session.FullTrack is { } fullTrackId && fullTrackVersions.TryGetValue(fullTrackId, out var updated)
-                    ? updated
-                    : null))
-            .ToArray();
+        var tracks = trackStore.GetAll();
+        return sessions.Select(session => new SessionCatalogItem(session.Id, session.Name, session.Timestamp,
+            session.DurationSeconds, CreateContentToken(session, tracks))).ToArray();
     }
 
     public async Task<SessionCatalogItem?> GetSessionAsync(
@@ -72,14 +59,8 @@ internal sealed class SessionContentReader(
             return null;
         }
 
-        TrackPayloadMetadata? fullTrackMetadata = null;
-        if (session.FullTrack is { } fullTrackId)
-        {
-            fullTrackMetadata = await trackRepository.GetTrackPayloadMetadataAsync(fullTrackId);
-            cancellationToken.ThrowIfCancellationRequested();
-        }
-
-        return CreateCatalogItem(session, fullTrackMetadata?.PointsRevision);
+        return new SessionCatalogItem(session.Id, session.Name, session.Timestamp, session.DurationSeconds,
+            CreateContentToken(session, trackStore.GetAll()));
     }
 
     public async Task<SessionContentSnapshotResult> GetExactSnapshotAsync(
@@ -101,7 +82,7 @@ internal sealed class SessionContentReader(
             return new SessionContentSnapshotResult.Missing();
         }
 
-        var currentToken = await CreateContentTokenAsync(session, cancellationToken);
+        var currentToken = CreateContentToken(session, trackStore.GetAll());
         if (currentToken != expectedToken)
         {
             return new SessionContentSnapshotResult.Stale();
@@ -124,7 +105,9 @@ internal sealed class SessionContentReader(
         IReadOnlyList<TrackPoint>? track = null;
         if (selection.HasFlag(SessionContentSelection.Track))
         {
-            track = await GetExactTrackAsync(sessionId, session, expectedToken, cancellationToken);
+            track = expectedToken.TrackKey is { } key
+                ? await sessionTrackReader.GetSessionTrackAsync(key, cancellationToken)
+                : null;
             cancellationToken.ThrowIfCancellationRequested();
             if (track is null)
             {
@@ -139,7 +122,7 @@ internal sealed class SessionContentReader(
             return new SessionContentSnapshotResult.Missing();
         }
 
-        if (await CreateContentTokenAsync(revalidatedSession, cancellationToken) != expectedToken)
+        if (CreateContentToken(revalidatedSession, trackStore.GetAll()) != expectedToken)
         {
             return new SessionContentSnapshotResult.Stale();
         }
@@ -160,95 +143,15 @@ internal sealed class SessionContentReader(
             return new SessionContentSnapshotResult.Missing();
         }
 
-        return await CreateContentTokenAsync(currentSession, cancellationToken) == expectedToken
+        return CreateContentToken(currentSession, trackStore.GetAll()) == expectedToken
             ? new SessionContentSnapshotResult.Missing()
             : new SessionContentSnapshotResult.Stale();
     }
 
-    private async Task<IReadOnlyList<TrackPoint>?> GetExactTrackAsync(
-        Guid sessionId,
-        Session session,
-        SessionContentToken expectedToken,
-        CancellationToken cancellationToken)
+    private static SessionContentToken CreateContentToken(Session session, IReadOnlyList<TrackSnapshot> tracks)
     {
-        var track = await sessionTrackReader.GetSessionTrackExactAsync(
-            sessionId,
-            expectedToken.TrackProjectionRevision,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (session.FullTrack is not { } fullTrackId)
-        {
-            return track;
-        }
-
-        if (SessionTrackProjection.IsSessionTrackAligned(track, session.Timestamp, session.GpsOffsetSeconds))
-        {
-            return track;
-        }
-
-        if (expectedToken.FullTrackPointsRevision is not { } fullTrackPointsRevision)
-        {
-            return null;
-        }
-
-        var fullTrackPoints = await fullTrackPointReader.GetTrackPointsExactAsync(
-            fullTrackId,
-            fullTrackPointsRevision,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (fullTrackPoints is null)
-        {
-            return null;
-        }
-
-        var fullTrack = new Track
-        {
-            Id = fullTrackId,
-            Points = fullTrackPoints as List<TrackPoint> ?? fullTrackPoints.ToList(),
-        };
-        return SessionTrackProjection.GenerateSessionTrack(
-            fullTrack,
-            session.Timestamp,
-            session.DurationSeconds,
-            session.GpsOffsetSeconds) ?? track;
+        var selected = SessionTrackSelection.Select(tracks, session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds);
+        return new SessionContentToken(session.ProcessedTelemetryRevision, selected?.Id, selected?.PointsRevision,
+            session.Timestamp, session.DurationSeconds, SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds));
     }
-
-    private async Task<SessionContentToken> CreateContentTokenAsync(
-        Session session,
-        CancellationToken cancellationToken)
-    {
-        long? fullTrackPointsRevision = null;
-        if (session.FullTrack is { } fullTrackId)
-        {
-            var metadata = await trackRepository.GetTrackPayloadMetadataAsync(fullTrackId);
-            cancellationToken.ThrowIfCancellationRequested();
-            fullTrackPointsRevision = metadata?.PointsRevision;
-        }
-
-        return CreateContentToken(session, fullTrackPointsRevision);
-    }
-
-    private static SessionCatalogItem CreateCatalogItem(
-        Session session,
-        long? fullTrackPointsRevision)
-    {
-        return new SessionCatalogItem(
-            session.Id,
-            session.Name,
-            session.Timestamp,
-            session.DurationSeconds,
-            CreateContentToken(session, fullTrackPointsRevision));
-    }
-
-    private static SessionContentToken CreateContentToken(
-        Session session,
-        long? fullTrackPointsRevision) =>
-        new(
-            session.ProcessedTelemetryRevision,
-            session.TrackProjectionRevision,
-            session.FullTrack,
-            fullTrackPointsRevision,
-            session.Timestamp,
-            session.DurationSeconds,
-            session.GpsOffsetSeconds);
 }

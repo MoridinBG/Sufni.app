@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Bikes.Models;
@@ -17,6 +18,7 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionLoaderTests
 {
+    private readonly ITrackStore trackStore = Substitute.For<ITrackStore>();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
     private readonly ITrackCoordinator trackCoordinator = TestCoordinatorSubstitutes.Track();
@@ -59,7 +61,7 @@ public class SessionLoaderTests
 
         var loaded = Assert.IsType<SessionDetailLoadResult.Loaded>(result);
         Assert.Same(telemetry, loaded.Data.TelemetryPresentation.TelemetryData);
-        Assert.Equal(snapshot.FullTrackId, loaded.Data.TelemetryPresentation.FullTrackId);
+        Assert.Null(loaded.Data.TelemetryPresentation.FullTrackId);
         Assert.Null(loaded.Data.TelemetryPresentation.FullTrackPoints);
         Assert.Null(loaded.Data.TelemetryPresentation.TrackPoints);
         Assert.Null(loaded.Data.TelemetryPresentation.MediaColumnWidth);
@@ -67,7 +69,6 @@ public class SessionLoaderTests
         Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
             Arg.Any<Guid>(),
-            Arg.Any<Guid?>(),
             Arg.Any<TelemetryData>(),
             Arg.Any<CancellationToken>());
         Assert.Equal(
@@ -90,7 +91,7 @@ public class SessionLoaderTests
             400.0);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, telemetry, Arg.Any<CancellationToken>())
             .Returns(trackData);
         var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
@@ -112,7 +113,7 @@ public class SessionLoaderTests
         var snapshot = TestSnapshots.Session(hasProcessedData: true);
         var telemetry = TestTelemetryData.CreateProcessed();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, Arg.Any<CancellationToken>())
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, telemetry, Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("track failed"));
         var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
@@ -132,7 +133,7 @@ public class SessionLoaderTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         sessionStore.Get(snapshot.Id).Returns(snapshot);
-        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, snapshot.FullTrackId, telemetry, cancellation.Token)
+        trackCoordinator.LoadSessionTrackAsync(snapshot.Id, telemetry, cancellation.Token)
             .Returns(Task.FromCanceled<SessionTrackPresentationData>(cancellation.Token));
         var progress = new RecordingProgress<SessionDetailLoadProgress>();
 
@@ -168,11 +169,10 @@ public class SessionLoaderTests
             progress.Reports.Select(report => report.Stage));
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
             Arg.Any<Guid>(),
-            Arg.Any<Guid?>(),
             Arg.Any<TelemetryData>(),
             Arg.Any<CancellationToken>());
     }
 
     private ISessionLoader CreateLoader() =>
-        new SessionLoader(sessionStore, processedTelemetryReader, trackCoordinator, domainQuery);
+        new SessionLoader(sessionStore, processedTelemetryReader, trackCoordinator, domainQuery, trackStore);
 }

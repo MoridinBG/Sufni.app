@@ -131,14 +131,17 @@ internal sealed class SessionCoordinator : ISessionCoordinator
             {
                 var current = await sessionRepository.GetSessionAsync(sessionId);
                 if (current is null) return (GpsOffsetResult)new GpsOffsetResult.SessionMissing();
-                if (current.FullTrack is not { } trackId || await trackRepository.GetAsync(trackId) is not { } track)
-                    return new GpsOffsetResult.NoMatchingTrack();
                 var telemetry = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
                 if (telemetry is null) return new GpsOffsetResult.NoMatchingTrack();
 
                 var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
-                var points = SessionTrackProjection.GenerateSessionTrack(track, telemetry, offset);
-                if (points.Count == 0) return new GpsOffsetResult.NoMatchingTrack();
+                var timestamp = current.Timestamp ?? telemetry.Metadata.Timestamp;
+                var duration = current.DurationSeconds ?? telemetry.Metadata.Duration;
+                var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, offset);
+                if (selected is null || await trackRepository.GetAsync(selected.Id) is not { } track)
+                    return new GpsOffsetResult.NoMatchingTrack();
+                var points = SessionTrackProjection.GenerateSessionTrack(track, timestamp, duration, offset);
+                if (points is not { Count: > 0 }) return new GpsOffsetResult.NoMatchingTrack();
                 var metrics = SessionSummaryMetricsCalculator.Calculate(current.DurationSeconds ?? telemetry.Metadata.Duration, points);
                 cancellationToken.ThrowIfCancellationRequested();
                 await sessionRepository.UpdateSessionTrackAsync(sessionId, points, metrics, offset);

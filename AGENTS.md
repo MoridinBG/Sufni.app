@@ -347,7 +347,7 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`ISessionTrackReader`, `PairedDeviceCoordinator`,
+  (`PairedDeviceCoordinator`,
   `SyncCoordinator`,
   the desktop-only `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only

@@ -92,7 +92,8 @@ metadata-only snapshots that are not edited through that flow, such as
 `RecordedSessionSourceSnapshot`, do not expose an editor baseline.
 
 `TrackStore` holds each active track's content ID, fractional start/end time and
-local points revision. `ITrackRepository.GetTrackSnapshotsAsync` reads only those
+local points revision. Pure selectors read `GetAll()` for a snapshot of that
+metadata. `ITrackRepository.GetTrackSnapshotsAsync` reads only those
 columns; point JSON stays outside the store. Startup/full refresh loads tracks
 with the other families. GPX import publishes the committed metadata; recording
 import, live save and recompute publish tracks with their session/source changes.

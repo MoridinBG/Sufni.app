@@ -188,69 +188,58 @@ public class TrackCoordinatorTests
     }
 
     [Fact]
-    public async Task LoadSessionTrackAsync_ReturnsExistingSessionTrackWithoutPatch()
+    public async Task LoadSessionTrackAsync_SelectsFullerImportedTrackOnNextReadWithoutWritingSession()
     {
+        using var tracks = new TrackStore(new StorePublication(new InlineUiThreadDispatcher()));
         var sessionId = Guid.NewGuid();
-        var fullTrackId = Guid.NewGuid();
         var telemetry = TestTelemetryData.CreateProcessed();
-        var existingTrack = new List<TrackPoint>
+        telemetry.Metadata.Timestamp = new DateTimeOffset(2025, 6, 1, 12, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
+        telemetry.Metadata.Duration = 2;
+        var timestamp = telemetry.Metadata.Timestamp;
+        var first = new Track([new TrackPoint(timestamp, 0, 0, 0), new TrackPoint(timestamp + 0.5, 1, 1, 1)]);
+        trackEntityRepository.Seed(first);
+        await tracks.PublishTracksChangedAsync([new TrackSnapshot(first.Id, first.StartTime, first.EndTime, 1)]);
+        var session = new Session(sessionId, "ride", "notes", null, timestamp) { DurationSeconds = 2 };
+        sessionRepository.GetSessionAsync(sessionId).Returns(session);
+        fullTrackPointReader.GetTrackPointsExactAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .Returns(async call => (IReadOnlyList<TrackPoint>?)(await trackEntityRepository.GetAsync(call.Arg<Guid>()))?.Points);
+        sessionTrackReader.GetSessionTrackAsync(Arg.Any<SessionTrackKey>(), Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<TrackPoint>)[new TrackPoint(timestamp, 0, 0, 0)]);
+        trackRepository.GetTrackSnapshotsAsync(Arg.Any<IReadOnlyCollection<Guid>>()).Returns(async call =>
         {
-            new(telemetry.Metadata.Timestamp, 1, 1, 0),
-            new(telemetry.Metadata.Timestamp + 1, 2, 2, 0),
-        };
-        var fullTrack = new Track
-        {
-            Id = fullTrackId,
-            Points =
-            [
-                new TrackPoint(telemetry.Metadata.Timestamp, 1, 1, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp + 1, 2, 2, 0),
-                new TrackPoint(telemetry.Metadata.Timestamp + 2, 3, 3, 0),
-            ]
-        };
-        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(
-            sessionId,
-            "session",
-            "",
-            setup: null,
-            timestamp: telemetry.Metadata.Timestamp)
-        {
-            FullTrack = fullTrackId,
-            Updated = 99,
-            TrackProjectionRevision = 99,
+            var track = (await trackEntityRepository.GetAsync(call.Arg<IReadOnlyCollection<Guid>>().Single()))!;
+            return (IReadOnlyList<TrackSnapshot>)new[] { new TrackSnapshot(track.Id, track.StartTime, track.EndTime, 1) };
         });
-        fullTrackPointReader.GetTrackPointsAsync(fullTrackId, Arg.Any<CancellationToken>())
-            .Returns(fullTrack.Points);
-        sessionTrackReader.GetSessionTrackAsync(sessionId, 99, Arg.Any<CancellationToken>())
-            .Returns(existingTrack);
+        var coordinator = CreateCoordinator(tracks);
+        var before = await coordinator.LoadSessionTrackAsync(sessionId, telemetry, TestContext.Current.CancellationToken);
+        filesService.OpenGpxFilesAsync().Returns([TestStorageItems.PickedTextFile("fuller.gpx", ValidGpx())]);
 
-        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, fullTrackId, telemetry, cancellationToken: TestContext.Current.CancellationToken);
+        Assert.IsType<GpxImportResult.Completed>(await coordinator.ImportGpxAsync(TestContext.Current.CancellationToken));
+        var after = await coordinator.LoadSessionTrackAsync(sessionId, telemetry, TestContext.Current.CancellationToken);
 
-        Assert.Equal(fullTrackId, result.FullTrackId);
-        Assert.Same(fullTrack.Points, result.FullTrackPoints);
-        Assert.Same(existingTrack, result.TrackPoints);
-        Assert.Equal(400.0, result.MediaColumnWidth);
-        await sessionRepository.DidNotReceive().GetSessionTrackAsync(sessionId);
+        Assert.Equal(first.Id, before.FullTrackId);
+        Assert.NotNull(after.FullTrackId);
+        Assert.NotEqual(first.Id, after.FullTrackId);
+        Assert.Null(session.FullTrack);
+        Assert.Equal("notes", session.Description);
+        await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         await sessionRepository.DidNotReceive().UpdateSessionTrackAsync(
             Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>());
     }
 
     [Fact]
-    public async Task LoadSessionTrackAsync_ReturnsUnassociatedWithoutWriting_WhenSessionHasNoFullTrack()
+    public async Task LoadSessionTrackAsync_ReturnsNoTrackWhenNothingOverlaps()
     {
         var sessionId = Guid.NewGuid();
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Duration = 3.0;
+        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "ride", "", null, telemetry.Metadata.Timestamp));
+        trackStore.GetAll().Returns([]);
 
-        // Load is read-only: with no full_track_id the coordinator neither
-        // associates a track nor persists anything. Track association is owned by
-        // the processed-write path, not the load path.
-        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, null, telemetry, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator().LoadSessionTrackAsync(sessionId, telemetry, TestContext.Current.CancellationToken);
 
         Assert.Null(result.FullTrackId);
         Assert.Null(result.TrackPoints);
-        await sessionRepository.DidNotReceive().UpdateSessionTrackAsync(
-            Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>());
+        await fullTrackPointReader.DidNotReceive().GetTrackPointsExactAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
 
     private static string ValidGpx()

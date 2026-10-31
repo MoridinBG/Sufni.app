@@ -12,7 +12,6 @@ public interface ITrackCoordinator
 
     Task<SessionTrackPresentationData> LoadSessionTrackAsync(
         Guid sessionId,
-        Guid? fullTrackId,
         TelemetryData telemetryData,
         CancellationToken cancellationToken = default);
 

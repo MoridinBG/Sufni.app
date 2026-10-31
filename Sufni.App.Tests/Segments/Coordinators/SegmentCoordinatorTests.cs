@@ -193,7 +193,7 @@ public class SegmentCoordinatorTests
         var matchedId = AddMatchedSession();
         var comparison = (await CreateCoordinator().LoadComparisonPageAsync(
             [TestSegmentMatches.Match(10, 12, matchedId)], 30, CancellationToken.None)).Comparisons.Single();
-        contentReader.Sessions = [CatalogItem(matchedId, TestSegmentMatches.Token with { TrackProjectionRevision = 2 })];
+        contentReader.Sessions = [CatalogItem(matchedId, TestSegmentMatches.Token with { FullTrackPointsRevision = 2 })];
 
         Assert.Null(await CreateCoordinator().LoadComparisonDetailAsync(comparison, CancellationToken.None));
     }

@@ -50,12 +50,11 @@ public class TrackCoordinator(
 
     public Task<SessionTrackPresentationData> LoadSessionTrackAsync(
         Guid sessionId,
-        Guid? fullTrackId,
         TelemetryData telemetryData,
         CancellationToken cancellationToken = default)
     {
         return backgroundTaskRunner.RunAsync(
-            () => LoadSessionTrackCoreAsync(sessionId, fullTrackId, telemetryData, cancellationToken),
+            () => LoadSessionTrackCoreAsync(sessionId, telemetryData, cancellationToken),
             cancellationToken);
     }
 
@@ -101,56 +100,24 @@ public class TrackCoordinator(
 
     private async Task<SessionTrackPresentationData> LoadSessionTrackCoreAsync(
         Guid sessionId,
-        Guid? fullTrackId,
         TelemetryData telemetryData,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var session = await sessionRepository.GetSessionAsync(sessionId);
-        var gpsOffsetSeconds = SessionTrackTimeline.NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0);
+        if (session is null) return new SessionTrackPresentationData(null, null, null, null);
+        var timestamp = session.Timestamp ?? telemetryData.Metadata.Timestamp;
+        var duration = session.DurationSeconds ?? telemetryData.Metadata.Duration;
+        var gpsOffset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds);
+        var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, gpsOffset);
+        if (selected is null) return new SessionTrackPresentationData(null, null, null, null);
 
-        // Read-only load: the snapshot's full_track_id is the only source of the
-        // association. The write/recompute path owns establishing it, so an
-        // unassociated session simply renders without a track here.
-        var resolvedFullTrackId = fullTrackId;
-        if (resolvedFullTrackId is null)
-        {
-            return new SessionTrackPresentationData(null, null, null, null);
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var fullTrackPoints = await fullTrackPointReader.GetTrackPointsAsync(resolvedFullTrackId.Value, cancellationToken);
-        if (fullTrackPoints is null)
-        {
-            return new SessionTrackPresentationData(resolvedFullTrackId, null, null, null);
-        }
-
-        var fullTrackPointList = AsList(fullTrackPoints);
-        var trackPoints = await sessionTrackReader.GetSessionTrackAsync(
-            sessionId,
-            session?.TrackProjectionRevision ?? 0,
-            cancellationToken);
-
-        // When the cached session-window polyline is missing or no longer aligned
-        // with the current GPS offset, regenerate it in memory for display only.
-        // Persisting the cached polyline is the processed-write path's job.
-        if (!SessionTrackProjection.IsSessionTrackAligned(trackPoints, telemetryData, gpsOffsetSeconds))
-        {
-            var fullTrack = new Track
-            {
-                Id = resolvedFullTrackId.Value,
-                Points = fullTrackPointList,
-            };
-            trackPoints = SessionTrackProjection.GenerateSessionTrack(fullTrack, telemetryData, gpsOffsetSeconds);
-        }
-
-        return new SessionTrackPresentationData(
-            resolvedFullTrackId,
-            fullTrackPointList,
-            AsNullableList(trackPoints),
-            DefaultMediaColumnWidth);
+        var fullPoints = await fullTrackPointReader.GetTrackPointsExactAsync(selected.Id, selected.PointsRevision, cancellationToken);
+        if (fullPoints is null) return new SessionTrackPresentationData(selected.Id, null, null, null);
+        var key = new SessionTrackKey(selected.Id, selected.PointsRevision, timestamp, duration, gpsOffset);
+        var points = await sessionTrackReader.GetSessionTrackAsync(key, cancellationToken);
+        return new SessionTrackPresentationData(selected.Id, AsList(fullPoints), AsNullableList(points), DefaultMediaColumnWidth);
     }
 
     private static List<TrackPoint> AsList(IReadOnlyList<TrackPoint> points)

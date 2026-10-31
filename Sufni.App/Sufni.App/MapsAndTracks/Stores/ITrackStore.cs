@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DynamicData;
 
 namespace Sufni.App.MapsAndTracks.Stores;
@@ -8,4 +9,5 @@ public interface ITrackStore
 {
     IObservable<IChangeSet<TrackSnapshot, Guid>> Connect();
     TrackSnapshot? Get(Guid id);
+    IReadOnlyList<TrackSnapshot> GetAll();
 }

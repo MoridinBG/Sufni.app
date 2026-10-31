@@ -207,7 +207,7 @@ public class SegmentMatcherTests
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
         ReplaceSession(session with { Name = "Renamed" });
         var renamed = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        ReplaceSession(session with { ContentToken = session.ContentToken with { TrackProjectionRevision = 2 } });
+        ReplaceSession(session with { ContentToken = session.ContentToken with { FullTrackPointsRevision = 2 } });
         _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Equal("Renamed", Assert.Single(renamed).SessionName);
@@ -218,7 +218,7 @@ public class SegmentMatcherTests
     public async Task FindMatchesAsync_DoesNotKeepAPathReadUnderAStaleToken()
     {
         var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var current = session with { ContentToken = session.ContentToken with { TrackProjectionRevision = 2 } };
+        var current = session with { ContentToken = session.ContentToken with { FullTrackPointsRevision = 2 } };
         var loadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseLoad = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         reader.TrackLoader = async (sessionId, _) =>
@@ -275,7 +275,7 @@ public class SegmentMatcherTests
     public async Task FindMatchesAsync_EvictsPreparedPathsBeyondTheWeightLimit()
     {
         var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var changed = session with { ContentToken = session.ContentToken with { TrackProjectionRevision = 2 } };
+        var changed = session with { ContentToken = session.ContentToken with { FullTrackPointsRevision = 2 } };
         var matcher = new SegmentMatcher(reader, preparedPathRetentionLimitBytes: 1_500);
         var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
 
@@ -401,7 +401,7 @@ public class SegmentMatcherTests
             name,
             timestamp,
             DurationSeconds: null,
-            new SessionContentToken(1, 1, null, null, timestamp, null, 0));
+            new SessionContentToken(1, null, null, timestamp, null, 0));
         reader.Sessions = [.. reader.Sessions, session];
         if (track is not null)
         {

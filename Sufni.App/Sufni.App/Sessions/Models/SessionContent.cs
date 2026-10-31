@@ -11,12 +11,18 @@ namespace Sufni.App.Sessions.Models;
 /// </summary>
 public readonly record struct SessionContentToken(
     long ProcessedTelemetryRevision,
-    long TrackProjectionRevision,
     Guid? FullTrackId,
     long? FullTrackPointsRevision,
     long? Timestamp,
     double? DurationSeconds,
-    double GpsOffsetSeconds);
+    double GpsOffsetSeconds,
+    int TrackProjectionVersion = GpsTrackPointProjection.ProjectionVersion)
+{
+    public SessionTrackKey? TrackKey => FullTrackId is { } id && FullTrackPointsRevision is { } revision &&
+        Timestamp is { } timestamp && DurationSeconds is { } duration
+        ? new SessionTrackKey(id, revision, timestamp, duration, GpsOffsetSeconds, TrackProjectionVersion)
+        : null;
+}
 
 public sealed record SessionCatalogItem(
     Guid Id,

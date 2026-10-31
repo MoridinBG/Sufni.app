@@ -32,12 +32,10 @@ Recorded session opens (pure reads — the open/load path issues no DB writes)
       -> SessionDetailViewModel publishes first Signals content
   -> the same active load generation calls ISessionLoader.LoadTrackAsync
     -> SessionLoader -> TrackCoordinator.LoadSessionTrackAsync
-      -> uses session.full_track_id from the snapshot (association is owned by the
-         processed-write path, never by load)
-      -> IFullTrackPointReader (full-track JSON payload, cached by track points_revision)
-      -> ISessionTrackReader (cached session-window polyline, cached by session track_projection_revision)
-      -> Track.GenerateSessionTrack in memory for display only when the cache is
-         missing/misaligned (timestamp + session.gps_offset_seconds; NOT persisted)
+      -> SessionTrackSelection over TrackStore metadata and the aligned window
+         (largest overlap, tie lowest content id)
+      -> IFullTrackPointReader (exact id + points revision)
+      -> ISessionTrackReader derives the window off-thread and caches by its inputs
         -> SessionTrackPresentationData
           -> SessionDetailViewModel.FullTrackPoints / TrackPoints
             -> MapViewModel -> MapView (Mapsui)
@@ -95,11 +93,24 @@ track ID returned by the same transaction that removed the session.
 `TrackCoordinator` (`Sufni.App/Sufni.App/MapsAndTracks/Coordinators/TrackCoordinator.cs`) owns the following workflows:
 
 - **GPX import** — `ImportGpxAsync` calls `IFilesService.OpenGpxFilesAsync()` to drive the platform picker, then runs `ImportGpxCoreAsync` on the background runner: ask `IGpxTrackReader` for each file's projected points, build a `Track`, skip it when `ISynchronizableRepository<Track>.GetAsync` finds its active content ID, otherwise write it through `ISynchronizableRepository<Track>.PutAsync` and publish its persisted metadata to `TrackStore`. The returned `GpxImportResult` is `Canceled | Completed | Failed`; completion and failure carry imported/already-imported counts. Import stops on the first failed file, preserving earlier writes. Invalid XML or a file without timestamped track points returns `GpxImportFailureReason.InvalidFile`; picker, I/O and persistence failures return `Import`. The reader logs parsing/read failures once; the coordinator logs picker/persistence failures. Shell feedback displays the completed counts and fixed failure summary with optional diagnostics. There is no list view for tracks — they are matched to sessions automatically by timestamp.
-- **Session-track resolution (read-only)** — `LoadSessionTrackAsync(sessionId, fullTrackId, telemetryData)` runs on the background runner and returns a `SessionTrackPresentationData` (`Sufni.App/Sufni.App/Sessions/Processing/SessionDetails/SessionDetailLoadModels.cs`). Opening a session is a pure read: this path never writes to the database. It uses the `fullTrackId` carried on the session snapshot — when that is null the session is unassociated and the result carries no track, because association is owned by the processed-write path (below), never by load. Otherwise it resolves the full-track points through `IFullTrackPointReader`, which first reads only `(id, points_revision)` and then reads/deserializes the JSON payload through a constrained `(id, points_revision)` projection cached by that key. It reads `session.gps_offset_seconds`, then resolves the cached session-window polyline through `ISessionTrackReader`, cached by `(sessionId, track_projection_revision)` and evicted when the session store publishes a different projection revision. The two readers use `Sufni.Telemetry.Caching.SingleFlightLruCache` with independent LRU histories, each bounded to 64 entries and 145,000 cached `TrackPoint` values; a larger value is shared with current waiters but not retained. Latest-content reads retry once when metadata advances between the metadata and payload queries, while exact reads constrain SQL to the caller-supplied revision and return no value rather than substituting newer content. If the cached session-window polyline still matches `telemetry.Metadata.Timestamp + gps_offset_seconds`, it is returned directly; when it is missing or misaligned the coordinator regenerates the session-window polyline from the full-track points **in memory for display** and returns it **without persisting** — the cached `session.track` column is (re)written only by the processed-write pipeline. The result carries the full polyline, the session-window polyline and a default `MediaColumnWidth` for the desktop layout.
+- **Session-track resolution (read-only)** — `LoadSessionTrackAsync(sessionId, telemetryData)` reads the session and selects from `TrackStore` using `SessionTrackSelection`: greatest positive time overlap with the aligned session window, tie lowest ID. It reads exact full-track points and derives the window through `ISessionTrackReader`. A newly imported fuller GPX becomes selected on the next read without a session write. Missing timestamps/durations use the already-loaded telemetry metadata for this presentation path.
+
+`SessionTrackReader` caches by `(track id, points revision, timestamp, duration,
+GPS offset, projection version)`. Its background job reads exact full-track points
+and applies the shared timeline/window projection. It has no session-store
+subscription, repository read, alignment-validation fallback or latest-revision
+retry. Both point readers keep their independent 64-entry/145,000-point LRU
+budgets; an oversized value is shared with current waiters without retention.
+A missing exact revision returns no projection. `SessionContentReader` uses the
+same selection rule for catalog tokens, loads only requested payload families,
+and revalidates the token after the load, including a changed track selection.
+The stored `session.track`, `track_projection_revision` and `full_track_id`
+remain on write/sync paths but no longer drive map or comparison reads.
+
 GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync(sessionId,
-deltaSeconds)`. It reads the persisted session, linked full track and current
-processed telemetry, adds the delta to the stored offset, and regenerates the
-session window. It computes summary metrics using the stored duration (or the
+deltaSeconds)`. It reads the persisted session and current processed telemetry, adds the delta
+to the stored offset, selects the full track for that aligned window through the
+same overlap rule, and regenerates the session window. It computes summary metrics using the stored duration (or the
 telemetry duration when absent), persists the offset and track window, then
 publishes the session snapshot. `GpsOffsetResult` distinguishes `Applied`,
 `NoMatchingTrack`, `SessionMissing` and `Failed`. The editor sends only the delta
@@ -107,7 +118,7 @@ between its GPS and telemetry marks; the watch reaction refreshes the displayed
 track. Alignment is authored state and syncs immediately with session metadata.
 Metadata draft saves and processed-generation swaps preserve it.
 
-`ISessionLoader.LoadDetailAsync` returns decoded, validated telemetry without waiting for track resolution, so `SessionDetailViewModel` can publish the first usable Signals state. The same active load token then calls `ISessionLoader.LoadTrackAsync`; a current completion augments that loaded state with `SessionTrackPresentationData`, while cancellation, unload, or a newer load prevents the late track result from publishing. A track failure retains the existing final failed-load outcome. Import, recompute and live-save receive projected GPS points and metrics in the reprocessor's pure `ProcessedGeneration`. Each workflow creates or reuses a full `Track`, resolves an existing association when needed, prepares the session and commits the session/source/track transaction through `ISessionRepository`. The generation scopes an existing track through the same `SessionTrackProjection` helper used by reads. If a processed session has no generated track and no existing `FullTrack`, the requesting workflow links it to the active track with the **tightest** time window covering the session timestamp — `ITrackRepository.FindTrackContainingTimestampAsync` orders by `(end_time - start_time)`, then `start_time`, then `id`, so overlapping candidate windows resolve deterministically to the closest-fitting track. Because association and the cached session-window polyline are both produced here in the processed-write pipeline (import, recompute and live-save flow through it; the alignment command performs its own window update), the open/load path never has to write either.
+`ISessionLoader.LoadDetailAsync` returns decoded, validated telemetry without waiting for track resolution, so `SessionDetailViewModel` can publish the first usable Signals state. The same active load token then calls `ISessionLoader.LoadTrackAsync`; a current completion augments that loaded state with `SessionTrackPresentationData`, while cancellation, unload, or a newer load prevents the late track result from publishing. A track failure retains the existing final failed-load outcome. Import, recompute and live-save receive projected GPS points and metrics in the reprocessor's pure `ProcessedGeneration`. Each workflow creates or reuses a full `Track`, resolves an existing association when needed, prepares the session and commits the session/source/track transaction through `ISessionRepository`. The generation scopes an existing track through the same `SessionTrackProjection` helper used by reads. If a processed session has no generated track and no existing `FullTrack`, the requesting workflow links it to the active track with the **tightest** time window covering the session timestamp — `ITrackRepository.FindTrackContainingTimestampAsync` orders by `(end_time - start_time)`, then `start_time`, then `id`, so overlapping candidate windows resolve deterministically to the closest-fitting track. These persisted write-path associations no longer determine the selected track on read.
 
 ## Tile Layer Service
 

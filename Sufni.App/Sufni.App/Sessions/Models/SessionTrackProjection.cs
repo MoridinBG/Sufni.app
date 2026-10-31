@@ -7,8 +7,6 @@ namespace Sufni.App.Sessions.Models;
 
 internal static class SessionTrackProjection
 {
-    private const double AlignmentToleranceSeconds = 1e-6;
-
     public static List<TrackPoint> GenerateSessionTrack(
         Track fullTrack,
         TelemetryData telemetryData,
@@ -41,39 +39,5 @@ internal static class SessionTrackProjection
         var points = fullTrack.GenerateSessionTrack(start, end);
         return points.Count == 0 ? null : points;
     }
-
-    public static bool IsSessionTrackAligned(
-        IReadOnlyList<TrackPoint>? trackPoints,
-        TelemetryData telemetryData,
-        double gpsOffsetSeconds)
-    {
-        if (trackPoints is null || trackPoints.Count == 0)
-        {
-            return false;
-        }
-
-        return IsAlignedTo(trackPoints, new SessionTrackTimeline(telemetryData.Metadata.Timestamp, gpsOffsetSeconds).TrackOriginSeconds);
-    }
-
-    // Alignment check driven by the session row's own timestamp, for callers that
-    // would otherwise deserialize the whole processed-telemetry blob just to read
-    // its metadata. The cached session-window track is generated from
-    // session.Timestamp (see SessionCoordinator), so that is the value it must
-    // line up with.
-    public static bool IsSessionTrackAligned(
-        IReadOnlyList<TrackPoint>? trackPoints,
-        long? timestamp,
-        double gpsOffsetSeconds)
-    {
-        if (trackPoints is null || trackPoints.Count == 0 || timestamp is not { } value)
-        {
-            return false;
-        }
-
-        return IsAlignedTo(trackPoints, new SessionTrackTimeline(value, gpsOffsetSeconds).TrackOriginSeconds);
-    }
-
-    private static bool IsAlignedTo(IReadOnlyList<TrackPoint> trackPoints, double expectedStartSeconds) =>
-        Math.Abs(trackPoints[0].Time - expectedStartSeconds) <= AlignmentToleranceSeconds;
 
 }

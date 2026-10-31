@@ -148,7 +148,6 @@ public partial class App : Application
 
         _ = shellRoot.StartAsync(() =>
         {
-            _ = Services.GetRequiredService<ISessionTrackReader>();
             _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
             _ = Services.GetRequiredService<ISyncCoordinator>();
             ResolveCapabilityEagerServices(Services, root.Capabilities);
