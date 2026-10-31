@@ -1,4 +1,5 @@
 global using Sufni.App.Tests.TestSupport;
+using Sufni.App.Setups.Queries;
 
 using Sufni.App.Tests.TestSupport.Fixtures;
 
@@ -54,7 +55,7 @@ internal static class TestCoordinatorSubstitutes
             .Returns(Task.FromResult<SetupExportResult>(new SetupExportResult.Canceled()));
 
         coordinator.CreateDraft(Arg.Any<Guid?>()).Returns(call =>
-            TestSnapshots.Setup(boardId: call.Arg<Guid?>()));
+            new SetupDetails(TestSnapshots.Setup(), call.Arg<Guid?>()));
         return coordinator;
     }
 

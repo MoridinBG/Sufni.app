@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.DependencyInjection;
 using System;
@@ -135,6 +136,7 @@ public static class AppComposition
         services.AddSingleton<IEditorFactory, EditorFactory>();
         services.AddSingleton<BikeCoordinator>();
         services.AddSingleton<IBikeCoordinator>(sp => sp.GetRequiredService<BikeCoordinator>());
+        services.AddSingleton<ISetupBoardQuery, SetupBoardQuery>();
         services.AddSingleton<SetupStore>();
         services.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
         services.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());

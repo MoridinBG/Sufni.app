@@ -86,7 +86,7 @@ public class SessionSplitSyncTests
         Setup setup,
         Bike bike,
         RecordedSessionSource source) =>
-        RecordedSessionDerivationInput.Create(session, SetupSnapshot.From(setup, boardId: null), BikeSnapshot.From(bike), source);
+        RecordedSessionDerivationInput.Create(session, SetupSnapshot.From(setup), BikeSnapshot.From(bike), source);
 
     private static LiveTelemetryCapture CreateCapture() =>
         new(

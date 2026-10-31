@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.SyncAndPairing.Models;
@@ -29,22 +30,23 @@ public class SetupCoordinator(
     ISynchronizableRepository<Board> boardRepository,
     IBoardStoreWriter boardStore,
     IUiThreadDispatcher dispatcher,
-    StorePublication publication)
+    StorePublication publication,
+    ISetupBoardQuery setupQuery)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
 
-    public SetupSnapshot CreateDraft(Guid? suggestedBoardId = null)
+    public SetupDetails CreateDraft(Guid? suggestedBoardId = null)
     {
         // Honour the suggested board ID only if no other setup claims it.
         Guid? actualBoardId = null;
-        if (suggestedBoardId.HasValue && setupStore.FindByBoardId(suggestedBoardId.Value) is null)
+        if (suggestedBoardId.HasValue && boardStore.Get(suggestedBoardId.Value)?.SetupId is null)
         {
             actualBoardId = suggestedBoardId;
         }
 
         var seed = new Setup(Guid.NewGuid(), "new setup");
-        var snapshot = SetupSnapshot.From(seed, actualBoardId);
+        var snapshot = new SetupDetails(SetupSnapshot.From(seed), actualBoardId);
         return snapshot;
     }
 
@@ -52,11 +54,11 @@ public class SetupCoordinator(
     {
         logger.Information("Starting setup save for {SetupId}", setup.Id);
 
-        var current = setupStore.Get(setup.Id);
-        if (current is not null && current.Updated > baselineUpdated)
+        var current = setupQuery.Get(setup.Id);
+        if (current is not null && current.Setup.Updated > baselineUpdated)
         {
             logger.Warning("Setup save conflict for {SetupId}", setup.Id);
-            return new SetupSaveResult.Conflict(current);
+            return new SetupSaveResult.Conflict(current.Setup, current.BoardId);
         }
 
         try
@@ -73,7 +75,7 @@ public class SetupCoordinator(
             var boards = await backgroundTaskRunner.RunAsync(async () =>
                 await LoadBoardsAsync(await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId)));
 
-            var saved = SetupSnapshot.From(setup, boardId);
+            var saved = SetupSnapshot.From(setup);
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
@@ -94,7 +96,7 @@ public class SetupCoordinator(
     {
         logger.Information("Starting setup delete for {SetupId}", setupId);
 
-        var snapshot = setupStore.Get(setupId);
+        var snapshot = setupQuery.Get(setupId);
 
         try
         {
@@ -169,7 +171,7 @@ public class SetupCoordinator(
                     payload.Bike, payload.Setup, resolvedBoardId, cancellationToken)), cancellationToken);
 
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
-            var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
+            var setupSnapshot = SetupSnapshot.From(payload.Setup);
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
@@ -185,7 +187,7 @@ public class SetupCoordinator(
                 resolvedBoardId);
 
             return new SetupImportResult.Imported(
-                new ImportedSetupEditorData(setupSnapshot, bikeSnapshot, boardWarning));
+                new ImportedSetupEditorData(setupSnapshot, bikeSnapshot, boardWarning, resolvedBoardId));
         }
         catch (Exception e)
         {
@@ -253,7 +255,7 @@ public class SetupCoordinator(
             return (null, null);
         }
 
-        if (setupStore.FindByBoardId(importedBoardId.Value) is null)
+        if (boardStore.Get(importedBoardId.Value)?.SetupId is null)
         {
             return (importedBoardId, null);
         }
@@ -268,7 +270,7 @@ public abstract record SetupSaveResult
     private SetupSaveResult() { }
 
     public sealed record Saved(Guid Id, long NewBaselineUpdated) : SetupSaveResult;
-    public sealed record Conflict(SetupSnapshot CurrentSnapshot) : SetupSaveResult;
+    public sealed record Conflict(SetupSnapshot CurrentSnapshot, Guid? BoardId = null) : SetupSaveResult;
     public sealed record Failed(SetupSaveFailureReason Reason, string? Details = null) : SetupSaveResult;
 }
 

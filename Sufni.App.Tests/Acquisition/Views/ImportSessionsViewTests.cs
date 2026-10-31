@@ -28,7 +28,7 @@ public class ImportSessionsViewTests
     {
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
-        harness.SetupCache.AddOrUpdate(TestSnapshots.Setup(boardId: boardId));
+        harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
         var dataStore = CreateDataStore(boardId: boardId);
         var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);

@@ -84,7 +84,7 @@ internal sealed class AppDataRefresher(
             cancellationToken.ThrowIfCancellationRequested();
             return new AppDataSnapshot(
                 bikes.Select(BikeSnapshot.From).ToArray(),
-                setups.Select(setup => SetupSnapshot.From(setup, boards.FirstOrDefault(board => board.SetupId == setup.Id)?.Id)).ToArray(),
+                setups.Select(SetupSnapshot.From).ToArray(),
                 sessions.Select(SessionSnapshot.From).ToArray(),
                 sources.ToArray(),
                 devices.Select(PairedDeviceSnapshot.From).ToArray(),

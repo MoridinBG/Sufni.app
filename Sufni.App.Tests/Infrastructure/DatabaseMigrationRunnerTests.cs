@@ -1143,7 +1143,7 @@ public class DatabaseMigrationRunnerTests
         var fingerprintService = new ProcessingFingerprintService();
         var evaluation = fingerprintService.EvaluateState(
             SessionSnapshot.From(persisted),
-            SetupSnapshot.From(seed.Setup, boardId: null),
+            SetupSnapshot.From(seed.Setup),
             BikeSnapshot.From(persistedBike!),
             RecordedSessionSourceSnapshot.From(seed.Source),
             dependencyHash: null);
@@ -1572,7 +1572,7 @@ public class DatabaseMigrationRunnerTests
         var service = new ProcessingFingerprintService();
         return service.CreateCurrent(
             SessionSnapshot.From(seed.Session),
-            SetupSnapshot.From(seed.Setup, boardId: null),
+            SetupSnapshot.From(seed.Setup),
             BikeSnapshot.From(seed.Bike),
             RecordedSessionSourceSnapshot.From(seed.Source));
     }
@@ -1654,7 +1654,7 @@ public class DatabaseMigrationRunnerTests
                 };
                 var staleFingerprint = fingerprintService.CreateCurrent(
                     SessionSnapshot.From(seed.Session),
-                    SetupSnapshot.From(seed.Setup, boardId: null),
+                    SetupSnapshot.From(seed.Setup),
                     legacyBike,
                     RecordedSessionSourceSnapshot.From(seed.Source));
                 captureStaleFingerprint(staleFingerprint);

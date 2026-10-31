@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace Sufni.App.Setups.Coordinators;
 
 public interface ISetupCoordinator
 {
-    SetupSnapshot CreateDraft(Guid? suggestedBoardId = null);
+    SetupDetails CreateDraft(Guid? suggestedBoardId = null);
 
     Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated);
 

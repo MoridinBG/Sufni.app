@@ -5,7 +5,7 @@ using DynamicData;
 using NSubstitute;
 
 using Sufni.App.Setups.Coordinators;
-using Sufni.App.Setups.Stores;
+using Sufni.App.Setups.Queries;
 using Sufni.App.Setups.ViewModels.ItemLists;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -19,8 +19,8 @@ public class SetupListViewModelTests
     [Fact]
     public void AddCommand_OpensSetupCreate_WithoutImportPageBoardContext()
     {
-        var setupStore = Substitute.For<ISetupStore>();
-        using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
+        var setupStore = Substitute.For<ISetupBoardQuery>();
+        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
 
         setupStore.Connect().Returns(setupCache.Connect());
@@ -35,13 +35,13 @@ public class SetupListViewModelTests
     [Fact]
     public async Task FinalizeDelete_KeepsSetupHidden_WhileDeleteInProgress()
     {
-        var setupStore = Substitute.For<ISetupStore>();
-        using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
+        var setupStore = Substitute.For<ISetupBoardQuery>();
+        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
         setupStore.Connect().Returns(setupCache.Connect());
 
         var snapshot = TestSnapshots.Setup(name: "to delete");
-        setupCache.AddOrUpdate(snapshot);
-        setupStore.Get(snapshot.Id).Returns(snapshot);
+        setupCache.AddOrUpdate(new SetupDetails(snapshot, null));
+        setupStore.Get(snapshot.Id).Returns(new SetupDetails(snapshot, null));
 
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
         var deleteTcs = new TaskCompletionSource<SetupDeleteResult>();
@@ -68,12 +68,12 @@ public class SetupListViewModelTests
     [Fact]
     public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
     {
-        var setupStore = Substitute.For<ISetupStore>();
-        using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
+        var setupStore = Substitute.For<ISetupBoardQuery>();
+        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
         setupStore.Connect().Returns(setupCache.Connect());
         var first = TestSnapshots.Setup(name: "first");
         var second = TestSnapshots.Setup(name: "second");
-        setupCache.AddOrUpdate(first);
+        setupCache.AddOrUpdate(new SetupDetails(first, null));
 
         var viewModel = new SetupListViewModel(
             setupStore,
@@ -86,7 +86,7 @@ public class SetupListViewModelTests
         Assert.Single(viewModel.Items);
 
         viewModel.UnloadedCommand.Execute(null);
-        setupCache.AddOrUpdate(second);
+        setupCache.AddOrUpdate(new SetupDetails(second, null));
         Assert.Empty(viewModel.Items);
 
         viewModel.LoadedCommand.Execute(null);
@@ -97,13 +97,13 @@ public class SetupListViewModelTests
     [Fact]
     public async Task FinalizeDelete_RestoresSetup_WhenCoordinatorReportsFailure()
     {
-        var setupStore = Substitute.For<ISetupStore>();
-        using var setupCache = new SourceCache<SetupSnapshot, Guid>(snapshot => snapshot.Id);
+        var setupStore = Substitute.For<ISetupBoardQuery>();
+        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
         setupStore.Connect().Returns(setupCache.Connect());
 
         var snapshot = TestSnapshots.Setup(name: "stays");
-        setupCache.AddOrUpdate(snapshot);
-        setupStore.Get(snapshot.Id).Returns(snapshot);
+        setupCache.AddOrUpdate(new SetupDetails(snapshot, null));
+        setupStore.Get(snapshot.Id).Returns(new SetupDetails(snapshot, null));
 
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
         setupCoordinator.DeleteAsync(snapshot.Id)

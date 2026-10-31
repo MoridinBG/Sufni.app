@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Shared.Base;
@@ -37,7 +38,7 @@ internal sealed class EditorFactory(
     IBikeDependencyQuery bikeDependencyQuery,
     IBikeStore bikeStore,
     ISetupCoordinator setupCoordinator,
-    ISetupStore setupStore,
+    ISetupBoardQuery setupQuery,
     ISessionCoordinator sessionCoordinator,
     ISessionLoader sessionLoader,
     ISessionRecomputeEngine recomputeEngine,
@@ -73,11 +74,11 @@ internal sealed class EditorFactory(
         EditorKey.NewBike => CreateBikeEditor(BikeSnapshot.From(new Bike(Guid.NewGuid(), "new bike")), true, shell),
         EditorKey.Bike bike => bikeStore.Get(bike.Id) is { } snapshot ? CreateBikeEditor(snapshot, false, shell) : null,
         EditorKey.NewSetup setup => CreateSetupEditor(setupCoordinator.CreateDraft(setup.SuggestedBoardId), true, shell),
-        EditorKey.Setup setup => setupStore.Get(setup.Id) is { } snapshot ? CreateSetupEditor(snapshot, false, shell) : null,
+        EditorKey.Setup setup => setupQuery.Get(setup.Id) is { } snapshot ? CreateSetupEditor(snapshot, false, shell) : null,
         EditorKey.Session session => sessionStore.Get(session.Id) is { } snapshot ? CreateSessionDetail(snapshot, shell) : null,
         EditorKey.ImportSessions => new ImportSessionsViewModel(
             telemetryDataStoreService, filesService, shell, dialogService,
-            importSessionsCoordinator, setupStore, uiThreadDispatcher, timeProvider),
+            importSessionsCoordinator, setupQuery, uiThreadDispatcher, timeProvider),
         EditorKey.LiveDaq daq => liveDaqStore.Get(daq.IdentityKey) is { } snapshot
             ? CreateLiveDaqDetail(snapshot, sharedStreamRegistry.GetOrCreate(snapshot), shell) : null,
         EditorKey.LiveSession session => CreateLiveSession(session.IdentityKey, shell),
@@ -95,9 +96,9 @@ internal sealed class EditorFactory(
             uiThreadDispatcher,
             timeProvider: timeProvider) { IsDirty = isNew };
 
-    private SetupEditorViewModel CreateSetupEditor(SetupSnapshot snapshot, bool isNew, IShellCoordinator shell) =>
+    private SetupEditorViewModel CreateSetupEditor(SetupDetails details, bool isNew, IShellCoordinator shell) =>
         new(
-            snapshot,
+            details.Setup,
             isNew,
             bikeStore,
             bikeCoordinator,
@@ -105,7 +106,7 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher,
-            timeProvider: timeProvider) { IsDirty = isNew };
+            timeProvider: timeProvider, boardId: details.BoardId) { IsDirty = isNew };
 
     private SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot, IShellCoordinator shell) =>
         new(

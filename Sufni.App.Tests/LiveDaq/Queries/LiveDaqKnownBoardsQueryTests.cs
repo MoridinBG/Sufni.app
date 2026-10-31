@@ -125,7 +125,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     public async Task Changes_UsesSetupNameAsDisplayName_WhenSetupIsPresent()
     {
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "enduro setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "enduro setup", bikeId: Guid.NewGuid());
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "enduro bike");
 
         await SeedSetupAsync(setup);
@@ -143,7 +143,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     public async Task Changes_ReturnsEnrichedRecord_WhenBoardMapsToSetupAndBike()
     {
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "park setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "park setup", bikeId: Guid.NewGuid());
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "demo bike");
 
         await SeedSetupAsync(setup);
@@ -165,7 +165,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     public async Task Changes_RebuildsProjection_WhenSetupStoreFirstLoadsAfterQueryStarts()
     {
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "startup setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "startup setup", bikeId: Guid.NewGuid());
         await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
@@ -189,7 +189,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     public async Task Changes_RebuildsProjection_WhenBikeStoreChanges()
     {
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "trail setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "trail setup", bikeId: Guid.NewGuid());
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "old bike name");
 
         await SeedSetupAsync(setup);
@@ -211,7 +211,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     public async Task Get_ReturnsLatestRecord_ByIdentityKey()
     {
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "known setup", bikeId: Guid.NewGuid(), boardId: boardId);
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "known setup", bikeId: Guid.NewGuid());
         var bike = TestSnapshots.Bike(id: setup.BikeId, name: "known bike");
 
         await SeedSetupAsync(setup);
@@ -233,7 +233,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     {
         var boardId = Guid.NewGuid();
         var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "calibrated bike");
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "calibrated setup", bikeId: bike.Id, boardId: boardId) with
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "calibrated setup", bikeId: bike.Id) with
         {
             FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
             {
@@ -265,7 +265,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     {
         var boardId = Guid.NewGuid();
         var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached calibration bike");
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached calibration setup", bikeId: bike.Id, boardId: boardId) with
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached calibration setup", bikeId: bike.Id) with
         {
             FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
             {
@@ -299,7 +299,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
         };
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "session setup", bikeId: bike.Id, boardId: boardId) with
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "session setup", bikeId: bike.Id) with
         {
             FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
             {
@@ -347,7 +347,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
             ShockStroke = 0.5,
             RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
         };
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached session setup", bikeId: bike.Id, boardId: boardId) with
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached session setup", bikeId: bike.Id) with
         {
             FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
             {
@@ -384,7 +384,7 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
             shockStroke: 20,
             id: Guid.NewGuid(),
             name: "curve bike");
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "curve setup", bikeId: bike.Id, boardId: boardId) with
+        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "curve setup", bikeId: bike.Id) with
         {
             RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
             {
@@ -417,7 +417,6 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     private async Task SeedSetupAsync(SetupSnapshot setup)
     {
         using var batch = publication.BeginBatch();
-        if (setup.BoardId is { } id) await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(id, setup.Id, 1)]);
         await setupStore.PublishSetupsChangedAsync([setup]);
     }
 

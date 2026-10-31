@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using DynamicData;
 
@@ -22,10 +23,5 @@ public interface ISetupStore
     /// </summary>
     SetupSnapshot? Get(Guid id);
 
-    /// <summary>
-    /// Look up a snapshot by its associated DAQ board id.
-    /// Used by import to prefill the "setup for this board" selection.
-    /// </summary>
-    SetupSnapshot? FindByBoardId(Guid boardId);
-
+    IReadOnlyList<SetupSnapshot> GetAll();
 }

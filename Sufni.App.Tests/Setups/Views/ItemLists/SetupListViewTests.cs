@@ -25,7 +25,7 @@ public class SetupListViewTests
         ViewTestHelpers.EnsureViewTestResources();
 
         var snapshot = TestSnapshots.Setup(name: "Race Setup");
-        var store = new SetupStoreStub(snapshot);
+        var store = new SetupBoardQueryStub(new Sufni.App.Setups.Queries.SetupDetails(snapshot, null));
         var coordinator = TestCoordinatorSubstitutes.Setup();
 
         var viewModel = new SetupListViewModel(store, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(setups: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());

@@ -20,8 +20,8 @@ public class ImportSessionsViewModelTests
     {
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(boardId: boardId);
-        harness.SetupCache.AddOrUpdate(setup);
+        var setup = TestSnapshots.Setup();
+        harness.SetupQuery.Add(setup, boardId);
         var firstStore = CreateDataStore(name: "first", boardId: boardId);
         var secondStore = CreateDataStore(name: "second");
         var firstFiles = new[] { CreateTelemetryFile("first") };
@@ -52,8 +52,8 @@ public class ImportSessionsViewModelTests
     {
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(boardId: boardId);
-        harness.SetupCache.AddOrUpdate(setup);
+        var setup = TestSnapshots.Setup();
+        harness.SetupQuery.Add(setup, boardId);
         var dataStore = CreateDataStore(boardId: boardId);
         var initialFile = CreateTelemetryFile("lap");
         var refreshedFile = CreateTelemetryFile("after-import");
@@ -99,8 +99,8 @@ public class ImportSessionsViewModelTests
     {
         var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(boardId: boardId);
-        harness.SetupCache.AddOrUpdate(setup);
+        var setup = TestSnapshots.Setup();
+        harness.SetupQuery.Add(setup, boardId);
         var dataStore = CreateDataStore(boardId: boardId);
         var file = CreateTelemetryFile("lap");
         harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
@@ -172,13 +172,13 @@ public class ImportSessionsViewModelTests
         viewModel.NewDataStoresAvailable = true;
 
         viewModel.LoadedCommand.Execute(null);
-        harness.SetupCache.AddOrUpdate(TestSnapshots.Setup(boardId: boardId));
+        harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
 
         harness.TelemetryDataStoreService.Received(1).StartBrowse();
         Assert.NotNull(viewModel.SelectedSetup);
 
         viewModel.UnloadedCommand.Execute(null);
-        harness.SetupCache.AddOrUpdate(TestSnapshots.Setup(boardId: boardId));
+        harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
 
         harness.TelemetryDataStoreService.Received(1).StopBrowse();
         Assert.Empty(viewModel.TelemetryFiles);
@@ -197,14 +197,14 @@ public class ImportSessionsViewModelTests
         viewModel.SelectedDataStore = CreateDataStore(boardId: boardId);
         viewModel.LoadedCommand.Execute(null);
         await dispatcher.DrainAsync();
-        var setup = TestSnapshots.Setup(boardId: boardId);
+        var setup = TestSnapshots.Setup();
 
-        harness.SetupCache.AddOrUpdate(setup);
+        harness.SetupQuery.Add(setup, boardId);
         Assert.Null(viewModel.SelectedSetup);
         await dispatcher.DrainAsync();
         Assert.Equal(setup.Id, viewModel.SelectedSetup);
 
-        harness.SetupCache.Remove(setup.Id);
+        harness.SetupQuery.Remove(setup.Id);
         viewModel.UnloadedCommand.Execute(null);
         viewModel.SelectedSetup = setup.Id;
         await dispatcher.DrainAsync();

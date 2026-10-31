@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Coordinators;
 using System;
@@ -27,10 +28,10 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #region Private fields
 
     private readonly IShellCoordinator shell;
-    private readonly ISetupStore setupStore;
+    private readonly ISetupBoardQuery setupQuery;
     private readonly ObservableCollectionExtended<SetupRowViewModel> setupRowsSource = [];
     private readonly ReadOnlyObservableCollection<SetupRowViewModel> setupRows;
-    private readonly BehaviorSubject<Func<SetupSnapshot, bool>> filterSubject = new(_ => true);
+    private readonly BehaviorSubject<Func<SetupDetails, bool>> filterSubject = new(_ => true);
 
     #endregion Private fields
 
@@ -43,7 +44,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #region Constructors
 
     public SetupListViewModel(
-        ISetupStore setupStore,
+        ISetupBoardQuery setupQuery,
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
@@ -51,7 +52,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
         IShellActions shellActions)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.setupStore = setupStore;
+        this.setupQuery = setupQuery;
         this.shell = shell;
         setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>(setupRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Setup>(pendingDeletes);
@@ -68,7 +69,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
         setupRowsSource.Clear();
         RebuildFilter();
 
-        subscriptions.Add(setupStore.Connect()
+        subscriptions.Add(setupQuery.Connect()
             .Filter(filterSubject)
             .TransformWithInlineUpdate(
                 snapshot => new SetupRowViewModel(snapshot, shell, RequestRowDelete),
@@ -89,9 +90,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
     {
         var current = SearchText;
         filterSubject.OnNext(snapshot =>
-            !IsPendingDelete(new PendingDeleteKey.Setup(snapshot.Id)) &&
+            !IsPendingDelete(new PendingDeleteKey.Setup(snapshot.Setup.Id)) &&
             (string.IsNullOrEmpty(current) ||
-             snapshot.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
+             snapshot.Setup.Name.Contains(current, StringComparison.CurrentCultureIgnoreCase)));
     }
 
     protected override void AddImplementation()
@@ -110,9 +111,9 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     private void RequestRowDelete(SetupRowViewModel row)
     {
-        var snapshot = setupStore.Get(row.Id);
+        var snapshot = setupQuery.Get(row.Id);
         if (snapshot is null) return;
-        ScheduleDelete(new PendingDeleteKey.Setup(snapshot.Id), snapshot.Name);
+        ScheduleDelete(new PendingDeleteKey.Setup(snapshot.Setup.Id), snapshot.Setup.Name);
     }
 
     #endregion Private methods

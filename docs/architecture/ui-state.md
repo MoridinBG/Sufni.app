@@ -125,11 +125,8 @@ when another transfer is canceled or fails. `SessionSyncApplier` reads source
 metadata off-thread for a server arrival, then publishes it or removes a missing
 source. Stores never read repositories to prepare publication.
 
-`SetupStore` exposes `FindByBoardId(Guid)` so the import flow can
-look up the existing setup for the currently selected DAQ board
-without scanning anything from the UI side. This remains a store
-responsibility because the answer is a direct lookup over the store's
-own read model, not a cross-domain business query.
+`SetupStore` holds setup metadata only. Board associations live in `BoardStore`;
+`ISetupBoardQuery` joins them for setup lists, editor creation, and import selection.
 
 `LiveDaqStore` is a runtime-only store that does not persist to the
 database. It has no `RefreshAsync()`, its snapshots carry no `Updated`
@@ -285,7 +282,7 @@ it does not depend on which screens the user has visited.
 
 `ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency or fallback through setup snapshots. See [Live DAQ Streaming](live-streaming.md).
 
-`BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `SetupSnapshot.BoardId` remains a transitional refresh-time copy until setup association consumers are migrated.
+`BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `SetupSnapshot` contains no board ID. `ISetupBoardQuery` emits `SetupDetails` rows only after a relevant publication commits, so setup/board batches are observed coherently. Board-only changes update list rows and subsequent editor creation. Its exact-board lookup resolves import selection through `BoardSnapshot.SetupId`; the displayed association uses the lowest board ID if several boards reference one setup. Its change stream also notifies lookup consumers when a second board changes without changing that displayed association.
 
 `IRecordedSessionDomainQuery` lives in `RecordedSessionProjection/` rather than
 `Queries/`, but it follows the same command-side rule: it answers one

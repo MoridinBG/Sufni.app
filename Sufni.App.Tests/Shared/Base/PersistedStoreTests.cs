@@ -155,29 +155,6 @@ public class PersistedStoreTests
     }
 
     [Fact]
-    public async Task SetupStore_ReplacesBoardAssociations_AndFindsByBoardId()
-    {
-        var setupId = Guid.NewGuid();
-        var bikeId = Guid.NewGuid();
-        var boardId = Guid.NewGuid();
-        var setup = new Setup(setupId, "Race setup")
-        {
-            BikeId = bikeId,
-            Updated = 9
-        };
-        var store = new SetupStore(new StorePublication(UiThreadDispatcher));
-        using var subscription = store.Connect().Bind(out var snapshots).Subscribe();
-
-        await store.ReplaceAllAsync([SetupSnapshot.From(setup, boardId)]);
-
-        var snapshot = Assert.Single(snapshots);
-        Assert.Equal(setupId, snapshot.Id);
-        Assert.Equal(boardId, snapshot.BoardId);
-        Assert.Equal(snapshot, store.Get(setupId));
-        Assert.Equal(snapshot, store.FindByBoardId(boardId));
-    }
-
-    [Fact]
     public async Task SessionStore_ReplacesMetadata_AndPublishMutationsUpdateCache()
     {
         var sessionId = Guid.NewGuid();

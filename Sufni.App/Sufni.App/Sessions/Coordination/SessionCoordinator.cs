@@ -221,7 +221,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                             ?? throw new InvalidOperationException("Setup is missing.");
                 var bike = await bikeRepository.GetAsync(setup.BikeId)
                            ?? throw new InvalidOperationException("Bike is missing.");
-                var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+                var setupSnapshot = SetupSnapshot.From(setup);
                 var bikeSnapshot = BikeSnapshot.From(bike);
                 var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
                 var sessionSnapshot = SessionSnapshot.From(session) with { Id = source.SessionId };

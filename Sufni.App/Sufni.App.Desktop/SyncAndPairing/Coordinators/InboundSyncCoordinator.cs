@@ -101,13 +101,13 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 var upsertedSetupCount = 0;
                 var removedSetupIds = new List<Guid>();
                 var changedSetups = new List<SetupSnapshot>();
-                var boards = e.Data.Setups.Count == 0 && e.Data.Boards.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
+                var boards = e.Data.Boards.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
                 foreach (var setup in e.Data.Setups)
                 {
                     var freshSetup = await backgroundTaskRunner.RunAsync(async () =>
                     {
                         var row = await setupRepository.GetAsync(setup.Id);
-                        return row is null ? null : SetupSnapshot.From(row, boards.FirstOrDefault(board => board.SetupId == row.Id)?.Id);
+                        return row is null ? null : SetupSnapshot.From(row);
                     });
                     if (freshSetup is null)
                     {

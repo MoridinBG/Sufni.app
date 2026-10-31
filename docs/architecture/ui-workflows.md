@@ -242,7 +242,7 @@ Shared registrations in `AppComposition`:
   `ShellWorkspaceCoordinator` holds `IEditorFactory`; `CreateEditor(key, shell)`
   receives its shell at call time. No `Func` cycle breakers remain.
 - **Queries, indexes, and read graphs**: `IBikeDependencyQuery`,
-  `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`,
+  `ISetupBoardQuery`, `ILiveDaqKnownBoardsQuery`, `IRecordedSessionDomainQuery`,
   `IProcessingDependencyHashIndex`, and `IRecordedSessionProjection`.
 - **Live DAQ**: `LiveDaqStore` (singleton behind both
   `ILiveDaqStore` and `ILiveDaqStoreWriter`),
@@ -330,7 +330,7 @@ and control-internal keys stay local to their controls.
 `ShellWorkspaceCoordinator` matches editor keys against open tabs before calling
 `IEditorFactory.CreateEditor(key, shell)`. Reopening a key focuses its existing
 tab; a background request preserves current focus. The factory reads the current
-store snapshot and returns no editor for missing entities. It creates live
+store snapshot (or joined setup/board details) and returns no editor for missing entities. It creates live
 stream/capture dependencies only after deduplication, so a second request does
 not create an unused capture service.
 
@@ -370,6 +370,6 @@ Profile-specific views are resolved by `ViewLocator` from
 `IAppEnvironment.LayoutProfile`, not from platform.
 
 Setup writes and transaction work run through the background runner; the
-coordinator supplies prepared snapshots to the setup and bike stores after
-commit. Desktop inbound sync reads and maps bike/setup rows off-thread, including
-the persisted board association, before publishing those snapshots.
+coordinator supplies prepared snapshots to the setup, bike and board stores after
+commit. Desktop inbound sync reads and maps bike/setup/board rows off-thread
+before publishing those snapshots in one batch.

@@ -113,7 +113,6 @@ public class ProcessingDependencyHashIndexTests
         var refreshedSetup = setup with
         {
             Name = "renamed setup",
-            BoardId = Guid.NewGuid(),
             Updated = setup.Updated + 1
         };
         stores.Setups.ReplaceAll([refreshedSetup]);
@@ -235,8 +234,7 @@ public class ProcessingDependencyHashIndexTests
             return result.HasValue ? result.Value : null;
         }
 
-        public SetupSnapshot? FindByBoardId(Guid boardId) =>
-            cache.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
+        public IReadOnlyList<SetupSnapshot> GetAll() => cache.Items.ToArray();
 
         public void Add(SetupSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 

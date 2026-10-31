@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using Sufni.App.Shell.Coordinators;
 using System;
 using System.Threading.Tasks;
@@ -31,20 +32,21 @@ public sealed class SetupRowViewModel : ListItemRowViewModelBase
     }
 
     public SetupRowViewModel(
-        SetupSnapshot snapshot,
+        SetupDetails details,
         IShellCoordinator shell,
         Action<SetupRowViewModel> requestDelete)
     {
         this.shell = shell;
         this.requestDelete = requestDelete;
-        Update(snapshot);
+        Update(details);
     }
 
-    public void Update(SetupSnapshot snapshot)
+    public void Update(SetupDetails details)
     {
+        var snapshot = details.Setup;
         Id = snapshot.Id;
         Name = snapshot.Name;
-        BoardId = snapshot.BoardId;
+        BoardId = details.BoardId;
         Timestamp = null;
         IsComplete = true;
     }

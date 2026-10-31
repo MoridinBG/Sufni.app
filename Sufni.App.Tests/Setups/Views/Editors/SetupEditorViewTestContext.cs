@@ -50,7 +50,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false)
     {
-        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
+        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), boardId: Guid.NewGuid());
     }
 
     public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)
@@ -85,9 +85,9 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         return new MountedSetupEditorView<SetupEditorDesktopView>(host, view, editor);
     }
 
-    public static SetupSnapshot CreateSetupSnapshot(BikeSnapshot bike, Guid? boardId = null)
+    public static SetupSnapshot CreateSetupSnapshot(BikeSnapshot bike)
     {
-        return TestSnapshots.Setup(bikeId: bike.Id, boardId: boardId ?? Guid.NewGuid()) with
+        return TestSnapshots.Setup(bikeId: bike.Id) with
         {
             FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
             {

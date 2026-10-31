@@ -146,7 +146,7 @@ public class ImportSessionsCoordinator(
         var bike = await bikeRepository.GetAsync(setup.BikeId)
             ?? throw new Exception("Bike is missing");
 
-        var setupSnapshot = SetupSnapshot.From(setup, boardId: null);
+        var setupSnapshot = SetupSnapshot.From(setup);
         var bikeSnapshot = BikeSnapshot.From(bike);
 
         IDaqManagementSession? batchSession = null;

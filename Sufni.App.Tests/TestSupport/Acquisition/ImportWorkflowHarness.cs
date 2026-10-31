@@ -39,9 +39,6 @@ internal sealed class ImportWorkflowHarness
         TelemetryDataStoreService.DataStores.Returns(DataStores);
         TelemetryDataStoreService.LoadFilesAsync(Arg.Any<ITelemetryDataStore>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([]));
-        SetupStore.Connect().Returns(SetupCache.Connect());
-        SetupStore.FindByBoardId(Arg.Any<Guid>())
-            .Returns(callInfo => SetupCache.Items.FirstOrDefault(s => s.BoardId == callInfo.Arg<Guid>()));
         ImportSessionsCoordinatorSubstitute.State.Returns(_ => ImportState.Value);
         ImportSessionsCoordinatorSubstitute.Observe().Returns(ImportState);
         ConfigureDefaultReprocessor();
@@ -69,9 +66,8 @@ internal sealed class ImportWorkflowHarness
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
     public ISetupCoordinator SetupCoordinator { get; } = TestCoordinatorSubstitutes.Setup();
     public IImportSessionsCoordinator ImportSessionsCoordinatorSubstitute { get; } = TestCoordinatorSubstitutes.ImportSessions();
-    public ISetupStore SetupStore { get; } = Substitute.For<ISetupStore>();
+    public SetupBoardQueryStub SetupQuery { get; } = new();
     public ObservableCollection<ITelemetryDataStore> DataStores { get; } = [];
-    public SourceCache<SetupSnapshot, Guid> SetupCache { get; } = new(s => s.Id);
 
     public ImportSessionsCoordinator CreateCoordinator(
         ISessionRepository? repository = null,
@@ -96,7 +92,7 @@ internal sealed class ImportWorkflowHarness
         Shell,
         DialogService,
         ImportSessionsCoordinatorSubstitute,
-        SetupStore,
+        SetupQuery,
         dispatcher ?? new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 
     public (Setup Setup, Bike Bike) SeedSetupAndBike(double headAngle = 65.0)
@@ -107,7 +103,7 @@ internal sealed class ImportWorkflowHarness
         var setup = new Setup(setupId, "test setup") { BikeId = bikeId };
         SetupRepository.GetAsync(setupId).Returns(Task.FromResult<Setup?>(setup));
         BikeRepository.GetAsync(bikeId).Returns(Task.FromResult<Bike?>(bike));
-        SetupCache.AddOrUpdate(TestSnapshots.Setup(id: setupId, bikeId: bikeId));
+        SetupQuery.Add(TestSnapshots.Setup(id: setupId, bikeId: bikeId));
         return (setup, bike);
     }
 

@@ -397,7 +397,6 @@ public class ProcessingFingerprintServiceTests
         var changedSetup = context.Setup with
         {
             Name = "renamed setup",
-            BoardId = Guid.NewGuid(),
             Updated = 99
         };
         var changedBike = context.Bike with

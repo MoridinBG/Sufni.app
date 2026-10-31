@@ -1019,7 +1019,7 @@ public class SessionRepositoryTests
         RecordedSessionSource source) =>
         fingerprintService.CreateCurrent(
             SessionSnapshot.From(session),
-            SetupSnapshot.From(setup, boardId: null),
+            SetupSnapshot.From(setup),
             BikeSnapshot.From(bike),
             RecordedSessionSourceSnapshot.From(source));
 }

@@ -109,14 +109,14 @@ public class InboundSyncCoordinatorTests : IDisposable
         var id = Guid.NewGuid();
         var boardId = Guid.NewGuid();
         var incoming = new Setup(id, "incoming") { Updated = 3, Deleted = incomingDeleted ? 9 : null };
-        await setupStore.ReplaceAllAsync([SetupSnapshot.From(new Setup(id, "old"), null)]);
+        await setupStore.ReplaceAllAsync([SetupSnapshot.From(new Setup(id, "old"))]);
         var authoritative = new Setup(id, "current") { Updated = updated, BikeId = Guid.NewGuid() };
         if (authoritativeExists) setups.Seed(authoritative);
         boards.Seed(new Board(boardId, id));
 
         await PublishAsync(new SynchronizationData { Setups = { incoming } }, setupStore);
 
-        Assert.Equal(authoritativeExists ? SetupSnapshot.From(authoritative, boardId) : null, setupStore.Get(id));
+        Assert.Equal(authoritativeExists ? SetupSnapshot.From(authoritative) : null, setupStore.Get(id));
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class InboundSyncCoordinatorTests : IDisposable
         await PublishAsync(data, setupStore);
 
         Assert.Equal(BikeSnapshot.From(bike), bikeStore.Get(bike.Id));
-        Assert.Equal(SetupSnapshot.From(setup, null), setupStore.Get(setup.Id));
+        Assert.Equal(SetupSnapshot.From(setup), setupStore.Get(setup.Id));
     }
 
     [Fact]

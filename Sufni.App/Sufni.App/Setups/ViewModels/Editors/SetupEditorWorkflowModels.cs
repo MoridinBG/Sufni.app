@@ -1,3 +1,4 @@
+using System;
 using Sufni.App.Shared.Models;
 
 using Sufni.App.Bikes.Stores;
@@ -7,7 +8,8 @@ namespace Sufni.App.Setups.ViewModels.Editors;
 public sealed record ImportedSetupEditorData(
     SetupSnapshot Setup,
     BikeSnapshot Bike,
-    string? BoardIdWarning);
+    string? BoardIdWarning,
+    Guid? BoardId = null);
 
 public abstract record SetupImportResult
 {

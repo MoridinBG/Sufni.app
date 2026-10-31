@@ -1,3 +1,5 @@
+using Sufni.App.Setups.Queries;
+using System.Reactive;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -57,7 +59,7 @@ internal sealed class SetupStoreStub : ISetupStore, IDisposable
         return result.HasValue ? result.Value : null;
     }
 
-    public SetupSnapshot? FindByBoardId(Guid boardId) => cache.Items.FirstOrDefault(snapshot => snapshot.BoardId == boardId);
+    public IReadOnlyList<SetupSnapshot> GetAll() => cache.Items.ToArray();
 
 }
 
@@ -124,5 +126,23 @@ internal sealed class RecordedSourceStoreStub : IRecordedSessionSourceStore, IDi
 
     public void Add(RecordedSessionSourceSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
+    public void Dispose() => cache.Dispose();
+}
+
+internal sealed class SetupBoardQueryStub : ISetupBoardQuery, IDisposable
+{
+    private readonly SourceCache<SetupDetails, Guid> cache = new(row => row.Setup.Id);
+
+    public SetupBoardQueryStub(params SetupDetails[] rows) => cache.AddOrUpdate(rows);
+    public IObservable<IChangeSet<SetupDetails, Guid>> Connect() => cache.Connect();
+    public IObservable<Unit> Changes => cache.Connect().Select(_ => Unit.Default);
+    public void Add(SetupSnapshot setup, Guid? boardId = null) => cache.AddOrUpdate(new SetupDetails(setup, boardId));
+    public void Remove(Guid id) => cache.RemoveKey(id);
+    public SetupDetails? Get(Guid id)
+    {
+        var result = cache.Lookup(id);
+        return result.HasValue ? result.Value : null;
+    }
+    public SetupSnapshot? FindByBoardId(Guid boardId) => cache.Items.FirstOrDefault(row => row.BoardId == boardId)?.Setup;
     public void Dispose() => cache.Dispose();
 }

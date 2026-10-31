@@ -24,7 +24,7 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
-using Sufni.App.Setups.Stores;
+using Sufni.App.Setups.Queries;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -36,7 +36,7 @@ internal static class TestEditorFactories
 {
     public static IEditorFactory Create(
         IBikeStore? bikeStore = null,
-        ISetupStore? setupStore = null,
+        ISetupBoardQuery? setupQuery = null,
         ISessionStore? sessionStore = null,
         ILiveDaqStore? liveDaqStore = null,
         ILiveDaqKnownBoardsQuery? knownBoards = null,
@@ -58,7 +58,7 @@ internal static class TestEditorFactories
             Substitute.For<IBikeDependencyQuery>(),
             bikeStore ?? Substitute.For<IBikeStore>(),
             TestCoordinatorSubstitutes.Setup(),
-            setupStore ?? Substitute.For<ISetupStore>(),
+            setupQuery ?? Substitute.For<ISetupBoardQuery>(),
             TestCoordinatorSubstitutes.Session(),
             TestCoordinatorSubstitutes.SessionLoader(),
             TestCoordinatorSubstitutes.RecomputeEngine(),

@@ -151,7 +151,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        Guid? boardId = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.setupCoordinator = setupCoordinator;
@@ -163,7 +164,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         Id = snapshot.Id;
         BaselineUpdated = snapshot.Updated;
         setup = SetupFromSnapshot(snapshot);
-        originalBoardId = snapshot.BoardId;
+        originalBoardId = boardId;
 
         // Populate name / sensor / board fields immediately so the
         // editor renders correctly even before Loaded fires. SelectedBike
@@ -315,7 +316,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 if (reload)
                 {
                     setup = SetupFromSnapshot(conflict.CurrentSnapshot);
-                    originalBoardId = conflict.CurrentSnapshot.BoardId;
+                    originalBoardId = conflict.BoardId;
                     BaselineUpdated = conflict.CurrentSnapshot.Updated;
                     await ResetImplementation();
                     EvaluateDirtiness();
@@ -433,7 +434,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         IsInDatabase = true;
 
         setup = SetupFromSnapshot(data.Setup);
-        originalBoardId = data.Setup.BoardId;
+        originalBoardId = data.BoardId;
 
         await ResetImplementation();
         EvaluateDirtiness();

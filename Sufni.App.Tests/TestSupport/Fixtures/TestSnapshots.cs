@@ -58,12 +58,10 @@ public static class TestSnapshots
         Guid? id = null,
         string name = "test setup",
         Guid? bikeId = null,
-        Guid? boardId = null,
         long updated = 1) => new(
         Id: id ?? Guid.NewGuid(),
         Name: name,
         BikeId: bikeId ?? Guid.NewGuid(),
-        BoardId: boardId,
         FrontSensorConfigurationJson: null,
         RearSensorConfigurationJson: null,
         Updated: updated);

@@ -109,7 +109,7 @@ internal static class MainPagesViewModelTestFactory
     }
 
     private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell, IShellActions feedback) =>
-        new(new SetupStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
+        new(new SetupBoardQueryStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
         new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);

@@ -11,8 +11,7 @@ namespace Sufni.App.Setups.Stores;
 internal sealed class SetupStore(StorePublication publication)
     : SourceCacheStoreBase<SetupSnapshot, Guid>(setup => setup.Id, publication), ISetupStoreWriter
 {
-    public SetupSnapshot? FindByBoardId(Guid boardId) =>
-        Items.FirstOrDefault(setup => setup.BoardId == boardId);
+    public IReadOnlyList<SetupSnapshot> GetAll() => Items.ToArray();
 
     public Task PublishSetupsChangedAsync(IReadOnlyCollection<SetupSnapshot> snapshots, CancellationToken cancellationToken = default)
     {

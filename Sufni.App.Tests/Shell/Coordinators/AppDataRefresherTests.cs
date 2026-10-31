@@ -45,7 +45,7 @@ public class AppDataRefresherTests
         var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(fixture.Bike.Id)?.Name,
-            fixture.Setups.Get(fixture.Setup.Id)?.BoardId,
+            fixture.Setups.Get(fixture.Setup.Id)?.Id,
             fixture.Sessions.Get(fixture.Session.Id)?.Name,
             fixture.Sources.Get(fixture.Session.Id)?.SourceHash,
             fixture.Devices.Get("phone")?.DisplayName,
@@ -62,7 +62,7 @@ public class AppDataRefresherTests
         lastRead.SetResult([fixture.Segment]);
         await refresh.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(("bike", fixture.Board.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board)),
+        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board)),
             Assert.Single(observed));
     }
 

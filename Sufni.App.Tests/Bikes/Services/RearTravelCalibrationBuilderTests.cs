@@ -356,7 +356,7 @@ public class RearTravelCalibrationBuilderTests
         IKinematicSolutionCache? kinematicSolutionCache = null)
     {
         var builder = new RearTravelCalibrationBuilder(kinematicSolutionCache ?? new KinematicSolutionCache());
-        return builder.TryBuild(SetupSnapshot.From(setup, boardId: null), BikeSnapshot.From(bike));
+        return builder.TryBuild(SetupSnapshot.From(setup), BikeSnapshot.From(bike));
     }
 
     private sealed class TrackingKinematicSolutionCache : IKinematicSolutionCache

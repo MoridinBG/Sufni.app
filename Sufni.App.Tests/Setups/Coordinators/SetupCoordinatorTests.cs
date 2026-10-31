@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using Sufni.App.SyncAndPairing.Stores;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Time.Testing;
@@ -27,6 +28,7 @@ public class SetupCoordinatorTests : IDisposable
     private readonly InMemorySynchronizableRepository<Board> boards;
     private readonly InMemorySetupTransactions transactions;
     private readonly SetupCoordinator coordinator;
+    private readonly SetupBoardQuery query;
     private readonly IFilesService files = Substitute.For<IFilesService>();
 
     public SetupCoordinatorTests()
@@ -34,27 +36,29 @@ public class SetupCoordinatorTests : IDisposable
         setupStore = new(publication);
         bikeStore = new(publication);
         boardStore = new(publication);
+        query = new(setupStore, boardStore, publication);
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9));
         setups = new(clock);
         boards = new(clock);
         transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards);
-        coordinator = new(setupStore, bikeStore, files, new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication);
+        coordinator = new(setupStore, bikeStore, files, new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication, query);
     }
 
     public void Dispose()
     {
+        query.Dispose();
         setupStore.Dispose();
         bikeStore.Dispose();
         boardStore.Dispose();
         publication.Dispose();
     }
 
-    private async Task SeedAsync(SetupSnapshot snapshot)
+    private async Task SeedAsync(SetupSnapshot snapshot, Guid? boardId = null)
     {
         setups.Seed(new Setup(snapshot.Id, snapshot.Name) { BikeId = snapshot.BikeId, Updated = snapshot.Updated });
-        if (snapshot.BoardId is { } boardId)
+        if (boardId is { } id)
         {
-            var board = new Board(boardId, snapshot.Id);
+            var board = new Board(id, snapshot.Id);
             boards.Seed(board);
             await boardStore.PublishBoardsChangedAsync([BoardSnapshot.From(board)]);
         }
@@ -79,7 +83,7 @@ public class SetupCoordinatorTests : IDisposable
     public async Task CreateDraft_UsesSuggestedBoardOnlyWhenUnclaimed(bool claimed)
     {
         var boardId = Guid.NewGuid();
-        if (claimed) await SeedAsync(TestSnapshots.Setup(boardId: boardId));
+        if (claimed) await SeedAsync(TestSnapshots.Setup(), boardId);
 
         var draft = coordinator.CreateDraft(boardId);
 
@@ -96,8 +100,8 @@ public class SetupCoordinatorTests : IDisposable
     {
         Guid? oldBoard = hadBoard ? Guid.NewGuid() : null;
         Guid? newBoard = hasBoard ? sameBoard ? oldBoard : Guid.NewGuid() : null;
-        var existing = TestSnapshots.Setup(boardId: oldBoard, updated: 5);
-        await SeedAsync(existing);
+        var existing = TestSnapshots.Setup(updated: 5);
+        await SeedAsync(existing, oldBoard);
         var draft = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId };
 
         var observed = new List<(string?, Guid?, Guid?)>();
@@ -111,7 +115,7 @@ public class SetupCoordinatorTests : IDisposable
         Assert.Equal("renamed", (await setups.GetAsync(existing.Id))!.Name);
         var published = setupStore.Get(existing.Id)!;
         Assert.Equal("renamed", published.Name);
-        Assert.Equal(newBoard, published.BoardId);
+        Assert.Equal(newBoard, query.Get(existing.Id)!.BoardId);
         Assert.Equal(9, published.Updated);
         if (newBoard is { } claimed) Assert.Equal(existing.Id, (await boards.GetAsync(claimed))!.SetupId);
         if (oldBoard is { } cleared && oldBoard != newBoard) Assert.Null((await boards.GetAsync(cleared))!.SetupId);
@@ -149,8 +153,9 @@ public class SetupCoordinatorTests : IDisposable
     [InlineData(true)]
     public async Task DeleteAsync_RemovesSetupAndClearsBoard_OnlyWhenPersistenceSucceeds(bool fail)
     {
-        var existing = TestSnapshots.Setup(boardId: Guid.NewGuid());
-        await SeedAsync(existing);
+        var boardId = Guid.NewGuid();
+        var existing = TestSnapshots.Setup();
+        await SeedAsync(existing, boardId);
         if (fail) transactions.Failure = new IOException("locked");
 
         var result = await coordinator.DeleteAsync(existing.Id);
@@ -159,14 +164,14 @@ public class SetupCoordinatorTests : IDisposable
         {
             Assert.Equal(SetupDeleteFailureReason.Delete, Assert.IsType<SetupDeleteResult.Failed>(result).Reason);
             Assert.NotNull(await setups.GetAsync(existing.Id));
-            Assert.Equal(existing.Id, (await boards.GetAsync(existing.BoardId!.Value))!.SetupId);
+            Assert.Equal(existing.Id, (await boards.GetAsync(boardId))!.SetupId);
             Assert.Equal(existing, setupStore.Get(existing.Id));
         }
         else
         {
             Assert.IsType<SetupDeleteResult.Deleted>(result);
             Assert.Null(await setups.GetAsync(existing.Id));
-            Assert.Null((await boards.GetAsync(existing.BoardId!.Value))!.SetupId);
+            Assert.Null((await boards.GetAsync(boardId))!.SetupId);
             Assert.Null(setupStore.Get(existing.Id));
         }
     }

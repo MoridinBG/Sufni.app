@@ -73,12 +73,12 @@ public class ProcessingInputBundleTests
         Assert.NotNull(bundle);
         var bundleHash = ProcessingDependencyHash.Compute(bundle!.Setup, bundle.Bike);
         var snapshotHash = ProcessingDependencyHash.Compute(
-            SetupSnapshot.From(seeded.Setup, boardId: null),
+            SetupSnapshot.From(seeded.Setup),
             BikeSnapshot.From(seeded.Bike));
         var bundleFingerprint = fingerprintService.CreateCurrentDatabaseInputs(bundle);
         var snapshotFingerprint = fingerprintService.CreateCurrent(
             SessionSnapshot.From(seeded.Session),
-            SetupSnapshot.From(seeded.Setup, boardId: null),
+            SetupSnapshot.From(seeded.Setup),
             BikeSnapshot.From(seeded.Bike),
             RecordedSessionSourceSnapshot.From(seeded.Source));
 

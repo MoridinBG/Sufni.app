@@ -844,7 +844,7 @@ public class SynchronizationMergeEngineTests
 
         var fingerprintService = new ProcessingFingerprintService();
         var session = new Session(sessionId, "session", "desc", setupId, 100);
-        var setupSnapshot = SetupSnapshot.From(setup, null);
+        var setupSnapshot = SetupSnapshot.From(setup);
         var bikeSnapshot = BikeSnapshot.From(bike);
 
         if (scenario == PushSwapScenario.DerivationWindowChanged)

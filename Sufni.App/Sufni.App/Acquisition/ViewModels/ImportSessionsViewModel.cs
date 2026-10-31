@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Queries;
 using Sufni.App.Shared.Models;
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -57,7 +58,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly ITelemetryDataStoreService telemetryDataStoreService;
     private readonly IFilesService filesService;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
-    private readonly ISetupStore setupStore;
+    private readonly ISetupBoardQuery setupQuery;
     private readonly IDisposable importSubscription;
     private int displayedEventCount;
 
@@ -71,7 +72,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         IImportSessionsCoordinator importSessionsCoordinator,
-        ISetupStore setupStore,
+        ISetupBoardQuery setupQuery,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
@@ -80,7 +81,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         this.telemetryDataStoreService = telemetryDataStoreService;
         this.filesService = filesService;
         this.importSessionsCoordinator = importSessionsCoordinator;
-        this.setupStore = setupStore;
+        this.setupQuery = setupQuery;
 
         importSubscription = importSessionsCoordinator.Observe()
             .ObserveOnUiThread(uiThreadDispatcher)
@@ -233,7 +234,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     {
         var boardId = SelectedDataStore?.BoardId;
         SelectedSetup = boardId.HasValue
-            ? setupStore.FindByBoardId(boardId.Value)?.Id
+            ? setupQuery.FindByBoardId(boardId.Value)?.Id
             : null;
     }
 
@@ -343,7 +344,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
         EnsureScopedSubscription(s =>
         {
-            var changes = setupStore.Connect().ObserveOnUiThread(UiThreadDispatcher);
+            var changes = setupQuery.Changes.ObserveOnUiThread(UiThreadDispatcher);
             s.Add(changes.Subscribe(_ => ResolveSelectedSetup()));
         });
     }
