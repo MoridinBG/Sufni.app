@@ -19,11 +19,10 @@ public class SessionProcessedGenerationTests
             DescentMeters = 6,
             FullTrack = fullTrackId,
             GpsOffsetSeconds = 1.25,
-            Track = [new TrackPoint(100, 1, 2, 3)],
+
         };
 
         var generation = SessionProcessedGeneration.From(session);
-        session.Track.Clear();
         var json = AppJson.Serialize(generation);
         using var document = JsonDocument.Parse(json);
         Assert.False(document.RootElement.TryGetProperty("GpsOffsetSeconds", out _));
@@ -35,10 +34,8 @@ public class SessionProcessedGenerationTests
         Assert.Equal(5, roundTrip.AscentMeters);
         Assert.Equal(6, roundTrip.DescentMeters);
         Assert.Equal(fullTrackId, roundTrip.FullTrackId);
-        var point = Assert.Single(roundTrip.Track!);
-        Assert.Equal(100, point.Time);
-        Assert.Equal(1, point.X);
-        Assert.Equal(2, point.Y);
-        Assert.Equal(3, point.Elevation);
+        Assert.False(document.RootElement.TryGetProperty("Track", out _));
+        using var sessionJson = JsonDocument.Parse(AppJson.Serialize(session));
+        Assert.False(sessionJson.RootElement.TryGetProperty("track", out _));
     }
 }

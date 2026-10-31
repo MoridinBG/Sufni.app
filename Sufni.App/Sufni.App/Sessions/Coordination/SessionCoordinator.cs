@@ -144,7 +144,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 if (points is not { Count: > 0 }) return new GpsOffsetResult.NoMatchingTrack();
                 var metrics = SessionSummaryMetricsCalculator.Calculate(current.DurationSeconds ?? telemetry.Metadata.Duration, points);
                 cancellationToken.ThrowIfCancellationRequested();
-                await sessionRepository.UpdateSessionTrackAsync(sessionId, points, metrics, offset);
+                await sessionRepository.UpdateGpsAlignmentAsync(sessionId, metrics, offset);
                 var fresh = await sessionRepository.GetSessionAsync(sessionId);
                 if (fresh is null)
                 {

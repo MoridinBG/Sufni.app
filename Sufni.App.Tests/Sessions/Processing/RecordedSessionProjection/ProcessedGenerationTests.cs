@@ -27,7 +27,6 @@ public class ProcessedGenerationTests
         Assert.Equal(metadata.Name, session.Name);
         Assert.Same(payload.Data, session.ProcessedData);
         Assert.Equal(payload.FingerprintJson, session.ProcessingFingerprintJson);
-        Assert.Equal(generation.TrackPoints, session.Track);
     }
 
     [Theory]

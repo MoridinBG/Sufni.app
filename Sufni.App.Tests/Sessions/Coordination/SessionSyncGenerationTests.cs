@@ -114,7 +114,7 @@ public class SessionSyncGenerationTests : IDisposable
     {
         var session = SeedSession();
         var data = PersistenceTestData.CreateTelemetryBlob(80);
-        var generation = new SessionProcessedGeneration(80, 20, 8, 3, Guid.NewGuid(), [new TrackPoint(100, 1, 2, 3)]);
+        var generation = new SessionProcessedGeneration(80, 20, 8, 3, Guid.NewGuid());
 
         var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session),
             new SessionBlobPayload("target", data), "target", generation);
@@ -128,7 +128,7 @@ public class SessionSyncGenerationTests : IDisposable
         Assert.Equal(generation.DurationSeconds, saved.DurationSeconds);
         Assert.Equal(generation.DistanceMeters, saved.DistanceMeters);
         Assert.Equal(generation.FullTrackId, saved.FullTrack);
-        Assert.Equal(generation.Track, await repository.Repository.GetSessionTrackAsync(session.Id));
+
         Assert.Equal(SessionSnapshot.From(saved), sessions.Get(session.Id));
     }
 

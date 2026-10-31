@@ -257,11 +257,6 @@ public class SynchronizationMergeEngineTests
         {
             FullTrack = trackId,
             GpsOffsetSeconds = 1.25,
-            Track =
-            [
-                new TrackPoint(1234, 1, 1, 100),
-                new TrackPoint(1235, 2, 2, 101)
-            ],
             ProcessingFingerprintJson = """{"remote":true}""",
             DurationSeconds = 65,
             DistanceMeters = 10,
@@ -294,7 +289,7 @@ public class SynchronizationMergeEngineTests
         });
 
         var session = await database.GetSessionAsync(sessionId);
-        var sessionTrack = await database.GetSessionTrackAsync(sessionId);
+
         var rawPsst = await database.GetSessionRawPsstAsync(sessionId);
         var fullTrack = await database.GetAsync<Track>(trackId);
 
@@ -315,10 +310,9 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(99, session.Updated);
         Assert.Equal("50", session.FrontSpringRate);
         Assert.Equal("60", session.RearSpringRate);
-        Assert.Null(sessionTrack);
         Assert.Equal(originalPsst, rawPsst);
         Assert.Equal(beforeMerge.ProcessedTelemetryRevision, session.ProcessedTelemetryRevision);
-        Assert.Equal(beforeMerge.TrackProjectionRevision + 1, session.TrackProjectionRevision);
+
         Assert.NotNull(fullTrack);
         Assert.Equal(2, fullTrack!.Points.Count);
         Assert.Equal(1, fullTrack.PointsRevision);
@@ -358,11 +352,6 @@ public class SynchronizationMergeEngineTests
                 {
                     FullTrack = trackId,
                     GpsOffsetSeconds = 1.25,
-                    Track =
-                    [
-                        new TrackPoint(1234, 1, 1, 100),
-                        new TrackPoint(1235, 2, 2, 101)
-                    ],
                     ProcessingFingerprintJson = """{"remote":true}""",
                     DurationSeconds = 65,
                     DistanceMeters = 10,
@@ -378,7 +367,7 @@ public class SynchronizationMergeEngineTests
 
         var session = await database.GetSessionAsync(sessionId);
         var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0, long.MaxValue));
-        var sessionTrack = await database.GetSessionTrackAsync(sessionId);
+
         var rawPsst = await database.GetSessionRawPsstAsync(sessionId);
 
         Assert.NotNull(session);
@@ -397,7 +386,6 @@ public class SynchronizationMergeEngineTests
         Assert.Equal("60", session.RearSpringRate);
         Assert.True(session.HasProcessedData);
         Assert.True(changedSession.HasProcessedData);
-        Assert.Null(sessionTrack);
         Assert.Equal(originalPsst, rawPsst);
 
     }
@@ -453,7 +441,7 @@ public class SynchronizationMergeEngineTests
                     DescentMeters = 3,
                     FullTrack = targetTrackId,
                     GpsOffsetSeconds = 1.25,
-                    Track = [new TrackPoint(100, 1, 2, 3)],
+
                     Updated = 99,
                     ClientUpdated = 88
                 }, window.Incoming)
@@ -488,7 +476,6 @@ public class SynchronizationMergeEngineTests
             Assert.Equal(80, targetGeneration!.DurationSeconds);
             Assert.Equal(targetTrackId, targetGeneration.FullTrackId);
 
-            Assert.Equal(100, Assert.Single(targetGeneration.Track!).Time);
         }
     }
 
@@ -532,7 +519,7 @@ public class SynchronizationMergeEngineTests
                     DescentMeters = 3,
                     FullTrack = Guid.NewGuid(),
                     GpsOffsetSeconds = 1.25,
-                    Track = [new TrackPoint(100, 1, 2, 3)],
+
                     Updated = 99,
                     ClientUpdated = 88
                 }, window)
@@ -548,7 +535,6 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(8, swap.TargetGeneration.AscentMeters);
         Assert.Equal(3, swap.TargetGeneration.DescentMeters);
 
-        Assert.Equal(100, Assert.Single(swap.TargetGeneration.Track!).Time);
     }
 
     [Fact]
@@ -578,7 +564,7 @@ public class SynchronizationMergeEngineTests
                 DescentMeters = 2,
                 FullTrack = heldTrackId,
                 GpsOffsetSeconds = 0.5,
-                Track = [new TrackPoint(100, 1, 2, 3)],
+
                 Updated = 1,
                 ClientUpdated = 1,
             });
@@ -600,7 +586,7 @@ public class SynchronizationMergeEngineTests
                         DescentMeters = 3,
                         FullTrack = targetTrackId,
                         GpsOffsetSeconds = 1.25,
-                        Track = [new TrackPoint(101, 4, 5, 6)],
+
                         Updated = 99,
                         ClientUpdated = 88,
                     },
@@ -616,10 +602,8 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(heldData, await database.SessionRepository.GetSessionRawPsstAsync(
             sessionId,
             held.ProcessedTelemetryRevision));
-        Assert.Null(await database.SessionRepository.GetSessionTrackAsync(sessionId, held.TrackProjectionRevision));
-        Assert.Equal(100, Assert.Single((await database.SessionRepository.GetSessionTrackAsync(
-            sessionId,
-            afterMetadata.TrackProjectionRevision))!).Time);
+
+
 
         await database.SwapSessionPsstAsync(
             sessionId,
@@ -639,15 +623,11 @@ public class SynchronizationMergeEngineTests
         Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(
             sessionId,
             held.ProcessedTelemetryRevision));
-        Assert.Null(await database.SessionRepository.GetSessionTrackAsync(
-            sessionId,
-            held.TrackProjectionRevision));
+
         Assert.Equal(targetData, await database.SessionRepository.GetSessionRawPsstAsync(
             sessionId,
             target.ProcessedTelemetryRevision));
-        Assert.Equal(101, Assert.Single((await database.SessionRepository.GetSessionTrackAsync(
-            sessionId,
-            target.TrackProjectionRevision))!).Time);
+
     }
 
     [Fact]

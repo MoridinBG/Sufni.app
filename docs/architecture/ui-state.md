@@ -167,7 +167,7 @@ window is part of the session snapshot), evaluates processing staleness, and pub
 The recorded detail editor compares each domain against its last handled domain,
 so deferred updates are compared with the state the editor actually consumed.
 Its presentation effects classify draft reconciliation and telemetry reloads from
-those facts, including persisted telemetry/track revisions. The single reaction
+those facts, including the processed revision and window inputs. The single reaction
 treats two axes orthogonally. The *derived* axis
 (processed-data availability, fingerprint, or the session-window track)
 always refreshes the displayed telemetry/track and advances the

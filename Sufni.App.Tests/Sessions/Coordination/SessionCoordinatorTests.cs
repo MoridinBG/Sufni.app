@@ -84,8 +84,6 @@ public class SessionCoordinatorTests
         Assert.True(saved.DistanceMeters > 0);
         Assert.Equal(20, saved.Updated);
         Assert.Equal(SessionSnapshot.From(saved), store.Get(original.Id));
-        var points = await repository.Repository.GetSessionTrackAsync(original.Id);
-        Assert.Equal(original.Timestamp!.Value + 2.5, points![0].Time);
     }
 
     [Theory]
@@ -120,7 +118,6 @@ public class SessionCoordinatorTests
         Assert.IsType<GpsOffsetResult.NoMatchingTrack>(result);
         Assert.Equal(original, store.Get(original.Id));
         Assert.Equal(original, SessionSnapshot.From((await repository.Repository.GetSessionAsync(original.Id))!));
-        Assert.Null(await repository.Repository.GetSessionTrackAsync(original.Id));
     }
 
     private SessionSnapshot PrepareAlignment(InMemorySessionRepository repository, double? storedDuration)
@@ -303,7 +300,6 @@ public class SessionCoordinatorTests
         Assert.True(persisted.DistanceMeters > 0);
         Assert.Equal(capture.TelemetryCapture.Metadata.Duration, persisted.DurationSeconds);
         Assert.Equal(SessionSnapshot.From(persisted), store.Get(saved.SessionId));
-        Assert.Equal(timestamp, (await repository.Repository.GetSessionTrackAsync(saved.SessionId))![0].Time);
         var bytes = await repository.Repository.GetSessionRawPsstAsync(saved.SessionId);
         Assert.NotNull(bytes);
         Assert.Equal(capture.TelemetryCapture.Metadata.Duration, TelemetryData.FromBinary(bytes).Metadata.Duration);
@@ -384,11 +380,10 @@ public class SessionCoordinatorTests
         Assert.Equal(RecordedSessionSourceSnapshot.From(expectedSource), sources.Get(saved.SessionId));
         Assert.NotNull(persisted.FullTrack);
         Assert.NotEmpty((await repository.Repository.GetSessionRawPsstAsync(saved.SessionId))!);
-        var point = Assert.Single((await repository.Repository.GetSessionTrackAsync(saved.SessionId))!);
-        Assert.Equal((byte?)3, point.FixMode);
-        Assert.Equal((byte?)12, point.Satellites);
-        Assert.Equal(0.5f, point.Epe2d);
-        Assert.Equal(0.8f, point.Epe3d);
+        await repository.Repository.Received(1).ImportProcessedSessionAsync(Arg.Any<Session>(),
+            Arg.Is<Track>(track => track.Points.Count == 1 && track.Points[0].FixMode == 3 &&
+                track.Points[0].Satellites == 12 && track.Points[0].Epe2d == 0.5f && track.Points[0].Epe3d == 0.8f),
+            Arg.Any<RecordedSessionSource>());
     }
 
     [Theory]

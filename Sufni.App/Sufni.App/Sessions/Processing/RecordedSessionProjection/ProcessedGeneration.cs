@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
@@ -27,7 +26,6 @@ public sealed record ProcessedGeneration(
         session.ProcessedData = ProcessedTelemetry.Data;
         session.ProcessingFingerprintJson = ProcessedTelemetry.FingerprintJson;
         session.FullTrack = fullTrackId;
-        session.Track = TrackPoints?.ToList();
         session.DurationSeconds = Metrics.DurationSeconds;
         session.DistanceMeters = Metrics.DistanceMeters;
         session.AscentMeters = Metrics.AscentMeters;

@@ -87,6 +87,13 @@ internal sealed class DatabaseMigrationRunner(
             canonical.Id = group.Key;
             transaction.Insert(canonical);
         }
+        foreach (var row in transaction.Query<LegacySessionGenerationRow>(
+                     "SELECT session_id, target_generation FROM session_blob_swap_request WHERE target_generation IS NOT NULL"))
+            transaction.Execute("UPDATE session_blob_swap_request SET target_generation = ? WHERE session_id = ?",
+                AppJson.Serialize(AppJson.Deserialize<SessionProcessedGeneration>(row.Generation)), row.SessionId);
+        foreach (var column in new[] { "track", "track_projection_revision" })
+            if (transaction.GetTableInfo("session").Any(info => info.Name == column))
+                transaction.Execute($"ALTER TABLE session DROP COLUMN {column}");
     });
 
     private Task MigrateSessionDomainAsync() => coreMigrations.ApplyAsync("session-domain-ownership", transaction =>
@@ -287,8 +294,7 @@ internal sealed class DatabaseMigrationRunner(
     {
         await EnsureColumnsAsync(
             "session",
-            ("processed_telemetry_revision", "INTEGER NOT NULL DEFAULT 0"),
-            ("track_projection_revision", "INTEGER NOT NULL DEFAULT 0"));
+            ("processed_telemetry_revision", "INTEGER NOT NULL DEFAULT 0"));
         await EnsureColumnsAsync("track", ("points_revision", "INTEGER NOT NULL DEFAULT 0"));
 
         await connection.ExecuteAsync(
@@ -297,13 +303,6 @@ internal sealed class DatabaseMigrationRunner(
             SET processed_telemetry_revision = CASE WHEN data IS NOT NULL THEN 1 ELSE 0 END
             WHERE processed_telemetry_revision IS NULL
                OR (processed_telemetry_revision = 0 AND data IS NOT NULL)
-            """);
-        await connection.ExecuteAsync(
-            """
-            UPDATE session
-            SET track_projection_revision = CASE WHEN track IS NOT NULL THEN 1 ELSE 0 END
-            WHERE track_projection_revision IS NULL
-               OR (track_projection_revision = 0 AND track IS NOT NULL)
             """);
         await connection.ExecuteAsync(
             """
@@ -330,11 +329,9 @@ internal sealed class DatabaseMigrationRunner(
             CREATE TRIGGER session_local_revisions_after_insert
             AFTER INSERT ON session
             WHEN NEW.processed_telemetry_revision IS NOT (CASE WHEN NEW.data IS NOT NULL THEN 1 ELSE 0 END)
-              OR NEW.track_projection_revision IS NOT (CASE WHEN NEW.track IS NOT NULL THEN 1 ELSE 0 END)
             BEGIN
                 UPDATE session
-                SET processed_telemetry_revision = CASE WHEN NEW.data IS NOT NULL THEN 1 ELSE 0 END,
-                    track_projection_revision = CASE WHEN NEW.track IS NOT NULL THEN 1 ELSE 0 END
+                SET processed_telemetry_revision = CASE WHEN NEW.data IS NOT NULL THEN 1 ELSE 0 END
                 WHERE id = NEW.id;
             END
             """);
@@ -356,34 +353,6 @@ internal sealed class DatabaseMigrationRunner(
                     ELSE COALESCE(
                         OLD.processed_telemetry_revision,
                         CASE WHEN OLD.data IS NOT NULL THEN 1 ELSE 0 END)
-                END
-                WHERE id = NEW.id;
-            END
-            """);
-        await connection.ExecuteAsync(
-            """
-            CREATE TRIGGER session_track_projection_revision_after_update
-            AFTER UPDATE OF track, timestamp, duration_seconds, gps_offset_seconds, full_track_id ON session
-            WHEN NEW.track IS NOT OLD.track
-              OR NEW.timestamp IS NOT OLD.timestamp
-              OR NEW.duration_seconds IS NOT OLD.duration_seconds
-              OR NEW.gps_offset_seconds IS NOT OLD.gps_offset_seconds
-              OR NEW.full_track_id IS NOT OLD.full_track_id
-              OR NEW.track_projection_revision IS NOT OLD.track_projection_revision
-            BEGIN
-                UPDATE session
-                SET track_projection_revision = CASE
-                    WHEN NEW.track IS NOT OLD.track
-                      OR NEW.timestamp IS NOT OLD.timestamp
-                      OR NEW.duration_seconds IS NOT OLD.duration_seconds
-                      OR NEW.gps_offset_seconds IS NOT OLD.gps_offset_seconds
-                      OR NEW.full_track_id IS NOT OLD.full_track_id
-                    THEN COALESCE(
-                        OLD.track_projection_revision,
-                        CASE WHEN OLD.track IS NOT NULL THEN 1 ELSE 0 END) + 1
-                    ELSE COALESCE(
-                        OLD.track_projection_revision,
-                        CASE WHEN OLD.track IS NOT NULL THEN 1 ELSE 0 END)
                 END
                 WHERE id = NEW.id;
             END
@@ -637,6 +606,15 @@ internal sealed class DatabaseMigrationRunner(
     ];
 
     private static readonly string[] BikeDampingSpeedCutoffColumnNames = DampingSpeedCutoffColumnNames;
+
+    private sealed class LegacySessionGenerationRow
+    {
+        [Column("session_id")]
+        public Guid SessionId { get; set; }
+
+        [Column("target_generation")]
+        public string Generation { get; set; } = null!;
+    }
 
     private sealed class SessionFingerprintRow
     {

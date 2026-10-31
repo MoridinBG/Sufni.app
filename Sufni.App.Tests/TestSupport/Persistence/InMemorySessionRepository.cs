@@ -9,7 +9,6 @@ namespace Sufni.App.Tests.TestSupport.Persistence;
 internal sealed class InMemorySessionRepository
 {
     private readonly Dictionary<Guid, SessionSnapshot> snapshots = [];
-    private readonly Dictionary<Guid, List<TrackPoint>> tracks = [];
     private readonly Dictionary<Guid, byte[]> telemetry = [];
     private readonly Dictionary<Guid, RecordedSessionSourceSnapshot> sources = [];
     private readonly Dictionary<Guid, SessionBlobSwap> swaps = [];
@@ -24,7 +23,6 @@ internal sealed class InMemorySessionRepository
         Repository.GetSessionAsync(Arg.Any<Guid>()).Returns(call =>
             ToEntity(snapshots.GetValueOrDefault(call.Arg<Guid>())));
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());
-        Repository.GetSessionTrackAsync(Arg.Any<Guid>()).Returns(call => tracks.GetValueOrDefault(call.Arg<Guid>()));
         Repository.GetSessionRawPsstAsync(Arg.Any<Guid>()).Returns(call => telemetry.GetValueOrDefault(call.Arg<Guid>()));
         Repository.ImportProcessedSessionAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource>())
             .Returns(call =>
@@ -50,7 +48,6 @@ internal sealed class InMemorySessionRepository
             };
             snapshots[session.Id] = snapshot;
             if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
-            if (session.Track is { } points) tracks[session.Id] = [.. points];
             return ToEntity(snapshot)!;
         }
         Repository.UpdateSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
@@ -85,8 +82,6 @@ internal sealed class InMemorySessionRepository
             if (generation is not null)
             {
                 saved = saved with { FullTrackId = generation.FullTrackId };
-                if (generation.Track is { } points) tracks[id] = points.ToList();
-                else tracks.Remove(id);
             }
             snapshots[id] = saved;
             telemetry[id] = bytes;
@@ -94,7 +89,7 @@ internal sealed class InMemorySessionRepository
             return Task.FromResult(true);
         }
 
-        Repository.UpdateSessionTrackAsync(Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>())
+        Repository.UpdateGpsAlignmentAsync(Arg.Any<Guid>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double>())
             .Returns(call =>
             {
                 if (WriteFailure is { } failure) return Task.FromException(failure);
@@ -103,14 +98,13 @@ internal sealed class InMemorySessionRepository
                 var metrics = call.Arg<SessionSummaryMetrics>();
                 snapshots[id] = current with
                 {
-                    GpsOffsetSeconds = call.Arg<double?>() ?? current.GpsOffsetSeconds,
+                    GpsOffsetSeconds = call.Arg<double>(),
                     DurationSeconds = metrics.DurationSeconds,
                     DistanceMeters = metrics.DistanceMeters,
                     AscentMeters = metrics.AscentMeters,
                     DescentMeters = metrics.DescentMeters,
                     Updated = clock.GetUtcNow().ToUnixTimeSeconds()
                 };
-                tracks[id] = [.. call.Arg<List<TrackPoint>>()];
                 return Task.CompletedTask;
             });
         Repository.SetProcessingOptionAsync(Arg.Any<Guid>(), Arg.Any<int>()).Returns(call =>
@@ -151,7 +145,7 @@ internal sealed class InMemorySessionRepository
                     AscentMeters = current.AscentMeters,
                     DescentMeters = current.DescentMeters,
                     ProcessedTelemetryRevision = current.ProcessedTelemetryRevision,
-                    TrackProjectionRevision = current.TrackProjectionRevision,
+
                 };
             }
             snapshots[draft.Id] = saved;
@@ -174,7 +168,6 @@ internal sealed class InMemorySessionRepository
     {
         Seed(SessionSnapshot.From(session));
         if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
-        if (session.Track is { } points) tracks[session.Id] = [.. points];
     }
 
     public void SeedSwap(SessionBlobSwap swap) => swaps[swap.SessionId] = swap;

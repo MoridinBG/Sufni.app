@@ -371,9 +371,6 @@ public class SessionProcessedTelemetryReaderTests
             return telemetryData;
         }
 
-        public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
-            throw new NotSupportedException();
-
     }
 
     private sealed class FailingThenSuccessfulTelemetryProcessor(TelemetryData telemetryData) : ISessionTelemetryProcessor
@@ -390,9 +387,6 @@ public class SessionProcessedTelemetryReaderTests
 
             return telemetryData;
         }
-
-        public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
-            throw new NotSupportedException();
 
     }
 }

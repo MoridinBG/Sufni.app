@@ -40,7 +40,6 @@ public class SessionSnapshotMappingTests
         var roundTrip = SessionSnapshot.From(entity);
 
         Assert.Null(entity.ProcessedData);
-        Assert.Null(entity.Track);
         Assert.Equal(snapshot with { HasProcessedData = false }, roundTrip);
     }
 
@@ -61,7 +60,7 @@ public class SessionSnapshotMappingTests
             fullTrack,
             source: null);
         var originalRaw = await database.GetSessionRawPsstAsync(sessionId);
-        var originalTrack = await database.GetSessionTrackAsync(sessionId);
+        var originalTrack = await database.GetAsync<Track>(fullTrack.Id);
 
         var metadataShell = SessionSnapshot.From(processed) with
         {
@@ -72,7 +71,7 @@ public class SessionSnapshotMappingTests
 
         var loaded = await database.GetSessionAsync(sessionId);
         var rawAfterMetadataSave = await database.GetSessionRawPsstAsync(sessionId);
-        var trackAfterMetadataSave = await database.GetSessionTrackAsync(sessionId);
+        var trackAfterMetadataSave = await database.GetAsync<Track>(fullTrack.Id);
 
         Assert.NotNull(loaded);
         Assert.Equal("renamed", loaded!.Name);
@@ -85,27 +84,7 @@ public class SessionSnapshotMappingTests
         Assert.Equal(processed.AscentMeters, loaded.AscentMeters);
         Assert.Equal(processed.DescentMeters, loaded.DescentMeters);
         Assert.Equal(originalRaw, rawAfterMetadataSave);
-        AssertTrackPointsEqual(originalTrack, trackAfterMetadataSave);
+        Assert.Equal(originalTrack!.PointsJson, trackAfterMetadataSave!.PointsJson);
     }
 
-    private static void AssertTrackPointsEqual(
-        IReadOnlyList<TrackPoint>? expected,
-        IReadOnlyList<TrackPoint>? actual)
-    {
-        Assert.NotNull(expected);
-        Assert.NotNull(actual);
-        Assert.Equal(expected.Count, actual!.Count);
-        for (var i = 0; i < expected.Count; i++)
-        {
-            Assert.Equal(expected[i].Time, actual[i].Time);
-            Assert.Equal(expected[i].X, actual[i].X);
-            Assert.Equal(expected[i].Y, actual[i].Y);
-            Assert.Equal(expected[i].Elevation, actual[i].Elevation);
-            Assert.Equal(expected[i].Speed, actual[i].Speed);
-            Assert.Equal(expected[i].FixMode, actual[i].FixMode);
-            Assert.Equal(expected[i].Satellites, actual[i].Satellites);
-            Assert.Equal(expected[i].Epe2d, actual[i].Epe2d);
-            Assert.Equal(expected[i].Epe3d, actual[i].Epe3d);
-        }
-    }
 }

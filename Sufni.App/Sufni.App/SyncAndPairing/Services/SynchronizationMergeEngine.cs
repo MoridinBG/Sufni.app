@@ -74,7 +74,6 @@ internal sealed class SynchronizationMergeEngine(
                                                                        previous_window_start_seconds,
                                                                        previous_window_end_seconds,
                                                                        {SessionSqlProjection.ProcessingFingerprintColumn},
-                                                                      track,
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                       rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                                                       updated,
@@ -96,7 +95,6 @@ internal sealed class SynchronizationMergeEngine(
                                                                    full_track_id=?,
                                                                    gps_offset_seconds=?,
                                                                    session_processing_fingerprint=?,
-                                                                  track=?,
                                                                   source_session_id=?,
                                                                   window_start_seconds=?,
                                                                   window_end_seconds=?,
@@ -629,9 +627,6 @@ internal sealed class SynchronizationMergeEngine(
             incoming.ProcessingFingerprintJson,
             AppJson.Serialize(SessionProcessedGeneration.From(incoming)));
 
-    private static string? SerializeTrack(Session session) =>
-        session.Track is null ? null : AppJson.Serialize(session.Track);
-
     private static object?[] CreateRemoteSessionMetadataValues(
         Session session,
         long updated,
@@ -649,7 +644,6 @@ internal sealed class SynchronizationMergeEngine(
         session.FullTrack,
         SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
-        SerializeTrack(session),
         session.SourceSessionId,
         session.WindowStartSeconds,
         session.WindowEndSeconds,

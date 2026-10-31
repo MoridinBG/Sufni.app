@@ -52,10 +52,6 @@ public interface ISessionRepository
     /// </summary>
     Task<(byte[] Data, string? Fingerprint)?> GetSessionRawPsstWithFingerprintAsync(Guid id);
 
-    Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id);
-
-    Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id, long trackProjectionRevision);
-
     Task<Guid> PutSessionAsync(Session session);
 
     Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds);
@@ -65,7 +61,7 @@ public interface ISessionRepository
 
     /// <summary>
     /// Derived-only processed write used by the recompute engine. Writes only the
-    /// derived columns (data, fingerprint, summary metrics, cached track,
+    /// derived columns (data, fingerprint, summary metrics,
     /// full_track_id), optionally inserting a new full track, and never touches
     /// user-authored metadata. In the transaction it compares current database
     /// inputs with <paramref name="expectedInputs"/> captured and validated by
@@ -85,11 +81,10 @@ public interface ISessionRepository
         SessionProcessedGeneration generation,
         SessionProcessedWriteGuard expected);
 
-    Task UpdateSessionTrackAsync(
+    Task UpdateGpsAlignmentAsync(
         Guid id,
-        List<TrackPoint> points,
         SessionSummaryMetrics metrics,
-        double? gpsOffsetSeconds = null);
+        double gpsOffsetSeconds);
 }
 
 /// <summary>Persisted generation and optional hub request captured before accepting transferred bytes.</summary>
@@ -137,7 +132,6 @@ internal sealed class SessionRepository(
                                                                       previous_window_start_seconds,
                                                                       previous_window_end_seconds,
                                                                       processed_telemetry_revision,
-                                                                      track_projection_revision,
                                                                       {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                      rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
@@ -164,7 +158,6 @@ internal sealed class SessionRepository(
                                                            descent_meters=?,
                                                            full_track_id=?,
                                                            session_processing_fingerprint=?,
-                                                           track=?,
                                                            data=?
                                                            """;
 
@@ -355,24 +348,6 @@ internal sealed class SessionRepository(
             : null;
     }
 
-    public async Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var sessions = await connection.QueryAsync<Session>(
-            "SELECT track FROM session WHERE deleted IS null AND id = ?", id);
-        return sessions.Count == 1 ? sessions[0].Track : null;
-    }
-
-    public async Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id, long trackProjectionRevision)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var sessions = await connection.QueryAsync<Session>(
-            "SELECT track FROM session WHERE deleted IS null AND id = ? AND track_projection_revision = ?",
-            id,
-            trackProjectionRevision);
-        return sessions.Count == 1 ? sessions[0].Track : null;
-    }
-
     public async Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -532,7 +507,6 @@ internal sealed class SessionRepository(
     public Task<bool> UpdateSessionProcessedGenerationAsync(Guid id, byte[] data, string? fingerprintJson,
         SessionProcessedGeneration generation, SessionProcessedWriteGuard expected)
     {
-        var trackJson = generation.Track is null ? null : AppJson.Serialize(generation.Track);
         return connectionContext.RunInTransactionAsync(connection =>
         {
             if (!SessionBlobSwapRequestStore.MatchesInTransaction(connection, id, expected.PendingSwapFingerprint)) return false;
@@ -540,42 +514,38 @@ internal sealed class SessionRepository(
                 $"""
                 UPDATE session
                 SET data=?, {SessionSqlProjection.ProcessingFingerprintColumn}=?,
-                    duration_seconds=?, distance_meters=?, ascent_meters=?, descent_meters=?, full_track_id=?, track=?
+                    duration_seconds=?, distance_meters=?, ascent_meters=?, descent_meters=?, full_track_id=?
                 WHERE id=? AND deleted IS NULL
                   AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
                 """,
                 data, fingerprintJson, generation.DurationSeconds, generation.DistanceMeters, generation.AscentMeters,
-                generation.DescentMeters, generation.FullTrackId, trackJson, id, expected.Fingerprint, expected.Revision);
+                generation.DescentMeters, generation.FullTrackId, id, expected.Fingerprint, expected.Revision);
             if (updated > 0 && expected.PendingSwapFingerprint is not null)
                 SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
             return updated > 0;
         });
     }
 
-    public async Task UpdateSessionTrackAsync(
+    public async Task UpdateGpsAlignmentAsync(
         Guid id,
-        List<TrackPoint> points,
         SessionSummaryMetrics metrics,
-        double? gpsOffsetSeconds = null)
+        double gpsOffsetSeconds)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
-        var pointsJson = AppJson.Serialize(points);
         var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
         var updatedRows = await connection.ExecuteAsync(
             """
             UPDATE session
             SET
-                track=?,
                 duration_seconds=?,
                 distance_meters=?,
                 ascent_meters=?,
                 descent_meters=?,
-                gps_offset_seconds=COALESCE(?, gps_offset_seconds),
+                gps_offset_seconds=?,
                 updated=?
             WHERE id=? AND deleted IS NULL
             """,
-            pointsJson,
             metrics.DurationSeconds,
             metrics.DistanceMeters,
             metrics.AscentMeters,
@@ -589,9 +559,6 @@ internal sealed class SessionRepository(
         }
     }
 
-    private static string? SerializeTrack(Session session) =>
-        session.Track is null ? null : AppJson.Serialize(session.Track);
-
     // Values for DerivedSessionUpdateAssignments (derived columns only), in column
     // order, followed by the id used in the WHERE clause.
     private static object?[] CreateDerivedDataUpdateValuesWithId(Session session) =>
@@ -602,7 +569,6 @@ internal sealed class SessionRepository(
         session.DescentMeters,
         session.FullTrack,
         session.ProcessingFingerprintJson,
-        SerializeTrack(session),
         session.ProcessedData,
         session.Id
     ];

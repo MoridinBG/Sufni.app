@@ -37,12 +37,12 @@ public class SessionContentReaderTests
                 GpsOffsetSeconds = 1.5,
                 Updated = 12,
                 ProcessedTelemetryRevision = 11,
-                TrackProjectionRevision = 12,
+
             },
             new Session(unlinkedSessionId, "Unlinked", "", setup: null, timestamp: 2000)
             {
                 Updated = 34,
-                TrackProjectionRevision = 34,
+
             },
         ]);
         trackStore.GetAll().Returns([new TrackSnapshot(fullTrackId, 1000, 1030, 56)]);
@@ -87,7 +87,7 @@ public class SessionContentReaderTests
             FullTrack = fullTrackId,
             Updated = 12,
             DurationSeconds = 20,
-            TrackProjectionRevision = 12,
+
         });
         trackStore.GetAll().Returns([new TrackSnapshot(fullTrackId, 1000, 1030, 56)]);
 
@@ -113,7 +113,7 @@ public class SessionContentReaderTests
             DurationSeconds = 20,
             GpsOffsetSeconds = 1.5,
             ProcessedTelemetryRevision = 11,
-            TrackProjectionRevision = 12,
+
         };
         var token = CreateToken(session);
         var telemetry = TestTelemetryData.CreateProcessed();
@@ -144,7 +144,7 @@ public class SessionContentReaderTests
         var current = new Session(sessionId, "Session", "", setup: null, timestamp: 1000)
         {
             ProcessedTelemetryRevision = 12,
-            TrackProjectionRevision = 20,
+
         };
         sessionRepository.GetSessionAsync(sessionId).Returns(current);
         var stale = CreateToken(current) with { ProcessedTelemetryRevision = 11 };
@@ -190,7 +190,7 @@ public class SessionContentReaderTests
         {
             DurationSeconds = 20,
             ProcessedTelemetryRevision = 11,
-            TrackProjectionRevision = 12,
+
         };
         sessionRepository.GetSessionAsync(sessionId).Returns(session);
 
@@ -212,13 +212,13 @@ public class SessionContentReaderTests
         {
             DurationSeconds = 20,
             ProcessedTelemetryRevision = 11,
-            TrackProjectionRevision = 12,
+
         };
         var changed = new Session(sessionId, "Session", "", setup: null, timestamp: 1000)
         {
             DurationSeconds = 21,
             ProcessedTelemetryRevision = 11,
-            TrackProjectionRevision = 13,
+
         };
         sessionRepository.GetSessionAsync(sessionId).Returns(initial, changed);
         var payloadRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

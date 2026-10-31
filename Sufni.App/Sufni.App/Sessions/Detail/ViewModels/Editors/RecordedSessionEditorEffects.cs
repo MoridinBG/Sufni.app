@@ -166,7 +166,8 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         previous.DerivationWindow != current.DerivationWindow ||
         previous.FullTrackId != current.FullTrackId ||
         previous.GpsOffsetSeconds != current.GpsOffsetSeconds ||
-        previous.TrackProjectionRevision != current.TrackProjectionRevision;
+        previous.Timestamp != current.Timestamp ||
+        previous.DurationSeconds != current.DurationSeconds;
 
     public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
         IObservable<RecordedSessionEditorState> states) =>

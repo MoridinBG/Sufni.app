@@ -223,8 +223,8 @@ public class TrackCoordinatorTests
         Assert.Null(session.FullTrack);
         Assert.Equal("notes", session.Description);
         await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
-        await sessionRepository.DidNotReceive().UpdateSessionTrackAsync(
-            Arg.Any<Guid>(), Arg.Any<List<TrackPoint>>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double?>());
+        await sessionRepository.DidNotReceive().UpdateGpsAlignmentAsync(
+            Arg.Any<Guid>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double>());
     }
 
     [Fact]

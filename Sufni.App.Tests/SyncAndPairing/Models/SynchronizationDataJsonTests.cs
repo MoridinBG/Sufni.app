@@ -72,7 +72,7 @@ public class SynchronizationDataJsonTests
                 new Session(Guid.NewGuid(), "session", string.Empty, null)
                 {
                     ProcessedTelemetryRevision = 12,
-                    TrackProjectionRevision = 34,
+
                 },
             ],
             Tracks =

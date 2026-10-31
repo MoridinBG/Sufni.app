@@ -18,7 +18,7 @@ internal static class SessionSummaryMetricsCalculator
 
     public static SessionSummaryMetrics Calculate(double? durationSeconds, IReadOnlyList<TrackPoint>? points)
     {
-        var duration = IsNonNegativeFinite(durationSeconds) ? durationSeconds : null;
+        var duration = NormalizeDuration(durationSeconds);
         var distance = CalculateDistance(points);
         var (ascent, descent) = CalculateElevationGain(points);
 
@@ -84,8 +84,8 @@ internal static class SessionSummaryMetricsCalculator
         return (ascent, descent);
     }
 
-    private static bool IsNonNegativeFinite(double? value) =>
-        value is { } number && double.IsFinite(number) && number >= 0;
+    public static double? NormalizeDuration(double? value) =>
+        value is { } number && double.IsFinite(number) && number >= 0 ? number : null;
 
     private static List<TrackPoint>? FilterFinitePositionPoints(IReadOnlyList<TrackPoint>? points) =>
         points?

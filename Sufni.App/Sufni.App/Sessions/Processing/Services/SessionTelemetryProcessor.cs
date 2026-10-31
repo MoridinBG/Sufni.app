@@ -1,17 +1,13 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using Sufni.Telemetry;
 
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Processing.Services;
 
 internal interface ISessionTelemetryProcessor
 {
     TelemetryData ReadProcessedTelemetryData(byte[] processedData);
 
-    SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points);
 }
 
 internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
@@ -33,8 +29,4 @@ internal sealed class SessionTelemetryProcessor : ISessionTelemetryProcessor
         }
     }
 
-    public SessionSummaryMetrics ComputeSummaryMetrics(
-        double? durationSeconds,
-        IReadOnlyList<TrackPoint>? points) =>
-        SessionSummaryMetricsCalculator.Calculate(durationSeconds, points);
 }

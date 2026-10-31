@@ -121,7 +121,7 @@ public class SessionRepositoryTests
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
             ProcessingFingerprintJson = "old-generation", DurationSeconds = 65,
-            Track = oldTrack.Points, ClientUpdated = 41,
+             ClientUpdated = 41,
             SourceSessionId = source.SessionId, WindowStartSeconds = 1.25, WindowEndSeconds = 66.25,
             PreviousWindowStartSeconds = 0
         };
@@ -136,7 +136,7 @@ public class SessionRepositoryTests
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(80),
             ProcessingFingerprintJson = "new-generation", DurationSeconds = 80,
-            Track = newTrack.Points
+
         };
         if (!validSource) source.SourceHash = "invalid-hash";
 
@@ -154,7 +154,7 @@ public class SessionRepositoryTests
             Assert.Null(restored.PreviousWindowStartSeconds);
             Assert.True(restored.Updated > deleted.Deleted);
             Assert.True(restored.ProcessedTelemetryRevision > first.Session!.ProcessedTelemetryRevision);
-            Assert.True(restored.TrackProjectionRevision > first.Session.TrackProjectionRevision);
+
             Assert.Equal(imported.ProcessedData, await database.GetSessionRawPsstAsync(restored.Id));
             Assert.Equal(newTrack.Id, restored.FullTrack);
             Assert.NotNull(await database.GetAsync<Track>(newTrack.Id));
@@ -706,7 +706,7 @@ public class SessionRepositoryTests
             DescentMeters = 2,
             FullTrack = heldTrackId,
             GpsOffsetSeconds = 0.5,
-            Track = [new TrackPoint(100, 1, 2, 3)],
+
         });
         var before = (await database.GetSessionAsync(sessionId))!;
         var targetGeneration = new SessionProcessedGeneration(
@@ -714,8 +714,7 @@ public class SessionRepositoryTests
             DistanceMeters: 20,
             AscentMeters: 8,
             DescentMeters: 3,
-            FullTrackId: targetTrackId,
-            Track: [new TrackPoint(101, 4, 5, 6)]);
+            FullTrackId: targetTrackId);
 
         await database.SessionRepository.UpdateSessionProcessedGenerationAsync(
             sessionId,
@@ -733,20 +732,14 @@ public class SessionRepositoryTests
         Assert.Equal(targetTrackId, after.FullTrack);
         Assert.Equal(before.GpsOffsetSeconds, after.GpsOffsetSeconds);
         Assert.Equal(before.ProcessedTelemetryRevision + 1, after.ProcessedTelemetryRevision);
-        Assert.Equal(before.TrackProjectionRevision + 1, after.TrackProjectionRevision);
+
         Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(
             sessionId,
             before.ProcessedTelemetryRevision));
         Assert.Equal(targetData, await database.SessionRepository.GetSessionRawPsstAsync(
             sessionId,
             after.ProcessedTelemetryRevision));
-        Assert.Null(await database.SessionRepository.GetSessionTrackAsync(
-            sessionId,
-            before.TrackProjectionRevision));
-        var targetTrack = await database.SessionRepository.GetSessionTrackAsync(
-            sessionId,
-            after.TrackProjectionRevision);
-        Assert.Equal(101, Assert.Single(targetTrack!).Time);
+
     }
 
     [Theory]
@@ -772,7 +765,7 @@ public class SessionRepositoryTests
         var staleBytes = PersistenceTestData.CreateTelemetryBlob(90);
         var applied = completeGeneration
             ? await database.SessionRepository.UpdateSessionProcessedGenerationAsync(session.Id, staleBytes, "target",
-                new SessionProcessedGeneration(90, 50, 10, 4, Guid.NewGuid(), []), expected)
+                new SessionProcessedGeneration(90, 50, 10, 4, Guid.NewGuid()), expected)
             : await database.SessionRepository.UpdateSessionPsstAsync(session.Id, staleBytes, "target",
                 new SessionSummaryMetrics(90, 50, 10, 4), expected);
 
@@ -803,7 +796,7 @@ public class SessionRepositoryTests
         var incoming = PersistenceTestData.CreateTelemetryBlob(80);
 
         var applied = await database.SessionRepository.UpdateSessionProcessedGenerationAsync(session.Id, incoming, "target",
-            new SessionProcessedGeneration(80, 20, 8, 3, null, null), expected);
+            new SessionProcessedGeneration(80, 20, 8, 3, null), expected);
 
         Assert.Equal(!requestChanged, applied);
         var pending = await database.GetSessionBlobSwapRequestAsync(session.Id);
@@ -894,23 +887,18 @@ public class SessionRepositoryTests
         var setupId = Guid.NewGuid();
         var existingFullTrackId = Guid.NewGuid();
         var originalPsst = new byte[] { 9, 8, 7 };
-        var originalTrack = new List<TrackPoint>
-        {
-            new(10, 1, 1, 0),
-            new(11, 2, 2, 0)
-        };
 
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
         // A soft-deleted row that was fully processed: it carries the derived
-        // columns (PSST blob, session track, full-track linkage, fingerprint).
+        // columns (PSST blob, full-track linkage, fingerprint).
         using (var connection = new SQLiteConnection(databasePath))
         {
             connection.Insert(new Session(sessionId, "old", "old desc", null, 50)
             {
                 ProcessedData = originalPsst,
-                Track = originalTrack,
+
                 FullTrack = existingFullTrackId,
                 ProcessingFingerprintJson = """{"existing":true}""",
                 Updated = 10,
@@ -921,7 +909,7 @@ public class SessionRepositoryTests
 
         // The metadata save carries only user-authored metadata. Any derived
         // columns set on the incoming model are ignored: PutSessionAsync does not
-        // name track/data and never touches the full-track linkage or fingerprint
+        // name data and never touches the full-track linkage or fingerprint
         // owned by the processed-write pipeline.
         await database.PutSessionAsync(new Session(sessionId, "new", "new desc", setupId, 1234)
         {
@@ -931,7 +919,7 @@ public class SessionRepositoryTests
 
         var session = await database.GetSessionAsync(sessionId);
         var rawPsst = await database.GetSessionRawPsstAsync(sessionId);
-        var sessionTrack = await database.GetSessionTrackAsync(sessionId);
+
 
         Assert.NotNull(session);
         Assert.Equal("new", session!.Name);
@@ -945,15 +933,13 @@ public class SessionRepositoryTests
         Assert.Equal("""{"existing":true}""", session.ProcessingFingerprintJson);
         Assert.True(session.HasProcessedData);
         Assert.Equal(1, session.ProcessedTelemetryRevision);
-        Assert.Equal(1, session.TrackProjectionRevision);
+
         Assert.Equal(originalPsst, rawPsst);
-        Assert.NotNull(sessionTrack);
-        Assert.Equal(2, sessionTrack!.Count);
 
     }
 
     [Fact]
-    public async Task GetActiveSessionIdsAsync_ReturnsLiveIdsOrdered_WithoutReadingTrackOrData()
+    public async Task GetActiveSessionIdsAsync_ReturnsLiveIdsOrdered_WithoutDecodingData()
     {
         using var tempDatabase = new TempDatabase("active-session-ids.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -968,7 +954,7 @@ public class SessionRepositoryTests
 
         using (var connection = new SQLiteConnection(databasePath))
         {
-            connection.Execute("UPDATE session SET track = ?, data = ? WHERE id IN (?, ?)", "{not-json", new byte[] { 1, 2, 3 }, olderId, newerId);
+            connection.Execute("UPDATE session SET data = ? WHERE id IN (?, ?)", new byte[] { 1, 2, 3 }, olderId, newerId);
             connection.Execute("UPDATE session SET deleted = ? WHERE id = ?", 123, deletedId);
         }
 
@@ -1014,7 +1000,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task UpdateSessionTrackAsync_WritesTrackAndMetricsAsGiven_AndBumpsUpdated()
+    public async Task UpdateGpsAlignmentAsync_WritesOffsetAndMetrics_AndBumpsUpdated()
     {
         using var tempDatabase = new TempDatabase("session-track-update.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -1035,21 +1021,14 @@ public class SessionRepositoryTests
 
         var before = await database.GetSessionAsync(sessionId);
 
-        await database.SessionRepository.UpdateSessionTrackAsync(
-            sessionId,
-            [
-                new TrackPoint(100, 1, 1, 0),
-                new TrackPoint(101, 2, 2, 0)
-            ],
-            new SessionSummaryMetrics(65, 1.5, 0, 0));
+        await database.SessionRepository.UpdateGpsAlignmentAsync(
+            sessionId, new SessionSummaryMetrics(65, 1.5, 0, 0), 1.25);
 
         var after = await database.GetSessionAsync(sessionId);
-        var track = await database.GetSessionTrackAsync(sessionId);
+        Assert.Equal(1.25, after!.GpsOffsetSeconds);
 
         Assert.NotNull(before);
         Assert.NotNull(after);
-        Assert.NotNull(track);
-        Assert.Equal(2, track!.Count);
         Assert.Equal(65, after!.DurationSeconds);
         Assert.Equal(1.5, after.DistanceMeters);
         Assert.Equal(0, after.AscentMeters);
@@ -1059,42 +1038,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task UpdateSessionTrackAsync_PreservesGpsOffset_WhenOffsetIsNotProvided()
-    {
-        using var tempDatabase = new TempDatabase("session-track-preserve-gps-offset.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(new Session(sessionId, "session", "desc", null, 100)
-            {
-                DurationSeconds = 65,
-                GpsOffsetSeconds = 3.25,
-                Updated = 1,
-                ClientUpdated = 1
-            });
-        }
-
-        await database.SessionRepository.UpdateSessionTrackAsync(
-            sessionId,
-            [
-                new TrackPoint(100, 1, 1, 0),
-                new TrackPoint(101, 2, 2, 0)
-            ],
-            new SessionSummaryMetrics(65, 1.5, 0, 0));
-
-        var after = await database.GetSessionAsync(sessionId);
-
-        Assert.NotNull(after);
-        Assert.Equal(3.25, after!.GpsOffsetSeconds);
-    }
-
-    [Fact]
-    public async Task UpdateSessionTrackAsync_Throws_WhenSessionDoesNotExist()
+    public async Task UpdateGpsAlignmentAsync_Throws_WhenSessionDoesNotExist()
     {
         using var tempDatabase = new TempDatabase("session-track-update-missing.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -1102,10 +1046,9 @@ public class SessionRepositoryTests
         var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
-        await Assert.ThrowsAsync<Exception>(() => database.SessionRepository.UpdateSessionTrackAsync(
+        await Assert.ThrowsAsync<Exception>(() => database.SessionRepository.UpdateGpsAlignmentAsync(
             Guid.NewGuid(),
-            [new TrackPoint(100, 1, 1, 0)],
-            new SessionSummaryMetrics(null, null, null, null)));
+            new SessionSummaryMetrics(null, null, null, null), 1));
 
     }
 

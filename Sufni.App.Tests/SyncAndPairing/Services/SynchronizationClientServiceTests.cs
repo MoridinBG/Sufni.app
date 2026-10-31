@@ -270,8 +270,7 @@ public class SynchronizationClientServiceTests
             DistanceMeters: 20,
             AscentMeters: 8,
             DescentMeters: 3,
-            FullTrackId: Guid.NewGuid(),
-            Track: [new TrackPoint(100, 1, 2, 3)]);
+            FullTrackId: Guid.NewGuid());
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());

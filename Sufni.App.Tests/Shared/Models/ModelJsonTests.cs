@@ -73,7 +73,7 @@ public class ModelJsonTests
     }
 
     [Fact]
-    public void TrackAndSessionJson_RoundTripTrackPoints()
+    public void TrackJson_RoundTripsPointValuesAndQuality()
     {
         var points =
             new[]
@@ -85,8 +85,6 @@ public class ModelJsonTests
         var track = new Track { Points = [.. points] };
         var rehydratedTrack = new Track { PointsJson = track.PointsJson };
 
-        var session = new Session { Track = [.. points] };
-        var rehydratedSession = new Session { TrackJson = session.TrackJson };
 
         Assert.Equal(2, rehydratedTrack.Points.Count);
         Assert.Equal(1.25, rehydratedTrack.Points[0].X);
@@ -95,13 +93,6 @@ public class ModelJsonTests
         Assert.Equal((byte)12, rehydratedTrack.Points[0].Satellites);
         Assert.Equal(0.5f, rehydratedTrack.Points[0].Epe2d);
         Assert.Equal(0.8f, rehydratedTrack.Points[0].Epe3d);
-        Assert.Equal(2, rehydratedSession.Track!.Count);
-        Assert.Equal(11, rehydratedSession.Track[1].Time);
-        Assert.Null(rehydratedSession.Track[1].Elevation);
-        Assert.Null(rehydratedSession.Track[1].FixMode);
-        Assert.Null(rehydratedSession.Track[1].Satellites);
-        Assert.Null(rehydratedSession.Track[1].Epe2d);
-        Assert.Null(rehydratedSession.Track[1].Epe3d);
     }
 
     [Fact]

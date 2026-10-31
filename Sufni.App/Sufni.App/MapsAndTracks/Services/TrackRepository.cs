@@ -21,8 +21,6 @@ public interface ITrackRepository
         IReadOnlyCollection<Guid> trackIds,
         long upperInclusive);
 
-    Task<List<TrackPayloadMetadata>> GetTrackPayloadMetadataByIdsAsync(IReadOnlyCollection<Guid> trackIds);
-
     Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId);
 
     Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long pointsRevision);
@@ -142,25 +140,6 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
             """,
             trackId);
         return rows.Count == 1 ? rows[0].ToMetadata() : null;
-    }
-
-    public async Task<List<TrackPayloadMetadata>> GetTrackPayloadMetadataByIdsAsync(
-        IReadOnlyCollection<Guid> trackIds)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var metadata = new List<TrackPayloadMetadata>(trackIds.Count);
-
-        foreach (var chunk in trackIds.Chunk(TrackLookupChunkSize))
-        {
-            var placeholders = string.Join(", ", chunk.Select(_ => "?"));
-            var args = chunk.Select(id => (object)id.ToString("D")).ToArray();
-            var rows = await connection.QueryAsync<TrackPayloadMetadataRow>(
-                $"SELECT id, points_revision FROM track WHERE deleted IS NULL AND id IN ({placeholders})",
-                args);
-            metadata.AddRange(rows.Select(row => row.ToMetadata()));
-        }
-
-        return metadata;
     }
 
     public async Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long pointsRevision)

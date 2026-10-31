@@ -1,11 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using SQLite;
-using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Models;
 
 [Table("session")]
@@ -99,25 +96,9 @@ public class Session : Synchronizable
     [Column("session_processing_fingerprint")]
     public string? ProcessingFingerprintJson { get; set; }
 
-    [JsonPropertyName("track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Ignore]
-    public List<TrackPoint>? Track { get; set; }
-
-    [JsonIgnore]
-    [Column("track")]
-    public string? TrackJson
-    {
-        get => AppJson.Serialize(Track);
-        set => Track = value != null ? AppJson.Deserialize<List<TrackPoint>>(value) : null;
-    }
-
     [JsonIgnore]
     [Column("processed_telemetry_revision")]
     public long ProcessedTelemetryRevision { get; set; }
-
-    [JsonIgnore]
-    [Column("track_projection_revision")]
-    public long TrackProjectionRevision { get; set; }
 
     [JsonIgnore]
     [Column("data")]

@@ -29,7 +29,4 @@ internal sealed class TestSessionTelemetryProcessor : ISessionTelemetryProcessor
             : real.ReadProcessedTelemetryData(processedData);
     }
 
-    public SessionSummaryMetrics ComputeSummaryMetrics(double? durationSeconds, IReadOnlyList<TrackPoint>? points) =>
-        real.ComputeSummaryMetrics(durationSeconds, points);
-
 }

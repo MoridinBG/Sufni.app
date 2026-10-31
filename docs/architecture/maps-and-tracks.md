@@ -23,8 +23,8 @@ GpsRecord[]                     (SST GPS records or live GpsBatch frame)
     -> ProcessedGeneration.TrackPoints
       -> producing coordinator creates Track when points exist
       -> ImportProcessedSessionAsync(session, track, source)
-        -> `track` row, session.full_track_id, AND the cached session-window
-           `session.track` polyline, all in the one processed-session transaction
+        -> full `track` row, session metadata/processed data and source
+           commit together, then publish their snapshots
 
 Recorded session opens (pure reads — the open/load path issues no DB writes)
   -> ISessionLoader.LoadDetailAsync
@@ -104,14 +104,15 @@ budgets; an oversized value is shared with current waiters without retention.
 A missing exact revision returns no projection. `SessionContentReader` uses the
 same selection rule for catalog tokens, loads only requested payload families,
 and revalidates the token after the load, including a changed track selection.
-The stored `session.track`, `track_projection_revision` and `full_track_id`
-remain on write/sync paths but no longer drive map or comparison reads.
+`session.track` and `track_projection_revision` are absent from the schema and
+wire. The stored `full_track_id` remains on write/sync paths but no longer drives
+map or comparison reads.
 
 GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync(sessionId,
 deltaSeconds)`. It reads the persisted session and current processed telemetry, adds the delta
 to the stored offset, selects the full track for that aligned window through the
 same overlap rule, and regenerates the session window. It computes summary metrics using the stored duration (or the
-telemetry duration when absent), persists the offset and track window, then
+telemetry duration when absent), persists the offset and metrics, then
 publishes the session snapshot. `GpsOffsetResult` distinguishes `Applied`,
 `NoMatchingTrack`, `SessionMissing` and `Failed`. The editor sends only the delta
 between its GPS and telemetry marks; the watch reaction refreshes the displayed

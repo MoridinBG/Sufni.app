@@ -49,6 +49,7 @@ internal sealed class TestPersistenceHarness
     }
 
     public ISessionRepository SessionRepository => sessionRepository;
+    public ITrackRepository TrackRepository => trackRepository;
 
     public SessionSyncApplier SessionSyncApplier { get; }
     public SessionStore PublishedSessions { get; }
@@ -124,9 +125,6 @@ internal sealed class TestPersistenceHarness
     public Task<byte[]?> GetSessionRawPsstAsync(Guid id) =>
         sessionRepository.GetSessionRawPsstAsync(id);
 
-    public Task<List<TrackPoint>?> GetSessionTrackAsync(Guid id) =>
-        sessionRepository.GetSessionTrackAsync(id);
-
     public Task<Guid> PutSessionAsync(Session session) =>
         sessionRepository.PutSessionAsync(session);
 
@@ -198,9 +196,6 @@ internal sealed class TestPersistenceHarness
     public Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds) =>
         trackRepository.GetTracksByIdsAsync(trackIds);
 
-    public Task<List<TrackPayloadMetadata>> GetTrackPayloadMetadataByIdsAsync(IReadOnlyCollection<Guid> trackIds) =>
-        trackRepository.GetTrackPayloadMetadataByIdsAsync(trackIds);
-
     public Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId) =>
         trackRepository.GetTrackPayloadMetadataAsync(trackId);
 
@@ -234,7 +229,7 @@ internal sealed class TestPersistenceHarness
         syncDataStore.MergeAllAsync(data);
 
     private Session PrepareGeneration(Session session, Track? newFullTrack) =>
-        ProcessedGeneration.Create(CreatePayload(session), session.Track ?? newFullTrack?.Points)
+        ProcessedGeneration.Create(CreatePayload(session), newFullTrack?.Points)
             .CreateSession(SessionSnapshot.From(session), newFullTrack?.Id ?? session.FullTrack);
 
     private ProcessedTelemetryPayload CreatePayload(Session session)
