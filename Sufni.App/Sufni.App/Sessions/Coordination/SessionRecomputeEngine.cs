@@ -360,9 +360,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 : null;
             var generation = processed.Generation;
             var generatedTrack = generation.TrackPoints is { Count: > 0 } points
-                ? new Track { Points = points.ToList() } : null;
+                ? new Track(points) : null;
             var newFullTrack = generatedTrack is not null &&
-                               (previousFullTrack is null || !TrackContentHash.PointsEqual(previousFullTrack, generatedTrack))
+                               (previousFullTrack is null || previousFullTrack.Id != generatedTrack.Id)
                 ? generatedTrack : null;
             var fullTrackId = newFullTrack?.Id ?? previousFullTrackId;
             if (newFullTrack is null)

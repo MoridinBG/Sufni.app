@@ -19,32 +19,6 @@ public class TrackRepositoryTests
     }
 
     [Fact]
-    public async Task FindTrackByTimeRangeAsync_ReturnsActiveTrackWithSameStartAndEnd()
-    {
-        using var tempDatabase = new TempDatabase("track-time-range.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var trackId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        await database.PutAsync(new Track
-        {
-            Id = trackId,
-            Points =
-            [
-                new TrackPoint(100, 1, 1, 10),
-                new TrackPoint(101, 2, 2, 11)
-            ]
-        });
-
-        var found = await database.FindTrackByTimeRangeAsync(100, 101);
-        var missing = await database.FindTrackByTimeRangeAsync(100, 102);
-
-        Assert.Equal(trackId, found);
-        Assert.Null(missing);
-
-    }
-
-    [Fact]
     public async Task FindTrackContainingTimestampAsync_ReturnsTightestCoveringWindow()
     {
         using var tempDatabase = new TempDatabase("track-tightest-window.db");

@@ -43,8 +43,6 @@ public class TrackCoordinatorTests
     {
         var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
-        trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
-            .Returns(Task.FromResult<Guid?>(null));
 
         var result = Assert.IsType<GpxImportResult.Completed>(await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
 
@@ -53,19 +51,39 @@ public class TrackCoordinatorTests
         Assert.Equal(2, Assert.Single(await trackEntityRepository.GetAllAsync()).Points.Count);
     }
 
-    [Fact]
-    public async Task ImportGpxAsync_SkipsFile_WhenTrackTimeRangeAlreadyExists()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportGpxAsync_ReusesContentId_AndRestoresDeletedTrack(bool deleted)
     {
-        var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
-        filesService.OpenGpxFilesAsync().Returns([file]);
-        trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
-            .Returns(Task.FromResult<Guid?>(Guid.NewGuid()));
+        filesService.OpenGpxFilesAsync().Returns([TestStorageItems.PickedTextFile("ride.gpx", ValidGpx())]);
+        var coordinator = CreateCoordinator();
+        await coordinator.ImportGpxAsync(TestContext.Current.CancellationToken);
+        var original = Assert.Single(await trackEntityRepository.GetAllAsync());
+        if (deleted) await trackEntityRepository.DeleteAsync(original.Id);
+        else trackEntityRepository.WriteFailure = new IOException("duplicate import must not write");
+        filesService.OpenGpxFilesAsync().Returns([TestStorageItems.PickedTextFile("renamed.gpx", ValidGpx())]);
 
-        var result = Assert.IsType<GpxImportResult.Completed>(await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<GpxImportResult.Completed>(
+            await coordinator.ImportGpxAsync(TestContext.Current.CancellationToken));
 
-        Assert.Equal(0, result.ImportedCount);
-        Assert.Equal(1, result.AlreadyImportedCount);
-        Assert.Empty(await trackEntityRepository.GetAllAsync());
+        Assert.Equal(deleted ? 1 : 0, result.ImportedCount);
+        Assert.Equal(deleted ? 0 : 1, result.AlreadyImportedCount);
+        Assert.Equal(original.Id, Assert.Single(await trackEntityRepository.GetAllAsync()).Id);
+    }
+
+    [Fact]
+    public async Task ImportGpxAsync_PreservesDifferentContentWithSameTimeRange()
+    {
+        filesService.OpenGpxFilesAsync().Returns([
+            TestStorageItems.PickedTextFile("first.gpx", ValidGpx()),
+            TestStorageItems.PickedTextFile("second.gpx", ValidGpx().Replace("42.0001", "42.0002"))]);
+
+        var result = Assert.IsType<GpxImportResult.Completed>(
+            await CreateCoordinator().ImportGpxAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, result.ImportedCount);
+        Assert.Equal(2, (await trackEntityRepository.GetAllAsync()).Select(track => track.Id).Distinct().Count());
     }
 
     [Fact]

@@ -16,6 +16,14 @@ public class Track : Synchronizable
     private const double SessionTrackTimeMergeToleranceSeconds = 1e-9;
     private List<TrackPoint> points = [];
 
+    public Track() { }
+
+    public Track(IReadOnlyList<TrackPoint> points)
+    {
+        Points = points.ToList();
+        Id = TrackContentHash.Compute(Points);
+    }
+
     [JsonIgnore]
     public bool HasPoints => points.Count > 0;
 

@@ -10,8 +10,6 @@ namespace Sufni.App.MapsAndTracks.Services;
 
 public interface ITrackRepository
 {
-    Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime);
-
     Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp);
 
     Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds);
@@ -35,21 +33,20 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
 {
     private const int TrackLookupChunkSize = 500;
 
-    public async Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime)
+    internal static void EnsureInTransaction(SQLiteConnection connection, Track track, long now)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        var rows = await connection.QueryAsync<TrackIdRow>(
-            """
-            SELECT id
-            FROM track
-            WHERE deleted IS NULL AND start_time = ? AND end_time = ?
-            ORDER BY updated ASC, id ASC
-            LIMIT 1
-            """,
-            startTime,
-            endTime);
-        return rows.Count == 0 ? null : rows[0].Id;
+        var existing = connection.FindWithQuery<Track>(
+            "SELECT id, deleted FROM track WHERE id = ?", track.Id);
+        if (existing is null)
+        {
+            track.Updated = now;
+            track.Deleted = null;
+            PersistenceGuards.InsertEntity(connection, track);
+        }
+        else if (existing.Deleted is not null)
+        {
+            connection.Execute("UPDATE track SET deleted = NULL, updated = ? WHERE id = ?", now, track.Id);
+        }
     }
 
     public async Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp)

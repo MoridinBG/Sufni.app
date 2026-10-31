@@ -1,9 +1,21 @@
 using System;
+using System.Security.Cryptography;
 
 namespace Sufni.App.Shared.Common;
 
 public static class UuidUtil
 {
+    public static Guid CreateVersion5(Guid namespaceId, ReadOnlySpan<byte> name)
+    {
+        var input = new byte[16 + name.Length];
+        namespaceId.TryWriteBytes(input.AsSpan(0, 16), bigEndian: true, out _);
+        name.CopyTo(input.AsSpan(16));
+        var hash = SHA1.HashData(input);
+        hash[6] = (byte)((hash[6] & 0x0f) | 0x50);
+        hash[8] = (byte)((hash[8] & 0x3f) | 0x80);
+        return new Guid(hash.AsSpan(0, 16), bigEndian: true);
+    }
+
     public static Guid CreateDeviceUuid(byte[] serial)
     {
         ArgumentNullException.ThrowIfNull(serial);

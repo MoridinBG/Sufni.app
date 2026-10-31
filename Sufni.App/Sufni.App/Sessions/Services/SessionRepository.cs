@@ -10,6 +10,7 @@ using static Sufni.App.Infrastructure.PersistenceGuards;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Bikes.Models;
@@ -431,9 +432,7 @@ internal sealed class SessionRepository(
             {
                 if (newFullTrack is not null)
                 {
-                    newFullTrack.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-                    newFullTrack.Deleted = null;
-                    InsertEntity(connection, newFullTrack);
+                    TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds());
                     session.FullTrack = newFullTrack.Id;
                 }
                 session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
@@ -473,19 +472,7 @@ internal sealed class SessionRepository(
 
                 if (newFullTrack is not null)
                 {
-                    var existingTrack = EntityExists<Track>(connection, newFullTrack.Id);
-                    newFullTrack.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-                    newFullTrack.Deleted = null;
-
-                    if (existingTrack)
-                    {
-                        UpdateEntity(connection, newFullTrack);
-                    }
-                    else
-                    {
-                        InsertEntity(connection, newFullTrack);
-                    }
-
+                    TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds());
                     session.FullTrack = newFullTrack.Id;
                 }
 

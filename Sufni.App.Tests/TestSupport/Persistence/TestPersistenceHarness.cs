@@ -192,9 +192,6 @@ internal sealed class TestPersistenceHarness
     public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
         recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync();
 
-    public Task<Guid?> FindTrackByTimeRangeAsync(long startTime, long endTime) =>
-        trackRepository.FindTrackByTimeRangeAsync(startTime, endTime);
-
     public Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp) =>
         trackRepository.FindTrackContainingTimestampAsync(timestamp);
 

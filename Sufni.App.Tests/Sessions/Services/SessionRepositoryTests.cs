@@ -18,6 +18,37 @@ namespace Sufni.App.Tests.Sessions.Services;
 
 public class SessionRepositoryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportProcessedSessionAsync_SharesContentTrack_AndRestoresItIfDeleted(bool deleted)
+    {
+        using var temp = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var database = new TestPersistenceHarness(temp.DatabasePath, clock);
+        var track = new Track(PersistenceTestData.CreateFullTrack().Points);
+        await database.PutAsync(track);
+        var before = (await database.GetAsync<Track>(track.Id))!;
+        if (deleted) await database.DeleteAsync(track);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        using var file = new TelemetryFileSource("ride.SST", [1, 2, 3]);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+        var session = new Session(source.SessionId, "ride", "notes", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+
+        var result = await database.SessionRepository.ImportProcessedSessionAsync(
+            session, new Track(PersistenceTestData.CreateFullTrack().Points), source);
+
+        Assert.False(result.AlreadyImported);
+        Assert.Equal(track.Id, result.Session!.FullTrack);
+        var retained = Assert.Single(await database.GetAllAsync<Track>());
+        Assert.Equal(track.Id, retained.Id);
+        Assert.Equal(before.PointsRevision, retained.PointsRevision);
+        Assert.Equal(deleted ? clock.GetUtcNow().ToUnixTimeSeconds() : before.Updated, retained.Updated);
+    }
+
     [Fact]
     public async Task ImportProcessedSessionAsync_ExistingLegacyHash_KeepsOriginalSessionAndSource()
     {

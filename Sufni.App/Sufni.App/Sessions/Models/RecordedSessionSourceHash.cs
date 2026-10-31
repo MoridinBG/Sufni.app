@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Common;
 
 namespace Sufni.App.Sessions.Models;
 
@@ -12,17 +13,8 @@ public static class RecordedSessionSourceHash
     // Permanent namespace for session identities; changing it would duplicate recordings.
     private static readonly Guid SessionNamespace = new("58ef0951-9ae4-441f-92e8-81870715e6ff");
 
-    public static Guid CreateSessionId(string sourceHash)
-    {
-        var name = Encoding.UTF8.GetBytes(sourceHash);
-        var input = new byte[16 + name.Length];
-        SessionNamespace.TryWriteBytes(input.AsSpan(0, 16), bigEndian: true, out _);
-        name.CopyTo(input, 16);
-        var hash = SHA1.HashData(input);
-        hash[6] = (byte)((hash[6] & 0x0f) | 0x50);
-        hash[8] = (byte)((hash[8] & 0x3f) | 0x80);
-        return new Guid(hash.AsSpan(0, 16), bigEndian: true);
-    }
+    public static Guid CreateSessionId(string sourceHash) =>
+        UuidUtil.CreateVersion5(SessionNamespace, Encoding.UTF8.GetBytes(sourceHash));
 
     public static string ComputeImportedSst(ReadOnlySpan<byte> sstBytes) =>
         Convert.ToHexStringLower(SHA256.HashData(sstBytes));

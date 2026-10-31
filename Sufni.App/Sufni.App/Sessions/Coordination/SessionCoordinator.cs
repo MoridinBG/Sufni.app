@@ -231,7 +231,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
                 var generation = processed.Generation;
                 var newTrack = generation.TrackPoints is { Count: > 0 } points
-                    ? new Track { Points = points.ToList() } : null;
+                    ? new Track(points) : null;
                 var fullTrackId = newTrack?.Id ?? session.FullTrack;
                 if (newTrack is null)
                 {

@@ -566,10 +566,10 @@ public class DatabaseMigrationRunnerTests
             sessionId).Single();
         var track = verification.Query<TrackRevisionRow>(
             "SELECT points_revision, updated FROM track WHERE id = ?",
-            trackId).Single();
+            TrackContentHash.Compute([new TrackPoint(100, 1, 2, 3)])).Single();
 
         Assert.Equal(1, session.ProcessedTelemetryRevision);
-        Assert.Equal(1, session.TrackProjectionRevision);
+        Assert.Equal(2, session.TrackProjectionRevision);
         Assert.Equal(10, session.Updated);
         Assert.Equal(1, track.PointsRevision);
         Assert.Equal(11, track.Updated);
@@ -674,7 +674,7 @@ public class DatabaseMigrationRunnerTests
             emptySessionId).Single();
         var populatedTrack = verification.Query<TrackRevisionRow>(
             "SELECT points_revision, updated FROM track WHERE id = ?",
-            populatedTrackId).Single();
+            TrackContentHash.Compute([new TrackPoint(100, 1, 2, 3)])).Single();
         var emptyTrack = verification.Query<TrackRevisionRow>(
             "SELECT points_revision, updated FROM track WHERE id = ?",
             emptyTrackId).Single();
@@ -1221,76 +1221,63 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(keptClipId, Assert.Single(verificationConnection.Table<SessionVideoClip>().ToList()).Id);
     }
 
-    [Fact]
-    public async Task StartupCleanup_SoftDeletesDuplicateTrackTimeRanges_AndRepointsSessions()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Initialization_RekeysTracksByContent_PreservingLowestActiveDuplicate(bool reverseOrder)
     {
-        using var tempDatabase = new TempDatabase("duplicate-track-cleanup.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var canonicalTrackId = Guid.NewGuid();
-        var duplicateTrackId = Guid.NewGuid();
-        var canonicalSessionId = Guid.NewGuid();
-        var duplicateSessionId = Guid.NewGuid();
-
-        using (var connection = new SQLiteConnection(databasePath))
+        using var temp = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var now = clock.GetUtcNow().ToUnixTimeSeconds();
+        var lowestDeleted = PersistenceTestData.CreateFullTrack();
+        lowestDeleted.Id = new Guid("00000000-0000-0000-0000-000000000001");
+        lowestDeleted.Deleted = now;
+        var canonical = PersistenceTestData.CreateFullTrack();
+        canonical.Id = new Guid("00000000-0000-0000-0000-000000000002");
+        canonical.Updated = 42;
+        canonical.ClientUpdated = 41;
+        var otherActive = PersistenceTestData.CreateFullTrack();
+        otherActive.Id = new Guid("00000000-0000-0000-0000-000000000003");
+        otherActive.Updated = 99;
+        var otherContent = PersistenceTestData.CreateFullTrack();
+        otherContent.Points[0].X = 10;
+        var contentlessTombstone = new Track { Deleted = now };
+        var deletedContent = PersistenceTestData.CreateFullTrack();
+        deletedContent.Points[0].Y = 20;
+        deletedContent.Deleted = now;
+        Track[] tracks = [lowestDeleted, canonical, otherActive, otherContent, contentlessTombstone, deletedContent];
+        var sessions = tracks.Where(track => track.HasPoints).Select(track => new Session(
+            Guid.NewGuid(), "ride", "notes", null, 100) { FullTrack = track.Id, Updated = 12 }).ToArray();
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
         {
-            connection.CreateTable<Track>();
-            connection.CreateTable<Session>();
-            connection.Insert(new Track
-            {
-                Id = canonicalTrackId,
-                Points =
-                [
-                    new TrackPoint(100, 1, 1, 10),
-                    new TrackPoint(101, 2, 2, 11)
-                ],
-                Updated = 10,
-                ClientUpdated = 10
-            });
-            connection.Insert(new Track
-            {
-                Id = duplicateTrackId,
-                Points =
-                [
-                    new TrackPoint(100, 3, 3, 12),
-                    new TrackPoint(101, 4, 4, 13)
-                ],
-                Updated = 20,
-                ClientUpdated = 20
-            });
-            connection.Insert(new Session(canonicalSessionId, "canonical", "desc", null, 100)
-            {
-                FullTrack = canonicalTrackId,
-                Updated = 10,
-                ClientUpdated = 10
-            });
-            connection.Insert(new Session(duplicateSessionId, "duplicate", "desc", null, 100)
-            {
-                FullTrack = duplicateTrackId,
-                Track =
-                [
-                    new TrackPoint(100, 3, 3, 12),
-                    new TrackPoint(101, 4, 4, 13)
-                ],
-                Updated = 20,
-                ClientUpdated = 20
-            });
+            legacy.CreateTable<Track>();
+            legacy.CreateTable<Session>();
+            foreach (var track in reverseOrder ? tracks.Reverse() : tracks) legacy.Insert(track);
+            foreach (var session in sessions) legacy.Insert(session);
         }
 
-        var database = new TestPersistenceHarness(databasePath);
-
-        var activeTracks = await database.GetAllAsync<Track>();
-        var duplicateSession = await database.GetSessionAsync(duplicateSessionId);
-
-        Assert.Single(activeTracks);
-        Assert.Equal(canonicalTrackId, activeTracks[0].Id);
-        Assert.NotNull(duplicateSession);
-        Assert.Equal(canonicalTrackId, duplicateSession!.FullTrack);
-        Assert.Null(duplicateSession.Track);
-
-        using var verificationConnection = new SQLiteConnection(databasePath);
-        var duplicateTrack = verificationConnection.Table<Track>().Single(track => track.Id == duplicateTrackId);
-        Assert.NotNull(duplicateTrack.Deleted);
-
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath, clock);
+            await context.Initialization;
+            var actual = await context.Connection.Table<Track>().ToListAsync();
+            Assert.Equal(4, actual.Count);
+            var kept = Assert.Single(actual, track => track.Id == TrackContentHash.Compute(canonical.Points));
+            Assert.Null(kept.Deleted);
+            Assert.Equal(42, kept.Updated);
+            Assert.Equal(41, kept.ClientUpdated);
+            Assert.Equal(canonical.PointsJson, kept.PointsJson);
+            Assert.Contains(actual, track => track.Id == TrackContentHash.Compute(otherContent.Points));
+            Assert.Contains(actual, track => track.Id == contentlessTombstone.Id && track.Deleted == now);
+            Assert.Contains(actual, track => track.Id == TrackContentHash.Compute(deletedContent.Points) && track.Deleted == now);
+            foreach (var session in sessions)
+            {
+                var migrated = await context.Connection.FindAsync<Session>(session.Id);
+                var originalTrack = tracks.Single(track => track.Id == session.FullTrack);
+                Assert.Equal(TrackContentHash.Compute(originalTrack.Points), migrated.FullTrack);
+                Assert.Equal(12, migrated.Updated);
+            }
+        }
     }
 
     private static SeededProcessedSession SeedProcessedSessionDatabase(

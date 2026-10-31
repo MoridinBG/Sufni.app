@@ -53,6 +53,7 @@ internal sealed class DatabaseMigrationRunner(
         await coreMigrations.MarkAppliedAsync("session-video");
         await MigrateSessionDerivationWindowsAsync();
         await MigrateSessionDomainAsync();
+        await MigrateTrackMaterializationsAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
         await DropSchemaVersionTableAsync();
 
@@ -68,6 +69,25 @@ internal sealed class DatabaseMigrationRunner(
             cleanupSummary.Bikes,
             cleanupSummary.PairedDevices);
     }
+
+    private Task MigrateTrackMaterializationsAsync() => coreMigrations.ApplyAsync("track-materializations", transaction =>
+    {
+        var groups = transaction.Table<Track>().ToList()
+            .Where(track => track.HasPoints)
+            .GroupBy(track => TrackContentHash.Compute(track.Points))
+            .ToList();
+        foreach (var group in groups)
+        {
+            var canonical = group.OrderBy(track => track.Deleted is not null).ThenBy(track => track.Id).First();
+            foreach (var track in group)
+            {
+                transaction.Execute("UPDATE session SET full_track_id = ? WHERE full_track_id = ?", group.Key, track.Id);
+                transaction.Execute("DELETE FROM track WHERE id = ?", track.Id);
+            }
+            canonical.Id = group.Key;
+            transaction.Insert(canonical);
+        }
+    });
 
     private Task MigrateSessionDomainAsync() => coreMigrations.ApplyAsync("session-domain-ownership", transaction =>
     {
@@ -583,7 +603,6 @@ internal sealed class DatabaseMigrationRunner(
         deletedSegments += await connection.ExecuteAsync(
             "DELETE FROM session_segment WHERE session_id NOT IN (SELECT id FROM session)");
         await connection.ExecuteAsync("DELETE FROM session_video WHERE session_id NOT IN (SELECT id FROM session)");
-        var duplicateTracks = await CleanupDuplicateTrackTimeRangesAsync();
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(setup => setup.Deleted != null && setup.Deleted < oneDayAgo);
@@ -594,75 +613,11 @@ internal sealed class DatabaseMigrationRunner(
         return new CleanupSummary(
             deletedSessions,
             deletedSegments,
-            deletedTracks + duplicateTracks,
+            deletedTracks,
             deletedBoards,
             deletedSetups,
             deletedBikes,
             deletedPairedDevices);
-    }
-
-    private async Task<int> CleanupDuplicateTrackTimeRangesAsync()
-    {
-        var tracks = await connection.QueryAsync<TrackTimeRow>(
-            """
-            SELECT id, start_time, end_time, updated
-            FROM track
-            WHERE deleted IS NULL
-            """);
-        var duplicates = tracks
-            .Where(track => track.StartTime <= track.EndTime)
-            .GroupBy(track => (track.StartTime, track.EndTime))
-            .Where(group => group.Count() > 1)
-            .ToList();
-
-        if (duplicates.Count == 0)
-        {
-            return 0;
-        }
-
-        var sessionReferences = await connection.QueryAsync<SessionTrackReferenceRow>(
-            """
-            SELECT id, full_track_id
-            FROM session
-            WHERE deleted IS NULL AND full_track_id IS NOT NULL
-            """);
-        var sessionReferenceCounts = sessionReferences
-            .Where(reference => reference.FullTrackId.HasValue)
-            .CountBy(reference => reference.FullTrackId!.Value)
-            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-
-        var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        var removed = 0;
-        foreach (var group in duplicates)
-        {
-            var canonicalTrack = SelectCanonicalDuplicateTrack(group, sessionReferenceCounts);
-            foreach (var duplicateTrack in group.Where(track => track.Id != canonicalTrack.Id))
-            {
-                await connection.ExecuteAsync(
-                    "UPDATE session SET full_track_id=?, track=NULL, updated=? WHERE deleted IS NULL AND full_track_id=?",
-                    canonicalTrack.Id,
-                    now,
-                    duplicateTrack.Id);
-                removed += await connection.ExecuteAsync(
-                    "UPDATE track SET deleted=?, updated=? WHERE id=? AND deleted IS NULL",
-                    now,
-                    now,
-                    duplicateTrack.Id);
-            }
-        }
-
-        return removed;
-    }
-
-    private static TrackTimeRow SelectCanonicalDuplicateTrack(
-        IEnumerable<TrackTimeRow> tracks,
-        IReadOnlyDictionary<Guid, int> sessionReferenceCounts)
-    {
-        return tracks
-            .OrderByDescending(track => sessionReferenceCounts.TryGetValue(track.Id, out var count) ? count : 0)
-            .ThenBy(track => track.Updated == 0 ? long.MaxValue : track.Updated)
-            .ThenBy(track => track.Id)
-            .First();
     }
 
     private static readonly string[] SessionSummaryMetricColumnNames =
@@ -714,30 +669,6 @@ internal sealed class DatabaseMigrationRunner(
 
         [Column("shock_stroke")]
         public double? ShockStroke { get; set; }
-    }
-
-    private sealed class TrackTimeRow
-    {
-        [Column("id")]
-        public Guid Id { get; set; }
-
-        [Column("start_time")]
-        public long StartTime { get; set; }
-
-        [Column("end_time")]
-        public long EndTime { get; set; }
-
-        [Column("updated")]
-        public long Updated { get; set; }
-    }
-
-    private sealed class SessionTrackReferenceRow
-    {
-        [Column("id")]
-        public Guid Id { get; set; }
-
-        [Column("full_track_id")]
-        public Guid? FullTrackId { get; set; }
     }
 
     private sealed record CleanupSummary(

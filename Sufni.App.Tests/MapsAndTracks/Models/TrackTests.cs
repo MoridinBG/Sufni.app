@@ -1,9 +1,55 @@
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.Tests.TestSupport.Persistence;
 
 namespace Sufni.App.Tests.MapsAndTracks.Models;
 
 public class TrackTests
 {
+    [Fact]
+    public void ContentIdentity_ConvergesAcrossIndependentCreationAndSerialization()
+    {
+        var first = new Track(PersistenceTestData.CreateFullTrack().Points);
+        var second = new Track(PersistenceTestData.CreateFullTrack().Points);
+        var restored = AppJson.Deserialize<Track>(AppJson.Serialize(first))!;
+
+        Assert.Equal(new Guid("1a6118c3-da4f-53d4-99cb-665aa2ef9e2c"), first.Id);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Equal(first.Id, TrackContentHash.Compute(restored.Points));
+    }
+
+    [Theory]
+    [InlineData("time")]
+    [InlineData("x")]
+    [InlineData("y")]
+    [InlineData("elevation")]
+    [InlineData("speed")]
+    [InlineData("fix")]
+    [InlineData("satellites")]
+    [InlineData("epe2d")]
+    [InlineData("epe3d")]
+    [InlineData("order")]
+    public void ContentIdentity_DistinguishesChangedPointContent(string field)
+    {
+        var original = new Track(PersistenceTestData.CreateFullTrack().Points);
+        var changed = PersistenceTestData.CreateFullTrack().Points;
+        switch (field)
+        {
+            case "time": changed[0].Time += 0.25; break;
+            case "x": changed[0].X += 0.01; break;
+            case "y": changed[0].Y += 0.01; break;
+            case "elevation": changed[0].Elevation = null; break;
+            case "speed": changed[0].Speed = 0; break;
+            case "fix": changed[0].FixMode = 3; break;
+            case "satellites": changed[0].Satellites = 12; break;
+            case "epe2d": changed[0].Epe2d = 0.5f; break;
+            case "epe3d": changed[0].Epe3d = 0.8f; break;
+            case "order": changed.Reverse(); break;
+        }
+
+        Assert.NotEqual(original.Id, new Track(changed).Id);
+    }
+
     [Fact]
     public void GenerateSessionTrack_InterpolatesElevationAndSpeed_AndUsesAbsoluteUnixTime()
     {

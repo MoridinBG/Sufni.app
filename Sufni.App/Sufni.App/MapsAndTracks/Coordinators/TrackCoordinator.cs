@@ -73,10 +73,10 @@ public class TrackCoordinator(
                 var result = await gpxTrackReader.ReadAsync(file, cancellationToken);
                 if (result is GpxTrackReadResult.Failed failure)
                     return new GpxImportResult.Failed(failure.Reason, failure.Details, importedCount, alreadyImportedCount);
-                var track = new Track { Points = ((GpxTrackReadResult.Read)result).Points.ToList() };
+                var track = new Track(((GpxTrackReadResult.Read)result).Points);
 
-                var existingTrackId = await trackRepository.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
-                if (existingTrackId is not null)
+                var existingTrack = await trackEntityRepository.GetAsync(track.Id);
+                if (existingTrack is not null)
                 {
                     alreadyImportedCount++;
                     continue;

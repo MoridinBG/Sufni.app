@@ -1,11 +1,9 @@
 using System;
 using Serilog;
 using Sufni.App.Shared.Models;
-using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Security.Cryptography;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
@@ -155,105 +153,4 @@ internal sealed class RecordedSessionReprocessor(
             : 0.0)
     };
 
-}
-
-/// <summary>
-/// Stable hash over the track point values that affect stored full-track
-/// content. It allows generated tracks to be compared by content instead of by
-/// row identity.
-/// </summary>
-internal static class TrackContentHash
-{
-    public static string Compute(Track track)
-    {
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream))
-        {
-            writer.WriteStartObject();
-            writer.WritePropertyName("points");
-            writer.WriteStartArray();
-            foreach (var point in track.Points)
-            {
-                writer.WriteStartObject();
-                writer.WriteNumber("time", point.Time);
-                writer.WriteNumber("x", point.X);
-                writer.WriteNumber("y", point.Y);
-                writer.WritePropertyName("elevation");
-                if (point.Elevation.HasValue)
-                {
-                    writer.WriteNumberValue(point.Elevation.Value);
-                }
-                else
-                {
-                    writer.WriteNullValue();
-                }
-
-                writer.WritePropertyName("speed");
-                if (point.Speed.HasValue)
-                {
-                    writer.WriteNumberValue(point.Speed.Value);
-                }
-                else
-                {
-                    writer.WriteNullValue();
-                }
-
-                writer.WritePropertyName("fixMode");
-                if (point.FixMode.HasValue)
-                {
-                    writer.WriteNumberValue(point.FixMode.Value);
-                }
-                else
-                {
-                    writer.WriteNullValue();
-                }
-
-                writer.WritePropertyName("satellites");
-                if (point.Satellites.HasValue)
-                {
-                    writer.WriteNumberValue(point.Satellites.Value);
-                }
-                else
-                {
-                    writer.WriteNullValue();
-                }
-
-                writer.WritePropertyName("epe2d");
-                if (point.Epe2d.HasValue)
-                {
-                    writer.WriteNumberValue(point.Epe2d.Value);
-                }
-                else
-                {
-                    writer.WriteNullValue();
-                }
-
-                writer.WritePropertyName("epe3d");
-                if (point.Epe3d.HasValue)
-                {
-                    writer.WriteNumberValue(point.Epe3d.Value);
-                }
-                else
-                {
-                    writer.WriteNullValue();
-                }
-
-                writer.WriteEndObject();
-            }
-            writer.WriteEndArray();
-            writer.WriteEndObject();
-        }
-
-        return Convert.ToHexStringLower(SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length))));
-    }
-
-    public static bool PointsEqual(Track? left, Track? right)
-    {
-        if (left is null || right is null)
-        {
-            return left is null && right is null;
-        }
-
-        return string.Equals(Compute(left), Compute(right), StringComparison.Ordinal);
-    }
 }

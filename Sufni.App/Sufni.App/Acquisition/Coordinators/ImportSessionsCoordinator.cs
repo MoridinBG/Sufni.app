@@ -329,7 +329,7 @@ public class ImportSessionsCoordinator(
                             logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
                             var generation = processed.Generation;
                             var newTrack = generation.TrackPoints is { Count: > 0 } points
-                                ? new Track { Points = points.ToList() } : null;
+                                ? new Track(points) : null;
                             var fullTrackId = newTrack?.Id;
                             if (newTrack is null && session.Timestamp is { } timestamp)
                             {
