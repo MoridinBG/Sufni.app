@@ -5,6 +5,7 @@ using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Video.Coordinators;
 using Sufni.App.Video.Models;
@@ -21,6 +22,7 @@ public class VideoCoordinatorTests
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionVideoRepository videoRepository = Substitute.For<ISessionVideoRepository>();
     private readonly ISessionVideoStoreWriter videoStore = Substitute.For<ISessionVideoStoreWriter>();
+    private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly VideoCoordinator coordinator;
     private readonly FakeTimeProvider time = new(VideoStart.AddDays(1));
 
@@ -33,12 +35,29 @@ public class VideoCoordinatorTests
             videoRepository,
             videoStore,
             new InlineBackgroundTaskRunner(),
-            time);
+            time, sourceStore);
         videoRepository
             .LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(), Arg.Any<IReadOnlyCollection<Guid>>())
             .Returns(call => call.ArgAt<IReadOnlyCollection<Guid>>(4)
                 .Select(sessionId => new SessionVideoClip { Id = Guid.NewGuid(), SessionId = sessionId })
                 .ToList());
+    }
+
+    [Fact]
+    public async Task ImportAsync_WaitsForAllMatchingSourceIdentities_AndAcceptsRetryAfterArrival()
+    {
+        SelectVideo(durationSeconds: 60);
+        var available = CreateSession(VideoStart, 60);
+        var waiting = CreateSession(VideoStart, 60);
+        waiting.SourceSessionId = Guid.NewGuid();
+        sessionRepository.GetSessionsAsync().Returns([available, waiting]);
+
+        Assert.IsType<VideoImportResult.SourceUnavailable>(await coordinator.ImportAsync(TestContext.Current.CancellationToken));
+        await AssertNothingLinkedAsync();
+        sourceStore.Get(waiting.SourceSessionId.Value).Returns(new RecordedSessionSourceSnapshot(
+            waiting.SourceSessionId.Value, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "other-hash"));
+
+        Assert.Equal(new VideoImportResult.Linked(2), await coordinator.ImportAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -90,7 +109,8 @@ public class VideoCoordinatorTests
     public async Task ImportAsync_ReturnsNoMatchingSession_WhenNoSessionOverlapsVideo()
     {
         SelectVideo(durationSeconds: 60);
-        sessionRepository.GetSessionsAsync().Returns([CreateSession(VideoStart.AddHours(1), durationSeconds: 60)]);
+        var session = CreateSession(VideoStart.AddHours(1), durationSeconds: 60);
+        sessionRepository.GetSessionsAsync().Returns([session]);
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
 
@@ -128,7 +148,8 @@ public class VideoCoordinatorTests
     public async Task ImportAsync_ReturnsFailure_WhenPersistenceFails()
     {
         SelectVideo(durationSeconds: 60);
-        sessionRepository.GetSessionsAsync().Returns([CreateSession(VideoStart, durationSeconds: 60)]);
+        var session = CreateSession(VideoStart, durationSeconds: 60);
+        sessionRepository.GetSessionsAsync().Returns([session]);
         videoRepository.LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(),
             Arg.Any<IReadOnlyCollection<Guid>>()).Returns(Task.FromException<IReadOnlyList<SessionVideoClip>>(
                 new IOException("database unavailable")));
@@ -169,11 +190,16 @@ public class VideoCoordinatorTests
         filesService.OpenVideoFileAsync().Returns(file);
     }
 
-    private static Session CreateSession(DateTimeOffset start, double durationSeconds) =>
-        new(Guid.NewGuid(), "ride", string.Empty, setup: null, start.ToUnixTimeSeconds())
+    private Session CreateSession(DateTimeOffset start, double durationSeconds)
+    {
+        var session = new Session(Guid.NewGuid(), "ride", string.Empty, setup: null, start.ToUnixTimeSeconds())
         {
             DurationSeconds = durationSeconds,
         };
+        sourceStore.Get(session.Id).Returns(new RecordedSessionSourceSnapshot(
+            session.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
+        return session;
+    }
 
     private async Task AssertNothingLinkedAsync()
     {

@@ -20,6 +20,7 @@ public class SegmentCoordinatorTests
 {
     private readonly ISessionSegmentRepository repository = Substitute.For<ISessionSegmentRepository>();
     private readonly ISessionSegmentStoreWriter segmentStore = Substitute.For<ISessionSegmentStoreWriter>();
+    private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly ISegmentMatcher matcher = Substitute.For<ISegmentMatcher>();
     private readonly TestSessionContentReader contentReader = new();
@@ -31,7 +32,25 @@ public class SegmentCoordinatorTests
     public SegmentCoordinatorTests()
     {
         sessionStore.Get(session.Id).Returns(session);
+        sourceStore.Get(session.RecordingSourceSessionId).Returns(new RecordedSessionSourceSnapshot(
+            session.RecordingSourceSessionId, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
         segmentStore.GetForSession(session.Id).Returns([new SessionSegmentSnapshot(Guid.NewGuid(), session.Id, "Segment 1", 0, 1)]);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WaitsForSourceIdentity_AndAcceptsRetryAfterArrival()
+    {
+        var derived = session with { SourceSessionId = Guid.NewGuid(), WindowStartSeconds = 10 };
+        sessionStore.Get(session.Id).Returns(derived);
+        var coordinator = CreateCoordinator();
+
+        Assert.IsType<SegmentChangeResult.SourceUnavailable>(await coordinator.CreateAsync(session.Id, "climb", 2, 5));
+        await repository.DidNotReceive().InsertAsync(Arg.Any<SessionSegment>());
+        sourceStore.Get(derived.RecordingSourceSessionId).Returns(new RecordedSessionSourceSnapshot(
+            derived.RecordingSourceSessionId, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
+
+        Assert.IsType<SegmentChangeResult.Applied>(await coordinator.CreateAsync(session.Id, "climb", 2, 5));
+        await repository.Received(1).InsertAsync(Arg.Any<SessionSegment>());
     }
 
     [Fact]
@@ -282,5 +301,5 @@ public class SegmentCoordinatorTests
         return [];
     }
 
-    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner(), stravaService);
+    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner(), stravaService, sourceStore);
 }

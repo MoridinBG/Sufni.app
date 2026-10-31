@@ -105,6 +105,9 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
                 Notifications.Add(linked.SessionCount == 1 ? "Linked video to 1 recorded session."
                     : $"Linked video to {linked.SessionCount} recorded sessions.");
                 break;
+            case VideoImportResult.SourceUnavailable:
+                Notifications.Add("A matching recording source is not available yet. Sync it, then import the video again.");
+                break;
             case VideoImportResult.NoMatchingSession:
                 Notifications.Add("No recorded session overlaps the selected video.");
                 break;

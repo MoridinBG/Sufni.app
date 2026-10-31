@@ -320,6 +320,9 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     {
         switch (result)
         {
+            case SegmentChangeResult.SourceUnavailable:
+                reportNotification("The recording source is not available yet. Sync it, then save the segment again.");
+                break;
             case SegmentChangeResult.SessionMissing:
                 reportNotification("Session no longer exists.");
                 break;

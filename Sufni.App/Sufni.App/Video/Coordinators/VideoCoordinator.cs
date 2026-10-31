@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Store;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,6 +23,8 @@ public abstract record VideoImportResult
     public sealed record Cancelled : VideoImportResult;
     public sealed record Linked(int SessionCount) : VideoImportResult;
     public sealed record NoMatchingSession : VideoImportResult;
+
+    public sealed record SourceUnavailable : VideoImportResult;
     public sealed record Failed(VideoImportFailureReason Reason, string? Details = null) : VideoImportResult;
 }
 
@@ -58,7 +61,8 @@ internal sealed class VideoCoordinator(
     ISessionVideoRepository videoRepository,
     ISessionVideoStoreWriter videoStore,
     IBackgroundTaskRunner backgroundTaskRunner,
-    TimeProvider timeProvider) : IVideoCoordinator
+    TimeProvider timeProvider,
+    IRecordedSessionSourceStore sourceStore) : IVideoCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
 
@@ -147,15 +151,17 @@ internal sealed class VideoCoordinator(
 
         var metadata = ((VideoMetadataReadResult.Parsed)metadataResult).Metadata;
         var sessions = await sessionRepository.GetSessionsAsync();
-        var sessionIds = sessions
+        var matchingSessions = sessions
             .Where(session => GetMatchFailureReason(session, metadata) is null)
-            .Select(session => session.Id)
             .ToArray();
-        if (sessionIds.Length == 0)
+        if (matchingSessions.Length == 0)
         {
             LogMatchFailures(file.Name, metadata, sessions);
             return new VideoImportResult.NoMatchingSession();
         }
+
+        if (matchingSessions.Any(session => sourceStore.Get(session.SourceSessionId ?? session.Id) is null))
+            return new VideoImportResult.SourceUnavailable();
 
         cancellationToken.ThrowIfCancellationRequested();
         var clips = await videoRepository.LinkAsync(
@@ -163,7 +169,7 @@ internal sealed class VideoCoordinator(
             metadata.StartUtc.ToUnixTimeSeconds(),
             metadata.Duration.TotalSeconds,
             timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),
-            sessionIds);
+            matchingSessions.Select(session => session.Id).ToArray());
         await videoStore.PublishClipsAsync(clips.Select(SessionVideoSnapshot.From).ToArray());
         return new VideoImportResult.Linked(clips.Count);
     }

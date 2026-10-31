@@ -292,15 +292,15 @@ the coordinator forwards the reason without re-logging. Discovery without an
 endpoint raises `ServerUnavailable`, displayed as a notification. Progress and
 completion `Message` values remain ordinary text.
 
-Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | Failed`;
+Video imports return `VideoImportResult.Cancelled | Linked | NoMatchingSession | SourceUnavailable | Failed`;
 alignment returns `VideoAlignmentResult.Updated | ClipMissing | Failed`. Their
 failures carry `VideoImportFailureReason` or `VideoAlignmentFailureReason` with
 optional diagnostic details. `FailurePresentation` supplies fixed summaries;
-no matching session and missing clips are notification states.
+no matching session, unavailable recorded sources and missing clips are notification states.
 
-Saved-segment changes return `SegmentChangeResult.Applied | SessionMissing |
+Saved-segment changes return `SegmentChangeResult.Applied | SessionMissing | SourceUnavailable |
 SegmentMissing | Invalid(Message) | Failed(reason, details)`. Missing entities
-produce notifications; validation remains a fixed message. Persistence/publication
+and unavailable sources produce notifications; creation can be retried after source sync. Validation remains a fixed message. Persistence/publication
 failures use `SegmentWriteFailureReason.Create | Rename | Delete` and expandable
 diagnostics.
 

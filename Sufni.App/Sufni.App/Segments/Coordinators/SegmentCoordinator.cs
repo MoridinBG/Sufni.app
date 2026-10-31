@@ -23,6 +23,8 @@ public abstract record SegmentChangeResult
 
     public sealed record Applied : SegmentChangeResult;
     public sealed record SessionMissing : SegmentChangeResult;
+
+    public sealed record SourceUnavailable : SegmentChangeResult;
     public sealed record SegmentMissing : SegmentChangeResult;
     public sealed record Invalid(string Message) : SegmentChangeResult;
     public sealed record Failed(SegmentWriteFailureReason Reason, string? Details = null) : SegmentChangeResult;
@@ -138,16 +140,20 @@ internal sealed class SegmentCoordinator(
     ISessionContentReader contentReader,
     ISessionOperationRunner operationRunner,
     IBackgroundTaskRunner backgroundTaskRunner,
-    IStravaSegmentService stravaService) : ISegmentCoordinator
+    IStravaSegmentService stravaService,
+    IRecordedSessionSourceStore sourceStore) : ISegmentCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SegmentCoordinator>();
 
     public async Task<SegmentChangeResult> CreateAsync(Guid sessionId, string name, double startSeconds, double endSeconds)
     {
-        if (sessionStore.Get(sessionId) is null)
+        if (sessionStore.Get(sessionId) is not { } session)
         {
             return new SegmentChangeResult.SessionMissing();
         }
+
+        if (sourceStore.Get(session.RecordingSourceSessionId) is null)
+            return new SegmentChangeResult.SourceUnavailable();
 
         if (!double.IsFinite(startSeconds) || !double.IsFinite(endSeconds) || startSeconds >= endSeconds)
         {
