@@ -1,3 +1,7 @@
+using Sufni.App.Infrastructure;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Sessions.Coordination;
@@ -19,6 +23,7 @@ public class SessionSyncGenerationTests : IDisposable
     private readonly SessionStore sessions;
     private readonly RecordedSessionSourceStore sources;
     private readonly SessionSyncApplier applier;
+    private string targetFingerprint = string.Empty;
 
     public SessionSyncGenerationTests()
     {
@@ -27,7 +32,7 @@ public class SessionSyncGenerationTests : IDisposable
         sessions = new SessionStore(publication);
         sources = new RecordedSessionSourceStore(publication);
         applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
-            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), repository.SwapRequests);
+            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), repository.SwapRequests, new ProcessingFingerprintService());
     }
 
     [Theory]
@@ -38,7 +43,8 @@ public class SessionSyncGenerationTests : IDisposable
         string fingerprint, bool valid, SessionDataApplyResult expectedResult)
     {
         var session = SeedSession();
-        repository.SeedSwap(new SessionBlobSwap(session.Id, "target", new SessionProcessedGeneration(80)));
+        fingerprint = fingerprint == "target" ? targetFingerprint : fingerprint;
+        repository.SeedSwap(new SessionBlobSwap(session.Id, targetFingerprint, new SessionProcessedGeneration(80)));
         var incoming = valid ? PersistenceTestData.CreateTelemetryBlob(80) : new byte[] { 1, 2, 3 };
 
         var result = await applier.ApplyUploadedAsync(session.Id, new SessionBlobPayload(fingerprint, incoming));
@@ -48,11 +54,11 @@ public class SessionSyncGenerationTests : IDisposable
         {
             Assert.Null(await repository.SwapRequests.GetRequestAsync(session.Id));
             Assert.Equal(incoming, await repository.Repository.GetSessionRawPsstAsync(session.Id));
-            Assert.Equal("target", sessions.Get(session.Id)!.ProcessingFingerprintJson);
+            Assert.Equal(targetFingerprint, sessions.Get(session.Id)!.ProcessingFingerprintJson);
         }
         else
         {
-            Assert.Equal("target", (await repository.SwapRequests.GetRequestAsync(session.Id))!.TargetFingerprint);
+            Assert.Equal(targetFingerprint, (await repository.SwapRequests.GetRequestAsync(session.Id))!.TargetFingerprint);
             Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
             Assert.Null(sessions.Get(session.Id));
         }
@@ -68,7 +74,7 @@ public class SessionSyncGenerationTests : IDisposable
             80, SessionProcessedWriteGuard.From(captured)));
 
         var result = await applier.ApplyDownloadedAsync(captured,
-            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(90)), "target", new SessionProcessedGeneration(90));
+            new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(90)), targetFingerprint, new SessionProcessedGeneration(90));
 
         Assert.Equal(SessionDataApplyResult.Superseded, result);
         Assert.Equal(newer, await repository.Repository.GetSessionRawPsstAsync(session.Id));
@@ -81,7 +87,7 @@ public class SessionSyncGenerationTests : IDisposable
         var session = SeedSession(withData: false);
 
         var result = await applier.ApplyUploadedAsync(session.Id,
-            new SessionBlobPayload("held", PersistenceTestData.CreateTelemetryBlob(80)));
+            new SessionBlobPayload(session.ProcessingFingerprintJson, PersistenceTestData.CreateTelemetryBlob(80)));
 
         Assert.Equal(SessionDataApplyResult.Applied, result);
         var saved = sessions.Get(session.Id)!;
@@ -98,7 +104,7 @@ public class SessionSyncGenerationTests : IDisposable
     public async Task ApplyUploadedAsync_RejectsInvalidBytesOrMismatchedFingerprint(bool invalidBytes)
     {
         var session = SeedSession();
-        var payload = new SessionBlobPayload(invalidBytes ? "held" : "different",
+        var payload = new SessionBlobPayload(invalidBytes ? session.ProcessingFingerprintJson : "different",
             invalidBytes ? [1, 2, 3] : PersistenceTestData.CreateTelemetryBlob(80));
 
         var result = await applier.ApplyUploadedAsync(session.Id, payload);
@@ -117,7 +123,7 @@ public class SessionSyncGenerationTests : IDisposable
         var generation = new SessionProcessedGeneration(80);
 
         var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session),
-            new SessionBlobPayload("target", data), "target", generation);
+            new SessionBlobPayload(targetFingerprint, data), targetFingerprint, generation);
 
         Assert.Equal(SessionDataApplyResult.Applied, result);
         var saved = (await repository.Repository.GetSessionAsync(session.Id))!;
@@ -137,7 +143,7 @@ public class SessionSyncGenerationTests : IDisposable
         var session = SeedSession();
         var data = PersistenceTestData.CreateTelemetryBlob(80);
 
-        var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), new SessionBlobPayload("target", data), "target");
+        var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), new SessionBlobPayload(targetFingerprint, data), targetFingerprint);
 
         Assert.Equal(SessionDataApplyResult.Superseded, result);
         Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
@@ -153,11 +159,70 @@ public class SessionSyncGenerationTests : IDisposable
         repository.WriteFailure = new IOException("disk full");
 
         var result = await applier.ApplyDownloadedAsync(original,
-            new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(80)), "target", new SessionProcessedGeneration(80));
+            new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(80)), targetFingerprint, new SessionProcessedGeneration(80));
 
         Assert.Equal(SessionDataApplyResult.Failed, result);
         Assert.Equal(original, sessions.Get(session.Id));
         Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Transfer_WaitsForSourceInputs_ThenRetriesWithoutLosingHeldData(bool upload)
+    {
+        var session = SeedSession();
+        var inputs = await repository.Repository.GetProcessingInputBundleAsync(session.Id);
+        repository.Repository.GetProcessingInputBundleAsync(session.Id).Returns((SessionProcessingInputBundle?)null);
+        var generation = new SessionProcessedGeneration(80);
+        if (upload) repository.SeedSwap(new SessionBlobSwap(session.Id, targetFingerprint, generation));
+        var payload = new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(80));
+        Task<SessionDataApplyResult> Apply() => upload
+            ? applier.ApplyUploadedAsync(session.Id, payload)
+            : applier.ApplyDownloadedAsync(SessionSnapshot.From(session), payload, targetFingerprint, generation);
+
+        Assert.Equal(SessionDataApplyResult.Superseded, await Apply());
+        Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
+        Assert.Null(sessions.Get(session.Id));
+        repository.Repository.GetProcessingInputBundleAsync(session.Id).Returns(inputs);
+
+        Assert.Equal(SessionDataApplyResult.Applied, await Apply());
+        Assert.Equal(payload.Data, await repository.Repository.GetSessionRawPsstAsync(session.Id));
+    }
+
+    [Fact]
+    public async Task Transfer_KeepsCurrentLocalGeneration_WhenIncomingFingerprintIsEquivalent()
+    {
+        var session = SeedSession();
+        session.ProcessingFingerprintJson = targetFingerprint;
+        repository.Seed(session);
+        var payload = new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(80));
+
+        var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), payload,
+            targetFingerprint, new SessionProcessedGeneration(80));
+
+        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
+        Assert.Null(sessions.Get(session.Id));
+    }
+
+    [Fact]
+    public async Task Transfer_RejectsTargetWhoseCalibrationIsNoLongerCurrent()
+    {
+        var session = SeedSession();
+        var inputs = (await repository.Repository.GetProcessingInputBundleAsync(session.Id))!;
+        repository.Repository.GetProcessingInputBundleAsync(session.Id).Returns(inputs with
+        {
+            Bike = inputs.Bike with { HeadAngle = inputs.Bike.HeadAngle + 1 }
+        });
+
+        var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session),
+            new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(80)),
+            targetFingerprint, new SessionProcessedGeneration(80));
+
+        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
+        Assert.Null(sessions.Get(session.Id));
     }
 
     private Session SeedSession(bool withData = true)
@@ -168,6 +233,18 @@ public class SessionSyncGenerationTests : IDisposable
             ProcessingFingerprintJson = "held", ProcessedTelemetryRevision = withData ? 1 : 0,
             Updated = 12, DurationSeconds = 65, DistanceMeters = 10, AscentMeters = 4, DescentMeters = 2, GpsOffsetSeconds = 7
         };
+        var setup = TestSnapshots.Setup();
+        var bike = TestSnapshots.Bike(id: setup.BikeId);
+        session.Setup = setup.Id;
+        var inputs = new SessionProcessingInputBundle(
+            new SessionProcessingInput(session.Id, setup.Id),
+            new SetupProcessingInput(setup.Id, setup.BikeId, null, null),
+            new BikeProcessingInput(bike.Id, bike.HeadAngle, bike.ForkStroke, bike.ShockStroke,
+                RearSuspensionJsonCodec.Serialize(bike.RearSuspension)),
+            RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(session.Id)));
+        targetFingerprint = AppJson.Serialize(new ProcessingFingerprintService().CreateCurrentDatabaseInputs(inputs));
+        if (!withData) session.ProcessingFingerprintJson = targetFingerprint;
+        repository.Repository.GetProcessingInputBundleAsync(session.Id).Returns(inputs);
         repository.Seed(session);
         return session;
     }

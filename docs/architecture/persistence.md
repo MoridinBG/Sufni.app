@@ -266,7 +266,11 @@ There is no `GetSessionPsstAsync` on the repository: consumers that need a `Tele
 `ISessionSyncApplier` (`Sessions/Coordination/SessionSyncApplier.cs`) owns incoming
 processed generations on hub and client. `ApplyUploadedAsync` and
 `ApplyDownloadedAsync` validate transferred MessagePack, submit the captured
-fingerprint/revision guard, and publish the authoritative session after success.
+fingerprint/revision/input guard, and publish the authoritative session after success.
+The shared acceptance rule requires the incoming fingerprint to match the current
+processing inputs and keeps an equivalent current local generation. Missing source
+or dependency inputs defer the transfer. The transaction rechecks the captured
+input bundle so a concurrent calibration or processing-option change rejects it.
 Missing-BLOB fills normalize the incoming duration and preserve the current GPS
 metrics. Replacing a held BLOB requires a complete target generation; a fill whose
 row gained a BLOB in the meantime is superseded. Neither path reconstructs a

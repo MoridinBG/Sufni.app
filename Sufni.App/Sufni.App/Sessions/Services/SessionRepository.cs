@@ -84,7 +84,8 @@ public interface ISessionRepository
 }
 
 /// <summary>Persisted generation and optional hub request captured before accepting transferred bytes.</summary>
-public sealed record SessionProcessedWriteGuard(string? Fingerprint, long Revision, string? PendingSwapFingerprint = null)
+public sealed record SessionProcessedWriteGuard(string? Fingerprint, long Revision, string? PendingSwapFingerprint = null,
+    SessionProcessingInputBundle? ExpectedInputs = null)
 {
     public static SessionProcessedWriteGuard From(SessionSnapshot session, string? pendingSwapFingerprint = null) =>
         new(session.ProcessingFingerprintJson, session.ProcessedTelemetryRevision, pendingSwapFingerprint);
@@ -459,6 +460,7 @@ internal sealed class SessionRepository(
         connectionContext.RunInTransactionAsync(connection =>
         {
             if (!SessionBlobSwapRequestStore.MatchesInTransaction(connection, id, expected.PendingSwapFingerprint)) return false;
+            if (expected.ExpectedInputs is { } inputs && !CurrentDatabaseInputsMatch(connection, id, inputs)) return false;
             var updated = connection.Execute(
                 $"""
                 UPDATE session
@@ -480,6 +482,7 @@ internal sealed class SessionRepository(
         return connectionContext.RunInTransactionAsync(connection =>
         {
             if (!SessionBlobSwapRequestStore.MatchesInTransaction(connection, id, expected.PendingSwapFingerprint)) return false;
+            if (expected.ExpectedInputs is { } inputs && !CurrentDatabaseInputsMatch(connection, id, inputs)) return false;
             var updated = connection.Execute(
                 $"""
                 UPDATE session

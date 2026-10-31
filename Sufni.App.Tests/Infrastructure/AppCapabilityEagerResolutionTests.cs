@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -35,7 +36,7 @@ public class AppCapabilityEagerResolutionTests
         repository.Seed(snapshot);
         var server = Substitute.For<ISynchronizationServerService>();
         using var applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
-            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>());
+            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>(), new ProcessingFingerprintService());
         using var provider = new ServiceCollection()
             .AddSingleton(applier)
             .AddSingleton(server)

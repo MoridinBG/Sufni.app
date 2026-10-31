@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -33,6 +34,7 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly ISessionTelemetryProcessor telemetryProcessor;
     private readonly ISessionBlobSwapRequestStore swapRequests;
+    private readonly IProcessingFingerprintService fingerprintService;
     private ISynchronizationServerService? server;
 
     public SessionSyncApplier(
@@ -43,7 +45,8 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         ISessionRepository sessionRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionTelemetryProcessor telemetryProcessor,
-        ISessionBlobSwapRequestStore swapRequests)
+        ISessionBlobSwapRequestStore swapRequests,
+        IProcessingFingerprintService fingerprintService)
     {
         this.sessionStore = sessionStore;
         this.sourceStore = sourceStore;
@@ -54,6 +57,7 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
 
         this.telemetryProcessor = telemetryProcessor;
         this.swapRequests = swapRequests;
+        this.fingerprintService = fingerprintService;
     }
 
     /// <summary>Connects desktop arrival notifications during startup, before the server starts.</summary>
@@ -119,7 +123,16 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         if (current is null) return SessionDataApplyResult.Missing;
         var telemetry = telemetryProcessor.ReadProcessedTelemetryData(payload.Data);
         if (generation is null && current.HasProcessedData) return SessionDataApplyResult.Superseded;
-        var guard = SessionProcessedWriteGuard.From(expected, pendingSwapFingerprint);
+        var inputs = await sessionRepository.GetProcessingInputBundleAsync(expected.Id);
+        var decision = ProcessedGenerationAcceptance.DecideProcessedGenerationTarget(
+            inputs is null ? null : fingerprintService.CreateCurrentDatabaseInputs(inputs),
+            fingerprintService.Parse(current.ProcessingFingerprintJson),
+            fingerprintService.Parse(payload.Fingerprint),
+            current.HasProcessedData,
+            inputs is not null,
+            fingerprintService.CurrentSchemaVersion);
+        if (decision != ProcessedGenerationDecision.AcceptIncoming) return SessionDataApplyResult.Superseded;
+        var guard = SessionProcessedWriteGuard.From(expected, pendingSwapFingerprint) with { ExpectedInputs = inputs };
         bool committed;
         if (generation is not null)
         {

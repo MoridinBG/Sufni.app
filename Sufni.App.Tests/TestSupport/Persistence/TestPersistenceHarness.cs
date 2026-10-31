@@ -44,7 +44,7 @@ internal sealed class TestPersistenceHarness
         PublishedSources = new RecordedSessionSourceStore(publication);
         SessionSyncApplier = new SessionSyncApplier(PublishedSessions, PublishedSources, dispatcher,
             recordedSessionSourceRepository, sessionRepository, new InlineBackgroundTaskRunner(),
-            sessionTelemetryProcessor, new SessionBlobSwapRequestStore(context));
+            sessionTelemetryProcessor, new SessionBlobSwapRequestStore(context), fingerprintService);
         syncDataStore = new SynchronizationMergeEngine(context, fingerprintService, this.timeProvider);
     }
 
@@ -163,9 +163,6 @@ internal sealed class TestPersistenceHarness
         Track? newFullTrack,
         SessionProcessingInputBundle expectedInputs) =>
         sessionRepository.UpdateProcessedDerivedDataAsync(PrepareGeneration(session, newFullTrack), newFullTrack, expectedInputs);
-
-    public Task<SessionDataApplyResult> PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null) =>
-        SessionSyncApplier.ApplyUploadedAsync(id, new SessionBlobPayload(fingerprint, data));
 
     public async Task<SessionDataApplyResult> SwapSessionPsstAsync(Guid id, byte[] data, string? fingerprint = null,
         SessionProcessedGeneration? generation = null)

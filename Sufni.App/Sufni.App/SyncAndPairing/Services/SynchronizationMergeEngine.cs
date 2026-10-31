@@ -334,7 +334,7 @@ internal sealed class SynchronizationMergeEngine(
                 session.Updated,
                 session.ClientUpdated));
 
-        return TryBuildSwap(connection, session, existing.ProcessingFingerprintJson);
+        return DecideProcessedGenerationTarget(connection, session, existing);
     }
 
     private static long GetContentVersion(Synchronizable entity) => entity.ClientUpdated > 0
@@ -494,56 +494,17 @@ internal sealed class SynchronizationMergeEngine(
         MergeSessionMetadata(connection, session, existing, now);
     }
 
-    // Hold an accepted target when its source has not arrived yet; otherwise
-    // accept only the complete current-input fingerprint, including the session option.
-    private void UpdateSessionBlobSwapRequest(
-        SQLiteConnection connection,
-        Session incoming,
-        Session heldRow)
+    private void UpdateSessionBlobSwapRequest(SQLiteConnection connection, Session incoming, Session heldRow)
     {
-        if (StringComparer.Ordinal.Equals(incoming.ProcessingFingerprintJson, heldRow.ProcessingFingerprintJson))
-        {
-            ClearSessionBlobSwapRequest(connection, incoming.Id);
-            return;
-        }
-
-        var incomingFingerprint = fingerprintService.Parse(incoming.ProcessingFingerprintJson);
-        var heldFingerprint = fingerprintService.Parse(heldRow.ProcessingFingerprintJson);
-        if (incomingFingerprint is null || heldFingerprint is null ||
-            incomingFingerprint.SchemaVersion != fingerprintService.CurrentSchemaVersion ||
-            heldFingerprint.SchemaVersion != fingerprintService.CurrentSchemaVersion)
-        {
-            ClearSessionBlobSwapRequest(connection, incoming.Id);
-            return;
-        }
-
-        var currentDatabaseInputs = TryComputeCurrentDatabaseInputs(connection, incoming, incomingFingerprint);
-        if (currentDatabaseInputs is not null &&
-            incomingFingerprint == currentDatabaseInputs &&
-            heldFingerprint != currentDatabaseInputs)
-        {
+        if (DecideProcessedGenerationTarget(connection, incoming, heldRow) is not null)
             RecordSessionBlobSwapRequest(connection, incoming);
-            return;
-        }
-
-        if (currentDatabaseInputs is null &&
-            !SessionHasRecordedSource(connection, incoming.RecordingSourceSessionId))
-        {
-            // The source payload travels after metadata sync. Preserve the accepted
-            // target so the hub can request the matching BLOB once the source phase
-            // fills session_recording_source; otherwise this metadata delta would be
-            // lost when the client advances its sync watermark.
-            RecordSessionBlobSwapRequest(connection, incoming);
-            return;
-        }
-
-        ClearSessionBlobSwapRequest(connection, incoming.Id);
+        else
+            ClearSessionBlobSwapRequest(connection, incoming.Id);
     }
 
     private ProcessingFingerprint? TryComputeCurrentDatabaseInputs(
         SQLiteConnection connection,
-        Session session,
-        ProcessingFingerprint fingerprint)
+        Session session)
     {
         if (session.Setup is not { } setupId)
         {
@@ -551,13 +512,13 @@ internal sealed class SynchronizationMergeEngine(
         }
 
         var setup = connection.Find<Setup>(setupId);
-        if (setup is null)
+        if (setup is null || setup.Deleted is not null)
         {
             return null;
         }
 
         var bike = connection.Find<Bike>(setup.BikeId);
-        if (bike is null)
+        if (bike is null || bike.Deleted is not null)
         {
             return null;
         }
@@ -669,40 +630,19 @@ internal sealed class SynchronizationMergeEngine(
         session.Id
     ];
 
-    // Decides whether a deferred (held-BLOB) row should queue a swap toward the
-    // accepted remote fingerprint. Swaps only between two CURRENT-SCHEMA
-    // fingerprints that differ, and never for a source-less row (it cannot
-    // self-heal by recompute, so it keeps its only BLOB and only ever gains one
-    // through the data-null fill). A legacy fingerprint waits for explicit recompute.
-    private SessionBlobSwap? TryBuildSwap(
-        SQLiteConnection connection,
-        Session remoteSession,
-        string? localFingerprintJson)
+    private SessionBlobSwap? DecideProcessedGenerationTarget(
+        SQLiteConnection connection, Session incoming, Session held)
     {
-        var remoteFingerprintJson = remoteSession.ProcessingFingerprintJson;
-        if (StringComparer.Ordinal.Equals(localFingerprintJson, remoteFingerprintJson))
-        {
-            return null;
-        }
-
-        var local = fingerprintService.Parse(localFingerprintJson);
-        var remote = fingerprintService.Parse(remoteFingerprintJson);
-        if (local is null || remote is null ||
-            local.SchemaVersion != fingerprintService.CurrentSchemaVersion ||
-            remote.SchemaVersion != fingerprintService.CurrentSchemaVersion)
-        {
-            return null;
-        }
-
-        if (!SessionHasRecordedSource(connection, remoteSession.RecordingSourceSessionId))
-        {
-            return null;
-        }
-
-        return new SessionBlobSwap(
-            remoteSession.Id,
-            remoteFingerprintJson!,
-            SessionProcessedGeneration.From(remoteSession));
+        if (incoming.Deleted is not null) return null;
+        var decision = ProcessedGenerationAcceptance.DecideProcessedGenerationTarget(
+            TryComputeCurrentDatabaseInputs(connection, incoming),
+            fingerprintService.Parse(held.ProcessingFingerprintJson),
+            fingerprintService.Parse(incoming.ProcessingFingerprintJson),
+            held.HasProcessedData,
+            SessionHasRecordedSource(connection, incoming.RecordingSourceSessionId),
+            fingerprintService.CurrentSchemaVersion);
+        return decision == ProcessedGenerationDecision.KeepLocal ? null :
+            new SessionBlobSwap(incoming.Id, incoming.ProcessingFingerprintJson!, SessionProcessedGeneration.From(incoming));
     }
 
     private static bool SessionHasRecordedSource(SQLiteConnection connection, Guid sessionId)

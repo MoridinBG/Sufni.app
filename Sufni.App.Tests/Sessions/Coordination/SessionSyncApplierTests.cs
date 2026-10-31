@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Stores;
@@ -30,7 +31,7 @@ public class SessionSyncApplierTests
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
         using var applier = new SessionSyncApplier(sessions, sources, dispatcher, sourceRepository, repository.Repository,
-            new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>());
+            new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>(), new ProcessingFingerprintService());
         applier.AttachServer(sync);
         var snapshot = TestSnapshots.Session();
         repository.Seed(snapshot);
@@ -60,7 +61,7 @@ public class SessionSyncApplierTests
         using var sources = new RecordedSessionSourceStore(publication);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         using var applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
-            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>());
+            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>(), new ProcessingFingerprintService());
         applier.AttachServer(sync);
         var live = TestSnapshots.Session(updated: 8);
         var deleted = TestSnapshots.Session();

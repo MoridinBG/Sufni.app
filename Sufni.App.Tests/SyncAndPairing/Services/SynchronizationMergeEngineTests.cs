@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Services;
 using SQLite;
 using Sufni.Telemetry;
 
@@ -386,15 +387,27 @@ public class SynchronizationMergeEngineTests
     }
 
     [Theory]
-    [InlineData(PushSwapScenario.CurrentInputs, true, false)]
-    [InlineData(PushSwapScenario.DerivationWindowChanged, true, false)]
-    [InlineData(PushSwapScenario.MetadataBeforeSource, true, true)]
-    [InlineData(PushSwapScenario.StaleIncoming, false, false)]
-    [InlineData(PushSwapScenario.DerivedStaleIncoming, false, false)]
-    public async Task MergeAllAsync_RecordsPushSwapRequestOnlyForEligibleIncomingFingerprint(
+    [InlineData(PushSwapScenario.CurrentInputs, true, false, false)]
+    [InlineData(PushSwapScenario.CurrentInputs, true, false, true)]
+    [InlineData(PushSwapScenario.DerivationWindowChanged, true, false, false)]
+    [InlineData(PushSwapScenario.DerivationWindowChanged, true, false, true)]
+    [InlineData(PushSwapScenario.MetadataBeforeSource, true, true, false)]
+    [InlineData(PushSwapScenario.MetadataBeforeSource, true, true, true)]
+    [InlineData(PushSwapScenario.StaleIncoming, false, false, false)]
+    [InlineData(PushSwapScenario.StaleIncoming, false, false, true)]
+    [InlineData(PushSwapScenario.DerivedStaleIncoming, false, false, false)]
+    [InlineData(PushSwapScenario.DerivedStaleIncoming, false, false, true)]
+    [InlineData(PushSwapScenario.Equivalent, false, false, false)]
+    [InlineData(PushSwapScenario.Equivalent, false, false, true)]
+    [InlineData(PushSwapScenario.LegacyHeld, true, false, false)]
+    [InlineData(PushSwapScenario.LegacyHeld, true, false, true)]
+    [InlineData(PushSwapScenario.HeldCurrent, false, false, false)]
+    [InlineData(PushSwapScenario.HeldCurrent, false, false, true)]
+    public async Task MergeDirections_RequestOnlyCurrentOrSourcePendingGenerations(
         PushSwapScenario scenario,
         bool expectSwapRequest,
-        bool expectRecordedSourceMissing)
+        bool expectRecordedSourceMissing,
+        bool pull)
     {
         using var tempDatabase = new TempDatabase("push-swap-eligibility.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -423,7 +436,7 @@ public class SynchronizationMergeEngineTests
             }, window.Held));
         }
 
-        await database.MergeAllAsync(new SynchronizationData
+        var data = new SynchronizationData
         {
             Sessions =
             [
@@ -441,7 +454,15 @@ public class SynchronizationMergeEngineTests
                     ClientUpdated = 88
                 }, window.Incoming)
             ]
-        });
+        };
+        IReadOnlyList<SessionBlobSwap> swaps;
+        if (pull) swaps = await database.ApplyRemoteSynchronizationDataAndReturnSwapsAsync(data);
+        else
+        {
+            await database.MergeAllAsync(data);
+            var request = await database.GetSessionBlobSwapRequestAsync(sessionId);
+            swaps = request is null ? [] : [request];
+        }
 
         using var verify = new SQLiteConnection(databasePath);
         if (expectRecordedSourceMissing)
@@ -451,25 +472,13 @@ public class SynchronizationMergeEngineTests
                 sessionId));
         }
 
-        Assert.Equal(
-            expectSwapRequest ? 1 : 0,
-            verify.ExecuteScalar<int>("SELECT COUNT(*) FROM session_blob_swap_request"));
+        Assert.Equal(expectSwapRequest ? 1 : 0, swaps.Count);
+        Assert.Equal(heldFingerprint, (await database.GetSessionAsync(sessionId))!.ProcessingFingerprintJson);
         if (expectSwapRequest)
         {
-            var session = await database.GetSessionAsync(sessionId);
-            Assert.Equal(heldFingerprint, session!.ProcessingFingerprintJson);
-            Assert.Equal(
-                incomingFingerprint,
-                verify.ExecuteScalar<string>(
-                    "SELECT target_fingerprint FROM session_blob_swap_request WHERE session_id = ?",
-                    sessionId));
-            var targetGeneration = AppJson.Deserialize<SessionProcessedGeneration>(
-                verify.ExecuteScalar<string>(
-                    "SELECT target_generation FROM session_blob_swap_request WHERE session_id = ?",
-                    sessionId));
-            Assert.NotNull(targetGeneration);
-            Assert.Equal(80, targetGeneration!.DurationSeconds);
-
+            var swap = Assert.Single(swaps);
+            Assert.Equal(incomingFingerprint, swap.TargetFingerprint);
+            Assert.Equal(80, swap.TargetGeneration.DurationSeconds);
         }
     }
 
@@ -479,19 +488,14 @@ public class SynchronizationMergeEngineTests
         using var tempDatabase = new TempDatabase("derived-pull-swap.db");
         var databasePath = tempDatabase.DatabasePath;
         var sessionId = Guid.NewGuid();
-        var sourceSessionId = Guid.NewGuid();
+        var setupId = Guid.NewGuid();
         var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
-
-        var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
-        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, null);
-        await database.PutRecordedSessionSourceAsync(source);
-
-        var localFingerprint = AppJson.Serialize(CreateFingerprint("local", source.SourceHash, window));
-        var remoteFingerprint = AppJson.Serialize(CreateFingerprint("remote", source.SourceHash, window));
+        var (localFingerprint, remoteFingerprint, windows) = await SeedPushSwapScenarioAsync(
+            database, sessionId, setupId, Guid.NewGuid(), PushSwapScenario.DerivationWindowChanged);
+        var window = windows.Incoming;
         using (var connection = new SQLiteConnection(databasePath))
         {
-            connection.Insert(WithWindow(new Session(sessionId, "local", "desc", null, 100)
+            connection.Insert(WithWindow(new Session(sessionId, "local", "desc", setupId, 100)
             {
                 ProcessedData = [1, 2, 3],
                 ProcessingFingerprintJson = localFingerprint,
@@ -504,7 +508,7 @@ public class SynchronizationMergeEngineTests
         {
             Sessions =
             [
-                WithWindow(new Session(sessionId, "remote", "desc", null, 100)
+                WithWindow(new Session(sessionId, "remote", "desc", setupId, 100)
                 {
                     ProcessingFingerprintJson = remoteFingerprint,
                     DurationSeconds = 80,
@@ -533,18 +537,15 @@ public class SynchronizationMergeEngineTests
     {
         using var tempDatabase = new TempDatabase("pulled-generation-boundary.db");
         var sessionId = Guid.NewGuid();
-        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
-        var localFingerprint = AppJson.Serialize(CreateFingerprint("local", source.SourceHash, window: null));
-        var remoteFingerprint = AppJson.Serialize(CreateFingerprint("remote", source.SourceHash, window: null));
+        var setupId = Guid.NewGuid();
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var (localFingerprint, remoteFingerprint, _) = await SeedPushSwapScenarioAsync(
+            database, sessionId, setupId, Guid.NewGuid(), PushSwapScenario.CurrentInputs, 100);
         var heldData = PersistenceTestData.CreateTelemetryBlob(65);
         var targetData = PersistenceTestData.CreateTelemetryBlob(80);
-        var targetTrackId = Guid.NewGuid();
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        await database.PutRecordedSessionSourceAsync(source);
-        _ = await database.GetSessionsAsync();
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
-            connection.Insert(new Session(sessionId, "local", "desc", null, 100)
+            connection.Insert(new Session(sessionId, "local", "desc", setupId, 100)
             {
                 ProcessedData = heldData,
                 ProcessingFingerprintJson = localFingerprint,
@@ -567,7 +568,7 @@ public class SynchronizationMergeEngineTests
             {
                 Sessions =
                 [
-                    new Session(sessionId, "remote", "desc", null, 100)
+                    new Session(sessionId, "remote", "desc", setupId, 100)
                     {
                         ProcessingFingerprintJson = remoteFingerprint,
                         VelocityFilterWindowMilliseconds = 100,
@@ -835,7 +836,7 @@ public class SynchronizationMergeEngineTests
         Guid sessionId,
         Guid setupId,
         Guid bikeId,
-        PushSwapScenario scenario)
+        PushSwapScenario scenario, int? velocityWindow = null)
     {
         var setup = new Setup { Id = setupId, BikeId = bikeId, Name = "setup" };
         var bike = new Bike { Id = bikeId, Name = "bike", HeadAngle = 65 };
@@ -843,7 +844,7 @@ public class SynchronizationMergeEngineTests
         await database.PutAsync(bike);
 
         var fingerprintService = new ProcessingFingerprintService();
-        var session = new Session(sessionId, "session", "desc", setupId, 100);
+        var session = new Session(sessionId, "session", "desc", setupId, 100) { VelocityFilterWindowMilliseconds = velocityWindow };
         var setupSnapshot = SetupSnapshot.From(setup);
         var bikeSnapshot = BikeSnapshot.From(bike);
 
@@ -890,6 +891,13 @@ public class SynchronizationMergeEngineTests
             bikeSnapshot,
             RecordedSessionSourceSnapshot.From(source));
 
+        if (scenario == PushSwapScenario.Equivalent)
+            return (AppJson.Serialize(canonical), AppJson.Serialize(canonical), (derivationWindow, derivationWindow));
+        if (scenario == PushSwapScenario.LegacyHeld)
+            return ("{}", AppJson.Serialize(canonical), (derivationWindow, derivationWindow));
+        if (scenario == PushSwapScenario.HeldCurrent)
+            return (AppJson.Serialize(canonical), AppJson.Serialize(canonical with { DependencyHash = "stale" }), (derivationWindow, derivationWindow));
+
         return scenario is PushSwapScenario.StaleIncoming or PushSwapScenario.DerivedStaleIncoming
             ? (
                 AppJson.Serialize(canonical with { DependencyHash = "hub-old-hash" }),
@@ -915,21 +923,10 @@ public class SynchronizationMergeEngineTests
         DerivationWindowChanged,
         MetadataBeforeSource,
         StaleIncoming,
-        DerivedStaleIncoming
+        DerivedStaleIncoming,
+        Equivalent,
+        LegacyHeld,
+        HeldCurrent
     }
 
-    private static ProcessingFingerprint CreateFingerprint(
-        string dependencyHash,
-        string sourceHash,
-        RecordedSessionDerivationWindow? window) =>
-        new(
-            SchemaVersion: 4,
-            ProcessingVersion: TelemetryProcessingVersion.Current,
-            SetupId: Guid.NewGuid(),
-            BikeId: Guid.NewGuid(),
-            TrackProjectionVersion: GpsTrackPointProjection.ProjectionVersion,
-            DependencyHash: dependencyHash,
-            SourceHash: sourceHash,
-            DerivationWindow: window,
-            CalibrationVersion: 1);
 }

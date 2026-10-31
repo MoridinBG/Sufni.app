@@ -776,6 +776,46 @@ public class SessionRepositoryTests
     }
 
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task TransferredGeneration_RejectsInputsChangedAfterValidation(bool calibrationChange, bool swap)
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var bike = new Bike(Guid.NewGuid(), "bike") { HeadAngle = 64 };
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = bike.Id };
+        await database.PutAsync(bike);
+        await database.PutAsync(setup);
+        var original = new Session(Guid.NewGuid(), "ride", "notes", setup.Id, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+        await database.PutProcessedSessionAsync(original, null, PersistenceTestData.CreateRecordedSessionSource(original.Id));
+        var held = (await database.GetSessionAsync(original.Id))!;
+        var guard = SessionProcessedWriteGuard.From(SessionSnapshot.From(held)) with
+        {
+            ExpectedInputs = (await database.GetProcessingInputBundleAsync(original.Id))!
+        };
+        if (calibrationChange)
+        {
+            bike.HeadAngle = 65;
+            await database.PutAsync(bike);
+        }
+        else await database.SessionRepository.SetProcessingOptionAsync(original.Id, 100);
+        var bytes = PersistenceTestData.CreateTelemetryBlob(80);
+
+        var committed = swap
+            ? await database.SessionRepository.UpdateSessionProcessedGenerationAsync(original.Id, bytes, "target", new SessionProcessedGeneration(80), guard)
+            : await database.SessionRepository.UpdateSessionPsstAsync(original.Id, bytes, "target", 80, guard);
+
+        Assert.False(committed);
+        Assert.Equal(original.ProcessedData, await database.GetSessionRawPsstAsync(original.Id));
+        Assert.Equal(held.ProcessedTelemetryRevision, (await database.GetSessionAsync(original.Id))!.ProcessedTelemetryRevision);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ProcessedWrite_CompletesOnlyTheCapturedHubRequest(bool requestChanged)
@@ -828,7 +868,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PatchSessionPsstAsync_FlipsHasProcessedData_ForChangedSessionQueries()
+    public async Task UpdateSessionPsstAsync_FlipsHasProcessedData_ForChangedSessionQueries()
     {
         using var tempDatabase = new TempDatabase("session-psst-patch.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -841,7 +881,9 @@ public class SessionRepositoryTests
         });
 
         var patchedPsst = PersistenceTestData.CreateTelemetryBlob(65);
-        await database.PatchSessionPsstAsync(sessionId, patchedPsst);
+        var held = (await database.GetSessionAsync(sessionId))!;
+        Assert.True(await database.SessionRepository.UpdateSessionPsstAsync(sessionId, patchedPsst, null, 65,
+            SessionProcessedWriteGuard.From(SessionSnapshot.From(held))));
 
         var changedSession = Assert.Single(await database.GetChangedAsync<Session>(0, long.MaxValue));
 

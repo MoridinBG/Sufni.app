@@ -32,15 +32,13 @@ public interface IProcessingFingerprintService
 
     /// <summary>
     /// The schema version stamped into fingerprints created by this build. The
-    /// sync merge uses it to recognize current-schema fingerprints (a pre-current
-    /// or unparseable fingerprint is "legacy" and defers BLOB swaps until explicit recompute).
+    /// sync merge uses it to reject incoming generations from older schemas.
     /// </summary>
     int CurrentSchemaVersion { get; }
 
     /// <summary>
     /// Parses a persisted fingerprint JSON string, returning null when it is
-    /// absent or cannot be deserialized. Used by the sync merge to compare the
-    /// schema versions of the local and remote fingerprints.
+    /// absent or cannot be deserialized.
     /// </summary>
     ProcessingFingerprint? Parse(string? fingerprintJson);
 
