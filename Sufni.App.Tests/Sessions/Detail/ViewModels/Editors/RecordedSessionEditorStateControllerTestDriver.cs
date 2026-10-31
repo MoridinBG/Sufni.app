@@ -57,8 +57,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         SessionSnapshot? session = null,
         TelemetryData? telemetryData = null,
         IReadOnlyList<TrackPoint>? fullTrackPoints = null,
-        IReadOnlyList<TrackPoint>? trackPoints = null,
-        double? mediaColumnWidth = null)
+        IReadOnlyList<TrackPoint>? trackPoints = null)
     {
         if (telemetryData is null)
         {
@@ -72,8 +71,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                     telemetryData,
                     null,
                     fullTrackPoints is List<TrackPoint> fullTrackList ? fullTrackList : fullTrackPoints?.ToList(),
-                    trackPoints is List<TrackPoint> trackList ? trackList : trackPoints?.ToList(),
-                    mediaColumnWidth)),
+                    trackPoints is List<TrackPoint> trackList ? trackList : trackPoints?.ToList())),
             session));
     }
 

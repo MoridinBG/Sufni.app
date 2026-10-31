@@ -1,3 +1,7 @@
+using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.Segments.Models;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Models;
 using System.Reactive.Linq;
 using NSubstitute;
 
@@ -15,7 +19,18 @@ internal static class TestSegmentComparisons
     public static ISegmentComparisonFactory CreateFactory(ISegmentCoordinator? segmentCoordinator = null) =>
         new SegmentComparisonFactory(
             segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(),
-            new InlineBackgroundTaskRunner());
+            CreateTrackCoordinator());
+
+    public static ITrackCoordinator CreateTrackCoordinator()
+    {
+        var coordinator = Substitute.For<ITrackCoordinator>();
+        coordinator.BuildAnalysisComparisonAsync(Arg.Any<SegmentComparison>(), Arg.Any<SegmentComparisonDetail>(),
+                Arg.Any<TravelDistributionMode>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs>(),
+                Arg.Any<SessionDampingPercentages>(), Arg.Any<CancellationToken>())
+            .Returns(call => SegmentAnalysisComparisonBuilder.Build(call.Arg<SegmentComparison>(), call.Arg<SegmentComparisonDetail>(),
+                call.Arg<TravelDistributionMode>(), call.Arg<VelocityAverageMode>(), call.Arg<DampingSpeedCutoffs>(), call.Arg<SessionDampingPercentages>()));
+        return coordinator;
+    }
 
     public static SegmentComparisonViewModel Create() =>
         CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentComparisonSessionState>(), (_, _) => { }, _ => { }, _ => { });

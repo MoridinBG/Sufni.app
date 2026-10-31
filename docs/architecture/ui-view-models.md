@@ -368,6 +368,10 @@ Two pages diverge from that pattern:
   write normalized pane ratios; absent ratios use the layout defaults. Live save
   seeds those preferences for the new session after persistence.
 
+The desktop session shell declares the media pane's 400-pixel default in XAML;
+saved layout preferences still override it. No media-width value travels through
+track loading, recorded editor state, or live/recorded workspace contracts.
+
 `TabPageViewModelBase` (`Shared/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
 view (editors and the import view). It takes

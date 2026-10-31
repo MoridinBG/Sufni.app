@@ -55,8 +55,7 @@ mc:Ignorable="d">
         <editors:SessionShellDesktopView
             HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
             IsVisible="{Binding ScreenState.IsReady}"
-            LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}"
-            MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
+            LayoutPreferences="{Binding LayoutPreferences, Mode=TwoWay}">
 
             <editors:SessionShellDesktopView.SignalsContent>
                 <items3:RecordedSessionSignalsDesktopView DataContext="{Binding $parent[UserControl].((vm:SessionDetailViewModel)DataContext).SignalsWorkspace}" />

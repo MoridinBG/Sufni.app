@@ -120,7 +120,6 @@ internal sealed class SessionDetailHarness
                     {
                         FullTrackPoints = null,
                         TrackPoints = null,
-                        MediaColumnWidth = null,
                     }));
             SessionLoader.LoadTrackAsync(
                     snapshot.Id,
@@ -131,8 +130,7 @@ internal sealed class SessionDetailHarness
                     new SessionTrackPresentationData(
                         presentation.FullTrackId,
                         presentation.FullTrackPoints,
-                        presentation.TrackPoints,
-                        presentation.MediaColumnWidth)));
+                        presentation.TrackPoints)));
         }
 
         SessionLoader.LoadDetailAsync(
@@ -145,8 +143,7 @@ internal sealed class SessionDetailHarness
     public SessionDetailLoadResult.Loaded CreateLoadedResult(
         TelemetryData? telemetry = null,
         bool includeBalance = true,
-        IReadOnlyList<TrackPoint>? trackPoints = null,
-        double? mediaColumnWidth = null)
+        IReadOnlyList<TrackPoint>? trackPoints = null)
     {
         var data = telemetry ?? TestTelemetryData.CreateProcessed(rearPresent: includeBalance);
         return new SessionDetailLoadResult.Loaded(new SessionDetailData(
@@ -155,7 +152,6 @@ internal sealed class SessionDetailHarness
                 FullTrackId: null,
                 FullTrackPoints: null,
                 TrackPoints: trackPoints?.ToList(),
-                MediaColumnWidth: mediaColumnWidth,
                 DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
                 DampingSpeedCutoffOwner: null)));
     }

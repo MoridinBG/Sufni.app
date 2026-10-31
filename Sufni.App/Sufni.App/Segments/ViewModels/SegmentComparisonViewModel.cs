@@ -8,12 +8,11 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Segments.Coordinators;
 using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Segments.ViewModels;
@@ -53,7 +52,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     private readonly Guid sessionId;
     private readonly ISegmentCoordinator segmentCoordinator;
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly ITrackCoordinator trackCoordinator;
     private readonly Action<double, double> setTimelineVisibleRange;
     private readonly Action<string> reportError;
     private readonly Action<string> reportNotification;
@@ -84,14 +83,14 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         Guid sessionId,
         IObservable<SegmentComparisonSessionState> sessionState,
         ISegmentCoordinator segmentCoordinator,
-        IBackgroundTaskRunner backgroundTaskRunner,
+        ITrackCoordinator trackCoordinator,
         Action<double, double> setTimelineVisibleRange,
         Action<string> reportError,
         Action<string> reportNotification)
     {
         this.sessionId = sessionId;
         this.segmentCoordinator = segmentCoordinator;
-        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.trackCoordinator = trackCoordinator;
         this.setTimelineVisibleRange = setTimelineVisibleRange;
         this.reportError = reportError;
         this.reportNotification = reportNotification;
@@ -279,15 +278,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         var cancellation = Replace(ref analysisLoad);
         try
         {
-            var analysis = await backgroundTaskRunner.RunAsync(
-                () => SegmentAnalysisComparisonBuilder.Build(
-                    comparison,
-                    detail,
-                    settings.TravelDistributionMode,
-                    settings.VelocityAverageMode,
-                    settings.DampingSpeedCutoffs,
-                    settings.DampingPercentages),
-                cancellation.Token);
+            var analysis = await trackCoordinator.BuildAnalysisComparisonAsync(
+                comparison, detail, settings.TravelDistributionMode, settings.VelocityAverageMode,
+                settings.DampingSpeedCutoffs, settings.DampingPercentages, cancellation.Token);
             if (cancellation.IsCancellationRequested || !ReferenceEquals(comparedMatch, comparison))
             {
                 return;

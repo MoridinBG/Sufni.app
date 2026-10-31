@@ -98,7 +98,6 @@ public interface ISessionMediaWorkspace
     MapViewModel? MapViewModel { get; }
     SurfacePresentationState MapState { get; }
     SessionTimelineLinkViewModel Timeline { get; }
-    double? MediaColumnWidth { get; }
 
     /// <summary>
     /// The video pane while the session has a playable clip; otherwise null.

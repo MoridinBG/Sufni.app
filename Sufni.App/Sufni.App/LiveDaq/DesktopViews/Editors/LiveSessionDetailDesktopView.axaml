@@ -25,8 +25,7 @@ mc:Ignorable="d">
     <Grid>
         <editors:SessionShellDesktopView
             HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
-            IsVisible="{Binding ScreenState.IsReady}"
-            MediaColumnWidth="{Binding MediaWorkspace.MediaColumnWidth, TargetNullValue=400}">
+            IsVisible="{Binding ScreenState.IsReady}">
 
             <editors:SessionShellDesktopView.SignalsContent>
                 <items:LiveSessionSignalsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).SignalsWorkspace}" />

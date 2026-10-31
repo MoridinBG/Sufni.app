@@ -262,7 +262,6 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
         ? SurfacePresentationState.Ready
         : SurfacePresentationState.Hidden;
     public SessionTimelineLinkViewModel Timeline { get; } = new();
-    public double? MediaColumnWidth { get; set; } = 400;
     public VideoPaneViewModel? Video { get; set; }
     public MatchedTrackOverlay? MatchedTrack { get; set; }
 

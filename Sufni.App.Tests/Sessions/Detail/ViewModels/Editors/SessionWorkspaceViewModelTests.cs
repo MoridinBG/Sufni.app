@@ -432,7 +432,6 @@ public class SessionWorkspaceViewModelTests
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: mapState ?? SurfacePresentationState.Hidden,
-                MediaColumnWidth: null,
                 SignalAvailability: new RecordedSignalAvailabilityState(
                     Travel: false,
                     Velocity: false,

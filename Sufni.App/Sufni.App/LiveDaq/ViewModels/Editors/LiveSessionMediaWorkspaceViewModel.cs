@@ -27,7 +27,6 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
             : SurfacePresentationState.WaitingForData("Waiting for map data.");
     public SessionTimelineLinkViewModel Timeline { get; }
     public MatchedTrackOverlay? MatchedTrack => null;
-    public double? MediaColumnWidth { get; } = 400;
     public VideoPaneViewModel? Video => null;
 
     public LiveSessionMediaWorkspaceViewModel(

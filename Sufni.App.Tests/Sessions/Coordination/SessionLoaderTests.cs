@@ -64,7 +64,6 @@ public class SessionLoaderTests
         Assert.Null(loaded.Data.TelemetryPresentation.FullTrackId);
         Assert.Null(loaded.Data.TelemetryPresentation.FullTrackPoints);
         Assert.Null(loaded.Data.TelemetryPresentation.TrackPoints);
-        Assert.Null(loaded.Data.TelemetryPresentation.MediaColumnWidth);
         Assert.Equal(DampingSpeedCutoffs.Default, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
         Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
@@ -87,8 +86,7 @@ public class SessionLoaderTests
         var trackData = new SessionTrackPresentationData(
             Guid.NewGuid(),
             [new TrackPoint(1, 1, 1, 0)],
-            [new TrackPoint(2, 2, 2, 0)],
-            400.0);
+            [new TrackPoint(2, 2, 2, 0)]);
 
         sessionStore.Get(snapshot.Id).Returns(snapshot);
         trackCoordinator.LoadSessionTrackAsync(snapshot.Id, telemetry, Arg.Any<CancellationToken>())

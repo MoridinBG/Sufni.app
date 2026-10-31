@@ -98,7 +98,6 @@ internal sealed class SessionDetailViewTestContext
                 FullTrackId: null,
                 FullTrackPoints: null,
                 TrackPoints: null,
-                MediaColumnWidth: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
                 DampingSpeedCutoffOwner: null)));
     }

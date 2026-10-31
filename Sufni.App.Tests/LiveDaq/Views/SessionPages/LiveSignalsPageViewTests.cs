@@ -108,7 +108,6 @@ public class LiveSignalsPageViewTests
             ? SurfacePresentationState.Ready
             : SurfacePresentationState.Hidden;
         public SessionTimelineLinkViewModel Timeline { get; } = new();
-        public double? MediaColumnWidth => 400;
         public VideoPaneViewModel? Video => null;
         public MatchedTrackOverlay? MatchedTrack => null;
     }

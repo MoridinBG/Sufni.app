@@ -55,7 +55,6 @@ internal sealed record RecordedSessionEditorState(
                 LayoutPreferences: preferences.Layout),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: SurfacePresentationState.Hidden,
-                MediaColumnWidth: null,
                 SignalAvailability: RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState(),
                 Signals: RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(),
                 Analysis: RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState(),
@@ -120,7 +119,6 @@ internal sealed record RecordedSessionEditorIntentState(
 
 internal sealed record RecordedSessionEditorPresentationState(
     SurfacePresentationState MapState,
-    double? MediaColumnWidth,
     RecordedSignalAvailabilityState SignalAvailability,
     RecordedSignalPresentationState Signals,
     RecordedAnalysisPresentationState Analysis,

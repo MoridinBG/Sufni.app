@@ -116,6 +116,11 @@ track catalog and session window. The recorded-session domain projection include
 the selected metadata, so an arrival, removal or points change refreshes an open
 editor without a session write or a draft-discard prompt.
 
+`BuildAnalysisComparisonAsync` also owns background execution of the segment
+analysis comparison builder from captured comparison/detail/settings inputs. The
+editor requests it with its current cancellation token and applies only its current
+result. Comparison runtime failure handling remains in its planned runtime migration.
+
 `TrackCoordinator` owns the device-local GPS metric materialization. Committed
 session/track publications cause it to capture immutable metadata and evaluate
 `SessionGpsMetricsQuery` off-thread. The key contains selected track content ID,

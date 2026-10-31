@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Subjects;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
@@ -193,7 +194,7 @@ public class SegmentComparisonViewModelTests
             Guid.NewGuid(),
             sessionState,
             coordinator,
-            new InlineBackgroundTaskRunner(),
+            TestSegmentComparisons.CreateTrackCoordinator(),
             (start, end) => visibleRanges.Add((start, end)),
             errors.Add,
             notifications.Add);

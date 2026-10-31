@@ -26,7 +26,7 @@ mc:Ignorable="d">
             <desktopControls:CollapsibleSplitView
                 x:Name="SignalsMediaSplit"
                 DefaultFirstLength="*"
-                DefaultSecondLength="Auto"
+                DefaultSecondLength="400"
                 FirstPaneId="{x:Static models:SessionLayoutPaneIds.Signals}"
                 FirstPaneLabel="signals"
                 HasSecondPane="{Binding #Root.HasMediaContent}"

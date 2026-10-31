@@ -155,8 +155,7 @@ public class SessionDetailViewModelTests
             new SessionTrackPresentationData(
                 Guid.NewGuid(),
                 [new TrackPoint(1, 1, 1, 0)],
-                trackPoints,
-                400.0)));
+                trackPoints)));
         await loadTask;
 
         Assert.Equal(trackPoints, editor.CurrentTrackPoints);
@@ -189,8 +188,7 @@ public class SessionDetailViewModelTests
             new SessionTrackPresentationData(
                 Guid.NewGuid(),
                 [new TrackPoint(1, 1, 1, 0)],
-                [new TrackPoint(2, 2, 2, 0)],
-                400.0)));
+                [new TrackPoint(2, 2, 2, 0)])));
         await loadTask;
 
         Assert.Same(telemetry, editor.CurrentTelemetryData);
@@ -359,7 +357,7 @@ public class SessionDetailViewModelTests
                 1 => pendingTrack.Task,
                 2 => Task.FromResult<SessionDetailTrackLoadResult>(
                     new SessionDetailTrackLoadResult.Loaded(
-                        new SessionTrackPresentationData(Guid.NewGuid(), null, latestTrack, null))),
+                        new SessionTrackPresentationData(Guid.NewGuid(), null, latestTrack))),
                 _ => throw new InvalidOperationException("Unexpected track load request."),
             });
 
@@ -373,7 +371,7 @@ public class SessionDetailViewModelTests
         await WaitForAsync(() => editor.CurrentTrackPoints?.SequenceEqual(latestTrack) == true);
 
         pendingTrack.SetResult(new SessionDetailTrackLoadResult.Loaded(
-            new SessionTrackPresentationData(Guid.NewGuid(), null, staleTrack, null)));
+            new SessionTrackPresentationData(Guid.NewGuid(), null, staleTrack)));
         await firstLoadTask;
 
         Assert.Same(latestTelemetry, editor.CurrentTelemetryData);

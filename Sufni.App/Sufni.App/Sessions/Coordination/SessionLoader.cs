@@ -94,7 +94,6 @@ public sealed class SessionLoader : ISessionLoader
                         selectedTrack?.Id,
                         FullTrackPoints: null,
                         TrackPoints: null,
-                        MediaColumnWidth: null,
                         dampingSpeedCutoffContext.Cutoffs,
                         dampingSpeedCutoffContext.Owner)));
         }

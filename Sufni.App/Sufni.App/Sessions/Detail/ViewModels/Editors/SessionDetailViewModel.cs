@@ -857,7 +857,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                             FullTrackId = loaded.Data.FullTrackId,
                             FullTrackPoints = loaded.Data.FullTrackPoints,
                             TrackPoints = loaded.Data.TrackPoints,
-                            MediaColumnWidth = loaded.Data.MediaColumnWidth,
                         })),
             SessionDetailTrackLoadResult.Failed failed =>
                 new SessionDetailLoadResult.Failed(failed.ErrorMessage),

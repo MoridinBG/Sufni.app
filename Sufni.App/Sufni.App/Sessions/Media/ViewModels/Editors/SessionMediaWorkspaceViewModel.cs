@@ -17,7 +17,6 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
     private readonly SegmentComparisonViewModel segmentComparison;
     private readonly IDisposable stateSubscription;
     private SurfacePresentationState mapState = SurfacePresentationState.Hidden;
-    private double? mediaColumnWidth;
 
     public SessionMediaWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
@@ -50,7 +49,6 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
 
     public SessionTimelineLinkViewModel Timeline { get; }
 
-    public double? MediaColumnWidth => mediaColumnWidth;
 
     public VideoPaneViewModel? Video => videoPane is { HasVideo: true } ? videoPane : null;
 
@@ -65,7 +63,6 @@ internal sealed class SessionMediaWorkspaceViewModel : ObservableObject, ISessio
             OnPropertyChanged(nameof(HasMediaContent));
         }
 
-        SetProperty(ref mediaColumnWidth, state.Presentation.MediaColumnWidth, nameof(MediaColumnWidth));
     }
 
     private void OnVideoPanePropertyChanged(object? sender, PropertyChangedEventArgs args)

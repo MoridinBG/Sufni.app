@@ -79,7 +79,7 @@ internal static class TestCoordinatorSubstitutes
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
             .Returns(new SessionDetailTrackLoadResult.Loaded(
-                new SessionTrackPresentationData(null, null, null, null)));
+                new SessionTrackPresentationData(null, null, null)));
         return loader;
     }
 

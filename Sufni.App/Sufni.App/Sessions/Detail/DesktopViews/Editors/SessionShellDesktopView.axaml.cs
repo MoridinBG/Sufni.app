@@ -8,17 +8,11 @@ namespace Sufni.App.Sessions.Detail.DesktopViews.Editors;
 
 public partial class SessionShellDesktopView : UserControl
 {
-    private const double DefaultMediaColumnWidth = 400;
 
     private bool applyingLayoutPreferences;
 
     public static readonly StyledProperty<bool> HasMediaContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, bool>(nameof(HasMediaContent));
-
-    public static readonly StyledProperty<double> MediaColumnWidthProperty =
-        AvaloniaProperty.Register<SessionShellDesktopView, double>(
-            nameof(MediaColumnWidth),
-            defaultValue: DefaultMediaColumnWidth);
 
     public static readonly StyledProperty<Control?> SignalsContentProperty =
         AvaloniaProperty.Register<SessionShellDesktopView, Control?>(nameof(SignalsContent));
@@ -43,7 +37,6 @@ public partial class SessionShellDesktopView : UserControl
     static SessionShellDesktopView()
     {
         HasMediaContentProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyLayoutPreferences());
-        MediaColumnWidthProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyMediaColumnWidth());
         LayoutPreferencesProperty.Changed.AddClassHandler<SessionShellDesktopView>((view, _) => view.ApplyLayoutPreferences());
     }
 
@@ -57,12 +50,6 @@ public partial class SessionShellDesktopView : UserControl
     {
         get => GetValue(HasMediaContentProperty);
         set => SetValue(HasMediaContentProperty, value);
-    }
-
-    public double MediaColumnWidth
-    {
-        get => GetValue(MediaColumnWidthProperty);
-        set => SetValue(MediaColumnWidthProperty, value);
     }
 
     public Control? MediaContent
@@ -101,13 +88,7 @@ public partial class SessionShellDesktopView : UserControl
         ShellRowsSplit.PropertyChanged += OnShellRowsSplitPropertyChanged;
         SignalsMediaSplit.PropertyChanged += OnSignalsMediaSplitPropertyChanged;
         AnalysisSidebarSplit.PropertyChanged += OnAnalysisSidebarSplitPropertyChanged;
-        ApplyMediaColumnWidth();
         ApplyLayoutPreferences();
-    }
-
-    private void ApplyMediaColumnWidth()
-    {
-        SignalsMediaSplit.DefaultSecondLength = new GridLength(NormalizeMediaColumnWidth(MediaColumnWidth));
     }
 
     private void ApplyLayoutPreferences()
@@ -179,6 +160,4 @@ public partial class SessionShellDesktopView : UserControl
         LayoutPreferences = LayoutPreferences with { DesktopAnalysisSidebarColumns = value };
     }
 
-    private static double NormalizeMediaColumnWidth(double width) =>
-        double.IsFinite(width) && width > 0 ? width : DefaultMediaColumnWidth;
 }

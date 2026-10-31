@@ -1,3 +1,6 @@
+using Sufni.App.Bikes.Models;
+using Sufni.App.Segments.Models;
+using Sufni.App.Segments.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +26,14 @@ namespace Sufni.App.MapsAndTracks.Coordinators;
 
 public class TrackCoordinator : ITrackCoordinator, IDisposable
 {
+    public Task<SegmentAnalysisComparison> BuildAnalysisComparisonAsync(
+        SegmentComparison comparison, SegmentComparisonDetail detail,
+        TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
+        CancellationToken cancellationToken = default) => backgroundTaskRunner.RunAsync(
+            () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
+            cancellationToken);
+
     private readonly ITrackRepository trackRepository;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly ISessionRepository sessionRepository;
@@ -76,7 +87,6 @@ public class TrackCoordinator : ITrackCoordinator, IDisposable
     }
 
     private static readonly ILogger logger = Log.ForContext<TrackCoordinator>();
-    private const double DefaultMediaColumnWidth = 400.0;
 
     private sealed record MetricsRun(Guid SessionId, GpsMetricsKey Key, SessionTrackKey? Track)
     {
@@ -304,19 +314,19 @@ public class TrackCoordinator : ITrackCoordinator, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
 
         var session = await sessionRepository.GetSessionAsync(sessionId);
-        if (session is null) return new SessionTrackPresentationData(null, null, null, null);
+        if (session is null) return new SessionTrackPresentationData(null, null, null);
         var timestamp = session.Timestamp ?? telemetryData.Metadata.Timestamp;
         var duration = session.DurationSeconds ?? telemetryData.Metadata.Duration;
         var gpsOffset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds);
         var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, gpsOffset, session.WindowStartSeconds);
-        if (selected is null) return new SessionTrackPresentationData(null, null, null, null);
+        if (selected is null) return new SessionTrackPresentationData(null, null, null);
 
         var fullPoints = await fullTrackPointReader.GetTrackPointsExactAsync(selected.Id, selected.PointsRevision, cancellationToken);
-        if (fullPoints is null) return new SessionTrackPresentationData(selected.Id, null, null, null);
+        if (fullPoints is null) return new SessionTrackPresentationData(selected.Id, null, null);
         var key = new SessionTrackKey(selected.Id, selected.PointsRevision, timestamp, duration, gpsOffset,
             WindowOriginFraction: SessionTrackTimeline.FractionalOrigin(session.WindowStartSeconds));
         var points = await sessionTrackReader.GetSessionTrackAsync(key, cancellationToken);
-        return new SessionTrackPresentationData(selected.Id, AsList(fullPoints), AsNullableList(points), DefaultMediaColumnWidth);
+        return new SessionTrackPresentationData(selected.Id, AsList(fullPoints), AsNullableList(points));
     }
 
     private static List<TrackPoint> AsList(IReadOnlyList<TrackPoint> points)

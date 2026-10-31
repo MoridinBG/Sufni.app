@@ -68,9 +68,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var mapState = CreateInputState(
             loadPresentationState.Select(CreateMapStateFromLoadPresentation),
             SurfacePresentationState.Hidden);
-        var mediaColumnWidth = CreateInputState(
-            loadPresentationState.Select(CreateMediaColumnWidthFromLoadPresentation),
-            (double?)null);
         var analysisPresentation = CreateInputState(
             loadPresentationState.CombineLatest(
                 analysisRange,
@@ -129,10 +126,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .CombineLatest(
                 operationState,
                 static (screen, operation) => new DerivedPresentationState(screen, operation));
-        var derivedMediaState = mapState
-            .CombineLatest(
-                mediaColumnWidth,
-                static (map, width) => new DerivedMediaPresentationState(map, width));
         var replayingState = Observable.Return(RecordedSessionEditorState.CreateInitial())
             .CombineLatest(
                 derivedIntentState,
@@ -141,7 +134,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 derivedPresentationState,
                 static (current, presentation) => new { current.state, current.derived, presentation })
             .CombineLatest(
-                derivedMediaState,
+                mapState,
                 static (current, media) => new { current.state, current.derived, current.presentation, media })
             .CombineLatest(
                 loadPresentationState,
@@ -227,8 +220,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                         },
                         Presentation = current.state.Presentation with
                         {
-                            MapState = current.media.MapState,
-                            MediaColumnWidth = current.media.MediaColumnWidth,
+                            MapState = current.media,
                             SignalAvailability = current.signalAvailability,
                             Signals = current.signals,
                             Analysis = current.analysis,
@@ -362,14 +354,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     loaded.Data.TelemetryPresentation.FullTrackId is not null),
             _ => SurfacePresentationState.Hidden,
         };
-    }
-
-    private static double? CreateMediaColumnWidthFromLoadPresentation(
-        RecordedSessionLoadPresentation load)
-    {
-        return load is RecordedSessionLoadPresentation.Loaded loaded
-            ? loaded.Data.TelemetryPresentation.MediaColumnWidth
-            : null;
     }
 
     private static RecordedSignalAvailabilityState CreateSignalAvailabilityFromLoadPresentation(
@@ -901,7 +885,4 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         SessionScreenPresentationState ScreenState,
         SessionOperationPresentationState OperationState);
 
-    private sealed record DerivedMediaPresentationState(
-        SurfacePresentationState MapState,
-        double? MediaColumnWidth);
 }
