@@ -1,5 +1,4 @@
 using System.IO;
-using Avalonia.Platform.Storage;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -36,12 +35,13 @@ public class TrackCoordinatorTests
         filesService,
         backgroundTaskRunner,
         sessionTrackReader,
-        fullTrackPointReader);
+        fullTrackPointReader,
+        new GpxTrackReader());
 
     [Fact]
     public async Task ImportGpxAsync_ImportsSelectedFiles()
     {
-        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
+        var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
         trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
             .Returns(Task.FromResult<Guid?>(null));
@@ -56,7 +56,7 @@ public class TrackCoordinatorTests
     [Fact]
     public async Task ImportGpxAsync_SkipsFile_WhenTrackTimeRangeAlreadyExists()
     {
-        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
+        var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
         trackRepository.FindTrackByTimeRangeAsync(Arg.Any<long>(), Arg.Any<long>())
             .Returns(Task.FromResult<Guid?>(Guid.NewGuid()));
@@ -71,7 +71,7 @@ public class TrackCoordinatorTests
     [Fact]
     public async Task ImportGpxAsync_ReturnsInvalidFile_WhenGpxIsInvalid()
     {
-        var file = TestStorageItems.TextFile("ride.gpx", "not gpx");
+        var file = TestStorageItems.PickedTextFile("ride.gpx", "not gpx");
         filesService.OpenGpxFilesAsync().Returns([file]);
 
         var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -82,7 +82,7 @@ public class TrackCoordinatorTests
     [Fact]
     public async Task ImportGpxAsync_ReturnsInvalidFile_WhenGpxContainsNoValidTrackPoints()
     {
-        var file = TestStorageItems.TextFile("ride.gpx", EmptyTrackGpx());
+        var file = TestStorageItems.PickedTextFile("ride.gpx", EmptyTrackGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
 
         var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -93,10 +93,10 @@ public class TrackCoordinatorTests
     [Fact]
     public async Task ImportGpxAsync_StopsAtInvalidFile_AndReportsAlreadyCommittedTracks()
     {
-        List<IStorageFile> files = [
-            TestStorageItems.TextFile("first.gpx", ValidGpx()),
-            TestStorageItems.TextFile("broken.gpx", "not gpx"),
-            TestStorageItems.TextFile("last.gpx", ValidGpx())];
+        List<PickedFile> files = [
+            TestStorageItems.PickedTextFile("first.gpx", ValidGpx()),
+            TestStorageItems.PickedTextFile("broken.gpx", "not gpx"),
+            TestStorageItems.PickedTextFile("last.gpx", ValidGpx())];
         filesService.OpenGpxFilesAsync().Returns(files);
 
         var result = Assert.IsType<GpxImportResult.Failed>(
@@ -110,7 +110,7 @@ public class TrackCoordinatorTests
     [Fact]
     public async Task ImportGpxAsync_ReturnsFailure_WhenPersistenceFails()
     {
-        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
+        var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
         trackEntityRepository.WriteFailure = new IOException("disk full");
 
@@ -147,7 +147,7 @@ public class TrackCoordinatorTests
     [Fact]
     public async Task ImportGpxAsync_PropagatesCancellation_WithoutWriting()
     {
-        var file = TestStorageItems.TextFile("ride.gpx", ValidGpx());
+        var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
         filesService.OpenGpxFilesAsync().Returns([file]);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();

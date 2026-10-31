@@ -1,6 +1,7 @@
 using Avalonia.Platform.Storage;
 using NSubstitute;
 using System.Text;
+using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Tests.TestSupport.Fixtures;
 
@@ -10,9 +11,15 @@ public static class TestStorageItems
     {
         var file = Substitute.For<IStorageFile>();
         file.Name.Returns(name);
-        file.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(contents))));
+        file.OpenReadAsync().Returns(_ => OpenTextAsync(contents));
         return file;
     }
+
+    public static PickedFile PickedTextFile(string name, string contents) =>
+        new(name, () => OpenTextAsync(contents));
+
+    private static Task<Stream> OpenTextAsync(string contents) =>
+        Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(contents)));
 
     public static async IAsyncEnumerable<IStorageItem> EnumerateStorageItems(params IStorageItem[] items)
     {

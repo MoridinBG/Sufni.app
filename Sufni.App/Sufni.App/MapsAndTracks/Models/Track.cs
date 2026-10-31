@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text.Json.Serialization;
-using System.Xml.Linq;
-using Mapsui.Projections;
 using MathNet.Numerics.Interpolation;
 using SQLite;
-using Sufni.Telemetry;
 
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Infrastructure;
@@ -57,65 +53,6 @@ public class Track : Synchronizable
     {
         get => HasPoints ? (long)Points[^1].Time : 0;
         set => _ = value;
-    }
-
-    public static Track? FromGpx(string gpx)
-    {
-        var points = ParseGpx(gpx, out var coordinates);
-        TrackPointSeries.CalculateSpeed(points, coordinates);
-        return points.Count == 0 ? null : new Track
-        {
-            Points = points
-        };
-    }
-
-    public static Track? FromGpsRecords(GpsRecord[] records)
-    {
-        var points = GpsTrackPointProjection.ProjectAll(records);
-        return points.Count == 0 ? null : new Track
-        {
-            Points = points
-        };
-    }
-
-    private static List<TrackPoint> ParseGpx(string gpxData, out List<TrackPointGeoCoordinate> coordinates)
-    {
-        var points = new List<TrackPoint>();
-        coordinates = [];
-
-        XNamespace ns = "http://www.topografix.com/GPX/1/1";
-        var xdoc = XDocument.Parse(gpxData);
-        var trkpts = xdoc.Descendants(ns + "trkpt");
-
-        foreach (var pt in trkpts)
-        {
-            var timeString = pt.Element(ns + "time")?.Value;
-            if (string.IsNullOrEmpty(timeString) ||
-                !DateTime.TryParse(timeString, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var time))
-            {
-                continue;
-            }
-
-            if (!double.TryParse(pt.Attribute("lat")?.Value, CultureInfo.InvariantCulture, out var lat) ||
-                !double.TryParse(pt.Attribute("lon")?.Value, CultureInfo.InvariantCulture, out var lon))
-            {
-                continue;
-            }
-
-            double? elevation = null;
-            var elevationString = pt.Element(ns + "ele")?.Value;
-            if (!string.IsNullOrEmpty(elevationString) &&
-                double.TryParse(elevationString, CultureInfo.InvariantCulture, out var ele))
-            {
-                elevation = ele;
-            }
-
-            var (mx, my) = SphericalMercator.FromLonLat(lon, lat);
-            points.Add(new TrackPoint(new DateTimeOffset(time).ToUnixTimeMilliseconds() / 1000.0, mx, my, elevation));
-            coordinates.Add(new TrackPointGeoCoordinate(lat, lon));
-        }
-
-        return points;
     }
 
     public List<TrackPoint> GenerateSessionTrack(double start, double end)

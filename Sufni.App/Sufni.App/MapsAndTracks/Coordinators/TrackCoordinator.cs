@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -25,7 +23,8 @@ public class TrackCoordinator(
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     ISessionTrackReader sessionTrackReader,
-    IFullTrackPointReader fullTrackPointReader) : ITrackCoordinator
+    IFullTrackPointReader fullTrackPointReader,
+    IGpxTrackReader gpxTrackReader) : ITrackCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<TrackCoordinator>();
     private const double DefaultMediaColumnWidth = 400.0;
@@ -59,7 +58,7 @@ public class TrackCoordinator(
     }
 
     private async Task<GpxImportResult> ImportGpxCoreAsync(
-        IReadOnlyList<Avalonia.Platform.Storage.IStorageFile> files,
+        IReadOnlyList<PickedFile> files,
         CancellationToken cancellationToken)
     {
         var importedCount = 0;
@@ -71,16 +70,10 @@ public class TrackCoordinator(
 
             try
             {
-                await using var stream = await file.OpenReadAsync();
-                using var reader = new StreamReader(stream);
-                var gpx = await reader.ReadToEndAsync(cancellationToken);
-                var track = Track.FromGpx(gpx);
-                if (track is null)
-                {
-                    logger.Warning("GPX file {FileName} has no valid track points", file.Name);
-                    return new GpxImportResult.Failed(GpxImportFailureReason.InvalidFile,
-                        ImportedCount: importedCount, AlreadyImportedCount: alreadyImportedCount);
-                }
+                var result = await gpxTrackReader.ReadAsync(file, cancellationToken);
+                if (result is GpxTrackReadResult.Failed failure)
+                    return new GpxImportResult.Failed(failure.Reason, failure.Details, importedCount, alreadyImportedCount);
+                var track = new Track { Points = ((GpxTrackReadResult.Read)result).Points.ToList() };
 
                 var existingTrackId = await trackRepository.FindTrackByTimeRangeAsync(track.StartTime, track.EndTime);
                 if (existingTrackId is not null)
@@ -91,12 +84,6 @@ public class TrackCoordinator(
 
                 await trackEntityRepository.PutAsync(track);
                 importedCount++;
-            }
-            catch (XmlException e)
-            {
-                logger.Warning(e, "Invalid GPX file {FileName}", file.Name);
-                return new GpxImportResult.Failed(GpxImportFailureReason.InvalidFile, e.Message,
-                    importedCount, alreadyImportedCount);
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {

@@ -580,8 +580,8 @@ public class SessionCoordinatorTests
                 var source = domain.Source;
                 var processingOptions = callInfo.ArgAt<RecordedSessionDerivationInput>(0).ProcessingOptions;
                 var telemetryData = TelemetryData.FromLiveCapture(capture.TelemetryCapture, processingOptions);
-                var fullTrack = telemetryData.GpsData is { Length: > 0 }
-                    ? Track.FromGpsRecords(telemetryData.GpsData)
+                var trackPoints = telemetryData.GpsData is { Length: > 0 }
+                    ? GpsTrackPointProjection.ProjectAll(telemetryData.GpsData)
                     : null;
                 var fingerprint = new ProcessingFingerprint(
                     SchemaVersion: 2,
@@ -595,7 +595,7 @@ public class SessionCoordinatorTests
                     ProcessedGeneration.Create(new ProcessedTelemetryPayload(
                         telemetryData,
                         telemetryData.BinaryForm,
-                        AppJson.Serialize(fingerprint)), fullTrack?.Points),
+                        AppJson.Serialize(fingerprint)), trackPoints),
                     fingerprint));
             });
     }

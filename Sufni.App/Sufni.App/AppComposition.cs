@@ -103,6 +103,7 @@ public static class AppComposition
         services.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         services.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
         services.AddSingleton<IRecordedSessionSourceRepository, RecordedSessionSourceRepository>();
+        services.AddSingleton<IGpxTrackReader, GpxTrackReader>();
         services.AddSingleton<ITrackRepository, TrackRepository>();
         services.AddSingleton<ISessionTrackReader, SessionTrackReader>();
         services.AddSingleton<IFullTrackPointReader, FullTrackPointReader>();

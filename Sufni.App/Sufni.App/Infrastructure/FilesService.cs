@@ -126,7 +126,7 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         return files.Count == 1 ? files[0] : null;
     }
 
-    public async Task<List<IStorageFile>> OpenGpxFilesAsync()
+    public async Task<IReadOnlyList<PickedFile>> OpenGpxFilesAsync()
     {
         Debug.Assert(target != null, nameof(target) + " != null");
 
@@ -141,7 +141,7 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
             AllowMultiple = true
         });
 
-        return [.. files];
+        return files.Select(file => new PickedFile(file.Name, file.OpenReadAsync)).ToArray();
     }
 
     public async Task<IStorageFile?> OpenVideoFileAsync()
