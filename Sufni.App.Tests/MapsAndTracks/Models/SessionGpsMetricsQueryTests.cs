@@ -16,6 +16,7 @@ public class SessionGpsMetricsQueryTests
         Assert.Equal(first.Key, otherDevice.Key);
         Assert.NotEqual(first.Track, otherDevice.Track);
         Assert.Equal(0.25, first.Key.WindowOriginFraction);
+        Assert.Equal(0.25, first.Track!.Value.WindowOriginFraction);
         Assert.NotEqual(first.Key, aligned.Key);
     }
 }

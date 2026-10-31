@@ -16,11 +16,12 @@ public readonly record struct SessionContentToken(
     long? Timestamp,
     double? DurationSeconds,
     double GpsOffsetSeconds,
-    int TrackProjectionVersion = GpsTrackPointProjection.ProjectionVersion)
+    int TrackProjectionVersion = GpsTrackPointProjection.ProjectionVersion,
+    double WindowOriginFraction = 0)
 {
     public SessionTrackKey? TrackKey => FullTrackId is { } id && FullTrackPointsRevision is { } revision &&
         Timestamp is { } timestamp && DurationSeconds is { } duration
-        ? new SessionTrackKey(id, revision, timestamp, duration, GpsOffsetSeconds, TrackProjectionVersion)
+        ? new SessionTrackKey(id, revision, timestamp, duration, GpsOffsetSeconds, TrackProjectionVersion, WindowOriginFraction)
         : null;
 }
 

@@ -13,12 +13,12 @@ public static class SessionGpsMetricsQuery
     {
         var duration = SessionDuration.Normalize(durationSeconds);
         var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(gpsOffsetSeconds);
-        var selected = SessionTrackSelection.Select(tracks, timestamp, duration, offset);
+        var selected = SessionTrackSelection.Select(tracks, timestamp, duration, offset, windowStartSeconds);
         var key = new GpsMetricsKey(selected?.Id, timestamp, duration, offset,
-            windowStartSeconds - Math.Floor(windowStartSeconds), GpsTrackPointProjection.ProjectionVersion,
+            SessionTrackTimeline.FractionalOrigin(windowStartSeconds), GpsTrackPointProjection.ProjectionVersion,
             GpsMetricsCalculator.AlgorithmVersion);
         SessionTrackKey? track = selected is null ? null : new SessionTrackKey(
-            selected.Id, selected.PointsRevision, timestamp!.Value, duration!.Value, offset);
+            selected.Id, selected.PointsRevision, timestamp!.Value, duration!.Value, offset, WindowOriginFraction: key.WindowOriginFraction);
         return (key, track);
     }
 }

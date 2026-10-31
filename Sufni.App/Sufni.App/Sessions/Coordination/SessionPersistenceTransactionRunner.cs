@@ -34,7 +34,6 @@ internal sealed class SessionPersistenceTransactionRunner(
                                                   SET
                                                       name=?,
                                                       timestamp=?,
-                                                      gps_offset_seconds=?,
                                                       source_session_id=?,
                                                       window_start_seconds=?,
                                                       window_end_seconds=?,
@@ -53,10 +52,10 @@ internal sealed class SessionPersistenceTransactionRunner(
         await connectionContext.RunInTransactionAsync(connection =>
         {
             var session = connection.FindWithQuery<Session>(
-                "SELECT timestamp, duration_seconds, gps_offset_seconds FROM session WHERE id = ? AND deleted IS NULL", sessionId);
+                "SELECT timestamp, duration_seconds, gps_offset_seconds, window_start_seconds FROM session WHERE id = ? AND deleted IS NULL", sessionId);
             var tracks = TrackRepository.ReadSnapshotsInTransaction(connection);
             var selected = session is null ? null : SessionTrackSelection.Select(tracks,
-                session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds);
+                session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds);
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId, now);
 
@@ -100,7 +99,7 @@ internal sealed class SessionPersistenceTransactionRunner(
             var part2 = new Session(Guid.NewGuid(), second.Name, row.Description, row.Setup, second.Timestamp)
             {
                 VelocityFilterWindowMilliseconds = row.VelocityFilterWindowMilliseconds,
-                GpsOffsetSeconds = second.GpsOffsetSeconds,
+                GpsOffsetSeconds = row.GpsOffsetSeconds,
                 SourceSessionId = second.Window!.SourceSessionId,
                 WindowStartSeconds = second.Window.StartSeconds,
                 WindowEndSeconds = second.Window.EndSeconds,
@@ -158,7 +157,6 @@ internal sealed class SessionPersistenceTransactionRunner(
             UpdateEditedSessionSql,
             patch.Name,
             patch.Timestamp,
-            patch.GpsOffsetSeconds,
             patch.Window?.SourceSessionId,
             patch.Window?.StartSeconds ?? 0,
             patch.Window?.EndSeconds,

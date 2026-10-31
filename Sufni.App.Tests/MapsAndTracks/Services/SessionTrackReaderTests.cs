@@ -25,7 +25,7 @@ public class SessionTrackReaderTests
     public async Task GetSessionTrackAsync_DerivesAlignedWindowAndReusesTheSameInputs()
     {
         var fullReader = Substitute.For<IFullTrackPointReader>();
-        var key = new SessionTrackKey(Guid.NewGuid(), 7, 100, 2, 0.5);
+        var key = new SessionTrackKey(Guid.NewGuid(), 7, 100, 2, 0.5, WindowOriginFraction: 0.25);
         fullReader.GetTrackPointsExactAsync(key.TrackId, 7, Arg.Any<CancellationToken>()).Returns(Points());
         using var reader = new SessionTrackReader(fullReader, new InlineBackgroundTaskRunner());
 
@@ -33,7 +33,7 @@ public class SessionTrackReaderTests
         var repeated = await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
-        Assert.Equal(100.5, first[0].Time);
+        Assert.Equal(100.75, first[0].Time);
         Assert.Equal(102, first[^1].Time);
         Assert.Same(first, repeated);
         await fullReader.Received(1).GetTrackPointsExactAsync(key.TrackId, 7, Arg.Any<CancellationToken>());
@@ -46,6 +46,7 @@ public class SessionTrackReaderTests
     [InlineData("duration")]
     [InlineData("offset")]
     [InlineData("projection")]
+    [InlineData("origin")]
     public async Task GetSessionTrackAsync_ChangingInputsCannotReuseThePreviousProjection(string changedInput)
     {
         var fullReader = Substitute.For<IFullTrackPointReader>();
@@ -60,6 +61,7 @@ public class SessionTrackReaderTests
             "timestamp" => key with { Timestamp = 101 },
             "duration" => key with { DurationSeconds = 3 },
             "offset" => key with { GpsOffsetSeconds = 1 },
+            "origin" => key with { WindowOriginFraction = 0.25 },
             _ => key with { ProjectionVersion = 2 }
         };
 

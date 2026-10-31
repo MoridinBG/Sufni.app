@@ -40,17 +40,19 @@ public class SessionEditTransactionTests : IDisposable
         Assert.Equal(100, trimmed.Timestamp);
     }
 
-    [Fact]
-    public async Task TrimFromBeginningAsync_MovesWindowStartAndOrigin()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1.25)]
+    public async Task TrimFromBeginningAsync_MovesWindowStartAndOrigin_WithoutChangingAuthoredAlignment(double alignment)
     {
-        var session = await InsertSessionAsync();
+        var session = await InsertSessionAsync(alignment);
 
         await runner.TrimFromBeginningAsync(session, 2.5);
 
         var trimmed = await GetSnapshotAsync(session.Id);
         Assert.Equal(new RecordedSessionDerivationWindow(session.Id, 2.5, null), trimmed.DerivationWindow);
         Assert.Equal(102, trimmed.Timestamp);
-        Assert.Equal(0.5, trimmed.GpsOffsetSeconds, precision: 6);
+        Assert.Equal(alignment, trimmed.GpsOffsetSeconds, precision: 6);
     }
 
     [Fact]
@@ -196,9 +198,9 @@ public class SessionEditTransactionTests : IDisposable
         Assert.NotNull(await sources.GetRecordedSessionSourceAsync(session.Id));
     }
 
-    private async Task<SessionSnapshot> InsertSessionAsync()
+    private async Task<SessionSnapshot> InsertSessionAsync(double alignment = 0)
     {
-        var session = new Session(Guid.NewGuid(), "ride", "desc", Guid.NewGuid(), 100);
+        var session = new Session(Guid.NewGuid(), "ride", "desc", Guid.NewGuid(), 100) { GpsOffsetSeconds = alignment };
         await (await context.GetInitializedConnectionAsync()).InsertAsync(session);
         return SessionSnapshot.From(session);
     }

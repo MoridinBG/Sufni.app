@@ -99,9 +99,9 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext,
     {
         if (!tracks.Any(track => track.Id == trackId)) return false;
         var sessions = connection.Query<Session>(
-            "SELECT timestamp, duration_seconds, gps_offset_seconds FROM session WHERE deleted IS NULL");
+            "SELECT timestamp, duration_seconds, gps_offset_seconds, window_start_seconds FROM session WHERE deleted IS NULL");
         if (sessions.Any(session => SessionTrackSelection.Select(tracks, session.Timestamp,
-                session.DurationSeconds, session.GpsOffsetSeconds)?.Id == trackId)) return false;
+                session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds)?.Id == trackId)) return false;
         return connection.Execute("UPDATE track SET deleted = ? WHERE id = ? AND deleted IS NULL", now, trackId) > 0;
     }
 

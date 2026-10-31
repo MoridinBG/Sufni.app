@@ -137,10 +137,10 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
                 var timestamp = current.Timestamp ?? telemetry.Metadata.Timestamp;
                 var duration = current.DurationSeconds ?? telemetry.Metadata.Duration;
-                var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, offset);
+                var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, offset, current.WindowStartSeconds);
                 if (selected is null || await trackRepository.GetAsync(selected.Id) is not { } track)
                     return new GpsOffsetResult.NoMatchingTrack();
-                var points = SessionTrackProjection.GenerateSessionTrack(track, timestamp, duration, offset);
+                var points = SessionTrackProjection.GenerateSessionTrack(track, timestamp, duration, offset, current.WindowStartSeconds);
                 if (points is not { Count: > 0 }) return new GpsOffsetResult.NoMatchingTrack();
                 cancellationToken.ThrowIfCancellationRequested();
                 await sessionRepository.UpdateGpsAlignmentAsync(sessionId, offset);

@@ -6,7 +6,9 @@ namespace Sufni.App.Sessions.Models;
 public readonly record struct SessionTrackTimeline(double TelemetryOriginSeconds, double GpsOffsetSeconds = 0, double OwnerOriginSeconds = 0)
 {
     public static SessionTrackTimeline FromSessionWindow(double timestamp, double gpsOffsetSeconds, double windowStartSeconds) =>
-        new(timestamp + (windowStartSeconds - Math.Floor(windowStartSeconds)), gpsOffsetSeconds, windowStartSeconds);
+        new(timestamp + FractionalOrigin(windowStartSeconds), gpsOffsetSeconds, windowStartSeconds);
+
+    public static double FractionalOrigin(double windowStartSeconds) => windowStartSeconds - Math.Floor(windowStartSeconds);
 
     public double SourceTimestamp => TelemetryOriginSeconds - OwnerOriginSeconds;
 

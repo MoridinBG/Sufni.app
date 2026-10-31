@@ -150,8 +150,9 @@ internal sealed class SessionContentReader(
 
     private static SessionContentToken CreateContentToken(Session session, IReadOnlyList<TrackSnapshot> tracks)
     {
-        var selected = SessionTrackSelection.Select(tracks, session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds);
+        var selected = SessionTrackSelection.Select(tracks, session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds);
         return new SessionContentToken(session.ProcessedTelemetryRevision, selected?.Id, selected?.PointsRevision,
-            session.Timestamp, session.DurationSeconds, SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds));
+            session.Timestamp, session.DurationSeconds, SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
+            WindowOriginFraction: SessionTrackTimeline.FractionalOrigin(session.WindowStartSeconds));
     }
 }

@@ -24,6 +24,23 @@ public class SessionContentReaderTests
             processedTelemetryReader);
 
     [Fact]
+    public async Task GetExactSnapshotAsync_RejectsAChangedFractionalWindowOrigin()
+    {
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { DurationSeconds = 2, WindowStartSeconds = 10.25 };
+        sessionRepository.GetSessionAsync(session.Id).Returns(session);
+        trackStore.GetAll().Returns([new TrackSnapshot(Guid.NewGuid(), 100, 105, 1)]);
+        var reader = CreateReader();
+        var token = (await reader.GetSessionAsync(session.Id))!.ContentToken;
+        Assert.Equal(0.25, token.TrackKey!.Value.WindowOriginFraction);
+        session.WindowStartSeconds = 10.5;
+
+        var result = await reader.GetExactSnapshotAsync(session.Id, token, SessionContentSelection.Track, TestContext.Current.CancellationToken);
+
+        Assert.IsType<SessionContentSnapshotResult.Stale>(result);
+        await sessionTrackReader.DidNotReceiveWithAnyArgs().GetSessionTrackAsync(default, default);
+    }
+
+    [Fact]
     public async Task GetSessionsAsync_ProvidesContentTokensWithoutLoadingPayloads()
     {
         var linkedSessionId = Guid.NewGuid();

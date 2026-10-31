@@ -863,7 +863,7 @@ internal static class SegmentDtw
     private static SessionTrackTimeline ResolveTimeline(CandidateTrack candidate)
     {
         return candidate.Session.Timestamp is { } timestamp
-            ? new SessionTrackTimeline(timestamp, candidate.Session.ContentToken.GpsOffsetSeconds)
+            ? SessionTrackTimeline.FromSessionWindow(timestamp, candidate.Session.ContentToken.GpsOffsetSeconds, candidate.Session.ContentToken.WindowOriginFraction)
             : new SessionTrackTimeline(candidate.Path.Samples[0].SourceTimeSeconds);
     }
 

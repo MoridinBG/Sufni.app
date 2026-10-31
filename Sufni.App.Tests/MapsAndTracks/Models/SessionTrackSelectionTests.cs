@@ -28,6 +28,7 @@ public class SessionTrackSelectionTests
 
         Assert.Equal(first, SessionTrackSelection.Select(tracks, 100, 1, 0));
         Assert.Equal(shifted, SessionTrackSelection.Select(tracks, 100, 1, 1.25));
+        Assert.Equal(shifted, SessionTrackSelection.Select(tracks, 100, 1, 1, windowStartSeconds: 5.25));
         Assert.Null(SessionTrackSelection.Select(tracks, 103, 1, 0));
         Assert.Null(SessionTrackSelection.Select(tracks, 100, null, 0));
     }

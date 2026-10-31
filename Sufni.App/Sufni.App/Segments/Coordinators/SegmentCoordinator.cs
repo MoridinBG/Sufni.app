@@ -314,7 +314,7 @@ internal sealed class SegmentCoordinator(
                     sourceDurationSeconds,
                     track,
                     TrackPointSeries.BuildTimelineContext(track,
-                        new SessionTrackTimeline(telemetry.Metadata.Timestamp, available.Snapshot.Token.GpsOffsetSeconds).TrackOriginSeconds,
+                        SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, available.Snapshot.Token.GpsOffsetSeconds, available.Snapshot.Token.WindowOriginFraction).TrackOriginSeconds,
                         telemetry.Metadata.Duration)),
                 cancellationToken);
             if (comparison is null)

@@ -84,7 +84,8 @@ public sealed class SessionLoader : ISessionLoader
             var snapshot = sessionStore.Get(sessionId);
             var selectedTrack = SessionTrackSelection.Select(trackStore.GetAll(),
                 snapshot?.Timestamp ?? telemetryData.Metadata.Timestamp,
-                snapshot?.DurationSeconds ?? telemetryData.Metadata.Duration, snapshot?.GpsOffsetSeconds ?? 0);
+                snapshot?.DurationSeconds ?? telemetryData.Metadata.Duration, snapshot?.GpsOffsetSeconds ?? 0,
+                snapshot?.WindowStartSeconds ?? 0);
             logger.Information("Session telemetry load completed for {SessionId}", sessionId);
             return new SessionDetailLoadResult.Loaded(
                 new SessionDetailData(

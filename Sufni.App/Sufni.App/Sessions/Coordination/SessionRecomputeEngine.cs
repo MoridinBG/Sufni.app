@@ -363,7 +363,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 continue;
 
             var previousFullTrackId = SessionTrackSelection.Select(trackStore.GetAll(),
-                persisted.Timestamp, persisted.DurationSeconds, persisted.GpsOffsetSeconds)?.Id;
+                persisted.Timestamp, persisted.DurationSeconds, persisted.GpsOffsetSeconds, persisted.WindowStartSeconds)?.Id;
             var generation = processed.Generation;
             var newFullTrack = generation.TrackPoints is { Count: > 0 } points ? new Track(points) : null;
             var prepared = generation.CreateSession(SessionSnapshot.From(persisted));

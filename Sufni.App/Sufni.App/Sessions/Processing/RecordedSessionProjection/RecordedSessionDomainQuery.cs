@@ -37,7 +37,7 @@ public sealed class RecordedSessionDomainQuery(
                 sourceStore.Get(session.RecordingSourceSessionId),
                 fingerprintService,
                 setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
-                SessionTrackSelection.Select(trackStore.GetAll(), session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds));
+                SessionTrackSelection.Select(trackStore.GetAll(), session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds));
     }
 }
 

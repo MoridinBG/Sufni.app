@@ -13,22 +13,23 @@ public class SegmentMatcherTests
     private readonly TestSessionContentReader reader = new();
 
     [Theory]
-    [InlineData(5)]
-    [InlineData(-5)]
-    public async Task FindMatchesAsync_ExpressesAlignedCandidateMatchesInTelemetryTime(int gpsOffset)
+    [InlineData(5, 0)]
+    [InlineData(-5, 0)]
+    [InlineData(5, 0.25)]
+    public async Task FindMatchesAsync_ExpressesAlignedCandidateMatchesInTelemetryTime(int gpsOffset, double originFraction)
     {
         var candidate = AddSession("Aligned candidate", 2000, BuildLineTrack(2000 + gpsOffset, 0, 400));
-        candidate = candidate with { ContentToken = candidate.ContentToken with { GpsOffsetSeconds = gpsOffset } };
+        candidate = candidate with { ContentToken = candidate.ContentToken with { GpsOffsetSeconds = gpsOffset, WindowOriginFraction = originFraction } };
         ReplaceSession(candidate);
 
         var match = Assert.Single(await new SegmentMatcher(reader).FindMatchesAsync(
             CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions()), TestContext.Current.CancellationToken));
 
         Assert.Equal(candidate.Id, match.SessionId);
-        Assert.Equal(100, match.StartSeconds, precision: 6);
-        Assert.Equal(300, match.EndSeconds, precision: 6);
-        Assert.Equal(new SegmentTimeMapPoint(0, 100), match.TimeMap[0]);
-        Assert.Equal(new SegmentTimeMapPoint(200, 300), match.TimeMap[^1]);
+        Assert.Equal(100 - originFraction, match.StartSeconds, precision: 6);
+        Assert.Equal(300 - originFraction, match.EndSeconds, precision: 6);
+        Assert.Equal(new SegmentTimeMapPoint(0, 100 - originFraction), match.TimeMap[0]);
+        Assert.Equal(new SegmentTimeMapPoint(200, 300 - originFraction), match.TimeMap[^1]);
     }
 
     [Fact]

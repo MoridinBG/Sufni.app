@@ -153,7 +153,8 @@ window, asks the policy for immutable patches, and applies the planned session c
 
 - **Trim until end** ends the window at the click.
 - **Trim from beginning** moves the window start and the session origin to the
-  click. The timestamp takes the whole seconds and the GPS offset the fraction.
+  click. The timestamp takes the whole seconds; timeline reads derive the fractional
+  origin from the source window. Authored GPS alignment is unchanged.
 - **Undo trim** restores the previous window and origin. A window equal to the session's own full range is stored as no
   window.
 - **Split** ends the window at the click, renames the session "(1)", and

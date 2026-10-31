@@ -73,9 +73,10 @@ on the persisted `Track` entity.
 mapping and offset normalization. Track-window projection and editor track
 contexts use its aligned origin; segment matching converts GPS sample times back
 to telemetry seconds through the same mapping. Video contexts derive from its
-capture-clock origin, so GPS alignment does not shift video playback. The stored
-fractional trim-origin conventions remain in effect until the source-anchor
-migration.
+source-relative window origin, so GPS alignment does not shift video playback.
+`FromSessionWindow` adds the explicit fractional part of `window_start_seconds`
+to the integer timestamp for GPS-clock reads; authored GPS alignment contains no
+window-origin correction. Trim/split preserve that alignment.
 
 `GpsTrackPointProjection` (`Sufni.App/Sufni.App/MapsAndTracks/Models/GpsTrackPointProjection.cs`) is the single projection helper. `TryProject(record)` returns `null` for unusable fixes; the live path uses it per-record while accumulating GPS frames so a session track can grow incrementally, and falls back to `ProjectAll` if a record arrives out of order.
 
@@ -101,7 +102,7 @@ track ID returned by the same transaction that removed the session.
 - **Session-track resolution (read-only)** — `LoadSessionTrackAsync(sessionId, telemetryData)` reads the session and selects from `TrackStore` using `SessionTrackSelection`: greatest positive time overlap with the aligned session window, tie lowest ID. It reads exact full-track points and derives the window through `ISessionTrackReader`. A newly imported fuller GPX becomes selected on the next read without a session write. Missing timestamps/durations use the already-loaded telemetry metadata for this presentation path.
 
 `SessionTrackReader` caches by `(track id, points revision, timestamp, duration,
-GPS offset, projection version)`. Its background job reads exact full-track points
+GPS offset, window-origin fraction, projection version)`. Its background job reads exact full-track points
 and applies the shared timeline/window projection. It has no session-store
 subscription, repository read, alignment-validation fallback or latest-revision
 retry. Both point readers keep their independent 64-entry/145,000-point LRU

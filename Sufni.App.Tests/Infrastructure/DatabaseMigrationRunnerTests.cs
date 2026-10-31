@@ -22,6 +22,30 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
+    [Fact]
+    public async Task Initialization_SeparatesFractionalWindowOriginFromAuthoredGpsAlignment_ExactlyOnce()
+    {
+        using var temp = new TempDatabase();
+        var id = Guid.NewGuid();
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.Insert(new Session(id, "trimmed", "", null, 102)
+            { SourceSessionId = id, WindowStartSeconds = 2.5, GpsOffsetSeconds = 1.75, Updated = 42 });
+        }
+
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+            await context.Initialization;
+            var session = await context.Connection.GetAsync<Session>(id);
+            Assert.Equal(1.25, session.GpsOffsetSeconds);
+            Assert.Equal(42, session.Updated);
+            Assert.Equal(103.75, SessionTrackTimeline.FromSessionWindow(session.Timestamp!.Value,
+                session.GpsOffsetSeconds, session.WindowStartSeconds).TrackOriginSeconds);
+        }
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]

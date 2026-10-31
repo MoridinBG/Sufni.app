@@ -308,12 +308,13 @@ public class TrackCoordinator : ITrackCoordinator, IDisposable
         var timestamp = session.Timestamp ?? telemetryData.Metadata.Timestamp;
         var duration = session.DurationSeconds ?? telemetryData.Metadata.Duration;
         var gpsOffset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds);
-        var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, gpsOffset);
+        var selected = SessionTrackSelection.Select(trackStore.GetAll(), timestamp, duration, gpsOffset, session.WindowStartSeconds);
         if (selected is null) return new SessionTrackPresentationData(null, null, null, null);
 
         var fullPoints = await fullTrackPointReader.GetTrackPointsExactAsync(selected.Id, selected.PointsRevision, cancellationToken);
         if (fullPoints is null) return new SessionTrackPresentationData(selected.Id, null, null, null);
-        var key = new SessionTrackKey(selected.Id, selected.PointsRevision, timestamp, duration, gpsOffset);
+        var key = new SessionTrackKey(selected.Id, selected.PointsRevision, timestamp, duration, gpsOffset,
+            WindowOriginFraction: SessionTrackTimeline.FractionalOrigin(session.WindowStartSeconds));
         var points = await sessionTrackReader.GetSessionTrackAsync(key, cancellationToken);
         return new SessionTrackPresentationData(selected.Id, AsList(fullPoints), AsNullableList(points), DefaultMediaColumnWidth);
     }

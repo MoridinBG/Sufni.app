@@ -61,27 +61,22 @@ public static class SessionWindowEditPolicy
             string name, bool moveOrigin = false, bool created = false)
         {
             var timestamp = session.Timestamp;
-            var offset = session.GpsOffsetSeconds;
             if (moveOrigin)
             {
                 if (timestamp is { } origin)
                 {
                     timestamp = origin - (long)Math.Floor(window.StartSeconds) + (long)Math.Floor(next.StartSeconds);
-                    offset += FractionDelta(window.StartSeconds, next.StartSeconds);
                 }
-                else offset = 0;
             }
             var fullOwnRange = !created && next.SourceSessionId == session.Id && next.StartSeconds == 0 && next.EndSeconds is null;
-            return new SessionWindowPatch(name, timestamp, offset, fullOwnRange ? null : next, previous);
+            return new SessionWindowPatch(name, timestamp, fullOwnRange ? null : next, previous);
         }
     }
 
-    // Whole seconds live in Timestamp; GPS still carries the fractional origin until its migration.
-    private static double FractionDelta(double from, double to) =>
-        to - Math.Floor(to) - (from - Math.Floor(from));
+
 }
 
-public sealed record SessionWindowPatch(string Name, long? Timestamp, double GpsOffsetSeconds,
+public sealed record SessionWindowPatch(string Name, long? Timestamp,
     RecordedSessionDerivationWindow? Window, RecordedSessionDerivationWindow? PreviousWindow);
 
 public abstract record SessionWindowEditPlan

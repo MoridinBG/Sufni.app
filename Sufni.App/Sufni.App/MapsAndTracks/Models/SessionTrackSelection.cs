@@ -9,12 +9,12 @@ namespace Sufni.App.MapsAndTracks.Models;
 public static class SessionTrackSelection
 {
     public static TrackSnapshot? Select(IEnumerable<TrackSnapshot> tracks, long? timestamp,
-        double? durationSeconds, double gpsOffsetSeconds)
+        double? durationSeconds, double gpsOffsetSeconds, double windowStartSeconds = 0)
     {
         if (timestamp is null || durationSeconds is not { } duration || !double.IsFinite(duration) || duration <= 0)
             return null;
 
-        var timeline = new SessionTrackTimeline(timestamp.Value, gpsOffsetSeconds);
+        var timeline = SessionTrackTimeline.FromSessionWindow(timestamp.Value, gpsOffsetSeconds, windowStartSeconds);
         var start = timeline.ToTrackSeconds(0);
         var end = timeline.ToTrackSeconds(duration);
         TrackSnapshot? selected = null;

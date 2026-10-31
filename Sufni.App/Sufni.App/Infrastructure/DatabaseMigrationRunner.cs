@@ -133,6 +133,9 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("ALTER TABLE session_video DROP COLUMN session_id");
             transaction.Execute("CREATE INDEX session_video_owner_key ON session_video(owner_key)");
         }
+        foreach (var session in transaction.Query<Session>("SELECT id, gps_offset_seconds, window_start_seconds FROM session"))
+            transaction.Execute("UPDATE session SET gps_offset_seconds = ? WHERE id = ?",
+                session.GpsOffsetSeconds - SessionTrackTimeline.FractionalOrigin(session.WindowStartSeconds), session.Id);
         var groups = transaction.Table<Track>().ToList()
             .Where(track => track.HasPoints)
             .GroupBy(track => TrackContentHash.Compute(track.Points))

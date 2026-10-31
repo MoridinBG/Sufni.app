@@ -9,4 +9,5 @@ public readonly record struct SessionTrackKey(
     long Timestamp,
     double DurationSeconds,
     double GpsOffsetSeconds,
-    int ProjectionVersion = GpsTrackPointProjection.ProjectionVersion);
+    int ProjectionVersion = GpsTrackPointProjection.ProjectionVersion,
+    double WindowOriginFraction = 0);
