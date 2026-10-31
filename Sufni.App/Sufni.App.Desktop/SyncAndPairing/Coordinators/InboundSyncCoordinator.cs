@@ -1,3 +1,5 @@
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Shared.Stores;
 using System.Linq;
 using Sufni.App.Segments.Services;
 using System;
@@ -15,9 +17,9 @@ using Sufni.App.Infrastructure;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>
-/// Desktop-only singleton owning the bike, setup, and segment branch of the
+/// Desktop-only singleton owning the bike, setup, board, and segment branch of the
 /// synchronization server's <c>SynchronizationDataArrived</c> event.
-/// Sessions are owned by <see cref="SessionCoordinator"/>; paired
+/// Session generations/sources are owned by the session sync applier; paired
 /// devices by <see cref="PairedDeviceCoordinator"/>. Each entity
 /// family has exactly one inbound owner.
 /// </summary>
@@ -25,6 +27,8 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
 
+    private readonly IBoardStoreWriter boardStore;
+    private readonly StorePublication publication;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly ISynchronizableRepository<Setup> setupRepository;
     private readonly ISynchronizableRepository<Board> boardRepository;
@@ -45,9 +49,13 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         IUiThreadDispatcher uiThreadDispatcher,
         ISessionSegmentRepository segmentRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
-        ISynchronizableRepository<Board> boardRepository)
+        ISynchronizableRepository<Board> boardRepository,
+        IBoardStoreWriter boardStore,
+        StorePublication publication)
     {
         this.bikeRepository = bikeRepository;
+        this.boardStore = boardStore;
+        this.publication = publication;
         this.boardRepository = boardRepository;
         this.setupRepository = setupRepository;
         this.bikeStoreWriter = bikeStoreWriter;
@@ -89,21 +97,11 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     }
                 }
 
-                if (removedBikeIds.Count > 0)
-                {
-                    await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
-                }
-
-                if (changedBikes.Count > 0)
-                {
-                    await bikeStoreWriter.PublishBikesChangedAsync(changedBikes);
-                }
-
                 var removedSetupCount = 0;
                 var upsertedSetupCount = 0;
                 var removedSetupIds = new List<Guid>();
                 var changedSetups = new List<SetupSnapshot>();
-                var boards = e.Data.Setups.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
+                var boards = e.Data.Setups.Count == 0 && e.Data.Boards.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
                 foreach (var setup in e.Data.Setups)
                 {
                     var freshSetup = await backgroundTaskRunner.RunAsync(async () =>
@@ -123,22 +121,28 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     }
                 }
 
-                if (removedSetupIds.Count > 0)
+                var changedBoardIds = e.Data.Boards.Select(board => board.Id).ToHashSet();
+                var boardSnapshots = boards.Where(board => changedBoardIds.Contains(board.Id)).Select(BoardSnapshot.From).ToArray();
+                var removedBoardIds = changedBoardIds.Except(boardSnapshots.Select(board => board.Id)).ToArray();
+                var segments = e.Data.Segments.Count == 0 ? null : await backgroundTaskRunner.RunAsync(async () =>
+                    (await segmentRepository.GetLiveAsync()).Select(SessionSegmentSnapshot.From).ToArray());
+
+                using var batch = publication.BeginBatch();
+                if (removedBikeIds.Count > 0)
                 {
-                    await setupStoreWriter.PublishSetupsRemovedAsync(removedSetupIds);
+                    await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
                 }
 
-                if (changedSetups.Count > 0)
+                if (changedBikes.Count > 0)
                 {
-                    await setupStoreWriter.PublishSetupsChangedAsync(changedSetups);
+                    await bikeStoreWriter.PublishBikesChangedAsync(changedBikes);
                 }
 
-                if (e.Data.Segments.Count > 0)
-                {
-                    var snapshots = await backgroundTaskRunner.RunAsync(async () =>
-                        (await segmentRepository.GetLiveAsync()).Select(SessionSegmentSnapshot.From).ToArray());
-                    await segmentStoreWriter.ReplaceAllAsync(snapshots);
-                }
+                await setupStoreWriter.PublishSetupsRemovedAsync(removedSetupIds);
+                await setupStoreWriter.PublishSetupsChangedAsync(changedSetups);
+                await boardStore.PublishBoardsRemovedAsync(removedBoardIds);
+                await boardStore.PublishBoardsChangedAsync(boardSnapshots);
+                if (segments is not null) await segmentStoreWriter.ReplaceAllAsync(segments);
 
                 logger.Verbose(
                     "Applied inbound bike/setup synchronization with {RemovedBikeCount} bike removals, {UpsertedBikeCount} bike upserts, {RemovedSetupCount} setup removals, and {UpsertedSetupCount} setup upserts",

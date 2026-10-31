@@ -49,7 +49,8 @@ internal sealed class AppDataRefresher(
     IUiThreadDispatcher dispatcher,
     StorePublication publication,
     ITrackStoreWriter trackStore,
-    ITrackRepository trackRepository) : IAppDataRefresher
+    ITrackRepository trackRepository,
+    IBoardStoreWriter boardStore) : IAppDataRefresher
 {
     private readonly Lock refreshGate = new();
     private Task? activeRefresh;
@@ -89,7 +90,7 @@ internal sealed class AppDataRefresher(
                 devices.Select(PairedDeviceSnapshot.From).ToArray(),
                 clips.Select(SessionVideoSnapshot.From).ToArray(),
                 segments.Select(SessionSegmentSnapshot.From).ToArray(),
-                tracks);
+                tracks, boards.Select(BoardSnapshot.From).ToArray());
         }, cancellationToken);
 
         await dispatcher.InvokeAsync(async () =>
@@ -105,6 +106,7 @@ internal sealed class AppDataRefresher(
             await sessionVideoStore.ReplaceAllAsync(snapshot.Videos);
             await sessionSegmentStore.ReplaceAllAsync(snapshot.Segments);
             await trackStore.ReplaceAllAsync(snapshot.Tracks);
+            await boardStore.ReplaceAllAsync(snapshot.Boards);
         });
     }
 
@@ -116,5 +118,6 @@ internal sealed class AppDataRefresher(
         IReadOnlyList<PairedDeviceSnapshot> Devices,
         IReadOnlyList<SessionVideoSnapshot> Videos,
         IReadOnlyList<SessionSegmentSnapshot> Segments,
-        IReadOnlyList<TrackSnapshot> Tracks);
+        IReadOnlyList<TrackSnapshot> Tracks,
+        IReadOnlyList<BoardSnapshot> Boards);
 }

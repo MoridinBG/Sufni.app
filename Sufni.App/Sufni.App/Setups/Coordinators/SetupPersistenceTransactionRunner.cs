@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,7 +16,7 @@ internal sealed class SetupPersistenceTransactionRunner(
     TimeProvider timeProvider)
     : ISetupPersistenceTransactionRunner
 {
-    public Task SaveSetupAsync(
+    public Task<IReadOnlyList<Guid>> SaveSetupAsync(
         Setup setup,
         Guid? originalBoardId,
         Guid? newBoardId,
@@ -25,11 +26,11 @@ internal sealed class SetupPersistenceTransactionRunner(
         {
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now);
-            ReassignBoardInTransaction(connection, originalBoardId, newBoardId, setup.Id, now);
+            return ReassignBoardInTransaction(connection, originalBoardId, newBoardId, setup.Id, now);
         }, cancellationToken);
     }
 
-    public Task DeleteSetupAsync(
+    public Task<IReadOnlyList<Guid>> DeleteSetupAsync(
         Guid setupId,
         Guid? boardId,
         CancellationToken cancellationToken = default)
@@ -38,11 +39,11 @@ internal sealed class SetupPersistenceTransactionRunner(
         {
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Setup>.DeleteInTransaction(connection, setupId, now);
-            ReassignBoardInTransaction(connection, boardId, null, setupId, now);
+            return ReassignBoardInTransaction(connection, boardId, null, setupId, now);
         }, cancellationToken);
     }
 
-    public Task ImportSetupAsync(
+    public Task<IReadOnlyList<Guid>> ImportSetupAsync(
         Bike bike,
         Setup setup,
         Guid? boardId,
@@ -53,27 +54,31 @@ internal sealed class SetupPersistenceTransactionRunner(
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Bike>.PutInTransaction(connection, bike, now);
             SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now);
-            ReassignBoardInTransaction(connection, originalBoardId: null, boardId, setup.Id, now);
+            return ReassignBoardInTransaction(connection, originalBoardId: null, boardId, setup.Id, now);
         }, cancellationToken);
     }
 
-    private static void ReassignBoardInTransaction(
+    private static IReadOnlyList<Guid> ReassignBoardInTransaction(
         SQLiteConnection connection,
         Guid? originalBoardId,
         Guid? newBoardId,
         Guid setupId,
         long now)
     {
-        if (originalBoardId == newBoardId) return;
+        if (originalBoardId == newBoardId) return [];
+        var changed = new List<Guid>();
 
         if (originalBoardId.HasValue)
         {
             SynchronizableRepository<Board>.PutInTransaction(connection, new Board(originalBoardId.Value, null), now);
+            changed.Add(originalBoardId.Value);
         }
 
         if (newBoardId.HasValue)
         {
             SynchronizableRepository<Board>.PutInTransaction(connection, new Board(newBoardId.Value, setupId), now);
+            changed.Add(newBoardId.Value);
         }
+        return changed;
     }
 }

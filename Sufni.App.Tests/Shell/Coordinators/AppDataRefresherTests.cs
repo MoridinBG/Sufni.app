@@ -42,7 +42,7 @@ public class AppDataRefresherTests
             reachedLastRead.TrySetResult();
             return lastRead.Task;
         });
-        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?)>();
+        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(fixture.Bike.Id)?.Name,
             fixture.Setups.Get(fixture.Setup.Id)?.BoardId,
@@ -52,7 +52,7 @@ public class AppDataRefresherTests
             fixture.Videos.Get(fixture.Clip.Id)?.Path,
             fixture.Segments.Get(fixture.Segment.Id)?.Name,
             fixture.Bikes.Get(oldBike.Id) is null,
-            fixture.Tracks.Get(fixture.Track.Id))));
+            fixture.Tracks.Get(fixture.Track.Id), fixture.Boards.Get(fixture.Board.Id))));
 
         var refresh = fixture.Refresher.RefreshAsync(TestContext.Current.CancellationToken);
         Assert.Empty(observed);
@@ -62,7 +62,7 @@ public class AppDataRefresherTests
         lastRead.SetResult([fixture.Segment]);
         await refresh.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(("bike", fixture.Board.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track),
+        Assert.Equal(("bike", fixture.Board.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board)),
             Assert.Single(observed));
     }
 
@@ -115,6 +115,7 @@ public class AppDataRefresherTests
     {
         public TrackSnapshot Track { get; } = new(Guid.NewGuid(), 100.25, 101.75, 3);
         public TrackStore Tracks { get; }
+        public BoardStore Boards { get; }
         public Bike Bike { get; } = new(Guid.NewGuid(), "bike");
         public Setup Setup { get; }
         public Board Board { get; }
@@ -160,6 +161,7 @@ public class AppDataRefresherTests
             var dispatcher = new InlineUiThreadDispatcher();
             Publication = new StorePublication(dispatcher);
             Tracks = new TrackStore(Publication);
+            Boards = new BoardStore(Publication);
             Bikes = new BikeStore(Publication);
             Setups = new SetupStore(Publication);
             Sessions = new SessionStore(Publication);
@@ -170,12 +172,13 @@ public class AppDataRefresherTests
             Refresher = new AppDataRefresher(Bikes, Setups, Sessions, Sources, Devices, Videos, Segments,
                 bikeRepository, setupRepository, boardRepository, sessionRepository, sourceRepository,
                 deviceRepository, videoRepository, SegmentRepository, new InlineBackgroundTaskRunner(),
-                dispatcher, Publication, Tracks, trackRepository);
+                dispatcher, Publication, Tracks, trackRepository, Boards);
         }
 
         public void Dispose()
         {
             Tracks.Dispose();
+            Boards.Dispose();
             Bikes.Dispose();
             Setups.Dispose();
             Sessions.Dispose();

@@ -1,3 +1,7 @@
+using Sufni.App.LiveDaq.Queries;
+using Sufni.App.Bikes.Services;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.SyncAndPairing.Stores;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
 using Microsoft.Extensions.Time.Testing;
@@ -23,6 +27,7 @@ public class InboundSyncCoordinatorTests : IDisposable
     private readonly InMemorySynchronizableRepository<Setup> setups;
     private readonly InMemorySynchronizableRepository<Board> boards;
     private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly BoardStore boardStore;
     private readonly BikeStore bikeStore;
     private readonly SetupStore setupStore;
     private readonly SessionSegmentStore segmentStore;
@@ -35,15 +40,17 @@ public class InboundSyncCoordinatorTests : IDisposable
         bikes = new(clock);
         setups = new(clock);
         boards = new(clock);
+        boardStore = new(publication);
         bikeStore = new(publication);
         setupStore = new(publication);
         segmentStore = new(publication);
         _ = new InboundSyncCoordinator(bikes, setups, bikeStore, setupStore, segmentStore, server,
-            new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner(), boards);
+            new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner(), boards, boardStore, publication);
     }
 
     public void Dispose()
     {
+        boardStore.Dispose();
         bikeStore.Dispose();
         setupStore.Dispose();
         segmentStore.Dispose();
@@ -56,6 +63,24 @@ public class InboundSyncCoordinatorTests : IDisposable
             .FirstAsync().ToTask(TestContext.Current.CancellationToken);
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await published.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task BoardOnlyArrival_PublishesAuthoritativeBoardAndRefreshesKnownBoardQuery()
+    {
+        var setup = TestSnapshots.Setup(name: "arrived setup");
+        await setupStore.PublishSetupsChangedAsync([setup]);
+        var board = new Board(Guid.NewGuid(), setup.Id) { Updated = 7 };
+        boards.Seed(board);
+        using var query = new LiveDaqKnownBoardsQuery(boardStore, setupStore, bikeStore,
+            new TelemetryBikeProcessingContextFactory(new RearTravelCalibrationBuilder(new KinematicSolutionCache())),
+            new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher(), publication);
+        Assert.Null(query.Get(board.Id.ToString()));
+
+        await PublishAsync(new SynchronizationData { Boards = { new Board(board.Id, null) } }, boardStore);
+
+        Assert.Equal(BoardSnapshot.From(board), boardStore.Get(board.Id));
+        Assert.Equal("arrived setup", query.Get(board.Id.ToString())!.DisplayName);
     }
 
     [Theory]

@@ -218,6 +218,9 @@ public static class AppComposition
         services.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
         services.AddSingleton<LiveDaqCoordinator>();
         services.AddSingleton<ILiveDaqCoordinator>(sp => sp.GetRequiredService<LiveDaqCoordinator>());
+        services.AddSingleton<BoardStore>();
+        services.AddSingleton<IBoardStore>(sp => sp.GetRequiredService<BoardStore>());
+        services.AddSingleton<IBoardStoreWriter>(sp => sp.GetRequiredService<BoardStore>());
         services.AddSingleton<PairedDeviceStore>();
         services.AddSingleton<IPairedDeviceStore>(sp => sp.GetRequiredService<PairedDeviceStore>());
         services.AddSingleton<IPairedDeviceStoreWriter>(sp => sp.GetRequiredService<PairedDeviceStore>());

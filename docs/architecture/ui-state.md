@@ -22,6 +22,7 @@ implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 | `TrackStore`                 | `ITrackStore`                   | `ITrackStoreWriter`                 | `TrackSnapshot`                   | `Guid`   |
 | `SessionVideoStore`          | `ISessionVideoStore`            | `ISessionVideoStoreWriter`          | `SessionVideoSnapshot`            | `Guid`   |
 | `SessionSegmentStore`        | `ISessionSegmentStore`          | `ISessionSegmentStoreWriter`        | `SessionSegmentSnapshot`          | `Guid`   |
+| `BoardStore`                 | `IBoardStore`                  | `IBoardStoreWriter`                | `BoardSnapshot`                 | `Guid` |
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
@@ -62,7 +63,7 @@ Each persisted writer interface additionally exposes:
 
 - `ReplaceAllAsync(snapshots)` — replace cache contents with snapshots prepared
   by the requesting workflow. Stores do not load full refreshes. `AppDataRefresher`
-  loads all eight families through repositories and
+  loads all nine families through repositories and
   constructs their snapshots off-thread, then publishes them inside one shared
   UI-thread batch. Concurrent full-refresh requests share the active run; a
   cancellation or load failure leaves the previously published state intact.
@@ -282,17 +283,9 @@ it to short-circuit deletes with `BikeDeleteResult.InUse`. The
 answer is sourced from the database, not from any list view model, so
 it does not depend on which screens the user has visited.
 
-`ILiveDaqKnownBoardsQuery` (backed by `LiveDaqKnownBoardsQuery`)
-merges `Board` rows from the database with `ISetupStore` and
-`IBikeStore` to produce enriched records carrying board identity,
-setup name, and bike name. It also exposes keyed lookup and travel-
-calibration answers for a specific live DAQ identity, so the live
-detail view model can project calibrated travel text without pushing
-setup or bike logic into the transport/session-state layer. Unlike
-`BikeDependencyQuery`, it caches its projection and auto-refreshes via
-store change subscriptions so consumers can re-enrich display names
-and calibration context without repeated database round-trips. See
-[Live DAQ Streaming](live-streaming.md).
+`ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency or fallback through setup snapshots. See [Live DAQ Streaming](live-streaming.md).
+
+`BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `SetupSnapshot.BoardId` remains a transitional refresh-time copy until setup association consumers are migrated.
 
 `IRecordedSessionDomainQuery` lives in `RecordedSessionProjection/` rather than
 `Queries/`, but it follows the same command-side rule: it answers one

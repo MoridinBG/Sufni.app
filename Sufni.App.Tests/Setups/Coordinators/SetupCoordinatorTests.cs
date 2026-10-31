@@ -1,3 +1,5 @@
+using Sufni.App.SyncAndPairing.Stores;
+using System.Reactive.Linq;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
@@ -17,8 +19,10 @@ namespace Sufni.App.Tests.Setups.Coordinators;
 
 public class SetupCoordinatorTests : IDisposable
 {
-    private readonly SetupStore setupStore = new(new StorePublication(new InlineUiThreadDispatcher()));
-    private readonly BikeStore bikeStore = new(new StorePublication(new InlineUiThreadDispatcher()));
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly SetupStore setupStore;
+    private readonly BikeStore bikeStore;
+    private readonly BoardStore boardStore;
     private readonly InMemorySynchronizableRepository<Setup> setups;
     private readonly InMemorySynchronizableRepository<Board> boards;
     private readonly InMemorySetupTransactions transactions;
@@ -27,23 +31,33 @@ public class SetupCoordinatorTests : IDisposable
 
     public SetupCoordinatorTests()
     {
+        setupStore = new(publication);
+        bikeStore = new(publication);
+        boardStore = new(publication);
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9));
         setups = new(clock);
         boards = new(clock);
         transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards);
-        coordinator = new(setupStore, bikeStore, files, new InlineBackgroundTaskRunner(), transactions);
+        coordinator = new(setupStore, bikeStore, files, new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication);
     }
 
     public void Dispose()
     {
         setupStore.Dispose();
         bikeStore.Dispose();
+        boardStore.Dispose();
+        publication.Dispose();
     }
 
     private async Task SeedAsync(SetupSnapshot snapshot)
     {
         setups.Seed(new Setup(snapshot.Id, snapshot.Name) { BikeId = snapshot.BikeId, Updated = snapshot.Updated });
-        if (snapshot.BoardId is { } boardId) boards.Seed(new Board(boardId, snapshot.Id));
+        if (snapshot.BoardId is { } boardId)
+        {
+            var board = new Board(boardId, snapshot.Id);
+            boards.Seed(board);
+            await boardStore.PublishBoardsChangedAsync([BoardSnapshot.From(board)]);
+        }
         await setupStore.PublishSetupsChangedAsync([snapshot]);
     }
 
@@ -86,8 +100,13 @@ public class SetupCoordinatorTests : IDisposable
         await SeedAsync(existing);
         var draft = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId };
 
+        var observed = new List<(string?, Guid?, Guid?)>();
+        using var watch = publication.Committed.Subscribe(_ => observed.Add((setupStore.Get(existing.Id)?.Name,
+            oldBoard is { } oldId ? boardStore.Get(oldId)?.SetupId : null,
+            newBoard is { } newId ? boardStore.Get(newId)?.SetupId : null)));
         var result = await coordinator.SaveAsync(draft, newBoard, 5);
 
+        Assert.Equal(("renamed", sameBoard ? existing.Id : (Guid?)null, hasBoard ? existing.Id : (Guid?)null), Assert.Single(observed));
         Assert.Equal(9, Assert.IsType<SetupSaveResult.Saved>(result).NewBaselineUpdated);
         Assert.Equal("renamed", (await setups.GetAsync(existing.Id))!.Name);
         var published = setupStore.Get(existing.Id)!;

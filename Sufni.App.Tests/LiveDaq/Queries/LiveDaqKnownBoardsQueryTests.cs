@@ -1,3 +1,8 @@
+using System.Reactive.Linq;
+using System.Reactive.Threading.Tasks;
+using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
 using System.Linq;
@@ -16,32 +21,92 @@ using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.LiveDaq.Queries;
 
-public class LiveDaqKnownBoardsQueryTests
+public class LiveDaqKnownBoardsQueryTests : IDisposable
 {
-    private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly BoardStore boardStore;
     private readonly SetupStore setupStore;
     private readonly BikeStore bikeStore;
 
     public LiveDaqKnownBoardsQueryTests()
     {
-        var uiThreadDispatcher = new InlineUiThreadDispatcher();
-        setupStore = new SetupStore(new StorePublication(uiThreadDispatcher));
-        bikeStore = new BikeStore(new StorePublication(uiThreadDispatcher));
+        boardStore = new BoardStore(publication);
+        setupStore = new SetupStore(publication);
+        bikeStore = new BikeStore(publication);
     }
 
-    private LiveDaqKnownBoardsQuery CreateQuery() => new(
-        boardRepository,
+    private LiveDaqKnownBoardsQuery CreateQuery(IBackgroundTaskRunner? runner = null) => new(
+        boardStore,
         setupStore,
         bikeStore,
         new TelemetryBikeProcessingContextFactory(
             new RearTravelCalibrationBuilder(
-                new KinematicSolutionCache())));
+                new KinematicSolutionCache())), runner ?? new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher(), publication);
+
+    [Fact]
+    public async Task BoardOnlyReassignmentAndRemoval_UpdateKnownRowsWithoutASetupChange()
+    {
+        var first = TestSnapshots.Setup(name: "first");
+        var second = TestSnapshots.Setup(name: "second");
+        await setupStore.PublishSetupsChangedAsync([first, second]);
+        var board = new BoardSnapshot(Guid.NewGuid(), first.Id, 1);
+        await boardStore.PublishBoardsChangedAsync([board]);
+        using var query = CreateQuery();
+        Assert.Equal("first", query.Get(board.Id.ToString())!.DisplayName);
+
+        await boardStore.PublishBoardsChangedAsync([board with { SetupId = second.Id, Updated = 2 }]);
+        Assert.Equal("second", query.Get(board.Id.ToString())!.DisplayName);
+        await boardStore.PublishBoardsRemovedAsync([board.Id]);
+        Assert.Null(query.Get(board.Id.ToString()));
+    }
+
+    [Fact]
+    public async Task CommittedBatch_PublishesOneCompleteBoardSetupBikeProjection()
+    {
+        using var query = CreateQuery();
+        var observed = new List<IReadOnlyList<KnownLiveDaqRecord>>();
+        using var subscription = query.Changes.Skip(1).Subscribe(observed.Add);
+        var bike = TestSnapshots.Bike(name: "bike");
+        var setup = TestSnapshots.Setup(name: "setup", bikeId: bike.Id);
+        var board = new BoardSnapshot(Guid.NewGuid(), setup.Id, 1);
+        using (publication.BeginBatch())
+        {
+            await boardStore.PublishBoardsChangedAsync([board]);
+            await setupStore.PublishSetupsChangedAsync([setup]);
+            await bikeStore.PublishBikesChangedAsync([bike]);
+            Assert.Empty(observed);
+        }
+
+        var record = Assert.Single(Assert.Single(observed));
+        Assert.Equal((setup.Id, bike.Id, "setup"), (record.SetupId, record.BikeId, record.DisplayName));
+    }
+
+    [Fact]
+    public async Task PendingProjection_IsSupersededByTheLatestBoardFacts()
+    {
+        var board = new BoardSnapshot(Guid.NewGuid(), null, 1);
+        await boardStore.PublishBoardsChangedAsync([board]);
+        var runner = new DeferredBackgroundTaskRunner();
+        using var query = CreateQuery(runner);
+        var setup = TestSnapshots.Setup(name: "latest");
+        using (publication.BeginBatch())
+        {
+            await setupStore.PublishSetupsChangedAsync([setup]);
+            await boardStore.PublishBoardsChangedAsync([board with { SetupId = setup.Id, Updated = 2 }]);
+        }
+        var next = query.Changes.Where(records => records.Count > 0).FirstAsync().ToTask(TestContext.Current.CancellationToken);
+
+        await runner.RunNextAsync();
+        await runner.RunNextAsync();
+        var record = Assert.Single(await next.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal("latest", record.DisplayName);
+    }
 
     [Fact]
     public async Task Changes_ReturnsBoardOnlyRecord_WhenBoardHasNoSetup()
     {
         var boardId = Guid.NewGuid();
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, null) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, null, 1)]);
 
         using var query = CreateQuery();
         var records = await WaitForRecordsAsync(query.Changes);
@@ -65,7 +130,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         var records = await WaitForRecordsAsync(query.Changes);
@@ -83,7 +148,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         var records = await WaitForRecordsAsync(query.Changes);
@@ -101,7 +166,7 @@ public class LiveDaqKnownBoardsQueryTests
     {
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "startup setup", bikeId: Guid.NewGuid(), boardId: boardId);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         var initialRecords = await WaitForRecordsAsync(query.Changes);
@@ -129,7 +194,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -151,7 +216,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -179,7 +244,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -211,7 +276,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -250,7 +315,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -298,7 +363,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -331,7 +396,7 @@ public class LiveDaqKnownBoardsQueryTests
 
         await SeedSetupAsync(setup);
         await SeedBikeAsync(bike);
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board> { new(boardId, setup.Id) }));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
 
         using var query = CreateQuery();
         await WaitForRecordsAsync(query.Changes);
@@ -351,11 +416,17 @@ public class LiveDaqKnownBoardsQueryTests
 
     private async Task SeedSetupAsync(SetupSnapshot setup)
     {
-        boardRepository.GetAllAsync().Returns(Task.FromResult(setup.BoardId.HasValue
-            ? new List<Board> { new(setup.BoardId.Value, setup.Id) }
-            : new List<Board>()));
-
+        using var batch = publication.BeginBatch();
+        if (setup.BoardId is { } id) await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(id, setup.Id, 1)]);
         await setupStore.PublishSetupsChangedAsync([setup]);
+    }
+
+    public void Dispose()
+    {
+        boardStore.Dispose();
+        setupStore.Dispose();
+        bikeStore.Dispose();
+        publication.Dispose();
     }
 
     private static async Task<IReadOnlyList<KnownLiveDaqRecord>> WaitForRecordsAsync(

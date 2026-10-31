@@ -11,8 +11,10 @@ using Sufni.App.Bikes.Models;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
-using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shared.Stores;
+using System.Reactive;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Bikes.Services;
 namespace Sufni.App.LiveDaq.Queries;
@@ -28,41 +30,40 @@ internal sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDispo
         LiveDaqTravelCalibration? TravelCalibration,
         LiveDaqSessionContext? SessionContext);
 
-    private readonly ISynchronizableRepository<Board> boardRepository;
+    private readonly IBoardStore boardStore;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly IUiThreadDispatcher dispatcher;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory;
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> changesSubject = new([]);
     private IReadOnlyDictionary<string, KnownLiveDaqProjection> currentProjections = new Dictionary<string, KnownLiveDaqProjection>(StringComparer.OrdinalIgnoreCase);
-    private readonly SemaphoreSlim refreshGate = new(1, 1);
-    private readonly IDisposable setupSubscription;
-    private readonly IDisposable bikeSubscription;
-    private readonly System.Threading.Lock coalesceGate = new();
-    private bool refreshInProgress;
-    private bool refreshPending;
+    private readonly IDisposable subscription;
+    private bool disposed;
 
     public LiveDaqKnownBoardsQuery(
-        ISynchronizableRepository<Board> boardRepository,
+        IBoardStore boardStore,
         ISetupStore setupStore,
         IBikeStore bikeStore,
-        ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory)
+        ITelemetryBikeProcessingContextFactory bikeProcessingContextFactory,
+        IBackgroundTaskRunner backgroundTaskRunner,
+        IUiThreadDispatcher dispatcher,
+        StorePublication publication)
     {
-        this.boardRepository = boardRepository;
+        this.boardStore = boardStore;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
         this.bikeProcessingContextFactory = bikeProcessingContextFactory;
-
-        // Ignore only the synchronous replay that can happen during
-        // subscription. If a store starts empty, its first real load must still
-        // trigger a refresh so known boards can become enriched after startup.
-        setupSubscription = SubscribeIgnoringSynchronousReplay(
-            setupStore.Connect(),
-            "setup store change");
-        bikeSubscription = SubscribeIgnoringSynchronousReplay(
-            bikeStore.Connect(),
-            "bike store change");
-
-        RequestRefresh("initial load");
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.dispatcher = dispatcher;
+        subscription = publication.Committed
+            .Where(commit => commit.Stores.Contains(boardStore) || commit.Stores.Contains(setupStore) || commit.Stores.Contains(bikeStore))
+            .Select(_ => Unit.Default)
+            .StartWith(Unit.Default)
+            .Select(_ => CaptureInputs())
+            .Select(inputs => Observable.FromAsync(cancellationToken => RefreshAsync(inputs, cancellationToken)))
+            .Switch()
+            .Subscribe();
     }
 
     public IObservable<IReadOnlyList<KnownLiveDaqRecord>> Changes => changesSubject;
@@ -94,112 +95,45 @@ internal sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDispo
 
     public void Dispose()
     {
-        setupSubscription.Dispose();
-        bikeSubscription.Dispose();
-        refreshGate.Dispose();
+        if (disposed) return;
+        disposed = true;
+        subscription.Dispose();
         changesSubject.Dispose();
     }
 
-    private IDisposable SubscribeIgnoringSynchronousReplay<T>(IObservable<T> source, string reason)
+    private BoardInput[] CaptureInputs() => boardStore.GetAll().Select(board =>
     {
-        var ignoreSynchronousReplay = true;
-        var subscription = source.Subscribe(_ =>
-        {
-            if (ignoreSynchronousReplay)
-            {
-                return;
-            }
+        var setup = board.SetupId is { } setupId ? setupStore.Get(setupId) : null;
+        return new BoardInput(board, setup, setup is null ? null : bikeStore.Get(setup.BikeId));
+    }).ToArray();
 
-            RequestRefresh(reason);
-        });
-
-        ignoreSynchronousReplay = false;
-        return subscription;
-    }
-
-    // Coalesces overlapping refresh triggers so three near-simultaneous store
-    // changes produce at most two runs (the in-flight one, plus a single
-    // follow-up that batches everything that arrived while it was running).
-    private void RequestRefresh(string reason)
+    private async Task RefreshAsync(BoardInput[] inputs, CancellationToken cancellationToken)
     {
-        lock (coalesceGate)
-        {
-            if (refreshInProgress)
-            {
-                refreshPending = true;
-                return;
-            }
-
-            refreshInProgress = true;
-        }
-
-        _ = RefreshLoopAsync(reason);
-    }
-
-    private async Task RefreshLoopAsync(string initialReason)
-    {
-        var reason = initialReason;
-        while (true)
-        {
-            await RefreshAsync(reason).ConfigureAwait(false);
-
-            lock (coalesceGate)
-            {
-                if (!refreshPending)
-                {
-                    refreshInProgress = false;
-                    return;
-                }
-
-                refreshPending = false;
-                reason = "coalesced follow-up";
-            }
-        }
-    }
-
-    private async Task RefreshAsync(string reason)
-    {
-        await refreshGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            logger.Debug("Refreshing known live DAQ boards because of {RefreshReason}", reason);
-
-            var boards = await boardRepository.GetAllAsync().ConfigureAwait(false);
-
-            var projections = boards
-                .OrderBy(board => board.Id)
-                .Select(BuildProjection)
-                .ToArray();
-            var records = projections.Select(projection => projection.Record).ToArray();
-
-            currentProjections = projections.ToDictionary(projection => projection.Record.IdentityKey, StringComparer.OrdinalIgnoreCase);
-            changesSubject.OnNext(records);
-            logger.Debug("Refreshed known live DAQ boards with {RecordCount} records", records.Length);
+            var projections = await backgroundTaskRunner.RunAsync(() => inputs.OrderBy(input => input.Board.Id)
+                .Select(BuildProjection).ToDictionary(projection => projection.Record.IdentityKey, StringComparer.OrdinalIgnoreCase), cancellationToken)
+                .ConfigureAwait(false);
+            var records = projections.Values.Select(projection => projection.Record).ToArray();
+            await dispatcher.InvokeAsync(() =>
+            {
+                if (disposed || cancellationToken.IsCancellationRequested) return;
+                currentProjections = projections;
+                changesSubject.OnNext(records);
+            });
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
         {
-            logger.Warning(ex, "Refreshing known live DAQ boards failed; keeping the last snapshot");
-            // No query-level error surface exists yet. Leave the last
-            // successful snapshot intact and retry on the next change.
-        }
-        finally
-        {
-            refreshGate.Release();
+            logger.Warning(exception, "Building known live DAQ boards failed; keeping the last snapshot");
         }
     }
 
-    private KnownLiveDaqProjection BuildProjection(Board board)
+    private sealed record BoardInput(BoardSnapshot Board, SetupSnapshot? Setup, BikeSnapshot? Bike);
+
+    private KnownLiveDaqProjection BuildProjection(BoardInput input)
     {
-        var setupSnapshot = board.SetupId.HasValue
-            ? setupStore.Get(board.SetupId.Value)
-            : null;
-
-        setupSnapshot ??= setupStore.FindByBoardId(board.Id);
-
-        var bikeSnapshot = setupSnapshot is null
-            ? null
-            : bikeStore.Get(setupSnapshot.BikeId);
-
+        var (board, setupSnapshot, bikeSnapshot) = input;
         var boardId = board.Id.ToString();
         var record = new KnownLiveDaqRecord(
             IdentityKey: boardId,

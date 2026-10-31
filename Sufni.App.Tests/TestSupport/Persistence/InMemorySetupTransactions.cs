@@ -12,35 +12,36 @@ internal sealed class InMemorySetupTransactions(
 {
     public Exception? Failure { get; set; }
 
-    public async Task SaveSetupAsync(Setup setup, Guid? originalBoardId, Guid? newBoardId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Guid>> SaveSetupAsync(Setup setup, Guid? originalBoardId, Guid? newBoardId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Failure is { } failure) throw failure;
         await setups.PutAsync(setup);
-        await ReassignAsync(originalBoardId, newBoardId, setup.Id);
+        return await ReassignAsync(originalBoardId, newBoardId, setup.Id);
     }
 
-    public async Task DeleteSetupAsync(Guid setupId, Guid? boardId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Guid>> DeleteSetupAsync(Guid setupId, Guid? boardId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Failure is { } failure) throw failure;
         await setups.DeleteAsync(setupId);
-        await ReassignAsync(boardId, null, setupId);
+        return await ReassignAsync(boardId, null, setupId);
     }
 
-    public async Task ImportSetupAsync(Bike bike, Setup setup, Guid? boardId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Guid>> ImportSetupAsync(Bike bike, Setup setup, Guid? boardId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Failure is { } failure) throw failure;
         await bikes.PutAsync(bike);
         await setups.PutAsync(setup);
-        await ReassignAsync(null, boardId, setup.Id);
+        return await ReassignAsync(null, boardId, setup.Id);
     }
 
-    private async Task ReassignAsync(Guid? previous, Guid? next, Guid setupId)
+    private async Task<IReadOnlyList<Guid>> ReassignAsync(Guid? previous, Guid? next, Guid setupId)
     {
-        if (previous == next) return;
+        if (previous == next) return [];
         if (previous is { } oldBoard) await boards.PutAsync(new Board(oldBoard, null));
         if (next is { } newBoard) await boards.PutAsync(new Board(newBoard, setupId));
+        return new[] { previous, next }.OfType<Guid>().ToArray();
     }
 }

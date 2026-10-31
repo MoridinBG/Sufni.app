@@ -1,3 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Stores;
+using Sufni.App.Shared.Stores;
 using System;
 using System.IO;
 using System.Text;
@@ -20,7 +25,11 @@ public class SetupCoordinator(
     IBikeStoreWriter bikeStore,
     IFilesService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
-    ISetupPersistenceTransactionRunner setupPersistenceTransactions)
+    ISetupPersistenceTransactionRunner setupPersistenceTransactions,
+    ISynchronizableRepository<Board> boardRepository,
+    IBoardStoreWriter boardStore,
+    IUiThreadDispatcher dispatcher,
+    StorePublication publication)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
@@ -61,10 +70,16 @@ public class SetupCoordinator(
                     boardId);
             }
 
-            await backgroundTaskRunner.RunAsync(() => setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId));
+            var boards = await backgroundTaskRunner.RunAsync(async () =>
+                await LoadBoardsAsync(await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId)));
 
             var saved = SetupSnapshot.From(setup, boardId);
-            await setupStore.PublishSetupsChangedAsync([saved]);
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                await setupStore.PublishSetupsChangedAsync([saved]);
+                await PublishBoardsAsync(boards);
+            });
             logger.Information("Setup save completed for {SetupId}", setup.Id);
             return new SetupSaveResult.Saved(saved.Id, saved.Updated);
         }
@@ -83,8 +98,14 @@ public class SetupCoordinator(
 
         try
         {
-            await backgroundTaskRunner.RunAsync(() => setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId));
-            await setupStore.PublishSetupsRemovedAsync([setupId]);
+            var boards = await backgroundTaskRunner.RunAsync(async () =>
+                await LoadBoardsAsync(await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId)));
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                await setupStore.PublishSetupsRemovedAsync([setupId]);
+                await PublishBoardsAsync(boards);
+            });
         }
         catch (Exception e)
         {
@@ -143,13 +164,19 @@ public class SetupCoordinator(
         {
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
-            await backgroundTaskRunner.RunAsync(() => setupPersistenceTransactions.ImportSetupAsync(
-                payload.Bike, payload.Setup, resolvedBoardId, cancellationToken), cancellationToken);
+            var boards = await backgroundTaskRunner.RunAsync(async () =>
+                await LoadBoardsAsync(await setupPersistenceTransactions.ImportSetupAsync(
+                    payload.Bike, payload.Setup, resolvedBoardId, cancellationToken)), cancellationToken);
 
             var bikeSnapshot = BikeSnapshot.From(payload.Bike);
             var setupSnapshot = SetupSnapshot.From(payload.Setup, resolvedBoardId);
-            await bikeStore.PublishBikesChangedAsync([bikeSnapshot]);
-            await setupStore.PublishSetupsChangedAsync([setupSnapshot]);
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                await bikeStore.PublishBikesChangedAsync([bikeSnapshot]);
+                await setupStore.PublishSetupsChangedAsync([setupSnapshot]);
+                await PublishBoardsAsync(boards);
+            });
 
             logger.Information(
                 "Setup import completed for {SetupId} (bike {BikeId}, board {BoardId})",
@@ -204,6 +231,19 @@ public class SetupCoordinator(
             logger.Error(e, "Setup export failed for {SetupId}", setup.Id);
             return new SetupExportResult.Failed(SetupExportFailureReason.Export, e.Message);
         }
+    }
+
+    private async Task<(BoardSnapshot[] Changed, Guid[] Removed)> LoadBoardsAsync(IReadOnlyList<Guid> ids)
+    {
+        var rows = await Task.WhenAll(ids.Select(boardRepository.GetAsync));
+        var snapshots = rows.OfType<Board>().Select(BoardSnapshot.From).ToArray();
+        return (snapshots, ids.Except(snapshots.Select(board => board.Id)).ToArray());
+    }
+
+    private async Task PublishBoardsAsync((BoardSnapshot[] Changed, Guid[] Removed) boards)
+    {
+        await boardStore.PublishBoardsChangedAsync(boards.Changed);
+        await boardStore.PublishBoardsRemovedAsync(boards.Removed);
     }
 
     private (Guid? ResolvedBoardId, string? Warning) ResolveImportedBoardId(Guid? importedBoardId)

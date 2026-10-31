@@ -154,8 +154,9 @@ independently from the missing-source queries rather than by replaying metadata.
 
 Local workflow owners persist and prepare snapshots for publish-only stores.
 For sync, `SynchronizationMergeEngine`, the session-data endpoints, and the
-recorded-source endpoints persist or merge rows first. Inbound coordinators and
-`SessionSyncApplier` then load the authoritative snapshots and publish changes or
+recorded-source endpoints persist or merge rows first. Inbound coordination publishes authoritative bike/setup/board/segment changes
+in one batch, including board-only arrivals. `SessionSyncApplier` owns session
+generation/source publication. They load authoritative snapshots and publish changes or
 removals, or use a full `IAppDataRefresher.RefreshAsync()` run. Stores never read
 or write repositories, so publication does not duplicate the persistence operation.
 
