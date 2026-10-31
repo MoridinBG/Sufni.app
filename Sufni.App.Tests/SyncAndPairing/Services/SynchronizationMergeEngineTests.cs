@@ -531,9 +531,6 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(remoteFingerprint, swap.TargetFingerprint);
         Assert.NotNull(swap.TargetGeneration);
         Assert.Equal(80, swap.TargetGeneration!.DurationSeconds);
-        Assert.Equal(20, swap.TargetGeneration.DistanceMeters);
-        Assert.Equal(8, swap.TargetGeneration.AscentMeters);
-        Assert.Equal(3, swap.TargetGeneration.DescentMeters);
 
     }
 
@@ -569,6 +566,7 @@ public class SynchronizationMergeEngineTests
                 ClientUpdated = 1,
             });
         }
+        await database.SeedGpsMetricsAsync(sessionId, new GpsMetrics(10, 4, 2));
         var held = (await database.GetSessionAsync(sessionId))!;
 
         var swaps = await database.ApplyRemoteSynchronizationDataAndReturnSwapsAsync(
@@ -615,9 +613,9 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(99, target.Updated);
         Assert.Equal(remoteFingerprint, target.ProcessingFingerprintJson);
         Assert.Equal(80, target.DurationSeconds);
-        Assert.Equal(20, target.DistanceMeters);
-        Assert.Equal(8, target.AscentMeters);
-        Assert.Equal(3, target.DescentMeters);
+        Assert.Equal(10, target.DistanceMeters);
+        Assert.Equal(4, target.AscentMeters);
+        Assert.Equal(2, target.DescentMeters);
         Assert.Equal(targetTrackId, target.FullTrack);
         Assert.Equal(1.25, target.GpsOffsetSeconds);
         Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(

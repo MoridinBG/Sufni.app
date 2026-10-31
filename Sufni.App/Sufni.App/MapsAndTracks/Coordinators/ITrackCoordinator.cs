@@ -8,6 +8,8 @@ namespace Sufni.App.MapsAndTracks.Coordinators;
 
 public interface ITrackCoordinator
 {
+    Task StopAsync();
+
     Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default);
 
     Task<SessionTrackPresentationData> LoadSessionTrackAsync(

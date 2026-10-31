@@ -53,7 +53,7 @@ internal sealed class SessionTrackReader : ISessionTrackReader, IDisposable
             if (points is null) return null;
             var track = new Track { Id = key.TrackId, Points = points.ToList() };
             return SessionTrackProjection.GenerateSessionTrack(track, key.Timestamp,
-                key.DurationSeconds, key.GpsOffsetSeconds)?.AsReadOnly();
+                key.DurationSeconds, key.GpsOffsetSeconds)?.AsReadOnly() ?? (IReadOnlyList<TrackPoint>)Array.Empty<TrackPoint>();
         }, cancellationToken);
 
     public void Dispose()

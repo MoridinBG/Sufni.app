@@ -51,20 +51,20 @@ internal sealed class InMemorySessionRepository
             return ToEntity(snapshot)!;
         }
         Repository.UpdateSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
-                Arg.Any<SessionSummaryMetrics>(), Arg.Any<SessionProcessedWriteGuard>())
+                Arg.Any<double?>(), Arg.Any<SessionProcessedWriteGuard>())
             .Returns(call => CommitTransferred(call.Arg<Guid>(), call.Arg<byte[]>(), call.Arg<string?>(),
-                call.Arg<SessionSummaryMetrics>(), call.Arg<SessionProcessedWriteGuard>(), null));
+                call.Arg<double?>(), call.Arg<SessionProcessedWriteGuard>(), null));
         Repository.UpdateSessionProcessedGenerationAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
                 Arg.Any<SessionProcessedGeneration>(), Arg.Any<SessionProcessedWriteGuard>())
             .Returns(call =>
             {
                 var generation = call.Arg<SessionProcessedGeneration>();
                 return CommitTransferred(call.Arg<Guid>(), call.Arg<byte[]>(), call.Arg<string?>(),
-                    new SessionSummaryMetrics(generation.DurationSeconds, generation.DistanceMeters, generation.AscentMeters, generation.DescentMeters),
+                    generation.DurationSeconds,
                     call.Arg<SessionProcessedWriteGuard>(), generation);
             });
 
-        Task<bool> CommitTransferred(Guid id, byte[] bytes, string? fingerprint, SessionSummaryMetrics metrics,
+        Task<bool> CommitTransferred(Guid id, byte[] bytes, string? fingerprint, double? duration,
             SessionProcessedWriteGuard expected, SessionProcessedGeneration? generation)
         {
             if (WriteFailure is { } failure) return Task.FromException<bool>(failure);
@@ -76,8 +76,7 @@ internal sealed class InMemorySessionRepository
             {
                 HasProcessedData = true, ProcessingFingerprintJson = fingerprint,
                 ProcessedTelemetryRevision = current.ProcessedTelemetryRevision + (changed ? 1 : 0),
-                DurationSeconds = metrics.DurationSeconds, DistanceMeters = metrics.DistanceMeters,
-                AscentMeters = metrics.AscentMeters, DescentMeters = metrics.DescentMeters
+                DurationSeconds = duration
             };
             if (generation is not null)
             {
@@ -89,20 +88,15 @@ internal sealed class InMemorySessionRepository
             return Task.FromResult(true);
         }
 
-        Repository.UpdateGpsAlignmentAsync(Arg.Any<Guid>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double>())
+        Repository.UpdateGpsAlignmentAsync(Arg.Any<Guid>(), Arg.Any<double>())
             .Returns(call =>
             {
                 if (WriteFailure is { } failure) return Task.FromException(failure);
                 var id = call.Arg<Guid>();
                 var current = snapshots[id];
-                var metrics = call.Arg<SessionSummaryMetrics>();
                 snapshots[id] = current with
                 {
                     GpsOffsetSeconds = call.Arg<double>(),
-                    DurationSeconds = metrics.DurationSeconds,
-                    DistanceMeters = metrics.DistanceMeters,
-                    AscentMeters = metrics.AscentMeters,
-                    DescentMeters = metrics.DescentMeters,
                     Updated = clock.GetUtcNow().ToUnixTimeSeconds()
                 };
                 return Task.CompletedTask;
@@ -159,6 +153,10 @@ internal sealed class InMemorySessionRepository
         var entity = snapshot.ToMetadataEntity();
         // This fake models BLOB presence without retaining telemetry bytes.
         entity.ProcessedData = snapshot.HasProcessedData ? [] : null;
+        entity.DistanceMeters = snapshot.DistanceMeters;
+        entity.AscentMeters = snapshot.AscentMeters;
+        entity.DescentMeters = snapshot.DescentMeters;
+        entity.GpsMetricsKey = snapshot.GpsMetricsKey;
         return entity;
     }
 

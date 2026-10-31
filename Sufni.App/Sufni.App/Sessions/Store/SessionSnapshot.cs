@@ -1,5 +1,6 @@
 using Sufni.Telemetry;
 using System;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 using Sufni.App.Sessions.Models;
@@ -44,7 +45,8 @@ public sealed record SessionSnapshot(
     double? WindowEndSeconds = null,
     double? PreviousWindowStartSeconds = null,
     double? PreviousWindowEndSeconds = null,
-    int? VelocityFilterWindowMilliseconds = null)
+    int? VelocityFilterWindowMilliseconds = null,
+    GpsMetricsKey? GpsMetricsKey = null)
 {
     public RecordedSessionDerivationWindow? DerivationWindow => SourceSessionId is { } sourceSessionId
         ? new RecordedSessionDerivationWindow(sourceSessionId, WindowStartSeconds, WindowEndSeconds)
@@ -88,7 +90,8 @@ public sealed record SessionSnapshot(
         session.WindowEndSeconds,
         session.PreviousWindowStartSeconds,
         session.PreviousWindowEndSeconds,
-        session.VelocityFilterWindowMilliseconds);
+        session.VelocityFilterWindowMilliseconds,
+        session.GpsMetricsKey);
 }
 
 public static class SessionSnapshotExtensions
@@ -106,9 +109,6 @@ public static class SessionSnapshotExtensions
         {
             VelocityFilterWindowMilliseconds = snapshot.VelocityFilterWindowMilliseconds,
             DurationSeconds = snapshot.DurationSeconds,
-            DistanceMeters = snapshot.DistanceMeters,
-            AscentMeters = snapshot.AscentMeters,
-            DescentMeters = snapshot.DescentMeters,
             FullTrack = snapshot.FullTrackId,
             ProcessingFingerprintJson = snapshot.ProcessingFingerprintJson,
             GpsOffsetSeconds = snapshot.GpsOffsetSeconds,

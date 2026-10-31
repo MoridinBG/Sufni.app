@@ -30,11 +30,11 @@ public class SessionProcessedGenerationTests
 
         Assert.NotNull(roundTrip);
         Assert.Equal(12, roundTrip!.DurationSeconds);
-        Assert.Equal(34, roundTrip.DistanceMeters);
-        Assert.Equal(5, roundTrip.AscentMeters);
-        Assert.Equal(6, roundTrip.DescentMeters);
         Assert.Equal(fullTrackId, roundTrip.FullTrackId);
         Assert.False(document.RootElement.TryGetProperty("Track", out _));
+        Assert.False(document.RootElement.TryGetProperty("DistanceMeters", out _));
+        Assert.False(document.RootElement.TryGetProperty("AscentMeters", out _));
+        Assert.False(document.RootElement.TryGetProperty("DescentMeters", out _));
         using var sessionJson = JsonDocument.Parse(AppJson.Serialize(session));
         Assert.False(sessionJson.RootElement.TryGetProperty("track", out _));
     }

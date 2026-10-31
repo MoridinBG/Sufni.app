@@ -65,7 +65,7 @@ public class SessionSyncGenerationTests : IDisposable
         var captured = SessionSnapshot.From(session);
         var newer = PersistenceTestData.CreateTelemetryBlob(80);
         Assert.True(await repository.Repository.UpdateSessionPsstAsync(session.Id, newer, "held",
-            new SessionSummaryMetrics(80, null, null, null), SessionProcessedWriteGuard.From(captured)));
+            80, SessionProcessedWriteGuard.From(captured)));
 
         var result = await applier.ApplyDownloadedAsync(captured,
             new SessionBlobPayload("target", PersistenceTestData.CreateTelemetryBlob(90)), "target");
@@ -114,7 +114,7 @@ public class SessionSyncGenerationTests : IDisposable
     {
         var session = SeedSession();
         var data = PersistenceTestData.CreateTelemetryBlob(80);
-        var generation = new SessionProcessedGeneration(80, 20, 8, 3, Guid.NewGuid());
+        var generation = new SessionProcessedGeneration(80, Guid.NewGuid());
 
         var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session),
             new SessionBlobPayload("target", data), "target", generation);
@@ -126,7 +126,7 @@ public class SessionSyncGenerationTests : IDisposable
         Assert.Equal(7, saved.GpsOffsetSeconds);
         Assert.Equal(data, await repository.Repository.GetSessionRawPsstAsync(session.Id));
         Assert.Equal(generation.DurationSeconds, saved.DurationSeconds);
-        Assert.Equal(generation.DistanceMeters, saved.DistanceMeters);
+        Assert.Equal(session.DistanceMeters, saved.DistanceMeters);
         Assert.Equal(generation.FullTrackId, saved.FullTrack);
 
         Assert.Equal(SessionSnapshot.From(saved), sessions.Get(session.Id));

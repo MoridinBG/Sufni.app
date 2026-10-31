@@ -7,6 +7,21 @@ namespace Sufni.App.Tests.MapsAndTracks.Services;
 public class SessionTrackReaderTests
 {
     [Fact]
+    public async Task GetSessionTrackAsync_EmptyWindowIsAvailableWhenExactFullTrackExists()
+    {
+        var fullReader = Substitute.For<IFullTrackPointReader>();
+        var key = new SessionTrackKey(Guid.NewGuid(), 7, 101, 1, 0);
+        fullReader.GetTrackPointsExactAsync(key.TrackId, 7, Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<TrackPoint>)[new TrackPoint(100, 0, 0, 0), new TrackPoint(110, 1, 1, 1)]);
+        using var reader = new SessionTrackReader(fullReader, new InlineBackgroundTaskRunner());
+
+        var result = await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task GetSessionTrackAsync_DerivesAlignedWindowAndReusesTheSameInputs()
     {
         var fullReader = Substitute.For<IFullTrackPointReader>();

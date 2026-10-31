@@ -277,8 +277,10 @@ owns the shared connection and initialization gate; `DatabaseMigrationRunner`
 owns startup schema work and cleanup; aggregate repositories expose the
 persistence operations and store the values they are given.
 `RecordedSessionReprocessor` produces pure `ProcessedGeneration` values with
-telemetry, GPS points and summary metrics. Import, live-save and recompute owners
+telemetry and GPS points. Import, live-save and recompute owners
 resolve track association and persist those values through `ISessionRepository`.
+`TrackCoordinator` owns the device-local, keyed GPS metrics workflow; metadata
+reads join those values onto session snapshots, and sync never carries them.
 `SessionSyncApplier` owns incoming sync fills/swaps and publication. Its repository
 guards compare the captured fingerprint/revision and complete hub requests atomically. The database file location is platform-specific app
 data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
@@ -347,7 +349,7 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`PairedDeviceCoordinator`,
+  (`TrackCoordinator`, `PairedDeviceCoordinator`,
   `SyncCoordinator`,
   the desktop-only `IInboundSyncCoordinator` /
   `IPairingServerCoordinator` and the mobile-only

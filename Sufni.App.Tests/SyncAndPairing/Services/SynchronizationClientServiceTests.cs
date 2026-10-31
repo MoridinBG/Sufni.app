@@ -267,9 +267,9 @@ public class SynchronizationClientServiceTests
         const string target = """{"target":true}""";
         var targetGeneration = new SessionProcessedGeneration(
             DurationSeconds: 80,
-            DistanceMeters: 20,
-            AscentMeters: 8,
-            DescentMeters: 3,
+
+
+
             FullTrackId: Guid.NewGuid());
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);

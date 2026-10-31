@@ -32,10 +32,11 @@ public class DatabaseMigrationRunnerTests
         {
             legacy.CreateTable<Session>();
             legacy.Execute("ALTER TABLE session ADD COLUMN track TEXT");
+            legacy.Execute("ALTER TABLE session ADD COLUMN distance_meters REAL");
             legacy.Execute("ALTER TABLE session ADD COLUMN track_projection_revision INTEGER NOT NULL DEFAULT 0");
             legacy.Insert(new Session(id, "ride", "notes", null, 100)
             { ProcessedData = bytes, DurationSeconds = 65, DistanceMeters = 123, Updated = 42 });
-            legacy.Execute("UPDATE session SET track = ?, track_projection_revision = 7", "[]");
+            legacy.Execute("UPDATE session SET track = ?, track_projection_revision = 7, distance_meters = 123", "[]");
             legacy.Execute(SessionBlobSwapRequestStore.CreateTableSql);
             legacy.Execute("INSERT INTO session_blob_swap_request VALUES (?, ?, ?)", id, "target",
                 """{"DurationSeconds":65,"DistanceMeters":123,"AscentMeters":null,"DescentMeters":null,"FullTrackId":null,"Track":[]}""");
@@ -46,16 +47,18 @@ public class DatabaseMigrationRunnerTests
             await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
             await context.Initialization;
             var columns = await context.Connection.GetTableInfoAsync("session");
-            Assert.DoesNotContain(columns, column => column.Name is "track" or "track_projection_revision");
+            Assert.DoesNotContain(columns, column => column.Name is "track" or "track_projection_revision" or "distance_meters" or "ascent_meters" or "descent_meters");
             var generation = await context.Connection.ExecuteScalarAsync<string>(
                 "SELECT target_generation FROM session_blob_swap_request WHERE session_id = ?", id);
             using var document = JsonDocument.Parse(generation);
             Assert.False(document.RootElement.TryGetProperty("Track", out _));
             Assert.Equal(65, document.RootElement.GetProperty("DurationSeconds").GetDouble());
-            var row = await context.Connection.FindAsync<Session>(id);
-            Assert.Equal(bytes, row.ProcessedData);
+            var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider());
+            var row = (await repository.GetSessionAsync(id))!;
+            Assert.Equal(bytes, await repository.GetSessionRawPsstAsync(id));
             Assert.Equal(65, row.DurationSeconds);
             Assert.Equal(123, row.DistanceMeters);
+            Assert.Null(row.GpsMetricsKey);
             Assert.Equal("notes", row.Description);
             Assert.Equal(42, row.Updated);
         }
@@ -551,12 +554,16 @@ public class DatabaseMigrationRunnerTests
         using var connection = new SQLiteConnection(databasePath);
         var sessionColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session)");
         var sourceColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session_recording_source)");
+        var metricColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session_gps_metrics)");
 
         Assert.Contains(sessionColumns, column => column.Name == "session_processing_fingerprint");
         Assert.Contains(sessionColumns, column => column.Name == "duration_seconds");
-        Assert.Contains(sessionColumns, column => column.Name == "distance_meters");
-        Assert.Contains(sessionColumns, column => column.Name == "ascent_meters");
-        Assert.Contains(sessionColumns, column => column.Name == "descent_meters");
+        Assert.DoesNotContain(sessionColumns, column => column.Name == "distance_meters");
+        Assert.Contains(metricColumns, column => column.Name == "distance_meters");
+        Assert.DoesNotContain(sessionColumns, column => column.Name == "ascent_meters");
+        Assert.Contains(metricColumns, column => column.Name == "ascent_meters");
+        Assert.DoesNotContain(sessionColumns, column => column.Name == "descent_meters");
+        Assert.Contains(metricColumns, column => column.Name == "descent_meters");
         Assert.Contains(sourceColumns, column => column.Name == "session_id");
         Assert.Contains(sourceColumns, column => column.Name == "source_kind");
         Assert.Contains(sourceColumns, column => column.Name == "source_name");
@@ -970,12 +977,16 @@ public class DatabaseMigrationRunnerTests
 
         using var verificationConnection = new SQLiteConnection(databasePath);
         var columns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(session)");
+        var metricColumns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(session_gps_metrics)");
 
         Assert.Contains(columns, column => column.Name == "session_processing_fingerprint");
         Assert.Contains(columns, column => column.Name == "duration_seconds");
-        Assert.Contains(columns, column => column.Name == "distance_meters");
-        Assert.Contains(columns, column => column.Name == "ascent_meters");
-        Assert.Contains(columns, column => column.Name == "descent_meters");
+        Assert.DoesNotContain(columns, column => column.Name == "distance_meters");
+        Assert.Contains(metricColumns, column => column.Name == "distance_meters");
+        Assert.DoesNotContain(columns, column => column.Name == "ascent_meters");
+        Assert.Contains(metricColumns, column => column.Name == "ascent_meters");
+        Assert.DoesNotContain(columns, column => column.Name == "descent_meters");
+        Assert.Contains(metricColumns, column => column.Name == "descent_meters");
     }
 
     [Theory]
@@ -1059,9 +1070,9 @@ public class DatabaseMigrationRunnerTests
 
         var generation = new SessionProcessedGeneration(
             DurationSeconds: 80,
-            DistanceMeters: 20,
-            AscentMeters: 8,
-            DescentMeters: 3,
+
+
+
             FullTrackId: Guid.NewGuid());
         verificationConnection.Execute(
             $"UPDATE {SessionBlobSwapRequestStore.TableName} SET target_generation = ? WHERE session_id = ?",

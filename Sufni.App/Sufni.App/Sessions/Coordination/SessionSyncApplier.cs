@@ -127,9 +127,8 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         }
         else
         {
-            var prepared = new SessionSummaryMetrics(SessionSummaryMetricsCalculator.NormalizeDuration(telemetry.Metadata?.Duration ?? current.DurationSeconds),
-                current.DistanceMeters, current.AscentMeters, current.DescentMeters);
-            committed = await sessionRepository.UpdateSessionPsstAsync(expected.Id, payload.Data, payload.Fingerprint, prepared, guard);
+            var duration = SessionDuration.Normalize(telemetry.Metadata?.Duration ?? current.DurationSeconds);
+            committed = await sessionRepository.UpdateSessionPsstAsync(expected.Id, payload.Data, payload.Fingerprint, duration, guard);
         }
         if (!committed) return SessionDataApplyResult.Superseded;
         var fresh = await sessionRepository.GetSessionAsync(expected.Id);

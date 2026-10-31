@@ -29,6 +29,8 @@ public class TrackCoordinatorTests
     private readonly ISessionTrackReader sessionTrackReader = Substitute.For<ISessionTrackReader>();
     private readonly IFullTrackPointReader fullTrackPointReader = Substitute.For<IFullTrackPointReader>();
 
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ITrackStoreWriter trackStore = Substitute.For<ITrackStoreWriter>();
 
     private TrackCoordinator CreateCoordinator(ITrackStoreWriter? tracks = null) => new(
@@ -40,7 +42,7 @@ public class TrackCoordinatorTests
         sessionTrackReader,
         fullTrackPointReader,
         new GpxTrackReader(),
-        tracks ?? trackStore);
+        tracks ?? trackStore, sessionStore, new InlineUiThreadDispatcher(), publication);
 
     [Fact]
     public async Task ImportGpxAsync_PublishesPersistedTrackMetadata()
@@ -224,7 +226,7 @@ public class TrackCoordinatorTests
         Assert.Equal("notes", session.Description);
         await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         await sessionRepository.DidNotReceive().UpdateGpsAlignmentAsync(
-            Arg.Any<Guid>(), Arg.Any<SessionSummaryMetrics>(), Arg.Any<double>());
+            Arg.Any<Guid>(), Arg.Any<double>());
     }
 
     [Fact]

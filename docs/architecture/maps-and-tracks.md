@@ -79,7 +79,12 @@ migration.
 
 `GpsTrackPointProjection` (`Sufni.App/Sufni.App/MapsAndTracks/Models/GpsTrackPointProjection.cs`) is the single projection helper. `TryProject(record)` returns `null` for unusable fixes; the live path uses it per-record while accumulating GPS frames so a session track can grow incrementally, and falls back to `ProjectAll` if a record arrives out of order.
 
-`SessionSummaryMetricsCalculator` derives the compact list-summary GPS values from the same projected `TrackPoint` data, not from Mapsui. It converts finite spherical-mercator `X`/`Y` points back to lon/lat and sums haversine ground distance, so the stored distance is not distorted by map projection scale. Ascent and descent use finite elevation samples with a small hysteresis threshold so sub-threshold GPS altitude noise does not accumulate as climbing. `SessionRepository` stores those derived values on the `session` row as nullable `distance_meters`, `ascent_meters`, and `descent_meters`; it also stores `duration_seconds` from `TelemetryData.Metadata.Duration`.
+`GpsMetricsCalculator` (`MapsAndTracks/Models/`) derives distance, ascent and
+descent from a projected session window. It converts finite spherical-mercator
+coordinates back to lon/lat for haversine ground distance and applies the existing
+three-metre elevation hysteresis. Algorithm version 1 participates in the metrics
+key. Duration remains part of processed session metadata; it is normalized by
+`SessionDuration` independently of GPS metrics.
 
 `TrackStore` exposes metadata snapshots (content ID, fractional bounds and points
 revision) through read-only and writer interfaces. Full refresh loads these
@@ -108,18 +113,39 @@ and revalidates the token after the load, including a changed track selection.
 wire. The stored `full_track_id` remains on write/sync paths but no longer drives
 map or comparison reads.
 
+`TrackCoordinator` owns the device-local GPS metric materialization. Committed
+session/track publications cause it to capture immutable metadata and evaluate
+`SessionGpsMetricsQuery` off-thread. The key contains selected track content ID,
+timestamp, duration, GPS offset, fractional window origin, track projection version
+and metrics algorithm version. Local points revisions affect exact reads but never
+metric identity. A stored-key mismatch starts one computation for that session;
+a changed key supersedes its old work. No other workflow requests this recompute.
+
+The worker derives the window and computes metrics off-thread. `ITrackRepository`
+repeats the current-key comparison inside the SQLite transaction before writing
+`session_gps_metrics`. Publication rechecks the current inputs and changes only the
+metric fields/key on the current session snapshot, preserving intervening authored
+metadata. Existing metrics remain visible until replacement, with no pending state.
+An empty available window produces empty metrics with a current key; an unavailable
+exact point payload retains the previous materialization. Failed work logs once
+and leaves its key stale. The next relevant commit or startup can retry it.
+
+The singleton owns its commit subscription, coalesced input evaluation and all
+current/displaced metric tasks. Startup resolves it before server activity;
+`AppShutdown` stops intake, cancels work and awaits drainage before disposal.
+
 GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync(sessionId,
 deltaSeconds)`. It reads the persisted session and current processed telemetry, adds the delta
 to the stored offset, selects the full track for that aligned window through the
-same overlap rule, and regenerates the session window. It computes summary metrics using the stored duration (or the
-telemetry duration when absent), persists the offset and metrics, then
-publishes the session snapshot. `GpsOffsetResult` distinguishes `Applied`,
+same overlap rule, and checks that the window contains points. It persists only
+the authored offset, then publishes the session snapshot. The metrics owner reacts
+to that new input independently. `GpsOffsetResult` distinguishes `Applied`,
 `NoMatchingTrack`, `SessionMissing` and `Failed`. The editor sends only the delta
 between its GPS and telemetry marks; the watch reaction refreshes the displayed
 track. Alignment is authored state and syncs immediately with session metadata.
 Metadata draft saves and processed-generation swaps preserve it.
 
-`ISessionLoader.LoadDetailAsync` returns decoded, validated telemetry without waiting for track resolution, so `SessionDetailViewModel` can publish the first usable Signals state. The same active load token then calls `ISessionLoader.LoadTrackAsync`; a current completion augments that loaded state with `SessionTrackPresentationData`, while cancellation, unload, or a newer load prevents the late track result from publishing. A track failure retains the existing final failed-load outcome. Import, recompute and live-save receive projected GPS points and metrics in the reprocessor's pure `ProcessedGeneration`. Each workflow creates or reuses a full `Track`, resolves an existing association when needed, prepares the session and commits the session/source/track transaction through `ISessionRepository`. The generation scopes an existing track through the same `SessionTrackProjection` helper used by reads. If a processed session has no generated track and no existing `FullTrack`, the requesting workflow links it to the active track with the **tightest** time window covering the session timestamp — `ITrackRepository.FindTrackContainingTimestampAsync` orders by `(end_time - start_time)`, then `start_time`, then `id`, so overlapping candidate windows resolve deterministically to the closest-fitting track. These persisted write-path associations no longer determine the selected track on read.
+`ISessionLoader.LoadDetailAsync` returns decoded, validated telemetry without waiting for track resolution, so `SessionDetailViewModel` can publish the first usable Signals state. The same active load token then calls `ISessionLoader.LoadTrackAsync`; a current completion augments that loaded state with `SessionTrackPresentationData`, while cancellation, unload, or a newer load prevents the late track result from publishing. A track failure retains the existing final failed-load outcome. Import, recompute and live-save receive projected GPS points in the reprocessor's pure `ProcessedGeneration`. Each workflow creates or reuses a full `Track`, resolves an existing association when needed, prepares the session and commits the session/source/track transaction through `ISessionRepository`. If a processed session has no generated track and no existing `FullTrack`, the requesting workflow links it to the active track with the **tightest** time window covering the session timestamp — `ITrackRepository.FindTrackContainingTimestampAsync` orders by `(end_time - start_time)`, then `start_time`, then `id`, so overlapping candidate windows resolve deterministically to the closest-fitting track. These persisted write-path associations no longer determine the selected track on read.
 
 ## Tile Layer Service
 

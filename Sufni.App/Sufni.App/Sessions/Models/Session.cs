@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json.Serialization;
 using SQLite;
+using Sufni.App.MapsAndTracks.Models;
 
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Sessions.Models;
@@ -45,16 +46,16 @@ public class Session : Synchronizable
     [Column("duration_seconds")]
     public double? DurationSeconds { get; set; }
 
-    [JsonPropertyName("distance_meters"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Column("distance_meters")]
+    [JsonIgnore, Ignore]
+    public GpsMetricsKey? GpsMetricsKey { get; set; }
+
+    [JsonIgnore, Ignore]
     public double? DistanceMeters { get; set; }
 
-    [JsonPropertyName("ascent_meters"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Column("ascent_meters")]
+    [JsonIgnore, Ignore]
     public double? AscentMeters { get; set; }
 
-    [JsonPropertyName("descent_meters"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Column("descent_meters")]
+    [JsonIgnore, Ignore]
     public double? DescentMeters { get; set; }
 
     [JsonPropertyName("full_track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.SyncAndPairing.Coordinators;
@@ -26,6 +27,7 @@ public sealed class AppShutdown(
     ISessionRecomputeEngine recompute,
     IPendingDeletes pendingDeletes,
     IBackgroundTaskRunner backgroundTaskRunner,
+    ITrackCoordinator tracks,
     ISynchronizationServerService? server = null) : IAppShutdown
 {
     private Task<bool>? request;
@@ -59,7 +61,7 @@ public sealed class AppShutdown(
             workspace.CloseTab(tab, rememberForRestore: false);
         }
 
-        await Task.WhenAll(startup.StopAsync(), imports.StopAsync(), sync.StopAsync(), recompute.StopAsync());
+        await Task.WhenAll(startup.StopAsync(), imports.StopAsync(), sync.StopAsync(), recompute.StopAsync(), tracks.StopAsync());
         await pendingDeletes.FinalizeAllAsync();
         if (server is not null) await backgroundTaskRunner.RunAsync(server.StopAsync);
         await disposeServices();

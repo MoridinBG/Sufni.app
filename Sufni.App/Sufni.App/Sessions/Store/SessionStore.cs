@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,8 @@ namespace Sufni.App.Sessions.Store;
 internal sealed class SessionStore(StorePublication publication)
     : SourceCacheStoreBase<SessionSnapshot, Guid>(session => session.Id, publication), ISessionStoreWriter
 {
+    public IReadOnlyList<SessionSnapshot> GetAll() => Items.ToArray();
+
     public IObservable<SessionSnapshot> Watch(Guid id) =>
         WatchCore(id).Where(change => change.Reason is ChangeReason.Add or ChangeReason.Update)
             .Select(change => change.Current);

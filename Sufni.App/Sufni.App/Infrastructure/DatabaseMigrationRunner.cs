@@ -35,7 +35,7 @@ internal sealed class DatabaseMigrationRunner(
         await EnsureSyncCursorColumnsAsync();
         await EnsureSyncIndexesAsync();
         await EnsureSessionProcessingFingerprintColumnAsync();
-        await EnsureSessionSummaryMetricColumnsAsync();
+        await EnsureSessionDurationColumnAsync();
         await EnsureSessionGpsOffsetColumnAsync();
         await EnsureLocalContentRevisionColumnsAndTriggersAsync();
         await EnsureBikeDampingSpeedCutoffColumnsAsync();
@@ -72,6 +72,18 @@ internal sealed class DatabaseMigrationRunner(
 
     private Task MigrateTrackMaterializationsAsync() => coreMigrations.ApplyAsync("track-materializations", transaction =>
     {
+        transaction.Execute("""
+            CREATE TABLE session_gps_metrics (
+                session_id TEXT PRIMARY KEY NOT NULL,
+                gps_metrics_key TEXT NOT NULL,
+                distance_meters REAL,
+                ascent_meters REAL,
+                descent_meters REAL)
+            """);
+        var columns = transaction.GetTableInfo("session").Select(column => column.Name).ToHashSet();
+        string[] gpsColumns = ["distance_meters", "ascent_meters", "descent_meters"];
+        var values = string.Join(", ", gpsColumns.Select(column => columns.Contains(column) ? column : "NULL"));
+        transaction.Execute($"INSERT INTO session_gps_metrics SELECT id, '', {values} FROM session");
         var groups = transaction.Table<Track>().ToList()
             .Where(track => track.HasPoints)
             .GroupBy(track => TrackContentHash.Compute(track.Points))
@@ -91,7 +103,7 @@ internal sealed class DatabaseMigrationRunner(
                      "SELECT session_id, target_generation FROM session_blob_swap_request WHERE target_generation IS NOT NULL"))
             transaction.Execute("UPDATE session_blob_swap_request SET target_generation = ? WHERE session_id = ?",
                 AppJson.Serialize(AppJson.Deserialize<SessionProcessedGeneration>(row.Generation)), row.SessionId);
-        foreach (var column in new[] { "track", "track_projection_revision" })
+        foreach (var column in new[] { "track", "track_projection_revision", "distance_meters", "ascent_meters", "descent_meters" })
             if (transaction.GetTableInfo("session").Any(info => info.Name == column))
                 transaction.Execute($"ALTER TABLE session DROP COLUMN {column}");
     });
@@ -277,12 +289,8 @@ internal sealed class DatabaseMigrationRunner(
     private Task EnsureSessionProcessingFingerprintColumnAsync() =>
         EnsureColumnsAsync("session", ("session_processing_fingerprint", "TEXT"));
 
-    private Task EnsureSessionSummaryMetricColumnsAsync() =>
-        EnsureColumnsAsync(
-            "session",
-            SessionSummaryMetricColumnNames
-                .Select(static columnName => (columnName, "REAL"))
-                .ToArray());
+    private Task EnsureSessionDurationColumnAsync() =>
+        EnsureColumnsAsync("session", ("duration_seconds", "REAL"));
 
     private async Task EnsureSessionGpsOffsetColumnAsync()
     {
@@ -568,6 +576,7 @@ internal sealed class DatabaseMigrationRunner(
         var oneDayAgo = timeProvider.GetLocalNow().AddDays(-1).ToUnixTimeSeconds();
 
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
+        await connection.ExecuteAsync("DELETE FROM session_gps_metrics WHERE session_id NOT IN (SELECT id FROM session)");
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
         deletedSegments += await connection.ExecuteAsync(
             "DELETE FROM session_segment WHERE session_id NOT IN (SELECT id FROM session)");
@@ -588,14 +597,6 @@ internal sealed class DatabaseMigrationRunner(
             deletedBikes,
             deletedPairedDevices);
     }
-
-    private static readonly string[] SessionSummaryMetricColumnNames =
-    [
-        "duration_seconds",
-        "distance_meters",
-        "ascent_meters",
-        "descent_meters"
-    ];
 
     private static readonly string[] DampingSpeedCutoffColumnNames =
     [

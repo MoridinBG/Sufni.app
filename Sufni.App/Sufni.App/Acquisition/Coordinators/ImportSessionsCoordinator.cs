@@ -336,9 +336,6 @@ public class ImportSessionsCoordinator(
                             if (newTrack is null && session.Timestamp is { } timestamp)
                             {
                                 fullTrackId = await trackRepository.FindTrackContainingTimestampAsync(timestamp);
-                                if (fullTrackId is { } trackId &&
-                                    (await trackRepository.GetTracksByIdsAsync([trackId])).FirstOrDefault() is { } track)
-                                    generation = generation.WithTrackWindow(track, SessionSnapshot.From(session));
                             }
                             var prepared = generation.CreateSession(SessionSnapshot.From(session), fullTrackId);
                             var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);

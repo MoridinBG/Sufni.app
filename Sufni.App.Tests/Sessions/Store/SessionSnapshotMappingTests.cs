@@ -8,7 +8,7 @@ namespace Sufni.App.Tests.Sessions.Store;
 public class SessionSnapshotMappingTests
 {
     [Fact]
-    public void ToMetadataEntity_PreservesMetadataWithoutClaimingPayloadAvailability()
+    public void ToMetadataEntity_ExcludesReadOnlyMaterializations()
     {
         var snapshot = new SessionSnapshot(
             Id: Guid.NewGuid(),
@@ -40,7 +40,7 @@ public class SessionSnapshotMappingTests
         var roundTrip = SessionSnapshot.From(entity);
 
         Assert.Null(entity.ProcessedData);
-        Assert.Equal(snapshot with { HasProcessedData = false }, roundTrip);
+        Assert.Equal(snapshot with { HasProcessedData = false, DistanceMeters = null, AscentMeters = null, DescentMeters = null, GpsMetricsKey = null }, roundTrip);
     }
 
     [Fact]

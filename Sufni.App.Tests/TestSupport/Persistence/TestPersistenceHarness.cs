@@ -48,6 +48,15 @@ internal sealed class TestPersistenceHarness
         syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService, this.timeProvider);
     }
 
+    public async Task SeedGpsMetricsAsync(Guid sessionId, GpsMetrics metrics)
+    {
+        var connection = await context.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync("""
+            INSERT OR REPLACE INTO session_gps_metrics (session_id, gps_metrics_key, distance_meters, ascent_meters, descent_meters)
+            VALUES (?, '', ?, ?, ?)
+            """, sessionId, metrics.DistanceMeters, metrics.AscentMeters, metrics.DescentMeters);
+    }
+
     public ISessionRepository SessionRepository => sessionRepository;
     public ITrackRepository TrackRepository => trackRepository;
 

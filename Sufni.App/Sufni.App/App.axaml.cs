@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Shared.Views;
 using System;
@@ -148,6 +149,7 @@ public partial class App : Application
 
         _ = shellRoot.StartAsync(() =>
         {
+            _ = Services.GetRequiredService<ITrackCoordinator>();
             _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
             _ = Services.GetRequiredService<ISyncCoordinator>();
             ResolveCapabilityEagerServices(Services, root.Capabilities);

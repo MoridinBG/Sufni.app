@@ -3,26 +3,24 @@ using System.Collections.Generic;
 using System.Linq;
 using Mapsui.Projections;
 
-using Sufni.App.MapsAndTracks.Models;
-namespace Sufni.App.Sessions.Models;
+namespace Sufni.App.MapsAndTracks.Models;
 
-public sealed record SessionSummaryMetrics(
-    double? DurationSeconds,
+public sealed record GpsMetrics(
     double? DistanceMeters,
     double? AscentMeters,
     double? DescentMeters);
 
-internal static class SessionSummaryMetricsCalculator
+internal static class GpsMetricsCalculator
 {
+    public const int AlgorithmVersion = 1;
     private const double ElevationNoiseThresholdMeters = 3.0;
 
-    public static SessionSummaryMetrics Calculate(double? durationSeconds, IReadOnlyList<TrackPoint>? points)
+    public static GpsMetrics Calculate(IReadOnlyList<TrackPoint>? points)
     {
-        var duration = NormalizeDuration(durationSeconds);
         var distance = CalculateDistance(points);
         var (ascent, descent) = CalculateElevationGain(points);
 
-        return new SessionSummaryMetrics(duration, distance, ascent, descent);
+        return new GpsMetrics(distance, ascent, descent);
     }
 
     private static double? CalculateDistance(IReadOnlyList<TrackPoint>? points)
@@ -83,9 +81,6 @@ internal static class SessionSummaryMetricsCalculator
 
         return (ascent, descent);
     }
-
-    public static double? NormalizeDuration(double? value) =>
-        value is { } number && double.IsFinite(number) && number >= 0 ? number : null;
 
     private static List<TrackPoint>? FilterFinitePositionPoints(IReadOnlyList<TrackPoint>? points) =>
         points?

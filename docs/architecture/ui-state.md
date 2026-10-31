@@ -101,12 +101,11 @@ Session deletion publishes the track removal returned by its transaction, and
 recompute removes an old orphan after its deletion commits. Direct inbound sync
 publication remains part of the sync ownership migration.
 
-`SessionSnapshot` is metadata-only: it carries `HasProcessedData` derived by the
-repository's SQL metadata projection (no BLOB load or persisted availability flag),
-`ProcessingFingerprintJson`, and the nullable list-summary metrics
-(`DurationSeconds`, `DistanceMeters`, `AscentMeters`, `DescentMeters`),
-but not the MessagePack telemetry BLOB and not the raw recorded source.
-Those large payloads stay in SQLite and are loaded on demand.
+`SessionSnapshot` is metadata-only: it carries BLOB availability projected from
+`data IS NOT NULL`, the processing fingerprint and duration. Session reads join
+GPS distance/ascent/descent and `GpsMetricsKey` from the device-local metric table
+onto the same snapshot. Metadata write models and sync payloads exclude those
+GPS values. Telemetry and raw-source payloads remain in SQLite and load on demand.
 
 `SessionStore` additionally exposes `Watch(Guid)`, a low-level per-id
 observable filtered to `Add`/`Update` change reasons. Recorded-session

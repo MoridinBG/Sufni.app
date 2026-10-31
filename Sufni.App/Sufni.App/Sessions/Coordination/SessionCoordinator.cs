@@ -142,9 +142,8 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                     return new GpsOffsetResult.NoMatchingTrack();
                 var points = SessionTrackProjection.GenerateSessionTrack(track, timestamp, duration, offset);
                 if (points is not { Count: > 0 }) return new GpsOffsetResult.NoMatchingTrack();
-                var metrics = SessionSummaryMetricsCalculator.Calculate(current.DurationSeconds ?? telemetry.Metadata.Duration, points);
                 cancellationToken.ThrowIfCancellationRequested();
-                await sessionRepository.UpdateGpsAlignmentAsync(sessionId, metrics, offset);
+                await sessionRepository.UpdateGpsAlignmentAsync(sessionId, offset);
                 var fresh = await sessionRepository.GetSessionAsync(sessionId);
                 if (fresh is null)
                 {
@@ -244,8 +243,6 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 {
                     if (fullTrackId is null && session.Timestamp is { } timestamp)
                         fullTrackId = await trackQueries.FindTrackContainingTimestampAsync(timestamp);
-                    if (fullTrackId is { } trackId && await trackRepository.GetAsync(trackId) is { } track)
-                        generation = generation.WithTrackWindow(track, sessionSnapshot);
                 }
                 var prepared = generation.CreateSession(sessionSnapshot, fullTrackId);
                 var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);

@@ -67,7 +67,7 @@ public class SessionCoordinatorTests
     [Theory]
     [InlineData(null)]
     [InlineData(65.0)]
-    public async Task ShiftGpsOffsetAsync_UsesPersistedOffset_AndPublishesTrackMetrics(double? storedDuration)
+    public async Task ShiftGpsOffsetAsync_PersistsOffsetWithoutWritingGpsMetrics(double? storedDuration)
     {
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(20));
         var repository = new InMemorySessionRepository(clock);
@@ -80,8 +80,8 @@ public class SessionCoordinatorTests
         Assert.IsType<GpsOffsetResult.Applied>(result);
         var saved = (await repository.Repository.GetSessionAsync(original.Id))!;
         Assert.Equal(2.5, saved.GpsOffsetSeconds);
-        Assert.Equal(storedDuration ?? 3, saved.DurationSeconds);
-        Assert.True(saved.DistanceMeters > 0);
+        Assert.Equal(storedDuration, saved.DurationSeconds);
+        Assert.Null(saved.DistanceMeters);
         Assert.Equal(20, saved.Updated);
         Assert.Equal(SessionSnapshot.From(saved), store.Get(original.Id));
     }
@@ -297,7 +297,7 @@ public class SessionCoordinatorTests
         Assert.Equal(RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId, saved.SessionId);
         Assert.NotEqual(session.Id, saved.SessionId);
         Assert.Equal(track.Id, persisted.FullTrack);
-        Assert.True(persisted.DistanceMeters > 0);
+        Assert.Null(persisted.DistanceMeters);
         Assert.Equal(capture.TelemetryCapture.Metadata.Duration, persisted.DurationSeconds);
         Assert.Equal(SessionSnapshot.From(persisted), store.Get(saved.SessionId));
         var bytes = await repository.Repository.GetSessionRawPsstAsync(saved.SessionId);

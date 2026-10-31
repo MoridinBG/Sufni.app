@@ -380,9 +380,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             {
                 if (fullTrackId is null && persisted.Timestamp is { } timestamp)
                     fullTrackId = await trackQueries.FindTrackContainingTimestampAsync(timestamp);
-                var track = previousFullTrack ?? (fullTrackId is { } trackId
-                    ? await trackEntityRepository.GetAsync(trackId) : null);
-                if (track is not null) generation = generation.WithTrackWindow(track, SessionSnapshot.From(persisted));
             }
             var prepared = generation.CreateSession(SessionSnapshot.From(persisted), fullTrackId);
 

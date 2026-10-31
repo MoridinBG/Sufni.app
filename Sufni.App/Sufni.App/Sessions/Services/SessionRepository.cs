@@ -72,7 +72,7 @@ public interface ISessionRepository
         Track? newFullTrack,
         SessionProcessingInputBundle expectedInputs);
 
-    Task<bool> UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, SessionSummaryMetrics metrics, SessionProcessedWriteGuard expected);
+    Task<bool> UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson, double? durationSeconds, SessionProcessedWriteGuard expected);
 
     Task<bool> UpdateSessionProcessedGenerationAsync(
         Guid id,
@@ -83,7 +83,6 @@ public interface ISessionRepository
 
     Task UpdateGpsAlignmentAsync(
         Guid id,
-        SessionSummaryMetrics metrics,
         double gpsOffsetSeconds);
 }
 
@@ -124,6 +123,7 @@ internal sealed class SessionRepository(
                                                                      distance_meters,
                                                                       ascent_meters,
                                                                       descent_meters,
+                                                                      gps_metrics_key,
                                                                       full_track_id,
                                                                       gps_offset_seconds,
                                                                       source_session_id,
@@ -153,9 +153,6 @@ internal sealed class SessionRepository(
     // Derived writes preserve authored fields and never resurrect deleted sessions.
     private const string DerivedSessionUpdateAssignments = """
                                                            duration_seconds=?,
-                                                           distance_meters=?,
-                                                           ascent_meters=?,
-                                                           descent_meters=?,
                                                            full_track_id=?,
                                                            session_processing_fingerprint=?,
                                                            data=?
@@ -212,7 +209,7 @@ internal sealed class SessionRepository(
                      SELECT
                          {ActiveSessionMetadataProjection}
                      FROM
-                         session
+                         session LEFT JOIN session_gps_metrics gps ON gps.session_id = session.id
                      WHERE
                          deleted IS NULL
                      ORDER BY timestamp DESC
@@ -228,7 +225,7 @@ internal sealed class SessionRepository(
                      SELECT
                          {ActiveSessionMetadataProjection}
                      FROM
-                         session
+                         session LEFT JOIN session_gps_metrics gps ON gps.session_id = session.id
                      WHERE
                          deleted IS NULL AND id = ?
                      """;
@@ -485,7 +482,7 @@ internal sealed class SessionRepository(
     }
 
     public Task<bool> UpdateSessionPsstAsync(Guid id, byte[] data, string? fingerprintJson,
-        SessionSummaryMetrics metrics, SessionProcessedWriteGuard expected) =>
+        double? durationSeconds, SessionProcessedWriteGuard expected) =>
         connectionContext.RunInTransactionAsync(connection =>
         {
             if (!SessionBlobSwapRequestStore.MatchesInTransaction(connection, id, expected.PendingSwapFingerprint)) return false;
@@ -493,11 +490,11 @@ internal sealed class SessionRepository(
                 $"""
                 UPDATE session
                 SET data=?, {SessionSqlProjection.ProcessingFingerprintColumn}=?,
-                    duration_seconds=?, distance_meters=?, ascent_meters=?, descent_meters=?
+                    duration_seconds=?
                 WHERE id=? AND deleted IS NULL
                   AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
                 """,
-                data, fingerprintJson, metrics.DurationSeconds, metrics.DistanceMeters, metrics.AscentMeters, metrics.DescentMeters,
+                data, fingerprintJson, durationSeconds,
                 id, expected.Fingerprint, expected.Revision);
             if (updated > 0 && expected.PendingSwapFingerprint is not null)
                 SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
@@ -514,12 +511,11 @@ internal sealed class SessionRepository(
                 $"""
                 UPDATE session
                 SET data=?, {SessionSqlProjection.ProcessingFingerprintColumn}=?,
-                    duration_seconds=?, distance_meters=?, ascent_meters=?, descent_meters=?, full_track_id=?
+                    duration_seconds=?, full_track_id=?
                 WHERE id=? AND deleted IS NULL
                   AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
                 """,
-                data, fingerprintJson, generation.DurationSeconds, generation.DistanceMeters, generation.AscentMeters,
-                generation.DescentMeters, generation.FullTrackId, id, expected.Fingerprint, expected.Revision);
+                data, fingerprintJson, generation.DurationSeconds, generation.FullTrackId, id, expected.Fingerprint, expected.Revision);
             if (updated > 0 && expected.PendingSwapFingerprint is not null)
                 SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
             return updated > 0;
@@ -528,7 +524,6 @@ internal sealed class SessionRepository(
 
     public async Task UpdateGpsAlignmentAsync(
         Guid id,
-        SessionSummaryMetrics metrics,
         double gpsOffsetSeconds)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
@@ -538,18 +533,10 @@ internal sealed class SessionRepository(
             """
             UPDATE session
             SET
-                duration_seconds=?,
-                distance_meters=?,
-                ascent_meters=?,
-                descent_meters=?,
                 gps_offset_seconds=?,
                 updated=?
             WHERE id=? AND deleted IS NULL
             """,
-            metrics.DurationSeconds,
-            metrics.DistanceMeters,
-            metrics.AscentMeters,
-            metrics.DescentMeters,
             gpsOffsetSeconds,
             now,
             id);
@@ -564,9 +551,6 @@ internal sealed class SessionRepository(
     private static object?[] CreateDerivedDataUpdateValuesWithId(Session session) =>
     [
         session.DurationSeconds,
-        session.DistanceMeters,
-        session.AscentMeters,
-        session.DescentMeters,
         session.FullTrack,
         session.ProcessingFingerprintJson,
         session.ProcessedData,

@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Acquisition.Coordinators;
@@ -77,7 +78,10 @@ public class AppShutdownTests
             serverStopped = true;
             return Task.CompletedTask;
         });
-        var shutdown = Create(workspace, pending, imports, server);
+        var metricsDrain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tracks = TestCoordinatorSubstitutes.Track();
+        tracks.StopAsync().Returns(metricsDrain.Task);
+        var shutdown = Create(workspace, pending, imports, server, tracks);
         var disposed = false;
         var flushed = false;
 
@@ -93,6 +97,10 @@ public class AppShutdownTests
         Assert.True(pending.IsPending(key));
         Assert.False(serverStopped);
         drain.SetResult();
+        Assert.False(run.IsCompleted);
+        Assert.True(pending.IsPending(key));
+        Assert.False(serverStopped);
+        metricsDrain.SetResult();
         Assert.True(await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
         Assert.True(disposed);
         Assert.True(flushed);
@@ -130,7 +138,7 @@ public class AppShutdownTests
     private static ShellWorkspaceViewModel CreateWorkspace() => new(new InlineUiThreadDispatcher(), new FakeTimeProvider());
 
     private static AppShutdown Create(ShellWorkspaceViewModel workspace, IPendingDeletes pending,
-        IImportSessionsCoordinator imports, ISynchronizationServerService? server = null) =>
+        IImportSessionsCoordinator imports, ISynchronizationServerService? server = null, ITrackCoordinator? tracks = null) =>
         new(workspace, Substitute.For<IAppStartup>(), imports, TestCoordinatorSubstitutes.Sync(),
-            Substitute.For<ISessionRecomputeEngine>(), pending, new InlineBackgroundTaskRunner(), server);
+            Substitute.For<ISessionRecomputeEngine>(), pending, new InlineBackgroundTaskRunner(), tracks ?? TestCoordinatorSubstitutes.Track(), server);
 }

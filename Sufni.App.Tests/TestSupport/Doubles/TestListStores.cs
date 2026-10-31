@@ -86,6 +86,8 @@ internal sealed class PairedDeviceStoreStub : IPairedDeviceStore
 
 internal sealed class SessionStoreStub : ISessionStore, IDisposable
 {
+    public IReadOnlyList<SessionSnapshot> GetAll() => cache.Items.ToArray();
+
     private readonly SourceCache<SessionSnapshot, Guid> cache = new(snapshot => snapshot.Id);
 
     public IObservable<IChangeSet<SessionSnapshot, Guid>> Connect() => cache.Connect();

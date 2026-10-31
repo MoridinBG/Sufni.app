@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using DynamicData;
 
 namespace Sufni.App.Sessions.Store;
@@ -28,5 +29,6 @@ public interface ISessionStore
     /// the store (e.g. never loaded, or deleted).
     /// </summary>
     SessionSnapshot? Get(Guid id);
+    IReadOnlyList<SessionSnapshot> GetAll();
 
 }

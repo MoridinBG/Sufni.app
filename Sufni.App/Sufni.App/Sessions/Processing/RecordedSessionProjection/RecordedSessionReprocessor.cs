@@ -16,7 +16,7 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 /// <summary>
 /// Rebuilds processed telemetry from a persisted recorded raw source.
 /// It decodes the source payload, reconstructs the bike processing context,
-/// projects GPS points and summary metrics, and returns the matching fingerprint.
+/// projects GPS points, and returns the matching fingerprint.
 /// </summary>
 internal sealed class RecordedSessionReprocessor(
     IProcessingFingerprintService fingerprintService,
