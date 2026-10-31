@@ -32,7 +32,6 @@ public class SessionContentReaderTests
         sessionRepository.GetSessionsAsync().Returns([
             new Session(linkedSessionId, "Linked", "", setup: null, timestamp: 1000)
             {
-                FullTrack = fullTrackId,
                 DurationSeconds = 20,
                 GpsOffsetSeconds = 1.5,
                 Updated = 12,
@@ -84,7 +83,6 @@ public class SessionContentReaderTests
             setup: null,
             timestamp: 1000)
         {
-            FullTrack = fullTrackId,
             Updated = 12,
             DurationSeconds = 20,
 
@@ -285,7 +283,7 @@ public class SessionContentReaderTests
         long? fullTrackPointsRevision = null) =>
         new(
             session.ProcessedTelemetryRevision,
-            session.FullTrack,
+            null,
             fullTrackPointsRevision,
             session.Timestamp,
             session.DurationSeconds,

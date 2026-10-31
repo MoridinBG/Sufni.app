@@ -70,7 +70,7 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
             new SessionDetailData(
                 new SessionTelemetryPresentationData(
                     telemetryData,
-                    session?.FullTrackId,
+                    null,
                     fullTrackPoints is List<TrackPoint> fullTrackList ? fullTrackList : fullTrackPoints?.ToList(),
                     trackPoints is List<TrackPoint> trackList ? trackList : trackPoints?.ToList(),
                     mediaColumnWidth)),

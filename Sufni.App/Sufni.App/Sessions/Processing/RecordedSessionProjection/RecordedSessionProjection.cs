@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
 using System;
 using System.Collections.Generic;
@@ -17,6 +19,8 @@ namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDisposable
 {
     private readonly ISessionStore sessionStore;
+    private readonly ITrackStore trackStore;
+    private long trackGeneration;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly IRecordedSessionSourceStore sourceStore;
@@ -41,9 +45,9 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication)
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore)
         : this(sessionStore, setupStore, bikeStore, sourceStore, fingerprintService,
-            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication,
+            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication, trackStore,
             new UiThreadRecordedSessionProjectionScheduler(dispatcher))
     {
     }
@@ -52,10 +56,11 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication,
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore,
         IRecordedSessionProjectionScheduler scheduler)
     {
         this.sessionStore = sessionStore;
+        this.trackStore = trackStore;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
         this.sourceStore = sourceStore;
@@ -71,6 +76,15 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             QueueForSetups(changes.Where(change => change.Reason is ChangeReason.Add or ChangeReason.Remove).Select(change => change.Key))));
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
         subscriptions.Add(dependencyHashIndex.Connect().Subscribe(change => QueueForSetups([change.SetupId])));
+        subscriptions.Add(trackStore.Connect().Subscribe(_ =>
+        {
+            lock (stateGate)
+            {
+                if (disposed) return;
+                trackGeneration++;
+                pendingRecomputeIds.UnionWith(sessionToSetup.Keys);
+            }
+        }));
         subscriptions.Add(publication.Committed.Subscribe(ApplyCommit));
         SchedulePending();
     }
@@ -175,7 +189,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private void ApplyCommit(StorePublicationCommit commit)
     {
         if (!commit.Stores.Contains(sessionStore) && !commit.Stores.Contains(setupStore) &&
-            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore)) return;
+            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore) && !commit.Stores.Contains(trackStore)) return;
 
         lock (stateGate)
         {
@@ -216,7 +230,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         lock (stateGate)
         {
             if (disposed) return;
-            inputs = pendingRecomputeIds.Select(Capture).OfType<ProjectionInput>().ToArray();
+            var tracks = trackStore.GetAll();
+            inputs = pendingRecomputeIds.Select(id => Capture(id, tracks)).OfType<ProjectionInput>().ToArray();
             pendingRecomputeIds.Clear();
         }
         (ProjectionInput Input, RecordedSessionDomainSnapshot Domain)[] results;
@@ -225,7 +240,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             results = await backgroundTaskRunner.RunAsync(() => inputs.Select(input =>
                 (Input: input, Domain: RecordedSessionDomainSnapshotFactory.Create(
                     input.Session, input.Setup, input.Bike, input.Source,
-                    fingerprintService, input.DependencyHash))).ToArray()).ConfigureAwait(false);
+                    fingerprintService, input.DependencyHash,
+                    SessionTrackSelection.Select(input.Tracks, input.Session.Timestamp, input.Session.DurationSeconds, input.Session.GpsOffsetSeconds)))).ToArray()).ConfigureAwait(false);
         }
         catch
         {
@@ -272,20 +288,20 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         SchedulePending();
     }
 
-    private ProjectionInput? Capture(Guid id)
+    private ProjectionInput? Capture(Guid id, IReadOnlyList<TrackSnapshot> tracks)
     {
         if (sessionStore.Get(id) is not { } session) return null;
         var setup = session.SetupId is { } setupId ? setupStore.Get(setupId) : null;
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
         return new ProjectionInput(session, setup, bike, sourceStore.Get(session.RecordingSourceSessionId),
-            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id));
+            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), tracks, trackGeneration);
     }
 
     private bool IsCurrent(ProjectionInput input)
     {
-        var current = Capture(input.Session.Id);
+        var current = Capture(input.Session.Id, input.Tracks);
         if (current is null) return false;
-        if (input.Session == current.Session && input.Setup == current.Setup &&
+        if (input.TrackGeneration == current.TrackGeneration && input.Session == current.Session && input.Setup == current.Setup &&
             input.Bike == current.Bike && input.Source == current.Source && input.DependencyHash == current.DependencyHash)
             return true;
         pendingRecomputeIds.Add(input.Session.Id);
@@ -308,7 +324,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     }
 
     private sealed record ProjectionInput(SessionSnapshot Session, SetupSnapshot? Setup, BikeSnapshot? Bike,
-        RecordedSessionSourceSnapshot? Source, string? DependencyHash);
+        RecordedSessionSourceSnapshot? Source, string? DependencyHash, IReadOnlyList<TrackSnapshot> Tracks, long TrackGeneration);
 
 
 }

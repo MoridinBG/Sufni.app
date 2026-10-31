@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using System.Linq;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -19,6 +20,44 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
 public class RecordedSessionProjectionTests
 {
+    [Fact]
+    public async Task WatchSession_TrackChangesRejectPendingSelection_AndPublishTheCurrentSelection()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        var runner = new DeferredBackgroundTaskRunner();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler, runner);
+        var context = CreateCurrentContext(fingerprints);
+        context = context with { Session = context.Session with { Timestamp = 100, DurationSeconds = 20 } };
+        var initial = new TrackSnapshot(Guid.NewGuid(), 100, 110, 1);
+        var fuller = new TrackSnapshot(Guid.NewGuid(), 100, 120, 1);
+        var domains = new List<RecordedSessionDomainSnapshot>();
+        using var watch = projection.WatchSession(context.Session.Id).Subscribe(domains.Add);
+        await stores.AddAsync(context);
+        await stores.Tracks.PublishTracksChangedAsync([initial]);
+        await scheduler.DrainAsync();
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Equal(initial, Assert.Single(domains).SelectedTrack);
+        domains.Clear();
+
+        await stores.Sessions.PublishSessionsChangedAsync([context.Session with { Name = "renamed" }]);
+        await scheduler.DrainAsync();
+        await stores.Tracks.PublishTracksChangedAsync([fuller]);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Empty(domains);
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Equal(fuller, Assert.Single(domains).SelectedTrack);
+        Assert.Equal("renamed", domains[0].Session.Name);
+        Assert.Equal(context.Session.Updated, domains[0].Session.Updated);
+
+        domains.Clear();
+        await stores.Tracks.PublishTracksRemovedAsync([fuller.Id, initial.Id]);
+        await scheduler.DrainAsync();
+        await CompleteEvaluationAsync(runner, scheduler);
+        Assert.Null(Assert.Single(domains).SelectedTrack);
+    }
+
     [Fact]
     public async Task ConnectSessions_BikeEdit_PublishesAllAffectedSummariesInOneUpdate()
     {
@@ -511,6 +550,7 @@ public class RecordedSessionProjectionTests
         public SetupStore Setups { get; }
         public BikeStore Bikes { get; }
         public RecordedSessionSourceStore Sources { get; }
+        public TrackStore Tracks { get; }
         public ProcessingDependencyHashIndex DependencyHashIndex { get; }
         public StorePublication Publication { get; } = new(new InlineUiThreadDispatcher());
 
@@ -520,6 +560,7 @@ public class RecordedSessionProjectionTests
             Setups = new SetupStore(Publication);
             Bikes = new BikeStore(Publication);
             Sources = new RecordedSessionSourceStore(Publication);
+            Tracks = new TrackStore(Publication);
             DependencyHashIndex = new ProcessingDependencyHashIndex(Setups, Bikes);
         }
 
@@ -535,6 +576,7 @@ public class RecordedSessionProjectionTests
             scheduler,
             runner ?? new InlineBackgroundTaskRunner(),
             Publication,
+            Tracks,
             new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
         public async Task AddAsync(TestContext context)
@@ -553,6 +595,7 @@ public class RecordedSessionProjectionTests
             Setups.Dispose();
             Bikes.Dispose();
             Sources.Dispose();
+            Tracks.Dispose();
             Publication.Dispose();
         }
     }

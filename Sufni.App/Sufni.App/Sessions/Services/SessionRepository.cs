@@ -25,8 +25,6 @@ public interface ISessionRepository
 
     Task<List<Guid>> GetActiveSessionIdsAsync();
 
-    Task<bool> HasOtherActiveSessionWithFullTrackAsync(Guid fullTrackId, Guid excludingSessionId);
-
     Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId);
 
     Task<List<Guid>> GetIncompleteSessionIdsAsync();
@@ -61,8 +59,7 @@ public interface ISessionRepository
 
     /// <summary>
     /// Derived-only processed write used by the recompute engine. Writes only the
-    /// derived columns (data, fingerprint, summary metrics,
-    /// full_track_id), optionally inserting a new full track, and never touches
+    /// derived columns (data, fingerprint and duration), optionally inserting a new full track, and never touches
     /// user-authored metadata. In the transaction it compares current database
     /// inputs with <paramref name="expectedInputs"/> captured and validated by
     /// the caller. A changed or missing input rolls back the write and returns null.
@@ -124,7 +121,6 @@ internal sealed class SessionRepository(
                                                                       ascent_meters,
                                                                       descent_meters,
                                                                       gps_metrics_key,
-                                                                      full_track_id,
                                                                       gps_offset_seconds,
                                                                       source_session_id,
                                                                       window_start_seconds,
@@ -153,7 +149,6 @@ internal sealed class SessionRepository(
     // Derived writes preserve authored fields and never resurrect deleted sessions.
     private const string DerivedSessionUpdateAssignments = """
                                                            duration_seconds=?,
-                                                           full_track_id=?,
                                                            session_processing_fingerprint=?,
                                                            data=?
                                                            """;
@@ -245,26 +240,6 @@ internal sealed class SessionRepository(
             ORDER BY timestamp DESC
             """);
         return rows.Select(row => row.Id).ToList();
-    }
-
-    public async Task<bool> HasOtherActiveSessionWithFullTrackAsync(Guid fullTrackId, Guid excludingSessionId)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        var exists = await connection.ExecuteScalarAsync<int>(
-            """
-            SELECT EXISTS(
-                SELECT 1
-                FROM session
-                WHERE deleted IS NULL
-                  AND id <> ?
-                  AND full_track_id = ?
-                LIMIT 1
-            )
-            """,
-            excludingSessionId,
-            fullTrackId);
-        return exists != 0;
     }
 
     public async Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId)
@@ -405,7 +380,6 @@ internal sealed class SessionRepository(
                 if (newFullTrack is not null)
                 {
                     TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds());
-                    session.FullTrack = newFullTrack.Id;
                 }
                 session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
                 session.Deleted = null;
@@ -445,7 +419,6 @@ internal sealed class SessionRepository(
                 if (newFullTrack is not null)
                 {
                     TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds());
-                    session.FullTrack = newFullTrack.Id;
                 }
 
                 var updatedRows = connection.Execute(
@@ -511,11 +484,11 @@ internal sealed class SessionRepository(
                 $"""
                 UPDATE session
                 SET data=?, {SessionSqlProjection.ProcessingFingerprintColumn}=?,
-                    duration_seconds=?, full_track_id=?
+                    duration_seconds=?
                 WHERE id=? AND deleted IS NULL
                   AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
                 """,
-                data, fingerprintJson, generation.DurationSeconds, generation.FullTrackId, id, expected.Fingerprint, expected.Revision);
+                data, fingerprintJson, generation.DurationSeconds, id, expected.Fingerprint, expected.Revision);
             if (updated > 0 && expected.PendingSwapFingerprint is not null)
                 SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
             return updated > 0;
@@ -551,7 +524,6 @@ internal sealed class SessionRepository(
     private static object?[] CreateDerivedDataUpdateValuesWithId(Session session) =>
     [
         session.DurationSeconds,
-        session.FullTrack,
         session.ProcessingFingerprintJson,
         session.ProcessedData,
         session.Id

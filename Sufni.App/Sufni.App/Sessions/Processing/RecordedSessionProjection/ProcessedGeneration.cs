@@ -14,12 +14,11 @@ public sealed record ProcessedGeneration(
     public static ProcessedGeneration Create(ProcessedTelemetryPayload telemetry, IReadOnlyList<TrackPoint>? points) =>
         new(telemetry, points is { Count: > 0 } ? points : null);
 
-    public Session CreateSession(SessionSnapshot metadata, Guid? fullTrackId)
+    public Session CreateSession(SessionSnapshot metadata)
     {
         var session = metadata.ToMetadataEntity();
         session.ProcessedData = ProcessedTelemetry.Data;
         session.ProcessingFingerprintJson = ProcessedTelemetry.FingerprintJson;
-        session.FullTrack = fullTrackId;
         session.DurationSeconds = SessionDuration.Normalize(ProcessedTelemetry.TelemetryData.Metadata.Duration);
         return session;
     }

@@ -20,7 +20,7 @@ public class GpsMetricsRepositoryTests
         var session = new Session(Guid.NewGuid(), "ride", "notes", null, 100) { DurationSeconds = 2, Updated = 42 };
         await connection.InsertAsync(session);
         await connection.InsertAsync(new Track(PersistenceTestData.CreateFullTrack().Points));
-        var tracks = new TrackRepository(context);
+        var tracks = new TrackRepository(context, PersistenceTestData.CreateTimeProvider());
         var sessions = new SessionRepository(context, PersistenceTestData.CreateTimeProvider());
         var key = SessionGpsMetricsQuery.Evaluate(100, 2, 0, 0, await tracks.GetTrackSnapshotsAsync()).Key;
 
@@ -58,7 +58,7 @@ public class GpsMetricsRepositoryTests
         var id = Guid.NewGuid();
         await connection.InsertAsync(new Session(id, "ride", "", null, 100) { DurationSeconds = 2, Updated = 42 });
         await connection.InsertAsync(new Track(PersistenceTestData.CreateFullTrack().Points));
-        var repository = new TrackRepository(context);
+        var repository = new TrackRepository(context, PersistenceTestData.CreateTimeProvider());
         var key = SessionGpsMetricsQuery.Evaluate(100, 2, 0, 0, await repository.GetTrackSnapshotsAsync()).Key;
         Assert.True(await repository.TryCommitGpsMetricsAsync(id, key, new GpsMetrics(5, 4, 3), TestContext.Current.CancellationToken));
         switch (change)

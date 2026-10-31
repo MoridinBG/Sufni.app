@@ -28,7 +28,6 @@ public class SessionRecomputeEngineTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly Sufni.App.MapsAndTracks.Services.ITrackRepository trackQueries = Substitute.For<Sufni.App.MapsAndTracks.Services.ITrackRepository>();
-    private readonly ISynchronizableRepository<Track> trackEntityRepository = Substitute.For<ISynchronizableRepository<Track>>();
     private readonly IRecordedSessionSourceRepository sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
     private readonly IRecordedSessionSourceStoreWriter sourceStore = Substitute.For<IRecordedSessionSourceStoreWriter>();
     private readonly IRecordedSessionDomainQuery domainQuery = Substitute.For<IRecordedSessionDomainQuery>();
@@ -38,7 +37,6 @@ public class SessionRecomputeEngineTests
         store ?? sessionStore,
         repository ?? sessionRepository,
         trackQueries,
-        trackEntityRepository,
         new InlineBackgroundTaskRunner(),
         sourceStore,
         domainQuery,
@@ -48,7 +46,6 @@ public class SessionRecomputeEngineTests
         Substitute.For<ITrackStoreWriter>(),
         new InlineUiThreadDispatcher(),
         new StorePublication(new InlineUiThreadDispatcher()));
-
 
     // Wires a recomputable session: a current-schema domain, a present source whose
     // snapshot matches the domain (so the refresh branch is skipped), a persisted row,

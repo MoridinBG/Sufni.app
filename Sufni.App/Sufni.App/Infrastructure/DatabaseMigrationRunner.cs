@@ -93,7 +93,6 @@ internal sealed class DatabaseMigrationRunner(
             var canonical = group.OrderBy(track => track.Deleted is not null).ThenBy(track => track.Id).First();
             foreach (var track in group)
             {
-                transaction.Execute("UPDATE session SET full_track_id = ? WHERE full_track_id = ?", group.Key, track.Id);
                 transaction.Execute("DELETE FROM track WHERE id = ?", track.Id);
             }
             canonical.Id = group.Key;
@@ -103,7 +102,7 @@ internal sealed class DatabaseMigrationRunner(
                      "SELECT session_id, target_generation FROM session_blob_swap_request WHERE target_generation IS NOT NULL"))
             transaction.Execute("UPDATE session_blob_swap_request SET target_generation = ? WHERE session_id = ?",
                 AppJson.Serialize(AppJson.Deserialize<SessionProcessedGeneration>(row.Generation)), row.SessionId);
-        foreach (var column in new[] { "track", "track_projection_revision", "distance_meters", "ascent_meters", "descent_meters" })
+        foreach (var column in new[] { "track", "track_projection_revision", "full_track_id", "distance_meters", "ascent_meters", "descent_meters" })
             if (transaction.GetTableInfo("session").Any(info => info.Name == column))
                 transaction.Execute($"ALTER TABLE session DROP COLUMN {column}");
     });

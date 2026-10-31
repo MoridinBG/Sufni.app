@@ -220,6 +220,7 @@ public class TrackCoordinator : ITrackCoordinator, IDisposable
 
     public void Dispose()
     {
+        if (disposed) return;
         disposed = true;
         stopping = true;
         metricShutdown.Cancel();

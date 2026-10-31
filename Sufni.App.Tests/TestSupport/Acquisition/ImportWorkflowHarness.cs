@@ -155,7 +155,6 @@ internal sealed class ImportWorkflowHarness
             {
                 var session = callInfo.ArgAt<Session>(0);
                 var track = callInfo.ArgAt<Track?>(1);
-                session.FullTrack = track?.Id;
                 session.Updated = 10;
                 return Task.FromResult(new SessionImportCommitResult(
                     session, RecordedSessionSourceSnapshot.From(callInfo.Arg<RecordedSessionSource>()), false));

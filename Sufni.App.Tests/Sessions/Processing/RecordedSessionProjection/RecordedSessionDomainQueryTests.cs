@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using NSubstitute;
 using Sufni.Telemetry;
 
@@ -125,7 +126,7 @@ public class RecordedSessionDomainQueryTests
             bikeStore,
             sourceStore,
             fingerprintService,
-            dependencyHashIndex);
+            dependencyHashIndex, Substitute.For<ITrackStore>());
 
         var domain = query.Get(context.Session.Id);
 
@@ -217,7 +218,7 @@ public class RecordedSessionDomainQueryTests
         bikeStore,
         sourceStore,
         fingerprintService,
-        dependencyHashIndex);
+        dependencyHashIndex, Substitute.For<ITrackStore>());
 
     private TestContext CreateCurrentContext()
     {

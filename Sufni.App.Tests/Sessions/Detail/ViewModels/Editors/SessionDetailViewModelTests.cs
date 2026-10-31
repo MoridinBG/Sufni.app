@@ -38,6 +38,35 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class SessionDetailViewModelTests
 {
     [AvaloniaFact]
+    public async Task SelectedTrackChange_ReloadsContentWithoutDiscardingDirtyMetadata()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession(updated: 5);
+        using var watch = new Subject<RecordedSessionDomainSnapshot>();
+        var oldTelemetry = TestTelemetryData.CreateProcessed();
+        var freshTelemetry = TestTelemetryData.CreateProcessed();
+        var editor = harness.CreateLoadedRecordedSession(snapshot, harness.CreateLoadedResult(oldTelemetry), watch);
+        await harness.LoadAsync(editor);
+        watch.OnNext(DomainFromSnapshot(snapshot));
+        editor.DescriptionText = "dirty draft";
+        harness.ConfigureLoad(snapshot, harness.CreateLoadedResult(freshTelemetry));
+
+        watch.OnNext(DomainFromSnapshot(snapshot) with
+        {
+            SelectedTrack = new Sufni.App.MapsAndTracks.Stores.TrackSnapshot(Guid.NewGuid(), 100, 120, 1)
+        });
+        await WaitForAsync(() => ReferenceEquals(editor.CurrentTelemetryData, freshTelemetry));
+
+        await harness.SessionLoader.Received(2).LoadDetailAsync(snapshot.Id,
+            Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>());
+        await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
+        Assert.True(editor.IsDirty);
+        Assert.Equal("dirty draft", editor.DescriptionText);
+        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
     public async Task LoadedSession_ProjectsTheFilterOptionFromTheSessionRow()
     {
         var harness = new SessionDetailHarness();

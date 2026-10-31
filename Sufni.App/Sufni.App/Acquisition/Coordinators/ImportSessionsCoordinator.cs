@@ -173,7 +173,7 @@ public class ImportSessionsCoordinator(
             var totalToProcess = files.Count(f => f.Action != ImportFileAction.Ignore);
             var processedCount = 0;
             var progressGate = new object();
-            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported)>();
+            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported, Guid? TrackId)>();
             var failuresQueue = new ConcurrentQueue<SessionImportFailure>();
 
             void Report(SessionImportEvent importEvent)
@@ -332,16 +332,11 @@ public class ImportSessionsCoordinator(
                             var generation = processed.Generation;
                             var newTrack = generation.TrackPoints is { Count: > 0 } points
                                 ? new Track(points) : null;
-                            var fullTrackId = newTrack?.Id;
-                            if (newTrack is null && session.Timestamp is { } timestamp)
-                            {
-                                fullTrackId = await trackRepository.FindTrackContainingTimestampAsync(timestamp);
-                            }
-                            var prepared = generation.CreateSession(SessionSnapshot.From(session), fullTrackId);
+                            var prepared = generation.CreateSession(SessionSnapshot.From(session));
                             var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
 
                             var snapshot = committed.Session is { } persisted ? SessionSnapshot.From(persisted) : null;
-                            committedImports.Add((telemetryFile, snapshot, committed.Source, committed.AlreadyImported));
+                            committedImports.Add((telemetryFile, snapshot, committed.Source, committed.AlreadyImported, newTrack?.Id));
                         }
                         catch (Exception e)
                         {
@@ -393,8 +388,8 @@ public class ImportSessionsCoordinator(
                 try
                 {
                     var sourceSnapshots = committedEntries.Select(entry => entry.Source).ToArray();
-                    var trackIds = importedSnapshots.Where(snapshot => snapshot.FullTrackId.HasValue)
-                        .Select(snapshot => snapshot.FullTrackId!.Value).Distinct().ToArray();
+                    var trackIds = committedEntries.Where(entry => entry.TrackId.HasValue)
+                        .Select(entry => entry.TrackId!.Value).Distinct().ToArray();
                     var tracks = await trackRepository.GetTrackSnapshotsAsync(trackIds);
                     await dispatcher.InvokeAsync(async () =>
                     {

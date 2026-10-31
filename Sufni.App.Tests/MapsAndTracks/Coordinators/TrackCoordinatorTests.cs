@@ -222,7 +222,7 @@ public class TrackCoordinatorTests
         Assert.Equal(first.Id, before.FullTrackId);
         Assert.NotNull(after.FullTrackId);
         Assert.NotEqual(first.Id, after.FullTrackId);
-        Assert.Null(session.FullTrack);
+
         Assert.Equal("notes", session.Description);
         await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
         await sessionRepository.DidNotReceive().UpdateGpsAlignmentAsync(

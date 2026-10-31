@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.MapsAndTracks.Models;
 using System;
 using Sufni.Telemetry;
 
@@ -17,7 +19,8 @@ public sealed class RecordedSessionDomainQuery(
     IBikeStore bikeStore,
     IRecordedSessionSourceStore sourceStore,
     IProcessingFingerprintService fingerprintService,
-    IProcessingDependencyHashIndex dependencyHashIndex) : IRecordedSessionDomainQuery
+    IProcessingDependencyHashIndex dependencyHashIndex,
+    ITrackStore trackStore) : IRecordedSessionDomainQuery
 {
     public RecordedSessionDomainSnapshot? Get(Guid sessionId)
     {
@@ -33,7 +36,8 @@ public sealed class RecordedSessionDomainQuery(
                 setup is null ? null : bikeStore.Get(setup.BikeId),
                 sourceStore.Get(session.RecordingSourceSessionId),
                 fingerprintService,
-                setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id));
+                setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id),
+                SessionTrackSelection.Select(trackStore.GetAll(), session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds));
     }
 }
 
@@ -45,7 +49,8 @@ internal static class RecordedSessionDomainSnapshotFactory
         BikeSnapshot? bike,
         RecordedSessionSourceSnapshot? source,
         IProcessingFingerprintService fingerprintService,
-        string? dependencyHash)
+        string? dependencyHash,
+        TrackSnapshot? selectedTrack = null)
     {
         var effectiveDependencyHash = setup is null || bike is null
             ? null
@@ -60,6 +65,7 @@ internal static class RecordedSessionDomainSnapshotFactory
             evaluation.Persisted,
             source,
             evaluation.Staleness,
-            effectiveDependencyHash);
+            effectiveDependencyHash,
+            selectedTrack);
     }
 }

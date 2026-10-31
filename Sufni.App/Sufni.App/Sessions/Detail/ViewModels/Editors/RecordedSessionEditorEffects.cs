@@ -159,15 +159,15 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         previous.RearLowSpeedRebound != current.RearLowSpeedRebound ||
         previous.RearHighSpeedRebound != current.RearHighSpeedRebound;
 
-    public static bool RequiresTelemetryReload(SessionSnapshot previous, SessionSnapshot current) =>
-        previous.HasProcessedData != current.HasProcessedData ||
-        previous.ProcessedTelemetryRevision != current.ProcessedTelemetryRevision ||
-        previous.ProcessingFingerprintJson != current.ProcessingFingerprintJson ||
-        previous.DerivationWindow != current.DerivationWindow ||
-        previous.FullTrackId != current.FullTrackId ||
-        previous.GpsOffsetSeconds != current.GpsOffsetSeconds ||
-        previous.Timestamp != current.Timestamp ||
-        previous.DurationSeconds != current.DurationSeconds;
+    public static bool RequiresTelemetryReload(RecordedSessionDomainSnapshot previous, RecordedSessionDomainSnapshot current) =>
+        previous.Session.HasProcessedData != current.Session.HasProcessedData ||
+        previous.Session.ProcessedTelemetryRevision != current.Session.ProcessedTelemetryRevision ||
+        previous.Session.ProcessingFingerprintJson != current.Session.ProcessingFingerprintJson ||
+        previous.Session.DerivationWindow != current.Session.DerivationWindow ||
+        previous.SelectedTrack != current.SelectedTrack ||
+        previous.Session.GpsOffsetSeconds != current.Session.GpsOffsetSeconds ||
+        previous.Session.Timestamp != current.Session.Timestamp ||
+        previous.Session.DurationSeconds != current.Session.DurationSeconds;
 
     public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
         IObservable<RecordedSessionEditorState> states) =>

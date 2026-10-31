@@ -14,16 +14,14 @@ public class ProcessedGenerationTests
         var generation = ProcessedGeneration.Create(payload,
             [new TrackPoint(100, 0, 0, 10), new TrackPoint(101, 3, 4, 14), new TrackPoint(102, 6, 8, 10)]);
         var metadata = TestSnapshots.Session(name: "ride", hasProcessedData: false) with { GpsOffsetSeconds = 1.25 };
-        var trackId = Guid.NewGuid();
 
-        var session = generation.CreateSession(metadata, trackId);
+        var session = generation.CreateSession(metadata);
 
         Assert.Equal(3, session.DurationSeconds);
         Assert.Null(session.DistanceMeters);
         Assert.Null(session.AscentMeters);
         Assert.Null(session.DescentMeters);
         Assert.Equal(3, generation.TrackPoints!.Count);
-        Assert.Equal(trackId, session.FullTrack);
         Assert.Equal(1.25, session.GpsOffsetSeconds);
         Assert.Equal(metadata.Name, session.Name);
         Assert.Same(payload.Data, session.ProcessedData);
@@ -39,6 +37,6 @@ public class ProcessedGenerationTests
         var telemetry = TestTelemetryData.CreateMinimal(duration: duration);
         var generation = ProcessedGeneration.Create(new ProcessedTelemetryPayload(telemetry, [], "fingerprint"), null);
 
-        Assert.Null(generation.CreateSession(TestSnapshots.Session(), null).DurationSeconds);
+        Assert.Null(generation.CreateSession(TestSnapshots.Session()).DurationSeconds);
     }
 }

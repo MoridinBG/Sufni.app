@@ -46,7 +46,7 @@ public class SessionSplitSyncTests
         Assert.Equal(5, result.Generation.ProcessedTelemetry.TelemetryData.Metadata.Duration, precision: 3);
         Assert.Equal(500, result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel.Length);
         Assert.NotNull(await target.SessionRepository.UpdateProcessedDerivedDataAsync(
-            result.Generation.CreateSession(part2, fullTrackId: null),
+            result.Generation.CreateSession(part2),
             newFullTrack: null,
             (await target.GetProcessingInputBundleAsync(part2.Id))!));
     }
@@ -74,7 +74,7 @@ public class SessionSplitSyncTests
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(CreateInput(SessionSnapshot.From(session), setup, bike, source), TestContext.Current.CancellationToken));
         var commit = await database.SessionRepository.ImportProcessedSessionAsync(
-            result.Generation.CreateSession(SessionSnapshot.From(session), fullTrackId: null),
+            result.Generation.CreateSession(SessionSnapshot.From(session)),
             newFullTrack: null,
             source);
         var persisted = commit.Session!;

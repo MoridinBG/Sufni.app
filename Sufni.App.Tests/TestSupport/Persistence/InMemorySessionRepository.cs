@@ -33,18 +33,17 @@ internal sealed class InMemorySessionRepository
                 if (existing is not null)
                     return Task.FromResult(new SessionImportCommitResult(ToEntity(snapshots.GetValueOrDefault(existing.SessionId)), existing, true));
                 var session = call.Arg<Session>();
-                if (!snapshots.ContainsKey(session.Id)) PersistProcessed(session, call.Arg<Track?>());
+                if (!snapshots.ContainsKey(session.Id)) PersistProcessed(session);
                 var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
                 sources[session.Id] = sourceSnapshot;
                 return Task.FromResult(new SessionImportCommitResult(ToEntity(snapshots[session.Id]), sourceSnapshot, false));
             });
 
-        Session PersistProcessed(Session session, Track? track)
+        Session PersistProcessed(Session session)
         {
             var snapshot = SessionSnapshot.From(session) with
             {
                 Updated = clock.GetUtcNow().ToUnixTimeSeconds(),
-                FullTrackId = track?.Id ?? session.FullTrack
             };
             snapshots[session.Id] = snapshot;
             if (session.ProcessedData is { } bytes) telemetry[session.Id] = bytes;
@@ -78,10 +77,6 @@ internal sealed class InMemorySessionRepository
                 ProcessedTelemetryRevision = current.ProcessedTelemetryRevision + (changed ? 1 : 0),
                 DurationSeconds = duration
             };
-            if (generation is not null)
-            {
-                saved = saved with { FullTrackId = generation.FullTrackId };
-            }
             snapshots[id] = saved;
             telemetry[id] = bytes;
             swaps.Remove(id);
@@ -133,7 +128,6 @@ internal sealed class InMemorySessionRepository
                     GpsOffsetSeconds = current.GpsOffsetSeconds,
                     HasProcessedData = current.HasProcessedData,
                     ProcessingFingerprintJson = current.ProcessingFingerprintJson,
-                    FullTrackId = current.FullTrackId,
                     DurationSeconds = current.DurationSeconds,
                     DistanceMeters = current.DistanceMeters,
                     AscentMeters = current.AscentMeters,

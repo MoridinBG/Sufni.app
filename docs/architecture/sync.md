@@ -120,10 +120,9 @@ uses that clock for certificate validity and the 30-second token-refresh margin.
 
 The metadata snapshot's one `upper_bound` applies to every core table and app
 preferences. Core delta queries include updates and
-tombstones only in `(sinceExclusive, upperInclusive]`; tracks added because a
-changed session references them are also constrained to `updated <=
-upperInclusive`, so related-row expansion cannot leak a later generation into
-the response.
+tombstones only in `(sinceExclusive, upperInclusive]`. Tracks are independent
+captured facts with the same delta bounds; a changed session does not resend
+unchanged tracks.
 
 The four blob/source transfer phases run with bounded client concurrency
 (`SyncTransferDop = 3`). Session pulls preserve fill-before-swap phasing:
@@ -161,9 +160,9 @@ or write repositories, so publication does not duplicate the persistence operati
 
 ### Processed-BLOB coherence (download-then-swap)
 
-`session.data` (the processed telemetry blob) never travels in `SynchronizationData`; only metadata does. Because a recompute can replace an *existing* blob — not just fill a missing one — the protocol keeps one invariant: **the processed generation describes one coherent result**. A generation contains the blob and fingerprint plus `duration_seconds` and `full_track_id`; those values are retained or replaced together. GPS metrics and their key are device-local and never travel in metadata or generation payloads.
+`session.data` (the processed telemetry blob) never travels in `SynchronizationData`; only metadata does. Because a recompute can replace an *existing* blob — not just fill a missing one — the protocol keeps one invariant: **the processed generation describes one coherent result**. A generation contains the blob and fingerprint plus `duration_seconds`; those values are retained or replaced together. GPS metrics and their key are device-local and never travel in metadata or generation payloads.
 
-- **Deferred metadata merge.** When an inbound metadata update arrives for a row that already holds a blob, both merge paths — the client pull (`ApplyRemoteSession`) and the desktop hub's push merge (`MergeSessionMetadata`) — apply independent user metadata, including authored GPS alignment, but retain the complete held processed generation. Alignment is never held for a BLOB or overwritten by its later arrival. The row therefore never advertises a fingerprint, duration or track linkage from bytes it does not yet hold.
+- **Deferred metadata merge.** When an inbound metadata update arrives for a row that already holds a blob, both merge paths — the client pull (`ApplyRemoteSession`) and the desktop hub's push merge (`MergeSessionMetadata`) — apply independent user metadata, including authored GPS alignment, but retain the complete held processed generation. Alignment is never held for a BLOB or overwritten by its later arrival. The row therefore never advertises a fingerprint or duration from bytes it does not yet hold.
 - **Transient pull-swap set.** During the client's pull, every deferred row whose held fingerprint differs from the accepted remote fingerprint — when **both are current-schema** and the row has the raw source of the incoming session (its `source_session_id` when present, otherwise the session id) — is queued as a *swap* containing the id, target fingerprint, and accepted target generation. The set is never persisted; it is re-derived from the metadata delta each run. A network error or an unresolved swap (`404` or fingerprint mismatch) holds `last_pull_time` back, so the next run re-pulls the same delta and retries. Fills are not swaps — they are re-derived every run from `data IS NULL` regardless of the watermark, so they are never lost.
 - **Validate and match before commit.** `SessionSyncApplier` validates transferred MessagePack and its advertised target fingerprint. The client captures an immutable held-session snapshot before downloading. The repository compares that fingerprint and telemetry revision in the commit transaction; an intervening recompute or transfer supersedes the write without replacing data or publishing stale snapshots. Complete swaps install the accepted `SessionProcessedGeneration`; fingerprint-only requests normalize duration from the validated bytes. Neither path advances `updated`. Invalid bytes leave the current generation untouched. Unresolved client swaps retain the pull cursor for retry; session detail loading never fetches missing BLOBs.
 - **Hub push-swap (push direction).** The desktop hub runs no pull phase, so to *receive* a recomputed blob for a row it already holds it records a durable push-swap request during the same transaction as the deferred metadata merge. `session_blob_swap_request` stores the session id, target fingerprint, and serialized target generation; legacy rows without `target_generation` remain readable. A request is created only when the incoming current-schema fingerprint is eligible against the hub's current database inputs while the held one is not (or when the referenced source has not arrived yet, preserving the accepted target until source sync completes). Invalid/legacy/equal/ineligible targets clear the request. For derived sessions, the input probe resolves the source through the incoming derivation window. `GET /session/incomplete` advertises requests alongside data-null fills; `PATCH /session/data` validates the bytes and commits the coherent generation only for a matching target, and clears the matching request in the same transaction. A non-matching push-swap upload is ignored (`204`, not `400`) and leaves the request pending.
@@ -187,7 +186,7 @@ SynchronizationData
 ├── Boards[]
 ├── Bikes[] (includes `rear_suspension` union JSON)
 ├── Setups[]
-├── Sessions[] (metadata, tuning fields, full-track link, processing fingerprint; no blob)
+├── Sessions[] (metadata, tuning fields, duration, processing fingerprint; no blob)
 ├── Tracks[]
 ├── Segments[] (saved segments, JSON `segment`)
 └── AppPreferences? (map/session preferences as AppPreferencesSyncData)

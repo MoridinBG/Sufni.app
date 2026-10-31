@@ -16,7 +16,7 @@ public class SessionSnapshotMappingTests
             Description: "description",
             SetupId: Guid.NewGuid(),
             Timestamp: 1_700_000_000,
-            FullTrackId: Guid.NewGuid(),
+
             HasProcessedData: true,
             ProcessingFingerprintJson: """{"schemaVersion":7}""",
             FrontSpringRate: "80 psi",
@@ -76,7 +76,7 @@ public class SessionSnapshotMappingTests
         Assert.NotNull(loaded);
         Assert.Equal("renamed", loaded!.Name);
         Assert.Equal("metadata only", loaded.Description);
-        Assert.Equal(processed.FullTrack, loaded.FullTrack);
+
         Assert.Equal(processed.ProcessingFingerprintJson, loaded.ProcessingFingerprintJson);
         Assert.True(loaded.HasProcessedData);
         Assert.Equal(processed.DurationSeconds, loaded.DurationSeconds);

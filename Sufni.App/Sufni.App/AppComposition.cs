@@ -185,7 +185,6 @@ public static class AppComposition
             sp.GetRequiredService<ISessionStoreWriter>(),
             sp.GetRequiredService<ISessionRepository>(),
             sp.GetRequiredService<ITrackRepository>(),
-            sp.GetRequiredService<ISynchronizableRepository<Track>>(),
             sp.GetRequiredService<IBackgroundTaskRunner>(),
             sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),

@@ -142,7 +142,7 @@ architecture.
 
 `IRecordedSessionProjection` is the read-side projection for recorded
 session screens. It tracks changes in `ISessionStore`, `ISetupStore`,
-`IRecordedSessionSourceStore` and `IProcessingDependencyHashIndex`, then schedules
+`IRecordedSessionSourceStore`, `ITrackStore` and `IProcessingDependencyHashIndex`, then schedules
 work from `StorePublication.Committed` for those source stores (including bikes).
 The dependency hash index owns
 the processing-relevant setup/bike store edge. The projection joins
@@ -161,7 +161,7 @@ window is part of the session snapshot), evaluates processing staleness, and pub
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
   persisted fingerprint, source metadata (of the session's recording
-  source), and staleness result. It carries facts, with no emitted-change flags.
+  source), selected track metadata, and staleness result. It carries facts, with no emitted-change flags.
 
 The recorded detail editor compares each domain against its last handled domain,
 so deferred updates are compared with the state the editor actually consumed.
@@ -181,7 +181,7 @@ emission (e.g. a recompute result) refreshes telemetry but does **not**
 advance the baseline past the unacknowledged metadata edit, so it cannot
 silently clear the pending conflict; the pin lifts only when the conflict
 resolves (reload, save, or absorb).
-`FullTrackId`/`GpsOffsetSeconds` affect telemetry/track reloads rather than draft reconciliation, so a recompute or GPS-offset adjustment refreshes
+Selected track metadata and `GpsOffsetSeconds` affect telemetry/track reloads rather than draft reconciliation, so a recompute or GPS-offset adjustment refreshes
 the track without a discard prompt.
 
 Recompute and GPS-offset adjustment are one-way: they persist and upsert
@@ -210,11 +210,12 @@ reused within the open editor until the inputs change or the editor is disposed.
 
 Projection recomputes are coalesced through the existing
 `IRecordedSessionProjectionScheduler`; its UI-background-priority callback captures
-the current session/setup/bike/source snapshots and dependency hashes. Fingerprint
-and staleness evaluation runs through `IBackgroundTaskRunner`, outside the UI
+the current session/setup/bike/source snapshots, one track-catalog snapshot and dependency hashes. Fingerprint
+staleness and track selection evaluation runs through `IBackgroundTaskRunner`, outside the UI
 thread. A single later dispatcher publication batch edits all affected summaries
 and emits their domain snapshots. Inputs are checked again before publication;
 obsolete results are discarded and the current inputs are evaluated instead.
+Track changes queue all sessions; a changed catalog rejects a pending selection before publication.
 The projection's own commit names only the projection, so it cannot trigger itself.
 
 Consumers retain the previous result while the same session is being refreshed.

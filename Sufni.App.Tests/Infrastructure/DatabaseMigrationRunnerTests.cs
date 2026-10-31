@@ -52,6 +52,7 @@ public class DatabaseMigrationRunnerTests
                 "SELECT target_generation FROM session_blob_swap_request WHERE session_id = ?", id);
             using var document = JsonDocument.Parse(generation);
             Assert.False(document.RootElement.TryGetProperty("Track", out _));
+            Assert.False(document.RootElement.TryGetProperty("FullTrackId", out _));
             Assert.Equal(65, document.RootElement.GetProperty("DurationSeconds").GetDouble());
             var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider());
             var row = (await repository.GetSessionAsync(id))!;
@@ -589,7 +590,7 @@ public class DatabaseMigrationRunnerTests
                 ProcessingFingerprintJson = "fingerprint",
 
                 DurationSeconds = 1,
-                FullTrack = trackId,
+
                 Updated = 10,
             });
             connection.Insert(new Track
@@ -750,8 +751,8 @@ public class DatabaseMigrationRunnerTests
 
         using var connection = new SQLiteConnection(tempDatabase.DatabasePath);
         connection.Execute(
-            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, timestamp, duration_seconds, gps_offset_seconds, full_track_id, processed_telemetry_revision, updated, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 99, ?, NULL)",
-            sessionId, "session", string.Empty, new byte[] { 1 }, "a", 100, 1.0, 0.0, trackId, 10);
+            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, timestamp, duration_seconds, gps_offset_seconds, processed_telemetry_revision, updated, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 99, ?, NULL)",
+            sessionId, "session", string.Empty, new byte[] { 1 }, "a", 100, 1.0, 0.0, 10);
         connection.Execute(
             "INSERT INTO track (id, points, start_time, end_time, points_revision, updated, deleted) VALUES (?, ?, 100, 100, 99, ?, NULL)",
             trackId, points, 11);
@@ -1069,11 +1070,7 @@ public class DatabaseMigrationRunnerTests
             column => column.Name == "target_generation");
 
         var generation = new SessionProcessedGeneration(
-            DurationSeconds: 80,
-
-
-
-            FullTrackId: Guid.NewGuid());
+            DurationSeconds: 80);
         verificationConnection.Execute(
             $"UPDATE {SessionBlobSwapRequestStore.TableName} SET target_generation = ? WHERE session_id = ?",
             AppJson.Serialize(generation),
@@ -1292,13 +1289,21 @@ public class DatabaseMigrationRunnerTests
         var deletedContent = PersistenceTestData.CreateFullTrack();
         deletedContent.Points[0].Y = 20;
         deletedContent.Deleted = now;
-        Track[] tracks = [lowestDeleted, canonical, otherActive, otherContent, contentlessTombstone, deletedContent];
+        deletedContent.Id = new Guid("00000000-0000-0000-0000-000000000004");
+        deletedContent.Updated = 45;
+        var laterDeleted = new Track(deletedContent.Points)
+        {
+            Id = new Guid("00000000-0000-0000-0000-000000000005"),
+            Deleted = now, Updated = 99
+        };
+        Track[] tracks = [lowestDeleted, canonical, otherActive, otherContent, contentlessTombstone, deletedContent, laterDeleted];
         var sessions = tracks.Where(track => track.HasPoints).Select(track => new Session(
-            Guid.NewGuid(), "ride", "notes", null, 100) { FullTrack = track.Id, Updated = 12 }).ToArray();
+            Guid.NewGuid(), "ride", "notes", null, 100) { Updated = 12 }).ToArray();
         using (var legacy = new SQLiteConnection(temp.DatabasePath))
         {
             legacy.CreateTable<Track>();
             legacy.CreateTable<Session>();
+            legacy.Execute("ALTER TABLE session ADD COLUMN full_track_id TEXT");
             foreach (var track in reverseOrder ? tracks.Reverse() : tracks) legacy.Insert(track);
             foreach (var session in sessions) legacy.Insert(session);
         }
@@ -1308,6 +1313,7 @@ public class DatabaseMigrationRunnerTests
             await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath, clock);
             await context.Initialization;
             var actual = await context.Connection.Table<Track>().ToListAsync();
+            Assert.DoesNotContain(await context.Connection.QueryAsync<TableColumnInfo>("PRAGMA table_info(session)"), column => column.Name == "full_track_id");
             Assert.Equal(4, actual.Count);
             var kept = Assert.Single(actual, track => track.Id == TrackContentHash.Compute(canonical.Points));
             Assert.Null(kept.Deleted);
@@ -1316,12 +1322,11 @@ public class DatabaseMigrationRunnerTests
             Assert.Equal(canonical.PointsJson, kept.PointsJson);
             Assert.Contains(actual, track => track.Id == TrackContentHash.Compute(otherContent.Points));
             Assert.Contains(actual, track => track.Id == contentlessTombstone.Id && track.Deleted == now);
-            Assert.Contains(actual, track => track.Id == TrackContentHash.Compute(deletedContent.Points) && track.Deleted == now);
+            Assert.Contains(actual, track => track.Id == TrackContentHash.Compute(deletedContent.Points) && track.Deleted == now && track.Updated == 45);
             foreach (var session in sessions)
             {
                 var migrated = await context.Connection.FindAsync<Session>(session.Id);
-                var originalTrack = tracks.Single(track => track.Id == session.FullTrack);
-                Assert.Equal(TrackContentHash.Compute(originalTrack.Points), migrated.FullTrack);
+
                 Assert.Equal(12, migrated.Updated);
             }
         }

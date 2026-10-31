@@ -132,7 +132,7 @@ public class SessionCoordinatorTests
         trackRepository.Seed(track);
         trackStore.GetAll().Returns([new TrackSnapshot(track.Id, track.StartTime, track.EndTime, 1)]);
         var snapshot = TestSnapshots.Session(hasProcessedData: true, updated: 5, timestamp: telemetry.Metadata.Timestamp)
-            with { FullTrackId = null, GpsOffsetSeconds = 1.25, DurationSeconds = storedDuration };
+            with { GpsOffsetSeconds = 1.25, DurationSeconds = storedDuration };
         repository.Seed(snapshot);
         processedTelemetryReader.Set(snapshot.Id, telemetry);
         return snapshot;
@@ -274,17 +274,11 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveLiveCaptureAsync_AssociatesStoredTrack_AndPublishesPreparedGeneration()
+    public async Task SaveLiveCaptureAsync_PublishesPreparedGeneration_WithoutGps()
     {
         var capture = CreateLiveCapturePackage(withGps: false);
         SeedLiveCaptureDependencies(capture);
         var timestamp = capture.TelemetryCapture.Metadata.Timestamp;
-        var track = new Track
-        {
-            Points = Enumerable.Range(0, 4).Select(index => new TrackPoint(timestamp + index, index, index, 100 + index * 4)).ToList()
-        };
-        trackRepository.Seed(track);
-        trackQueries.FindTrackContainingTimestampAsync(timestamp).Returns(track.Id);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         using var store = new SessionStore(publication);
         var session = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, timestamp);
@@ -296,7 +290,7 @@ public class SessionCoordinatorTests
         var persisted = (await repository.Repository.GetSessionAsync(saved.SessionId))!;
         Assert.Equal(RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId, saved.SessionId);
         Assert.NotEqual(session.Id, saved.SessionId);
-        Assert.Equal(track.Id, persisted.FullTrack);
+
         Assert.Null(persisted.DistanceMeters);
         Assert.Equal(capture.TelemetryCapture.Metadata.Duration, persisted.DurationSeconds);
         Assert.Equal(SessionSnapshot.From(persisted), store.Get(saved.SessionId));
@@ -320,7 +314,7 @@ public class SessionCoordinatorTests
         var id = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId;
         var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source, TrackSnapshot? Track)>();
         using var subscription = publication.Committed.Subscribe(_ => observed.Add((sessions.Get(id), sources.Get(id),
-            sessions.Get(id)?.FullTrackId is { } trackId ? tracks.Get(trackId) : null)));
+            tracks.GetAll().SingleOrDefault())));
 
         var result = await coordinator.SaveLiveCaptureAsync(
             new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId),
@@ -330,7 +324,7 @@ public class SessionCoordinatorTests
         var committed = Assert.Single(observed);
         Assert.Equal(id, committed.Session!.Id);
         Assert.Equal(id, committed.Source!.SessionId);
-        Assert.Equal(committed.Session.FullTrackId, committed.Track!.Id);
+        Assert.NotNull(committed.Track);
         Assert.Equal(7, committed.Track.PointsRevision);
     }
 
@@ -378,7 +372,7 @@ public class SessionCoordinatorTests
         var persisted = (await repository.Repository.GetSessionAsync(saved.SessionId))!;
         Assert.Equal(SessionSnapshot.From(persisted), sessions.Get(saved.SessionId));
         Assert.Equal(RecordedSessionSourceSnapshot.From(expectedSource), sources.Get(saved.SessionId));
-        Assert.NotNull(persisted.FullTrack);
+
         Assert.NotEmpty((await repository.Repository.GetSessionRawPsstAsync(saved.SessionId))!);
         await repository.Repository.Received(1).ImportProcessedSessionAsync(Arg.Any<Session>(),
             Arg.Is<Track>(track => track.Points.Count == 1 && track.Points[0].FixMode == 3 &&

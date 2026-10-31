@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
 using Avalonia;
@@ -667,7 +668,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         var token = loadOperation.Start();
         var currentSnapshot = sessionStore.Get(Id);
-        var mapExpected = currentSnapshot?.FullTrackId is not null;
+        var mapExpected = currentEditorState.Domain?.SelectedTrack is not null;
         if (currentSnapshot?.HasProcessedData == true)
         {
             presentationApplier.ClearRecordedPresentation();
@@ -949,16 +950,17 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             // The initial replay already matches the loaded state, so only real
             // changes drive the derived/metadata reaction.
-            await ApplyDomainReactionAsync(previous.Session, domain.Session);
+            await ApplyDomainReactionAsync(previous, domain);
         }
 
         await stalenessReconciler.HandleStalenessAsync(domain);
     }
 
-    private async Task ApplyDomainReactionAsync(SessionSnapshot previous, SessionSnapshot snapshot)
+    private async Task ApplyDomainReactionAsync(RecordedSessionDomainSnapshot previous, RecordedSessionDomainSnapshot current)
     {
-        var metadataChanged = RecordedSessionEditorEffects.RequiresDraftReconciliation(previous, snapshot);
-        var reloadTelemetry = RecordedSessionEditorEffects.RequiresTelemetryReload(previous, snapshot);
+        var snapshot = current.Session;
+        var metadataChanged = RecordedSessionEditorEffects.RequiresDraftReconciliation(previous.Session, snapshot);
+        var reloadTelemetry = RecordedSessionEditorEffects.RequiresTelemetryReload(previous, current);
 
         if (metadataChanged && IsDirty)
         {
@@ -1020,7 +1022,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void RefreshDerivedState(SessionSnapshot snapshot)
     {
-        session.FullTrack = snapshot.FullTrackId;
         session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
         session.Updated = snapshot.Updated;
         sessionSnapshot = snapshot;
@@ -1401,7 +1402,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISessionOperationRunner sessionOperationRunner,
         TimeProvider timeProvider,
         IBikeCoordinator? bikeCoordinator = null,
-        IVideoPaneFactory? videoPaneFactory = null)
+        IVideoPaneFactory? videoPaneFactory = null,
+        TrackSnapshot? initialTrack = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         ArgumentNullException.ThrowIfNull(sessionPreferences);
@@ -1664,7 +1666,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             presentationApplier.ApplyRecordedLoadingStates();
             PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
-                snapshot.FullTrackId is not null,
+                initialTrack is not null,
                 SessionDetailLoadProgress.PreparingSession,
                 snapshot));
         }
@@ -1822,7 +1824,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void ApplyRuntimeSessionState(SessionSnapshot snapshot)
     {
-        session.FullTrack = snapshot.FullTrackId;
         session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
         session.Updated = snapshot.Updated;
     }
@@ -2210,7 +2211,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             RearLowSpeedCompression = NotesPage.ShockSettings.LowSpeedCompression,
             RearLowSpeedRebound = NotesPage.ShockSettings.LowSpeedRebound,
             RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
-            FullTrack = session.FullTrack,
             GpsOffsetSeconds = session.GpsOffsetSeconds,
         };
 

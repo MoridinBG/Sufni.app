@@ -51,7 +51,6 @@ public interface ISyncDataStore
 
 internal sealed class SynchronizationMergeEngine(
     SqliteConnectionContext connectionContext,
-    ITrackRepository trackRepository,
     IProcessingFingerprintService fingerprintService,
     TimeProvider timeProvider) : ISyncDataStore
 {
@@ -63,7 +62,6 @@ internal sealed class SynchronizationMergeEngine(
                                                                       timestamp,
                                                                       velocity_filter_window_ms,
                                                                       duration_seconds,
-                                                                       full_track_id,
                                                                        gps_offset_seconds,
                                                                        source_session_id,
                                                                        window_start_seconds,
@@ -86,7 +84,6 @@ internal sealed class SynchronizationMergeEngine(
                                                                   timestamp=?,
                                                                   velocity_filter_window_ms=?,
                                                                   duration_seconds=?,
-                                                                   full_track_id=?,
                                                                    gps_offset_seconds=?,
                                                                    session_processing_fingerprint=?,
                                                                   source_session_id=?,
@@ -148,21 +145,6 @@ internal sealed class SynchronizationMergeEngine(
         var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
         var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
         var segments = await GetChangedAsync<SessionSegment>(connection, sinceExclusive, upperInclusive);
-
-        var changedTrackIds = tracks.Select(track => track.Id).ToHashSet();
-        var relatedTrackIds = sessions
-            .Where(session => session.Deleted is null && session.FullTrack.HasValue)
-            .Select(session => session.FullTrack!.Value)
-            .Where(trackId => !changedTrackIds.Contains(trackId))
-            .Distinct()
-            .ToList();
-
-        if (relatedTrackIds.Count > 0)
-        {
-            tracks.AddRange(await trackRepository.GetTracksByIdsForSynchronizationAsync(
-                relatedTrackIds,
-                upperInclusive));
-        }
 
         return new SynchronizationData
         {
@@ -632,7 +614,6 @@ internal sealed class SynchronizationMergeEngine(
         session.Timestamp,
         session.VelocityFilterWindowMilliseconds,
         session.DurationSeconds,
-        session.FullTrack,
         SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
         session.SourceSessionId,

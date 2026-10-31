@@ -24,14 +24,14 @@ public class SessionPersistenceTransactionRunnerTests
         await connection.InsertAsync(track);
         await connection.InsertAsync(new Session(sessionId, "session", "desc", null)
         {
-            FullTrack = track.Id,
+            Timestamp = 100, DurationSeconds = 1,
             Updated = 10
         });
         await sourceRepository.PutRecordedSessionSourceAsync(source);
         if (shared)
             await connection.InsertAsync(new Session(Guid.NewGuid(), "other", "", null)
             {
-                FullTrack = track.Id,
+                Timestamp = 100, DurationSeconds = 1,
                 Deleted = otherDeleted ? 1 : null
             });
 

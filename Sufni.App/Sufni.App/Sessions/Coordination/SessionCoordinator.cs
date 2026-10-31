@@ -238,13 +238,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var generation = processed.Generation;
                 var newTrack = generation.TrackPoints is { Count: > 0 } points
                     ? new Track(points) : null;
-                var fullTrackId = newTrack?.Id ?? session.FullTrack;
-                if (newTrack is null)
-                {
-                    if (fullTrackId is null && session.Timestamp is { } timestamp)
-                        fullTrackId = await trackQueries.FindTrackContainingTimestampAsync(timestamp);
-                }
-                var prepared = generation.CreateSession(sessionSnapshot, fullTrackId);
+                var prepared = generation.CreateSession(sessionSnapshot);
                 var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
                 var fresh = committed.Session
                     ?? throw new InvalidOperationException("The capture source exists, but its recorded session is no longer available.");
@@ -262,7 +256,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 string? publicationWarning = null;
                 try
                 {
-                    var tracks = await trackQueries.GetTrackSnapshotsAsync(snapshot.FullTrackId is { } id ? [id] : []);
+                    var tracks = await trackQueries.GetTrackSnapshotsAsync(newTrack is { } track ? [track.Id] : []);
                     await dispatcher.InvokeAsync(async () =>
                     {
                         using var batch = publication.BeginBatch();

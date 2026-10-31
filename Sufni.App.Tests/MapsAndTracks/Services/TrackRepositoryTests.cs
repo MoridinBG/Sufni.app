@@ -1,4 +1,5 @@
 using SQLite;
+using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
@@ -9,6 +10,29 @@ namespace Sufni.App.Tests.MapsAndTracks.Services;
 
 public class TrackRepositoryTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task DeleteIfUnselectedAsync_RetainsOnlyTracksSelectedByAnActiveSession(bool fullerTrack, bool deletedSession)
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath);
+        var candidate = new Track([new TrackPoint(100, 1, 1, 10), new TrackPoint(110, 2, 2, 11)]);
+        await database.PutAsync(candidate);
+        if (fullerTrack)
+            await database.PutAsync(new Track([new TrackPoint(100, 1, 1, 10), new TrackPoint(120, 2, 2, 11)]));
+        var session = new Session(Guid.NewGuid(), "ride", "", null, 100) { DurationSeconds = 20 };
+        await database.PutSessionAsync(session);
+        if (deletedSession) await database.DeleteAsync(session);
+
+        var deleted = await database.TrackRepository.DeleteIfUnselectedAsync(candidate.Id);
+
+        Assert.Equal(fullerTrack || deletedSession, deleted);
+        Assert.Equal(deleted, await database.GetAsync<Track>(candidate.Id) is null);
+        Assert.False(await database.TrackRepository.DeleteIfUnselectedAsync(Guid.NewGuid()));
+    }
+
     [Fact]
     public async Task GetTrackSnapshotsAsync_ReadsFractionalBoundsAndRevisionWithoutDecodingPoints()
     {
@@ -19,7 +43,7 @@ public class TrackRepositoryTests
         await connection.InsertAsync(track);
         await connection.InsertAsync(new Track { Deleted = 100 });
         await connection.ExecuteAsync("UPDATE track SET points = ? WHERE id = ?", "unreadable payload", track.Id);
-        var repository = new TrackRepository(context);
+        var repository = new TrackRepository(context, PersistenceTestData.CreateTimeProvider());
 
         var expected = new TrackSnapshot(track.Id, 100.25, 101.75, 2);
         Assert.Equal(expected, Assert.Single(await repository.GetTrackSnapshotsAsync()));
@@ -38,54 +62,11 @@ public class TrackRepositoryTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => database.PutAsync(new Track { Points = [] }));
     }
 
-    [Fact]
-    public async Task FindTrackContainingTimestampAsync_ReturnsTightestCoveringWindow()
-    {
-        using var tempDatabase = new TempDatabase("track-tightest-window.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-
-        var widestId = Guid.NewGuid();
-        var wideId = Guid.NewGuid();
-        var tightestId = Guid.NewGuid();
-
-        // All three tracks cover timestamp 150; their windows are 250, 100, and 20.
-        await database.PutAsync(new Track
-        {
-            Id = widestId,
-            Points = [new TrackPoint(50, 1, 1, 10), new TrackPoint(300, 2, 2, 11)]
-        });
-        await database.PutAsync(new Track
-        {
-            Id = wideId,
-            Points = [new TrackPoint(100, 1, 1, 10), new TrackPoint(200, 2, 2, 11)]
-        });
-        await database.PutAsync(new Track
-        {
-            Id = tightestId,
-            Points = [new TrackPoint(140, 1, 1, 10), new TrackPoint(160, 2, 2, 11)]
-        });
-
-        var found = await database.FindTrackContainingTimestampAsync(150);
-
-        // The tightest covering window wins, deterministically, regardless of insert order.
-        Assert.Equal(tightestId, found);
-    }
-
-    [Fact]
-    public async Task FindTrackContainingTimestampAsync_ReturnsNull_WhenTimestampIsMissing()
-    {
-        using var tempDatabase = new TempDatabase("track-no-timestamp.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        _ = await database.GetInitializedConnectionAsync();
-
-        Assert.Null(await database.FindTrackContainingTimestampAsync(null));
-    }
-
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(17)]
-    public async Task GetTracksByIdsAsync_ReturnsActiveTracksForSmallInputCounts(int activeCount)
+    public async Task GetTrackSnapshotsAsync_ReturnsActiveTracksForSmallInputCounts(int activeCount)
     {
         using var tempDatabase = new TempDatabase($"track-id-small-{activeCount}.db");
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -104,14 +85,14 @@ public class TrackRepositoryTests
             });
         }
 
-        var tracks = await database.GetTracksByIdsAsync(activeIds);
+        var tracks = await database.TrackRepository.GetTrackSnapshotsAsync(activeIds);
 
         Assert.Equal(activeIds.Length, tracks.Count);
         Assert.True(activeIds.ToHashSet().SetEquals(tracks.Select(track => track.Id)));
     }
 
     [Fact]
-    public async Task GetTracksByIdsAsync_ReturnsActiveTracksAcrossChunks()
+    public async Task GetTrackSnapshotsAsync_ReturnsActiveTracksAcrossChunks()
     {
         using var tempDatabase = new TempDatabase("track-id-chunks.db");
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -142,7 +123,7 @@ public class TrackRepositoryTests
         await database.PutAsync(deletedTrack);
         await database.DeleteAsync(deletedTrack);
 
-        var tracks = await database.GetTracksByIdsAsync([.. activeIds, deletedTrack.Id, Guid.NewGuid()]);
+        var tracks = await database.TrackRepository.GetTrackSnapshotsAsync([.. activeIds, deletedTrack.Id, Guid.NewGuid()]);
 
         Assert.Equal(activeIds.Length, tracks.Count);
         Assert.True(activeIds.ToHashSet().SetEquals(tracks.Select(track => track.Id)));

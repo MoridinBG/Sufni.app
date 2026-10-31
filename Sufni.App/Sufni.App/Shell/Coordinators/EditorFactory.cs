@@ -65,7 +65,8 @@ internal sealed class EditorFactory(
     ISegmentComparisonFactory segmentComparisonFactory,
     ISessionOperationRunner sessionOperationRunner,
     TimeProvider timeProvider,
-    IUiTimerScheduler uiTimerScheduler) : IEditorFactory
+    IUiTimerScheduler uiTimerScheduler,
+    IRecordedSessionDomainQuery recordedSessionDomainQuery) : IEditorFactory
 {
     public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
@@ -128,7 +129,8 @@ internal sealed class EditorFactory(
             sessionOperationRunner,
             timeProvider,
             bikeCoordinator,
-            videoPaneFactory);
+            videoPaneFactory,
+            initialTrack: recordedSessionDomainQuery.Get(snapshot.Id)?.SelectedTrack);
 
     private LiveDaqDetailViewModel CreateLiveDaqDetail(
         LiveDaqSnapshot snapshot,

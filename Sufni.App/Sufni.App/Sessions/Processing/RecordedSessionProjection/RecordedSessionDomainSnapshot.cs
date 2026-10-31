@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -16,4 +17,5 @@ public sealed record RecordedSessionDomainSnapshot(
     ProcessingFingerprint? PersistedFingerprint,
     RecordedSessionSourceSnapshot? Source,
     SessionStaleness Staleness,
-    string? DependencyHash = null);
+    string? DependencyHash = null,
+    TrackSnapshot? SelectedTrack = null);

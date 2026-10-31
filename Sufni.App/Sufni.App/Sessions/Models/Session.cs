@@ -58,10 +58,6 @@ public class Session : Synchronizable
     [JsonIgnore, Ignore]
     public double? DescentMeters { get; set; }
 
-    [JsonPropertyName("full_track"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [Column("full_track_id")]
-    public Guid? FullTrack { get; set; }
-
     [JsonPropertyName("gps_offset_seconds")]
     [Column("gps_offset_seconds")]
     public double GpsOffsetSeconds { get; set; }

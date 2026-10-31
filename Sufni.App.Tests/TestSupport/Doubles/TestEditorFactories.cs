@@ -86,7 +86,8 @@ internal static class TestEditorFactories
             TestSegmentComparisons.CreateFactory(),
             new SessionOperationRunner(),
             new Microsoft.Extensions.Time.Testing.FakeTimeProvider(),
-            new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler());
+            new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler(),
+            Substitute.For<IRecordedSessionDomainQuery>());
     }
 
     private static ITelemetryDataStoreService CreateDataStoreService()

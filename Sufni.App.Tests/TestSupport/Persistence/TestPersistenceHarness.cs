@@ -34,7 +34,7 @@ internal sealed class TestPersistenceHarness
         this.timeProvider = timeProvider ?? PersistenceTestData.CreateTimeProvider();
         context = PersistenceTestData.CreateConnectionContext(databasePath, this.timeProvider);
         var fingerprintService = new ProcessingFingerprintService();
-        trackRepository = new TrackRepository(context);
+        trackRepository = new TrackRepository(context, this.timeProvider);
         sessionRepository = new SessionRepository(context, this.timeProvider);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
@@ -45,7 +45,7 @@ internal sealed class TestPersistenceHarness
         SessionSyncApplier = new SessionSyncApplier(PublishedSessions, PublishedSources, dispatcher,
             recordedSessionSourceRepository, sessionRepository, new InlineBackgroundTaskRunner(),
             sessionTelemetryProcessor, new SessionBlobSwapRequestStore(context));
-        syncDataStore = new SynchronizationMergeEngine(context, trackRepository, fingerprintService, this.timeProvider);
+        syncDataStore = new SynchronizationMergeEngine(context, fingerprintService, this.timeProvider);
     }
 
     public async Task SeedGpsMetricsAsync(Guid sessionId, GpsMetrics metrics)
@@ -152,7 +152,6 @@ internal sealed class TestPersistenceHarness
         if (newFullTrack is not null)
         {
             await PutAsync(newFullTrack);
-            prepared.FullTrack = newFullTrack.Id;
         }
         await PutAsync(prepared);
         if (source is not null) await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
@@ -199,12 +198,6 @@ internal sealed class TestPersistenceHarness
     public Task<IReadOnlyList<Guid>> DeleteOrphanedRecordedSessionSourcesAsync() =>
         recordedSessionSourceRepository.DeleteOrphanedRecordedSessionSourcesAsync();
 
-    public Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp) =>
-        trackRepository.FindTrackContainingTimestampAsync(timestamp);
-
-    public Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds) =>
-        trackRepository.GetTracksByIdsAsync(trackIds);
-
     public Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId) =>
         trackRepository.GetTrackPayloadMetadataAsync(trackId);
 
@@ -239,7 +232,7 @@ internal sealed class TestPersistenceHarness
 
     private Session PrepareGeneration(Session session, Track? newFullTrack) =>
         ProcessedGeneration.Create(CreatePayload(session), newFullTrack?.Points)
-            .CreateSession(SessionSnapshot.From(session), newFullTrack?.Id ?? session.FullTrack);
+            .CreateSession(SessionSnapshot.From(session));
 
     private ProcessedTelemetryPayload CreatePayload(Session session)
     {

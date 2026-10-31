@@ -113,7 +113,7 @@ public static class TestSnapshots
         Description: description,
         SetupId: setupId,
         Timestamp: timestamp,
-        FullTrackId: null,
+
         HasProcessedData: hasProcessedData,
         ProcessingFingerprintJson: processingFingerprintJson,
         FrontSpringRate: null,

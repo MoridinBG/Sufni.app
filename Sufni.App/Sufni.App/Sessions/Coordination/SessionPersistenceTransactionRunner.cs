@@ -6,6 +6,7 @@ using SQLite;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Segments.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
@@ -53,9 +54,11 @@ internal sealed class SessionPersistenceTransactionRunner(
         Guid? removedTrackId = null;
         await connectionContext.RunInTransactionAsync(connection =>
         {
-            var fullTrackId = connection.Query<Session>(
-                "SELECT full_track_id FROM session WHERE id = ? AND deleted IS NULL", sessionId)
-                .SingleOrDefault()?.FullTrack;
+            var session = connection.FindWithQuery<Session>(
+                "SELECT timestamp, duration_seconds, gps_offset_seconds FROM session WHERE id = ? AND deleted IS NULL", sessionId);
+            var tracks = TrackRepository.ReadSnapshotsInTransaction(connection);
+            var selected = session is null ? null : SessionTrackSelection.Select(tracks,
+                session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds);
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId, now);
 
@@ -65,12 +68,8 @@ internal sealed class SessionPersistenceTransactionRunner(
                 sourceDeleted = true;
             }
 
-            if (fullTrackId.HasValue && connection.ExecuteScalar<int>(
-                    "SELECT COUNT(1) FROM session WHERE full_track_id = ? AND deleted IS NULL", fullTrackId.Value) == 0)
-            {
-                SynchronizableRepository<Track>.DeleteInTransaction(connection, fullTrackId.Value, now);
-                removedTrackId = fullTrackId.Value;
-            }
+            if (selected is not null && TrackRepository.DeleteIfUnselectedInTransaction(connection, selected.Id, now, tracks))
+                removedTrackId = selected.Id;
         }, cancellationToken);
 
         return new SessionDeleteCommit(sourceDeleted, removedTrackId);

@@ -62,7 +62,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     private readonly ISessionRepository sessionRepository;
     private readonly ITrackRepository trackQueries;
     private readonly IProcessingFingerprintService fingerprintService;
-    private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceRepository sourceRepository;
@@ -83,7 +82,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
         ITrackRepository trackQueries,
-        ISynchronizableRepository<Track> trackEntityRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
@@ -101,7 +99,6 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         this.sessionRepository = sessionRepository;
         this.trackQueries = trackQueries;
         this.fingerprintService = fingerprintService;
-        this.trackEntityRepository = trackEntityRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sourceStore = sourceStore;
         this.sourceRepository = sourceRepository;
@@ -365,23 +362,11 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             if (expectedInputs is null || fingerprintService.CreateCurrentDatabaseInputs(expectedInputs) != processed.Fingerprint)
                 continue;
 
-            var previousFullTrackId = persisted.FullTrack;
-            var previousFullTrack = previousFullTrackId.HasValue
-                ? await trackEntityRepository.GetAsync(previousFullTrackId.Value)
-                : null;
+            var previousFullTrackId = SessionTrackSelection.Select(trackStore.GetAll(),
+                persisted.Timestamp, persisted.DurationSeconds, persisted.GpsOffsetSeconds)?.Id;
             var generation = processed.Generation;
-            var generatedTrack = generation.TrackPoints is { Count: > 0 } points
-                ? new Track(points) : null;
-            var newFullTrack = generatedTrack is not null &&
-                               (previousFullTrack is null || previousFullTrack.Id != generatedTrack.Id)
-                ? generatedTrack : null;
-            var fullTrackId = newFullTrack?.Id ?? previousFullTrackId;
-            if (newFullTrack is null)
-            {
-                if (fullTrackId is null && persisted.Timestamp is { } timestamp)
-                    fullTrackId = await trackQueries.FindTrackContainingTimestampAsync(timestamp);
-            }
-            var prepared = generation.CreateSession(SessionSnapshot.From(persisted), fullTrackId);
+            var newFullTrack = generation.TrackPoints is { Count: > 0 } points ? new Track(points) : null;
+            var prepared = generation.CreateSession(SessionSnapshot.From(persisted));
 
             // A newer explicit request owns the result; the transaction separately
             // checks all persisted inputs, including the processing option.
@@ -401,7 +386,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             }
 
             var snapshot = SessionSnapshot.From(fresh);
-            var tracks = await trackQueries.GetTrackSnapshotsAsync(fresh.FullTrack is { } committedTrackId ? [committedTrackId] : []);
+            var tracks = await trackQueries.GetTrackSnapshotsAsync(newFullTrack is { } track ? [track.Id] : []);
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
@@ -409,7 +394,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
                 await trackStore.PublishTracksChangedAsync(tracks);
             });
 
-            await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, fresh.FullTrack, sessionId);
+            await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, sessionId);
 
             logger.Information("Recorded session recompute completed for {SessionId}", sessionId);
             return new SessionRecomputeResult.Recomputed(snapshot.Updated);
@@ -424,29 +409,17 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         }
     }
 
-    private async Task DeletePreviousFullTrackIfOrphanedAsync(Guid? previousFullTrackId, Guid? currentFullTrackId, Guid sessionId)
+    private async Task DeletePreviousFullTrackIfOrphanedAsync(Guid? previousFullTrackId, Guid sessionId)
     {
-        if (!previousFullTrackId.HasValue || previousFullTrackId == currentFullTrackId)
-        {
-            return;
-        }
-
-        var stillReferenced = await sessionRepository.HasOtherActiveSessionWithFullTrackAsync(
-            previousFullTrackId.Value,
-            sessionId);
-        if (stillReferenced)
-        {
-            return;
-        }
-
+        if (previousFullTrackId is not { } trackId) return;
         try
         {
-            await trackEntityRepository.DeleteAsync(previousFullTrackId.Value);
-            await trackStore.PublishTracksRemovedAsync([previousFullTrackId.Value]);
+            if (await trackQueries.DeleteIfUnselectedAsync(trackId))
+                await trackStore.PublishTracksRemovedAsync([trackId]);
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            logger.Warning(e, "Failed to delete orphaned track {TrackId} after recomputing session {SessionId}", previousFullTrackId.Value, sessionId);
+            logger.Warning(exception, "Failed to delete orphaned track {TrackId} after recomputing session {SessionId}", trackId, sessionId);
         }
     }
 }

@@ -20,7 +20,6 @@ public sealed record SessionSnapshot(
     string Description,
     Guid? SetupId,
     long? Timestamp,
-    Guid? FullTrackId,
     bool HasProcessedData,
     string? ProcessingFingerprintJson,
     string? FrontSpringRate,
@@ -65,7 +64,6 @@ public sealed record SessionSnapshot(
         session.Description,
         session.Setup,
         session.Timestamp,
-        session.FullTrack,
         session.HasProcessedData,
         session.ProcessingFingerprintJson,
         session.FrontSpringRate,
@@ -109,7 +107,6 @@ public static class SessionSnapshotExtensions
         {
             VelocityFilterWindowMilliseconds = snapshot.VelocityFilterWindowMilliseconds,
             DurationSeconds = snapshot.DurationSeconds,
-            FullTrack = snapshot.FullTrackId,
             ProcessingFingerprintJson = snapshot.ProcessingFingerprintJson,
             GpsOffsetSeconds = snapshot.GpsOffsetSeconds,
             ProcessedTelemetryRevision = snapshot.ProcessedTelemetryRevision,

@@ -10,14 +10,13 @@ public class SessionProcessedGenerationTests
     [Fact]
     public void From_CapturesGenerationWithoutAuthoredAlignment()
     {
-        var fullTrackId = Guid.NewGuid();
         var session = new Session(Guid.NewGuid(), "session", string.Empty, null)
         {
             DurationSeconds = 12,
             DistanceMeters = 34,
             AscentMeters = 5,
             DescentMeters = 6,
-            FullTrack = fullTrackId,
+
             GpsOffsetSeconds = 1.25,
 
         };
@@ -30,12 +29,13 @@ public class SessionProcessedGenerationTests
 
         Assert.NotNull(roundTrip);
         Assert.Equal(12, roundTrip!.DurationSeconds);
-        Assert.Equal(fullTrackId, roundTrip.FullTrackId);
+        Assert.False(document.RootElement.TryGetProperty("FullTrackId", out _));
         Assert.False(document.RootElement.TryGetProperty("Track", out _));
         Assert.False(document.RootElement.TryGetProperty("DistanceMeters", out _));
         Assert.False(document.RootElement.TryGetProperty("AscentMeters", out _));
         Assert.False(document.RootElement.TryGetProperty("DescentMeters", out _));
         using var sessionJson = JsonDocument.Parse(AppJson.Serialize(session));
         Assert.False(sessionJson.RootElement.TryGetProperty("track", out _));
+        Assert.False(sessionJson.RootElement.TryGetProperty("full_track_id", out _));
     }
 }

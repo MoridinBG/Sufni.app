@@ -19,13 +19,7 @@ public interface ITrackRepository
 
     Task<IReadOnlyList<TrackSnapshot>> GetTrackSnapshotsAsync(IReadOnlyCollection<Guid>? trackIds = null);
 
-    Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp);
-
-    Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds);
-
-    Task<List<Track>> GetTracksByIdsForSynchronizationAsync(
-        IReadOnlyCollection<Guid> trackIds,
-        long upperInclusive);
+    Task<bool> DeleteIfUnselectedAsync(Guid trackId);
 
     Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId);
 
@@ -36,7 +30,7 @@ public sealed record TrackPayloadMetadata(Guid Id, long PointsRevision);
 
 public sealed record TrackPayload(Guid Id, long PointsRevision, IReadOnlyList<TrackPoint> Points);
 
-internal sealed class TrackRepository(SqliteConnectionContext connectionContext) : ITrackRepository
+internal sealed class TrackRepository(SqliteConnectionContext connectionContext, TimeProvider timeProvider) : ITrackRepository
 {
     private const int TrackLookupChunkSize = 500;
     private const string ActiveTrackMetadataQuery = "SELECT id, start_time, end_time, points_revision FROM track WHERE deleted IS NULL";
@@ -47,7 +41,7 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         var session = connection.FindWithQuery<Session>(
             "SELECT timestamp, duration_seconds, gps_offset_seconds, window_start_seconds FROM session WHERE id = ? AND deleted IS NULL", sessionId);
         if (session is null) return false;
-        var tracks = connection.Query<TrackPayloadMetadataRow>(ActiveTrackMetadataQuery).Select(row => row.ToSnapshot()).ToArray();
+        var tracks = ReadSnapshotsInTransaction(connection);
         var current = SessionGpsMetricsQuery.Evaluate(session.Timestamp, session.DurationSeconds,
             session.GpsOffsetSeconds, session.WindowStartSeconds, tracks);
         if (current.Key != expectedKey) return false;
@@ -93,65 +87,22 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         return snapshots;
     }
 
-    public async Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp)
+    public Task<bool> DeleteIfUnselectedAsync(Guid trackId) => connectionContext.RunInTransactionAsync(connection =>
+        DeleteIfUnselectedInTransaction(connection, trackId, timeProvider.GetUtcNow().ToUnixTimeSeconds(),
+            ReadSnapshotsInTransaction(connection)));
+
+    internal static IReadOnlyList<TrackSnapshot> ReadSnapshotsInTransaction(SQLiteConnection connection) =>
+        connection.Query<TrackPayloadMetadataRow>(ActiveTrackMetadataQuery).Select(row => row.ToSnapshot()).ToArray();
+
+    internal static bool DeleteIfUnselectedInTransaction(SQLiteConnection connection, Guid trackId, long now,
+        IReadOnlyList<TrackSnapshot> tracks)
     {
-        if (!timestamp.HasValue)
-        {
-            return null;
-        }
-
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var rows = await connection.QueryAsync<TrackIdRow>(
-            """
-            SELECT id
-            FROM track
-            WHERE deleted IS NULL AND start_time <= ? AND ? <= end_time
-            ORDER BY (end_time - start_time) ASC, start_time ASC, id ASC
-            LIMIT 1
-            """,
-            timestamp.Value,
-            timestamp.Value);
-        return rows.Count == 0 ? null : rows[0].Id;
-    }
-
-    public async Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var tracks = new List<Track>(trackIds.Count);
-
-        foreach (var chunk in trackIds.Chunk(TrackLookupChunkSize))
-        {
-            var placeholders = string.Join(", ", chunk.Select(_ => "?"));
-            var args = chunk.Select(id => (object)id.ToString("D")).ToArray();
-            var chunkTracks = await connection.QueryAsync<Track>(
-                $"SELECT * FROM track WHERE deleted IS NULL AND id IN ({placeholders})",
-                args);
-            tracks.AddRange(chunkTracks);
-        }
-
-        return tracks;
-    }
-
-    public async Task<List<Track>> GetTracksByIdsForSynchronizationAsync(
-        IReadOnlyCollection<Guid> trackIds,
-        long upperInclusive)
-    {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var tracks = new List<Track>(trackIds.Count);
-
-        foreach (var chunk in trackIds.Chunk(TrackLookupChunkSize))
-        {
-            var placeholders = string.Join(", ", chunk.Select(_ => "?"));
-            var args = new object[] { upperInclusive }
-                .Concat(chunk.Select(id => (object)id.ToString("D")))
-                .ToArray();
-            var chunkTracks = await connection.QueryAsync<Track>(
-                $"SELECT * FROM track WHERE deleted IS NULL AND updated <= ? AND id IN ({placeholders})",
-                args);
-            tracks.AddRange(chunkTracks);
-        }
-
-        return tracks;
+        if (!tracks.Any(track => track.Id == trackId)) return false;
+        var sessions = connection.Query<Session>(
+            "SELECT timestamp, duration_seconds, gps_offset_seconds FROM session WHERE deleted IS NULL");
+        if (sessions.Any(session => SessionTrackSelection.Select(tracks, session.Timestamp,
+                session.DurationSeconds, session.GpsOffsetSeconds)?.Id == trackId)) return false;
+        return connection.Execute("UPDATE track SET deleted = ? WHERE id = ? AND deleted IS NULL", now, trackId) > 0;
     }
 
     public async Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId)
@@ -179,12 +130,6 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
             trackId,
             pointsRevision);
         return rows.Count == 1 ? rows[0].ToPayload() : null;
-    }
-
-    private sealed class TrackIdRow
-    {
-        [Column("id")]
-        public Guid Id { get; set; }
     }
 
     private sealed class TrackPayloadMetadataRow

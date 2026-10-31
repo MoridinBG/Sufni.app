@@ -41,7 +41,6 @@ public class SynchronizationClientServiceTests
             [
                 new Session(Guid.NewGuid(), "session", "desc", null, 1234)
                 {
-                    FullTrack = trackId,
                     Updated = 10
                 }
             ],
@@ -141,7 +140,6 @@ public class SynchronizationClientServiceTests
             [
                 new Session(Guid.NewGuid(), "remote", "desc", null, 1234)
                 {
-                    FullTrack = trackId,
                     Updated = 20
                 }
             ],
@@ -266,11 +264,7 @@ public class SynchronizationClientServiceTests
         var sessionId = Guid.NewGuid();
         const string target = """{"target":true}""";
         var targetGeneration = new SessionProcessedGeneration(
-            DurationSeconds: 80,
-
-
-
-            FullTrackId: Guid.NewGuid());
+            DurationSeconds: 80);
         syncDataStore.GetLastPushTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullTimeAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetSynchronizationDataAsync(4, Arg.Any<long>()).Returns(new SynchronizationData());
