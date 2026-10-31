@@ -45,6 +45,24 @@ public class TrackCoordinatorTests
         tracks ?? trackStore, sessionStore, new InlineUiThreadDispatcher(), publication);
 
     [Fact]
+    public async Task ImportGpxAsync_IndependentInstallationsChooseTheSameContentIdentity()
+    {
+        var identities = new List<Guid>();
+        foreach (var name in new[] { "device-one.gpx", "device-two.gpx" })
+        {
+            var device = new TrackCoordinatorTests();
+            device.filesService.OpenGpxFilesAsync().Returns([TestStorageItems.PickedTextFile(name, ValidGpx())]);
+            using var coordinator = device.CreateCoordinator();
+
+            var result = Assert.IsType<GpxImportResult.Completed>(await coordinator.ImportGpxAsync(TestContext.Current.CancellationToken));
+
+            Assert.Equal(1, result.ImportedCount);
+            identities.Add(Assert.Single(await device.trackEntityRepository.GetAllAsync()).Id);
+        }
+        Assert.Equal(identities[0], identities[1]);
+    }
+
+    [Fact]
     public async Task ImportGpxAsync_PublishesPersistedTrackMetadata()
     {
         using var store = new TrackStore(new StorePublication(new InlineUiThreadDispatcher()));

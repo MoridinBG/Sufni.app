@@ -67,7 +67,8 @@ columns to the session payload. They are authored metadata like `timestamp`:
 the merge engine writes them in both remote-update variants, including the one
 that keeps the held processed generation. Protocol v5 adds the saved-segment
 list. Protocol v6 carries the app calibration version in processing fingerprints
-and the authored session filter option, and rejects older peers. The client installs the header on its shared
+the authored session filter option and source-owned segment anchors. It removes
+stored session-track links/windows and GPS metrics from the session payload, and rejects older peers. The client installs the header on its shared
 `HttpClient`, so new endpoint groups must either stay behind that service or
 explicitly add the same version gate. Kestrel caps sync request bodies at 256
 MiB.
@@ -200,8 +201,9 @@ is accepted only by the local SQLite startup migration.
 
 Saved segments use the core paths unchanged: the client applies remote rows
 verbatim and the hub merges them by timestamp and tombstone, after sessions in
-the same transaction. A segment of a deleted session needs no cascade, because
-segment reads include only live sessions. The client refreshes the segment store
+the same transaction. Segments carry source-hash ownership and source-relative anchors. They survive
+session deletion; each session window derives visibility, including split windows
+received from a peer. The client refreshes the segment store
 with the other stores after a sync; the hub's `InboundSyncCoordinator` refreshes
 it when a push carries segments.
 
