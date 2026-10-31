@@ -274,14 +274,14 @@ Topics in [architecture/video.md](architecture/video.md):
 
 ## Saved Segments
 
-A saved segment is a named time range on one recorded session. Segments are synchronized, move with trim and split, and are live only while their session is live. The segments picker of the signals page lists, selects, renames, and deletes them, and shows Strava segment efforts when the user connected their own Strava API app.
+A saved segment is a synchronized named range on a recording source, keyed by its content hash. Source-relative anchors stay fixed through trim and split; each session derives visible segments from its window. Session deletion retains attachments, and new creation waits until source identity is available. The segments picker of the signals page lists, selects, renames, and deletes them, and shows Strava segment efforts when the user connected their own Strava API app.
 
 Topics in [architecture/segments.md](architecture/segments.md):
 
 - [Persistence](architecture/segments.md#persistence) — `session_segment` table and startup cleanup
 - [Store And Coordinator](architecture/segments.md#store-and-coordinator) — `SessionSegmentStore`, `SegmentCoordinator`, name rule
 - [Synchronization](architecture/segments.md#synchronization) — segment list in the sync payload
-- [Trim And Split](architecture/segments.md#trim-and-split) — how edits move segments
+- [Trim And Split](architecture/segments.md#trim-and-split) — how windows select source-owned segments
 - [Segments Picker](architecture/segments.md#segments-picker) — per-editor picker, "Save current selection", name prompt
 - [Strava](architecture/segments.md#strava) — `IStravaSegmentService` behind `ISegmentCoordinator`, connect dialog, cancellation on close
 

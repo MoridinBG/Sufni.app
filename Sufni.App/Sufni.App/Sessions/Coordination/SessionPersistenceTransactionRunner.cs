@@ -7,7 +7,6 @@ using SQLite;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Segments.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
@@ -79,7 +78,7 @@ internal sealed class SessionPersistenceTransactionRunner(
         EditAsync(session, SessionWindowEditKind.TrimUntilEnd, clickSeconds, (connection, row, plan, now) =>
         {
             Update(connection, row.Id, plan.Current, now);
-            return new SessionEditCommit.Committed([row.Id], [], []);
+            return new SessionEditCommit.Committed([row.Id], []);
         });
 
     public Task<SessionEditCommit> TrimFromBeginningAsync(SessionSnapshot session, double clickSeconds) =>
@@ -93,8 +92,7 @@ internal sealed class SessionPersistenceTransactionRunner(
     {
         Update(connection, row.Id, plan.Current, now);
         var clips = SessionVideoRepository.ShiftAlignmentInTransaction(connection, row.Id, plan.ClipAlignmentDelta);
-        var segments = SessionSegmentRepository.ShiftInTransaction(connection, row.Id, plan.SegmentShiftSeconds, now);
-        return new SessionEditCommit.Committed([row.Id], clips, segments);
+        return new SessionEditCommit.Committed([row.Id], clips);
     }
 
     public Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds) =>
@@ -129,13 +127,7 @@ internal sealed class SessionPersistenceTransactionRunner(
                 part2.Id,
                 plan.ClipAlignmentDelta,
                 timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
-            var segments = SessionSegmentRepository.MoveToSessionInTransaction(
-                connection,
-                row.Id,
-                part2.Id,
-                plan.SplitSeconds!.Value,
-                now);
-            return new SessionEditCommit.Committed([row.Id, part2.Id], clips, segments, part2.Id);
+            return new SessionEditCommit.Committed([row.Id, part2.Id], clips, part2.Id);
         });
 
     private Task<SessionEditCommit> EditAsync(

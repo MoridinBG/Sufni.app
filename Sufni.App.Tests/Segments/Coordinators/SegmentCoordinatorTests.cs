@@ -34,7 +34,7 @@ public class SegmentCoordinatorTests
         sessionStore.Get(session.Id).Returns(session);
         sourceStore.Get(session.RecordingSourceSessionId).Returns(new RecordedSessionSourceSnapshot(
             session.RecordingSourceSessionId, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
-        segmentStore.GetForSession(session.Id).Returns([new SessionSegmentSnapshot(Guid.NewGuid(), session.Id, "Segment 1", 0, 1)]);
+        segmentStore.GetForOwner("source-hash").Returns([new SessionSegmentSnapshot(Guid.NewGuid(), "source-hash", "Segment 1", 0, 1)]);
     }
 
     [Fact]
@@ -50,7 +50,8 @@ public class SegmentCoordinatorTests
             derived.RecordingSourceSessionId, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
 
         Assert.IsType<SegmentChangeResult.Applied>(await coordinator.CreateAsync(session.Id, "climb", 2, 5));
-        await repository.Received(1).InsertAsync(Arg.Any<SessionSegment>());
+        await repository.Received(1).InsertAsync(Arg.Is<SessionSegment>(segment =>
+            segment.OwnerKey == "source-hash" && segment.StartSeconds == 12 && segment.EndSeconds == 15));
     }
 
     [Fact]
@@ -60,7 +61,7 @@ public class SegmentCoordinatorTests
 
         Assert.IsType<SegmentChangeResult.Applied>(result);
         await repository.Received(1).InsertAsync(Arg.Is<SessionSegment>(segment =>
-            segment.SessionId == session.Id && segment.Name == "climb" && segment.StartSeconds == 2 && segment.EndSeconds == 5));
+            segment.OwnerKey == "source-hash" && segment.Name == "climb" && segment.StartSeconds == 2 && segment.EndSeconds == 5));
         await segmentStore.Received(1).PublishSegmentsAsync(Arg.Is<IReadOnlyCollection<SessionSegmentSnapshot>>(segments =>
             segments.Single().Name == "climb"), Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 0));
     }
@@ -92,7 +93,7 @@ public class SegmentCoordinatorTests
     public async Task Write_WhenPersistenceFails_ReturnsReasonAndPreservesPublishedSegments(SegmentWriteFailureReason operation)
     {
         using var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));
-        var existing = new SessionSegmentSnapshot(Guid.NewGuid(), session.Id, "Existing", 2, 5);
+        var existing = new SessionSegmentSnapshot(Guid.NewGuid(), "source-hash", "Existing", 2, 5);
         await store.PublishSegmentsAsync([existing], []);
         var error = new IOException("storage unavailable");
         repository.InsertAsync(Arg.Any<SessionSegment>()).Returns(Task.FromException(error));
@@ -111,7 +112,7 @@ public class SegmentCoordinatorTests
         var failure = Assert.IsType<SegmentChangeResult.Failed>(result);
         Assert.Equal(operation, failure.Reason);
         Assert.NotEmpty(failure.Details!);
-        Assert.Equal([existing], store.GetForSession(session.Id));
+        Assert.Equal([existing], store.GetForOwner("source-hash"));
     }
 
     [Fact]

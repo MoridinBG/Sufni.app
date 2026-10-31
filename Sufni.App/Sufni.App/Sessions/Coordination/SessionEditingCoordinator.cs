@@ -6,14 +6,13 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Models;
 
-using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
 /// Runs the trim and split commands of recorded sessions. Each command commits
-/// in one transaction, publishes the changed sessions, segments, and video clips, and
+/// in one transaction, publishes the changed sessions and video clips, and
 /// recomputes the affected sessions. A split reports its new id after publication.
 /// </summary>
 public interface ISessionEditingCoordinator
@@ -47,7 +46,6 @@ public abstract record SessionEditResult
 internal sealed class SessionEditingCoordinator(
     ISessionStoreWriter sessionStore,
     ISessionVideoStoreWriter videoStore,
-    ISessionSegmentStoreWriter segmentStore,
     ISessionPersistenceTransactionRunner transactions,
     ISessionRecomputeEngine recomputeEngine,
     ISessionRepository sessionRepository,
@@ -106,13 +104,6 @@ internal sealed class SessionEditingCoordinator(
             {
                 var clips = await backgroundTaskRunner.RunAsync(() => committed.Clips.Select(SessionVideoSnapshot.From).ToArray());
                 await videoStore.PublishClipsAsync(clips);
-            }
-
-            if (committed.Segments.Count > 0)
-            {
-                var segments = committed.Segments.Where(segment => segment.Deleted is null).Select(SessionSegmentSnapshot.From).ToArray();
-                var removedSegments = committed.Segments.Where(segment => segment.Deleted is not null).Select(segment => segment.Id).ToArray();
-                await segmentStore.PublishSegmentsAsync(segments, removedSegments);
             }
 
             if (committed.CreatedSessionId is { } createdId)

@@ -1,6 +1,6 @@
 # Saved Segments
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the `Segments/` slice: saved segments of recorded sessions, their persistence and synchronization, how trim and split move them, the segments picker, Strava segment efforts, and matching a range against every session.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the `Segments/` slice: saved segments of recorded sessions, their persistence and synchronization, how session windows select them, the segments picker, Strava segment efforts, and matching a range against every session.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@
 
 ## Overview
 
-A saved segment is a named time range on one recorded session, in seconds from the session's telemetry start. A segment is live only while its session is live; that is derived when segments are read, so no delete cascades to segments.
+A saved segment is a named range on an immutable recording source, in seconds from the source origin. Its `owner_key` is the source hash. Each session derives visibility and session-relative times from its window; deleting a session never deletes its segments.
 
 The slice lives in `Sufni.App/Sufni.App/Segments/`:
 
@@ -29,34 +29,29 @@ The slice lives in `Sufni.App/Sufni.App/Segments/`:
 
 ## Persistence
 
-`session_segment` holds id, `session_id`, `name`, `start_seconds`, `end_seconds`, and the `Synchronizable` columns `updated`, `client_updated`, and `deleted`. `DatabaseMigrationRunner` creates it with the core tables and gives it the sync-delta indexes. `ISessionSegmentRepository.GetLiveAsync` returns the live segments of live sessions. Rename and delete change only live rows; delete is a soft delete.
+`session_segment` holds id, `owner_key`, `name`, source-relative `start_seconds` and `end_seconds`, and the `Synchronizable` columns `updated`, `client_updated`, and `deleted`. `ISessionSegmentRepository.GetLiveAsync` returns all non-deleted segments independently of session existence. Rename and delete change only live rows; delete is a soft delete.
 
-Startup cleanup removes segment tombstones older than one day and segments whose session row no longer exists. The private-segment table never shipped; its copy migration is removed, and the `session-segment` migration marker remains recorded as applied.
+The `track-materializations` migration resolves each old session-owned row through its recording source, adds the session's `window_start_seconds` to both anchors, and drops `session_id`. Segment IDs and authored clocks are preserved. No session-ID ownership fallback exists. Startup purges explicit segment tombstones older than one day, but retains attachments whose sessions have disappeared. Such attachments become visible again when a session of the same source returns. The private-segment table never shipped; its copy migration is removed, and the `session-segment` marker remains recorded as applied.
 
 ## Store And Coordinator
 
-`SessionSegmentStore` holds the live segments of live sessions. `GetForSession` returns the segments of one session. `PublishSegmentsAsync` receives prepared snapshots and removal ids, publishing both in one cache update. Workflow owners classify deleted rows and prepare snapshots; the store does not inspect persistence models. `AppDataRefresher` refreshes the store with the other core stores.
+`SessionSegmentStore` holds live source-owned segments. `GetForOwner` returns the segments of one source hash. `PublishSegmentsAsync` receives prepared snapshots and removal ids, publishing both in one cache update. Workflow owners classify deleted rows and prepare snapshots; the store does not inspect persistence models. `AppDataRefresher` refreshes the store with the other core stores.
 
-`SegmentCoordinator` owns create, rename, and delete, matching (see [Matching And Comparison](#matching-and-comparison)), and the Strava workflows (see [Strava](#strava)). It is the only place of the name rule: a name is required, and it is unique among the live segments of the session. `ValidateName` exposes the rule to prompts, and `NextName` returns the first free "Segment N" name. Create also rejects a missing session and a range that is not finite or not ordered. Each workflow returns `SegmentChangeResult.Applied | SessionMissing | SourceUnavailable | SegmentMissing | Invalid | Failed`. Creation requires the recorded-source identity (resolved through `RecordingSourceSessionId` for a derived session). Until the source arrives, it writes nothing and returns `SourceUnavailable`; the picker asks the user to sync and retry. There is no queued creation or legacy session-ID fallback. Missing sessions/segments produce notifications; invalid input retains its fixed validation message. Write failures carry `SegmentWriteFailureReason.Create | Rename | Delete` and separate diagnostics, logged once with the segment identity. The picker forwards them to the editor error bar without embedding diagnostics in its summary.
+`SegmentCoordinator` owns create, rename, and delete, matching (see [Matching And Comparison](#matching-and-comparison)), and the Strava workflows (see [Strava](#strava)). It is the only place of the name rule: a name is required, and it is unique among the live segments of the recording source. `ValidateName` exposes the rule to prompts, and `NextName` returns the first free "Segment N" name. Create also rejects a missing session and a range that is not finite or not ordered. Each workflow returns `SegmentChangeResult.Applied | SessionMissing | SourceUnavailable | SegmentMissing | Invalid | Failed`. Creation requires the recorded-source identity (resolved through `RecordingSourceSessionId` for a derived session). Until the source arrives, it writes nothing and returns `SourceUnavailable`; the picker asks the user to sync and retry. There is no queued creation or legacy session-ID fallback. Missing sessions/segments produce notifications; invalid input retains its fixed validation message. Write failures carry `SegmentWriteFailureReason.Create | Rename | Delete` and separate diagnostics, logged once with the segment identity. The picker forwards them to the editor error bar without embedding diagnostics in its summary.
 
 ## Synchronization
 
-Segments travel as the `segment` list of `SynchronizationData` (protocol v5) through the core paths: the client applies remote rows verbatim, and the hub merges them by timestamp and tombstone after sessions in the same transaction. The client refreshes the store after a sync; on the hub, `InboundSyncCoordinator` refreshes it when a push carries segments. See [sync.md](sync.md).
+Segments travel with source-hash ownership and source-relative anchors in the `segment` list of `SynchronizationData` (protocol v6) through the core paths: the client applies remote rows verbatim, and the hub merges them by timestamp and tombstone after sessions in the same transaction. The client refreshes the store after a sync; on the hub, `InboundSyncCoordinator` refreshes it when a push carries segments. See [sync.md](sync.md).
 
 ## Trim And Split
 
-`SessionWindowEditPolicy` computes the source-relative windows and segment/clip offsets without persistence. The trim and split transactions in `SessionPersistenceTransactionRunner` apply that plan and move the session's segments in the same transaction (see [Trim and split](ui-workflows.md#trim-and-split)):
-
-- Trim from beginning and undo trim shift every live segment of the session by the change of the session origin, so a segment keeps its place in the recording. A segment is never deleted by a trim.
-- Split moves the segments that start at or after the click to the new second part, shifted to its origin. The other segments stay with the first part.
-
-`SessionEditingCoordinator` publishes the changed segments with the changed sessions.
+`SessionWindowEditPolicy` computes session windows. Trim, undo and split update those windows without changing segment rows, clocks or ownership. `SessionEditCommit` carries no segments and `SessionEditingCoordinator` publishes none. `SessionTrackTimeline` converts source-relative anchors into telemetry-relative ranges and checks containment in the current session window. A split received from a peer uses the same projection; no local split command or reconciliation is needed.
 
 ## Segments Picker
 
-Each recorded-session editor creates one `SegmentPickerViewModel` through `ISegmentPickerFactory` and disposes it when the editor closes. The signals workspace exposes it as `IRecordedSessionSignalsWorkspace.SegmentPicker`. The picker observes a `SegmentPickerSessionState` stream (session timestamp, processed telemetry duration, analysis range) that the editor projects from its state, and receives the analysis-range setter and the editor's error list.
+Each recorded-session editor creates one `SegmentPickerViewModel` through `ISegmentPickerFactory` and disposes it when the editor closes. The signals workspace exposes it as `IRecordedSessionSignalsWorkspace.SegmentPicker`. The picker observes a `SegmentPickerSessionState` stream (session timestamp, processed telemetry duration, analysis range, source hash and window start) that the editor projects from its state, and receives the analysis-range setter and the editor's error list.
 
-- **Rows.** The saved rows derive from the store: the session's segments that start at or after zero and end inside the telemetry duration, ordered by start. A segment outside that range (after a trim) is hidden and comes back when an undo restores the range. The row whose range equals the analysis range (within 1 ms) is selected.
+- **Rows.** The saved rows derive from the store: the source's segments fully contained in the session window, ordered by source start and projected to session-relative ranges. A segment outside that range (after a trim) is hidden and comes back when an undo restores the range. The row whose range equals the analysis range (within 1 ms) is selected.
 - **Actions.** Selecting a row sets the analysis range; selecting the selected row clears it. Both close the picker. Rename asks for a name; delete asks for confirmation. Both go through `ISegmentCoordinator`, and a failure goes to the editor's error list.
 - **Save.** The built-in plot context-menu entry "Save current selection" (id `save-current-selection`, shown as "Analysis > Save current selection") appears on the six time-series rows and is available when the click lies inside the analysis range. It asks for a name, prefilled with the next free "Segment N", and creates the segment.
 - **Name prompt.** `SegmentNamePromptViewModel` runs on the content-dialog path of `IDialogService`. It validates with `ISegmentCoordinator.ValidateName`, completes on confirm and on cancel, and exposes the confirmed name.

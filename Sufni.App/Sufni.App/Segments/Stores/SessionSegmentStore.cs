@@ -11,8 +11,8 @@ internal sealed class SessionSegmentStore(
     StorePublication publication)
     : SourceCacheStoreBase<SessionSegmentSnapshot, Guid>(snapshot => snapshot.Id, publication), ISessionSegmentStoreWriter
 {
-    public IReadOnlyList<SessionSegmentSnapshot> GetForSession(Guid sessionId) =>
-        Items.Where(segment => segment.SessionId == sessionId).ToList();
+    public IReadOnlyList<SessionSegmentSnapshot> GetForOwner(string ownerKey) =>
+        Items.Where(segment => segment.OwnerKey == ownerKey).ToList();
 
     public Task PublishSegmentsAsync(IReadOnlyCollection<SessionSegmentSnapshot> snapshots, IReadOnlyCollection<Guid> removedIds) =>
         PublishChangesAsync(snapshots, removedIds);

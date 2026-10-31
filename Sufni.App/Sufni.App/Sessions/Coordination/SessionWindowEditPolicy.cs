@@ -39,7 +39,7 @@ public static class SessionWindowEditPolicy
             var restored = window with { StartSeconds = previousStart, EndSeconds = session.PreviousWindowEndSeconds };
             return new SessionWindowEditPlan.Planned(
                 Patch(restored, null, session.Name, moveOrigin: true), null,
-                FractionDelta(window.StartSeconds, restored.StartSeconds), window.StartSeconds - restored.StartSeconds);
+                FractionDelta(window.StartSeconds, restored.StartSeconds));
         }
 
         var split = window.StartSeconds + clickSeconds;
@@ -49,14 +49,14 @@ public static class SessionWindowEditPolicy
         return kind switch
         {
             SessionWindowEditKind.TrimUntilEnd => new SessionWindowEditPlan.Planned(
-                Patch(window with { EndSeconds = split }, window, session.Name), null, 0, 0),
+                Patch(window with { EndSeconds = split }, window, session.Name), null, 0),
             SessionWindowEditKind.TrimFromBeginning => new SessionWindowEditPlan.Planned(
                 Patch(window with { StartSeconds = split }, window, session.Name, moveOrigin: true), null,
-                FractionDelta(window.StartSeconds, split), window.StartSeconds - split),
+                FractionDelta(window.StartSeconds, split)),
             SessionWindowEditKind.Split => new SessionWindowEditPlan.Planned(
                 Patch(window with { EndSeconds = split }, null, $"{session.Name} (1)"),
                 Patch(window with { StartSeconds = split }, null, $"{session.Name} (2)", moveOrigin: true, created: true),
-                FractionDelta(window.StartSeconds, split), 0, clickSeconds),
+                FractionDelta(window.StartSeconds, split)),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 
@@ -93,5 +93,5 @@ public abstract record SessionWindowEditPlan
 
     public sealed record Rejected(string Message) : SessionWindowEditPlan;
     public sealed record Planned(SessionWindowPatch Current, SessionWindowPatch? Created,
-        double ClipAlignmentDelta, double SegmentShiftSeconds, double? SplitSeconds = null) : SessionWindowEditPlan;
+        double ClipAlignmentDelta) : SessionWindowEditPlan;
 }

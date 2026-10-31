@@ -116,15 +116,15 @@ public class InboundSyncCoordinatorTests : IDisposable
     [Fact]
     public async Task SynchronizationDataArrived_WithSegments_RefreshesAuthoritativeSegments()
     {
-        var authoritative = new SessionSegment { Id = Guid.NewGuid(), SessionId = Guid.NewGuid(), Name = "current", StartSeconds = 2, EndSeconds = 4 };
+        var authoritative = new SessionSegment { Id = Guid.NewGuid(), OwnerKey = "source-hash", Name = "current", StartSeconds = 2, EndSeconds = 4 };
         segmentRepository.GetLiveAsync().Returns([authoritative]);
         var data = new SynchronizationData
         {
-            Segments = { new SessionSegment { SessionId = authoritative.SessionId, Name = "incoming", StartSeconds = 1, EndSeconds = 2 } }
+            Segments = { new SessionSegment { OwnerKey = authoritative.OwnerKey, Name = "incoming", StartSeconds = 1, EndSeconds = 2 } }
         };
 
         await PublishAsync(data, segmentStore);
 
-        Assert.Equal(SessionSegmentSnapshot.From(authoritative), Assert.Single(segmentStore.GetForSession(authoritative.SessionId)));
+        Assert.Equal(SessionSegmentSnapshot.From(authoritative), Assert.Single(segmentStore.GetForOwner(authoritative.OwnerKey)));
     }
 }

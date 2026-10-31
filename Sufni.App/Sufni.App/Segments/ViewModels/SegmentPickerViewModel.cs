@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
@@ -23,12 +24,13 @@ namespace Sufni.App.Segments.ViewModels;
 public sealed record SegmentPickerSessionState(
     long? Timestamp,
     double? TelemetryDurationSeconds,
-    TelemetryTimeRange? AnalysisRange);
+    TelemetryTimeRange? AnalysisRange,
+    string? OwnerKey = null,
+    double WindowStartSeconds = 0);
 
 /// <summary>
 /// Segments picker of one open recorded session. It lives as long as the
-/// session editor. The saved rows are the session's segments that fit the
-/// telemetry; the selected row is the one whose range is the analysis range.
+/// session editor. Saved source ranges are projected into the session window; the selected row is the one whose range is the analysis range.
 /// Strava rows load each time the picker opens, and closing the picker
 /// cancels the load.
 /// </summary>
@@ -46,6 +48,8 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     private readonly IDisposable segmentsSubscription;
     private readonly IDisposable sessionStateSubscription;
     private IReadOnlyCollection<SessionSegmentSnapshot> segments = [];
+    private string? ownerKey;
+    private SessionTrackTimeline ownerTimeline;
     private long? sessionTimestamp;
     private double? telemetryDurationSeconds;
     private TelemetryTimeRange? analysisRange;
@@ -87,7 +91,6 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         this.reportError = reportError;
         this.reportNotification = reportNotification;
         segmentsSubscription = segmentStore.Connect()
-            .Filter(segment => segment.SessionId == sessionId)
             .ToCollection()
             .Subscribe(value =>
             {
@@ -104,6 +107,8 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     // The picker closes when the telemetry is gone.
     private void OnSessionStateChanged(SegmentPickerSessionState state)
     {
+        ownerKey = state.OwnerKey;
+        ownerTimeline = new SessionTrackTimeline(0, OwnerOriginSeconds: state.WindowStartSeconds);
         sessionTimestamp = state.Timestamp;
         telemetryDurationSeconds = state.TelemetryDurationSeconds is > 0 ? state.TelemetryDurationSeconds : null;
         analysisRange = state.AnalysisRange;
@@ -343,13 +348,13 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         var rows = new List<SavedSegmentRow>();
         if (telemetryDurationSeconds is { } duration)
         {
-            foreach (var segment in segments.OrderBy(segment => segment.StartSeconds))
+            foreach (var segment in segments.Where(segment => segment.OwnerKey == ownerKey).OrderBy(segment => segment.StartSeconds))
             {
-                if (segment.StartSeconds >= 0 &&
-                    segment.EndSeconds <= duration &&
-                    TelemetryTimeRange.TryCreate(segment.StartSeconds, segment.EndSeconds, out var range))
+                if (ownerTimeline.ContainsOwnerRange(segment.StartSeconds, segment.EndSeconds, duration) &&
+                    TelemetryTimeRange.TryCreate(ownerTimeline.OwnerToTelemetrySeconds(segment.StartSeconds),
+                        ownerTimeline.OwnerToTelemetrySeconds(segment.EndSeconds), out var range))
                 {
-                    rows.Add(new SavedSegmentRow(segment.Id, segment.Name, range, IsSelected(segment)));
+                    rows.Add(new SavedSegmentRow(segment.Id, segment.Name, range, IsSelected(range)));
                 }
             }
         }
@@ -357,7 +362,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         SavedSegments = rows;
     }
 
-    private bool IsSelected(SessionSegmentSnapshot segment) =>
+    private bool IsSelected(TelemetryTimeRange segment) =>
         analysisRange is { } range &&
         Math.Abs(range.StartSeconds - segment.StartSeconds) <= RangeMatchToleranceSeconds &&
         Math.Abs(range.EndSeconds - segment.EndSeconds) <= RangeMatchToleranceSeconds;

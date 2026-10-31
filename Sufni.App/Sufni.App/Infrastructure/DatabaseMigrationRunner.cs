@@ -84,6 +84,23 @@ internal sealed class DatabaseMigrationRunner(
         string[] gpsColumns = ["distance_meters", "ascent_meters", "descent_meters"];
         var values = string.Join(", ", gpsColumns.Select(column => columns.Contains(column) ? column : "NULL"));
         transaction.Execute($"INSERT INTO session_gps_metrics SELECT id, '', {values} FROM session");
+        if (transaction.GetTableInfo("session_segment").Any(column => column.Name == "session_id"))
+        {
+            transaction.Execute("ALTER TABLE session_segment ADD COLUMN owner_key TEXT NOT NULL DEFAULT ''");
+            transaction.Execute("""
+                UPDATE session_segment SET
+                    owner_key = (SELECT source_hash FROM session_recording_source source JOIN session
+                        ON source.session_id = COALESCE(session.source_session_id, session.id)
+                        WHERE session.id = session_segment.session_id),
+                    start_seconds = start_seconds + COALESCE((SELECT window_start_seconds FROM session WHERE id = session_segment.session_id), 0),
+                    end_seconds = end_seconds + COALESCE((SELECT window_start_seconds FROM session WHERE id = session_segment.session_id), 0)
+                WHERE session_id IN (SELECT session.id FROM session JOIN session_recording_source source
+                    ON source.session_id = COALESCE(session.source_session_id, session.id))
+                """);
+            transaction.Execute("DROP INDEX IF EXISTS session_segment_session_id");
+            transaction.Execute("ALTER TABLE session_segment DROP COLUMN session_id");
+            transaction.Execute("CREATE INDEX session_segment_owner_key ON session_segment(owner_key)");
+        }
         var groups = transaction.Table<Track>().ToList()
             .Where(track => track.HasPoints)
             .GroupBy(track => TrackContentHash.Compute(track.Points))
@@ -130,9 +147,11 @@ internal sealed class DatabaseMigrationRunner(
             typeof(Synchronization),
             typeof(PairedDevice),
             typeof(Track),
-            typeof(SessionVideoClip),
-            typeof(SessionSegment)
+            typeof(SessionVideoClip)
         ]);
+        // Existing attachment columns migrate with their anchors in the versioned transaction.
+        if ((await connection.GetTableInfoAsync("session_segment")).Count == 0)
+            await connection.CreateTableAsync<SessionSegment>();
     }
 
     private Task EnsureSyncCursorColumnsAsync() =>
@@ -577,8 +596,6 @@ internal sealed class DatabaseMigrationRunner(
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
         await connection.ExecuteAsync("DELETE FROM session_gps_metrics WHERE session_id NOT IN (SELECT id FROM session)");
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
-        deletedSegments += await connection.ExecuteAsync(
-            "DELETE FROM session_segment WHERE session_id NOT IN (SELECT id FROM session)");
         await connection.ExecuteAsync("DELETE FROM session_video WHERE session_id NOT IN (SELECT id FROM session)");
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);

@@ -1562,7 +1562,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             editorStateController.State.Select(state => new SegmentPickerSessionState(
                 state.Session?.Timestamp,
                 state.TelemetryData?.Metadata.Duration,
-                state.Intent.AnalysisRange)),
+                state.Intent.AnalysisRange,
+                state.Domain?.Source?.SourceHash,
+                state.Session?.WindowStartSeconds ?? 0)),
             range =>
             {
                 if (range is { } value)

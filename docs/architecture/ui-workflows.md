@@ -23,7 +23,7 @@ and are registered as singletons.
 | `BikeCoordinator`                                                         | shared       | Own repository writes and prepared-snapshot publication for save, cutoff updates and delete (gated by `IBikeDependencyQuery`); save checks conflicts after analysis, and route bike-editor analysis/import/export/image requests through `IBikeEditorService`. Both interfaces expose neutral result records; image loading returns encoded bytes and a file name, leaving Avalonia bitmap decoding to the editor presentation edge                                                                                                                                                                              |
 | `SetupCoordinator`                                                        | shared       | Same as above + the `Board` row association (clears the previous board on save / delete); setup creation accepts a suggested board id from the selected import source                                                                                                                                                                                                                                                                                                                             |
 | `SessionCoordinator` | shared | Owns metadata save, processing-option changes, GPS alignment, live-capture save and deletion. It persists through repositories and publishes prepared snapshots; it owns no event subscriptions and is not eagerly resolved. |
-| `ISessionEditingCoordinator` (`SessionEditingCoordinator`)                | shared       | Trim and split commands of recorded sessions: one transaction per command, then session, segment, and clip publication, recompute, and commit progress carrying the split's new session id. See [Trim and split](#trim-and-split) |
+| `ISessionEditingCoordinator` (`SessionEditingCoordinator`)                | shared       | Trim and split commands of recorded sessions: one transaction per command, then session and clip publication, recompute, and commit progress carrying the split's new session id. See [Trim and split](#trim-and-split) |
 | `ISegmentCoordinator` (`SegmentCoordinator`)                              | shared       | Saved-segment create, rename, and delete with the segment name rule; segment matching and comparison pages; Strava connect, reset, and segment fetch. The per-editor segments picker, comparison, and Strava connect dialog call it. See [segments.md](segments.md#store-and-coordinator) |
 | `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
 | `ImportSessionsCoordinator`                                               | shared       | Owns one active import task and replayed `SessionImportState` across tab lifetimes, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes prepared session/source/track snapshots through store writer publish-only paths                                                                                                                                                                |
@@ -150,26 +150,24 @@ editor: "Trim from beginning", "Trim until end", "Split here", and "Undo trim".
 arithmetic. The editor combines that gate with its screen state. Inside each
 `SessionPersistenceTransactionRunner` transaction, the runner checks the expected
 window, asks the policy for immutable patches, and applies the planned session,
-clip-alignment and segment-offset changes:
+and clip-alignment changes. Source-owned segments remain unchanged:
 
 - **Trim until end** ends the window at the click.
 - **Trim from beginning** moves the window start and the session origin to the
   click. The timestamp takes the whole seconds and the GPS offset the fraction.
-  The session's saved segments shift by the origin change, and its video
-  alignment shifts by the change of the fraction.
-- **Undo trim** restores the previous window and origin, and shifts the
-  segments back. A window equal to the session's own full range is stored as no
+  Video alignment shifts by the change of the fraction.
+- **Undo trim** restores the previous window and origin. A window equal to the session's own full range is stored as no
   window.
 - **Split** ends the window at the click, renames the session "(1)", and
   inserts a "(2)" session over the rest of the window with copies of the video
-  clips. Segments that start at or after the click move to the "(2)" session.
+  clips. Segments are selected independently from the shared source by each window.
 
 The transaction rejects the edit when the stored window differs from the
 snapshot the command started from, so concurrent edits of one session do not
 need a lock. After the commit the coordinator publishes the changed sessions,
 requests their recompute before any
 other await (an open editor prompts for a recompute of a stale session unless
-one is already running), publishes the changed clips and segments, reports a `SessionEditProgress` with
+one is already running), publishes the changed clips, reports a `SessionEditProgress` with
 the created id, and waits for the recomputes. An applied edit retains a typed recompute failure
 when rebuilding cannot finish; the editor presents its reason and separate
 diagnostics without treating the committed edit as failed. The editor routes that progress to

@@ -23,6 +23,45 @@ namespace Sufni.App.Tests.Infrastructure;
 public class DatabaseMigrationRunnerTests
 {
     [Fact]
+    public async Task Initialization_ConvertsSessionSegmentsToSourceAnchors_WithoutChangingAuthoredClocks()
+    {
+        using var temp = new TempDatabase();
+        var sourceId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var segmentId = Guid.NewGuid();
+        var source = PersistenceTestData.CreateRecordedSessionSource(sourceId);
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.CreateTable<RecordedSessionSource>();
+            legacy.Insert(source);
+            legacy.Insert(new Session(sessionId, "part 2", "", null, 110)
+            { SourceSessionId = sourceId, WindowStartSeconds = 10.25 });
+            legacy.Execute("""
+                CREATE TABLE session_segment (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, name TEXT NOT NULL,
+                    start_seconds REAL NOT NULL, end_seconds REAL NOT NULL, updated INTEGER NOT NULL,
+                    client_updated INTEGER, deleted INTEGER)
+                """);
+            legacy.Execute("CREATE INDEX session_segment_session_id ON session_segment(session_id)");
+            legacy.Execute("INSERT INTO session_segment VALUES (?, ?, 'climb', 2, 4, 12, 11, NULL)", segmentId, sessionId);
+        }
+
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+            await context.Initialization;
+            var segment = await context.Connection.GetAsync<SessionSegment>(segmentId);
+            Assert.Equal(source.SourceHash, segment.OwnerKey);
+            Assert.Equal((12.25, 14.25), (segment.StartSeconds, segment.EndSeconds));
+            Assert.Equal((12, 11L), (segment.Updated, segment.ClientUpdated));
+            Assert.DoesNotContain(await context.Connection.GetTableInfoAsync("session_segment"), column => column.Name == "session_id");
+            using var json = JsonDocument.Parse(AppJson.Serialize(segment));
+            Assert.Equal(source.SourceHash, json.RootElement.GetProperty("owner_key").GetString());
+            Assert.False(json.RootElement.TryGetProperty("session_id", out _));
+        }
+    }
+
+    [Fact]
     public async Task Initialization_DropsCachedSessionWindowWithoutChangingTelemetryOrMetrics()
     {
         using var temp = new TempDatabase();
@@ -1213,7 +1252,7 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task StartupCleanup_PurgesSegmentsOfPurgedSessions()
+    public async Task StartupCleanup_RetainsSourceSegmentsAfterSessionPurge_AndPurgesExplicitTombstones()
     {
         using var tempDatabase = new TempDatabase("segment-purge.db");
         var purgedSessionId = Guid.NewGuid();
@@ -1228,15 +1267,18 @@ public class DatabaseMigrationRunnerTests
             connection.CreateTable<SessionSegment>();
             connection.Insert(new Session(purgedSessionId, "purged", string.Empty, null) { Updated = 10, Deleted = twoDaysAgo });
             connection.Insert(new Session(keptSessionId, "kept", string.Empty, null) { Updated = 10 });
-            connection.Insert(new SessionSegment { SessionId = purgedSessionId, Name = "orphan", StartSeconds = 0, EndSeconds = 1 });
-            connection.Insert(new SessionSegment { SessionId = keptSessionId, Name = "old tombstone", StartSeconds = 0, EndSeconds = 1, Deleted = twoDaysAgo });
-            connection.Insert(new SessionSegment { Id = keptSegmentId, SessionId = keptSessionId, Name = "kept", StartSeconds = 0, EndSeconds = 1 });
+            connection.Insert(new SessionSegment { OwnerKey = "orphan-source", Name = "orphan", StartSeconds = 0, EndSeconds = 1 });
+            connection.Insert(new SessionSegment { OwnerKey = "source-hash", Name = "old tombstone", StartSeconds = 0, EndSeconds = 1, Deleted = twoDaysAgo });
+            connection.Insert(new SessionSegment { Id = keptSegmentId, OwnerKey = "source-hash", Name = "kept", StartSeconds = 0, EndSeconds = 1 });
         }
 
         await new TestPersistenceHarness(tempDatabase.DatabasePath, time).GetInitializedConnectionAsync();
 
         using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Equal(keptSegmentId, Assert.Single(verificationConnection.Table<SessionSegment>().ToList()).Id);
+        var segments = verificationConnection.Table<SessionSegment>().ToList();
+        Assert.Equal(2, segments.Count);
+        Assert.Contains(segments, segment => segment.Id == keptSegmentId);
+        Assert.Contains(segments, segment => segment.OwnerKey == "orphan-source");
     }
 
     [Fact]

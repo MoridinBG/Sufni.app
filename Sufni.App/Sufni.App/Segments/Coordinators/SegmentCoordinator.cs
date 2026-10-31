@@ -66,7 +66,7 @@ public sealed record SegmentComparisonPage(
 /// <summary>
 /// Owns the saved-segment workflows: create, rename, and delete, matching a
 /// selected range against every session, and the Strava connection and segment
-/// fetch. Segment names are unique among the live segments of one session.
+/// fetch. Segment names are unique among the live segments of one recording source.
 /// </summary>
 public interface ISegmentCoordinator
 {
@@ -152,7 +152,7 @@ internal sealed class SegmentCoordinator(
             return new SegmentChangeResult.SessionMissing();
         }
 
-        if (sourceStore.Get(session.RecordingSourceSessionId) is null)
+        if (sourceStore.Get(session.RecordingSourceSessionId) is not { } source)
             return new SegmentChangeResult.SourceUnavailable();
 
         if (!double.IsFinite(startSeconds) || !double.IsFinite(endSeconds) || startSeconds >= endSeconds)
@@ -168,12 +168,13 @@ internal sealed class SegmentCoordinator(
             return new SegmentChangeResult.Invalid(error);
         }
 
+        var timeline = new SessionTrackTimeline(0, OwnerOriginSeconds: session.WindowStartSeconds);
         var segment = new SessionSegment
         {
-            SessionId = sessionId,
+            OwnerKey = source.SourceHash,
             Name = trimmedName,
-            StartSeconds = startSeconds,
-            EndSeconds = endSeconds,
+            StartSeconds = timeline.TelemetryToOwnerSeconds(startSeconds),
+            EndSeconds = timeline.TelemetryToOwnerSeconds(endSeconds),
         };
         return await WriteAsync(SegmentWriteFailureReason.Create, segment.Id, async () =>
         {
@@ -190,7 +191,7 @@ internal sealed class SegmentCoordinator(
             return new SegmentChangeResult.SegmentMissing();
         }
 
-        if (ValidateName(existing.SessionId, trimmedName, segmentId) is { } error)
+        if (ValidateOwnerName(existing.OwnerKey, trimmedName, segmentId) is { } error)
         {
             logger.Warning("Invalid segment name for segment {SegmentId}: {Validation}", segmentId, error);
             return new SegmentChangeResult.Invalid(error);
@@ -203,6 +204,9 @@ internal sealed class SegmentCoordinator(
         WriteAsync(SegmentWriteFailureReason.Delete, segmentId, () => repository.DeleteAsync(segmentId));
 
     public string? ValidateName(Guid sessionId, string name, Guid? segmentId = null)
+        => ValidateOwnerName(OwnerKeyForSession(sessionId), name, segmentId);
+
+    private string? ValidateOwnerName(string? ownerKey, string name, Guid? segmentId)
     {
         var trimmedName = name.Trim();
         if (trimmedName.Length == 0)
@@ -210,7 +214,7 @@ internal sealed class SegmentCoordinator(
             return "Segment name is required.";
         }
 
-        return segmentStore.GetForSession(sessionId).Any(segment =>
+        return (ownerKey is null ? [] : segmentStore.GetForOwner(ownerKey)).Any(segment =>
             segment.Id != segmentId && StringComparer.Ordinal.Equals(segment.Name, trimmedName))
             ? "A saved segment with this name already exists."
             : null;
@@ -218,7 +222,8 @@ internal sealed class SegmentCoordinator(
 
     public string NextName(Guid sessionId)
     {
-        var names = segmentStore.GetForSession(sessionId).Select(segment => segment.Name).ToHashSet(StringComparer.Ordinal);
+        var ownerKey = OwnerKeyForSession(sessionId);
+        var names = (ownerKey is null ? [] : segmentStore.GetForOwner(ownerKey)).Select(segment => segment.Name).ToHashSet(StringComparer.Ordinal);
         var index = 1;
         while (names.Contains($"Segment {index}"))
         {
@@ -227,6 +232,9 @@ internal sealed class SegmentCoordinator(
 
         return $"Segment {index}";
     }
+
+    private string? OwnerKeyForSession(Guid sessionId) => sessionStore.Get(sessionId) is { } session
+        ? sourceStore.Get(session.RecordingSourceSessionId)?.SourceHash : null;
 
     public async Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source)
     {

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Video.Models;
 namespace Sufni.App.Sessions.Coordination;
@@ -36,7 +35,7 @@ public interface ISessionPersistenceTransactionRunner
     /// <summary>
     /// Ends the session's window at the click, renames it "(1)", and creates a
     /// "(2)" session over the rest of the window with copies of its video clips.
-    /// Segments that start at or after the click move to the new session.
+    /// Source-owned segments remain unchanged.
     /// </summary>
     Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds);
 }
@@ -48,7 +47,6 @@ public abstract record SessionEditCommit
     public sealed record Committed(
         IReadOnlyList<Guid> SessionIds,
         IReadOnlyList<SessionVideoClip> Clips,
-        IReadOnlyList<SessionSegment> Segments,
         Guid? CreatedSessionId = null) : SessionEditCommit;
 
     public sealed record Rejected(string Message) : SessionEditCommit;

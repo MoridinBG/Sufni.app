@@ -34,11 +34,31 @@ public class SegmentPickerViewModelTests
     }
 
     [Fact]
+    public void SavedSegments_ProjectSourceAnchorsIntoRemoteSplitWindow_AndHideUntilIdentityArrives()
+    {
+        var kept = AddSegment("Climb", 12.25, 14.25);
+        AddSegment("Outside window", 8, 11);
+        using var picker = CreateLoadedPicker();
+
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, 5, null, WindowStartSeconds: 10.25));
+        Assert.Empty(picker.SavedSegments);
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, 5, new TelemetryTimeRange(2, 4), "source-hash", 10.25));
+
+        var row = Assert.Single(picker.SavedSegments);
+        Assert.Equal(kept.Id, row.Id);
+        Assert.True(row.IsSelected);
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, 5, null, "source-hash", 10.25));
+        picker.SelectSavedSegmentCommand.Execute(Assert.Single(picker.SavedSegments));
+        Assert.Equal(new TelemetryTimeRange(2, 4), Assert.Single(analysisRanges));
+        Assert.Equal(kept, segments.Lookup(kept.Id).Value);
+    }
+
+    [Fact]
     public void SavedSegments_ListsOnlyTheSessionSegmentsInsideTheTelemetry()
     {
         var inside = AddSegment("Inside", 2, 4);
         AddSegment("Trimmed away", 8, 12);
-        AddSegment("Other session", 2, 4, Guid.NewGuid());
+        AddSegment("Other source", 2, 4, "other-source");
         using var picker = CreateLoadedPicker(durationSeconds: 10);
 
         var row = Assert.Single(picker.SavedSegments);
@@ -267,13 +287,13 @@ public class SegmentPickerViewModelTests
             analysisRanges.Add,
             errors.Add,
             notifications.Add);
-        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, durationSeconds, analysisRange));
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, durationSeconds, analysisRange, "source-hash"));
         return picker;
     }
 
-    private SessionSegmentSnapshot AddSegment(string name, double startSeconds, double endSeconds, Guid? segmentSessionId = null)
+    private SessionSegmentSnapshot AddSegment(string name, double startSeconds, double endSeconds, string ownerKey = "source-hash")
     {
-        var segment = new SessionSegmentSnapshot(Guid.NewGuid(), segmentSessionId ?? sessionId, name, startSeconds, endSeconds);
+        var segment = new SessionSegmentSnapshot(Guid.NewGuid(), ownerKey, name, startSeconds, endSeconds);
         segments.AddOrUpdate(segment);
         return segment;
     }

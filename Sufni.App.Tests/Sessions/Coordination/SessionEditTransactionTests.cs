@@ -129,35 +129,35 @@ public class SessionEditTransactionTests : IDisposable
     }
 
     [Fact]
-    public async Task TrimFromBeginningAsync_ShiftsSegments_AndUndoRestoresThem()
+    public async Task TrimAndUndo_LeaveSourceSegmentAnchorsUnchanged()
     {
         var session = await InsertSessionAsync();
-        var segment = await InsertSegmentAsync(session.Id, 1, 4);
+        var segment = await InsertSegmentAsync( 1, 4);
 
         var commit = await runner.TrimFromBeginningAsync(session, 2.5);
         var shifted = await GetSegmentAsync(segment.Id);
         await runner.UndoTrimAsync(await GetSnapshotAsync(session.Id));
         var restored = await GetSegmentAsync(segment.Id);
 
-        Assert.Equal(segment.Id, Assert.Single(Assert.IsType<SessionEditCommit.Committed>(commit).Segments).Id);
-        Assert.Equal((-1.5, 1.5), (shifted.StartSeconds, shifted.EndSeconds));
+        Assert.IsType<SessionEditCommit.Committed>(commit);
+        Assert.Equal((1.0, 4.0), (shifted.StartSeconds, shifted.EndSeconds));
         Assert.Equal((1.0, 4.0), (restored.StartSeconds, restored.EndSeconds));
     }
 
     [Fact]
-    public async Task SplitAsync_MovesSegmentsStartingAtOrAfterClickToSecondPart()
+    public async Task SplitAsync_LeavesSourceSegmentAnchorsAndOwnershipUnchanged()
     {
         var session = await InsertSessionAsync();
-        var early = await InsertSegmentAsync(session.Id, 1, 4);
-        var late = await InsertSegmentAsync(session.Id, 3, 6);
+        var early = await InsertSegmentAsync( 1, 4);
+        var late = await InsertSegmentAsync( 3, 6);
 
         var commit = await runner.SplitAsync(session, 3);
 
         var part2Id = Assert.IsType<SessionEditCommit.Committed>(commit).CreatedSessionId;
         var kept = await GetSegmentAsync(early.Id);
         var moved = await GetSegmentAsync(late.Id);
-        Assert.Equal((session.Id, 1.0, 4.0), (kept.SessionId, kept.StartSeconds, kept.EndSeconds));
-        Assert.Equal((part2Id, 0.0, 3.0), ((Guid?)moved.SessionId, moved.StartSeconds, moved.EndSeconds));
+        Assert.Equal(("source-hash", 1.0, 4.0), (kept.OwnerKey, kept.StartSeconds, kept.EndSeconds));
+        Assert.Equal(("source-hash", 3.0, 6.0), (moved.OwnerKey, moved.StartSeconds, moved.EndSeconds));
     }
 
     [Fact]
@@ -212,11 +212,11 @@ public class SessionEditTransactionTests : IDisposable
     private async Task<SessionSegment> GetSegmentAsync(Guid segmentId) =>
         await (await context.GetInitializedConnectionAsync()).GetAsync<SessionSegment>(segmentId);
 
-    private async Task<SessionSegment> InsertSegmentAsync(Guid sessionId, double startSeconds, double endSeconds)
+    private async Task<SessionSegment> InsertSegmentAsync(double startSeconds, double endSeconds)
     {
         var segment = new SessionSegment
         {
-            SessionId = sessionId,
+            OwnerKey = "source-hash",
             Name = $"{startSeconds}-{endSeconds}",
             StartSeconds = startSeconds,
             EndSeconds = endSeconds,

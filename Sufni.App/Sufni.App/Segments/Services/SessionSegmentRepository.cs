@@ -11,7 +11,7 @@ namespace Sufni.App.Segments.Services;
 public interface ISessionSegmentRepository
 {
     /// <summary>
-    /// Returns the live segments of live sessions.
+    /// Returns the live source-owned segments.
     /// </summary>
     Task<List<SessionSegment>> GetLiveAsync();
 
@@ -37,7 +37,6 @@ internal sealed class SessionSegmentRepository(SqliteConnectionContext connectio
             """
             SELECT segment.*
             FROM session_segment segment
-            JOIN session ON session.id = segment.session_id AND session.deleted IS NULL
             WHERE segment.deleted IS NULL
             """);
     }
@@ -71,52 +70,4 @@ internal sealed class SessionSegmentRepository(SqliteConnectionContext connectio
         return segment;
     }
 
-    internal static IReadOnlyList<SessionSegment> ShiftInTransaction(
-        SQLiteConnection connection,
-        Guid sessionId,
-        double offsetSeconds,
-        long now)
-    {
-        var segments = GetLiveInTransaction(connection, sessionId);
-        foreach (var segment in segments)
-        {
-            segment.StartSeconds += offsetSeconds;
-            segment.EndSeconds += offsetSeconds;
-            segment.Updated = now;
-            connection.Update(segment);
-        }
-
-        return segments;
-    }
-
-    /// <summary>
-    /// Moves the segments that start at or after <paramref name="fromSeconds"/>
-    /// to another session whose telemetry starts there.
-    /// </summary>
-    internal static IReadOnlyList<SessionSegment> MoveToSessionInTransaction(
-        SQLiteConnection connection,
-        Guid fromSessionId,
-        Guid toSessionId,
-        double fromSeconds,
-        long now)
-    {
-        var segments = GetLiveInTransaction(connection, fromSessionId)
-            .Where(segment => segment.StartSeconds >= fromSeconds)
-            .ToList();
-        foreach (var segment in segments)
-        {
-            segment.SessionId = toSessionId;
-            segment.StartSeconds -= fromSeconds;
-            segment.EndSeconds -= fromSeconds;
-            segment.Updated = now;
-            connection.Update(segment);
-        }
-
-        return segments;
-    }
-
-    private static List<SessionSegment> GetLiveInTransaction(SQLiteConnection connection, Guid sessionId) =>
-        connection.Table<SessionSegment>()
-            .Where(segment => segment.SessionId == sessionId && segment.Deleted == null)
-            .ToList();
 }

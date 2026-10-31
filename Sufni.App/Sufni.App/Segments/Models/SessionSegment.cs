@@ -5,15 +5,14 @@ using SQLite;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Segments.Models;
 
-// A named time range on one recorded session, in seconds from the session's
-// telemetry start. It is live only while its session is live.
+// A named range on an immutable recording source, in source-relative seconds.
 [Table("session_segment")]
 public class SessionSegment : Synchronizable
 {
     [Indexed]
-    [JsonPropertyName("session_id")]
-    [Column("session_id"), NotNull]
-    public Guid SessionId { get; set; }
+    [JsonPropertyName("owner_key")]
+    [Column("owner_key"), NotNull]
+    public string OwnerKey { get; set; } = string.Empty;
 
     [JsonPropertyName("name")]
     [Column("name"), NotNull]

@@ -69,7 +69,8 @@ Each persisted writer interface additionally exposes:
   Video and inbound-segment refreshes load their narrower snapshot sets through
   their coordinators before replacing those stores.
 - Publication methods accept prepared snapshots or ids to remove. Segment
-  publication combines changes and removals in one cache update; video
+  publication combines changes and removals in one cache update; segments are keyed
+  by source ownership and survive session deletion; video
   workflows perform file-presence checks before passing their snapshots.
   `BikeCoordinator`, `SetupCoordinator`, `SessionCoordinator`,
   `TrackCoordinator` and `PairedDeviceCoordinator` own their respective writes.

@@ -11,7 +11,6 @@ erDiagram
     session ||--o| session_blob_swap_request : "session_id"
     session ||--o| session_gps_metrics : "session_id"
     session ||--o{ session_video : "session_id"
-    session ||--o{ session_segment : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -133,7 +132,7 @@ erDiagram
 
     session_segment {
         text id PK
-        text session_id FK
+        text owner_key
         text name
         real start_seconds
         real end_seconds
@@ -311,11 +310,7 @@ live only while its session is live: `ISessionVideoRepository` reads the clips
 of live sessions, and no delete cascades to clips. The unshipped private-video
 copy migration is removed; its `session-video` marker remains recorded as applied. See [video.md](video.md).
 
-`session_segment` holds saved segments: a name and a time range in seconds
-from the session's telemetry start. It is a `Synchronizable` table. A segment
-is live only while its session is live: `ISessionSegmentRepository` reads the
-live segments of live sessions, and no delete cascades to segments. The unshipped
-private-segment copy migration is removed; its `session-segment` marker remains recorded as applied. See [segments.md](segments.md).
+`session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash and both anchors are source-relative. Reads return non-deleted segments without joining sessions; the picker derives visibility from the source identity and current session window. Session deletion and physical purge retain these rows. Only explicit segment deletion creates a tombstone. The `track-materializations` migration converts old session-relative anchors and drops `session_id` without changing segment IDs or authored clocks. See [segments.md](segments.md).
 
 The session derivation window lives on the session row. `source_session_id`,
 `window_start_seconds`, and `window_end_seconds` describe the window; a null
@@ -368,7 +363,7 @@ has been physically purged.
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
-- `session_segment` and `session_video` rows whose session row no longer exists
+- `session_video` rows whose session row no longer exists (source-owned segments are retained)
 - `paired_device` rows whose `Expires` precedes the injected clock’s UTC time
 
 Recorded-source orphan cleanup runs after initialization through

@@ -5,14 +5,14 @@ namespace Sufni.App.Segments.Stores;
 
 public sealed record SessionSegmentSnapshot(
     Guid Id,
-    Guid SessionId,
+    string OwnerKey,
     string Name,
     double StartSeconds,
     double EndSeconds)
 {
     public static SessionSegmentSnapshot From(SessionSegment segment) => new(
         segment.Id,
-        segment.SessionId,
+        segment.OwnerKey,
         segment.Name,
         segment.StartSeconds,
         segment.EndSeconds);

@@ -155,13 +155,13 @@ public class SynchronizationMergeEngineTests
         var hub = new TestPersistenceHarness(hubDatabase.DatabasePath);
         var session = new Session(Guid.NewGuid(), "ride", string.Empty, null);
         await device.PutSessionAsync(session);
-        var segment = new SessionSegment { SessionId = session.Id, Name = "climb", StartSeconds = 1, EndSeconds = 4 };
+        var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 1, EndSeconds = 4 };
         await device.SessionSegmentRepository.InsertAsync(segment);
 
         await hub.MergeAllAsync(await device.GetSynchronizationDataAsync(0, PersistenceTestData.CreateTimeProvider().GetUtcNow().ToUnixTimeSeconds()));
 
         var merged = Assert.Single(await hub.SessionSegmentRepository.GetLiveAsync());
-        Assert.Equal((segment.Id, session.Id, "climb"), (merged.Id, merged.SessionId, merged.Name));
+        Assert.Equal((segment.Id, "source-hash", "climb"), (merged.Id, merged.OwnerKey, merged.Name));
     }
 
     [Fact]

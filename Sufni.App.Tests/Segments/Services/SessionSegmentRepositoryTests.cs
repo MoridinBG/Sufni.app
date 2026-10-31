@@ -7,7 +7,7 @@ namespace Sufni.App.Tests.Segments.Services;
 public class SessionSegmentRepositoryTests
 {
     [Fact]
-    public async Task GetLiveAsync_HidesDeletedSegmentsAndSegmentsOfDeletedSessions()
+    public async Task GetLiveAsync_HidesOnlyDeletedSegments_AndRetainsAttachmentsAfterSessionDeletion()
     {
         using var tempDatabase = new TempDatabase();
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -16,17 +16,19 @@ public class SessionSegmentRepositoryTests
         var deletedSession = new Session(Guid.NewGuid(), "deleted", string.Empty, null);
         await database.PutSessionAsync(liveSession);
         await database.PutSessionAsync(deletedSession);
-        var kept = new SessionSegment { SessionId = liveSession.Id, Name = "kept", StartSeconds = 0, EndSeconds = 1 };
-        var deleted = new SessionSegment { SessionId = liveSession.Id, Name = "deleted", StartSeconds = 0, EndSeconds = 1 };
+        var kept = new SessionSegment { OwnerKey = "source-hash", Name = "kept", StartSeconds = 0, EndSeconds = 1 };
+        var deleted = new SessionSegment { OwnerKey = "source-hash", Name = "deleted", StartSeconds = 0, EndSeconds = 1 };
         await repository.InsertAsync(kept);
         await repository.InsertAsync(deleted);
-        await repository.InsertAsync(new SessionSegment { SessionId = deletedSession.Id, Name = "hidden", StartSeconds = 0, EndSeconds = 1 });
+        await repository.InsertAsync(new SessionSegment { OwnerKey = "other-source", Name = "hidden", StartSeconds = 0, EndSeconds = 1 });
         await repository.DeleteAsync(deleted.Id);
         await database.DeleteAsync(deletedSession);
 
         var live = await repository.GetLiveAsync();
 
-        Assert.Equal(kept.Id, Assert.Single(live).Id);
+        Assert.Equal(2, live.Count);
+        Assert.Contains(live, segment => segment.Id == kept.Id);
+        Assert.Contains(live, segment => segment.OwnerKey == "other-source");
     }
 
     [Fact]
@@ -34,7 +36,7 @@ public class SessionSegmentRepositoryTests
     {
         using var tempDatabase = new TempDatabase();
         var repository = new TestPersistenceHarness(tempDatabase.DatabasePath).SessionSegmentRepository;
-        var segment = new SessionSegment { SessionId = Guid.NewGuid(), Name = "climb", StartSeconds = 0, EndSeconds = 1 };
+        var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 0, EndSeconds = 1 };
         await repository.InsertAsync(segment);
         await repository.DeleteAsync(segment.Id);
 
