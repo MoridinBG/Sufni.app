@@ -45,11 +45,12 @@ internal sealed class SessionPersistenceTransactionRunner(
                                                   WHERE id=?
                                                   """;
 
-    public async Task<bool> DeleteSessionAsync(
+    public async Task<SessionDeleteCommit> DeleteSessionAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
         var sourceDeleted = false;
+        Guid? removedTrackId = null;
         await connectionContext.RunInTransactionAsync(connection =>
         {
             var fullTrackId = connection.Query<Session>(
@@ -68,10 +69,11 @@ internal sealed class SessionPersistenceTransactionRunner(
                     "SELECT COUNT(1) FROM session WHERE full_track_id = ? AND deleted IS NULL", fullTrackId.Value) == 0)
             {
                 SynchronizableRepository<Track>.DeleteInTransaction(connection, fullTrackId.Value, now);
+                removedTrackId = fullTrackId.Value;
             }
         }, cancellationToken);
 
-        return sourceDeleted;
+        return new SessionDeleteCommit(sourceDeleted, removedTrackId);
     }
 
     public Task<SessionEditCommit> TrimUntilEndAsync(SessionSnapshot session, double clickSeconds) =>

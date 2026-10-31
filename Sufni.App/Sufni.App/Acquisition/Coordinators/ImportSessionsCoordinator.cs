@@ -21,6 +21,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
@@ -46,7 +47,8 @@ public class ImportSessionsCoordinator(
     IDaqManagementService daqManagementService,
     IRecordedSessionReprocessor reprocessor,
     IUiThreadDispatcher dispatcher,
-    StorePublication publication) : IImportSessionsCoordinator, IDisposable
+    StorePublication publication,
+    ITrackStoreWriter trackStore) : IImportSessionsCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
     private static readonly int ImportProcessDop = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
@@ -394,11 +396,15 @@ public class ImportSessionsCoordinator(
                 try
                 {
                     var sourceSnapshots = committedEntries.Select(entry => entry.Source).ToArray();
+                    var trackIds = importedSnapshots.Where(snapshot => snapshot.FullTrackId.HasValue)
+                        .Select(snapshot => snapshot.FullTrackId!.Value).Distinct().ToArray();
+                    var tracks = await trackRepository.GetTrackSnapshotsAsync(trackIds);
                     await dispatcher.InvokeAsync(async () =>
                     {
                         using var batch = publication.BeginBatch();
                         await sessionStore.PublishSessionsChangedAsync(importedSnapshots);
                         await sourceStore.PublishSourcesChangedAsync(sourceSnapshots);
+                        await trackStore.PublishTracksChangedAsync(tracks);
                     });
                 }
                 catch (Exception e)

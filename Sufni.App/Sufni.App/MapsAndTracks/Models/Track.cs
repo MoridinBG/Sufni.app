@@ -49,17 +49,17 @@ public class Track : Synchronizable
 
     [JsonIgnore]
     [Column("start_time")]
-    public long StartTime
+    public double StartTime
     {
-        get => HasPoints ? (long)Points[0].Time : 0;
+        get => HasPoints ? Points[0].Time : 0;
         set => _ = value;
     }
 
     [JsonIgnore]
     [Column("end_time")]
-    public long EndTime
+    public double EndTime
     {
-        get => HasPoints ? (long)Points[^1].Time : 0;
+        get => HasPoints ? Points[^1].Time : 0;
         set => _ = value;
     }
 

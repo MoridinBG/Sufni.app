@@ -35,7 +35,7 @@ public class SessionPersistenceTransactionRunnerTests
                 Deleted = otherDeleted ? 1 : null
             });
 
-        await runner.DeleteSessionAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
+        var commit = await runner.DeleteSessionAsync(sessionId, cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await connection.GetAsync<Session>(sessionId);
         var persistedTrack = await connection.GetAsync<Track>(track.Id);
@@ -43,6 +43,7 @@ public class SessionPersistenceTransactionRunnerTests
             .Where(candidate => candidate.SessionId == sessionId)
             .ToListAsync();
         Assert.NotNull(session.Deleted);
+        Assert.Equal(shared && !otherDeleted ? (Guid?)null : track.Id, commit.RemovedTrackId);
         if (shared && !otherDeleted) Assert.Null(persistedTrack.Deleted);
         else Assert.NotNull(persistedTrack.Deleted);
         Assert.Empty(sources);

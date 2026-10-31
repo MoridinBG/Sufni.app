@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using System.Reactive.Subjects;
 using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
@@ -47,6 +48,8 @@ internal sealed class ImportWorkflowHarness
         ConfigureDefaultWriter();
     }
 
+    public ITrackStoreWriter TrackStore { get; } = Substitute.For<ITrackStoreWriter>();
+
     public StorePublication Publication { get; } = new(new InlineUiThreadDispatcher());
 
     public BehaviorSubject<SessionImportState> ImportState { get; } = new(new SessionImportState.Idle());
@@ -84,7 +87,8 @@ internal sealed class ImportWorkflowHarness
         DaqManagementService,
         Reprocessor,
         new InlineUiThreadDispatcher(),
-        Publication);
+        Publication,
+        TrackStore);
 
     public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
         TelemetryDataStoreService,

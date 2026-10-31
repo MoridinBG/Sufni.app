@@ -23,6 +23,7 @@ using Sufni.App.LiveDaq.Stores;
 using Sufni.App.LiveDaq.ViewModels.ItemLists;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Sessions.Analysis.Services;
@@ -143,6 +144,9 @@ public static class AppComposition
         services.AddSingleton<SessionStore>();
         services.AddSingleton<ISessionStore>(sp => sp.GetRequiredService<SessionStore>());
         services.AddSingleton<ISessionStoreWriter>(sp => sp.GetRequiredService<SessionStore>());
+        services.AddSingleton<TrackStore>();
+        services.AddSingleton<ITrackStore>(sp => sp.GetRequiredService<TrackStore>());
+        services.AddSingleton<ITrackStoreWriter>(sp => sp.GetRequiredService<TrackStore>());
         services.AddSingleton<RecordedSessionSourceStore>();
         services.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         services.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
@@ -186,7 +190,10 @@ public static class AppComposition
             sp.GetRequiredService<IRecordedSessionDomainQuery>(),
             sp.GetRequiredService<IRecordedSessionReprocessor>(),
             sp.GetRequiredService<IRecordedSessionSourceRepository>(),
-            sp.GetRequiredService<IProcessingFingerprintService>()));
+            sp.GetRequiredService<IProcessingFingerprintService>(),
+            sp.GetRequiredService<ITrackStoreWriter>(),
+            sp.GetRequiredService<IUiThreadDispatcher>(),
+            sp.GetRequiredService<StorePublication>()));
         services.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
         services.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
         services.AddSingleton<SessionSyncApplier>();
@@ -230,7 +237,8 @@ public static class AppComposition
                 sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 sp.GetRequiredService<IUiThreadDispatcher>(),
-                sp.GetRequiredService<StorePublication>()));
+                sp.GetRequiredService<StorePublication>(),
+                sp.GetRequiredService<ITrackStoreWriter>()));
         services.AddSingleton<IImportSessionsCoordinator>(sp =>
             sp.GetRequiredService<ImportSessionsCoordinator>());
         services.AddSingleton<BikeListViewModel>();

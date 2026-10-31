@@ -19,6 +19,9 @@ implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 | `SetupStore`                 | `ISetupStore`                   | `ISetupStoreWriter`                 | `SetupSnapshot`                   | `Guid`   |
 | `SessionStore`               | `ISessionStore`                 | `ISessionStoreWriter`               | `SessionSnapshot`                 | `Guid`   |
 | `RecordedSessionSourceStore` | `IRecordedSessionSourceStore`   | `IRecordedSessionSourceStoreWriter` | `RecordedSessionSourceSnapshot`   | `Guid`   |
+| `TrackStore`                 | `ITrackStore`                   | `ITrackStoreWriter`                 | `TrackSnapshot`                   | `Guid`   |
+| `SessionVideoStore`          | `ISessionVideoStore`            | `ISessionVideoStoreWriter`          | `SessionVideoSnapshot`            | `Guid`   |
+| `SessionSegmentStore`        | `ISessionSegmentStore`          | `ISessionSegmentStoreWriter`        | `SessionSegmentSnapshot`          | `Guid`   |
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
 
@@ -59,7 +62,7 @@ Each persisted writer interface additionally exposes:
 
 - `ReplaceAllAsync(snapshots)` — replace cache contents with snapshots prepared
   by the requesting workflow. Stores do not load full refreshes. `AppDataRefresher`
-  loads all seven families through repositories and
+  loads all eight families through repositories and
   constructs their snapshots off-thread, then publishes them inside one shared
   UI-thread batch. Concurrent full-refresh requests share the active run; a
   cancellation or load failure leaves the previously published state intact.
@@ -87,6 +90,15 @@ carry an `Updated` timestamp that the editors keep as their
 metadata-only snapshots that are not edited through that flow, such as
 `LiveDaqSnapshot`, `PairedDeviceSnapshot`, and
 `RecordedSessionSourceSnapshot`, do not expose an editor baseline.
+
+`TrackStore` holds each active track's content ID, fractional start/end time and
+local points revision. `ITrackRepository.GetTrackSnapshotsAsync` reads only those
+columns; point JSON stays outside the store. Startup/full refresh loads tracks
+with the other families. GPX import publishes the committed metadata; recording
+import, live save and recompute publish tracks with their session/source changes.
+Session deletion publishes the track removal returned by its transaction, and
+recompute removes an old orphan after its deletion commits. Direct inbound sync
+publication remains part of the sync ownership migration.
 
 `SessionSnapshot` is metadata-only: it carries `HasProcessedData` derived by the
 repository's SQL metadata projection (no BLOB load or persisted availability flag),

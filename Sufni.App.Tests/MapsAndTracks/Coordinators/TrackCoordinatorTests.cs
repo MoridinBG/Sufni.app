@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using System.IO;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -28,7 +29,9 @@ public class TrackCoordinatorTests
     private readonly ISessionTrackReader sessionTrackReader = Substitute.For<ISessionTrackReader>();
     private readonly IFullTrackPointReader fullTrackPointReader = Substitute.For<IFullTrackPointReader>();
 
-    private TrackCoordinator CreateCoordinator() => new(
+    private readonly ITrackStoreWriter trackStore = Substitute.For<ITrackStoreWriter>();
+
+    private TrackCoordinator CreateCoordinator(ITrackStoreWriter? tracks = null) => new(
         trackRepository,
         trackEntityRepository,
         sessionRepository,
@@ -36,19 +39,27 @@ public class TrackCoordinatorTests
         backgroundTaskRunner,
         sessionTrackReader,
         fullTrackPointReader,
-        new GpxTrackReader());
+        new GpxTrackReader(),
+        tracks ?? trackStore);
 
     [Fact]
-    public async Task ImportGpxAsync_ImportsSelectedFiles()
+    public async Task ImportGpxAsync_PublishesPersistedTrackMetadata()
     {
-        var file = TestStorageItems.PickedTextFile("ride.gpx", ValidGpx());
-        filesService.OpenGpxFilesAsync().Returns([file]);
+        using var store = new TrackStore(new StorePublication(new InlineUiThreadDispatcher()));
+        filesService.OpenGpxFilesAsync().Returns([TestStorageItems.PickedTextFile("ride.gpx", ValidGpx())]);
+        trackRepository.GetTrackSnapshotsAsync(Arg.Any<IReadOnlyCollection<Guid>>()).Returns(async call =>
+        {
+            var track = (await trackEntityRepository.GetAsync(call.Arg<IReadOnlyCollection<Guid>>().Single()))!;
+            return (IReadOnlyList<TrackSnapshot>)new[] { new TrackSnapshot(track.Id, track.StartTime, track.EndTime, 7) };
+        });
 
-        var result = Assert.IsType<GpxImportResult.Completed>(await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken));
+        var result = Assert.IsType<GpxImportResult.Completed>(await CreateCoordinator(store)
+            .ImportGpxAsync(TestContext.Current.CancellationToken));
 
         Assert.Equal(1, result.ImportedCount);
         Assert.Equal(0, result.AlreadyImportedCount);
-        Assert.Equal(2, Assert.Single(await trackEntityRepository.GetAllAsync()).Points.Count);
+        var persisted = Assert.Single(await trackEntityRepository.GetAllAsync());
+        Assert.Equal(new TrackSnapshot(persisted.Id, persisted.StartTime, persisted.EndTime, 7), store.Get(persisted.Id));
     }
 
     [Theory]

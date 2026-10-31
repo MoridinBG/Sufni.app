@@ -12,9 +12,9 @@ public interface ISessionPersistenceTransactionRunner
 {
     /// <summary>
     /// Deletes the session, its unshared track and its unreferenced recording
-    /// source in one transaction. Returns whether the source is no longer retained.
+    /// source in one transaction. Returns the removals to publish.
     /// </summary>
-    Task<bool> DeleteSessionAsync(
+    Task<SessionDeleteCommit> DeleteSessionAsync(
         Guid sessionId,
         CancellationToken cancellationToken = default);
 
@@ -53,3 +53,5 @@ public abstract record SessionEditCommit
 
     public sealed record Rejected(string Message) : SessionEditCommit;
 }
+
+public readonly record struct SessionDeleteCommit(bool SourceDeleted, Guid? RemovedTrackId);

@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
@@ -34,6 +35,7 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionCoordinatorTests
 {
+    private readonly ITrackStoreWriter trackStore = Substitute.For<ITrackStoreWriter>();
     private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
     private readonly TestSessionProcessedTelemetryReader processedTelemetryReader = new();
     private readonly InMemorySynchronizableRepository<Track> trackRepository = new(new FakeTimeProvider());
@@ -59,7 +61,7 @@ public class SessionCoordinatorTests
         sessionPersistenceTransactions.DeleteSessionAsync(
                 Arg.Any<Guid>(),
                 Arg.Any<CancellationToken>())
-            .Returns(true);
+            .Returns(new SessionDeleteCommit(true, null));
     }
 
     [Theory]
@@ -307,17 +309,21 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveLiveCaptureAsync_PublishesRecordingAndSourceTogether()
+    public async Task SaveLiveCaptureAsync_PublishesRecordingSourceAndTrackTogether()
     {
-        var capture = CreateLiveCapturePackage(withGps: false);
+        var capture = CreateLiveCapturePackage(withGps: true);
         SeedLiveCaptureDependencies(capture);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         using var sessions = new SessionStore(publication);
         using var sources = new RecordedSessionSourceStore(publication);
-        var coordinator = CreateCoordinator(sessions, repository.Repository, sources);
+        using var tracks = new TrackStore(publication);
+        trackQueries.GetTrackSnapshotsAsync(Arg.Any<IReadOnlyCollection<Guid>>()).Returns(call =>
+            new[] { new TrackSnapshot(call.Arg<IReadOnlyCollection<Guid>>().Single(), 100, 101, 7) });
+        var coordinator = CreateCoordinator(sessions, repository.Repository, sources, tracks);
         var id = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture).SessionId;
-        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source)>();
-        using var subscription = publication.Committed.Subscribe(_ => observed.Add((sessions.Get(id), sources.Get(id))));
+        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source, TrackSnapshot? Track)>();
+        using var subscription = publication.Committed.Subscribe(_ => observed.Add((sessions.Get(id), sources.Get(id),
+            sessions.Get(id)?.FullTrackId is { } trackId ? tracks.Get(trackId) : null)));
 
         var result = await coordinator.SaveLiveCaptureAsync(
             new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId),
@@ -327,6 +333,8 @@ public class SessionCoordinatorTests
         var committed = Assert.Single(observed);
         Assert.Equal(id, committed.Session!.Id);
         Assert.Equal(id, committed.Source!.SessionId);
+        Assert.Equal(committed.Session.FullTrackId, committed.Track!.Id);
+        Assert.Equal(7, committed.Track.PointsRevision);
     }
 
     [Fact]
@@ -453,14 +461,19 @@ public class SessionCoordinatorTests
     public async Task DeleteAsync_PublishesRemovalAndClearsPreferencesAfterCommit()
     {
         var id = Guid.NewGuid();
+        var track = new TrackSnapshot(Guid.NewGuid(), 100, 101, 1);
+        using var tracks = new TrackStore(publication);
+        await tracks.PublishTracksChangedAsync([track]);
+        sessionPersistenceTransactions.DeleteSessionAsync(id, Arg.Any<CancellationToken>())
+            .Returns(new SessionDeleteCommit(true, track.Id));
         using var store = new SessionStore(publication);
         using var sources = new RecordedSessionSourceStore(publication);
         await store.PublishSessionsChangedAsync([TestSnapshots.Session(id: id)]);
         await sources.PublishSourcesChangedAsync([RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(id))]);
-        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source)>();
-        using var subscription = publication.Committed.Subscribe(_ => observed.Add((store.Get(id), sources.Get(id))));
+        var observed = new List<(SessionSnapshot? Session, RecordedSessionSourceSnapshot? Source, TrackSnapshot? Track)>();
+        using var subscription = publication.Committed.Subscribe(_ => observed.Add((store.Get(id), sources.Get(id), tracks.Get(track.Id))));
 
-        var result = await CreateCoordinator(store, sources: sources).DeleteAsync(id);
+        var result = await CreateCoordinator(store, sources: sources, tracks: tracks).DeleteAsync(id);
 
         Assert.IsType<SessionDeleteResult.Deleted>(result);
         await sessionPersistenceTransactions.Received(1).DeleteSessionAsync(id, Arg.Any<CancellationToken>());
@@ -468,6 +481,7 @@ public class SessionCoordinatorTests
         var removed = Assert.Single(observed);
         Assert.Null(removed.Session);
         Assert.Null(removed.Source);
+        Assert.Null(removed.Track);
     }
 
     [Fact]
@@ -476,7 +490,7 @@ public class SessionCoordinatorTests
         var id = Guid.NewGuid();
         sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null));
         sessionPersistenceTransactions.DeleteSessionAsync(id, Arg.Any<CancellationToken>())
-            .Returns(false);
+            .Returns(new SessionDeleteCommit(false, null));
 
         var result = await CreateCoordinator().DeleteAsync(id);
 
@@ -487,7 +501,7 @@ public class SessionCoordinatorTests
     }
 
     private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null,
-        IRecordedSessionSourceStoreWriter? sources = null) =>
+        IRecordedSessionSourceStoreWriter? sources = null, ITrackStoreWriter? tracks = null) =>
         new(
             store ?? sessionStore,
             repository ?? sessionRepository,
@@ -503,7 +517,8 @@ public class SessionCoordinatorTests
             new InlineUiThreadDispatcher(),
             processedTelemetryReader,
             trackRepository,
-            publication);
+            publication,
+            tracks ?? trackStore);
 
     private static LiveSessionCapturePackage CreateLiveCapturePackage(bool withGps)
     {

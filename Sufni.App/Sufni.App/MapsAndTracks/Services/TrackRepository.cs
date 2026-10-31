@@ -6,10 +6,13 @@ using SQLite;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 namespace Sufni.App.MapsAndTracks.Services;
 
 public interface ITrackRepository
 {
+    Task<IReadOnlyList<TrackSnapshot>> GetTrackSnapshotsAsync(IReadOnlyCollection<Guid>? trackIds = null);
+
     Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp);
 
     Task<List<Track>> GetTracksByIdsAsync(IReadOnlyCollection<Guid> trackIds);
@@ -47,6 +50,24 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         {
             connection.Execute("UPDATE track SET deleted = NULL, updated = ? WHERE id = ?", now, track.Id);
         }
+    }
+
+    public async Task<IReadOnlyList<TrackSnapshot>> GetTrackSnapshotsAsync(IReadOnlyCollection<Guid>? trackIds = null)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        const string query = "SELECT id, start_time, end_time, points_revision FROM track WHERE deleted IS NULL";
+        if (trackIds is null)
+            return (await connection.QueryAsync<TrackPayloadMetadataRow>(query)).Select(row => row.ToSnapshot()).ToArray();
+
+        var snapshots = new List<TrackSnapshot>(trackIds.Count);
+        foreach (var chunk in trackIds.Chunk(TrackLookupChunkSize))
+        {
+            var placeholders = string.Join(", ", chunk.Select(_ => "?"));
+            var args = chunk.Select(id => (object)id.ToString("D")).ToArray();
+            var rows = await connection.QueryAsync<TrackPayloadMetadataRow>($"{query} AND id IN ({placeholders})", args);
+            snapshots.AddRange(rows.Select(row => row.ToSnapshot()));
+        }
+        return snapshots;
     }
 
     public async Task<Guid?> FindTrackContainingTimestampAsync(long? timestamp)
@@ -170,7 +191,14 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext)
         [Column("points_revision")]
         public long PointsRevision { get; set; }
 
+        [Column("start_time")]
+        public double StartTime { get; set; }
+
+        [Column("end_time")]
+        public double EndTime { get; set; }
+
         public TrackPayloadMetadata ToMetadata() => new(Id, PointsRevision);
+        public TrackSnapshot ToSnapshot() => new(Id, StartTime, EndTime, PointsRevision);
     }
 
     private sealed class TrackPayloadRow

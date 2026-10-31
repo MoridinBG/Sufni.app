@@ -126,7 +126,7 @@ public class SessionRepositoryTests
             PreviousWindowStartSeconds = 0
         };
         var first = await database.SessionRepository.ImportProcessedSessionAsync(original, oldTrack, source);
-        Assert.True(await database.SessionTransactions.DeleteSessionAsync(original.Id, TestContext.Current.CancellationToken));
+        Assert.True((await database.SessionTransactions.DeleteSessionAsync(original.Id, TestContext.Current.CancellationToken)).SourceDeleted);
         Assert.Null(await database.GetRecordedSessionSourceAsync(original.Id));
         var connection = await database.GetInitializedConnectionAsync();
         var deleted = (await connection.FindAsync<Session>(original.Id))!;

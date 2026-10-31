@@ -2,11 +2,31 @@ using SQLite;
 using Sufni.Telemetry;
 
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Tests.TestSupport.Persistence;
 namespace Sufni.App.Tests.MapsAndTracks.Services;
 
 public class TrackRepositoryTests
 {
+    [Fact]
+    public async Task GetTrackSnapshotsAsync_ReadsFractionalBoundsAndRevisionWithoutDecodingPoints()
+    {
+        using var temp = new TempDatabase();
+        await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+        var connection = await context.GetInitializedConnectionAsync();
+        var track = new Track([new TrackPoint(100.25, 1, 2, 3), new TrackPoint(101.75, 4, 5, 6)]);
+        await connection.InsertAsync(track);
+        await connection.InsertAsync(new Track { Deleted = 100 });
+        await connection.ExecuteAsync("UPDATE track SET points = ? WHERE id = ?", "unreadable payload", track.Id);
+        var repository = new TrackRepository(context);
+
+        var expected = new TrackSnapshot(track.Id, 100.25, 101.75, 2);
+        Assert.Equal(expected, Assert.Single(await repository.GetTrackSnapshotsAsync()));
+        Assert.Equal(expected, Assert.Single(await repository.GetTrackSnapshotsAsync([track.Id])));
+        Assert.Empty(await repository.GetTrackSnapshotsAsync([]));
+    }
+
     [Fact]
     public async Task PutAsync_Throws_WhenLiveTrackHasNoPoints()
     {

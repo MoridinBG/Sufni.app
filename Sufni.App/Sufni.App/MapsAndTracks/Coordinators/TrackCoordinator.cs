@@ -7,6 +7,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
@@ -24,7 +25,8 @@ public class TrackCoordinator(
     IBackgroundTaskRunner backgroundTaskRunner,
     ISessionTrackReader sessionTrackReader,
     IFullTrackPointReader fullTrackPointReader,
-    IGpxTrackReader gpxTrackReader) : ITrackCoordinator
+    IGpxTrackReader gpxTrackReader,
+    ITrackStoreWriter trackStore) : ITrackCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<TrackCoordinator>();
     private const double DefaultMediaColumnWidth = 400.0;
@@ -83,6 +85,7 @@ public class TrackCoordinator(
                 }
 
                 await trackEntityRepository.PutAsync(track);
+                await trackStore.PublishTracksChangedAsync(await trackRepository.GetTrackSnapshotsAsync([track.Id]));
                 importedCount++;
             }
             catch (Exception e) when (e is not OperationCanceledException)

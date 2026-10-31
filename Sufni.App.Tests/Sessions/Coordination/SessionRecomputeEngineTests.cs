@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Tests.TestSupport.Async;
 using System.Threading;
 using NSubstitute;
@@ -43,7 +44,10 @@ public class SessionRecomputeEngineTests
         domainQuery,
         reprocessor,
         sourceRepository,
-        new ProcessingFingerprintService());
+        new ProcessingFingerprintService(),
+        Substitute.For<ITrackStoreWriter>(),
+        new InlineUiThreadDispatcher(),
+        new StorePublication(new InlineUiThreadDispatcher()));
 
 
     // Wires a recomputable session: a current-schema domain, a present source whose

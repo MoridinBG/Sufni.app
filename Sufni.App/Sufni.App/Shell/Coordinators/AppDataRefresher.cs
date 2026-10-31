@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -45,7 +47,9 @@ internal sealed class AppDataRefresher(
     ISessionSegmentRepository segmentRepository,
     IBackgroundTaskRunner backgroundTaskRunner,
     IUiThreadDispatcher dispatcher,
-    StorePublication publication) : IAppDataRefresher
+    StorePublication publication,
+    ITrackStoreWriter trackStore,
+    ITrackRepository trackRepository) : IAppDataRefresher
 {
     private readonly Lock refreshGate = new();
     private Task? activeRefresh;
@@ -74,6 +78,7 @@ internal sealed class AppDataRefresher(
             var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
             var devices = await pairedDeviceRepository.GetPairedDevicesAsync();
             var clips = await videoRepository.GetLiveAsync();
+            var tracks = await trackRepository.GetTrackSnapshotsAsync();
             var segments = await segmentRepository.GetLiveAsync();
             cancellationToken.ThrowIfCancellationRequested();
             return new AppDataSnapshot(
@@ -83,7 +88,8 @@ internal sealed class AppDataRefresher(
                 sources.ToArray(),
                 devices.Select(PairedDeviceSnapshot.From).ToArray(),
                 clips.Select(SessionVideoSnapshot.From).ToArray(),
-                segments.Select(SessionSegmentSnapshot.From).ToArray());
+                segments.Select(SessionSegmentSnapshot.From).ToArray(),
+                tracks);
         }, cancellationToken);
 
         await dispatcher.InvokeAsync(async () =>
@@ -98,6 +104,7 @@ internal sealed class AppDataRefresher(
             await pairedDeviceStore.ReplaceAllAsync(snapshot.Devices);
             await sessionVideoStore.ReplaceAllAsync(snapshot.Videos);
             await sessionSegmentStore.ReplaceAllAsync(snapshot.Segments);
+            await trackStore.ReplaceAllAsync(snapshot.Tracks);
         });
     }
 
@@ -108,5 +115,6 @@ internal sealed class AppDataRefresher(
         IReadOnlyList<RecordedSessionSourceSnapshot> Sources,
         IReadOnlyList<PairedDeviceSnapshot> Devices,
         IReadOnlyList<SessionVideoSnapshot> Videos,
-        IReadOnlyList<SessionSegmentSnapshot> Segments);
+        IReadOnlyList<SessionSegmentSnapshot> Segments,
+        IReadOnlyList<TrackSnapshot> Tracks);
 }

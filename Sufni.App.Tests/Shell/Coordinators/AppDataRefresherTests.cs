@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using NSubstitute;
@@ -40,7 +42,7 @@ public class AppDataRefresherTests
             reachedLastRead.TrySetResult();
             return lastRead.Task;
         });
-        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool)>();
+        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(fixture.Bike.Id)?.Name,
             fixture.Setups.Get(fixture.Setup.Id)?.BoardId,
@@ -49,7 +51,8 @@ public class AppDataRefresherTests
             fixture.Devices.Get("phone")?.DisplayName,
             fixture.Videos.Get(fixture.Clip.Id)?.Path,
             fixture.Segments.Get(fixture.Segment.Id)?.Name,
-            fixture.Bikes.Get(oldBike.Id) is null)));
+            fixture.Bikes.Get(oldBike.Id) is null,
+            fixture.Tracks.Get(fixture.Track.Id))));
 
         var refresh = fixture.Refresher.RefreshAsync(TestContext.Current.CancellationToken);
         Assert.Empty(observed);
@@ -59,7 +62,7 @@ public class AppDataRefresherTests
         lastRead.SetResult([fixture.Segment]);
         await refresh.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(("bike", fixture.Board.Id, "session", "source hash", "Phone", "", "segment", true),
+        Assert.Equal(("bike", fixture.Board.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track),
             Assert.Single(observed));
     }
 
@@ -110,6 +113,8 @@ public class AppDataRefresherTests
 
     private sealed class Fixture : IDisposable
     {
+        public TrackSnapshot Track { get; } = new(Guid.NewGuid(), 100.25, 101.75, 3);
+        public TrackStore Tracks { get; }
         public Bike Bike { get; } = new(Guid.NewGuid(), "bike");
         public Setup Setup { get; }
         public Board Board { get; }
@@ -134,6 +139,8 @@ public class AppDataRefresherTests
             Session = new Session(Guid.NewGuid(), "session", "", Setup.Id);
             Clip = new SessionVideoClip { Id = Guid.NewGuid(), SessionId = Session.Id, Path = "" };
             Segment = new SessionSegment { Id = Guid.NewGuid(), SessionId = Session.Id, Name = "segment" };
+            var trackRepository = Substitute.For<ITrackRepository>();
+            trackRepository.GetTrackSnapshotsAsync().Returns([Track]);
             var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
             var setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
             var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
@@ -152,6 +159,7 @@ public class AppDataRefresherTests
             SegmentRepository.GetLiveAsync().Returns([Segment]);
             var dispatcher = new InlineUiThreadDispatcher();
             Publication = new StorePublication(dispatcher);
+            Tracks = new TrackStore(Publication);
             Bikes = new BikeStore(Publication);
             Setups = new SetupStore(Publication);
             Sessions = new SessionStore(Publication);
@@ -162,11 +170,12 @@ public class AppDataRefresherTests
             Refresher = new AppDataRefresher(Bikes, Setups, Sessions, Sources, Devices, Videos, Segments,
                 bikeRepository, setupRepository, boardRepository, sessionRepository, sourceRepository,
                 deviceRepository, videoRepository, SegmentRepository, new InlineBackgroundTaskRunner(),
-                dispatcher, Publication);
+                dispatcher, Publication, Tracks, trackRepository);
         }
 
         public void Dispose()
         {
+            Tracks.Dispose();
             Bikes.Dispose();
             Setups.Dispose();
             Sessions.Dispose();

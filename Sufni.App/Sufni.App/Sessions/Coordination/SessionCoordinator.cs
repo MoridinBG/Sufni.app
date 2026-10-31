@@ -10,6 +10,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -43,6 +44,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     private readonly ISessionRecomputeEngine recomputeEngine;
     private readonly ISessionPersistenceTransactionRunner sessionPersistenceTransactions;
     private readonly StorePublication publication;
+    private readonly ITrackStoreWriter trackStore;
 
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
@@ -59,10 +61,12 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         IUiThreadDispatcher dispatcher,
         ISessionProcessedTelemetryReader processedTelemetryReader,
         ISynchronizableRepository<Track> trackRepository,
-        StorePublication publication)
+        StorePublication publication,
+        ITrackStoreWriter trackStore)
     {
         this.dispatcher = dispatcher;
         this.publication = publication;
+        this.trackStore = trackStore;
         this.processedTelemetryReader = processedTelemetryReader;
         this.trackRepository = trackRepository;
         this.sessionStore = sessionStore;
@@ -258,11 +262,13 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 string? publicationWarning = null;
                 try
                 {
+                    var tracks = await trackQueries.GetTrackSnapshotsAsync(snapshot.FullTrackId is { } id ? [id] : []);
                     await dispatcher.InvokeAsync(async () =>
                     {
                         using var batch = publication.BeginBatch();
                         await sessionStore.PublishSessionsChangedAsync([snapshot]);
                         await sourceStore.PublishSourcesChangedAsync([committed.Source]);
+                        await trackStore.PublishTracksChangedAsync(tracks);
                     });
                 }
                 catch (Exception e)
@@ -295,7 +301,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
 
         try
         {
-            var sourceDeleted = await sessionPersistenceTransactions.DeleteSessionAsync(sessionId);
+            var commit = await sessionPersistenceTransactions.DeleteSessionAsync(sessionId);
             try
             {
                 await sessionPreferences.RemoveRecordedAsync(sessionId);
@@ -308,7 +314,8 @@ internal sealed class SessionCoordinator : ISessionCoordinator
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
-                if (sourceDeleted) await sourceStore.PublishSourcesRemovedAsync([sessionId]);
+                if (commit.SourceDeleted) await sourceStore.PublishSourcesRemovedAsync([sessionId]);
+                if (commit.RemovedTrackId is { } trackId) await trackStore.PublishTracksRemovedAsync([trackId]);
                 await sessionStore.PublishSessionsRemovedAsync([sessionId]);
             });
             logger.Information("Session delete completed for {SessionId}", sessionId);

@@ -8,6 +8,8 @@ using Serilog;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Shared.Stores;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
@@ -54,6 +56,9 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
     private static readonly int RecomputeAllMaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
 
     private readonly ISessionStoreWriter sessionStore;
+    private readonly ITrackStoreWriter trackStore;
+    private readonly IUiThreadDispatcher dispatcher;
+    private readonly StorePublication publication;
     private readonly ISessionRepository sessionRepository;
     private readonly ITrackRepository trackQueries;
     private readonly IProcessingFingerprintService fingerprintService;
@@ -84,9 +89,15 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         IRecordedSessionDomainQuery recordedSessionDomainQuery,
         IRecordedSessionReprocessor recordedSessionReprocessor,
         IRecordedSessionSourceRepository sourceRepository,
-        IProcessingFingerprintService fingerprintService)
+        IProcessingFingerprintService fingerprintService,
+        ITrackStoreWriter trackStore,
+        IUiThreadDispatcher dispatcher,
+        StorePublication publication)
     {
         this.sessionStore = sessionStore;
+        this.trackStore = trackStore;
+        this.dispatcher = dispatcher;
+        this.publication = publication;
         this.sessionRepository = sessionRepository;
         this.trackQueries = trackQueries;
         this.fingerprintService = fingerprintService;
@@ -393,7 +404,13 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             }
 
             var snapshot = SessionSnapshot.From(fresh);
-            await sessionStore.PublishSessionsChangedAsync([snapshot]);
+            var tracks = await trackQueries.GetTrackSnapshotsAsync(fresh.FullTrack is { } committedTrackId ? [committedTrackId] : []);
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                await sessionStore.PublishSessionsChangedAsync([snapshot]);
+                await trackStore.PublishTracksChangedAsync(tracks);
+            });
 
             await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, fresh.FullTrack, sessionId);
 
@@ -428,6 +445,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
         try
         {
             await trackEntityRepository.DeleteAsync(previousFullTrackId.Value);
+            await trackStore.PublishTracksRemovedAsync([previousFullTrackId.Value]);
         }
         catch (Exception e)
         {

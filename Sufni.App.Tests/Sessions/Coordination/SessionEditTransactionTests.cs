@@ -195,7 +195,7 @@ public class SessionEditTransactionTests : IDisposable
 
         var sourceDeleted = await runner.DeleteSessionAsync(session.Id);
 
-        Assert.False(sourceDeleted);
+        Assert.False(sourceDeleted.SourceDeleted);
         Assert.NotNull(await sources.GetRecordedSessionSourceAsync(session.Id));
     }
 
