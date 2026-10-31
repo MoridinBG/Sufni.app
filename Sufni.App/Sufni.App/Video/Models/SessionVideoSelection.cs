@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,12 +15,12 @@ public static class SessionVideoSelection
 {
     public static SessionVideoSnapshot? Select(
         IEnumerable<SessionVideoSnapshot> clips,
-        long? sessionTimestamp,
+        SessionTrackTimeline? timeline,
         double telemetrySeconds)
     {
         return clips
             .Where(clip => clip.FileExists)
-            .Select(clip => (Clip: clip, Distance: DistanceSeconds(clip, sessionTimestamp, telemetrySeconds)))
+            .Select(clip => (Clip: clip, Distance: DistanceSeconds(clip, timeline, telemetrySeconds)))
             .OrderBy(candidate => candidate.Distance)
             .ThenByDescending(candidate => candidate.Clip.Added)
             .ThenByDescending(candidate => candidate.Clip.Id)
@@ -27,15 +28,12 @@ public static class SessionVideoSelection
             .FirstOrDefault();
     }
 
-    public static double SessionOffsetSeconds(SessionVideoSnapshot clip, long? sessionTimestamp) =>
-        sessionTimestamp is { } timestamp ? timestamp - clip.StartTimestamp : 0;
-
     private static double DistanceSeconds(
         SessionVideoSnapshot clip,
-        long? sessionTimestamp,
+        SessionTrackTimeline? timeline,
         double telemetrySeconds)
     {
-        var videoSeconds = SessionOffsetSeconds(clip, sessionTimestamp) + clip.AlignmentOffsetSeconds + telemetrySeconds;
+        var videoSeconds = VideoPlaybackContext.FromTimeline(clip, timeline, telemetryDurationSeconds: null).ToVideoSeconds(telemetrySeconds);
         if (videoSeconds < 0)
         {
             return -videoSeconds;

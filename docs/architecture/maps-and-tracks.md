@@ -52,9 +52,17 @@ The same `MapView` Avalonia control is reused by the recorded session detail pag
 Two factory methods build a track:
 
 - `Track.FromGpx(gpx)` parses a GPX 1.1 document, projects each `trkpt` from lon/lat to spherical mercator, and returns a `Track` whose points share the file's UTC timestamps. Used by the GPX import flow.
-- `Track.FromGpsRecords(records)` delegates projection to `GpsTrackPointProjection.ProjectAll`, which sorts by timestamp, drops records whose `FixMode <= 0` or whose lat/lon/alt are non-finite, and projects the survivors. Used by both the SST import path and the live-capture save path.
+- `Track.FromGpsRecords(records)` delegates projection to `GpsTrackPointProjection.ProjectAll`, which sorts by timestamp, drops records whose `FixMode <= 0` or whose lat/lon/alt are non-finite, and projects the survivors. Recorded reprocessing calls the same projection helper directly and returns points to the producing workflow.
 
 Both factories return `null` for an empty result so the caller does not write a degenerate track row. `Track.GenerateSessionTrack(start, end)` extracts the points covering a session's time window and resamples them at 0.1-second intervals; `start` and `end` can be fractional seconds so manual alignment can shift a session window by sub-second offsets. Projected `X`/`Y` coordinates use PCHIP cubic interpolation with a linear fallback when the point count is too low; nullable elevation and speed use nullable linear interpolation. GPS-quality metadata is copied through only for samples that land on an original source timestamp. The resampled list is what `MapView` actually draws; the original `Points` list is the long polyline of the entire ride.
+
+`SessionTrackTimeline` (`Sessions/Models/`) owns the session-clock/GPS-clock
+mapping and offset normalization. Track-window projection and editor track
+contexts use its aligned origin; segment matching converts GPS sample times back
+to telemetry seconds through the same mapping. Video contexts derive from its
+capture-clock origin, so GPS alignment does not shift video playback. The stored
+fractional trim-origin conventions remain in effect until the source-anchor
+migration.
 
 `GpsTrackPointProjection` (`Sufni.App/Sufni.App/MapsAndTracks/Models/GpsTrackPointProjection.cs`) is the single projection helper. `TryProject(record)` returns `null` for unusable fixes; the live path uses it per-record while accumulating GPS frames so a session track can grow incrementally, and falls back to `ProjectAll` if a record arrives out of order.
 

@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -68,7 +69,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
         videoCoordinator.ShiftAlignmentAsync(clipId, deltaSeconds);
 
     public SessionVideoSnapshot? ClipAt(double telemetrySeconds) =>
-        SessionVideoSelection.Select(clips, sessionTimestamp, telemetrySeconds);
+        SessionVideoSelection.Select(clips, SessionTimeline, telemetrySeconds);
 
     public bool HasPresentClip(Guid clipId) =>
         clips.Any(clip => clip.Id == clipId && clip.FileExists);
@@ -105,12 +106,11 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
         }
 
         VideoUri = new Uri(clip.Path).AbsoluteUri;
-        Playback.SetPlaybackContext(new VideoPlaybackContext(
-            SessionVideoSelection.SessionOffsetSeconds(clip, sessionTimestamp),
-            clip.DurationSeconds,
-            telemetryDurationSeconds,
-            clip.AlignmentOffsetSeconds));
+        Playback.SetPlaybackContext(VideoPlaybackContext.FromTimeline(clip, SessionTimeline, telemetryDurationSeconds));
     }
+
+    private SessionTrackTimeline? SessionTimeline => sessionTimestamp is { } timestamp
+        ? new SessionTrackTimeline(timestamp) : null;
 
     private double CurrentTelemetrySeconds() =>
         telemetryDurationSeconds is { } duration && timeline.NormalizedCursorPosition is { } cursor

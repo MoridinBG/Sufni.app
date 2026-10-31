@@ -180,9 +180,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
             return;
         }
 
-        var telemetrySeconds = e.Position.TotalSeconds
-                               - playbackContext.SessionOffsetSeconds
-                               - playbackContext.AlignmentOffsetSeconds;
+        var telemetrySeconds = playbackContext.ToTelemetrySeconds(e.Position.TotalSeconds);
         timeline.SetCursorPosition(Math.Clamp(telemetrySeconds / telemetryDuration, 0, 1));
     }
 
@@ -255,7 +253,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
         }
 
         var telemetrySeconds = cursor * telemetryDuration;
-        var videoSeconds = playbackContext.SessionOffsetSeconds + playbackContext.AlignmentOffsetSeconds + telemetrySeconds;
+        var videoSeconds = playbackContext.ToVideoSeconds(telemetrySeconds);
         var clampedSeconds = Math.Clamp(videoSeconds, 0, playbackContext.VideoDurationSeconds);
         backend.Seek(TimeSpan.FromSeconds(clampedSeconds));
     }

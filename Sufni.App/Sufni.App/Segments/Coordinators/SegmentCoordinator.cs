@@ -299,7 +299,9 @@ internal sealed class SegmentCoordinator(
                     telemetry,
                     sourceDurationSeconds,
                     track,
-                    GetTrackTimeline(track, telemetry)),
+                    TrackPointSeries.BuildTimelineContext(track,
+                        new SessionTrackTimeline(telemetry.Metadata.Timestamp, available.Snapshot.Token.GpsOffsetSeconds).TrackOriginSeconds,
+                        telemetry.Metadata.Duration)),
                 cancellationToken);
             if (comparison is null)
             {
@@ -406,28 +408,6 @@ internal sealed class SegmentCoordinator(
         match.SessionTimestamp is { } timestamp
             ? DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime.AddSeconds(match.StartSeconds)
             : DateTime.MaxValue;
-
-    private static TrackTimeRange? GetTrackTimeline(IReadOnlyList<TrackPoint>? points, TelemetryData telemetry)
-    {
-        if (double.IsFinite(telemetry.Metadata.Timestamp) &&
-            double.IsFinite(telemetry.Metadata.Duration) &&
-            telemetry.Metadata.Duration > 0)
-        {
-            return new TrackTimeRange(telemetry.Metadata.Timestamp, telemetry.Metadata.Duration);
-        }
-
-        if (points is null || points.Count < 2)
-        {
-            return null;
-        }
-
-        var first = points.FirstOrDefault(point => double.IsFinite(point.Time));
-        var last = points.LastOrDefault(point => double.IsFinite(point.Time));
-        var duration = last?.Time - first?.Time;
-        return first is not null && duration is > 0 && double.IsFinite(duration.Value)
-            ? new TrackTimeRange(first.Time, duration.Value)
-            : null;
-    }
 
     private static void ReportMatchProgress(SessionOperation operation, SegmentMatchProgress progress)
     {

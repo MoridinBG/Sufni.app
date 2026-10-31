@@ -132,7 +132,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var telemetry = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
                 if (telemetry is null) return new GpsOffsetResult.NoMatchingTrack();
 
-                var offset = SessionTrackProjection.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
+                var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
                 var points = SessionTrackProjection.GenerateSessionTrack(track, telemetry, offset);
                 if (points.Count == 0) return new GpsOffsetResult.NoMatchingTrack();
                 var metrics = SessionSummaryMetricsCalculator.Calculate(current.DurationSeconds ?? telemetry.Metadata.Duration, points);

@@ -647,7 +647,7 @@ internal sealed class SynchronizationMergeEngine(
         session.AscentMeters,
         session.DescentMeters,
         session.FullTrack,
-        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
+        SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.ProcessingFingerprintJson,
         SerializeTrack(session),
         session.SourceSessionId,
@@ -681,7 +681,7 @@ internal sealed class SynchronizationMergeEngine(
         session.Description,
         session.Timestamp,
         session.VelocityFilterWindowMilliseconds,
-        NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
+        SessionTrackTimeline.NormalizeGpsOffsetSeconds(session.GpsOffsetSeconds),
         session.SourceSessionId,
         session.WindowStartSeconds,
         session.WindowEndSeconds,
@@ -702,9 +702,6 @@ internal sealed class SynchronizationMergeEngine(
         session.Deleted,
         session.Id
     ];
-
-    private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
-        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
 
     // Decides whether a deferred (held-BLOB) row should queue a swap toward the
     // accepted remote fingerprint. Swaps only between two CURRENT-SCHEMA

@@ -14,8 +14,9 @@ internal static class SessionTrackProjection
         TelemetryData telemetryData,
         double gpsOffsetSeconds)
     {
-        var start = GetSessionStartSeconds(telemetryData, gpsOffsetSeconds);
-        var end = start + Math.Ceiling(telemetryData.Metadata.Duration);
+        var timeline = new SessionTrackTimeline(telemetryData.Metadata.Timestamp, gpsOffsetSeconds);
+        var start = timeline.ToTrackSeconds(0);
+        var end = timeline.ToTrackSeconds(Math.Ceiling(telemetryData.Metadata.Duration));
         return fullTrack.GenerateSessionTrack(start, end);
     }
 
@@ -34,9 +35,9 @@ internal static class SessionTrackProjection
             return null;
         }
 
-        var normalizedOffset = double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
-        var start = timestamp.Value + normalizedOffset;
-        var end = start + (int)Math.Ceiling(duration);
+        var timeline = new SessionTrackTimeline(timestamp.Value, gpsOffsetSeconds);
+        var start = timeline.ToTrackSeconds(0);
+        var end = timeline.ToTrackSeconds((int)Math.Ceiling(duration));
         var points = fullTrack.GenerateSessionTrack(start, end);
         return points.Count == 0 ? null : points;
     }
@@ -51,7 +52,7 @@ internal static class SessionTrackProjection
             return false;
         }
 
-        return IsAlignedTo(trackPoints, GetSessionStartSeconds(telemetryData, gpsOffsetSeconds));
+        return IsAlignedTo(trackPoints, new SessionTrackTimeline(telemetryData.Metadata.Timestamp, gpsOffsetSeconds).TrackOriginSeconds);
     }
 
     // Alignment check driven by the session row's own timestamp, for callers that
@@ -69,17 +70,10 @@ internal static class SessionTrackProjection
             return false;
         }
 
-        return IsAlignedTo(trackPoints, value + NormalizeGpsOffsetSeconds(gpsOffsetSeconds));
+        return IsAlignedTo(trackPoints, new SessionTrackTimeline(value, gpsOffsetSeconds).TrackOriginSeconds);
     }
 
     private static bool IsAlignedTo(IReadOnlyList<TrackPoint> trackPoints, double expectedStartSeconds) =>
         Math.Abs(trackPoints[0].Time - expectedStartSeconds) <= AlignmentToleranceSeconds;
 
-    public static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
-        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
-
-    private static double GetSessionStartSeconds(
-        TelemetryData telemetryData,
-        double gpsOffsetSeconds) =>
-        telemetryData.Metadata.Timestamp + NormalizeGpsOffsetSeconds(gpsOffsetSeconds);
 }

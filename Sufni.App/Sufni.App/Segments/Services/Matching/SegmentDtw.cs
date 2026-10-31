@@ -265,9 +265,9 @@ internal static class SegmentDtw
 
         var startSample = candidate.Path.Samples[bestScore.Window.StartIndex];
         var endSample = candidate.Path.Samples[bestScore.Window.EndIndex];
-        var origin = ResolveTimelineOrigin(candidate);
-        var startSeconds = startSample.SourceTimeSeconds - origin;
-        var endSeconds = endSample.SourceTimeSeconds - origin;
+        var timeline = ResolveTimeline(candidate);
+        var startSeconds = timeline.ToTelemetrySeconds(startSample.SourceTimeSeconds);
+        var endSeconds = timeline.ToTelemetrySeconds(endSample.SourceTimeSeconds);
 
         // The search keeps scalar scores only; re-run the winning window once to
         // materialize the warping path for the time map.
@@ -725,7 +725,7 @@ internal static class SegmentDtw
     {
         var sourceRange = request.Source.Range;
         var sourceOrigin = source.Samples[0].SourceTimeSeconds - sourceRange.StartSeconds;
-        var candidateOrigin = ResolveTimelineOrigin(candidate);
+        var candidateTimeline = ResolveTimeline(candidate);
 
         var grouped = path
             .Select(point =>
@@ -733,7 +733,7 @@ internal static class SegmentDtw
                 var sourceSeconds = source.Samples[point.SourceIndex].SourceTimeSeconds - sourceOrigin;
                 sourceSeconds = Math.Clamp(sourceSeconds, sourceRange.StartSeconds, sourceRange.EndSeconds);
 
-                var candidateSeconds = candidate.Path.Samples[score.Window.StartIndex + point.CandidateIndex].SourceTimeSeconds - candidateOrigin;
+                var candidateSeconds = candidateTimeline.ToTelemetrySeconds(candidate.Path.Samples[score.Window.StartIndex + point.CandidateIndex].SourceTimeSeconds);
                 candidateSeconds = Math.Clamp(
                     candidateSeconds,
                     Math.Min(matchStartSeconds, matchEndSeconds),
@@ -853,18 +853,18 @@ internal static class SegmentDtw
             return false;
         }
 
-        var origin = ResolveTimelineOrigin(candidate);
-        var candidateStartSeconds = candidate.Path.Samples[window.StartIndex].SourceTimeSeconds - origin;
-        var candidateEndSeconds = candidate.Path.Samples[window.EndIndex].SourceTimeSeconds - origin;
+        var timeline = ResolveTimeline(candidate);
+        var candidateStartSeconds = timeline.ToTelemetrySeconds(candidate.Path.Samples[window.StartIndex].SourceTimeSeconds);
+        var candidateEndSeconds = timeline.ToTelemetrySeconds(candidate.Path.Samples[window.EndIndex].SourceTimeSeconds);
         return candidateStartSeconds < request.Source.Range.EndSeconds &&
                request.Source.Range.StartSeconds < candidateEndSeconds;
     }
 
-    private static double ResolveTimelineOrigin(CandidateTrack candidate)
+    private static SessionTrackTimeline ResolveTimeline(CandidateTrack candidate)
     {
         return candidate.Session.Timestamp is { } timestamp
-            ? timestamp
-            : candidate.Path.Samples[0].SourceTimeSeconds;
+            ? new SessionTrackTimeline(timestamp, candidate.Session.ContentToken.GpsOffsetSeconds)
+            : new SessionTrackTimeline(candidate.Path.Samples[0].SourceTimeSeconds);
     }
 
     private static bool IsBetter(CandidateWindowScore left, CandidateWindowScore right)

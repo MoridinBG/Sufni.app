@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Video.Models;
 using Sufni.App.Video.Stores;
 
@@ -13,7 +14,7 @@ public class SessionVideoSelectionTests
         var early = Clip(startTimestamp: SessionTimestamp, durationSeconds: 10);
         var late = Clip(startTimestamp: SessionTimestamp + 10, durationSeconds: 10);
 
-        var selected = SessionVideoSelection.Select([early, late], SessionTimestamp, telemetrySeconds: 15);
+        var selected = SessionVideoSelection.Select([early, late], new SessionTrackTimeline(SessionTimestamp), telemetrySeconds: 15);
 
         Assert.Equal(late, selected);
     }
@@ -24,7 +25,7 @@ public class SessionVideoSelectionTests
         var older = Clip(startTimestamp: SessionTimestamp, durationSeconds: 30, added: 1);
         var newer = Clip(startTimestamp: SessionTimestamp, durationSeconds: 30, added: 2);
 
-        var selected = SessionVideoSelection.Select([newer, older], SessionTimestamp, telemetrySeconds: 5);
+        var selected = SessionVideoSelection.Select([newer, older], new SessionTrackTimeline(SessionTimestamp), telemetrySeconds: 5);
 
         Assert.Equal(newer, selected);
     }
@@ -35,7 +36,7 @@ public class SessionVideoSelectionTests
         var far = Clip(startTimestamp: SessionTimestamp + 100, durationSeconds: 10);
         var near = Clip(startTimestamp: SessionTimestamp + 20, durationSeconds: 10);
 
-        var selected = SessionVideoSelection.Select([far, near], SessionTimestamp, telemetrySeconds: 5);
+        var selected = SessionVideoSelection.Select([far, near], new SessionTrackTimeline(SessionTimestamp), telemetrySeconds: 5);
 
         Assert.Equal(near, selected);
     }
@@ -47,7 +48,7 @@ public class SessionVideoSelectionTests
         var aligned = Clip(startTimestamp: SessionTimestamp + 10, durationSeconds: 5, alignmentOffsetSeconds: 12);
         var unaligned = Clip(startTimestamp: SessionTimestamp + 8, durationSeconds: 1, added: 1);
 
-        var selected = SessionVideoSelection.Select([aligned, unaligned], SessionTimestamp, telemetrySeconds: 0);
+        var selected = SessionVideoSelection.Select([aligned, unaligned], new SessionTrackTimeline(SessionTimestamp), telemetrySeconds: 0);
 
         Assert.Equal(aligned, selected);
     }
@@ -57,7 +58,7 @@ public class SessionVideoSelectionTests
     {
         var missing = Clip(startTimestamp: SessionTimestamp, durationSeconds: 30, fileExists: false);
 
-        var selected = SessionVideoSelection.Select([missing], SessionTimestamp, telemetrySeconds: 5);
+        var selected = SessionVideoSelection.Select([missing], new SessionTrackTimeline(SessionTimestamp), telemetrySeconds: 5);
 
         Assert.Null(selected);
     }

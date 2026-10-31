@@ -118,7 +118,7 @@ public class TrackCoordinator(
         cancellationToken.ThrowIfCancellationRequested();
 
         var session = await sessionRepository.GetSessionAsync(sessionId);
-        var gpsOffsetSeconds = SessionTrackProjection.NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0);
+        var gpsOffsetSeconds = SessionTrackTimeline.NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0);
 
         // Read-only load: the snapshot's full_track_id is the only source of the
         // association. The write/recompute path owns establishing it, so an

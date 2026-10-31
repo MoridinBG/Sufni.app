@@ -326,7 +326,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ? null
             : TrackPointSeries.BuildTimelineContext(
                 trackPoints,
-                telemetry.Metadata.Timestamp + SessionTrackProjection.NormalizeGpsOffsetSeconds(session?.GpsOffsetSeconds ?? 0),
+                new SessionTrackTimeline(telemetry.Metadata.Timestamp, session?.GpsOffsetSeconds ?? 0).TrackOriginSeconds,
                 telemetry.Metadata.Duration);
     }
 

@@ -640,9 +640,6 @@ internal sealed class SessionRepository(
         session.Id
     ];
 
-    private static double NormalizeGpsOffsetSeconds(double gpsOffsetSeconds) =>
-        double.IsFinite(gpsOffsetSeconds) ? gpsOffsetSeconds : 0;
-
     private sealed class SessionIdRow
     {
         [Column("id")]
