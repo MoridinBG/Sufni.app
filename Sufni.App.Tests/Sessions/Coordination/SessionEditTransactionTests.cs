@@ -54,16 +54,15 @@ public class SessionEditTransactionTests : IDisposable
     }
 
     [Fact]
-    public async Task TrimFromBeginningAsync_ShiftsVideoAlignmentByOriginFraction()
+    public async Task TrimFromBeginningAsync_LeavesSourceVideoAlignmentUnchanged()
     {
         var session = await InsertSessionAsync();
-        var clip = await InsertClipAsync(session.Id, alignmentOffsetSeconds: 1);
+        var clip = await InsertClipAsync( alignmentOffsetSeconds: 1);
 
         var commit = await runner.TrimFromBeginningAsync(session, 2.5);
 
-        var shifted = Assert.Single(Assert.IsType<SessionEditCommit.Committed>(commit).Clips);
-        Assert.Equal(clip.Id, shifted.Id);
-        Assert.Equal(1.5, (await GetClipAsync(clip.Id)).AlignmentOffsetSeconds, precision: 6);
+        Assert.IsType<SessionEditCommit.Committed>(commit);
+        Assert.Equal(1, (await GetClipAsync(clip.Id)).AlignmentOffsetSeconds, precision: 6);
     }
 
     [Fact]
@@ -113,18 +112,16 @@ public class SessionEditTransactionTests : IDisposable
     }
 
     [Fact]
-    public async Task SplitAsync_CopiesVideoClipsToSecondPart()
+    public async Task SplitAsync_KeepsOneSourceOwnedVideoLink()
     {
         var session = await InsertSessionAsync();
-        var clip = await InsertClipAsync(session.Id, alignmentOffsetSeconds: 1);
+        var clip = await InsertClipAsync( alignmentOffsetSeconds: 1);
 
         var commit = await runner.SplitAsync(session, 3.25);
 
         var committed = Assert.IsType<SessionEditCommit.Committed>(commit);
-        var copy = Assert.Single(committed.Clips);
-        Assert.Equal(committed.CreatedSessionId, copy.SessionId);
-        Assert.Equal(clip.Path, copy.Path);
-        Assert.Equal(1.25, copy.AlignmentOffsetSeconds, precision: 6);
+        Assert.NotNull(committed.CreatedSessionId);
+        Assert.Single(await (await context.GetInitializedConnectionAsync()).Table<SessionVideoClip>().ToListAsync());
         Assert.Equal(1, (await GetClipAsync(clip.Id)).AlignmentOffsetSeconds, precision: 6);
     }
 
@@ -228,12 +225,12 @@ public class SessionEditTransactionTests : IDisposable
     private async Task<SessionVideoClip> GetClipAsync(Guid clipId) =>
         await (await context.GetInitializedConnectionAsync()).GetAsync<SessionVideoClip>(clipId);
 
-    private async Task<SessionVideoClip> InsertClipAsync(Guid sessionId, double alignmentOffsetSeconds)
+    private async Task<SessionVideoClip> InsertClipAsync(double alignmentOffsetSeconds)
     {
         var clip = new SessionVideoClip
         {
             Id = Guid.NewGuid(),
-            SessionId = sessionId,
+            OwnerKey = "source-hash",
             Path = "/videos/ride.mp4",
             StartTimestamp = 100,
             DurationSeconds = 10,

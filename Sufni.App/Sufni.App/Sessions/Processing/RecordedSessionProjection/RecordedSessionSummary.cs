@@ -1,3 +1,4 @@
+using Sufni.App.Video.Stores;
 using System;
 
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
@@ -19,4 +20,5 @@ public sealed record RecordedSessionSummary(
     double? DurationSeconds = null,
     double? DistanceMeters = null,
     double? AscentMeters = null,
-    double? DescentMeters = null);
+    double? DescentMeters = null,
+    SessionVideoSnapshot? LatestVideo = null);

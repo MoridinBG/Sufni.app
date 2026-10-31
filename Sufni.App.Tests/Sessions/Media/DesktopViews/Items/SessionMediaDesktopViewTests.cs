@@ -71,12 +71,10 @@ public class SessionMediaDesktopViewTests : IDisposable
 
     private Task<VideoPaneViewModel> CreateVideoPaneAsync()
     {
-        var sessionId = Guid.NewGuid();
         return videoFixture.CreatePaneAsync(
-            sessionId,
             new TestRecordedSessionTimeline(),
-            Observable.Never<VideoSessionTiming>(),
-            videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60));
+            Observable.Return(new VideoSessionTiming("source-hash", 0, 60)),
+            videoFixture.CreateClip("source-hash", startTimestamp: 1_000, durationSeconds: 60));
     }
 
     private static TestSessionMediaWorkspace CreateWorkspace(VideoPaneViewModel? video) =>

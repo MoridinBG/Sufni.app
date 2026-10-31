@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -10,6 +11,8 @@ internal sealed class SessionVideoStore(
     StorePublication publication)
     : SourceCacheStoreBase<SessionVideoSnapshot, Guid>(snapshot => snapshot.Id, publication), ISessionVideoStoreWriter
 {
+    public IReadOnlyList<SessionVideoSnapshot> GetAll() => Items.ToArray();
+
     public Task PublishClipsAsync(IReadOnlyCollection<SessionVideoSnapshot> snapshots) =>
         PublishSnapshotsAsync(snapshots);
 }

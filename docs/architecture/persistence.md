@@ -10,7 +10,6 @@ erDiagram
     session ||--o| session_recording_source : "session_id"
     session ||--o| session_blob_swap_request : "session_id"
     session ||--o| session_gps_metrics : "session_id"
-    session ||--o{ session_video : "session_id"
     setup }o--|| bike : "bike_id"
     board ||--o| setup : "setup_id"
 
@@ -143,7 +142,7 @@ erDiagram
 
     session_video {
         text id PK
-        text session_id FK
+        text owner_key
         text path
         int start_timestamp
         real duration_seconds
@@ -303,12 +302,7 @@ soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
 request with its owner session. Listing pending requests only reads the table; a
 matching request is cleared after the validated generation write succeeds.
 
-`session_video` links a local video file to a recorded session. It is local
-state and is not synchronized. `ISessionVideoRepository` writes one row per
-matched session in one transaction and updates the alignment offset. A clip is
-live only while its session is live: `ISessionVideoRepository` reads the clips
-of live sessions, and no delete cascades to clips. The unshipped private-video
-copy migration is removed; its `session-video` marker remains recorded as applied. See [video.md](video.md).
+`session_video` links a local file to an immutable recording source through `owner_key`. One source/file pair shares one owner-relative alignment offset. `ISessionVideoRepository.LinkAsync` writes distinct source links in one transaction; re-import retains an existing ID, added time and alignment. Session deletion and startup purge leave links intact. The `track-materializations` migration converts and collapses old session links by the widest-window policy, then drops `session_id`. See [video.md](video.md).
 
 `session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash and both anchors are source-relative. Reads return non-deleted segments without joining sessions; the picker derives visibility from the source identity and current session window. Session deletion and physical purge retain these rows. Only explicit segment deletion creates a tombstone. The `track-materializations` migration converts old session-relative anchors and drops `session_id` without changing segment IDs or authored clocks. See [segments.md](segments.md).
 
@@ -363,7 +357,6 @@ has been physically purged.
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
-- `session_video` rows whose session row no longer exists (source-owned segments are retained)
 - `paired_device` rows whose `Expires` precedes the injected clock’s UTC time
 
 Recorded-source orphan cleanup runs after initialization through

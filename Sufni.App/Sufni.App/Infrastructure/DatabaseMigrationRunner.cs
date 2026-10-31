@@ -101,6 +101,38 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("ALTER TABLE session_segment DROP COLUMN session_id");
             transaction.Execute("CREATE INDEX session_segment_owner_key ON session_segment(owner_key)");
         }
+        if (transaction.GetTableInfo("session_video").Any(column => column.Name == "session_id"))
+        {
+            transaction.Execute("ALTER TABLE session_video ADD COLUMN owner_key TEXT NOT NULL DEFAULT ''");
+            var owners = transaction.Query<LegacyVideoOwnerRow>("""
+                SELECT clip.id, clip.session_id, clip.path, source.source_hash,
+                    COALESCE(session.source_session_id, session.id) AS source_id, session.timestamp,
+                    session.window_start_seconds, session.window_end_seconds, session.duration_seconds
+                FROM session_video clip JOIN session ON session.id = clip.session_id
+                JOIN session_recording_source source ON source.session_id = COALESCE(session.source_session_id, session.id)
+                """);
+            foreach (var group in owners.GroupBy(row => (row.SourceHash, row.Path)))
+            {
+                // The source-owning parent represents the pre-split recording window.
+                var kept = group.OrderByDescending(row => row.SessionId == row.SourceId)
+                    .ThenByDescending(row => row.WindowEndSeconds is { } end
+                        ? end - row.WindowStartSeconds : row.DurationSeconds ?? double.PositiveInfinity)
+                    .ThenBy(row => row.Id).First();
+                var clip = transaction.Get<SessionVideoClip>(kept.Id);
+                clip.OwnerKey = kept.SourceHash;
+                clip.AlignmentOffsetSeconds += (kept.Timestamp ?? clip.StartTimestamp) - clip.StartTimestamp - kept.WindowStartSeconds;
+                transaction.Update(clip);
+                foreach (var dropped in group.Where(row => row.Id != kept.Id))
+                {
+                    transaction.Delete<SessionVideoClip>(dropped.Id);
+                    logger.Information("Dropped video alignment {ClipId} from session {SessionId}; retained {KeptClipId} from session {KeptSessionId}",
+                        dropped.Id, dropped.SessionId, kept.Id, kept.SessionId);
+                }
+            }
+            transaction.Execute("DROP INDEX IF EXISTS session_video_session_id");
+            transaction.Execute("ALTER TABLE session_video DROP COLUMN session_id");
+            transaction.Execute("CREATE INDEX session_video_owner_key ON session_video(owner_key)");
+        }
         var groups = transaction.Table<Track>().ToList()
             .Where(track => track.HasPoints)
             .GroupBy(track => TrackContentHash.Compute(track.Points))
@@ -146,10 +178,11 @@ internal sealed class DatabaseMigrationRunner(
             typeof(RecordedSessionSource),
             typeof(Synchronization),
             typeof(PairedDevice),
-            typeof(Track),
-            typeof(SessionVideoClip)
+            typeof(Track)
         ]);
         // Existing attachment columns migrate with their anchors in the versioned transaction.
+        if ((await connection.GetTableInfoAsync("session_video")).Count == 0)
+            await connection.CreateTableAsync<SessionVideoClip>();
         if ((await connection.GetTableInfoAsync("session_segment")).Count == 0)
             await connection.CreateTableAsync<SessionSegment>();
     }
@@ -596,7 +629,6 @@ internal sealed class DatabaseMigrationRunner(
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
         await connection.ExecuteAsync("DELETE FROM session_gps_metrics WHERE session_id NOT IN (SELECT id FROM session)");
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
-        await connection.ExecuteAsync("DELETE FROM session_video WHERE session_id NOT IN (SELECT id FROM session)");
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(setup => setup.Deleted != null && setup.Deleted < oneDayAgo);
@@ -664,6 +696,19 @@ internal sealed class DatabaseMigrationRunner(
 
         [Column("shock_stroke")]
         public double? ShockStroke { get; set; }
+    }
+
+    private sealed class LegacyVideoOwnerRow
+    {
+        [Column("id")] public Guid Id { get; set; }
+        [Column("session_id")] public Guid SessionId { get; set; }
+        [Column("source_id")] public Guid SourceId { get; set; }
+        [Column("source_hash")] public string SourceHash { get; set; } = string.Empty;
+        [Column("path")] public string Path { get; set; } = string.Empty;
+        [Column("timestamp")] public long? Timestamp { get; set; }
+        [Column("window_start_seconds")] public double WindowStartSeconds { get; set; }
+        [Column("window_end_seconds")] public double? WindowEndSeconds { get; set; }
+        [Column("duration_seconds")] public double? DurationSeconds { get; set; }
     }
 
     private sealed record CleanupSummary(

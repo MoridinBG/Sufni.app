@@ -38,8 +38,7 @@ public static class SessionWindowEditPolicy
                 return new SessionWindowEditPlan.Rejected("Session has no trim to undo.");
             var restored = window with { StartSeconds = previousStart, EndSeconds = session.PreviousWindowEndSeconds };
             return new SessionWindowEditPlan.Planned(
-                Patch(restored, null, session.Name, moveOrigin: true), null,
-                FractionDelta(window.StartSeconds, restored.StartSeconds));
+                Patch(restored, null, session.Name, moveOrigin: true), null);
         }
 
         var split = window.StartSeconds + clickSeconds;
@@ -49,14 +48,12 @@ public static class SessionWindowEditPolicy
         return kind switch
         {
             SessionWindowEditKind.TrimUntilEnd => new SessionWindowEditPlan.Planned(
-                Patch(window with { EndSeconds = split }, window, session.Name), null, 0),
+                Patch(window with { EndSeconds = split }, window, session.Name), null),
             SessionWindowEditKind.TrimFromBeginning => new SessionWindowEditPlan.Planned(
-                Patch(window with { StartSeconds = split }, window, session.Name, moveOrigin: true), null,
-                FractionDelta(window.StartSeconds, split)),
+                Patch(window with { StartSeconds = split }, window, session.Name, moveOrigin: true), null),
             SessionWindowEditKind.Split => new SessionWindowEditPlan.Planned(
                 Patch(window with { EndSeconds = split }, null, $"{session.Name} (1)"),
-                Patch(window with { StartSeconds = split }, null, $"{session.Name} (2)", moveOrigin: true, created: true),
-                FractionDelta(window.StartSeconds, split)),
+                Patch(window with { StartSeconds = split }, null, $"{session.Name} (2)", moveOrigin: true, created: true)),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
 
@@ -79,7 +76,7 @@ public static class SessionWindowEditPolicy
         }
     }
 
-    // Whole seconds live in Timestamp; the remainder keeps GPS and clip alignment.
+    // Whole seconds live in Timestamp; GPS still carries the fractional origin until its migration.
     private static double FractionDelta(double from, double to) =>
         to - Math.Floor(to) - (from - Math.Floor(from));
 }
@@ -92,6 +89,5 @@ public abstract record SessionWindowEditPlan
     private SessionWindowEditPlan() { }
 
     public sealed record Rejected(string Message) : SessionWindowEditPlan;
-    public sealed record Planned(SessionWindowPatch Current, SessionWindowPatch? Created,
-        double ClipAlignmentDelta) : SessionWindowEditPlan;
+    public sealed record Planned(SessionWindowPatch Current, SessionWindowPatch? Created) : SessionWindowEditPlan;
 }

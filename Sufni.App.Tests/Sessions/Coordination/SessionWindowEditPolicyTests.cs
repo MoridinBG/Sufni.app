@@ -41,7 +41,6 @@ public class SessionWindowEditPolicyTests
         Assert.Equal(8, plan.Current.Window.EndSeconds);
         Assert.Equal(103, plan.Current.Timestamp);
         Assert.Equal(0.5, plan.Current.GpsOffsetSeconds);
-        Assert.Equal(0.25, plan.ClipAlignmentDelta);
         Assert.Equal(session.DerivationWindow, plan.Current.PreviousWindow);
     }
 }

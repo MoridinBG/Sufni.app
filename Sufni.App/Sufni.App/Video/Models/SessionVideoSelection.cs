@@ -13,6 +13,13 @@ namespace Sufni.App.Video.Models;
 /// </summary>
 public static class SessionVideoSelection
 {
+    public static IEnumerable<SessionVideoSnapshot> ForWindow(IEnumerable<SessionVideoSnapshot> clips,
+        string? ownerKey, SessionTrackTimeline timeline, double? durationSeconds) =>
+        ownerKey is not null && durationSeconds is > 0
+            ? clips.Where(clip => clip.OwnerKey == ownerKey && timeline.OverlapsOwnerRange(
+                -clip.AlignmentOffsetSeconds, clip.DurationSeconds - clip.AlignmentOffsetSeconds, durationSeconds.Value))
+            : [];
+
     public static SessionVideoSnapshot? Select(
         IEnumerable<SessionVideoSnapshot> clips,
         SessionTrackTimeline? timeline,

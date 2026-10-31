@@ -20,7 +20,6 @@ using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Lists.ViewModels.Rows;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Shared.Base;
-using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 
 /// <summary>
@@ -37,7 +36,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly IShellActions shellActions;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionRecomputeEngine recomputeEngine;
-    private readonly ISessionVideoStore videoStore;
     private readonly ObservableCollectionExtended<SessionRowViewModel> sessionRowsSource = [];
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
@@ -60,7 +58,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
     public SessionListViewModel(
         IRecordedSessionProjection recordedSessionProjection,
         ISessionRecomputeEngine recomputeEngine,
-        ISessionVideoStore videoStore,
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
@@ -72,7 +69,6 @@ public partial class SessionListViewModel : ItemListViewModelBase
         this.recomputeEngine = recomputeEngine;
         this.shell = shell;
         this.shellActions = shellActions;
-        this.videoStore = videoStore;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Session>(pendingDeletes);
         MenuItems.Add(new("sync", shellActions.SyncCommand));
@@ -91,18 +87,14 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
         subscriptions.Add(recordedSessionProjection.ConnectSessions()
             .Filter(filterSubject)
-            .LeftJoinMany(
-                videoStore.Connect(),
-                video => video.SessionId,
-                (summary, videos) => new SessionListEntry(summary, videos.Items.MaxBy(video => video.Added)))
             .TransformWithInlineUpdate(
                 entry => new SessionRowViewModel(
-                    entry.Summary,
+                    entry,
                     entry.LatestVideo,
                     shell,
                     RequestRowDelete,
                     RecalculateSessionAsync),
-                (row, entry) => row.Update(entry.Summary, entry.LatestVideo))
+                (row, entry) => row.Update(entry, entry.LatestVideo))
             .SortAndBind(
                 sessionRowsSource,
                 SortExpressionComparer<SessionRowViewModel>.Descending(r => r.Timestamp ?? DateTime.MinValue))
@@ -293,5 +285,4 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     #endregion Commands
 
-    private sealed record SessionListEntry(RecordedSessionSummary Summary, SessionVideoSnapshot? LatestVideo);
 }

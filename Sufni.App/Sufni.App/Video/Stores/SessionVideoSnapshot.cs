@@ -9,7 +9,7 @@ namespace Sufni.App.Video.Stores;
 /// </summary>
 public sealed record SessionVideoSnapshot(
     Guid Id,
-    Guid SessionId,
+    string OwnerKey,
     string Path,
     long StartTimestamp,
     double DurationSeconds,
@@ -19,7 +19,7 @@ public sealed record SessionVideoSnapshot(
 {
     public static SessionVideoSnapshot From(SessionVideoClip clip) => new(
         clip.Id,
-        clip.SessionId,
+        clip.OwnerKey,
         clip.Path,
         clip.StartTimestamp,
         clip.DurationSeconds,

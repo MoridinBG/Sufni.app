@@ -22,6 +22,58 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Initialization_SharesVideoAlignmentBySource_KeepingWidestWindowAndOriginalParent(bool parentPresent, bool reverseOrder)
+    {
+        using var temp = new TempDatabase();
+        var sourceId = Guid.NewGuid();
+        var source = PersistenceTestData.CreateRecordedSessionSource(sourceId);
+        var narrow = new Session(Guid.NewGuid(), "narrow", "", null, 110)
+        { SourceSessionId = sourceId, WindowStartSeconds = 10.25, WindowEndSeconds = 20, DurationSeconds = 9.75 };
+        var wide = new Session(Guid.NewGuid(), "wide", "", null, 102)
+        { SourceSessionId = sourceId, WindowStartSeconds = 2.5, WindowEndSeconds = 60, DurationSeconds = 57.5 };
+        var parent = new Session(sourceId, "parent", "", null, 100)
+        { SourceSessionId = sourceId, WindowEndSeconds = 5, DurationSeconds = 5 };
+        var rows = new List<(Guid ClipId, Session Session, double Alignment, long Added)>
+        { (Guid.NewGuid(), narrow, 2.25, 1), (Guid.NewGuid(), wide, 1.5, 2) };
+        if (parentPresent) rows.Add((Guid.NewGuid(), parent, 3, 3));
+        var expected = rows[parentPresent ? 2 : 1];
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.CreateTable<RecordedSessionSource>();
+            legacy.Insert(source);
+            legacy.Execute("""
+                CREATE TABLE session_video (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, path TEXT NOT NULL,
+                    start_timestamp INTEGER NOT NULL, duration_seconds REAL NOT NULL,
+                    alignment_offset_seconds REAL NOT NULL, added INTEGER NOT NULL)
+                """);
+            legacy.Execute("CREATE INDEX session_video_session_id ON session_video(session_id)");
+            foreach (var row in reverseOrder ? rows.AsEnumerable().Reverse() : rows)
+            {
+                legacy.Insert(row.Session);
+                legacy.Execute("INSERT INTO session_video VALUES (?, ?, '/ride.mp4', 95, 90, ?, ?)",
+                    row.ClipId, row.Session.Id, row.Alignment, row.Added);
+            }
+        }
+
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+            await context.Initialization;
+            var clip = Assert.Single(await context.Connection.Table<SessionVideoClip>().ToListAsync());
+            Assert.Equal(expected.ClipId, clip.Id);
+            Assert.Equal(expected.Added, clip.Added);
+            Assert.Equal(source.SourceHash, clip.OwnerKey);
+            Assert.Equal(parentPresent ? 8 : 6, clip.AlignmentOffsetSeconds);
+            Assert.DoesNotContain(await context.Connection.GetTableInfoAsync("session_video"), column => column.Name == "session_id");
+        }
+    }
+
     [Fact]
     public async Task Initialization_ConvertsSessionSegmentsToSourceAnchors_WithoutChangingAuthoredClocks()
     {
@@ -1282,7 +1334,7 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task StartupCleanup_PurgesVideosOfPurgedSessions()
+    public async Task StartupCleanup_RetainsVideosOfPurgedSessions()
     {
         using var tempDatabase = new TempDatabase("video-purge.db");
         var purgedSessionId = Guid.NewGuid();
@@ -1297,14 +1349,17 @@ public class DatabaseMigrationRunnerTests
             connection.CreateTable<SessionVideoClip>();
             connection.Insert(new Session(purgedSessionId, "purged", string.Empty, null) { Updated = 10, Deleted = twoDaysAgo });
             connection.Insert(new Session(keptSessionId, "kept", string.Empty, null) { Updated = 10 });
-            connection.Insert(new SessionVideoClip { Id = Guid.NewGuid(), SessionId = purgedSessionId, Path = "/videos/orphan.mp4" });
-            connection.Insert(new SessionVideoClip { Id = keptClipId, SessionId = keptSessionId, Path = "/videos/kept.mp4" });
+            connection.Insert(new SessionVideoClip { Id = Guid.NewGuid(), OwnerKey = "orphan-source", Path = "/videos/orphan.mp4" });
+            connection.Insert(new SessionVideoClip { Id = keptClipId, OwnerKey = "source-hash", Path = "/videos/kept.mp4" });
         }
 
         await new TestPersistenceHarness(tempDatabase.DatabasePath, time).GetInitializedConnectionAsync();
 
         using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Equal(keptClipId, Assert.Single(verificationConnection.Table<SessionVideoClip>().ToList()).Id);
+        var clips = verificationConnection.Table<SessionVideoClip>().ToList();
+        Assert.Equal(2, clips.Count);
+        Assert.Contains(clips, clip => clip.Id == keptClipId);
+        Assert.Contains(clips, clip => clip.OwnerKey == "orphan-source");
     }
 
     [Theory]

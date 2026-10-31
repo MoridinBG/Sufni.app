@@ -143,7 +143,7 @@ architecture.
 
 `IRecordedSessionProjection` is the read-side projection for recorded
 session screens. It tracks changes in `ISessionStore`, `ISetupStore`,
-`IRecordedSessionSourceStore`, `ITrackStore` and `IProcessingDependencyHashIndex`, then schedules
+`IRecordedSessionSourceStore`, `ITrackStore`, `ISessionVideoStore` and `IProcessingDependencyHashIndex`, then schedules
 work from `StorePublication.Committed` for those source stores (including bikes).
 The dependency hash index owns
 the processing-relevant setup/bike store edge. The projection joins
@@ -151,7 +151,8 @@ current session/setup/bike/source snapshots from stores (the derivation
 window is part of the session snapshot), evaluates processing staleness, and publishes two reactive surfaces:
 
 - `ConnectSessions()` — a DynamicData stream of `RecordedSessionSummary`
-  records for the session list. `SessionListViewModel` filters and
+  records for the session list, including the latest source-owned clip overlapping
+  the session window. `SessionListViewModel` filters and
   sorts this stream, then projects the visible rows into local-date
   groups that can be expanded and collapsed. `SessionRowViewModel`
   displays `(Stale)` when the summary is stale and `(No Raw)` when the
@@ -211,12 +212,12 @@ reused within the open editor until the inputs change or the editor is disposed.
 
 Projection recomputes are coalesced through the existing
 `IRecordedSessionProjectionScheduler`; its UI-background-priority callback captures
-the current session/setup/bike/source snapshots, one track-catalog snapshot and dependency hashes. Fingerprint
+the current session/setup/bike/source snapshots, track/video catalog snapshots and dependency hashes. Fingerprint
 staleness and track selection evaluation runs through `IBackgroundTaskRunner`, outside the UI
 thread. A single later dispatcher publication batch edits all affected summaries
 and emits their domain snapshots. Inputs are checked again before publication;
 obsolete results are discarded and the current inputs are evaluated instead.
-Track changes queue all sessions; a changed catalog rejects a pending selection before publication.
+Track and video changes queue all sessions; a changed catalog rejects pending derived selections before publication.
 The projection's own commit names only the projection, so it cannot trigger itself.
 
 Consumers retain the previous result while the same session is being refreshed.

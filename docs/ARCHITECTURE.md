@@ -256,7 +256,7 @@ Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
 ## Session Video
 
-A local video file is linked to every recorded session whose recording window overlaps it. The recorded-session editor plays the clip in a video pane beside the map, in sync with the telemetry cursor, and a context-menu flow aligns the clip to the telemetry. Heads with `AppCapabilities.CanPlayVideo` register a native player.
+A local video file is linked once per recording source. Each session over that source derives visible clips from its window, with one shared source-relative alignment per file; trim, split and session deletion leave links intact. New links wait for source identity to arrive. The recorded-session editor plays the clip in a video pane beside the map, in sync with the telemetry cursor, and a context-menu flow aligns the clip to the telemetry. Heads with `AppCapabilities.CanPlayVideo` register a native player.
 
 Topics in [architecture/video.md](architecture/video.md):
 

@@ -11,13 +11,13 @@ namespace Sufni.App.Video.Services;
 public interface ISessionVideoRepository
 {
     /// <summary>
-    /// Returns the clips of live sessions.
+    /// Returns every source-owned clip.
     /// </summary>
     Task<List<SessionVideoClip>> GetLiveAsync();
 
     /// <summary>
-    /// Links one file to every given session in one transaction and returns
-    /// the linked rows. A session that already links the same path keeps its
+    /// Links one file to each recording source in one transaction and returns
+    /// the linked rows. A source that already links the same path keeps its
     /// clip id, added time, and alignment offset.
     /// </summary>
     Task<IReadOnlyList<SessionVideoClip>> LinkAsync(
@@ -25,13 +25,16 @@ public interface ISessionVideoRepository
         long startTimestamp,
         double durationSeconds,
         long added,
-        IReadOnlyCollection<Guid> sessionIds);
+        IReadOnlyCollection<SessionVideoOwner> owners);
 
     /// <summary>
     /// Returns the updated row, or null when the clip no longer exists.
     /// </summary>
     Task<SessionVideoClip?> UpdateAlignmentAsync(Guid clipId, double alignmentOffsetSeconds);
 }
+
+/// <summary>Captured identity and clock origin for a video's recording owner.</summary>
+public sealed record SessionVideoOwner(string OwnerKey, double StartTimestamp);
 
 internal sealed class SessionVideoRepository(SqliteConnectionContext connectionContext) : ISessionVideoRepository
 {
@@ -42,7 +45,6 @@ internal sealed class SessionVideoRepository(SqliteConnectionContext connectionC
             """
             SELECT clip.*
             FROM session_video clip
-            JOIN session ON session.id = clip.session_id AND session.deleted IS NULL
             """);
     }
 
@@ -51,22 +53,23 @@ internal sealed class SessionVideoRepository(SqliteConnectionContext connectionC
         long startTimestamp,
         double durationSeconds,
         long added,
-        IReadOnlyCollection<Guid> sessionIds)
+        IReadOnlyCollection<SessionVideoOwner> owners)
     {
         return connectionContext.RunInTransactionAsync<IReadOnlyList<SessionVideoClip>>(connection =>
         {
-            var clips = new List<SessionVideoClip>(sessionIds.Count);
-            foreach (var sessionId in sessionIds)
+            var clips = new List<SessionVideoClip>(owners.Count);
+            foreach (var owner in owners.DistinctBy(owner => owner.OwnerKey))
             {
                 var clip = connection.Table<SessionVideoClip>()
-                    .Where(existing => existing.SessionId == sessionId && existing.Path == path)
+                    .Where(existing => existing.OwnerKey == owner.OwnerKey && existing.Path == path)
                     .FirstOrDefault();
                 if (clip is null)
                 {
                     clip = new SessionVideoClip
                     {
                         Id = Guid.NewGuid(),
-                        SessionId = sessionId,
+                        OwnerKey = owner.OwnerKey,
+                        AlignmentOffsetSeconds = owner.StartTimestamp - startTimestamp,
                         Path = path,
                         StartTimestamp = startTimestamp,
                         DurationSeconds = durationSeconds,
@@ -102,47 +105,4 @@ internal sealed class SessionVideoRepository(SqliteConnectionContext connectionC
         return clip;
     }
 
-    internal static IReadOnlyList<SessionVideoClip> ShiftAlignmentInTransaction(
-        SQLiteConnection connection,
-        Guid sessionId,
-        double deltaSeconds)
-    {
-        var clips = connection.Table<SessionVideoClip>().Where(clip => clip.SessionId == sessionId).ToList();
-        foreach (var clip in clips)
-        {
-            clip.AlignmentOffsetSeconds += deltaSeconds;
-            connection.Update(clip);
-        }
-
-        return clips;
-    }
-
-    internal static IReadOnlyList<SessionVideoClip> CopyToSessionInTransaction(
-        SQLiteConnection connection,
-        Guid fromSessionId,
-        Guid toSessionId,
-        double alignmentDeltaSeconds,
-        long added)
-    {
-        var copies = connection.Table<SessionVideoClip>()
-            .Where(clip => clip.SessionId == fromSessionId)
-            .ToList()
-            .Select(clip => new SessionVideoClip
-            {
-                Id = Guid.NewGuid(),
-                SessionId = toSessionId,
-                Path = clip.Path,
-                StartTimestamp = clip.StartTimestamp,
-                DurationSeconds = clip.DurationSeconds,
-                AlignmentOffsetSeconds = clip.AlignmentOffsetSeconds + alignmentDeltaSeconds,
-                Added = added,
-            })
-            .ToList();
-        foreach (var copy in copies)
-        {
-            connection.Insert(copy);
-        }
-
-        return copies;
-    }
 }

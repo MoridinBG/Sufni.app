@@ -807,12 +807,16 @@ public class SessionDetailViewModelTests
     {
         var harness = new SessionDetailHarness();
         var snapshot = TestSnapshots.Session(timestamp: 1_000, hasProcessedData: true);
-        var clip = videos.CreateClip(snapshot.Id, startTimestamp: 1_000, durationSeconds: 60);
+        var clip = videos.CreateClip("source-hash", startTimestamp: 1_000, durationSeconds: 60);
         harness.VideoPaneFactory = new VideoPaneFactory(
             await videos.CreateStoreAsync(clip),
             videos.Coordinator,
             videos.PlayerFactory);
-        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        var domain = DomainFromSnapshot(snapshot) with
+        {
+            Source = new RecordedSessionSourceSnapshot(snapshot.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash")
+        };
+        var editor = harness.CreateLoadedRecordedSession(snapshot, projectionChanges: Observable.Return(domain));
         await harness.LoadAsync(editor);
         return (editor, clip);
     }

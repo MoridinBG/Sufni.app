@@ -26,14 +26,14 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     private readonly IDisposable clipsSubscription;
     private readonly IDisposable timingSubscription;
     private IReadOnlyList<SessionVideoSnapshot> clips = [];
-    private long? sessionTimestamp;
+    private string? ownerKey;
+    private SessionTrackTimeline sessionTimeline;
     private double? telemetryDurationSeconds;
 
     [ObservableProperty] public partial bool HasVideo { get; private set; }
     [ObservableProperty] public partial string? VideoUri { get; private set; }
 
     public VideoPaneViewModel(
-        Guid sessionId,
         IRecordedSessionTimeline timeline,
         IObservable<VideoSessionTiming> sessionTiming,
         ISessionVideoStore videoStore,
@@ -46,7 +46,6 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
         Playback = new VideoPlaybackViewModel(timeline);
         timeline.PropertyChanged += OnTimelinePropertyChanged;
         clipsSubscription = videoStore.Connect()
-            .Filter(clip => clip.SessionId == sessionId)
             .ToCollection()
             .Subscribe(OnClipsChanged);
         timingSubscription = sessionTiming.DistinctUntilChanged().Subscribe(OnSessionTimingChanged);
@@ -69,21 +68,21 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
         videoCoordinator.ShiftAlignmentAsync(clipId, deltaSeconds);
 
     public SessionVideoSnapshot? ClipAt(double telemetrySeconds) =>
-        SessionVideoSelection.Select(clips, SessionTimeline, telemetrySeconds);
+        SessionVideoSelection.Select(VisibleClips, sessionTimeline, telemetrySeconds);
 
     public bool HasPresentClip(Guid clipId) =>
-        clips.Any(clip => clip.Id == clipId && clip.FileExists);
+        VisibleClips.Any(clip => clip.Id == clipId && clip.FileExists);
 
     private void OnClipsChanged(IReadOnlyCollection<SessionVideoSnapshot> value)
     {
         clips = [.. value];
-        HasVideo = clips.Any(clip => clip.FileExists);
         RefreshActiveClip();
     }
 
     private void OnSessionTimingChanged(VideoSessionTiming timing)
     {
-        sessionTimestamp = timing.Timestamp;
+        ownerKey = timing.OwnerKey;
+        sessionTimeline = new SessionTrackTimeline(0, OwnerOriginSeconds: timing.WindowStartSeconds);
         telemetryDurationSeconds = timing.DurationSeconds is > 0 ? timing.DurationSeconds : null;
         RefreshActiveClip();
     }
@@ -98,6 +97,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
 
     private void RefreshActiveClip()
     {
+        HasVideo = VisibleClips.Any(clip => clip.FileExists);
         if (ClipAt(CurrentTelemetrySeconds()) is not { } clip)
         {
             VideoUri = null;
@@ -106,11 +106,11 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
         }
 
         VideoUri = new Uri(clip.Path).AbsoluteUri;
-        Playback.SetPlaybackContext(VideoPlaybackContext.FromTimeline(clip, SessionTimeline, telemetryDurationSeconds));
+        Playback.SetPlaybackContext(VideoPlaybackContext.FromTimeline(clip, sessionTimeline, telemetryDurationSeconds));
     }
 
-    private SessionTrackTimeline? SessionTimeline => sessionTimestamp is { } timestamp
-        ? new SessionTrackTimeline(timestamp) : null;
+    private IEnumerable<SessionVideoSnapshot> VisibleClips =>
+        SessionVideoSelection.ForWindow(clips, ownerKey, sessionTimeline, telemetryDurationSeconds);
 
     private double CurrentTelemetrySeconds() =>
         telemetryDurationSeconds is { } duration && timeline.NormalizedCursorPosition is { } cursor

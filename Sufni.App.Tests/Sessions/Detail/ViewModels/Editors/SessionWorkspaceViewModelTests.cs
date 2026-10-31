@@ -252,12 +252,10 @@ public class SessionWorkspaceViewModelTests
     public async Task SessionMediaWorkspace_ExposesVideoPane_OnceSessionHasPlayableClip()
     {
         using var videoFixture = new VideoFixture();
-        var sessionId = Guid.NewGuid();
         var store = await videoFixture.CreateStoreAsync();
         using var videoPane = new VideoPaneViewModel(
-            sessionId,
             new TestRecordedSessionTimeline(),
-            Observable.Never<VideoSessionTiming>(),
+            Observable.Return(new VideoSessionTiming("source-hash", 0, 60)),
             store,
             videoFixture.Coordinator,
             videoFixture.PlayerFactory);
@@ -272,7 +270,7 @@ public class SessionWorkspaceViewModelTests
         var videoBeforeLink = workspace.Video;
         var changes = TrackPropertyChanges(workspace);
 
-        await store.PublishClipsAsync([SessionVideoSnapshot.From(videoFixture.CreateClip(sessionId, startTimestamp: 1_000, durationSeconds: 60))]);
+        await store.PublishClipsAsync([SessionVideoSnapshot.From(videoFixture.CreateClip("source-hash", startTimestamp: 1_000, durationSeconds: 60))]);
 
         Assert.Null(videoBeforeLink);
         Assert.Same(videoPane, workspace.Video);

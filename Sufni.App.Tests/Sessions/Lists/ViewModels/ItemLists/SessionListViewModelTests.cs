@@ -150,7 +150,7 @@ public class SessionListViewModelTests
     }
 
     [Fact]
-    public async Task Rows_ShowLatestAddedVideoAsMissing_WhenItsFileIsGone()
+    public void Rows_ShowProjectedMissingVideo()
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
@@ -158,11 +158,9 @@ public class SessionListViewModelTests
         {
             var summary = CreateSummary(name: "session");
             sessionCache.AddOrUpdate(summary);
-            var store = await videos.CreateStoreAsync(
-                videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60, added: 1),
-                videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60, added: 2, fileExists: false));
-
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, store);
+            sessionCache.AddOrUpdate(summary with { LatestVideo = SessionVideoSnapshot.From(
+                videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: false)) });
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
             Assert.True(row.HasMissingVideo);
@@ -171,7 +169,7 @@ public class SessionListViewModelTests
     }
 
     [Fact]
-    public async Task Rows_ShowPresentVideo_WhenClipIsLinkedAfterLoad()
+    public void Rows_ShowPresentVideo_WhenProjectionAddsClipAfterLoad()
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
@@ -179,11 +177,11 @@ public class SessionListViewModelTests
         {
             var summary = CreateSummary(name: "session");
             sessionCache.AddOrUpdate(summary);
-            var store = await videos.CreateStoreAsync();
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, store);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
-            await store.PublishClipsAsync([SessionVideoSnapshot.From(videos.CreateClip(summary.Id, startTimestamp: 0, durationSeconds: 60))]);
+            sessionCache.AddOrUpdate(summary with { LatestVideo = SessionVideoSnapshot.From(
+                videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60)) });
 
             Assert.Same(row, Assert.Single(viewModel.Items));
             Assert.True(row.HasPresentVideo);
@@ -202,8 +200,7 @@ public class SessionListViewModelTests
             var viewModel = new SessionListViewModel(
                 projection,
                 TestCoordinatorSubstitutes.RecomputeEngine(),
-                VideoFixture.CreateEmptyStore(),
-                UiThreadDispatcher,
+                    UiThreadDispatcher,
                 pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
 
             Assert.Empty(viewModel.Items);
@@ -583,13 +580,11 @@ public class SessionListViewModelTests
         IRecordedSessionProjection projection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        ISessionVideoStore? videoStore = null,
         ISessionRecomputeEngine? recomputeEngine = null)
     {
         var viewModel = new SessionListViewModel(
             projection,
             recomputeEngine ?? TestCoordinatorSubstitutes.RecomputeEngine(),
-            videoStore ?? VideoFixture.CreateEmptyStore(),
             uiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);

@@ -97,7 +97,6 @@ internal static class MainPagesViewModelTestFactory
         new(
             CreateRecordedSessionProjection(),
             TestCoordinatorSubstitutes.RecomputeEngine(),
-            VideoFixture.CreateEmptyStore(),
             UiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 

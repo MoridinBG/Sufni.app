@@ -60,12 +60,10 @@ public class VideoPaneViewTests : IDisposable
 
     private async Task<VideoPaneViewModel> CreatePaneAsync()
     {
-        var sessionId = Guid.NewGuid();
         var pane = await fixture.CreatePaneAsync(
-            sessionId,
             timeline,
-            Observable.Return(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 30)),
-            fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60));
+            Observable.Return(new VideoSessionTiming("source-hash", 0, DurationSeconds: 30)),
+            fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60));
         timeline.SetCursorPosition(0);
         return pane;
     }

@@ -137,7 +137,7 @@ public class AppDataRefresherTests
             Setup = new Setup(Guid.NewGuid(), "setup") { BikeId = Bike.Id };
             Board = new Board(Guid.NewGuid(), Setup.Id);
             Session = new Session(Guid.NewGuid(), "session", "", Setup.Id);
-            Clip = new SessionVideoClip { Id = Guid.NewGuid(), SessionId = Session.Id, Path = "" };
+            Clip = new SessionVideoClip { Id = Guid.NewGuid(), OwnerKey = "source-hash", Path = "" };
             Segment = new SessionSegment { Id = Guid.NewGuid(), OwnerKey = "source-hash", Name = "segment" };
             var trackRepository = Substitute.For<ITrackRepository>();
             trackRepository.GetTrackSnapshotsAsync().Returns([Track]);

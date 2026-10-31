@@ -11,7 +11,6 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Video.Services;
 namespace Sufni.App.Sessions.Coordination;
 
 internal sealed class SessionPersistenceTransactionRunner(
@@ -78,7 +77,7 @@ internal sealed class SessionPersistenceTransactionRunner(
         EditAsync(session, SessionWindowEditKind.TrimUntilEnd, clickSeconds, (connection, row, plan, now) =>
         {
             Update(connection, row.Id, plan.Current, now);
-            return new SessionEditCommit.Committed([row.Id], []);
+            return new SessionEditCommit.Committed([row.Id]);
         });
 
     public Task<SessionEditCommit> TrimFromBeginningAsync(SessionSnapshot session, double clickSeconds) =>
@@ -91,8 +90,7 @@ internal sealed class SessionPersistenceTransactionRunner(
         SessionWindowEditPlan.Planned plan, long now)
     {
         Update(connection, row.Id, plan.Current, now);
-        var clips = SessionVideoRepository.ShiftAlignmentInTransaction(connection, row.Id, plan.ClipAlignmentDelta);
-        return new SessionEditCommit.Committed([row.Id], clips);
+        return new SessionEditCommit.Committed([row.Id]);
     }
 
     public Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds) =>
@@ -121,13 +119,7 @@ internal sealed class SessionPersistenceTransactionRunner(
             PersistenceGuards.InsertEntity(connection, part2);
 
             Update(connection, row.Id, plan.Current, now);
-            var clips = SessionVideoRepository.CopyToSessionInTransaction(
-                connection,
-                row.Id,
-                part2.Id,
-                plan.ClipAlignmentDelta,
-                timeProvider.GetUtcNow().ToUnixTimeMilliseconds());
-            return new SessionEditCommit.Committed([row.Id, part2.Id], clips, part2.Id);
+            return new SessionEditCommit.Committed([row.Id, part2.Id], part2.Id);
         });
 
     private Task<SessionEditCommit> EditAsync(

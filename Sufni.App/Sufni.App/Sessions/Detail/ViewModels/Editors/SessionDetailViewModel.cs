@@ -1592,10 +1592,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             segmentPicker,
             segmentComparison);
         videoPane = videoPaneFactory?.Create(
-            Id,
             Timeline,
             editorStateController.State.Select(state => new VideoSessionTiming(
-                state.Session?.Timestamp,
+                state.Domain?.Source?.SourceHash,
+                state.Session?.WindowStartSeconds ?? 0,
                 state.TelemetryData?.Metadata.Duration ?? state.Session?.DurationSeconds)));
         mapViewModel = mapViewModelFactory.Create();
         MediaWorkspace = new SessionMediaWorkspaceViewModel(

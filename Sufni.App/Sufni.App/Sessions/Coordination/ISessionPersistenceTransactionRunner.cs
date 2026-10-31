@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Sufni.App.Sessions.Store;
-using Sufni.App.Video.Models;
 namespace Sufni.App.Sessions.Coordination;
 
 public interface ISessionPersistenceTransactionRunner
@@ -25,8 +24,7 @@ public interface ISessionPersistenceTransactionRunner
 
     /// <summary>
     /// Moves the window start and the session origin to the click. The session's
-    /// segments keep their place in the recording, and its video alignment shifts
-    /// by the change of the origin's fractional second.
+    /// source-owned attachments keep their place in the recording.
     /// </summary>
     Task<SessionEditCommit> TrimFromBeginningAsync(SessionSnapshot session, double clickSeconds);
 
@@ -34,7 +32,7 @@ public interface ISessionPersistenceTransactionRunner
 
     /// <summary>
     /// Ends the session's window at the click, renames it "(1)", and creates a
-    /// "(2)" session over the rest of the window with copies of its video clips.
+    /// "(2)" session over the rest of the window.
     /// Source-owned segments remain unchanged.
     /// </summary>
     Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds);
@@ -46,7 +44,6 @@ public abstract record SessionEditCommit
 
     public sealed record Committed(
         IReadOnlyList<Guid> SessionIds,
-        IReadOnlyList<SessionVideoClip> Clips,
         Guid? CreatedSessionId = null) : SessionEditCommit;
 
     public sealed record Rejected(string Message) : SessionEditCommit;

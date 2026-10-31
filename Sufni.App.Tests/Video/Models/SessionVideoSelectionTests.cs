@@ -71,11 +71,11 @@ public class SessionVideoSelectionTests
         bool fileExists = true) =>
         new(
             Guid.NewGuid(),
-            Guid.NewGuid(),
+            "source-hash",
             "/videos/clip.mp4",
             startTimestamp,
             durationSeconds,
-            alignmentOffsetSeconds,
+            SessionTimestamp - startTimestamp + alignmentOffsetSeconds,
             added,
             fileExists);
 }

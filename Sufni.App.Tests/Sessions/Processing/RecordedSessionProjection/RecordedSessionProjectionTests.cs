@@ -1,3 +1,5 @@
+using Sufni.App.Video.Stores;
+using Sufni.App.Video.Models;
 using Sufni.App.MapsAndTracks.Stores;
 using System.Linq;
 using Sufni.App.Tests.TestSupport.Async;
@@ -20,6 +22,37 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
 public class RecordedSessionProjectionTests
 {
+    [Fact]
+    public async Task ConnectSessions_ProjectsLocalClipsIntoRemoteSplitWindow_AndRetainsThemAfterParentRemoval()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var context = CreateCurrentContext(fingerprints);
+        context = context with { Session = context.Session with { Timestamp = 100, DurationSeconds = 10 } };
+        var remotePart = context.Session with
+        {
+            Id = Guid.NewGuid(), SourceSessionId = context.Session.Id,
+            Timestamp = 110, WindowStartSeconds = 10.25, DurationSeconds = 5
+        };
+        var clip = new SessionVideoSnapshot(Guid.NewGuid(), context.Source.SourceHash, "/ride.mp4", 112, 2, -12.25, 1, false);
+        using var observation = projection.ConnectSessions().Bind(out var summaries).Subscribe();
+        await stores.AddAsync(context);
+        await stores.Videos.PublishClipsAsync([clip]);
+        await stores.Sessions.PublishSessionsChangedAsync([remotePart]);
+        await scheduler.DrainAsync();
+
+        Assert.Null(summaries.Single(summary => summary.Id == context.Session.Id).LatestVideo);
+        Assert.Equal(clip, summaries.Single(summary => summary.Id == remotePart.Id).LatestVideo);
+        await stores.Sessions.PublishSessionsRemovedAsync([context.Session.Id]);
+        Assert.Equal(clip, Assert.Single(summaries).LatestVideo);
+
+        await stores.Videos.PublishClipsAsync([clip with { AlignmentOffsetSeconds = -30 }]);
+        await scheduler.DrainAsync();
+        Assert.Null(Assert.Single(summaries).LatestVideo);
+    }
+
     [Fact]
     public async Task WatchSession_TrackChangesRejectPendingSelection_AndPublishTheCurrentSelection()
     {
@@ -551,6 +584,7 @@ public class RecordedSessionProjectionTests
         public BikeStore Bikes { get; }
         public RecordedSessionSourceStore Sources { get; }
         public TrackStore Tracks { get; }
+        public SessionVideoStore Videos { get; }
         public ProcessingDependencyHashIndex DependencyHashIndex { get; }
         public StorePublication Publication { get; } = new(new InlineUiThreadDispatcher());
 
@@ -561,6 +595,7 @@ public class RecordedSessionProjectionTests
             Bikes = new BikeStore(Publication);
             Sources = new RecordedSessionSourceStore(Publication);
             Tracks = new TrackStore(Publication);
+            Videos = new SessionVideoStore(Publication);
             DependencyHashIndex = new ProcessingDependencyHashIndex(Setups, Bikes);
         }
 
@@ -577,6 +612,7 @@ public class RecordedSessionProjectionTests
             runner ?? new InlineBackgroundTaskRunner(),
             Publication,
             Tracks,
+            Videos,
             new UiThreadRecordedSessionProjectionScheduler(scheduler));
 
         public async Task AddAsync(TestContext context)
@@ -596,6 +632,7 @@ public class RecordedSessionProjectionTests
             Bikes.Dispose();
             Sources.Dispose();
             Tracks.Dispose();
+            Videos.Dispose();
             Publication.Dispose();
         }
     }

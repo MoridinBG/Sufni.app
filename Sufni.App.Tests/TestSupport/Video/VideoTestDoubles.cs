@@ -94,7 +94,7 @@ internal sealed class VideoFixture : IDisposable
     public FakeVideoPlayerFactory PlayerFactory { get; } = new();
 
     public SessionVideoClip CreateClip(
-        Guid sessionId,
+        string ownerKey,
         long startTimestamp,
         double durationSeconds,
         long added = 0,
@@ -111,7 +111,7 @@ internal sealed class VideoFixture : IDisposable
         return new SessionVideoClip
         {
             Id = id,
-            SessionId = sessionId,
+            OwnerKey = ownerKey,
             Path = path,
             StartTimestamp = startTimestamp,
             DurationSeconds = durationSeconds,
@@ -132,13 +132,12 @@ internal sealed class VideoFixture : IDisposable
     }
 
     public async Task<VideoPaneViewModel> CreatePaneAsync(
-        Guid sessionId,
         IRecordedSessionTimeline timeline,
         IObservable<VideoSessionTiming> sessionTiming,
         params SessionVideoClip[] clips)
     {
         var store = await CreateStoreAsync(clips);
-        return new VideoPaneViewModel(sessionId, timeline, sessionTiming, store, Coordinator, PlayerFactory);
+        return new VideoPaneViewModel(timeline, sessionTiming, store, Coordinator, PlayerFactory);
     }
 
     public void Dispose() => directory.Dispose();

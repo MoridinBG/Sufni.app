@@ -1,7 +1,6 @@
 namespace Sufni.App.Video.Models;
 
 /// <summary>
-/// The session start (unix seconds) and the telemetry duration that map the
-/// telemetry cursor to video time.
+/// The source identity, window origin and duration used to select and play clips.
 /// </summary>
-public sealed record VideoSessionTiming(long? Timestamp, double? DurationSeconds);
+public sealed record VideoSessionTiming(string? OwnerKey, double WindowStartSeconds, double? DurationSeconds);

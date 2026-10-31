@@ -20,8 +20,8 @@ public class SessionTrackTimelineTests
     [Fact]
     public void VideoContext_UsesCaptureClockAndClipAlignment_IndependentlyOfGpsAlignment()
     {
-        var clip = new SessionVideoSnapshot(Guid.NewGuid(), Guid.NewGuid(), "/clip.mp4", 990, 30, -1.5, 0, true);
-        var context = VideoPlaybackContext.FromTimeline(clip, new SessionTrackTimeline(1000.25, 7), 20);
+        var clip = new SessionVideoSnapshot(Guid.NewGuid(), "source-hash", "/clip.mp4", 990, 30, 8.5, 0, true);
+        var context = VideoPlaybackContext.FromTimeline(clip, new SessionTrackTimeline(1000.25, 7, OwnerOriginSeconds: 0.25), 20);
 
         Assert.Equal(13.75, context.ToVideoSeconds(5));
         Assert.Equal(5, context.ToTelemetrySeconds(13.75));

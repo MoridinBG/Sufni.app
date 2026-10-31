@@ -17,7 +17,7 @@
 
 ## Overview
 
-A video clip is a local file path plus its recording window. The app does not copy the file. One import links the file to every recorded session whose recording window overlaps the video. Links are local to the device; they are not synchronized.
+A video clip is a local file path plus its recording window. The app does not copy the file. One import links the file once per recording source whose session window overlaps the video. Every session window over that source derives its visible clips from the shared link. Links are local to the device; they are not synchronized.
 
 The slice lives in `Sufni.App/Sufni.App/Video/`:
 
@@ -32,9 +32,9 @@ Video playback is a capability. `AppCapabilities.CanPlayVideo` is true on Window
 
 ## Persistence
 
-`session_video` holds one row per linked session: id, `session_id`, `path`, `start_timestamp` (unix seconds), `duration_seconds`, `alignment_offset_seconds`, and `added` (unix milliseconds). One import writes one row for each matched session in a single transaction.
+`session_video` holds one row per source and file: id, `owner_key` (source hash), `path`, `start_timestamp` (file-header Unix seconds), `duration_seconds`, owner-relative `alignment_offset_seconds`, and `added` (Unix milliseconds). A new link's offset is the source timestamp minus the video start timestamp. Existing links retain their ID, added time and alignment on re-import.
 
-`DatabaseMigrationRunner` creates the table with the core tables. A clip is live only while its session is live: the repository reads the clips of live sessions, and a session delete does not touch `session_video`. Startup cleanup removes rows whose session row is gone. The private-video tables never shipped; their copy migration is removed, and the `session-video` migration marker remains recorded as applied.
+The `track-materializations` migration converts old session offsets to the source timeline, groups links by source hash and path, and retains the widest session's alignment. An existing source-owning parent represents the pre-split full recording; equal candidates use the lowest clip ID. It logs dropped clip/session identities, preserves the survivor's ID and added time, and drops `session_id`. Reads and startup cleanup retain links independently of session existence. There is no session-ID ownership fallback. The private-video tables never shipped; their copy migration is removed, and the `session-video` marker remains recorded as applied.
 
 ## Store And Coordinator
 
@@ -45,12 +45,12 @@ whole-app batch; the store itself has no repository dependency.
 
 
 `SessionVideoStore` holds a `SessionVideoSnapshot` per clip and accepts prepared
-snapshots only. Import, alignment, and session editing prepare clip snapshots
+snapshots only. Import and alignment prepare clip snapshots
 off-thread, including the file-presence check, before publication. The snapshot records `FileExists` when it is created, and a refresh checks the file again. `AppDataRefresher` refreshes the store with the other core stores.
 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 
-- `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links it, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, `NoMatchingSession`, `SourceUnavailable`, or `Failed(reason, details)`.
+- `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links each source once, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, `NoMatchingSession`, `SourceUnavailable`, or `Failed(reason, details)`.
 - `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns `VideoAlignmentResult.Updated`, `ClipMissing`, or `Failed(reason, details)`. The coordinator catches and logs persistence/publication failures once; callers project fixed failure text and treat a missing clip as unavailable.
 
 ## Import
@@ -63,11 +63,11 @@ The selected file must have a local path. The metadata reader runs on the backgr
 
 `SessionVideoSelection.Select` picks the clip to show at a telemetry time. Only clips whose file exists take part. A clip that contains the time wins over the others, and among those the latest added wins. When no clip contains the time, the nearest clip wins.
 
-The video time of a telemetry time is `session timestamp - clip start + alignment offset + telemetry seconds`.
+Visible clips share the source hash and overlap the session's source-relative window. The video time is `window start + owner alignment offset + telemetry seconds`; `SessionTrackTimeline` owns the window mapping.
 
 ## Video Pane
 
-`SessionDetailViewModel` creates its pane through `IVideoPaneFactory`. The factory returns null when no `IVideoPlayerFactory` is registered, so the editor has no pane on Android. The pane lives as long as the editor. It follows the session clips in the store and a `VideoSessionTiming` stream (session timestamp and telemetry duration) that the editor projects from its state, feeds that timing into playback, and changes `VideoUri` when the cursor moves into a different clip. `HasVideo` is true while at least one clip file exists.
+`SessionDetailViewModel` creates its pane through `IVideoPaneFactory`. The factory returns null when no `IVideoPlayerFactory` is registered, so the editor has no pane on Android. The pane lives as long as the editor. It follows source-owned clips in the store and a `VideoSessionTiming` stream (source hash, window start and telemetry duration) that the editor projects from its state, feeds that timing into playback, and changes `VideoUri` when the cursor moves into a different clip. `HasVideo` is true while at least one clip file exists.
 
 `ISessionMediaWorkspace.Video` is the pane while `HasVideo` is true, otherwise null. The views template the pane only when it is not null, so no native player exists for sessions without a playable clip:
 
@@ -79,8 +79,8 @@ The video time of a telemetry time is `session timestamp - clip start + alignmen
 ## Playback And Timeline
 
 `VideoPlaybackViewModel` holds play, sync, and timeline-playback state for one editor.
-`VideoPlaybackContext` derives the clip offset from `SessionTrackTimeline`'s
-capture-clock origin and owns both playback-time conversions. Clip selection and
+`VideoPlaybackContext` derives the session offset from `SessionTrackTimeline`'s
+source-relative window origin and owns both playback-time conversions. Clip selection and
 playback share that mapping; GPS alignment changes the map clock only.
 
 - Sync: while sync is on and the video is paused, the video follows the telemetry cursor. The pane sets the playback context on every cursor move; only a changed context (another clip, timing, or alignment) seeks the player.
@@ -98,15 +98,11 @@ Camera clocks drift, so a clip may need an offset. Alignment uses three built-in
 
 The editor keeps one pending `TimelineAlignmentMark` (`GpsTrack` or `VideoClip`), so only one alignment flow (GPS or video) can be active at a time.
 
-Trim and split move the session origin: the timestamp takes the whole seconds
-and the alignment offset of each clip takes the change of the fractional second,
-so the formula above keeps pointing at the same video frame. A split copies the
-clips to the second part with that shift applied. See
-[Trim and split](ui-workflows.md#trim-and-split).
+Trim and split change only session windows; video rows and their alignment remain fixed. Each window derives its visible clips and playback offset from the source timeline, including a split received from a peer without a local split command. See [Trim and split](ui-workflows.md#trim-and-split).
 
 ## Session List Indicator
 
-`SessionListViewModel` joins `ISessionVideoStore` into the list projection with `LeftJoinMany`. The latest added clip of a session sets the row state: `HasPresentVideo` shows a video icon with the tooltip "video"; `HasMissingVideo` shows the same icon dimmed with the tooltip "video missing".
+`RecordedSessionProjection` observes committed session/source/video inputs and derives the latest added clip overlapping each session window off-thread. Its summary carries that clip to `SessionListViewModel`, which only renders the row state: `HasPresentVideo` shows a video icon with the tooltip "video"; `HasMissingVideo` shows the same icon dimmed with the tooltip "video missing".
 
 ## Platform Players
 

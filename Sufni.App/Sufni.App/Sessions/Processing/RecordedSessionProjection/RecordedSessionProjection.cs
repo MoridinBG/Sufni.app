@@ -1,3 +1,6 @@
+using Sufni.App.Video.Stores;
+using Sufni.App.Video.Models;
+using Sufni.App.Sessions.Models;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
@@ -21,6 +24,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private readonly ISessionStore sessionStore;
     private readonly ITrackStore trackStore;
     private long trackGeneration;
+    private readonly ISessionVideoStore videoStore;
+    private long videoGeneration;
     private readonly ISetupStore setupStore;
     private readonly IBikeStore bikeStore;
     private readonly IRecordedSessionSourceStore sourceStore;
@@ -45,9 +50,9 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore)
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore, ISessionVideoStore videoStore)
         : this(sessionStore, setupStore, bikeStore, sourceStore, fingerprintService,
-            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication, trackStore,
+            dependencyHashIndex, dispatcher, backgroundTaskRunner, publication, trackStore, videoStore,
             new UiThreadRecordedSessionProjectionScheduler(dispatcher))
     {
     }
@@ -56,11 +61,12 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         ISessionStore sessionStore, ISetupStore setupStore, IBikeStore bikeStore,
         IRecordedSessionSourceStore sourceStore, IProcessingFingerprintService fingerprintService,
         IProcessingDependencyHashIndex dependencyHashIndex, IUiThreadDispatcher dispatcher,
-        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore,
+        IBackgroundTaskRunner backgroundTaskRunner, StorePublication publication, ITrackStore trackStore, ISessionVideoStore videoStore,
         IRecordedSessionProjectionScheduler scheduler)
     {
         this.sessionStore = sessionStore;
         this.trackStore = trackStore;
+        this.videoStore = videoStore;
         this.setupStore = setupStore;
         this.bikeStore = bikeStore;
         this.sourceStore = sourceStore;
@@ -82,6 +88,15 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             {
                 if (disposed) return;
                 trackGeneration++;
+                pendingRecomputeIds.UnionWith(sessionToSetup.Keys);
+            }
+        }));
+        subscriptions.Add(videoStore.Connect().Subscribe(_ =>
+        {
+            lock (stateGate)
+            {
+                if (disposed) return;
+                videoGeneration++;
                 pendingRecomputeIds.UnionWith(sessionToSetup.Keys);
             }
         }));
@@ -189,7 +204,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     private void ApplyCommit(StorePublicationCommit commit)
     {
         if (!commit.Stores.Contains(sessionStore) && !commit.Stores.Contains(setupStore) &&
-            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore) && !commit.Stores.Contains(trackStore)) return;
+            !commit.Stores.Contains(bikeStore) && !commit.Stores.Contains(sourceStore) && !commit.Stores.Contains(trackStore) && !commit.Stores.Contains(videoStore)) return;
 
         lock (stateGate)
         {
@@ -231,17 +246,23 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         {
             if (disposed) return;
             var tracks = trackStore.GetAll();
-            inputs = pendingRecomputeIds.Select(id => Capture(id, tracks)).OfType<ProjectionInput>().ToArray();
+            var clips = videoStore.GetAll();
+            inputs = pendingRecomputeIds.Select(id => Capture(id, tracks, clips)).OfType<ProjectionInput>().ToArray();
             pendingRecomputeIds.Clear();
         }
-        (ProjectionInput Input, RecordedSessionDomainSnapshot Domain)[] results;
+        (ProjectionInput Input, RecordedSessionDomainSnapshot Domain, SessionVideoSnapshot? Video)[] results;
         try
         {
             results = await backgroundTaskRunner.RunAsync(() => inputs.Select(input =>
-                (Input: input, Domain: RecordedSessionDomainSnapshotFactory.Create(
-                    input.Session, input.Setup, input.Bike, input.Source,
-                    fingerprintService, input.DependencyHash,
-                    SessionTrackSelection.Select(input.Tracks, input.Session.Timestamp, input.Session.DurationSeconds, input.Session.GpsOffsetSeconds)))).ToArray()).ConfigureAwait(false);
+            {
+                var domain = RecordedSessionDomainSnapshotFactory.Create(
+                    input.Session, input.Setup, input.Bike, input.Source, fingerprintService, input.DependencyHash,
+                    SessionTrackSelection.Select(input.Tracks, input.Session.Timestamp, input.Session.DurationSeconds, input.Session.GpsOffsetSeconds));
+                var video = SessionVideoSelection.ForWindow(input.Clips, input.Source?.SourceHash,
+                    new SessionTrackTimeline(0, OwnerOriginSeconds: input.Session.WindowStartSeconds), input.Session.DurationSeconds)
+                    .MaxBy(clip => clip.Added);
+                return (Input: input, Domain: domain, Video: video);
+            }).ToArray()).ConfigureAwait(false);
         }
         catch
         {
@@ -260,7 +281,7 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                     // Cache mutations finish synchronously inside the dispatcher-owned batch.
                     publication.MutateAsync(this, summaries.SuspendNotifications, () => summaries.Edit(updater =>
                     {
-                        foreach (var (_, domain) in current)
+                        foreach (var (_, domain, video) in current)
                         {
                             domains[domain.Session.Id] = domain;
                             pendingRecomputeIds.Remove(domain.Session.Id);
@@ -268,10 +289,10 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
                             updater.AddOrUpdate(new RecordedSessionSummary(
                                 session.Id, session.Updated, session.Name, session.Description,
                                 session.Timestamp, session.HasProcessedData, domain.Staleness,
-                                session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters));
+                                session.DurationSeconds, session.DistanceMeters, session.AscentMeters, session.DescentMeters, video));
                         }
                     })).GetAwaiter().GetResult();
-                    foreach (var (_, domain) in current)
+                    foreach (var (_, domain, _) in current)
                         if (watches.TryGetValue(domain.Session.Id, out var watch)) watch.Subject.OnNext(domain);
                 }
             }
@@ -288,20 +309,20 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
         SchedulePending();
     }
 
-    private ProjectionInput? Capture(Guid id, IReadOnlyList<TrackSnapshot> tracks)
+    private ProjectionInput? Capture(Guid id, IReadOnlyList<TrackSnapshot> tracks, IReadOnlyList<SessionVideoSnapshot> clips)
     {
         if (sessionStore.Get(id) is not { } session) return null;
         var setup = session.SetupId is { } setupId ? setupStore.Get(setupId) : null;
         var bike = setup is null ? null : bikeStore.Get(setup.BikeId);
         return new ProjectionInput(session, setup, bike, sourceStore.Get(session.RecordingSourceSessionId),
-            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), tracks, trackGeneration);
+            setup is null ? null : dependencyHashIndex.GetForSetup(setup.Id), tracks, trackGeneration, clips, videoGeneration);
     }
 
     private bool IsCurrent(ProjectionInput input)
     {
-        var current = Capture(input.Session.Id, input.Tracks);
+        var current = Capture(input.Session.Id, input.Tracks, input.Clips);
         if (current is null) return false;
-        if (input.TrackGeneration == current.TrackGeneration && input.Session == current.Session && input.Setup == current.Setup &&
+        if (input.VideoGeneration == current.VideoGeneration && input.TrackGeneration == current.TrackGeneration && input.Session == current.Session && input.Setup == current.Setup &&
             input.Bike == current.Bike && input.Source == current.Source && input.DependencyHash == current.DependencyHash)
             return true;
         pendingRecomputeIds.Add(input.Session.Id);
@@ -324,7 +345,8 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
     }
 
     private sealed record ProjectionInput(SessionSnapshot Session, SetupSnapshot? Setup, BikeSnapshot? Bike,
-        RecordedSessionSourceSnapshot? Source, string? DependencyHash, IReadOnlyList<TrackSnapshot> Tracks, long TrackGeneration);
+        RecordedSessionSourceSnapshot? Source, string? DependencyHash, IReadOnlyList<TrackSnapshot> Tracks, long TrackGeneration,
+        IReadOnlyList<SessionVideoSnapshot> Clips, long VideoGeneration);
 
 
 }

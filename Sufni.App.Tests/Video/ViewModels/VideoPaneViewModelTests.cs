@@ -13,25 +13,46 @@ public class VideoPaneViewModelTests : IDisposable
 
     private readonly VideoFixture fixture = new();
     private readonly TestRecordedSessionTimeline timeline = new();
-    private readonly Guid sessionId = Guid.NewGuid();
+
+    [Fact]
+    public async Task SourceArrival_ExposesSharedClipAtSplitWindowTime_WithoutRewritingAlignment()
+    {
+        var clip = fixture.CreateClip("source-hash", 995, 60, alignmentOffsetSeconds: 5);
+        using var timing = new BehaviorSubject<VideoSessionTiming>(new(null, 10.25, 5));
+        using var pane = await fixture.CreatePaneAsync(timeline, timing, clip);
+        Assert.False(pane.HasVideo);
+        timing.OnNext(new VideoSessionTiming("source-hash", 10.25, 5));
+        var backend = new FakeVideoPlaybackBackend();
+        pane.Playback.SetBackend(backend);
+        pane.Playback.IsSyncEnabled = true;
+
+        timeline.SetCursorPosition(0.4);
+
+        Assert.True(pane.HasVideo);
+        Assert.Equal(TimeSpan.FromSeconds(17.25), backend.SeekedPositions.Last());
+        Assert.Equal(5, clip.AlignmentOffsetSeconds);
+        timing.OnNext(new VideoSessionTiming("source-hash", 70, 5));
+        Assert.False(pane.HasVideo);
+        Assert.Null(pane.VideoUri);
+    }
 
     [Fact]
     public async Task HasVideo_IsFalse_WhenClipFileIsMissing()
     {
-        var missing = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60, fileExists: false);
+        var missing = fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60, fileExists: false);
 
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, Observable.Never<VideoSessionTiming>(), missing);
+        using var pane = await fixture.CreatePaneAsync(timeline, Observable.Return(new VideoSessionTiming("source-hash", 0, 60)), missing);
 
         Assert.False(pane.HasVideo);
         Assert.Null(pane.VideoUri);
     }
 
     [Fact]
-    public async Task HasVideo_IgnoresClipsOfOtherSessions()
+    public async Task HasVideo_IgnoresClipsOfOtherSources()
     {
-        var other = fixture.CreateClip(Guid.NewGuid(), SessionTimestamp, durationSeconds: 60);
+        var other = fixture.CreateClip("other-source", SessionTimestamp, durationSeconds: 60);
 
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, Observable.Never<VideoSessionTiming>(), other);
+        using var pane = await fixture.CreatePaneAsync(timeline, Observable.Return(new VideoSessionTiming("source-hash", 0, 60)), other);
 
         Assert.False(pane.HasVideo);
     }
@@ -40,9 +61,9 @@ public class VideoPaneViewModelTests : IDisposable
     public async Task HasVideo_BecomesTrue_WhenClipIsLinkedLater()
     {
         var store = await fixture.CreateStoreAsync();
-        using var pane = new VideoPaneViewModel(sessionId, timeline, Observable.Never<VideoSessionTiming>(), store, fixture.Coordinator, fixture.PlayerFactory);
+        using var pane = new VideoPaneViewModel(timeline, Observable.Return(new VideoSessionTiming("source-hash", 0, 60)), store, fixture.Coordinator, fixture.PlayerFactory);
 
-        await store.PublishClipsAsync([SessionVideoSnapshot.From(fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60))]);
+        await store.PublishClipsAsync([SessionVideoSnapshot.From(fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60))]);
 
         Assert.True(pane.HasVideo);
     }
@@ -50,12 +71,11 @@ public class VideoPaneViewModelTests : IDisposable
     [Fact]
     public async Task VideoUri_FollowsCursorToClipAtTelemetryTime()
     {
-        var first = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 20);
-        var second = fixture.CreateClip(sessionId, SessionTimestamp + 20, durationSeconds: 20);
+        var first = fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 20);
+        var second = fixture.CreateClip("source-hash", SessionTimestamp + 20, durationSeconds: 20, alignmentOffsetSeconds: -20);
         using var pane = await fixture.CreatePaneAsync(
-            sessionId,
             timeline,
-            Observable.Return(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 40)),
+            Observable.Return(new VideoSessionTiming("source-hash", 0, DurationSeconds: 40)),
             first,
             second);
 
@@ -70,12 +90,12 @@ public class VideoPaneViewModelTests : IDisposable
     [Fact]
     public async Task Playback_CannotSync_UntilTelemetryDurationIsKnown()
     {
-        var clip = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60);
+        var clip = fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60);
         using var timing = new Subject<VideoSessionTiming>();
-        using var pane = await fixture.CreatePaneAsync(sessionId, timeline, timing, clip);
+        using var pane = await fixture.CreatePaneAsync(timeline, timing, clip);
 
         var canSyncBeforeTiming = pane.Playback.CanSync;
-        timing.OnNext(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 30));
+        timing.OnNext(new VideoSessionTiming("source-hash", 0, DurationSeconds: 30));
 
         Assert.False(canSyncBeforeTiming);
         Assert.True(pane.Playback.CanSync);
@@ -84,11 +104,10 @@ public class VideoPaneViewModelTests : IDisposable
     [Fact]
     public async Task TimelinePlayback_WithSync_DoesNotSeekWhileTheCursorFollowsTheVideo()
     {
-        var clip = fixture.CreateClip(sessionId, SessionTimestamp, durationSeconds: 60);
+        var clip = fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60);
         using var pane = await fixture.CreatePaneAsync(
-            sessionId,
             timeline,
-            Observable.Return(new VideoSessionTiming(SessionTimestamp, DurationSeconds: 30)),
+            Observable.Return(new VideoSessionTiming("source-hash", 0, DurationSeconds: 30)),
             clip);
         var backend = new FakeVideoPlaybackBackend();
         timeline.SetCursorPosition(0);

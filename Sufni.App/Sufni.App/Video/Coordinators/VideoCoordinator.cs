@@ -160,7 +160,8 @@ internal sealed class VideoCoordinator(
             return new VideoImportResult.NoMatchingSession();
         }
 
-        if (matchingSessions.Any(session => sourceStore.Get(session.SourceSessionId ?? session.Id) is null))
+        var inputs = matchingSessions.Select(session => (Session: session, Source: sourceStore.Get(session.SourceSessionId ?? session.Id))).ToArray();
+        if (inputs.Any(input => input.Source is null))
             return new VideoImportResult.SourceUnavailable();
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -169,9 +170,10 @@ internal sealed class VideoCoordinator(
             metadata.StartUtc.ToUnixTimeSeconds(),
             metadata.Duration.TotalSeconds,
             timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),
-            matchingSessions.Select(session => session.Id).ToArray());
+            inputs.Select(input => new SessionVideoOwner(input.Source!.SourceHash,
+                SessionTrackTimeline.FromSessionWindow(input.Session.Timestamp!.Value, 0, input.Session.WindowStartSeconds).SourceTimestamp)).ToArray());
         await videoStore.PublishClipsAsync(clips.Select(SessionVideoSnapshot.From).ToArray());
-        return new VideoImportResult.Linked(clips.Count);
+        return new VideoImportResult.Linked(matchingSessions.Length);
     }
 
     // A session matches when any part of the video recording window overlaps

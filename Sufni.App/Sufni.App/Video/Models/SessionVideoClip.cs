@@ -3,9 +3,9 @@ using SQLite;
 
 namespace Sufni.App.Video.Models;
 
-// A local video file linked to one recorded session. Device-local and never
+// A local video file linked to one recording source. Device-local and never
 // synced: the path is meaningful only on this device. Start and duration come
-// from the file header; the alignment offset is the user's correction.
+// from the file header; the alignment offset maps source seconds into video seconds.
 [Table("session_video")]
 public sealed class SessionVideoClip
 {
@@ -14,8 +14,8 @@ public sealed class SessionVideoClip
     public Guid Id { get; set; }
 
     [Indexed]
-    [Column("session_id")]
-    public Guid SessionId { get; set; }
+    [Column("owner_key"), NotNull]
+    public string OwnerKey { get; set; } = string.Empty;
 
     [Column("path"), NotNull]
     public string Path { get; set; } = string.Empty;

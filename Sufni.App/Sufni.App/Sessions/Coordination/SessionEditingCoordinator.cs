@@ -7,12 +7,11 @@ using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Models;
 
 using Sufni.App.Sessions.Store;
-using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Coordination;
 
 /// <summary>
 /// Runs the trim and split commands of recorded sessions. Each command commits
-/// in one transaction, publishes the changed sessions and video clips, and
+/// in one transaction, publishes the changed sessions, and
 /// recomputes the affected sessions. A split reports its new id after publication.
 /// </summary>
 public interface ISessionEditingCoordinator
@@ -45,7 +44,6 @@ public abstract record SessionEditResult
 
 internal sealed class SessionEditingCoordinator(
     ISessionStoreWriter sessionStore,
-    ISessionVideoStoreWriter videoStore,
     ISessionPersistenceTransactionRunner transactions,
     ISessionRecomputeEngine recomputeEngine,
     ISessionRepository sessionRepository,
@@ -99,12 +97,6 @@ internal sealed class SessionEditingCoordinator(
             var recomputes = committed.SessionIds
                 .Select(id => recomputeEngine.RequestRecomputeAsync(id))
                 .ToArray();
-
-            if (committed.Clips.Count > 0)
-            {
-                var clips = await backgroundTaskRunner.RunAsync(() => committed.Clips.Select(SessionVideoSnapshot.From).ToArray());
-                await videoStore.PublishClipsAsync(clips);
-            }
 
             if (committed.CreatedSessionId is { } createdId)
             {

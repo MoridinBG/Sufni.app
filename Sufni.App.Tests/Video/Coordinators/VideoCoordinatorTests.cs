@@ -37,9 +37,10 @@ public class VideoCoordinatorTests
             new InlineBackgroundTaskRunner(),
             time, sourceStore);
         videoRepository
-            .LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(), Arg.Any<IReadOnlyCollection<Guid>>())
-            .Returns(call => call.ArgAt<IReadOnlyCollection<Guid>>(4)
-                .Select(sessionId => new SessionVideoClip { Id = Guid.NewGuid(), SessionId = sessionId })
+            .LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(), Arg.Any<IReadOnlyCollection<SessionVideoOwner>>())
+            .Returns(call => call.ArgAt<IReadOnlyCollection<SessionVideoOwner>>(4)
+                .DistinctBy(owner => owner.OwnerKey)
+                .Select(owner => new SessionVideoClip { Id = Guid.NewGuid(), OwnerKey = owner.OwnerKey })
                 .ToList());
     }
 
@@ -77,7 +78,11 @@ public class VideoCoordinatorTests
             VideoStart.ToUnixTimeSeconds(),
             600,
             VideoStart.AddDays(1).ToUnixTimeMilliseconds(),
-            Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Order().SequenceEqual(new[] { inside.Id, overlappingStart.Id }.Order())));
+            Arg.Is<IReadOnlyCollection<SessionVideoOwner>>(owners => owners.SequenceEqual(new[]
+            {
+                new SessionVideoOwner(sourceStore.Get(inside.Id)!.SourceHash, inside.Timestamp!.Value),
+                new SessionVideoOwner(sourceStore.Get(overlappingStart.Id)!.SourceHash, overlappingStart.Timestamp!.Value)
+            })));
         await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoSnapshot>>(clips => clips.Count == 2));
     }
 
@@ -151,7 +156,7 @@ public class VideoCoordinatorTests
         var session = CreateSession(VideoStart, durationSeconds: 60);
         sessionRepository.GetSessionsAsync().Returns([session]);
         videoRepository.LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(),
-            Arg.Any<IReadOnlyCollection<Guid>>()).Returns(Task.FromException<IReadOnlyList<SessionVideoClip>>(
+            Arg.Any<IReadOnlyCollection<SessionVideoOwner>>()).Returns(Task.FromException<IReadOnlyList<SessionVideoClip>>(
                 new IOException("database unavailable")));
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
@@ -197,7 +202,7 @@ public class VideoCoordinatorTests
             DurationSeconds = durationSeconds,
         };
         sourceStore.Get(session.Id).Returns(new RecordedSessionSourceSnapshot(
-            session.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
+            session.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, Guid.NewGuid().ToString("N")));
         return session;
     }
 
@@ -208,6 +213,6 @@ public class VideoCoordinatorTests
             Arg.Any<long>(),
             Arg.Any<double>(),
             Arg.Any<long>(),
-            Arg.Any<IReadOnlyCollection<Guid>>());
+            Arg.Any<IReadOnlyCollection<SessionVideoOwner>>());
     }
 }
