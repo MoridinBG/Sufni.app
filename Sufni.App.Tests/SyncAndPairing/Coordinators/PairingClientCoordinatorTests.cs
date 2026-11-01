@@ -12,9 +12,9 @@ namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
 public class PairingClientCoordinatorTests
 {
-    private const string DeviceIdKey = "DeviceId";
     private const string DisplayNameKey = "DisplayName";
 
+    private readonly ILocalDeviceIdentity localDeviceIdentity = Substitute.For<ILocalDeviceIdentity>();
     private readonly ISecureStorage secureStorage = Substitute.For<ISecureStorage>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
     private readonly IServiceDiscovery serviceDiscovery = Substitute.For<IServiceDiscovery>();
@@ -40,7 +40,7 @@ public class PairingClientCoordinatorTests
     }
 
     private PairingClientCoordinator CreateCoordinator() => new(
-        secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, time);
+        secureStorage, httpApiService, serviceDiscovery, friendlyNameProvider, time, localDeviceIdentity);
 
     /// <summary>
     /// Seeds the secure-storage / http substitutes with defaults
@@ -54,7 +54,7 @@ public class PairingClientCoordinatorTests
         string? friendlyName = null,
         bool isPaired = false)
     {
-        secureStorage.GetStringAsync(DeviceIdKey).Returns(Task.FromResult(existingDeviceId));
+        localDeviceIdentity.GetIdAsync().Returns(existingDeviceId!);
         secureStorage.GetStringAsync(DisplayNameKey).Returns(Task.FromResult(existingDisplayName));
         friendlyNameProvider.FriendlyName.Returns(friendlyName!);
         httpApiService.IsPairedAsync().Returns(Task.FromResult(isPaired));
@@ -80,8 +80,8 @@ public class PairingClientCoordinatorTests
         // DeviceIdChanged before the event fires. NSubstitute's
         // Task.FromResult(...) stubs otherwise let Init() run to
         // completion inside the constructor call.
-        var deviceIdGate = new TaskCompletionSource<string?>();
-        secureStorage.GetStringAsync(DeviceIdKey).Returns(deviceIdGate.Task);
+        var deviceIdGate = new TaskCompletionSource<string>();
+        localDeviceIdentity.GetIdAsync().Returns(deviceIdGate.Task);
         secureStorage.GetStringAsync(DisplayNameKey).Returns(Task.FromResult<string?>(null));
         friendlyNameProvider.FriendlyName.Returns((string)null!);
         httpApiService.IsPairedAsync().Returns(Task.FromResult(false));
@@ -95,20 +95,6 @@ public class PairingClientCoordinatorTests
 
         Assert.Equal("stored-id", coordinator.DeviceId);
         Assert.True(eventRaised);
-        await secureStorage.DidNotReceive().SetStringAsync(DeviceIdKey, Arg.Any<string?>());
-    }
-
-    [Fact]
-    public async Task Constructor_GeneratesAndPersistsNewDeviceId_WhenSecureStorageEmpty()
-    {
-        SeedInitDefaults(existingDeviceId: null);
-
-        var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        Assert.NotNull(coordinator.DeviceId);
-        Assert.True(Guid.TryParse(coordinator.DeviceId, out _));
-        await secureStorage.Received(1).SetStringAsync(DeviceIdKey, coordinator.DeviceId);
     }
 
     [Theory]
@@ -139,8 +125,8 @@ public class PairingClientCoordinatorTests
     [Fact]
     public async Task Constructor_MirrorsInitialPairedStateFromHttpApiService()
     {
-        var deviceIdGate = new TaskCompletionSource<string?>();
-        secureStorage.GetStringAsync(DeviceIdKey).Returns(deviceIdGate.Task);
+        var deviceIdGate = new TaskCompletionSource<string>();
+        localDeviceIdentity.GetIdAsync().Returns(deviceIdGate.Task);
         secureStorage.GetStringAsync(DisplayNameKey).Returns(Task.FromResult<string?>(null));
         friendlyNameProvider.FriendlyName.Returns((string)null!);
         httpApiService.IsPairedAsync().Returns(Task.FromResult(true));

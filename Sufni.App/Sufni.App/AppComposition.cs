@@ -97,6 +97,7 @@ public static class AppComposition
         services.AddSingleton<IDaqManagementService, DaqManagementService>();
         services.AddSingleton<IDaqDriveProbe, DaqDriveProbe>();
         services.AddSingleton<ITelemetryDataStoreService, TelemetryDataStoreService>();
+        services.AddSingleton<ILocalDeviceIdentity, LocalDeviceIdentity>();
         services.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
                 root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>(),

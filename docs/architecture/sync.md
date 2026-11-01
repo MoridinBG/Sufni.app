@@ -6,6 +6,11 @@ Desktop acts as a hub server; mobile devices sync with it.
 
 ## Pairing Flow
 
+`ILocalDeviceIdentity` supplies one installation identity from secure storage's
+existing `DeviceId` key on every platform. Concurrent callers share initialization;
+a new ID is returned only after persistence completes. Pairing reads this identity
+rather than generating its own. Unpairing does not replace it.
+
 The pairing client uses an injected `TimeProvider` for temporary discovery
 resolution deadlines. The server prompt uses the same seam for its one-second
 PIN countdown; confirmation cancels the countdown.

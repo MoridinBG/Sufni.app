@@ -14,15 +14,15 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-/// <summary>Owns mobile pairing, peer discovery and device identity.</summary>
+/// <summary>Owns mobile pairing and peer discovery.</summary>
 public sealed class PairingClientCoordinator : IPairingClientCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<PairingClientCoordinator>();
 
-    private const string DeviceIdKey = "DeviceId";
     private const string DisplayNameKey = "DisplayName";
 
     private readonly ISecureStorage secureStorage;
+    private readonly ILocalDeviceIdentity localDeviceIdentity;
     private readonly IHttpApiService httpApiService;
     private readonly IServiceDiscovery serviceDiscovery;
     private readonly IFriendlyNameProvider friendlyNameProvider;
@@ -56,13 +56,15 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         IHttpApiService httpApiService,
         [FromKeyedServices("sync")] IServiceDiscovery serviceDiscovery,
         IFriendlyNameProvider friendlyNameProvider,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        ILocalDeviceIdentity localDeviceIdentity)
     {
         this.secureStorage = secureStorage;
         this.httpApiService = httpApiService;
         this.serviceDiscovery = serviceDiscovery;
         this.friendlyNameProvider = friendlyNameProvider;
         this.timeProvider = timeProvider;
+        this.localDeviceIdentity = localDeviceIdentity;
 
         _ = httpApiService.PairedState.Subscribe(OnPairedStateChanged);
         serviceDiscovery.ServiceAdded += OnServiceAdded;
@@ -73,17 +75,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     private async Task Init()
     {
-        deviceId = await secureStorage.GetStringAsync(DeviceIdKey);
-        var hadStoredDeviceId = deviceId is not null;
-        if (deviceId is null)
-        {
-            deviceId = Guid.NewGuid().ToString();
-            await secureStorage.SetStringAsync(DeviceIdKey, deviceId);
-        }
-
-        logger.Verbose(
-            "Pairing client initialized device identity with stored value present {HadStoredDeviceId}",
-            hadStoredDeviceId);
+        deviceId = await localDeviceIdentity.GetIdAsync();
         DeviceIdChanged?.Invoke(this, EventArgs.Empty);
 
         // DisplayName falls back to the platform friendly name (which
