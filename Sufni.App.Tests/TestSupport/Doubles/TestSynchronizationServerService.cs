@@ -9,7 +9,6 @@ internal sealed class TestSynchronizationServerService : ISynchronizationServerS
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
-    public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionSourceDataArrived;
     public event EventHandler<PairingEventArgs>? PairingConfirmed;

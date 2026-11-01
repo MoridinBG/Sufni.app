@@ -213,9 +213,8 @@ public partial class App : Application
 
         if (capabilities.CanHostSyncServer)
         {
-            // Resolve so pairing and inbound-sync event subscriptions wire up before views load.
+            // Resolve so pairing and source-arrival subscriptions wire up before views load.
             _ = services.GetService<IPairingServerCoordinator>();
-            _ = services.GetService<IInboundSyncCoordinator>();
             services.GetRequiredService<SessionSyncApplier>().AttachServer(
                 services.GetRequiredService<ISynchronizationServerService>());
         }

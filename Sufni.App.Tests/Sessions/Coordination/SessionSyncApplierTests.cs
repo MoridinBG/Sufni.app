@@ -18,10 +18,8 @@ namespace Sufni.App.Tests.Sessions.Coordination;
 
 public class SessionSyncApplierTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Arrival_PublishesAuthoritativeSnapshotsOnUiDispatcher(bool recordedSource)
+    [Fact]
+    public async Task SourceArrival_PublishesAuthoritativeSnapshotOnUiDispatcher()
     {
         var sync = Substitute.For<ISynchronizationServerService>();
         var dispatcher = new ManualUiThreadDispatcher();
@@ -38,47 +36,11 @@ public class SessionSyncApplierTests
         var source = RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(snapshot.Id));
         sourceRepository.GetRecordedSessionSourceSnapshotAsync(snapshot.Id).Returns(source);
 
-        if (recordedSource)
-            sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(snapshot.Id));
-        else
-            sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(
-                new SynchronizationData { Sessions = [new Session { Id = snapshot.Id }] }));
+        sync.SessionSourceDataArrived += Raise.EventWith(sync, new SessionDataArrivedEventArgs(snapshot.Id));
         Assert.Null(sessions.Get(snapshot.Id));
         Assert.Null(sources.Get(snapshot.Id));
         await dispatcher.DrainAsync();
 
-        if (recordedSource) Assert.Equal(source, sources.Get(snapshot.Id));
-        else Assert.Equal(snapshot, sessions.Get(snapshot.Id));
-    }
-
-    [Fact]
-    public async Task MetadataArrival_RemovesDeletedSession_AndPublishesRetainedDatabaseValues()
-    {
-        var sync = Substitute.For<ISynchronizationServerService>();
-        var dispatcher = new ManualUiThreadDispatcher();
-        using var publication = new StorePublication(dispatcher);
-        using var sessions = new SessionStore(publication);
-        using var sources = new RecordedSessionSourceStore(publication);
-        var repository = new InMemorySessionRepository(new FakeTimeProvider());
-        using var applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
-            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>(), new ProcessingFingerprintService());
-        applier.AttachServer(sync);
-        var live = TestSnapshots.Session(updated: 8);
-        var deleted = TestSnapshots.Session();
-        repository.Seed(live);
-        var seed = sessions.ReplaceAllAsync([deleted]);
-        await dispatcher.DrainAsync();
-        await seed;
-        var data = new SynchronizationData { Sessions =
-        [
-            new Session { Id = live.Id, Updated = 6, Deleted = 6 },
-            new Session { Id = deleted.Id, Updated = 6, Deleted = 6 }
-        ] };
-
-        sync.SynchronizationDataArrived += Raise.EventWith(sync, new SynchronizationDataArrivedEventArgs(data));
-        await dispatcher.DrainAsync();
-
-        Assert.Equal(live, sessions.Get(live.Id));
-        Assert.Null(sessions.Get(deleted.Id));
+        Assert.Equal(source, sources.Get(snapshot.Id));
     }
 }

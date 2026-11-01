@@ -1,7 +1,5 @@
-using System.Linq;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Processing.Services;
@@ -65,14 +63,12 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
     public void AttachServer(ISynchronizationServerService synchronizationServer)
     {
         server = synchronizationServer;
-        server.SynchronizationDataArrived += OnSynchronizationDataArrived;
         server.SessionSourceDataArrived += OnSessionSourceDataArrived;
     }
 
     public void Dispose()
     {
         if (server is null) return;
-        server.SynchronizationDataArrived -= OnSynchronizationDataArrived;
         server.SessionSourceDataArrived -= OnSessionSourceDataArrived;
         server = null;
     }
@@ -154,40 +150,6 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         }
         await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
         return SessionDataApplyResult.Applied;
-    }
-
-    private async void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)
-    {
-        try
-        {
-            await uiThreadDispatcher.InvokeAsync(() => HandleSynchronizationDataArrivedAsync(e));
-        }
-        catch (Exception exception)
-        {
-            logger.Error(exception, "Failed to apply inbound session synchronization data");
-        }
-    }
-
-    private Task HandleSynchronizationDataArrivedAsync(SynchronizationDataArrivedEventArgs e) =>
-        PublishSessionsAsync(e.Data.Sessions.Select(session => session.Id)
-            .Concat(e.Data.Deletions.Where(row => row.EntityTable == "session").Select(row => row.Id)).Distinct().ToArray());
-
-    private async Task PublishSessionsAsync(IReadOnlyCollection<Guid> ids)
-    {
-        var (snapshots, removed) = await backgroundTaskRunner.RunAsync(async () =>
-        {
-            var snapshots = new List<SessionSnapshot>();
-            var removed = new List<Guid>();
-            foreach (var id in ids)
-            {
-                var row = await sessionRepository.GetSessionAsync(id);
-                if (row is null) removed.Add(id);
-                else snapshots.Add(SessionSnapshot.From(row));
-            }
-            return (snapshots, removed);
-        });
-        if (removed.Count > 0) await sessionStore.PublishSessionsRemovedAsync(removed);
-        if (snapshots.Count > 0) await sessionStore.PublishSessionsChangedAsync(snapshots);
     }
 
     private async void OnSessionSourceDataArrived(object? sender, SessionDataArrivedEventArgs e)

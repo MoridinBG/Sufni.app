@@ -88,7 +88,7 @@ Desktop heads register capabilities and services that mobile heads do not provid
 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
 - **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the pairing UI and provides a `StartServerAsync()` passthrough.
-- **Inbound sync coordinator**: `IInboundSyncCoordinator` subscribes to `SynchronizationDataArrived` and publishes incoming bike/setup ids through store writer publish-only paths after the server merge has persisted them. Sessions and paired devices have their own dedicated coordinators so each store keeps exactly one writer.
+- **Inbound sync coordinator**: endpoints await `IInboundSyncCoordinator` row push/pull operations. It merges incoming rows, then loads and publishes authoritative snapshots for every synced row family in one batch before acknowledging the request. Session BLOB/source and pairing workflows retain their dedicated owners.
 - **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider import is separately gated by `SupportsStorageProviderImport`.
 - **Native windowing**: the Avalonia desktop lifetime supplies the owner window and window-hosted dialogs and shortcuts.
 
@@ -129,7 +129,7 @@ a platform registration delegate. The mobile native hosts override
    initialization and the first store refresh, initializes tile layers, and
    starts the server on capable heads. The page-activation callback resolves
    subscription owners before server startup: session sync applier, pairing
-   server and inbound sync on desktop; pairing client on mobile.
+   server on desktop; pairing client on mobile.
 
 Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia
 application setup. There is no shared OS check for them.

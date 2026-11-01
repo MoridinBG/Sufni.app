@@ -1,13 +1,13 @@
+using System.Threading.Tasks;
+using Sufni.App.SyncAndPairing.Models;
+
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-/// <summary>
-/// Desktop-only marker interface. The coordinator has no public
-/// surface — its only job is to subscribe to the synchronization
-/// server's <c>SynchronizationDataArrived</c> event in its constructor
-/// and write incoming bikes / setups into their respective stores.
-/// The interface exists only so the DI container can register and
-/// eagerly resolve the singleton at startup.
-/// </summary>
+public enum InboundSyncWriteResult { Applied, Failed }
+
+/// <summary>Owns desktop inbound persistence and publication before the peer is acknowledged.</summary>
 public interface IInboundSyncCoordinator
 {
+    Task<InboundSyncWriteResult> ApplyPushAsync(SynchronizationData data);
+    Task<SynchronizationData> GetPullAsync(long sinceExclusive);
 }

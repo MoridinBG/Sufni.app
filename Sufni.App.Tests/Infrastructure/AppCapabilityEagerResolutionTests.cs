@@ -25,7 +25,7 @@ public class AppCapabilityEagerResolutionTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public void Startup_AttachesSessionArrivalsBeforeFirstServerEvent_WhenHostingIsAvailable(bool client, bool host)
+    public void Startup_AttachesSourceArrivalsBeforeFirstServerEvent_WhenHostingIsAvailable(bool client, bool host)
     {
         var dispatcher = new InlineUiThreadDispatcher();
         using var publication = new StorePublication(dispatcher);
@@ -35,7 +35,10 @@ public class AppCapabilityEagerResolutionTests
         var snapshot = TestSnapshots.Session(hasProcessedData: false);
         repository.Seed(snapshot);
         var server = Substitute.For<ISynchronizationServerService>();
-        using var applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
+        var source = RecordedSessionSourceSnapshot.From(PersistenceTestData.CreateRecordedSessionSource(snapshot.Id));
+        var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
+        sourceRepository.GetRecordedSessionSourceSnapshotAsync(snapshot.Id).Returns(source);
+        using var applier = new SessionSyncApplier(sessions, sources, dispatcher, sourceRepository,
             repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), Substitute.For<ISessionBlobSwapRequestStore>(), new ProcessingFingerprintService());
         using var provider = new ServiceCollection()
             .AddSingleton(applier)
@@ -46,9 +49,8 @@ public class AppCapabilityEagerResolutionTests
             .BuildServiceProvider();
 
         App.ResolveCapabilityEagerServices(provider, new AppCapabilities(host, client, false, true, false));
-        server.SynchronizationDataArrived += Raise.EventWith(server,
-            new SynchronizationDataArrivedEventArgs(new SynchronizationData { Sessions = [new Session { Id = snapshot.Id }] }));
+        server.SessionSourceDataArrived += Raise.EventWith(server, new SessionDataArrivedEventArgs(snapshot.Id));
 
-        Assert.Equal(host ? snapshot : null, sessions.Get(snapshot.Id));
+        Assert.Equal(host ? source : null, sources.Get(snapshot.Id));
     }
 }

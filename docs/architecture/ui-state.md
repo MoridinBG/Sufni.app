@@ -82,8 +82,9 @@ Each persisted writer interface additionally exposes:
 - Bike save checks its snapshot baseline once after analysis, before writing;
   session metadata save has one check in its command service. Missing sessions
   are workflow outcomes, not store results. Stores have no mutation-result union.
-- Server sync appliers prepare authoritative changed snapshots off-thread and
-  publish removals when a requested persisted row no longer exists. Source
+- The inbound row coordinator prepares authoritative snapshots off-thread and
+  publishes all affected row families in one batch, with removals when a
+  reconciled row no longer exists. Endpoints await this publication. Source
   publication contains only metadata; payload reads use the source repository.
 
 Snapshots are immutable records, not view models. Snapshots for

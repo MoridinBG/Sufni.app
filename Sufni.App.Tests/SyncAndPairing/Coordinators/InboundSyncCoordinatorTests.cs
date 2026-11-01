@@ -1,179 +1,116 @@
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.MapsAndTracks.Stores;
-using Sufni.App.LiveDaq.Queries;
-using Sufni.App.Bikes.Services;
-using Sufni.App.Tests.TestSupport.Fixtures;
-using Sufni.App.SyncAndPairing.Stores;
 using System.Reactive.Linq;
-using System.Reactive.Threading.Tasks;
-using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.Stores;
+using Sufni.App.Bikes.Services;
+using Sufni.App.LiveDaq.Queries;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
-using Sufni.App.Segments.Stores;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
-using Sufni.App.Setups.Stores;
-using Sufni.App.Shared.Stores;
-using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Tests.TestSupport.Persistence;
+using Sufni.App.Tests.TestSupport.Sync;
 
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
-public class InboundSyncCoordinatorTests : IDisposable
+public class InboundSyncCoordinatorTests
 {
-    private readonly InMemorySynchronizableRepository<Bike> bikes;
-    private readonly InMemorySynchronizableRepository<Setup> setups;
-    private readonly InMemorySynchronizableRepository<Board> boards;
-    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
-    private readonly BoardStore boardStore;
-    private readonly InMemorySynchronizableRepository<CustomTileLayer> customLayers;
-    private readonly CustomTileLayerStore customLayerStore;
-    private readonly BikeStore bikeStore;
-    private readonly SetupStore setupStore;
-    private readonly SessionSegmentStore segmentStore;
-    private readonly ISessionSegmentRepository segmentRepository = Substitute.For<ISessionSegmentRepository>();
-    private readonly ISynchronizationServerService server = Substitute.For<ISynchronizationServerService>();
-
-    public InboundSyncCoordinatorTests()
-    {
-        var clock = new FakeTimeProvider();
-        bikes = new(clock);
-        setups = new(clock);
-        boards = new(clock);
-        customLayers = new(clock);
-        customLayerStore = new(publication);
-        boardStore = new(publication);
-        bikeStore = new(publication);
-        setupStore = new(publication);
-        segmentStore = new(publication);
-        _ = new InboundSyncCoordinator(bikes, setups, bikeStore, setupStore, segmentStore, server,
-            new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner(), boards, boardStore, publication, customLayers, customLayerStore);
-    }
-
-    public void Dispose()
-    {
-        boardStore.Dispose();
-        customLayerStore.Dispose();
-        bikeStore.Dispose();
-        setupStore.Dispose();
-        segmentStore.Dispose();
-        publication.Dispose();
-    }
-
-    private async Task PublishAsync(SynchronizationData data, object changedStore)
-    {
-        var published = publication.Committed.Where(commit => commit.Stores.Contains(changedStore))
-            .FirstAsync().ToTask(TestContext.Current.CancellationToken);
-        server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
-        await published.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-    }
-
     [Fact]
-    public async Task CustomLayerArrivalAndLedgerRemoval_PublishTheCommittedCatalog()
+    public async Task ApplyPushAsync_PublishesAllRelatedFamiliesTogether_AndWaitsForDispatcher()
     {
+        var dispatcher = new ManualUiThreadDispatcher();
+        using var fixture = new InboundSyncFixture(dispatcher);
+        var coordinator = fixture.CreateCoordinator();
+        var bike = new Bike(Guid.NewGuid(), "bike");
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = bike.Id };
+        var board = new Board(Guid.NewGuid(), setup.Id);
+        var session = new Session(Guid.NewGuid(), "ride", "", setup.Id, 100);
+        var track = new Track { Points = [new TrackPoint(100, 1, 2, 3), new TrackPoint(101, 2, 3, 4)] };
         var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
-        customLayers.Seed(layer);
-        await PublishAsync(new SynchronizationData { CustomTileLayers = [layer] }, customLayerStore);
-        Assert.Equal("Trail", customLayerStore.Get(layer.Id)!.Name);
+        var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 1, EndSeconds = 2 };
+        var observed = new List<(string?, Guid?, Guid?, string?, bool, string?, string?)>();
+        using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
+            fixture.Bikes.Get(bike.Id)?.Name, fixture.Setups.Get(setup.Id)?.BikeId,
+            fixture.Boards.Get(board.Id)?.SetupId, fixture.Sessions.Get(session.Id)?.Name,
+            fixture.Tracks.Get(track.Id) is not null, fixture.Layers.Get(layer.Id)?.Name,
+            fixture.Segments.Get(segment.Id)?.Name)));
 
-        await customLayers.DeleteAsync(layer.Id);
-        await PublishAsync(new SynchronizationData
+        var apply = coordinator.ApplyPushAsync(new SynchronizationData
         {
-            Deletions = [SynchronizationDeletion.From(layer, "custom_tile_layer")]
-        }, customLayerStore);
+            Bikes = [bike], Setups = [setup], Boards = [board], Sessions = [session],
+            Tracks = [track], CustomTileLayers = [layer], Segments = [segment]
+        });
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(apply.IsCompleted);
+        Assert.Empty(observed);
+        Assert.NotNull(await fixture.Database.GetAsync<Board>(board.Id));
+        await dispatcher.DrainAsync();
+        Assert.Equal(InboundSyncWriteResult.Applied, await apply.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(("bike", bike.Id, setup.Id, "ride", true, "Trail", "climb"), Assert.Single(observed));
 
-        Assert.Empty(customLayerStore.GetAll());
+        var deletion = coordinator.ApplyPushAsync(new SynchronizationData
+        {
+            Deletions = [new SynchronizationDeletion { EntityTable = "session", Id = session.Id, Version = 2, Updated = 2, Deleted = 2 },
+                         new SynchronizationDeletion { EntityTable = "track", Id = track.Id, Version = 2, Updated = 2, Deleted = 2 }]
+        });
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await dispatcher.DrainAsync();
+        Assert.Equal(InboundSyncWriteResult.Applied, await deletion.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(("bike", bike.Id, setup.Id, null, false, "Trail", "climb"), observed[1]);
     }
 
     [Fact]
-    public async Task BoardOnlyArrival_PublishesAuthoritativeBoardAndRefreshesKnownBoardQuery()
+    public async Task ApplyPushAsync_BoardOnlyArrivalRefreshesKnownBoardQuery()
     {
-        var setup = TestSnapshots.Setup(name: "arrived setup");
-        await setupStore.PublishSetupsChangedAsync([setup]);
-        var board = new Board(Guid.NewGuid(), setup.Id) { Updated = 7 };
-        boards.Seed(board);
-        using var query = new LiveDaqKnownBoardsQuery(boardStore, setupStore, bikeStore,
+        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var coordinator = fixture.CreateCoordinator();
+        var setup = new Setup(Guid.NewGuid(), "arrived setup");
+        await coordinator.ApplyPushAsync(new SynchronizationData { Setups = [setup] });
+        var board = new Board(Guid.NewGuid(), setup.Id);
+        using var query = new LiveDaqKnownBoardsQuery(fixture.Boards, fixture.Setups, fixture.Bikes,
             new TelemetryBikeProcessingContextFactory(new RearTravelCalibrationBuilder(new KinematicSolutionCache())),
-            new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher(), publication);
-        Assert.Null(query.Get(board.Id.ToString()));
+            new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher(), fixture.Publication);
 
-        await PublishAsync(new SynchronizationData { Boards = { new Board(board.Id, null) } }, boardStore);
+        Assert.Equal(InboundSyncWriteResult.Applied,
+            await coordinator.ApplyPushAsync(new SynchronizationData { Boards = [board] }));
 
-        Assert.Equal(BoardSnapshot.From(board), boardStore.Get(board.Id));
         Assert.Equal("arrived setup", query.Get(board.Id.ToString())!.DisplayName);
     }
 
-    [Theory]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task SynchronizationDataArrived_PublishesAuthoritativeBikeState(bool incomingDeleted, bool authoritativeExists)
+    [Fact]
+    public async Task ApplyPushAsync_StaleDeleteRetainsCommittedSession_AndLedgerOnlyDeleteRemovesLayer()
     {
-        var id = Guid.NewGuid();
-        var incoming = new Bike(id, "incoming") { Updated = 4, Deleted = incomingDeleted ? 5 : null };
-        await bikeStore.ReplaceAllAsync([BikeSnapshot.From(new Bike(id, "old"))]);
-        var authoritative = new Bike(id, "current") { Updated = 7, ForkStroke = 160 };
-        if (authoritativeExists) bikes.Seed(authoritative);
+        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var coordinator = fixture.CreateCoordinator();
+        var session = new Session(Guid.NewGuid(), "current", "", null) { Version = 3, Updated = 8 };
+        var layer = new CustomTileLayer { Name = "Trail" };
+        await coordinator.ApplyPushAsync(new SynchronizationData { Sessions = [session], CustomTileLayers = [layer] });
 
-        await PublishAsync(new SynchronizationData { Bikes = { incoming } }, bikeStore);
+        Assert.Equal(InboundSyncWriteResult.Applied, await coordinator.ApplyPushAsync(new SynchronizationData
+        {
+            Sessions = [new Session { Id = session.Id, Version = 2, Updated = 6, Deleted = 6 }],
+            Deletions = [new SynchronizationDeletion { EntityTable = "custom_tile_layer", Id = layer.Id, Version = 2, Updated = 6, Deleted = 6 }]
+        }));
 
-        Assert.Equal(authoritativeExists ? BikeSnapshot.From(authoritative) : null, bikeStore.Get(id));
-    }
-
-    [Theory]
-    [InlineData(false, true, 8)]
-    [InlineData(false, true, 3)]
-    [InlineData(true, false, 0)]
-    public async Task SynchronizationDataArrived_PublishesAuthoritativeSetupAndBoard(bool incomingDeleted, bool authoritativeExists, int updated)
-    {
-        var id = Guid.NewGuid();
-        var boardId = Guid.NewGuid();
-        var incoming = new Setup(id, "incoming") { Updated = 3, Deleted = incomingDeleted ? 9 : null };
-        await setupStore.ReplaceAllAsync([SetupSnapshot.From(new Setup(id, "old"))]);
-        var authoritative = new Setup(id, "current") { Updated = updated, BikeId = Guid.NewGuid() };
-        if (authoritativeExists) setups.Seed(authoritative);
-        boards.Seed(new Board(boardId, id));
-
-        await PublishAsync(new SynchronizationData { Setups = { incoming } }, setupStore);
-
-        Assert.Equal(authoritativeExists ? SetupSnapshot.From(authoritative) : null, setupStore.Get(id));
+        Assert.Equal("current", fixture.Sessions.Get(session.Id)!.Name);
+        Assert.Null(fixture.Layers.Get(layer.Id));
     }
 
     [Fact]
-    public async Task SynchronizationDataArrived_MixedPayload_PublishesBothAuthoritativeRows()
+    public async Task ApplyPushAsync_MergeFailureLeavesPublishedStateUntouched_AndAllowsRetry()
     {
-        var bike = new Bike(Guid.NewGuid(), "current bike") { Updated = 2 };
-        var setup = new Setup(Guid.NewGuid(), "current setup") { BikeId = bike.Id, Updated = 2 };
-        bikes.Seed(bike);
-        setups.Seed(setup);
-        var data = new SynchronizationData
-        {
-            Bikes = { new Bike(bike.Id, "incoming bike") { Updated = 1 } },
-            Setups = { new Setup(setup.Id, "incoming setup") { Updated = 1 } }
-        };
+        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var dataStore = Substitute.For<ISyncDataStore>();
+        var data = new SynchronizationData { Bikes = [new Bike(Guid.NewGuid(), "bike")] };
+        dataStore.MergeAllAsync(data).Returns(_ => Task.FromException<SynchronizationApplyResult>(new IOException("database unavailable")));
+        var coordinator = fixture.CreateCoordinator(dataStore);
 
-        await PublishAsync(data, setupStore);
+        Assert.Equal(InboundSyncWriteResult.Failed, await coordinator.ApplyPushAsync(data));
+        Assert.Null(fixture.Bikes.Get(data.Bikes[0].Id));
 
-        Assert.Equal(BikeSnapshot.From(bike), bikeStore.Get(bike.Id));
-        Assert.Equal(SetupSnapshot.From(setup), setupStore.Get(setup.Id));
-    }
-
-    [Fact]
-    public async Task SynchronizationDataArrived_WithSegments_RefreshesAuthoritativeSegments()
-    {
-        var authoritative = new SessionSegment { Id = Guid.NewGuid(), OwnerKey = "source-hash", Name = "current", StartSeconds = 2, EndSeconds = 4 };
-        segmentRepository.GetLiveAsync().Returns([authoritative]);
-        var data = new SynchronizationData
-        {
-            Segments = { new SessionSegment { OwnerKey = authoritative.OwnerKey, Name = "incoming", StartSeconds = 1, EndSeconds = 2 } }
-        };
-
-        await PublishAsync(data, segmentStore);
-
-        Assert.Equal(SessionSegmentSnapshot.From(authoritative), Assert.Single(segmentStore.GetForOwner(authoritative.OwnerKey)));
+        dataStore.MergeAllAsync(data).Returns(_ => fixture.Database.SyncDataStore.MergeAllAsync(data));
+        Assert.Equal(InboundSyncWriteResult.Applied, await coordinator.ApplyPushAsync(data));
+        Assert.Equal("bike", fixture.Bikes.Get(data.Bikes[0].Id)!.Name);
     }
 }

@@ -37,6 +37,7 @@ using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Coordinators;
 namespace Sufni.App.SyncAndPairing.Services;
 
 public class SynchronizationServerService : ISynchronizationServerService
@@ -50,7 +51,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     private const int MaxServiceProbeAttempts = 5;
     private const long MaxSyncRequestBodyBytes = 256L * 1024 * 1024;
 
-    private readonly ISyncDataStore syncDataStore;
+    private readonly IInboundSyncCoordinator inboundSyncCoordinator;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly ISessionRepository sessionRepository;
     private readonly ISessionSyncApplier sessionSyncApplier;
@@ -223,7 +224,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
-    public event EventHandler<SynchronizationDataArrivedEventArgs>? SynchronizationDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
     public event EventHandler<SessionDataArrivedEventArgs>? SessionSourceDataArrived;
     public event EventHandler<PairingEventArgs>? PairingConfirmed;
@@ -232,7 +232,7 @@ public class SynchronizationServerService : ISynchronizationServerService
     #region Constructors
 
     public SynchronizationServerService(
-        ISyncDataStore syncDataStore,
+        IInboundSyncCoordinator inboundSyncCoordinator,
         IPairedDeviceRepository pairedDeviceRepository,
         ISessionRepository sessionRepository,
         ISessionSyncApplier sessionSyncApplier,
@@ -243,7 +243,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         IAppPaths paths,
         TimeProvider timeProvider)
     {
-        this.syncDataStore = syncDataStore;
+        this.inboundSyncCoordinator = inboundSyncCoordinator;
         this.pairedDeviceRepository = pairedDeviceRepository;
         this.sessionRepository = sessionRepository;
         this.sessionSyncApplier = sessionSyncApplier;
@@ -545,15 +545,9 @@ public class SynchronizationServerService : ISynchronizationServerService
         new(phase, message, CurrentStep: 0, TotalSteps: 0, IsDeterminate: false);
 
     internal static async Task<IResult> ApplySynchronizationPushAsync(
-        SynchronizationData data,
-        ISyncDataStore syncDataStore,
-        Action<SynchronizationData> synchronizationDataArrived)
-    {
-        await syncDataStore.MergeAllAsync(data);
-
-        synchronizationDataArrived(data);
-        return Results.NoContent();
-    }
+        SynchronizationData data, IInboundSyncCoordinator inboundSyncCoordinator) =>
+        await inboundSyncCoordinator.ApplyPushAsync(data) == InboundSyncWriteResult.Applied
+            ? Results.NoContent() : Results.StatusCode(StatusCodes.Status500InternalServerError);
 
     internal static async Task<IResult> ApplySessionDataPatchAsync(
         Guid id, SessionBlobPayload payload, ISessionSyncApplier sessionSyncApplier, Action<Guid> sessionDataArrived)
@@ -751,11 +745,8 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
                     async () =>
                     {
-                        var upperInclusive = await syncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
-                        var data = await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Pull,
-                            since,
-                            upperInclusive);
-                        data.UpperBound = upperInclusive;
+                        var data = await inboundSyncCoordinator.GetPullAsync(since);
+                        var upperInclusive = data.UpperBound;
 
                         logger.Verbose(
                             "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
@@ -785,12 +776,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                             data.Sessions.Count,
                             data.Tracks.Count);
 
-                        return await ApplySynchronizationPushAsync(
-                            data,
-                            syncDataStore,
-                            arrived => SynchronizationDataArrived?.Invoke(
-                                this,
-                                new SynchronizationDataArrivedEventArgs(arrived)));
+                        return await ApplySynchronizationPushAsync(data, inboundSyncCoordinator);
                     });
             });
 

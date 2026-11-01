@@ -51,7 +51,7 @@ public interface ISyncDataStore
     /// </summary>
     Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data);
 
-    Task MergeAllAsync(SynchronizationData data);
+    Task<SynchronizationApplyResult> MergeAllAsync(SynchronizationData data);
 }
 
 internal sealed class SynchronizationMergeEngine(
@@ -176,8 +176,8 @@ internal sealed class SynchronizationMergeEngine(
         };
     }
 
-    public Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
-        connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false));
+    public async Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
+        (await connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false))).Swaps;
 
     public async Task<long> GetLastPushSequenceAsync(string? serverUrl)
     {
@@ -228,10 +228,10 @@ internal sealed class SynchronizationMergeEngine(
         await connection.UpdateAsync(synchronization);
     }
 
-    public async Task MergeAllAsync(SynchronizationData data) =>
-        _ = await connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: true));
+    public Task<SynchronizationApplyResult> MergeAllAsync(SynchronizationData data) =>
+        connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: true));
 
-    private IReadOnlyList<SessionBlobSwap> MergeRows(SQLiteConnection connection, SynchronizationData data, bool asHub)
+    private SynchronizationApplyResult MergeRows(SQLiteConnection connection, SynchronizationData data, bool asHub)
     {
         foreach (var deletion in data.Deletions)
         {
@@ -257,8 +257,17 @@ internal sealed class SynchronizationMergeEngine(
         foreach (var row in data.Sessions)
             if (Merge(connection, row, asHub) is { } swap) swaps.Add(swap);
         foreach (var row in data.Segments) Merge(connection, row, asHub);
-        return swaps;
+        return new SynchronizationApplyResult(
+            AffectedIds(data.Bikes, data.Deletions), AffectedIds(data.Setups, data.Deletions),
+            AffectedIds(data.Boards, data.Deletions), AffectedIds(data.Tracks, data.Deletions),
+            AffectedIds(data.Sessions, data.Deletions), AffectedIds(data.Segments, data.Deletions),
+            AffectedIds(data.CustomTileLayers, data.Deletions), swaps);
     }
+
+    private static Guid[] AffectedIds<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        IEnumerable<T> rows, IEnumerable<SynchronizationDeletion> deletions) where T : Synchronizable, new() =>
+        rows.Select(row => row.Id).Concat(deletions.Where(row => row.EntityTable == GetTableName<T>())
+            .Select(row => row.Id)).Distinct().ToArray();
 
     private static async Task<List<T>> GetChangedAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteAsyncConnection connection, string sequenceColumn, long sinceExclusive, long upperInclusive)

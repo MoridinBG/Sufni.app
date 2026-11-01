@@ -102,7 +102,7 @@ MiB.
 
 Authorization is enforced as a route group — `MapGroup("").RequireAuthorization()` wrapping the eight JWT endpoints — not a per-endpoint attribute. The four `/pair/*` endpoints form a separate anonymous, rate-limited group. `/pair/unpair` stays in that anonymous group and authenticates by matching `deviceId` + refresh token in its body, because a device revoking itself may no longer hold a valid access token.
 
-`PATCH /session/data/{id}` delegates generation acceptance to `ISessionSyncApplier`, which persists and publishes before the server raises `SessionDataArrived`. Source uploads still raise `SessionSourceDataArrived` after persistence. Startup explicitly attaches `SessionSyncApplier` to source and metadata arrivals before server start, and provider disposal detaches those handlers. Session BLOB publication is owned directly by the apply command, so the arrival event cannot publish it twice.
+`PATCH /session/data/{id}` delegates generation acceptance to `ISessionSyncApplier`, which persists and publishes before the server raises `SessionDataArrived`. Source uploads still raise `SessionSourceDataArrived` after persistence. Startup explicitly attaches `SessionSyncApplier` to source arrivals before server start, and provider disposal detaches those handlers. Session BLOB publication is owned directly by the apply command, so the arrival event cannot publish it twice.
 
 The server receives `TimeProvider` for certificate renewal, issued-token times,
 PIN/refresh-token expiration. JWT bearer authentication retains
@@ -167,11 +167,17 @@ after metadata and processed-BLOB swaps; source completeness is retried
 independently from the missing-source queries rather than by replaying metadata.
 
 Local workflow owners persist and prepare snapshots for publish-only stores.
-For sync, `SynchronizationMergeEngine`, the session-data endpoints, and the
-recorded-source endpoints persist or merge rows first. Inbound coordination publishes authoritative bike/setup/board/segment changes
-in one batch, including board-only and ledger-only arrivals. `SessionSyncApplier` owns session
-generation/source publication. They load authoritative snapshots and publish changes or
-removals, or use a full `IAppDataRefresher.RefreshAsync()` run. Stores never read
+For row sync, endpoints await `IInboundSyncCoordinator.ApplyPushAsync` or
+`GetPullAsync`. Pushes serialize merge and publication; the merge returns
+`SynchronizationApplyResult` with the reconciled identities and pending swaps.
+The coordinator loads authoritative snapshots off-thread and publishes bikes,
+setups, boards, sessions, tracks, custom layers and saved segments in one dispatcher
+batch, including ledger-only removals. A rejected remote delete therefore cannot
+hide retained local content. HTTP acknowledges only after publication; an apply
+failure returns 500. There is no metadata-arrival event or eager subscription.
+`SessionSyncApplier` still owns generation/source publication, and source uploads
+still use an arrival event. The client uses a full `IAppDataRefresher.RefreshAsync()`
+run after synchronization. Stores never read
 or write repositories, so publication does not duplicate the persistence operation.
 
 ### Processed-BLOB coherence (download-then-swap)
@@ -220,8 +226,8 @@ verbatim and the hub applies the shared authored-history merge rule, after sessi
 the same transaction. Segments carry source-hash ownership and source-relative anchors. They survive
 session deletion; each session window derives visibility, including split windows
 received from a peer. The client refreshes the segment store
-with the other stores after a sync; the hub's `InboundSyncCoordinator` refreshes
-it when a push carries segments.
+with the other stores after a sync; the hub's `InboundSyncCoordinator` publishes
+affected segments in the same batch as related rows.
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`. Their bodies are binary `application/octet-stream`; row metadata travels in HTTP headers so large BLOBs are not base64-encoded in JSON.
 

@@ -8,6 +8,7 @@ using Sufni.App.Shared.Models;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Services;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 
 namespace Sufni.App.Tests.SyncAndPairing.Services;
@@ -21,7 +22,7 @@ public class SynchronizationServerServiceTests
         var secureStorage = Substitute.For<ISecureStorage>();
         secureStorage.GetStringAsync("jwt_secret").Returns(credentials.Task);
         var server = new SynchronizationServerService(
-            Substitute.For<ISyncDataStore>(),
+            Substitute.For<IInboundSyncCoordinator>(),
             Substitute.For<IPairedDeviceRepository>(),
             Substitute.For<ISessionRepository>(),
             Substitute.For<ISessionSyncApplier>(),
@@ -69,24 +70,20 @@ public class SynchronizationServerServiceTests
             SynchronizationServerService.CreateServiceInstanceNames().ToList());
     }
 
-    [Fact]
-    public async Task ApplySynchronizationPushAsync_MergesBeforePublishing()
+    [Theory]
+    [InlineData(InboundSyncWriteResult.Applied, StatusCodes.Status204NoContent)]
+    [InlineData(InboundSyncWriteResult.Failed, StatusCodes.Status500InternalServerError)]
+    public async Task ApplySynchronizationPushAsync_AwaitsCoordinatorOutcomeBeforeAcknowledging(
+        InboundSyncWriteResult outcome, int status)
     {
-        var calls = new List<string>();
         var data = new SynchronizationData();
-        var syncDataStore = Substitute.For<ISyncDataStore>();
-        syncDataStore.MergeAllAsync(data).Returns(_ =>
-        {
-            calls.Add("core");
-            return Task.CompletedTask;
-        });
-        var result = await SynchronizationServerService.ApplySynchronizationPushAsync(
-            data,
-            syncDataStore,
-            _ => calls.Add("publish"));
-
-        Assert.Equal(["core", "publish"], calls);
-        await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
+        var coordinator = Substitute.For<IInboundSyncCoordinator>();
+        var completion = new TaskCompletionSource<InboundSyncWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.ApplyPushAsync(data).Returns(completion.Task);
+        var apply = SynchronizationServerService.ApplySynchronizationPushAsync(data, coordinator);
+        Assert.False(apply.IsCompleted);
+        completion.SetResult(outcome);
+        await AssertStatusCodeAsync(await apply.AwaitBoundedAsync(TimeSpan.FromSeconds(5)), status);
     }
 
     [Theory]

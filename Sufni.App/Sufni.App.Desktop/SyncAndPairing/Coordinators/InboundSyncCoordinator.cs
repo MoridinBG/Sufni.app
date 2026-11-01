@@ -1,173 +1,118 @@
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.MapsAndTracks.Stores;
-using Sufni.App.SyncAndPairing.Stores;
-using Sufni.App.Shared.Stores;
-using System.Linq;
-using Sufni.App.Segments.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Serilog;
-
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Infrastructure;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
+using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
-using Sufni.App.Infrastructure;
+using Sufni.App.SyncAndPairing.Stores;
+
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-/// <summary>
-/// Desktop-only singleton owning the bike, setup, board, custom-layer, and segment branch of the
-/// synchronization server's <c>SynchronizationDataArrived</c> event.
-/// Session generations/sources are owned by the session sync applier; paired
-/// devices by <see cref="PairedDeviceCoordinator"/>. Each entity
-/// family has exactly one inbound owner.
-/// </summary>
-public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
+/// <summary>Commits incoming rows and publishes their authoritative snapshots as one batch.</summary>
+public sealed class InboundSyncCoordinator(
+    ISyncDataStore syncDataStore,
+    ISynchronizableRepository<Bike> bikeRepository,
+    ISynchronizableRepository<Setup> setupRepository,
+    ISynchronizableRepository<Board> boardRepository,
+    ISynchronizableRepository<CustomTileLayer> customLayerRepository,
+    ISessionRepository sessionRepository,
+    ITrackRepository trackRepository,
+    ISessionSegmentRepository segmentRepository,
+    IBikeStoreWriter bikeStore,
+    ISetupStoreWriter setupStore,
+    IBoardStoreWriter boardStore,
+    ICustomTileLayerStoreWriter customLayerStore,
+    ISessionStoreWriter sessionStore,
+    ITrackStoreWriter trackStore,
+    ISessionSegmentStoreWriter segmentStore,
+    StorePublication publication,
+    IBackgroundTaskRunner backgroundTaskRunner,
+    IUiThreadDispatcher uiThreadDispatcher) : IInboundSyncCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
+    private readonly SemaphoreSlim applyGate = new(1, 1);
 
-    private readonly IBoardStoreWriter boardStore;
-    private readonly ISynchronizableRepository<CustomTileLayer> customLayerRepository;
-    private readonly ICustomTileLayerStoreWriter customLayerStore;
-    private readonly StorePublication publication;
-    private readonly ISynchronizableRepository<Bike> bikeRepository;
-    private readonly ISynchronizableRepository<Setup> setupRepository;
-    private readonly ISynchronizableRepository<Board> boardRepository;
-    private readonly IBikeStoreWriter bikeStoreWriter;
-    private readonly ISetupStoreWriter setupStoreWriter;
-    private readonly ISessionSegmentStoreWriter segmentStoreWriter;
-    private readonly ISessionSegmentRepository segmentRepository;
-    private readonly IBackgroundTaskRunner backgroundTaskRunner;
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
+    public Task<SynchronizationData> GetPullAsync(long sinceExclusive) => backgroundTaskRunner.RunAsync(async () =>
+        await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Pull, sinceExclusive,
+            await syncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull)));
 
-    public InboundSyncCoordinator(
-        ISynchronizableRepository<Bike> bikeRepository,
-        ISynchronizableRepository<Setup> setupRepository,
-        IBikeStoreWriter bikeStoreWriter,
-        ISetupStoreWriter setupStoreWriter,
-        ISessionSegmentStoreWriter segmentStoreWriter,
-        ISynchronizationServerService synchronizationServer,
-        IUiThreadDispatcher uiThreadDispatcher,
-        ISessionSegmentRepository segmentRepository,
-        IBackgroundTaskRunner backgroundTaskRunner,
-        ISynchronizableRepository<Board> boardRepository,
-        IBoardStoreWriter boardStore,
-        StorePublication publication,
-        ISynchronizableRepository<CustomTileLayer> customLayerRepository, ICustomTileLayerStoreWriter customLayerStore)
+    public async Task<InboundSyncWriteResult> ApplyPushAsync(SynchronizationData data)
     {
-        this.bikeRepository = bikeRepository;
-        this.customLayerRepository = customLayerRepository;
-        this.customLayerStore = customLayerStore;
-        this.boardStore = boardStore;
-        this.publication = publication;
-        this.boardRepository = boardRepository;
-        this.setupRepository = setupRepository;
-        this.bikeStoreWriter = bikeStoreWriter;
-        this.setupStoreWriter = setupStoreWriter;
-        this.segmentStoreWriter = segmentStoreWriter;
-        this.uiThreadDispatcher = uiThreadDispatcher;
-        this.segmentRepository = segmentRepository;
-        this.backgroundTaskRunner = backgroundTaskRunner;
+        await applyGate.WaitAsync();
+        try
+        {
+            await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var result = await syncDataStore.MergeAllAsync(data);
+                var bikes = await ReadAsync(result.BikeIds, async id =>
+                    await bikeRepository.GetAsync(id) is { } row ? BikeSnapshot.From(row) : null);
+                var setups = await ReadAsync(result.SetupIds, async id =>
+                    await setupRepository.GetAsync(id) is { } row ? SetupSnapshot.From(row) : null);
+                var boards = await ReadAsync(result.BoardIds, async id =>
+                    await boardRepository.GetAsync(id) is { } row ? BoardSnapshot.From(row) : null);
+                var layers = await ReadAsync(result.CustomLayerIds, async id =>
+                    await customLayerRepository.GetAsync(id) is { } row ? CustomTileLayerSnapshot.From(row) : null);
+                var sessions = await ReadAsync(result.SessionIds, async id =>
+                    await sessionRepository.GetSessionAsync(id) is { } row ? SessionSnapshot.From(row) : null);
+                var tracks = await trackRepository.GetTrackSnapshotsAsync(result.TrackIds);
+                var removedTracks = result.TrackIds.Except(tracks.Select(row => row.Id)).ToArray();
+                var segments = result.SegmentIds.Count == 0 ? [] : (await segmentRepository.GetLiveAsync())
+                    .Where(row => result.SegmentIds.Contains(row.Id)).Select(SessionSegmentSnapshot.From).ToArray();
+                var removedSegments = result.SegmentIds.Except(segments.Select(row => row.Id)).ToArray();
 
-        synchronizationServer.SynchronizationDataArrived += OnSynchronizationDataArrived;
+                await uiThreadDispatcher.InvokeAsync(async () =>
+                {
+                    using var batch = publication.BeginBatch();
+                    await bikeStore.PublishBikesRemovedAsync(bikes.Removed);
+                    await bikeStore.PublishBikesChangedAsync(bikes.Snapshots);
+                    await setupStore.PublishSetupsRemovedAsync(setups.Removed);
+                    await setupStore.PublishSetupsChangedAsync(setups.Snapshots);
+                    await boardStore.PublishBoardsRemovedAsync(boards.Removed);
+                    await boardStore.PublishBoardsChangedAsync(boards.Snapshots);
+                    await customLayerStore.PublishRemovedAsync(layers.Removed);
+                    await customLayerStore.PublishChangedAsync(layers.Snapshots);
+                    await sessionStore.PublishSessionsRemovedAsync(sessions.Removed);
+                    await sessionStore.PublishSessionsChangedAsync(sessions.Snapshots);
+                    await trackStore.PublishTracksRemovedAsync(removedTracks);
+                    await trackStore.PublishTracksChangedAsync(tracks);
+                    await segmentStore.PublishSegmentsAsync(segments, removedSegments);
+                });
+            });
+            return InboundSyncWriteResult.Applied;
+        }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Failed to apply inbound synchronization rows");
+            return InboundSyncWriteResult.Failed;
+        }
+        finally { applyGate.Release(); }
     }
 
-    private void OnSynchronizationDataArrived(object? sender, SynchronizationDataArrivedEventArgs e)
+    private static async Task<(List<T> Snapshots, List<Guid> Removed)> ReadAsync<T>(
+        IReadOnlyList<Guid> ids, Func<Guid, Task<T?>> read) where T : class
     {
-        _ = uiThreadDispatcher.InvokeAsync(async () =>
+        var snapshots = new List<T>();
+        var removed = new List<Guid>();
+        foreach (var id in ids)
         {
-            try
-            {
-                var removedBikeIds = new List<Guid>();
-                var changedBikes = new List<BikeSnapshot>();
-                var removedBikeCount = 0;
-                var upsertedBikeCount = 0;
-                foreach (var bikeId in e.Data.Bikes.Select(row => row.Id).Concat(e.Data.Deletions.Where(row => row.EntityTable == "bike").Select(row => row.Id)).Distinct())
-                {
-                    var freshBike = await backgroundTaskRunner.RunAsync(async () =>
-                    {
-                        var row = await bikeRepository.GetAsync(bikeId);
-                        return row is null ? null : BikeSnapshot.From(row);
-                    });
-                    if (freshBike is null)
-                    {
-                        removedBikeIds.Add(bikeId);
-                        removedBikeCount++;
-                    }
-                    else
-                    {
-                        changedBikes.Add(freshBike);
-                        upsertedBikeCount++;
-                    }
-                }
-
-                var removedSetupCount = 0;
-                var upsertedSetupCount = 0;
-                var removedSetupIds = new List<Guid>();
-                var changedSetups = new List<SetupSnapshot>();
-                var boards = e.Data.Boards.Count == 0 && !e.Data.Deletions.Any(row => row.EntityTable == "board") ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
-                foreach (var setupId in e.Data.Setups.Select(row => row.Id).Concat(e.Data.Deletions.Where(row => row.EntityTable == "setup").Select(row => row.Id)).Distinct())
-                {
-                    var freshSetup = await backgroundTaskRunner.RunAsync(async () =>
-                    {
-                        var row = await setupRepository.GetAsync(setupId);
-                        return row is null ? null : SetupSnapshot.From(row);
-                    });
-                    if (freshSetup is null)
-                    {
-                        removedSetupIds.Add(setupId);
-                        removedSetupCount++;
-                    }
-                    else
-                    {
-                        changedSetups.Add(freshSetup);
-                        upsertedSetupCount++;
-                    }
-                }
-
-                var changedBoardIds = e.Data.Boards.Select(board => board.Id).Concat(e.Data.Deletions.Where(row => row.EntityTable == "board").Select(row => row.Id)).ToHashSet();
-                var boardSnapshots = boards.Where(board => changedBoardIds.Contains(board.Id)).Select(BoardSnapshot.From).ToArray();
-                var removedBoardIds = changedBoardIds.Except(boardSnapshots.Select(board => board.Id)).ToArray();
-                var segments = e.Data.Segments.Count == 0 && !e.Data.Deletions.Any(row => row.EntityTable == "session_segment") ? null : await backgroundTaskRunner.RunAsync(async () =>
-                    (await segmentRepository.GetLiveAsync()).Select(SessionSegmentSnapshot.From).ToArray());
-
-                var layerIds = e.Data.CustomTileLayers.Select(row => row.Id)
-                    .Concat(e.Data.Deletions.Where(row => row.EntityTable == "custom_tile_layer").Select(row => row.Id)).ToHashSet();
-                var layers = layerIds.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(async () =>
-                    (await customLayerRepository.GetAllAsync()).Where(row => layerIds.Contains(row.Id)).Select(CustomTileLayerSnapshot.From).ToArray());
-                using var batch = publication.BeginBatch();
-                await customLayerStore.PublishChangedAsync(layers);
-                await customLayerStore.PublishRemovedAsync(layerIds.Except(layers.Select(row => row.Id)).ToArray());
-                if (removedBikeIds.Count > 0)
-                {
-                    await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);
-                }
-
-                if (changedBikes.Count > 0)
-                {
-                    await bikeStoreWriter.PublishBikesChangedAsync(changedBikes);
-                }
-
-                await setupStoreWriter.PublishSetupsRemovedAsync(removedSetupIds);
-                await setupStoreWriter.PublishSetupsChangedAsync(changedSetups);
-                await boardStore.PublishBoardsRemovedAsync(removedBoardIds);
-                await boardStore.PublishBoardsChangedAsync(boardSnapshots);
-                if (segments is not null) await segmentStoreWriter.ReplaceAllAsync(segments);
-
-                logger.Verbose(
-                    "Applied inbound bike/setup synchronization with {RemovedBikeCount} bike removals, {UpsertedBikeCount} bike upserts, {RemovedSetupCount} setup removals, and {UpsertedSetupCount} setup upserts",
-                    removedBikeCount,
-                    upsertedBikeCount,
-                    removedSetupCount,
-                    upsertedSetupCount);
-            }
-            catch (System.Exception exception)
-            {
-                logger.Error(exception, "Failed to apply inbound bike/setup synchronization data");
-            }
-        });
+            if (await read(id) is { } snapshot) snapshots.Add(snapshot);
+            else removed.Add(id);
+        }
+        return (snapshots, removed);
     }
 }

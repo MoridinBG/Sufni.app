@@ -352,13 +352,14 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   constructor-time event subscriptions
   (`TrackCoordinator`, `PairedDeviceCoordinator`,
   `SyncCoordinator`,
-  the desktop-only `IInboundSyncCoordinator` /
-  `IPairingServerCoordinator` and the mobile-only
+  the desktop-only `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
   `App`'s startup page-activation callback so subscriptions wire up before
   server startup or user-driven arrivals. The same callback explicitly attaches
-  `SessionSyncApplier` to desktop metadata/source events; it also owns incoming
-  BLOB commits on both platforms and detaches its handlers on disposal.
+  `SessionSyncApplier` to desktop source events; it also owns incoming
+  BLOB commits on both platforms and detaches its handler on disposal.
+  `IInboundSyncCoordinator` owns awaited row merges and coherent publication
+  across all synced row stores; it has no server event subscription.
   `AppStartup` gates pages on schema
   initialization and the first store refresh; `AppShutdown` owns close prompts,
   work drainage, pending deletes, server stop and provider disposal.

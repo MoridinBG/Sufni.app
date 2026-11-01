@@ -76,9 +76,12 @@ internal sealed class TestPersistenceHarness
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
 
+    public ISynchronizableRepository<T> GetRepository<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>()
+        where T : Synchronizable, new() => new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity);
+
     public Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>()
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).GetAllAsync();
+        GetRepository<T>().GetAllAsync();
 
     public async Task<List<T>> GetChangedAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         long sinceExclusive,
@@ -93,22 +96,22 @@ internal sealed class TestPersistenceHarness
             return (List<T>)(object)synchronizationData.Sessions;
         }
 
-        return await new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).GetChangedAsync(
+        return await GetRepository<T>().GetChangedAsync(
             sinceExclusive,
             upperInclusive);
     }
 
     public Task<T?> GetAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(Guid id)
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).GetAsync(id);
+        GetRepository<T>().GetAsync(id);
 
     public Task<Guid> PutAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T item)
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).PutAsync(item);
+        GetRepository<T>().PutAsync(item);
 
     public Task DeleteAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T item)
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).DeleteAsync(item);
+        GetRepository<T>().DeleteAsync(item);
 
     public Task<List<Session>> GetSessionsAsync() =>
         sessionRepository.GetSessionsAsync();
