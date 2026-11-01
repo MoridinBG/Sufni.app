@@ -6,6 +6,8 @@ using Sufni.App.LiveDaq.Queries;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Models;
@@ -16,6 +18,57 @@ namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
 public class InboundSyncCoordinatorTests
 {
+    [Fact]
+    public async Task ApplySourceAsync_AwaitsPublication_AndPreservesExistingCapturedContent()
+    {
+        var dispatcher = new ManualUiThreadDispatcher();
+        using var fixture = new InboundSyncFixture(dispatcher);
+        var coordinator = fixture.CreateCoordinator();
+        var source = SyncTestServerHarness.CreateRecordedSource();
+        var apply = coordinator.ApplySourceAsync(SyncTestServerHarness.ToPayload(source));
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(apply.IsCompleted);
+        Assert.Null(fixture.Sources.Get(source.SessionId));
+        await dispatcher.DrainAsync();
+        Assert.Equal(InboundSourceApplyResult.Applied, await apply.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(RecordedSessionSourceSnapshot.From(source), fixture.Sources.Get(source.SessionId));
+
+        var other = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource([1, 2, 3])) with { SessionId = source.SessionId };
+        var repeated = coordinator.ApplySourceAsync(other);
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await dispatcher.DrainAsync();
+        Assert.Equal(InboundSourceApplyResult.Applied, await repeated.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(source.Payload, (await fixture.Database.GetRecordedSessionSourceAsync(source.SessionId))!.Payload);
+        Assert.Equal(RecordedSessionSourceSnapshot.From(source), fixture.Sources.Get(source.SessionId));
+    }
+
+    [Fact]
+    public async Task ApplySourceAsync_InvalidHashLeavesSourceMissing()
+    {
+        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var payload = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource()) with { SourceHash = "wrong" };
+
+        Assert.Equal(InboundSourceApplyResult.InvalidPayload, await fixture.CreateCoordinator().ApplySourceAsync(payload));
+
+        Assert.Null(await fixture.Database.GetRecordedSessionSourceAsync(payload.SessionId));
+        Assert.Null(fixture.Sources.Get(payload.SessionId));
+    }
+
+    [Fact]
+    public async Task ApplySourceAsync_PersistenceFailureDoesNotPublishUncommittedSource()
+    {
+        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var repository = Substitute.For<IRecordedSessionSourceRepository>();
+        repository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
+            .Returns(Task.FromException<RecordedSessionSourceSnapshot>(new IOException("disk full")));
+        var payload = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource());
+
+        Assert.Equal(InboundSourceApplyResult.Failed,
+            await fixture.CreateCoordinator(sourceRepository: repository).ApplySourceAsync(payload));
+
+        Assert.Null(fixture.Sources.Get(payload.SessionId));
+    }
+
     [Fact]
     public async Task ApplyPushAsync_PublishesAllRelatedFamiliesTogether_AndWaitsForDispatcher()
     {

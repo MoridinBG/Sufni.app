@@ -355,11 +355,11 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   the desktop-only `IPairingServerCoordinator` and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
   `App`'s startup page-activation callback so subscriptions wire up before
-  server startup or user-driven arrivals. The same callback explicitly attaches
-  `SessionSyncApplier` to desktop source events; it also owns incoming
-  BLOB commits on both platforms and detaches its handler on disposal.
+  server startup or user-driven arrivals.
   `IInboundSyncCoordinator` owns awaited row merges and coherent publication
-  across all synced row stores; it has no server event subscription.
+  across all synced row stores, and validates/publishes source uploads.
+  `SessionSyncApplier` owns incoming BLOB commits on both platforms. Neither
+  has server event subscriptions or requires eager resolution.
   `AppStartup` gates pages on schema
   initialization and the first store refresh; `AppShutdown` owns close prompts,
   work drainage, pending deletes, server stop and provider disposal.

@@ -5,6 +5,10 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Store;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Processing.Services;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Stores;
@@ -27,6 +31,7 @@ internal sealed class InboundSyncFixture : IDisposable
     public BoardStore Boards { get; }
     public CustomTileLayerStore Layers { get; }
     public SessionStore Sessions { get; }
+    public RecordedSessionSourceStore Sources { get; }
     public TrackStore Tracks { get; }
     public SessionSegmentStore Segments { get; }
 
@@ -40,15 +45,19 @@ internal sealed class InboundSyncFixture : IDisposable
         Boards = new(Publication);
         Layers = new(Publication);
         Sessions = new(Publication);
+        Sources = new(Publication);
         Tracks = new(Publication);
         Segments = new(Publication);
     }
 
-    public InboundSyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null) => new(
+    public InboundSyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null, IRecordedSessionSourceRepository? sourceRepository = null) => new(
         dataStore ?? Database.SyncDataStore,
         Database.GetRepository<Bike>(), Database.GetRepository<Setup>(), Database.GetRepository<Board>(),
-        Database.GetRepository<CustomTileLayer>(), Database.SessionRepository, Database.TrackRepository,
-        Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Tracks, Segments,
+        Database.GetRepository<CustomTileLayer>(), Database.SessionRepository,
+        new SessionSyncApplier(Sessions, Database.SessionRepository, new InlineBackgroundTaskRunner(),
+            new SessionTelemetryProcessor(), Database.SwapRequests, new ProcessingFingerprintService()),
+        sourceRepository ?? Database.SourceRepository, Database.TrackRepository,
+        Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Sources, Tracks, Segments,
         Publication, new InlineBackgroundTaskRunner(), dispatcher);
 
     public void Dispose()
@@ -58,6 +67,7 @@ internal sealed class InboundSyncFixture : IDisposable
         Boards.Dispose();
         Layers.Dispose();
         Sessions.Dispose();
+        Sources.Dispose();
         Tracks.Dispose();
         Segments.Dispose();
         Publication.Dispose();

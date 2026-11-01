@@ -21,7 +21,6 @@ public class SessionSyncGenerationTests : IDisposable
     private readonly InMemorySessionRepository repository = new(new FakeTimeProvider());
     private readonly StorePublication publication;
     private readonly SessionStore sessions;
-    private readonly RecordedSessionSourceStore sources;
     private readonly SessionSyncApplier applier;
     private string targetFingerprint = string.Empty;
 
@@ -30,9 +29,7 @@ public class SessionSyncGenerationTests : IDisposable
         var dispatcher = new InlineUiThreadDispatcher();
         publication = new StorePublication(dispatcher);
         sessions = new SessionStore(publication);
-        sources = new RecordedSessionSourceStore(publication);
-        applier = new SessionSyncApplier(sessions, sources, dispatcher, Substitute.For<IRecordedSessionSourceRepository>(),
-            repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), repository.SwapRequests, new ProcessingFingerprintService());
+        applier = new SessionSyncApplier(sessions, repository.Repository, new InlineBackgroundTaskRunner(), new SessionTelemetryProcessor(), repository.SwapRequests, new ProcessingFingerprintService());
     }
 
     [Theory]
@@ -251,9 +248,7 @@ public class SessionSyncGenerationTests : IDisposable
 
     public void Dispose()
     {
-        applier.Dispose();
         sessions.Dispose();
-        sources.Dispose();
         publication.Dispose();
     }
 }

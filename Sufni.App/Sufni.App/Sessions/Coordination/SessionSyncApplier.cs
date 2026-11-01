@@ -21,26 +21,19 @@ public interface ISessionSyncApplier
         string? targetFingerprint, SessionProcessedGeneration? generation = null);
 }
 
-internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
+internal sealed class SessionSyncApplier : ISessionSyncApplier
 {
     private static readonly ILogger logger = Log.ForContext<SessionSyncApplier>();
 
-    private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly IRecordedSessionSourceRepository sourceRepository;
     private readonly ISessionRepository sessionRepository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionStoreWriter sessionStore;
-    private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly ISessionTelemetryProcessor telemetryProcessor;
     private readonly ISessionBlobSwapRequestStore swapRequests;
     private readonly IProcessingFingerprintService fingerprintService;
-    private ISynchronizationServerService? server;
 
     public SessionSyncApplier(
         ISessionStoreWriter sessionStore,
-        IRecordedSessionSourceStoreWriter sourceStore,
-        IUiThreadDispatcher uiThreadDispatcher,
-        IRecordedSessionSourceRepository sourceRepository,
         ISessionRepository sessionRepository,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionTelemetryProcessor telemetryProcessor,
@@ -48,29 +41,12 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         IProcessingFingerprintService fingerprintService)
     {
         this.sessionStore = sessionStore;
-        this.sourceStore = sourceStore;
-        this.uiThreadDispatcher = uiThreadDispatcher;
-        this.sourceRepository = sourceRepository;
         this.sessionRepository = sessionRepository;
         this.backgroundTaskRunner = backgroundTaskRunner;
 
         this.telemetryProcessor = telemetryProcessor;
         this.swapRequests = swapRequests;
         this.fingerprintService = fingerprintService;
-    }
-
-    /// <summary>Connects desktop arrival notifications during startup, before the server starts.</summary>
-    public void AttachServer(ISynchronizationServerService synchronizationServer)
-    {
-        server = synchronizationServer;
-        server.SessionSourceDataArrived += OnSessionSourceDataArrived;
-    }
-
-    public void Dispose()
-    {
-        if (server is null) return;
-        server.SessionSourceDataArrived -= OnSessionSourceDataArrived;
-        server = null;
     }
 
     public Task<SessionDataApplyResult> ApplyUploadedAsync(Guid sessionId, SessionBlobPayload payload) =>
@@ -152,26 +128,4 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         return SessionDataApplyResult.Applied;
     }
 
-    private async void OnSessionSourceDataArrived(object? sender, SessionDataArrivedEventArgs e)
-    {
-        try
-        {
-            await uiThreadDispatcher.InvokeAsync(() => HandleSessionSourceDataArrivedAsync(e));
-        }
-        catch (Exception exception)
-        {
-            logger.Error(exception, "Failed to apply inbound recorded source for {SessionId}", e.SessionId);
-        }
-    }
-
-    private async Task HandleSessionSourceDataArrivedAsync(SessionDataArrivedEventArgs e)
-    {
-        logger.Verbose("Applying inbound recorded source for {SessionId}", e.SessionId);
-
-        var snapshot = await backgroundTaskRunner.RunAsync(() => sourceRepository.GetRecordedSessionSourceSnapshotAsync(e.SessionId));
-        if (snapshot is null)
-            await sourceStore.PublishSourcesRemovedAsync([e.SessionId]);
-        else
-            await sourceStore.PublishSourcesChangedAsync([snapshot]);
-    }
 }

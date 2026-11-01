@@ -25,7 +25,6 @@ public class SynchronizationServerServiceTests
             Substitute.For<IInboundSyncCoordinator>(),
             Substitute.For<IPairedDeviceRepository>(),
             Substitute.For<ISessionRepository>(),
-            Substitute.For<ISessionSyncApplier>(),
             Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<IRecordedSessionSourceSyncQuery>(),
             secureStorage,
@@ -87,24 +86,36 @@ public class SynchronizationServerServiceTests
     }
 
     [Theory]
-    [InlineData(SessionDataApplyResult.Applied, StatusCodes.Status204NoContent, true)]
-    [InlineData(SessionDataApplyResult.Superseded, StatusCodes.Status204NoContent, true)]
-    [InlineData(SessionDataApplyResult.InvalidPayload, StatusCodes.Status400BadRequest, false)]
-    [InlineData(SessionDataApplyResult.Missing, StatusCodes.Status404NotFound, false)]
-    [InlineData(SessionDataApplyResult.Failed, StatusCodes.Status404NotFound, false)]
-    public async Task ApplySessionDataPatchAsync_MapsApplicationOutcome_AndReportsAcceptedArrival(
-        SessionDataApplyResult outcome, int status, bool accepted)
+    [InlineData(SessionDataApplyResult.Applied, StatusCodes.Status204NoContent)]
+    [InlineData(SessionDataApplyResult.Superseded, StatusCodes.Status204NoContent)]
+    [InlineData(SessionDataApplyResult.InvalidPayload, StatusCodes.Status400BadRequest)]
+    [InlineData(SessionDataApplyResult.Missing, StatusCodes.Status404NotFound)]
+    [InlineData(SessionDataApplyResult.Failed, StatusCodes.Status500InternalServerError)]
+    public async Task ApplySessionDataPatchAsync_MapsApplicationOutcome(
+        SessionDataApplyResult outcome, int status)
     {
         var id = Guid.NewGuid();
         var payload = new SessionBlobPayload("target", [1, 2, 3]);
-        var applier = Substitute.For<ISessionSyncApplier>();
-        applier.ApplyUploadedAsync(id, payload).Returns(outcome);
-        var arrivals = new List<Guid>();
+        var coordinator = Substitute.For<IInboundSyncCoordinator>();
+        coordinator.ApplySessionBlobAsync(id, payload).Returns(outcome);
 
-        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(id, payload, applier, arrivals.Add);
+        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(id, payload, coordinator);
 
         await AssertStatusCodeAsync(result, status);
-        Assert.Equal(accepted ? [id] : Array.Empty<Guid>(), arrivals);
+    }
+
+    [Theory]
+    [InlineData(InboundSourceApplyResult.Applied, StatusCodes.Status204NoContent)]
+    [InlineData(InboundSourceApplyResult.InvalidPayload, StatusCodes.Status400BadRequest)]
+    [InlineData(InboundSourceApplyResult.Failed, StatusCodes.Status500InternalServerError)]
+    public async Task ApplySourcePatchAsync_MapsApplicationOutcome(InboundSourceApplyResult outcome, int status)
+    {
+        var source = Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness.CreateRecordedSource();
+        var payload = Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness.ToPayload(source);
+        var coordinator = Substitute.For<IInboundSyncCoordinator>();
+        coordinator.ApplySourceAsync(payload).Returns(outcome);
+
+        await AssertStatusCodeAsync(await SynchronizationServerService.ApplySourcePatchAsync(payload, coordinator), status);
     }
 
     private static async Task AssertStatusCodeAsync(IResult result, int expectedStatusCode)

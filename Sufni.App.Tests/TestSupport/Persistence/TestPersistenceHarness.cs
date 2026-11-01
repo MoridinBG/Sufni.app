@@ -44,8 +44,7 @@ internal sealed class TestPersistenceHarness
         var publication = new StorePublication(dispatcher);
         PublishedSessions = new SessionStore(publication);
         PublishedSources = new RecordedSessionSourceStore(publication);
-        SessionSyncApplier = new SessionSyncApplier(PublishedSessions, PublishedSources, dispatcher,
-            recordedSessionSourceRepository, sessionRepository, new InlineBackgroundTaskRunner(),
+        SessionSyncApplier = new SessionSyncApplier(PublishedSessions, sessionRepository, new InlineBackgroundTaskRunner(),
             sessionTelemetryProcessor, new SessionBlobSwapRequestStore(context), fingerprintService);
         syncDataStore = new SynchronizationMergeEngine(context, fingerprintService);
     }
@@ -60,7 +59,9 @@ internal sealed class TestPersistenceHarness
     }
 
     public ISyncDataStore SyncDataStore => syncDataStore;
+    public ISessionBlobSwapRequestStore SwapRequests => new SessionBlobSwapRequestStore(context);
     public ISessionRepository SessionRepository => sessionRepository;
+    public IRecordedSessionSourceRepository SourceRepository => recordedSessionSourceRepository;
     public ITrackRepository TrackRepository => trackRepository;
 
     public SessionSyncApplier SessionSyncApplier { get; }

@@ -102,7 +102,13 @@ MiB.
 
 Authorization is enforced as a route group — `MapGroup("").RequireAuthorization()` wrapping the eight JWT endpoints — not a per-endpoint attribute. The four `/pair/*` endpoints form a separate anonymous, rate-limited group. `/pair/unpair` stays in that anonymous group and authenticates by matching `deviceId` + refresh token in its body, because a device revoking itself may no longer hold a valid access token.
 
-`PATCH /session/data/{id}` delegates generation acceptance to `ISessionSyncApplier`, which persists and publishes before the server raises `SessionDataArrived`. Source uploads still raise `SessionSourceDataArrived` after persistence. Startup explicitly attaches `SessionSyncApplier` to source arrivals before server start, and provider disposal detaches those handlers. Session BLOB publication is owned directly by the apply command, so the arrival event cannot publish it twice.
+Session BLOB and recorded-source upload endpoints await `IInboundSyncCoordinator`.
+The coordinator serializes inbound writes through their publication. BLOBs use
+`ISessionSyncApplier` for generation validation, guarded persistence and session
+publication. Source uploads validate the hash, persist write-once captured content,
+and publish the snapshot returned by the repository before acknowledgement.
+There are no data-arrival events or startup subscriptions. Invalid source/BLOB
+payloads return 400, missing sessions return 404, and apply failures return 500.
 
 The server receives `TimeProvider` for certificate renewal, issued-token times,
 PIN/refresh-token expiration. JWT bearer authentication retains
@@ -175,8 +181,8 @@ setups, boards, sessions, tracks, custom layers and saved segments in one dispat
 batch, including ledger-only removals. A rejected remote delete therefore cannot
 hide retained local content. HTTP acknowledges only after publication; an apply
 failure returns 500. There is no metadata-arrival event or eager subscription.
-`SessionSyncApplier` still owns generation/source publication, and source uploads
-still use an arrival event. The client uses a full `IAppDataRefresher.RefreshAsync()`
+`SessionSyncApplier` owns generation publication; the inbound coordinator owns
+source publication. The client uses a full `IAppDataRefresher.RefreshAsync()`
 run after synchronization. Stores never read
 or write repositories, so publication does not duplicate the persistence operation.
 
@@ -192,7 +198,7 @@ or write repositories, so publication does not duplicate the persistence operati
 
 "Incomplete," for the purpose of these phases, therefore means **missing _or_ awaiting a matching processed blob**.
 
-`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and refreshes all stores through `IAppDataRefresher` after a successful round-trip. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as an 8-step determinate run: resolve server, the six `SynchronizationClientService` phases, then refresh local lists. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop inbound sync activity is reported from `SynchronizationServerService` activity results that cover the full request and response-body lifetime, then normalized by `SyncCoordinator` into the same six service phases as one determinate run. Its inbound idle grace uses the injected `TimeProvider`. The coordinator bridges longer endpoint gaps during session-data transfer so the desktop shell does not flash or fall back to indeterminate activity while the mobile side is doing local work between requests. Inbound sync arrival is split by entity family — see [Coordinators](ui-workflows.md#coordinators) — so that each store has exactly one writer.
+`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and refreshes all stores through `IAppDataRefresher` after a successful round-trip. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as an 8-step determinate run: resolve server, the six `SynchronizationClientService` phases, then refresh local lists. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop inbound sync activity is reported from `SynchronizationServerService` activity results that cover the full request and response-body lifetime, then normalized by `SyncCoordinator` into the same six service phases as one determinate run. Its inbound idle grace uses the injected `TimeProvider`. The coordinator bridges longer endpoint gaps during session-data transfer so the desktop shell does not flash or fall back to indeterminate activity while the mobile side is doing local work between requests. Inbound row and source writes are awaited coordinator operations; processed BLOB commits use the session applier — see [Coordinators](ui-workflows.md#coordinators).
 
 `HttpApiService` is registered by `MobileAppBootstrapper` alongside the outbound sync and pairing clients. Desktop composition does not register it.
 

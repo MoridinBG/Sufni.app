@@ -88,7 +88,7 @@ Desktop heads register capabilities and services that mobile heads do not provid
 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
 - **Pairing server coordinator**: `IPairingServerCoordinator` re-exposes server pairing events as plain .NET events for the pairing UI and provides a `StartServerAsync()` passthrough.
-- **Inbound sync coordinator**: endpoints await `IInboundSyncCoordinator` row push/pull operations. It merges incoming rows, then loads and publishes authoritative snapshots for every synced row family in one batch before acknowledging the request. Session BLOB/source and pairing workflows retain their dedicated owners.
+- **Inbound sync coordinator**: endpoints await `IInboundSyncCoordinator` row push/pull operations. It merges incoming rows, then loads and publishes authoritative snapshots for every synced row family in one batch before acknowledging the request. The same coordinator owns source uploads and awaits the session applier for BLOB uploads; pairing retains its dedicated owner.
 - **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider import is separately gated by `SupportsStorageProviderImport`.
 - **Native windowing**: the Avalonia desktop lifetime supplies the owner window and window-hosted dialogs and shortcuts.
 
@@ -128,7 +128,7 @@ a platform registration delegate. The mobile native hosts override
    `ValidateOnBuild = true`. `AppStartup` gates page creation on database
    initialization and the first store refresh, initializes tile layers, and
    starts the server on capable heads. The page-activation callback resolves
-   subscription owners before server startup: session sync applier, pairing
+   subscription owners before server startup: pairing
    server on desktop; pairing client on mobile.
 
 Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia

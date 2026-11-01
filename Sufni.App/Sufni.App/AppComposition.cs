@@ -199,8 +199,7 @@ public static class AppComposition
             sp.GetRequiredService<StorePublication>()));
         services.AddSingleton<ISessionPersistenceTransactionRunner, SessionPersistenceTransactionRunner>();
         services.AddSingleton<ISessionEditingCoordinator, SessionEditingCoordinator>();
-        services.AddSingleton<SessionSyncApplier>();
-        services.AddSingleton<ISessionSyncApplier>(sp => sp.GetRequiredService<SessionSyncApplier>());
+        services.AddSingleton<ISessionSyncApplier, SessionSyncApplier>();
         services.AddSingleton<ISessionCoordinator, SessionCoordinator>();
         services.AddSingleton<RecordedSessionSourceRetentionCleanup>(sp => new RecordedSessionSourceRetentionCleanup(
             sp.GetRequiredService<SqliteConnectionContext>(),

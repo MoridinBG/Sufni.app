@@ -54,7 +54,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly IInboundSyncCoordinator inboundSyncCoordinator;
     private readonly IPairedDeviceRepository pairedDeviceRepository;
     private readonly ISessionRepository sessionRepository;
-    private readonly ISessionSyncApplier sessionSyncApplier;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly ISessionBlobSwapRequestStore swapRequestStore;
@@ -224,8 +223,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
-    public event EventHandler<SessionDataArrivedEventArgs>? SessionDataArrived;
-    public event EventHandler<SessionDataArrivedEventArgs>? SessionSourceDataArrived;
     public event EventHandler<PairingEventArgs>? PairingConfirmed;
     public event EventHandler<PairingEventArgs>? Unpaired;
 
@@ -235,7 +232,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         IInboundSyncCoordinator inboundSyncCoordinator,
         IPairedDeviceRepository pairedDeviceRepository,
         ISessionRepository sessionRepository,
-        ISessionSyncApplier sessionSyncApplier,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         ISecureStorage secureStorage,
@@ -246,7 +242,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.inboundSyncCoordinator = inboundSyncCoordinator;
         this.pairedDeviceRepository = pairedDeviceRepository;
         this.sessionRepository = sessionRepository;
-        this.sessionSyncApplier = sessionSyncApplier;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.secureStorage = secureStorage;
@@ -550,14 +545,23 @@ public class SynchronizationServerService : ISynchronizationServerService
             ? Results.NoContent() : Results.StatusCode(StatusCodes.Status500InternalServerError);
 
     internal static async Task<IResult> ApplySessionDataPatchAsync(
-        Guid id, SessionBlobPayload payload, ISessionSyncApplier sessionSyncApplier, Action<Guid> sessionDataArrived)
+        Guid id, SessionBlobPayload payload, IInboundSyncCoordinator coordinator)
     {
-        var result = await sessionSyncApplier.ApplyUploadedAsync(id, payload);
+        var result = await coordinator.ApplySessionBlobAsync(id, payload);
         if (result == SessionDataApplyResult.InvalidPayload) return Results.BadRequest();
-        if (result is SessionDataApplyResult.Missing or SessionDataApplyResult.Failed) return Results.NotFound();
-        sessionDataArrived(id);
+        if (result == SessionDataApplyResult.Missing) return Results.NotFound();
+        if (result == SessionDataApplyResult.Failed) return Results.StatusCode(StatusCodes.Status500InternalServerError);
         return Results.NoContent();
     }
+
+    internal static async Task<IResult> ApplySourcePatchAsync(
+        RecordedSessionSourcePayload payload, IInboundSyncCoordinator coordinator) =>
+        await coordinator.ApplySourceAsync(payload) switch
+        {
+            InboundSourceApplyResult.Applied => Results.NoContent(),
+            InboundSourceApplyResult.InvalidPayload => Results.BadRequest(),
+            _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+        };
 
     private void RaiseSyncActivityStarted(SynchronizationProgressSnapshot progress)
     {
@@ -844,8 +848,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                         return await ApplySessionDataPatchAsync(
                             id,
                             payload,
-                            sessionSyncApplier,
-                            sessionId => SessionDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(sessionId)));
+                            inboundSyncCoordinator);
                     });
             });
 
@@ -909,35 +912,7 @@ public class SynchronizationServerService : ISynchronizationServerService
                             metadata.SourceHash,
                             await ReadRequestBodyAsync(request));
 
-                        try
-                        {
-                            if (!RecordedSessionSourceHash.Matches(transfer))
-                            {
-                                logger.Warning("Recorded source hash does not match its payload for {SessionId}", id);
-                                return Results.BadRequest();
-                            }
-                        }
-                        catch (Exception exception) when (exception is System.Text.Json.JsonException or ZstdSharp.ZstdException)
-                        {
-                            logger.Warning(exception, "Recorded source payload is invalid for {SessionId}", id);
-                            return Results.BadRequest();
-                        }
-
-                        var source = new RecordedSessionSource
-                        {
-                            SessionId = transfer.SessionId,
-                            SourceKind = transfer.SourceKind,
-                            SourceName = transfer.SourceName,
-                            SchemaVersion = transfer.SchemaVersion,
-                            SourceHash = transfer.SourceHash,
-                            Payload = transfer.Payload
-                        };
-
-                        await recordedSessionSourceRepository.PutRecordedSessionSourceAsync(source);
-
-                        logger.Verbose("Patched recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
-                        SessionSourceDataArrived?.Invoke(this, new SessionDataArrivedEventArgs(id));
-                        return Results.NoContent();
+                        return await ApplySourcePatchAsync(transfer, inboundSyncCoordinator);
                     });
             });
 

@@ -123,9 +123,9 @@ and source hash. The full payload is not kept in the store. Recompute loads it d
 `IRecordedSessionSourceRepository`; the store exposes metadata only. Import and
 live save publish prepared metadata from the persisted source, and client sync
 collects the metadata of committed transfers before publishing once, including
-when another transfer is canceled or fails. `SessionSyncApplier` reads source
-metadata off-thread for a server arrival, then publishes it or removes a missing
-source. Stores never read repositories to prepare publication.
+when another transfer is canceled or fails. `InboundSyncCoordinator` validates
+uploaded sources off-thread, persists them, and publishes the committed metadata
+before the server acknowledges the upload. Stores never read repositories to prepare publication.
 
 `SetupStore` holds setup metadata only. Board associations live in `BoardStore`;
 `ISetupBoardQuery` joins them for setup lists, editor creation, and import selection.

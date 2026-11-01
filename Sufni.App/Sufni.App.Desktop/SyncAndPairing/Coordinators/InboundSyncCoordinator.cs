@@ -13,6 +13,8 @@ using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Coordination;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
@@ -31,6 +33,8 @@ public sealed class InboundSyncCoordinator(
     ISynchronizableRepository<Board> boardRepository,
     ISynchronizableRepository<CustomTileLayer> customLayerRepository,
     ISessionRepository sessionRepository,
+    ISessionSyncApplier sessionSyncApplier,
+    IRecordedSessionSourceRepository sourceRepository,
     ITrackRepository trackRepository,
     ISessionSegmentRepository segmentRepository,
     IBikeStoreWriter bikeStore,
@@ -38,6 +42,7 @@ public sealed class InboundSyncCoordinator(
     IBoardStoreWriter boardStore,
     ICustomTileLayerStoreWriter customLayerStore,
     ISessionStoreWriter sessionStore,
+    IRecordedSessionSourceStoreWriter sourceStore,
     ITrackStoreWriter trackStore,
     ISessionSegmentStoreWriter segmentStore,
     StorePublication publication,
@@ -46,6 +51,50 @@ public sealed class InboundSyncCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
     private readonly SemaphoreSlim applyGate = new(1, 1);
+
+    public async Task<SessionDataApplyResult> ApplySessionBlobAsync(Guid id, SessionBlobPayload payload)
+    {
+        await applyGate.WaitAsync();
+        try { return await sessionSyncApplier.ApplyUploadedAsync(id, payload); }
+        finally { applyGate.Release(); }
+    }
+
+    public async Task<InboundSourceApplyResult> ApplySourceAsync(RecordedSessionSourcePayload payload)
+    {
+        await applyGate.WaitAsync();
+        try
+        {
+            return await backgroundTaskRunner.RunAsync(async () =>
+            {
+                try
+                {
+                    if (!RecordedSessionSourceHash.Matches(payload))
+                    {
+                        logger.Warning("Recorded source hash does not match its payload for {SessionId}", payload.SessionId);
+                        return InboundSourceApplyResult.InvalidPayload;
+                    }
+                }
+                catch (Exception exception) when (exception is System.Text.Json.JsonException or ZstdSharp.ZstdException)
+                {
+                    logger.Warning(exception, "Recorded source payload is invalid for {SessionId}", payload.SessionId);
+                    return InboundSourceApplyResult.InvalidPayload;
+                }
+                var committed = await sourceRepository.PutRecordedSessionSourceAsync(new RecordedSessionSource
+                {
+                    SessionId = payload.SessionId, SourceKind = payload.SourceKind, SourceName = payload.SourceName,
+                    SchemaVersion = payload.SchemaVersion, SourceHash = payload.SourceHash, Payload = payload.Payload
+                });
+                await sourceStore.PublishSourcesChangedAsync([committed]);
+                return InboundSourceApplyResult.Applied;
+            });
+        }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Failed to apply inbound recorded source for {SessionId}", payload.SessionId);
+            return InboundSourceApplyResult.Failed;
+        }
+        finally { applyGate.Release(); }
+    }
 
     public Task<SynchronizationData> GetPullAsync(long sinceExclusive) => backgroundTaskRunner.RunAsync(async () =>
         await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Pull, sinceExclusive,
