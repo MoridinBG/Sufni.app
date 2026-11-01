@@ -132,7 +132,7 @@ The layer roles are consistent across slices:
   `SessionEditingCoordinator` (`Sessions/Coordination/`),
   `LiveDaqCoordinator` (`LiveDaq/`), `ImportSessionsCoordinator` (`Acquisition/`),
   `PairedDeviceCoordinator` / `SyncCoordinator` plus the desktop-only
-  `IInboundSyncCoordinator` / `IPairingServerCoordinator` and the mobile-only
+  `IInboundSyncCoordinator` and the mobile-only
   `IPairingClientCoordinator` (`SyncAndPairing/`), and the `IShellCoordinator`
   desktop/mobile pair (`Shell/Coordinators/`). View models depend on read-only
   stores. Persisted write workflows live in coordinators or session use-case
@@ -350,14 +350,13 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`TrackCoordinator`, `PairedDeviceCoordinator`,
-  `SyncCoordinator`,
-  the desktop-only `IPairingServerCoordinator` and the mobile-only
+  (`TrackCoordinator`, `SyncCoordinator`, and the mobile-only
   `IPairingClientCoordinator`) are eagerly resolved in
   `App`'s startup page-activation callback so subscriptions wire up before
   server startup or user-driven arrivals.
   `IInboundSyncCoordinator` owns awaited row merges and coherent publication
-  across all synced row stores, and validates/publishes source uploads.
+  across all synced row stores, validates/publishes source uploads, and owns
+  pairing challenges, confirmation, refresh-token rotation and remote unpair.
   `SessionSyncApplier` owns incoming BLOB commits on both platforms. Neither
   has server event subscriptions or requires eager resolution.
   `AppStartup` gates pages on schema

@@ -1,115 +1,63 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Reactive.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Infrastructure;
-
 using Sufni.App.Shared.Base;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
+
 namespace Sufni.App.SyncAndPairing.ViewModels;
 
-public partial class PairingServerViewModel : ViewModelBase
+public partial class PairingServerViewModel : ViewModelBase, IDisposable
 {
-    private CancellationTokenSource? pairingCountdownCancellation;
-
-    #region Observable properties
+    private readonly IDisposable subscription;
+    private readonly IUiTimerScheduler timers;
+    private IDisposable? countdown;
 
     [ObservableProperty] public partial string? PairingPin { get; set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RequestingName))]
     public partial string? RequestingId { get; set; }
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RequestingName))]
     public partial string? RequestingDisplayName { get; set; }
     [ObservableProperty] public partial double Remaining { get; set; }
 
-    /// <summary>
-    /// Human-readable label for the pairing prompt: prefer the
-    /// requester's <see cref="RequestingDisplayName"/>, fall back to
-    /// the opaque <see cref="RequestingId"/> when no display name was
-    /// supplied (e.g. older clients) or it is blank/whitespace.
-    /// </summary>
-    public string? RequestingName =>
-        string.IsNullOrWhiteSpace(RequestingDisplayName) ? RequestingId : RequestingDisplayName;
+    public string? RequestingName => string.IsNullOrWhiteSpace(RequestingDisplayName) ? RequestingId : RequestingDisplayName;
 
-    #endregion
-
-    #region Constructors
-
-    public PairingServerViewModel(
-        IPairingServerCoordinator coordinator,
-        IUiThreadDispatcher uiThreadDispatcher,
-        TimeProvider timeProvider)
-        : base(uiThreadDispatcher, timeProvider: timeProvider)
+    public PairingServerViewModel(IInboundSyncCoordinator coordinator, IUiThreadDispatcher dispatcher,
+        TimeProvider clock, IUiTimerScheduler timers) : base(dispatcher, clock)
     {
-        coordinator.PairingRequested += (_, e) =>
-        {
-            UiThreadDispatcher.Post(() =>
-                StartPairingRequest(e.Pin, e.DeviceId, e.DisplayName));
-        };
-
-        // Hide the panel displaying the PIN when the pairing is done.
-        coordinator.PairingConfirmed += (_, _) =>
-            UiThreadDispatcher.Post(ClearPairingRequest);
+        this.timers = timers;
+        subscription = coordinator.PairingPrompt.Subscribe(challenge => UiThreadDispatcher.Post(() => Show(challenge)));
     }
 
-    #endregion Constructors
-
-    #region Private methods
-
-    private void StartPairingRequest(string pin, string deviceId, string? displayName)
+    private void Show(PairingChallenge? challenge)
     {
-        PairingPin = pin;
-        RequestingId = deviceId;
-        RequestingDisplayName = displayName;
-        Remaining = 0.999;
-        RestartPairingCountdown();
+        countdown?.Dispose();
+        countdown = null;
+        PairingPin = challenge?.Pin;
+        RequestingId = challenge?.DeviceId;
+        RequestingDisplayName = challenge?.DisplayName;
+        if (challenge is null) { Remaining = 0; return; }
+        UpdateRemaining(challenge.ExpiresAt);
+        if (PairingPin is not null)
+            countdown = timers.SchedulePeriodic(TimeSpan.FromSeconds(1), () => UpdateRemaining(challenge.ExpiresAt));
     }
 
-    private void ClearPairingRequest()
+    private void UpdateRemaining(DateTimeOffset expiresAt)
     {
+        Remaining = Math.Clamp((expiresAt - Clock.GetUtcNow()).TotalSeconds / SynchronizationProtocol.PinTtlSeconds, 0, 0.999);
+        if (Remaining > 0) return;
         PairingPin = null;
-        CancelPairingCountdown();
+        countdown?.Dispose();
+        countdown = null;
     }
 
-    private void RestartPairingCountdown()
+    public void Dispose()
     {
-        CancelPairingCountdown();
-        pairingCountdownCancellation = new CancellationTokenSource();
-        _ = RunPairingCountdownAsync(pairingCountdownCancellation.Token);
+        subscription.Dispose();
+        countdown?.Dispose();
     }
-
-    private void CancelPairingCountdown()
-    {
-        pairingCountdownCancellation?.Cancel();
-        pairingCountdownCancellation?.Dispose();
-        pairingCountdownCancellation = null;
-    }
-
-    private async Task RunPairingCountdownAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            while (true)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(1), Clock, cancellationToken);
-                await UiThreadDispatcher.InvokeAsync(() =>
-                {
-                    Remaining -= 1.0 / SynchronizationProtocol.PinTtlSeconds;
-                    if (Remaining <= 0)
-                    {
-                        ClearPairingRequest();
-                    }
-                });
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by a newer PIN or a successful pairing.
-        }
-    }
-
-    #endregion Private methods
 }

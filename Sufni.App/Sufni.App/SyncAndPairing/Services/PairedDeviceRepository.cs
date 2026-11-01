@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -11,9 +12,11 @@ public interface IPairedDeviceRepository
 
     Task<PairedDevice?> GetPairedDeviceAsync(string id);
 
-    Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token);
+    Task<PairedDevice?> GetPairedDeviceByTokenHashAsync(string hash);
 
     Task PutPairedDeviceAsync(PairedDevice device);
+
+    Task<PairedDevice?> RotateRefreshTokenAsync(string deviceId, string presentedHash, string replacementHash, DateTime now, DateTime expires);
 
     Task DeletePairedDeviceAsync(string id);
 }
@@ -34,13 +37,26 @@ internal sealed class PairedDeviceRepository(SqliteConnectionContext connectionC
             .FirstOrDefaultAsync();
     }
 
-    public async Task<PairedDevice?> GetPairedDeviceByTokenAsync(string token)
+    public async Task<PairedDevice?> GetPairedDeviceByTokenHashAsync(string hash)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<PairedDevice>()
-            .Where(device => device.Token == token)
+            .Where(device => device.RefreshTokenHash == hash || device.PreviousRefreshTokenHash == hash)
             .FirstOrDefaultAsync();
     }
+
+    public Task<PairedDevice?> RotateRefreshTokenAsync(string deviceId, string presentedHash, string replacementHash, DateTime now, DateTime expires) =>
+        connectionContext.RunInTransactionAsync<PairedDevice?>(connection =>
+        {
+            var device = connection.Find<PairedDevice>(deviceId);
+            if (device is null || device.Expires <= now ||
+                (device.RefreshTokenHash != presentedHash && device.PreviousRefreshTokenHash != presentedHash)) return null;
+            device.PreviousRefreshTokenHash = device.RefreshTokenHash == presentedHash ? device.RefreshTokenHash : null;
+            device.RefreshTokenHash = replacementHash;
+            device.Expires = expires;
+            connection.Update(device);
+            return device;
+        });
 
     public async Task PutPairedDeviceAsync(PairedDevice device)
     {

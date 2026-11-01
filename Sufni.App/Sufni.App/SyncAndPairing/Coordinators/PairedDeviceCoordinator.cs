@@ -8,39 +8,24 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Models;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-/// <summary>
-/// Owns the paired-device feature workflow. Subscribes to the
-/// synchronization server's <c>PairingConfirmed</c> and <c>Unpaired</c>
-/// events in its constructor and keeps the
-/// <see cref="IPairedDeviceStore"/> in sync. Registered as a singleton;
-/// eagerly resolved at app startup so the constructor's event
-/// subscriptions wire up before any pairing arrives.
-/// </summary>
-public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator, IDisposable
+/// <summary>Owns local paired-device removal.</summary>
+public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<PairedDeviceCoordinator>();
 
     private readonly IPairedDeviceStoreWriter pairedDeviceStore;
-    private readonly ISynchronizationServerService? server;
     private readonly IPairedDeviceRepository repository;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
 
     public PairedDeviceCoordinator(
         IPairedDeviceStoreWriter pairedDeviceStore,
         IPairedDeviceRepository repository,
-        IBackgroundTaskRunner backgroundTaskRunner,
-        ISynchronizationServerService? synchronizationServer = null)
+        IBackgroundTaskRunner backgroundTaskRunner)
     {
         this.pairedDeviceStore = pairedDeviceStore;
-        server = synchronizationServer;
         this.repository = repository;
         this.backgroundTaskRunner = backgroundTaskRunner;
 
-        if (synchronizationServer is not null)
-        {
-            synchronizationServer.PairingConfirmed += OnPairingConfirmed;
-            synchronizationServer.Unpaired += OnUnpaired;
-        }
     }
 
     public async Task<PairedDeviceUnpairResult> UnpairAsync(string deviceId)
@@ -61,24 +46,6 @@ public sealed class PairedDeviceCoordinator : IPairedDeviceCoordinator, IDisposa
         }
     }
 
-    public void Dispose()
-    {
-        if (server is null) return;
-        server.PairingConfirmed -= OnPairingConfirmed;
-        server.Unpaired -= OnUnpaired;
-    }
-
-    private void OnPairingConfirmed(object? sender, PairingEventArgs e)
-    {
-        logger.Verbose("Received inbound pairing confirmation for {DeviceId}", e.Device.DeviceId);
-        _ = pairedDeviceStore.PublishPairedDevicesChangedAsync([PairedDeviceSnapshot.From(e.Device)]);
-    }
-
-    private void OnUnpaired(object? sender, PairingEventArgs e)
-    {
-        logger.Verbose("Received inbound unpair for {DeviceId}", e.Device.DeviceId);
-        _ = pairedDeviceStore.PublishPairedDevicesRemovedAsync([e.Device.DeviceId]);
-    }
 }
 
 public abstract record PairedDeviceUnpairResult

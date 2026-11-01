@@ -24,7 +24,7 @@ public class PairedDeviceCoordinatorTests
         if (fail) repository.DeleteFailure = new IOException("database unavailable");
         using var store = new PairedDeviceStore(new StorePublication(new InlineUiThreadDispatcher()));
         await store.ReplaceAllAsync([PairedDeviceSnapshot.From(device)]);
-        using var coordinator = new PairedDeviceCoordinator(store, repository, new InlineBackgroundTaskRunner());
+        var coordinator = new PairedDeviceCoordinator(store, repository, new InlineBackgroundTaskRunner());
 
         var result = await coordinator.UnpairAsync(device.DeviceId);
 
@@ -42,23 +42,4 @@ public class PairedDeviceCoordinatorTests
         }
     }
 
-    [Fact]
-    public async Task ServerPairingAndUnpairing_PublishTheDeviceState()
-    {
-        var device = CreateDevice();
-        var server = Substitute.For<ISynchronizationServerService>();
-        using var store = new PairedDeviceStore(new StorePublication(new InlineUiThreadDispatcher()));
-        using var coordinator = new PairedDeviceCoordinator(store, new InMemoryPairedDeviceRepository(), new InlineBackgroundTaskRunner(), server);
-        var published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var changes = store.Connect().Subscribe(_ => published.TrySetResult());
-
-        server.PairingConfirmed += Raise.EventWith(server, new PairingEventArgs(device));
-        await published.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PairedDeviceSnapshot.From(device), store.Get(device.DeviceId));
-
-        published = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        server.Unpaired += Raise.EventWith(server, new PairingEventArgs(device));
-        await published.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Null(store.Get(device.DeviceId));
-    }
 }

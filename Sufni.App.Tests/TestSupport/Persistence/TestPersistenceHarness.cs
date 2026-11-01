@@ -60,6 +60,7 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     }
 
     public ISyncDataStore SyncDataStore => syncDataStore;
+    public IPairedDeviceRepository PairedDeviceRepository => new PairedDeviceRepository(context);
 
     public async ValueTask DisposeAsync()
     {

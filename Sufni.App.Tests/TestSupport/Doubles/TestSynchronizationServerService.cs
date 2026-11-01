@@ -6,11 +6,8 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 #pragma warning disable CS0067
 internal sealed class TestSynchronizationServerService : ISynchronizationServerService
 {
-    public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
-    public event EventHandler<PairingEventArgs>? PairingConfirmed;
-    public event EventHandler<PairingEventArgs>? Unpaired;
 
     public Task<ServerStartResult> StartAsync() => Task.FromResult<ServerStartResult>(new ServerStartResult.Started());
     public Task StopAsync() => Task.CompletedTask;

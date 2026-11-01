@@ -15,15 +15,32 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationServerServiceTests
 {
+    [Theory]
+    [InlineData(PairingCommandResult.Applied, StatusCodes.Status200OK)]
+    [InlineData(PairingCommandResult.Rejected, StatusCodes.Status401Unauthorized)]
+    [InlineData(PairingCommandResult.Failed, StatusCodes.Status500InternalServerError)]
+    public async Task PairingResponses_MapDomainOutcomes(PairingCommandResult outcome, int status)
+    {
+        PairingTokenResult tokens = outcome switch
+        {
+            PairingCommandResult.Applied => new PairingTokenResult.Issued(new TokenResponse("access", "refresh")),
+            PairingCommandResult.Rejected => new PairingTokenResult.Rejected(),
+            _ => new PairingTokenResult.Failed()
+        };
+        await AssertStatusCodeAsync(SynchronizationServerService.MapPairingCommand(outcome), status);
+        await AssertStatusCodeAsync(SynchronizationServerService.MapPairingTokens(tokens), status);
+    }
+
     [Fact]
     public async Task StartAsync_ReturnsFailureForCredentialInitialization_AndStopRemainsSafe()
     {
-        var credentials = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var credentials = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
         var secureStorage = Substitute.For<ISecureStorage>();
-        secureStorage.GetStringAsync("jwt_secret").Returns(credentials.Task);
+        var tokens = Substitute.For<ISynchronizationTokenService>();
+        tokens.GetSigningKeyAsync().Returns(credentials.Task);
         var server = new SynchronizationServerService(
             Substitute.For<IInboundSyncCoordinator>(),
-            Substitute.For<IPairedDeviceRepository>(),
+            tokens,
             Substitute.For<ISessionRepository>(),
             Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<IRecordedSessionSourceSyncQuery>(),

@@ -150,7 +150,6 @@ public partial class App : Application
         _ = shellRoot.StartAsync(() =>
         {
             _ = Services.GetRequiredService<ITrackCoordinator>();
-            _ = Services.GetRequiredService<IPairedDeviceCoordinator>();
             _ = Services.GetRequiredService<ISyncCoordinator>();
             ResolveCapabilityEagerServices(Services, root.Capabilities);
             return Services.GetRequiredService<MainPagesViewModel>();
@@ -209,12 +208,6 @@ public partial class App : Application
         {
             // Resolve so DeviceId / IsPaired probe runs before the pairing screen is opened.
             _ = services.GetService<IPairingClientCoordinator>();
-        }
-
-        if (capabilities.CanHostSyncServer)
-        {
-            // Resolve so pairing subscriptions wire up before views load.
-            _ = services.GetService<IPairingServerCoordinator>();
         }
     }
 }

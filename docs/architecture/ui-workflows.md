@@ -25,12 +25,11 @@ and are registered as singletons.
 | `SessionCoordinator` | shared | Owns metadata save, processing-option changes, GPS alignment, live-capture save and deletion. It persists through repositories and publishes prepared snapshots; it owns no event subscriptions and is not eagerly resolved. |
 | `ISessionEditingCoordinator` (`SessionEditingCoordinator`)                | shared       | Trim and split commands of recorded sessions: one transaction per command, then session publication, recompute, and commit progress carrying the split's new session id. See [Trim and split](#trim-and-split) |
 | `ISegmentCoordinator` (`SegmentCoordinator`)                              | shared       | Saved-segment create, rename, and delete with the segment name rule; segment matching and comparison pages; Strava connect, reset, and segment fetch. The per-editor segments picker, comparison, and Strava connect dialog call it. See [segments.md](segments.md#store-and-coordinator) |
-| `PairedDeviceCoordinator`                                                 | shared       | Local-only unpair; subscribes to the desktop server's `PairingConfirmed` and `Unpaired`                                                                                                                                                                                                                                                                                                                                                                             |
+| `PairedDeviceCoordinator` | shared | Persists local unpair and publishes the removal. No server-event subscriptions or eager resolution. |
 | `ImportSessionsCoordinator`                                               | shared       | Owns one active import task and replayed `SessionImportState` across tab lifetimes, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes prepared session/source/track snapshots through store writer publish-only paths                                                                                                                                                                |
 | `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, drives `SynchronizationClientService.SyncAll()`, then refreshes all stores through `IAppDataRefresher`                                                                                                                                                                                                                                                                                    |
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, mirrors HTTP `PairedState` as `IsPaired`, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                     |
-| `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` launch entry point called only by `AppStartup`                                                                                                                                                                                                                                                                                                                  |
-| `IInboundSyncCoordinator` (`InboundSyncCoordinator`) | desktop only | Endpoints await row push/pull and BLOB/source upload operations. Push merges through `ISyncDataStore`, reads the committed winners, and publishes all seven synced row families in one dispatcher batch before acknowledgement. Source uploads validate and publish committed captured content; BLOB uploads use the session applier. No data-arrival subscriptions or eager resolution. |
+| `IInboundSyncCoordinator` (`InboundSyncCoordinator`) | desktop only | Endpoints await pairing, row push/pull and BLOB/source upload operations. The coordinator owns PIN challenges and expiry, credential rotation, and paired-device publication. Push merges through `ISyncDataStore`, reads the committed winners, and publishes all seven synced row families in one dispatcher batch before acknowledgement. Source uploads validate and publish committed captured content; BLOB uploads use the session applier. No data-arrival subscriptions or eager resolution. |
 | `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Persists custom-layer additions and selection off-thread; typed outcomes distinguish add/selection failure. `TileLayerService` derives its catalog from custom-layer store facts and selection from device-local preferences. |
 | `TrackCoordinator` | shared | Owns key-driven GPS metric recomputation, conditional persistence and cancellation/drainage. GPX import publishes track metadata; read-only session-track loading selects the greatest overlapping track from `TrackStore`, reads exact full-track points and derives the session window through `ISessionTrackReader`. GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync` and uses the same selection rule. |
 | `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation. The shell routes diagnostics and live-session editor keys; `EditorFactory` creates their shared-stream and capture dependencies only for a new tab. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
@@ -84,8 +83,7 @@ option normalization tasks. Its stop operation cancels and awaits those jobs and
 waits for structural migrations or a reset to settle. Normalization passes the
 cancellation token into recompute and leaves its marker unwritten on interruption.
 
-`TrackCoordinator`, `PairedDeviceCoordinator`,
-`PairingClientCoordinator`, `PairingServerCoordinator` and `SyncCoordinator` are
+`TrackCoordinator`, `PairingClientCoordinator` and `SyncCoordinator` are
 resolved at page activation, before server startup. `SessionSyncApplier` is
 registered on every platform and is called directly by transfer owners.
 
@@ -276,7 +274,7 @@ and `InputCapabilities`; `ISecureStorage`; `IServiceDiscovery` (registered as
 keyed singletons under `"daq"` and optionally `"sync"`); `IHapticFeedback`;
 `IFriendlyNameProvider`; `IVideoPlayerFactory` on heads with
 `AppCapabilities.CanPlayVideo`; `ISynchronizationServerService` +
-`IPairingServerCoordinator` + `IInboundSyncCoordinator` +
+`ISynchronizationTokenService` + `IInboundSyncCoordinator` +
 `PairingServerViewModel` on server-capable desktop heads; or
 `ISynchronizationClientService` + `IPairingClientCoordinator` +
 `PairingClientViewModel` and `IHttpApiService` on client-capable mobile heads.
@@ -294,12 +292,11 @@ honors the configured mode: save/discard/cancel and unsavable-page confirmation
 render as overlays on single-view hosts. Every overlay uses the explicitly
 configured host; there is no application-lifetime lookup fallback.
 
-`App`'s page-activation callback also eagerly resolves
-`TrackCoordinator`, `PairedDeviceCoordinator`, `SyncCoordinator`, plus the
-desktop-only `IPairingServerCoordinator` (or the
-mobile-only `IPairingClientCoordinator`). Their constructors subscribe to
-session-store, synchronization-server, pairing or service-discovery changes.
-Inbound sync and the session applier need no eager resolution or server subscription.
+`App`'s page-activation callback eagerly resolves `TrackCoordinator`,
+`SyncCoordinator`, and the mobile-only `IPairingClientCoordinator` for their
+store, server-activity, pairing and discovery subscriptions. Inbound sync,
+paired-device commands and the session applier need no eager resolution.
+`AppStartup` calls `ISynchronizationServerService.StartAsync` directly.
 
 ## Navigation
 

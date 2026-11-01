@@ -23,7 +23,7 @@ internal sealed class AppStartup(
     IAppPaths paths,
     IAppPreferences preferences,
     IEnumerable<IStartupJob> jobs,
-    IPairingServerCoordinator? server = null) : IAppStartup, IDisposable
+    ISynchronizationServerService? server = null) : IAppStartup, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<AppStartup>();
     private readonly BehaviorSubject<ShellStartupState> state = new(new ShellStartupState.Starting());
@@ -54,7 +54,7 @@ internal sealed class AppStartup(
             await dispatcher.InvokeAsync(activatePages);
             if (server is not null)
             {
-                var result = await backgroundTaskRunner.RunAsync(server.StartServerAsync, cancellation.Token);
+                var result = await backgroundTaskRunner.RunAsync(server.StartAsync, cancellation.Token);
                 if (result is ServerStartResult.Failed failed)
                 {
                     await PublishAsync(new ShellStartupState.Failed(StartupFailureReason.Server, failed.Details));

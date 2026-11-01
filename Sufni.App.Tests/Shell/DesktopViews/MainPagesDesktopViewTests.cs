@@ -32,10 +32,9 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
-        var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
+        var pairingCoordinator = Substitute.For<IInboundSyncCoordinator>();
 
-        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider())
+        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider(), new ManualUiTimerScheduler())
         {
             PairingPin = "123456",
             RequestingDisplayName = "Phone",
@@ -66,9 +65,8 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
-        var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
-        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider())
+        var pairingCoordinator = Substitute.For<IInboundSyncCoordinator>();
+        var pairingViewModel = new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider(), new ManualUiTimerScheduler())
         {
             PairingPin = "123456",
             RequestingDisplayName = "Phone",
@@ -103,13 +101,12 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
-        var pairingCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
+        var pairingCoordinator = Substitute.For<IInboundSyncCoordinator>();
         var server = new TestSynchronizationServerService();
         var syncCoordinator = CreateSyncCoordinator(server);
         var viewModel = MainPagesViewModelTestFactory.Create(
             syncCoordinator: syncCoordinator,
-            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider()));
+            pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider(), new ManualUiTimerScheduler()));
         var view = new MainPagesDesktopView
         {
             DataContext = viewModel

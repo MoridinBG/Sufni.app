@@ -195,6 +195,13 @@ internal sealed class DatabaseMigrationRunner(
 
     private Task MigrateSyncAuthorityAsync() => coreMigrations.ApplyAsync("sync-authority", transaction =>
     {
+        if (transaction.GetTableInfo("paired_device").Any(column => column.Name == "token"))
+        {
+            foreach (var device in transaction.Query<PairedDevice>("SELECT device_id, token AS refresh_token_hash FROM paired_device"))
+                transaction.Execute("UPDATE paired_device SET refresh_token_hash=? WHERE device_id=?",
+                    RefreshTokenHash.Compute(device.RefreshTokenHash), device.DeviceId);
+            transaction.Execute("ALTER TABLE paired_device DROP COLUMN token");
+        }
         transaction.Execute("DROP TABLE sync");
         transaction.CreateTable<Synchronization>();
         transaction.Execute("CREATE TABLE sync_sequence (id INTEGER PRIMARY KEY CHECK (id = 1), local_seq INTEGER NOT NULL, sync_seq INTEGER NOT NULL)");

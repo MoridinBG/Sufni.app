@@ -1,3 +1,5 @@
+using NSubstitute;
+using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
@@ -24,6 +26,10 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
 {
     private readonly TempDatabase file = new();
     private readonly IUiThreadDispatcher dispatcher;
+    private readonly List<InboundSyncCoordinator> coordinators = [];
+    public FakeTimeProvider Time { get; } = PersistenceTestData.CreateTimeProvider();
+    public ISynchronizationTokenService Tokens { get; } = Substitute.For<ISynchronizationTokenService>();
+    public PairedDeviceStore PairedDevices { get; }
     public TestPersistenceHarness Database { get; }
     public StorePublication Publication { get; }
     public BikeStore Bikes { get; }
@@ -38,8 +44,10 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
     public InboundSyncFixture(IUiThreadDispatcher dispatcher)
     {
         this.dispatcher = dispatcher;
-        Database = new(file.DatabasePath);
+        Database = new(file.DatabasePath, Time);
+        Tokens.CreateAccessTokenAsync(Arg.Any<string>()).Returns("access-token");
         Publication = new(dispatcher);
+        PairedDevices = new(Publication);
         Bikes = new(Publication);
         Setups = new(Publication);
         Boards = new(Publication);
@@ -50,7 +58,9 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
         Segments = new(Publication);
     }
 
-    public InboundSyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null, IRecordedSessionSourceRepository? sourceRepository = null) => new(
+    public InboundSyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null, IRecordedSessionSourceRepository? sourceRepository = null)
+    {
+        var coordinator = new InboundSyncCoordinator(
         dataStore ?? Database.SyncDataStore,
         Database.GetRepository<Bike>(), Database.GetRepository<Setup>(), Database.GetRepository<Board>(),
         Database.GetRepository<CustomTileLayer>(), Database.SessionRepository,
@@ -58,11 +68,17 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
             new SessionTelemetryProcessor(), Database.SwapRequests, new ProcessingFingerprintService()),
         sourceRepository ?? Database.SourceRepository, Database.TrackRepository,
         Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Sources, Tracks, Segments,
+        Database.PairedDeviceRepository, PairedDevices, Tokens, Time,
         Publication, new InlineBackgroundTaskRunner(), dispatcher);
+        coordinators.Add(coordinator);
+        return coordinator;
+    }
 
     public async ValueTask DisposeAsync()
     {
+        foreach (var coordinator in coordinators) coordinator.Dispose();
         await Database.DisposeAsync();
+        PairedDevices.Dispose();
         Bikes.Dispose();
         Setups.Dispose();
         Boards.Dispose();

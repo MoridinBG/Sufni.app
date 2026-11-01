@@ -14,7 +14,7 @@ public static class DesktopAppBootstrapper
     public static void RegisterDesktopSync(IServiceCollection services)
     {
         services.AddSingleton<ISynchronizationServerService, SynchronizationServerService>();
-        services.AddSingleton<IPairingServerCoordinator, PairingServerCoordinator>();
+        services.AddSingleton<ISynchronizationTokenService, SynchronizationTokenService>();
         services.AddSingleton<IInboundSyncCoordinator, InboundSyncCoordinator>();
         services.AddSingleton<PairingServerViewModel>();
     }

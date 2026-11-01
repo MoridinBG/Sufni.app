@@ -12,8 +12,10 @@ a new ID is returned only after persistence completes. Pairing reads this identi
 rather than generating its own. Unpairing does not replace it.
 
 The pairing client uses an injected `TimeProvider` for temporary discovery
-resolution deadlines. The server prompt uses the same seam for its one-second
-PIN countdown; confirmation cancels the countdown.
+resolution deadlines. The inbound coordinator owns pending PINs and publishes
+`PairingChallenge` with one absolute `ExpiresAt`. The server prompt projects its
+remaining fraction with an injected UI timer; late subscription cannot extend
+validity, and confirmation clears the prompt.
 
 The mobile coordinator returns expected states for no discovered server and
 rejected or expired PINs (HTTP 401). Other request/confirmation/unpair failures
@@ -43,6 +45,18 @@ sequenceDiagram
     Server-->>Mobile: {new accessToken, new refreshToken}
 ```
 
+Pairing request, confirmation, refresh and remote unpair are awaited
+`IInboundSyncCoordinator` commands with typed outcomes. PINs are bound to the
+requesting device and normalized display name and expire after 30 seconds.
+Confirmation persists the paired device and publishes it before returning tokens.
+
+The hub persists SHA-256 refresh-token hashes, never the raw tokens. Rotation
+retains the previous hash for one recovery request while the current refresh
+token has not been used. Using the current token replaces that recovery slot;
+using the previous token consumes it. Both paths issue a fresh token and update
+the published device expiry. The repository checks and rotates credentials in one
+transaction. `sync-authority` hashes legacy tokens and drops their plaintext column.
+
 Both directions use the same version/deletion/timestamp/writer ordering from
 [Persistence § Conflict Resolution](persistence.md#conflict-resolution). The hub
 preserves authored timestamps and versions. Deletion ledger entries travel in
@@ -55,19 +69,19 @@ remote deletion cannot hide a retained local session.
 `SynchronizationServerService` (`Sufni.App/Sufni.App.Desktop/SyncAndPairing/Services/SynchronizationServerService.cs`) embeds ASP.NET Core Kestrel on port 5575 with:
 
 - **TLS**: Self-signed ECDSA P-256 certificate (password stored in `SecureStorage`), served with TLS 1.2 and TLS 1.3 enabled
-- **JWT**: HS256 with a 64-byte random secret (stored in `SecureStorage`)
+- **JWT**: HS256 with a 64-byte random secret (stored in `SecureStorage`); `ISynchronizationTokenService` shares that persisted signing key between token issuance and bearer validation
 - **Discovery**: mDNS advertisement as `_sstsync._tcp`
 - **Rate limiting**: the anonymous `/pair/*` surface is throttled per remote IP by a fixed-window limiter — 10 requests per PIN-TTL window (30 s) — bounding PIN guesses per source per PIN lifetime. Excess requests get `429` with a `Retry-After` header and are logged; the partition key fails closed to `"unknown"` when the peer IP is unavailable.
 - **Strict inbound JSON**: request bodies bind with a hardened profile (reject duplicate keys, reject unmapped members, case-sensitive names, required non-nullable members and constructor parameters). Well-formed first-party traffic is unaffected because the client emits every snake_case key explicitly; responses and other serialization stay on the lenient profile. See [Persistence § JSON Serialization](persistence.md#json-serialization).
 
 `AppStartup` starts the server after the database and store refresh are ready,
-with pairing and inbound subscriptions already connected. Server startup is no
+with stores initialized. Pairing and data endpoints directly await their owners. Server startup is no
 longer driven by a view attaching. `AppShutdown` stops advertising, stops Kestrel
 and disposes its application before disposing the shared service provider.
 Server startup returns `ServerStartResult.Started | Failed(reason, details)`.
 The service logs a startup failure once and cleans up a partially started host;
-the pairing coordinator forwards the outcome, and startup remains blocked without
-starting repair jobs. An empty advertisable-address list retains the existing
+startup consumes the result directly and remains blocked without starting repair
+jobs. The forwarding-only pairing server coordinator has been removed. An empty advertisable-address list retains the existing
 warning and advertisement attempt.
 
 All sync HTTP requests, including pairing, carry `X-Sufni-Sync-Protocol: 6`.
@@ -111,8 +125,9 @@ There are no data-arrival events or startup subscriptions. Invalid source/BLOB
 payloads and pending generations return 409, missing sessions return 404, and apply
 failures return 500. Invalid wire headers or content types remain 400.
 
-The server receives `TimeProvider` for certificate renewal, issued-token times,
-PIN/refresh-token expiration. JWT bearer authentication retains
+The server uses `TimeProvider` for certificate renewal; token issuance uses it
+for JWT lifetime. The inbound coordinator owns PIN and refresh-token expiration
+through its injected clock. JWT bearer authentication retains
 the framework's lifetime validation.
 
 ## Client
@@ -244,9 +259,9 @@ Processed telemetry blobs (`session.data`) and raw recorded sources (`session_re
 `PairedDeviceCoordinator` owns local unpair persistence through
 `IPairedDeviceRepository`, then removes the device from the publish-only store.
 Failure leaves the published device present and returns a typed reason with
-optional diagnostic details. Server pairing/unpairing events publish their
-already-persisted snapshots/removals without another database read. The
-coordinator releases its server subscriptions when the application is disposed.
+optional diagnostic details. The inbound coordinator owns confirmation, refresh
+and remote unpair publication and awaits it before acknowledging the request.
+Neither owner subscribes to server pairing events; those events are removed.
 
 ### Run failures and unavailable servers
 

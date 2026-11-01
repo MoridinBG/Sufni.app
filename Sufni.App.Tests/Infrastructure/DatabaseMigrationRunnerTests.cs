@@ -25,6 +25,35 @@ namespace Sufni.App.Tests.Infrastructure;
 public class DatabaseMigrationRunnerTests
 {
     [Fact]
+    public async Task Initialization_HashesLegacyRefreshToken_AndDoesNotReplayItAfterRotation()
+    {
+        using var temp = new TempDatabase();
+        var expires = PersistenceTestData.CreateTimeProvider().GetUtcNow().UtcDateTime.AddDays(30);
+        const string oldToken = "legacy-refresh-token";
+        var oldHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(oldToken)));
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.Execute("CREATE TABLE paired_device (device_id TEXT PRIMARY KEY, display_name TEXT, token TEXT, expires INTEGER)");
+            legacy.Execute("INSERT INTO paired_device VALUES (?, ?, ?, ?)", "phone", "Phone", oldToken, expires);
+        }
+        await using (var database = new TestPersistenceHarness(temp.DatabasePath))
+        {
+            var stored = await database.PairedDeviceRepository.GetPairedDeviceByTokenHashAsync(oldHash);
+            Assert.NotNull(stored);
+            Assert.Equal("phone", stored.DeviceId);
+            var connection = await database.GetInitializedConnectionAsync();
+            Assert.DoesNotContain(await connection.GetTableInfoAsync("paired_device"), column => column.Name == "token");
+            Assert.NotNull(await database.PairedDeviceRepository.RotateRefreshTokenAsync("phone", oldHash, "replacement-hash",
+                expires.AddDays(-29), expires.AddDays(1)));
+        }
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+        var retained = (await reopened.PairedDeviceRepository.GetPairedDeviceAsync("phone"))!;
+        Assert.Equal("replacement-hash", retained.RefreshTokenHash);
+        Assert.Equal(oldHash, retained.PreviousRefreshTokenHash);
+        Assert.Equal(expires.AddDays(1), retained.Expires);
+    }
+
+    [Fact]
     public async Task Initialization_MigratesLegacyCustomLayers_OnceWithoutPersistingIsCustom()
     {
         using var temp = new TempDatabase();

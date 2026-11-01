@@ -92,13 +92,13 @@ public class AppStartupTests
         }
 
         await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
-        var server = Substitute.For<IPairingServerCoordinator>();
+        var server = Substitute.For<ISynchronizationServerService>();
         using var startup = Create(context, server: server);
         var pagesCreated = 0;
         await startup.StartAsync(() => pagesCreated++);
         Assert.Equal(StartupFailureReason.Database, Assert.IsType<ShellStartupState.Failed>(startup.State).Reason);
         Assert.Equal(0, pagesCreated);
-        await server.DidNotReceive().StartServerAsync();
+        await server.DidNotReceive().StartAsync();
 
         var reset = Assert.IsType<DatabaseResetResult.Reset>(await startup.ResetDatabaseAsync());
 
@@ -152,9 +152,9 @@ public class AppStartupTests
     [InlineData(true)]
     public async Task ServerStart_ControlsReadinessAndRepairJobs(bool fails)
     {
-        var server = Substitute.For<IPairingServerCoordinator>();
+        var server = Substitute.For<ISynchronizationServerService>();
         var completion = new TaskCompletionSource<ServerStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        server.StartServerAsync().Returns(completion.Task);
+        server.StartAsync().Returns(completion.Task);
         var job = new CancellableJob();
         using var startup = Create(server: server, jobs: [job]);
 
@@ -200,7 +200,7 @@ public class AppStartupTests
     private static AppStartup Create(
         IStartupDatabase? database = null,
         IAppDataRefresher? refresher = null,
-        IPairingServerCoordinator? server = null,
+        ISynchronizationServerService? server = null,
         IStartupJob[]? jobs = null, IAppPreferences? preferences = null)
     {
         if (database is null)

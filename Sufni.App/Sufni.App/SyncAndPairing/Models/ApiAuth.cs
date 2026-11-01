@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using SQLite;
 
@@ -35,8 +34,11 @@ public class PairedDevice
     [Column("display_name")]
     public string? DisplayName { get; set; }
 
-    [Column("token")]
-    public string Token { get; set; } = null!;
+    [Column("refresh_token_hash")]
+    public string RefreshTokenHash { get; set; } = string.Empty;
+
+    [Column("previous_refresh_token_hash")]
+    public string? PreviousRefreshTokenHash { get; set; }
 
     [Column("expires")]
     public DateTime Expires { get; set; }
@@ -50,7 +52,6 @@ public class PairedDevice
         DeviceId = deviceId;
         DisplayName = NormalizeDisplayName(displayName);
         Expires = expires;
-        Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
     }
 
     /// <summary>

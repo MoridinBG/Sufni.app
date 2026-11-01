@@ -2,12 +2,10 @@ using Sufni.App.Shared.Models;
 using System;
 using Microsoft.Extensions.Logging;
 using ILogger = Serilog.ILogger;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -16,7 +14,6 @@ using System.Security.Authentication;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -44,15 +41,13 @@ public class SynchronizationServerService : ISynchronizationServerService
 {
     private static readonly ILogger logger = Log.ForContext<SynchronizationServerService>();
 
-    private const int TokenTtlMinutes = 10;
-    private const int RefreshTtlDays = 30;
     private const int Port = 5575;
     private const string DefaultServiceInstanceName = "s1";
     private const int MaxServiceProbeAttempts = 5;
     private const long MaxSyncRequestBodyBytes = 256L * 1024 * 1024;
 
     private readonly IInboundSyncCoordinator inboundSyncCoordinator;
-    private readonly IPairedDeviceRepository pairedDeviceRepository;
+    private readonly ISynchronizationTokenService tokens;
     private readonly ISessionRepository sessionRepository;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
@@ -60,10 +55,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISecureStorage secureStorage;
     private readonly System.Threading.Lock advertisingGate = new();
     private readonly System.Threading.Lock startGate = new();
-
-    private readonly ConcurrentDictionary<string, (string deviceId, string? displayName, DateTime expiresAt)> pendingPairings = new();
-
-    private static string GeneratePin() => RandomNumberGenerator.GetInt32(100000, 999999).ToString();
 
     private static async ValueTask<object?> RequireSyncProtocolVersionAsync(
         EndpointFilterInvocationContext context,
@@ -208,7 +199,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         return stream.ToArray();
     }
 
-    private string? jwtSecret;
     private string? certPassword;
     private Makaretu.Dns.ServiceDiscovery? serviceDiscovery;
     private ServiceProfile? advertisedService;
@@ -220,17 +210,14 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private Task Initialization { get; }
 
-    public event EventHandler<PairingRequestedEventArgs>? PairingRequested;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
     public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
-    public event EventHandler<PairingEventArgs>? PairingConfirmed;
-    public event EventHandler<PairingEventArgs>? Unpaired;
 
     #region Constructors
 
     public SynchronizationServerService(
         IInboundSyncCoordinator inboundSyncCoordinator,
-        IPairedDeviceRepository pairedDeviceRepository,
+        ISynchronizationTokenService tokens,
         ISessionRepository sessionRepository,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
@@ -240,7 +227,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         TimeProvider timeProvider)
     {
         this.inboundSyncCoordinator = inboundSyncCoordinator;
-        this.pairedDeviceRepository = pairedDeviceRepository;
+        this.tokens = tokens;
         this.sessionRepository = sessionRepository;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
@@ -359,13 +346,7 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private async Task Init()
     {
-        jwtSecret = await secureStorage.GetStringAsync("jwt_secret");
-        if (string.IsNullOrEmpty(jwtSecret))
-        {
-            jwtSecret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-            await secureStorage.SetStringAsync("jwt_secret", jwtSecret);
-            logger.Verbose("Generated new synchronization JWT secret");
-        }
+        await tokens.GetSigningKeyAsync();
 
         await GenerateCertificateIfNeeded();
     }
@@ -410,30 +391,9 @@ public class SynchronizationServerService : ISynchronizationServerService
         }
     }
 
-    private string GenerateAccessToken(string deviceId)
-    {
-        Debug.Assert(jwtSecret is not null);
-
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var descriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, deviceId)]),
-            IssuedAt = now,
-            NotBefore = now,
-            Expires = now.AddMinutes(TokenTtlMinutes),
-            SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-                SecurityAlgorithms.HmacSha256Signature)
-        };
-        return tokenHandler.WriteToken(tokenHandler.CreateToken(descriptor));
-    }
-
     private async Task<WebApplication> BuildApplication(int port)
     {
         await Initialization;
-
-        Debug.Assert(jwtSecret is not null);
 
         logger.Verbose("Building synchronization server pipeline for port {Port}", port);
 
@@ -470,7 +430,7 @@ public class SynchronizationServerService : ISynchronizationServerService
             o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         });
 
-        var key = Encoding.UTF8.GetBytes(jwtSecret);
+        var key = await tokens.GetSigningKeyAsync();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
         {
             options.TokenValidationParameters = new TokenValidationParameters
@@ -538,6 +498,20 @@ public class SynchronizationServerService : ISynchronizationServerService
         SynchronizationPhase phase,
         string message) =>
         new(phase, message, CurrentStep: 0, TotalSteps: 0, IsDeterminate: false);
+
+    internal static IResult MapPairingCommand(PairingCommandResult result) => result switch
+    {
+        PairingCommandResult.Applied => Results.Ok(),
+        PairingCommandResult.Rejected => Results.Unauthorized(),
+        _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+    };
+
+    internal static IResult MapPairingTokens(PairingTokenResult result) => result switch
+    {
+        PairingTokenResult.Issued issued => Results.Ok(issued.Tokens),
+        PairingTokenResult.Rejected => Results.Unauthorized(),
+        _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+    };
 
     internal static async Task<IResult> ApplySynchronizationPushAsync(
         SynchronizationData data, IInboundSyncCoordinator inboundSyncCoordinator) =>
@@ -663,81 +637,14 @@ public class SynchronizationServerService : ISynchronizationServerService
             var pairing = app.MapGroup("").RequireRateLimiting("pairing");
             pairing.AddEndpointFilter(RequireSyncProtocolVersionAsync);
 
-            pairing.MapPost(SynchronizationProtocol.EndpointPairRequest, ([FromBody] PairingRequest req) =>
-            {
-                logger.Verbose("Pairing request received for {DeviceId}", req.DeviceId);
-
-                var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
-                var pin = GeneratePin();
-                pendingPairings[pin] = (req.DeviceId, displayName, timeProvider.GetUtcNow().UtcDateTime.AddSeconds(SynchronizationProtocol.PinTtlSeconds));
-                PairingRequested?.Invoke(this, new PairingRequestedEventArgs(req.DeviceId, displayName, pin));
-                return Results.Ok();
-            });
-
-            pairing.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm req) =>
-            {
-                if (!pendingPairings.TryRemove(req.Pin, out var record))
-                {
-                    logger.Warning("Pairing confirmation rejected for {DeviceId}: PIN not found", req.DeviceId);
-                    return Results.Unauthorized();
-                }
-
-                var displayName = PairedDevice.NormalizeDisplayName(req.DisplayName);
-                if (record.deviceId != req.DeviceId ||
-                    record.displayName != displayName ||
-                    record.expiresAt < timeProvider.GetUtcNow().UtcDateTime)
-                {
-                    logger.Warning("Pairing confirmation rejected for {DeviceId}: record mismatch or expired PIN", req.DeviceId);
-                    return Results.Unauthorized();
-                }
-
-                var accessToken = GenerateAccessToken(req.DeviceId);
-                var pairedDevice = new PairedDevice(req.DeviceId, displayName, timeProvider.GetUtcNow().UtcDateTime.AddDays(RefreshTtlDays));
-                await pairedDeviceRepository.PutPairedDeviceAsync(pairedDevice);
-
-                logger.Verbose("Pairing confirmed for {DeviceId}", req.DeviceId);
-                PairingConfirmed?.Invoke(this, new PairingEventArgs(pairedDevice));
-                return Results.Ok(new TokenResponse(accessToken, pairedDevice.Token));
-            });
-
-            pairing.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest req) =>
-            {
-                var pairedDevice = await pairedDeviceRepository.GetPairedDeviceByTokenAsync(req.RefreshToken);
-                if (pairedDevice is null || pairedDevice.Expires < timeProvider.GetUtcNow().UtcDateTime)
-                {
-                    logger.Warning("Token refresh rejected because the paired device was missing or expired");
-                    return Results.Unauthorized();
-                }
-
-                var newAccessToken = GenerateAccessToken(pairedDevice.DeviceId);
-                var newPairedDevice = new PairedDevice(pairedDevice.DeviceId, pairedDevice.DisplayName, timeProvider.GetUtcNow().UtcDateTime.AddDays(RefreshTtlDays));
-                await pairedDeviceRepository.PutPairedDeviceAsync(newPairedDevice);
-
-                logger.Verbose("Issued refreshed synchronization token for {DeviceId}", pairedDevice.DeviceId);
-                return Results.Ok(new TokenResponse(newAccessToken, newPairedDevice.Token));
-            });
-
-            pairing.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest req) =>
-            {
-                var device = await pairedDeviceRepository.GetPairedDeviceAsync(req.DeviceId);
-                if (device is null)
-                {
-                    logger.Verbose("Ignoring unpair request for {DeviceId} because no device was found", req.DeviceId);
-                    return Results.Ok();
-                }
-
-                if (device.Token != req.RefreshToken)
-                {
-                    logger.Warning("Unpair request rejected for {DeviceId}: refresh token mismatch", req.DeviceId);
-                    return Results.Unauthorized();
-                }
-
-                await pairedDeviceRepository.DeletePairedDeviceAsync(device.DeviceId);
-                logger.Verbose("Unpaired device {DeviceId}", device.DeviceId);
-                Unpaired?.Invoke(this, new PairingEventArgs(device));
-
-                return Results.Ok();
-            });
+            pairing.MapPost(SynchronizationProtocol.EndpointPairRequest, async ([FromBody] PairingRequest request) =>
+                MapPairingCommand(await inboundSyncCoordinator.RequestPairingAsync(request)));
+            pairing.MapPost(SynchronizationProtocol.EndpointPairConfirm, async ([FromBody] PairingConfirm request) =>
+                MapPairingTokens(await inboundSyncCoordinator.ConfirmPairingAsync(request)));
+            pairing.MapPost(SynchronizationProtocol.EndpointPairRefresh, async ([FromBody] RefreshRequest request) =>
+                MapPairingTokens(await inboundSyncCoordinator.RefreshPairingAsync(request)));
+            pairing.MapPost(SynchronizationProtocol.EndpointPairUnpair, async ([FromBody] UnpairRequest request) =>
+                MapPairingCommand(await inboundSyncCoordinator.UnpairAsync(request)));
 
             // Authenticated sync surface — one RequireAuthorization for the whole group.
             var authorized = app.MapGroup("").RequireAuthorization();

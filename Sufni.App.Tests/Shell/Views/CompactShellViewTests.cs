@@ -216,11 +216,10 @@ public class CompactShellViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         var environment = CreateDesktopCompactEnvironment();
-        var pairingServerCoordinator = Substitute.For<IPairingServerCoordinator>();
-        pairingServerCoordinator.StartServerAsync().Returns(new ServerStartResult.Started());
+        var pairingServerCoordinator = Substitute.For<IInboundSyncCoordinator>();
         var pairingServer = new PairingServerViewModel(
             pairingServerCoordinator,
-            new InlineUiThreadDispatcher(), new FakeTimeProvider())
+            new InlineUiThreadDispatcher(), new FakeTimeProvider(), new ManualUiTimerScheduler())
         {
             PairingPin = "123456",
             RequestingId = "test-device",
@@ -247,7 +246,6 @@ public class CompactShellViewTests
             .OfType<TextBlock>()
             .Single(control => control.Name == "CompactPairingPinText");
         Assert.True(pinText.Bounds.Height > 24);
-        await pairingServerCoordinator.DidNotReceive().StartServerAsync();
     }
 
     private static ShellRootViewModel CreateRoot(

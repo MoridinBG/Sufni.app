@@ -203,7 +203,8 @@ erDiagram
     paired_device {
         text device_id PK
         text display_name
-        text token
+        text refresh_token_hash
+        text previous_refresh_token_hash
         int expires
     }
 
@@ -238,7 +239,10 @@ copies legacy custom map layers into `custom_tile_layer` before assigning their
 initial metadata. Startup rewrites the preference document after migration, keeping
 the selected layer and other device-local values while removing custom definitions
 and the old sync clock. The migration marker prevents stale preferences from
-overwriting later layer edits.
+overwriting later layer edits. The same batch hashes legacy paired-device
+refresh tokens and removes the plaintext `token` column. Rotation atomically
+compares the presented hash, updates expiry, and retains the previous hash for
+one recovery use until the new refresh token is used.
 Every local authored write advances its row version above both the payload and
 ledger version, stamps the shared installation identity and advances sequences.
 Derived generation writes advance sequences while preserving version, timestamp

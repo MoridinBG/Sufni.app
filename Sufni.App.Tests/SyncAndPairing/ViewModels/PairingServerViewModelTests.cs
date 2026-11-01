@@ -1,73 +1,74 @@
+using System.Reactive.Subjects;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
-
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.ViewModels;
-using Sufni.App.Tests.TestSupport.Async;
+
 namespace Sufni.App.Tests.SyncAndPairing.ViewModels;
 
 public class PairingServerViewModelTests
 {
     [Fact]
-    public async Task PairingRequested_HidesPinAfterThirtySeconds()
+    public void PromptCountdown_UsesOwnersExpiryInsteadOfStartingAnotherThirtySeconds()
     {
-        var coordinator = Substitute.For<IPairingServerCoordinator>();
-        var time = new SignalingFakeTimeProvider();
-        var viewModel = new PairingServerViewModel(coordinator, new InlineUiThreadDispatcher(), time);
-        var expired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        viewModel.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(viewModel.PairingPin) && viewModel.PairingPin is null)
-                expired.TrySetResult();
-        };
-        coordinator.PairingRequested += Raise.EventWith(
-            coordinator, new PairingRequestedEventArgs("device-1", "Phone", "123456"));
+        var time = new FakeTimeProvider();
+        using var prompt = new BehaviorSubject<PairingChallenge?>(new("device-1", "Phone", "123456", time.GetUtcNow().AddSeconds(15)));
+        var coordinator = Substitute.For<IInboundSyncCoordinator>();
+        coordinator.PairingPrompt.Returns(prompt);
+        using var timers = new ManualUiTimerScheduler();
+        using var viewModel = new PairingServerViewModel(coordinator, new InlineUiThreadDispatcher(), time, timers);
+        Assert.Equal(0.5, viewModel.Remaining);
 
-        for (var second = 0; second < 30; second++)
-        {
-            await time.WaitForTimerAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-            Assert.Equal("123456", viewModel.PairingPin);
-            time.Advance(TimeSpan.FromSeconds(1));
-        }
+        time.Advance(TimeSpan.FromSeconds(15));
+        timers.FireAll();
 
-        await expired.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.Null(viewModel.PairingPin);
+        Assert.Equal(0, viewModel.Remaining);
     }
 
     [Fact]
-    public void PairingRequested_AppliesPromptStateThroughUiDispatcher()
+    public async Task PromptAndConfirmation_PublishVisibleStateThroughDispatcher()
     {
-        var coordinator = Substitute.For<IPairingServerCoordinator>();
-        var dispatcher = new RecordingUiThreadDispatcher();
-        var viewModel = new PairingServerViewModel(coordinator, dispatcher, new Microsoft.Extensions.Time.Testing.FakeTimeProvider());
+        var time = new FakeTimeProvider();
+        using var prompt = new Subject<PairingChallenge?>();
+        var coordinator = Substitute.For<IInboundSyncCoordinator>();
+        coordinator.PairingPrompt.Returns(prompt);
+        var dispatcher = new ManualUiThreadDispatcher();
+        using var timers = new ManualUiTimerScheduler();
+        using var viewModel = new PairingServerViewModel(coordinator, dispatcher, time, timers);
 
-        coordinator.PairingRequested += Raise.EventWith(
-            coordinator,
-            new PairingRequestedEventArgs("device-1", "Phone", "123456"));
-
-        Assert.Equal(1, dispatcher.PostCount);
+        prompt.OnNext(new("device-1", "Phone", "123456", time.GetUtcNow().AddSeconds(30)));
+        Assert.Null(viewModel.PairingPin);
+        await dispatcher.DrainAsync();
         Assert.Equal("123456", viewModel.PairingPin);
-        Assert.Equal("device-1", viewModel.RequestingId);
-        Assert.Equal("Phone", viewModel.RequestingDisplayName);
         Assert.Equal("Phone", viewModel.RequestingName);
         Assert.Equal(0.999, viewModel.Remaining);
+
+        prompt.OnNext(null);
+        await dispatcher.DrainAsync();
+        Assert.Null(viewModel.PairingPin);
     }
 
     [Fact]
-    public void PairingConfirmed_ClearsPromptThroughUiDispatcher()
+    public void NewPrompt_UsesItsOwnExpiry_AndDisposalStopsObservation()
     {
-        var coordinator = Substitute.For<IPairingServerCoordinator>();
-        var dispatcher = new RecordingUiThreadDispatcher();
-        var viewModel = new PairingServerViewModel(coordinator, dispatcher, new Microsoft.Extensions.Time.Testing.FakeTimeProvider())
-        {
-            PairingPin = "123456"
-        };
-        var device = new PairedDevice("device-1", "Phone", DateTime.UtcNow.AddDays(1));
+        var time = new FakeTimeProvider();
+        using var prompt = new Subject<PairingChallenge?>();
+        var coordinator = Substitute.For<IInboundSyncCoordinator>();
+        coordinator.PairingPrompt.Returns(prompt);
+        using var timers = new ManualUiTimerScheduler();
+        using var viewModel = new PairingServerViewModel(coordinator, new InlineUiThreadDispatcher(), time, timers);
+        prompt.OnNext(new("first", null, "123456", time.GetUtcNow().AddSeconds(30)));
+        time.Advance(TimeSpan.FromSeconds(20));
+        prompt.OnNext(new("second", null, "654321", time.GetUtcNow().AddSeconds(30)));
+        time.Advance(TimeSpan.FromSeconds(10));
+        timers.FireAll();
+        Assert.Equal("654321", viewModel.PairingPin);
+        Assert.Equal(2.0 / 3, viewModel.Remaining, 5);
 
-        coordinator.PairingConfirmed += Raise.EventWith(coordinator, new PairingEventArgs(device));
-
-        Assert.Equal(1, dispatcher.PostCount);
-        Assert.Null(viewModel.PairingPin);
+        viewModel.Dispose();
+        prompt.OnNext(null);
+        Assert.Equal("654321", viewModel.PairingPin);
     }
 }
