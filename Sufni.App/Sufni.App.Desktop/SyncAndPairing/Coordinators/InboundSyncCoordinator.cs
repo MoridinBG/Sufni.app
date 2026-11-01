@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Shared.Stores;
 using System.Linq;
@@ -17,7 +19,7 @@ using Sufni.App.Infrastructure;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>
-/// Desktop-only singleton owning the bike, setup, board, and segment branch of the
+/// Desktop-only singleton owning the bike, setup, board, custom-layer, and segment branch of the
 /// synchronization server's <c>SynchronizationDataArrived</c> event.
 /// Session generations/sources are owned by the session sync applier; paired
 /// devices by <see cref="PairedDeviceCoordinator"/>. Each entity
@@ -28,6 +30,8 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
     private static readonly ILogger logger = Log.ForContext<InboundSyncCoordinator>();
 
     private readonly IBoardStoreWriter boardStore;
+    private readonly ISynchronizableRepository<CustomTileLayer> customLayerRepository;
+    private readonly ICustomTileLayerStoreWriter customLayerStore;
     private readonly StorePublication publication;
     private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly ISynchronizableRepository<Setup> setupRepository;
@@ -51,9 +55,12 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
         IBackgroundTaskRunner backgroundTaskRunner,
         ISynchronizableRepository<Board> boardRepository,
         IBoardStoreWriter boardStore,
-        StorePublication publication)
+        StorePublication publication,
+        ISynchronizableRepository<CustomTileLayer> customLayerRepository, ICustomTileLayerStoreWriter customLayerStore)
     {
         this.bikeRepository = bikeRepository;
+        this.customLayerRepository = customLayerRepository;
+        this.customLayerStore = customLayerStore;
         this.boardStore = boardStore;
         this.publication = publication;
         this.boardRepository = boardRepository;
@@ -127,7 +134,13 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 var segments = e.Data.Segments.Count == 0 && !e.Data.Deletions.Any(row => row.EntityTable == "session_segment") ? null : await backgroundTaskRunner.RunAsync(async () =>
                     (await segmentRepository.GetLiveAsync()).Select(SessionSegmentSnapshot.From).ToArray());
 
+                var layerIds = e.Data.CustomTileLayers.Select(row => row.Id)
+                    .Concat(e.Data.Deletions.Where(row => row.EntityTable == "custom_tile_layer").Select(row => row.Id)).ToHashSet();
+                var layers = layerIds.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(async () =>
+                    (await customLayerRepository.GetAllAsync()).Where(row => layerIds.Contains(row.Id)).Select(CustomTileLayerSnapshot.From).ToArray());
                 using var batch = publication.BeginBatch();
+                await customLayerStore.PublishChangedAsync(layers);
+                await customLayerStore.PublishRemovedAsync(layerIds.Except(layers.Select(row => row.Id)).ToArray());
                 if (removedBikeIds.Count > 0)
                 {
                     await bikeStoreWriter.PublishBikesRemovedAsync(removedBikeIds);

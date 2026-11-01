@@ -14,6 +14,31 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 public class AppStartupTests
 {
     [Fact]
+    public async Task Startup_CommitsPreferenceCleanupAfterDatabaseMigration_BeforeActivatingPages()
+    {
+        var migrated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rewriting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rewritten = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var database = Substitute.For<IStartupDatabase>();
+        database.Initialization.Returns(migrated.Task);
+        var preferences = Substitute.For<IAppPreferences>();
+        preferences.InitializeAsync().Returns(_ => { rewriting.SetResult(); return rewritten.Task; });
+        using var startup = Create(database: database, preferences: preferences);
+        var activated = false;
+
+        var start = startup.StartAsync(() => activated = true);
+        await preferences.DidNotReceive().InitializeAsync();
+        migrated.SetResult();
+        await rewriting.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(activated);
+        rewritten.SetResult();
+        await start.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(activated);
+        await startup.StopAsync();
+    }
+
+    [Fact]
     public async Task Start_WaitsForDatabaseAndRefresh_BeforeCreatingPagesAndBecomingReady()
     {
         var migration = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -176,7 +201,7 @@ public class AppStartupTests
         IStartupDatabase? database = null,
         IAppDataRefresher? refresher = null,
         IPairingServerCoordinator? server = null,
-        IStartupJob[]? jobs = null)
+        IStartupJob[]? jobs = null, IAppPreferences? preferences = null)
     {
         if (database is null)
         {
@@ -186,7 +211,7 @@ public class AppStartupTests
 
         return new AppStartup(database, refresher ?? Substitute.For<IAppDataRefresher>(),
             Substitute.For<ITileLayerService>(), new InlineUiThreadDispatcher(), new InlineBackgroundTaskRunner(),
-            Substitute.For<IAppPaths>(), jobs ?? [], server);
+            Substitute.For<IAppPaths>(), preferences ?? Substitute.For<IAppPreferences>(), jobs ?? [], server);
     }
 
     private sealed class CancellableJob : IStartupJob

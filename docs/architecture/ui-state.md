@@ -22,6 +22,7 @@ implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 | `TrackStore`                 | `ITrackStore`                   | `ITrackStoreWriter`                 | `TrackSnapshot`                   | `Guid`   |
 | `SessionVideoStore`          | `ISessionVideoStore`            | `ISessionVideoStoreWriter`          | `SessionVideoSnapshot`            | `Guid`   |
 | `SessionSegmentStore`        | `ISessionSegmentStore`          | `ISessionSegmentStoreWriter`        | `SessionSegmentSnapshot`          | `Guid`   |
+| `CustomTileLayerStore` | `ICustomTileLayerStore` | `ICustomTileLayerStoreWriter` | `CustomTileLayerSnapshot` | `Guid` |
 | `BoardStore`                 | `IBoardStore`                  | `IBoardStoreWriter`                | `BoardSnapshot`                 | `Guid` |
 | `PairedDeviceStore`          | `IPairedDeviceStore`            | `IPairedDeviceStoreWriter`          | `PairedDeviceSnapshot`            | `string` |
 | `LiveDaqStore`               | `ILiveDaqStore`                 | `ILiveDaqStoreWriter`               | `LiveDaqSnapshot`                 | `string` |
@@ -63,7 +64,7 @@ Each persisted writer interface additionally exposes:
 
 - `ReplaceAllAsync(snapshots)` — replace cache contents with snapshots prepared
   by the requesting workflow. Stores do not load full refreshes. `AppDataRefresher`
-  loads all nine families through repositories and
+  loads all ten families through repositories and
   constructs their snapshots off-thread, then publishes them inside one shared
   UI-thread batch. Concurrent full-refresh requests share the active run; a
   cancellation or load failure leaves the previously published state intact.

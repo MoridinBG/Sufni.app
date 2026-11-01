@@ -9,6 +9,7 @@ internal sealed class InMemorySynchronizableRepository<[DynamicallyAccessedMembe
 {
     private readonly Dictionary<Guid, T> items = [];
     public Exception? WriteFailure { get; set; }
+    public Func<Task>? BeforeWrite { get; set; }
 
     public void Seed(T item) => items[item.Id] = item;
     public Task<List<T>> GetAllAsync() => Task.FromResult(items.Values.Where(item => item.Deleted is null).ToList());
@@ -17,13 +18,14 @@ internal sealed class InMemorySynchronizableRepository<[DynamicallyAccessedMembe
                        item.Deleted > sinceExclusive && item.Deleted <= upperInclusive).ToList());
     public Task<T?> GetAsync(Guid id) => Task.FromResult(items.GetValueOrDefault(id) is { Deleted: null } item ? item : null);
 
-    public Task<Guid> PutAsync(T item)
+    public async Task<Guid> PutAsync(T item)
     {
-        if (WriteFailure is { } failure) return Task.FromException<Guid>(failure);
+        if (BeforeWrite is { } beforeWrite) await beforeWrite();
+        if (WriteFailure is { } failure) throw failure;
         item.Updated = clock.GetUtcNow().ToUnixTimeSeconds();
         item.Deleted = null;
         items[item.Id] = item;
-        return Task.FromResult(item.Id);
+        return item.Id;
     }
 
     public Task DeleteAsync(T item) => DeleteAsync(item.Id);

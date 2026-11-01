@@ -33,8 +33,6 @@ internal sealed class SyncTestServerHarness
         RecordedSessionSourceRepository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
             .Returns(call => RecordedSessionSourceSnapshot.From(call.Arg<RecordedSessionSource>()));
         RecordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([]);
-        AppPreferences.GetSyncDataAsync(Arg.Any<long>(), Arg.Any<long>()).Returns((AppPreferencesSyncData?)null);
-        AppPreferences.ApplySyncDataAsync(Arg.Any<AppPreferencesSyncData?>()).Returns(Task.CompletedTask);
     }
 
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
@@ -48,7 +46,6 @@ internal sealed class SyncTestServerHarness
     public IRecordedSessionSourceStoreWriter SourceStore { get; } = Substitute.For<IRecordedSessionSourceStoreWriter>();
     public IRecordedSessionSourceSyncQuery RecordedSessionSourceSyncQuery { get; } = Substitute.For<IRecordedSessionSourceSyncQuery>();
     public IHttpApiService HttpApiService { get; } = Substitute.For<IHttpApiService>();
-    public IAppPreferences AppPreferences { get; } = Substitute.For<IAppPreferences>();
 
     public HttpApiService CreateHttpApiService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
@@ -62,7 +59,6 @@ internal sealed class SyncTestServerHarness
             SourceStore,
             RecordedSessionSourceSyncQuery,
             HttpApiService,
-            AppPreferences,
             Time,
             SessionSyncApplier);
 

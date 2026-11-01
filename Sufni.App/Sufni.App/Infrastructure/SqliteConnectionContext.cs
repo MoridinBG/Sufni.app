@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using System.Collections.Generic;
 using System;
 using System.IO;
@@ -12,14 +13,16 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
     private readonly string databasePath;
     private readonly TimeProvider timeProvider;
     private readonly IReadOnlyDictionary<Guid, int> legacyProcessingWindows;
+    private readonly IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
 
     internal SqliteConnectionContext(
         string databasePath, TimeProvider timeProvider, IBackgroundTaskRunner backgroundTaskRunner,
-        IReadOnlyDictionary<Guid, int> legacyProcessingWindows)
+        IReadOnlyDictionary<Guid, int> legacyProcessingWindows, IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers)
     {
         this.databasePath = databasePath;
         this.legacyProcessingWindows = legacyProcessingWindows;
+        this.legacyCustomLayers = legacyCustomLayers;
         this.timeProvider = timeProvider;
         this.backgroundTaskRunner = backgroundTaskRunner;
         Connection = new SQLiteAsyncConnection(databasePath);
@@ -31,7 +34,7 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
                 Directory.CreateDirectory(directory);
             }
 
-            await new DatabaseMigrationRunner(databasePath, Connection, timeProvider, legacyProcessingWindows).RunAsync();
+            await new DatabaseMigrationRunner(databasePath, Connection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
         });
     }
 
@@ -55,7 +58,7 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
         var freshConnection = new SQLiteAsyncConnection(databasePath);
         try
         {
-            await new DatabaseMigrationRunner(databasePath, freshConnection, timeProvider, legacyProcessingWindows).RunAsync();
+            await new DatabaseMigrationRunner(databasePath, freshConnection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
         }
         finally
         {

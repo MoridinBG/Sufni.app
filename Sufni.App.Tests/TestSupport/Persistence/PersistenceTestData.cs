@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using NSubstitute;
 using Sufni.App.SyncAndPairing.Services;
 using Microsoft.Extensions.Time.Testing;
@@ -55,8 +56,8 @@ internal static class PersistenceTestData
     }
 
     public static SqliteConnectionContext CreateConnectionContext(string databasePath, TimeProvider? timeProvider = null,
-        IReadOnlyDictionary<Guid, int>? legacyProcessingWindows = null) =>
-        new(databasePath, timeProvider ?? CreateTimeProvider(), new InlineBackgroundTaskRunner(), legacyProcessingWindows ?? new Dictionary<Guid, int>());
+        IReadOnlyDictionary<Guid, int>? legacyProcessingWindows = null, IReadOnlyList<CustomTileLayerSnapshot>? legacyCustomLayers = null) =>
+        new(databasePath, timeProvider ?? CreateTimeProvider(), new InlineBackgroundTaskRunner(), legacyProcessingWindows ?? new Dictionary<Guid, int>(), legacyCustomLayers ?? []);
 }
 
 internal sealed class TableColumnInfo

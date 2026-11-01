@@ -1,3 +1,6 @@
+using DynamicData;
+using Sufni.App.MapsAndTracks.Stores;
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Reactive.Linq;
@@ -9,8 +12,8 @@ using Sufni.App.MapsAndTracks.Models;
 
 namespace Sufni.App.MapsAndTracks.Services;
 
-/// <summary>Derives the available map layers and selection from persisted preferences.</summary>
-public sealed class TileLayerService(IAppPreferences preferences, IUiThreadDispatcher dispatcher)
+/// <summary>Derives the available map layers and selection from stored custom layers and device-local selection.</summary>
+public sealed class TileLayerService(IAppPreferences preferences, IUiThreadDispatcher dispatcher, ICustomTileLayerStore customLayers)
     : ITileLayerService, IDisposable
 {
     private static readonly Guid JawgDarkLayerId = new("0a3b9c1e-4d2f-4a91-bc7e-1b6e4a2c5f01");
@@ -26,17 +29,17 @@ public sealed class TileLayerService(IAppPreferences preferences, IUiThreadDispa
 
     private Task InitializeCoreAsync()
     {
-        subscription = preferences.Map.ObserveChanges()
-            .Select(change => Derive(change.Value))
+        subscription = customLayers.Connect().ToCollection().StartWith(customLayers.GetAll())
+            .CombineLatest(preferences.Map.ObserveChanges(), (layers, selected) => Derive(layers, selected))
             .ObserveOnUiThread(dispatcher)
             .Subscribe(state);
         return state.FirstAsync().ToTask();
     }
 
-    private TileLayerState Derive(MapPreferencesValue preferences)
+    private TileLayerState Derive(IReadOnlyCollection<CustomTileLayerSnapshot> custom, Guid? selectedId)
     {
-        var layers = builtInLayers.Concat(preferences.CustomLayers.Select(layer => layer.AsCustom())).ToArray();
-        var selected = layers.FirstOrDefault(layer => layer.Id == preferences.SelectedLayerId) ?? layers[0];
+        var layers = builtInLayers.Concat(custom.Select(layer => layer.ToConfig())).ToArray();
+        var selected = layers.FirstOrDefault(layer => layer.Id == selectedId) ?? layers[0];
         return new TileLayerState(Array.AsReadOnly(layers), selected);
     }
 

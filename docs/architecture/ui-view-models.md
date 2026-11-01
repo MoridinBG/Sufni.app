@@ -401,3 +401,13 @@ pages, sensor-configuration rows, and linkage parts use
 `ObservableObject` directly when they do not need the shared
 notification/error surface. `ViewLocator` still maps those known
 projection view models through its explicit view-factory table.
+
+## Device-local preferences
+
+Session analysis options, signal visibility/smoothing, signal layout, pane ratios,
+theme, layout profile and selected map layer belong to this installation. They do
+not travel during sync. `AppPreferences` serializes documents through the background
+runner and commits with an atomic file rename; observed session and map values
+publish on the UI dispatcher after persistence. Initial replay and subscription
+share the document gate so a concurrent write cannot be missed. Custom map-layer
+definitions are separate synced store facts.

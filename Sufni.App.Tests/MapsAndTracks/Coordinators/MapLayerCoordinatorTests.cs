@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -12,33 +13,36 @@ public class MapLayerCoordinatorTests
     [Fact]
     public async Task AddAndSelectAsync_AppendsToSavedLayers_AndSelectsOnlyAfterSave()
     {
-        using var map = new InMemoryMapPreferences();
+        using var fixture = new MapLayerFixture();
+        var map = fixture.Map;
         var existing = new TileLayerConfig { Name = "Existing" };
-        map.ApplySynced(new(existing.Id, [existing]));
+        await fixture.SeedAsync(existing);
+        map.Seed(existing.Id);
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        map.BeforeWrite = () => completion.Task;
-        await using var coordinator = CreateCoordinator(map);
+        fixture.Repository.BeforeWrite = () => completion.Task;
+        await using var coordinator = fixture.CreateCoordinator();
         var added = new TileLayerConfig { Name = "Added" };
 
         var adding = coordinator.AddAndSelectAsync(added);
         Assert.False(adding.IsCompleted);
-        Assert.Equal(existing.Id, map.Value.SelectedLayerId);
-        Assert.Single(map.Value.CustomLayers);
+        Assert.Equal(existing.Id, map.SelectedLayerId);
+        Assert.Single(fixture.Store.GetAll());
         completion.SetResult();
 
         Assert.IsType<MapLayerWriteResult.Saved>(await adding.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
-        Assert.Equal([existing.Id, added.Id], map.Value.CustomLayers.Select(layer => layer.Id));
-        Assert.True(map.Value.CustomLayers[1].IsCustom);
-        Assert.Equal(added.Id, map.Value.SelectedLayerId);
+        Assert.Equal([existing.Id, added.Id], fixture.Store.GetAll().Select(layer => layer.Id));
+        Assert.True(fixture.Store.GetAll()[1].ToConfig().IsCustom);
+        Assert.Equal(added.Id, map.SelectedLayerId);
     }
 
     [Fact]
     public async Task ConcurrentAdds_PreserveBothLayers()
     {
-        using var map = new InMemoryMapPreferences();
+        using var fixture = new MapLayerFixture();
+        var map = fixture.Map;
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        map.BeforeWrite = () => completion.Task;
-        await using var coordinator = CreateCoordinator(map);
+        fixture.Repository.BeforeWrite = () => completion.Task;
+        await using var coordinator = fixture.CreateCoordinator();
         var first = new TileLayerConfig { Name = "First" };
         var second = new TileLayerConfig { Name = "Second" };
 
@@ -48,7 +52,7 @@ public class MapLayerCoordinatorTests
         var results = await Task.WhenAll(firstAdd, secondAdd).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.All(results, result => Assert.IsType<MapLayerWriteResult.Saved>(result));
-        Assert.Equal([first.Id, second.Id], map.Value.CustomLayers.Select(layer => layer.Id));
+        Assert.Equal([first.Id, second.Id], fixture.Store.GetAll().Select(layer => layer.Id));
     }
 
     [Theory]
@@ -56,11 +60,14 @@ public class MapLayerCoordinatorTests
     [InlineData(false)]
     public async Task FailedWrite_LeavesSavedPreferencesUnchanged(bool adding)
     {
-        using var map = new InMemoryMapPreferences();
+        using var fixture = new MapLayerFixture();
+        var map = fixture.Map;
         var original = new TileLayerConfig { Name = "Original" };
-        map.ApplySynced(new(original.Id, [original]));
-        map.WriteFailure = new IOException("disk full");
-        await using var coordinator = CreateCoordinator(map);
+        await fixture.SeedAsync(original);
+        map.Seed(original.Id);
+        if (adding) fixture.Repository.WriteFailure = new IOException("disk full");
+        else map.WriteFailure = new IOException("disk full");
+        await using var coordinator = fixture.CreateCoordinator();
         var other = new TileLayerConfig { Name = "Other" };
 
         var result = adding
@@ -69,38 +76,40 @@ public class MapLayerCoordinatorTests
 
         Assert.Equal(adding ? MapLayerFailureReason.Add : MapLayerFailureReason.Select,
             Assert.IsType<MapLayerWriteResult.Failed>(result).Reason);
-        Assert.Equal(original.Id, map.Value.SelectedLayerId);
-        Assert.Equal(original.Id, Assert.Single(map.Value.CustomLayers).Id);
+        Assert.Equal(original.Id, map.SelectedLayerId);
+        Assert.Equal(original.Id, Assert.Single(fixture.Store.GetAll()).Id);
     }
 
     [Fact]
     public async Task AddAndSelectAsync_ReportsSelectionFailure_WithoutLosingSavedLayer()
     {
-        using var map = new InMemoryMapPreferences();
+        using var fixture = new MapLayerFixture();
+        var map = fixture.Map;
         var originalId = Guid.NewGuid();
-        map.ApplySynced(new(originalId, []));
+        map.Seed(originalId);
         map.BeforeWrite = () =>
         {
-            if (map.Value.CustomLayers.Count > 0) throw new IOException("selection write failed");
+            if (fixture.Store.GetAll().Count > 0) throw new IOException("selection write failed");
             return Task.CompletedTask;
         };
-        await using var coordinator = CreateCoordinator(map);
+        await using var coordinator = fixture.CreateCoordinator();
         var added = new TileLayerConfig { Name = "Added" };
 
         var result = await coordinator.AddAndSelectAsync(added);
 
         Assert.Equal(MapLayerFailureReason.Select, Assert.IsType<MapLayerWriteResult.Failed>(result).Reason);
-        Assert.Equal(added.Id, Assert.Single(map.Value.CustomLayers).Id);
-        Assert.Equal(originalId, map.Value.SelectedLayerId);
+        Assert.Equal(added.Id, Assert.Single(fixture.Store.GetAll()).Id);
+        Assert.Equal(originalId, map.SelectedLayerId);
     }
 
     [Fact]
     public async Task DisposeAsync_WaitsForAcceptedWriteToFinish()
     {
-        using var map = new InMemoryMapPreferences();
+        using var fixture = new MapLayerFixture();
+        var map = fixture.Map;
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        map.BeforeWrite = () => completion.Task;
-        var coordinator = CreateCoordinator(map);
+        fixture.Repository.BeforeWrite = () => completion.Task;
+        var coordinator = fixture.CreateCoordinator();
         var added = new TileLayerConfig { Name = "Added" };
         var adding = coordinator.AddAndSelectAsync(added);
 
@@ -110,13 +119,7 @@ public class MapLayerCoordinatorTests
 
         Assert.IsType<MapLayerWriteResult.Saved>(await adding.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
         await disposing.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(added.Id, map.Value.SelectedLayerId);
+        Assert.Equal(added.Id, map.SelectedLayerId);
     }
 
-    private static MapLayerCoordinator CreateCoordinator(InMemoryMapPreferences map)
-    {
-        var preferences = Substitute.For<IAppPreferences>();
-        preferences.Map.Returns(map);
-        return new MapLayerCoordinator(preferences, new InlineBackgroundTaskRunner());
-    }
 }

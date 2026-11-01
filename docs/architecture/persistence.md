@@ -168,6 +168,21 @@ erDiagram
         int added
     }
 
+    custom_tile_layer {
+        text id PK
+        text name
+        text url_template
+        text attribution_text
+        text attribution_url
+        int max_zoom
+        int version
+        int updated
+        text updated_by
+        int deleted
+        int local_seq
+        int sync_seq
+    }
+
     sync_deletion {
         text entity_table PK
         text id PK
@@ -218,7 +233,12 @@ consumers are not reinitialized; the replacement requires a new launch.
 The `sync-authority` migration seeds `version = 1` and an empty unknown-writer
 `updated_by` while preserving authored `updated`, allocates initial `local_seq`
 and `sync_seq` values, and retains current tombstones in `sync_deletion` before
-payload cleanup. `sync_sequence` holds the two transactionally allocated counters.
+payload cleanup. `sync_sequence` holds the two transactionally allocated counters. The same migration
+copies legacy custom map layers into `custom_tile_layer` before assigning their
+initial metadata. Startup rewrites the preference document after migration, keeping
+the selected layer and other device-local values while removing custom definitions
+and the old sync clock. The migration marker prevents stale preferences from
+overwriting later layer edits.
 Every local authored write advances its row version above both the payload and
 ledger version, stamps the shared installation identity and advances sequences.
 Derived generation writes advance sequences while preserving version, timestamp
@@ -379,7 +399,7 @@ that held the schema versions of the old tables.
 
 `AppJson` (`Sufni.App/Sufni.App/Infrastructure/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` and exposes two profiles:
 
-- **Lenient** (`AppJson.Options` / `AppJson.Context`) — all local round-trips (entity, track, and preferences JSON columns; the processing dependency hash) and the entire sync client. Case-insensitive binding with a snake_case enum converter. Its output is deliberately **byte-stable**: `ProcessingDependencyHash` SHA-256s the `AppJson.Options`-serialized payload, so any change to the lenient options would silently invalidate every stored processing fingerprint. Treat the lenient profile as a wire/hash contract, not a tunable.
+- **Lenient** (`AppJson.Options` / `AppJson.Context`) — all local round-trips (entity and track JSON columns; the processing dependency hash) and the entire sync client. Case-insensitive binding with a snake_case enum converter. Its output is deliberately **byte-stable**: `ProcessingDependencyHash` SHA-256s the `AppJson.Options`-serialized payload, so any change to the lenient options would silently invalidate every stored processing fingerprint. Treat the lenient profile as a wire/hash contract, not a tunable.
 - **Hardened** (`AppJson.InboundOptions` / `AppJson.InboundContext`) — network-inbound deserialization on the desktop sync server only (the two `PATCH` session/source-data endpoints). Built from the .NET 10 `Strict` preset — reject duplicate keys and unmapped members, case-sensitive binding, required non-nullable members and constructor parameters — plus the same snake_case enum converter. Because the client always emits every snake_case key explicitly (including explicit nulls for optional members), well-formed first-party traffic is unaffected while malformed or truncated bodies are rejected at the trust boundary. See [Cross-Device Sync § Server](sync.md#server).
 
 Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values, `LinkageSpec`, `LeverageRatioSpec`, and `WheelSpec`. Sync rows and schema-versioned bike export files require `rear_suspension`; missing unions, malformed unions, and the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` JSON triple are invalid outside the local SQLite startup migration. The pre-refactor mutable linkage classes are not serialization roots.

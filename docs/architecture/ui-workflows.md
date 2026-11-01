@@ -31,7 +31,7 @@ and are registered as singletons.
 | `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, mirrors HTTP `PairedState` as `IsPaired`, mDNS browse lifecycle, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                     |
 | `IPairingServerCoordinator` (`PairingServerCoordinator`)                  | desktop only | Re-exposes `ISynchronizationServerService` pairing events as plain .NET events for `PairingServerViewModel`, plus `StartServerAsync()` launch entry point called only by `AppStartup`                                                                                                                                                                                                                                                                                                                  |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`)                      | desktop only | Marker interface; constructor subscribes to `SynchronizationDataArrived` and loads authoritative bike/setup/board snapshots after the server merge and publishes them through writer publish-only paths in one batch, and loads authoritative segment snapshots off-thread before replacing that store in the same batch when segments arrive. Sessions and paired devices have their own coordinators, so each entity family has exactly one inbound writer                                                                                                                                                  |
-| `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Persists custom-layer additions and selection off-thread; typed outcomes distinguish add/selection failure. `TileLayerService` derives its catalog and selection from committed preferences. |
+| `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Persists custom-layer additions and selection off-thread; typed outcomes distinguish add/selection failure. `TileLayerService` derives its catalog from custom-layer store facts and selection from device-local preferences. |
 | `TrackCoordinator` | shared | Owns key-driven GPS metric recomputation, conditional persistence and cancellation/drainage. GPX import publishes track metadata; read-only session-track loading selects the greatest overlapping track from `TrackStore`, reads exact full-track points and derives the session window through `ISessionTrackReader`. GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync` and uses the same selection rule. |
 | `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation. The shell routes diagnostics and live-session editor keys; `EditorFactory` creates their shared-stream and capture dependencies only for a new tab. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md) |
 
@@ -188,10 +188,11 @@ and shared registrations into a new collection; `App` builds the provider with
 
 `AppPreferences.ReadLaunchValues` reads the preferences document once. The launch
 snapshot supplies the first-frame theme and layout profile, and seeds runtime
-`AppPreferences` without another read. Each head chooses the default layout and
+`AppPreferences` without another read. It also captures legacy custom layers for the
+SQLite migration; startup then rewrites the normalized device-local document
+before activating pages. Each head chooses the default layout and
 app-data directory. Paths reach persistence, logging and certificate storage
-through the root. `TimeProvider.System` is registered once; preferences use the
-injected clock, as do live cadence, pairing/sync, persistence timestamps, video,
+through the root. `TimeProvider.System` is registered once for live cadence, pairing/sync, persistence timestamps, video,
 Strava and notification/undo expiry. `IUiTimerScheduler` supplies UI cadence: view
 models receive it through constructors, while main/dialog roots provide the
 inherited `UiTimers.Scheduler` property for XAML-created controls.
@@ -228,7 +229,7 @@ Shared registrations in `AppComposition`:
 - **Data refresh**: `AppDataRefresher` is registered behind
   `IAppDataRefresher`. It refreshes
   bikes, setups, sessions, recorded-session sources, paired devices, session
-  videos, and session segments off-thread. It prepares every snapshot before
+  videos, session segments, tracks, boards and custom tile layers off-thread. It prepares every snapshot before
   publishing one UI-thread batch. Concurrent requests share the active refresh;
   failure or cancellation before publication preserves all existing stores.
 - **Stores**: each concrete store registered as a singleton, then

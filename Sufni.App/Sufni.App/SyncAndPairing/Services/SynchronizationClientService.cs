@@ -26,7 +26,6 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
-    private readonly IAppPreferences appPreferences;
     private readonly TimeProvider timeProvider;
 
     public SynchronizationClientService(
@@ -36,7 +35,6 @@ public class SynchronizationClientService : ISynchronizationClientService
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
-        IAppPreferences appPreferences,
         TimeProvider timeProvider,
         ISessionSyncApplier sessionSyncApplier)
     {
@@ -47,7 +45,6 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.sourceStore = sourceStore;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
-        this.appPreferences = appPreferences;
         this.timeProvider = timeProvider;
     }
 
@@ -58,20 +55,16 @@ public class SynchronizationClientService : ISynchronizationClientService
             sinceExclusive,
             upperInclusive);
         changes.UpperBound = upperInclusive;
-        changes.AppPreferences = await appPreferences.GetSyncDataAsync(
-            sinceExclusive,
-            upperInclusive);
 
         logger.Verbose(
-            "Pushing local changes in ({SinceExclusive}, {UpperInclusive}] with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+            "Pushing local changes in ({SinceExclusive}, {UpperInclusive}] with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
             sinceExclusive,
             upperInclusive,
             changes.Boards.Count,
             changes.Bikes.Count,
             changes.Setups.Count,
             changes.Sessions.Count,
-            changes.Tracks.Count,
-            changes.AppPreferences is not null);
+            changes.Tracks.Count);
 
         await httpApiService.PushSyncAsync(changes, cancellationToken: cancellationToken);
         await syncDataStore.UpdateLastPushTimeAsync(SyncStateKey, upperInclusive);
@@ -104,9 +97,8 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         var syncData = await httpApiService.PullSyncAsync(sinceExclusive, cancellationToken: cancellationToken);
         var swaps = await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
-        await appPreferences.ApplySyncDataAsync(syncData.AppPreferences);
         logger.Verbose(
-            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted, and app preferences present {HasAppPreferences}",
+            "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted",
             syncData.Boards.Count(board => board.Deleted.HasValue),
             syncData.Boards.Count(board => !board.Deleted.HasValue),
             syncData.Bikes.Count(bike => bike.Deleted.HasValue),
@@ -116,8 +108,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.Tracks.Count(track => track.Deleted.HasValue),
             syncData.Tracks.Count(track => !track.Deleted.HasValue),
             syncData.Sessions.Count(session => session.Deleted.HasValue),
-            syncData.Sessions.Count(session => !session.Deleted.HasValue),
-            syncData.AppPreferences is not null);
+            syncData.Sessions.Count(session => !session.Deleted.HasValue));
 
         return (swaps, syncData.UpperBound);
     }

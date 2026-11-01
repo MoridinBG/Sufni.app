@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,7 +51,9 @@ internal sealed class AppDataRefresher(
     StorePublication publication,
     ITrackStoreWriter trackStore,
     ITrackRepository trackRepository,
-    IBoardStoreWriter boardStore) : IAppDataRefresher
+    IBoardStoreWriter boardStore,
+    ISynchronizableRepository<CustomTileLayer> customLayerRepository,
+    ICustomTileLayerStoreWriter customLayerStore) : IAppDataRefresher
 {
     private readonly Lock refreshGate = new();
     private Task? activeRefresh;
@@ -75,6 +78,7 @@ internal sealed class AppDataRefresher(
             var bikes = await bikeRepository.GetAllAsync();
             var setups = await setupRepository.GetAllAsync();
             var boards = await boardRepository.GetAllAsync();
+            var layers = await customLayerRepository.GetAllAsync();
             var sessions = await sessionRepository.GetSessionsAsync();
             var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
             var devices = await pairedDeviceRepository.GetPairedDevicesAsync();
@@ -90,7 +94,7 @@ internal sealed class AppDataRefresher(
                 devices.Select(PairedDeviceSnapshot.From).ToArray(),
                 clips.Select(SessionVideoSnapshot.From).ToArray(),
                 segments.Select(SessionSegmentSnapshot.From).ToArray(),
-                tracks, boards.Select(BoardSnapshot.From).ToArray());
+                tracks, boards.Select(BoardSnapshot.From).ToArray(), layers.Select(CustomTileLayerSnapshot.From).ToArray());
         }, cancellationToken);
 
         await dispatcher.InvokeAsync(async () =>
@@ -107,6 +111,7 @@ internal sealed class AppDataRefresher(
             await sessionSegmentStore.ReplaceAllAsync(snapshot.Segments);
             await trackStore.ReplaceAllAsync(snapshot.Tracks);
             await boardStore.ReplaceAllAsync(snapshot.Boards);
+            await customLayerStore.ReplaceAllAsync(snapshot.CustomLayers);
         });
     }
 
@@ -119,5 +124,6 @@ internal sealed class AppDataRefresher(
         IReadOnlyList<SessionVideoSnapshot> Videos,
         IReadOnlyList<SessionSegmentSnapshot> Segments,
         IReadOnlyList<TrackSnapshot> Tracks,
-        IReadOnlyList<BoardSnapshot> Boards);
+        IReadOnlyList<BoardSnapshot> Boards,
+        IReadOnlyList<CustomTileLayerSnapshot> CustomLayers);
 }

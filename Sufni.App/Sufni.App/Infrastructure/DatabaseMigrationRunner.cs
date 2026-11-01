@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.SyncAndPairing.Services;
 using System;
 using System.Collections.Generic;
@@ -23,10 +24,11 @@ internal sealed class DatabaseMigrationRunner(
     string databasePath,
     SQLiteAsyncConnection connection,
     TimeProvider timeProvider,
-    IReadOnlyDictionary<Guid, int> legacyProcessingWindows)
+    IReadOnlyDictionary<Guid, int> legacyProcessingWindows,
+    IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers)
 {
     private static readonly ILogger logger = Log.ForContext<DatabaseMigrationRunner>();
-    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment"];
+    private static readonly string[] SyncIndexedTables = ["board", "bike", "setup", "session", "track", "session_segment", "custom_tile_layer"];
     private readonly CoreMigrationStore coreMigrations = new(connection);
 
     internal async Task RunAsync()
@@ -182,7 +184,8 @@ internal sealed class DatabaseMigrationRunner(
             typeof(RecordedSessionSource),
             typeof(Synchronization),
             typeof(PairedDevice),
-            typeof(Track)
+            typeof(Track),
+            typeof(CustomTileLayer)
         ]);
         // Existing attachment columns migrate with their anchors in the versioned transaction.
         if ((await connection.GetTableInfoAsync("session_video")).Count == 0)
@@ -208,6 +211,11 @@ internal sealed class DatabaseMigrationRunner(
                 local_seq INTEGER NOT NULL, sync_seq INTEGER NOT NULL,
                 PRIMARY KEY (entity_table, id))
             """);
+        foreach (var snapshot in legacyCustomLayers)
+        {
+            transaction.Execute("INSERT OR IGNORE INTO custom_tile_layer (id, name, url_template, attribution_text, attribution_url, max_zoom, updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                snapshot.Id, snapshot.Name, snapshot.UrlTemplate, snapshot.AttributionText, snapshot.AttributionUrl, snapshot.MaxZoom, snapshot.Updated);
+        }
         foreach (var table in SyncIndexedTables)
         {
             var names = transaction.GetTableInfo(table).Select(column => column.Name).ToHashSet();
@@ -665,6 +673,7 @@ internal sealed class DatabaseMigrationRunner(
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);
         var deletedSetups = await connection.Table<Setup>().DeleteAsync(setup => setup.Deleted != null && setup.Deleted < oneDayAgo);
         var deletedBikes = await connection.Table<Bike>().DeleteAsync(bike => bike.Deleted != null && bike.Deleted < oneDayAgo);
+        await connection.Table<CustomTileLayer>().DeleteAsync(layer => layer.Deleted != null && layer.Deleted < oneDayAgo);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var deletedPairedDevices = await connection.Table<PairedDevice>().DeleteAsync(device => device.Expires < now);
 

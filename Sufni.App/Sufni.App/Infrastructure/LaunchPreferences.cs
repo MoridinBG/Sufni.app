@@ -1,3 +1,6 @@
+using System.Linq;
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using System;
 using System.Collections.Generic;
 using System.Collections.Frozen;
@@ -18,6 +21,12 @@ public sealed class LaunchPreferences
 
     internal LaunchPreferences(AppPreferences.AppPreferencesDocument document, UiLayoutProfile defaultLayoutProfile)
     {
+        LegacyCustomLayers = (document.Maps?.CustomLayers ?? []).Where(config => config is not null).Select(config =>
+        {
+            var row = CustomTileLayer.From(config);
+            row.Updated = document.LegacyUpdated ?? 0;
+            return CustomTileLayerSnapshot.From(row);
+        }).ToArray();
         var windows = new Dictionary<Guid, int>();
         foreach (var (id, preferences) in document.Session?.Sessions ?? [])
         {
@@ -25,13 +34,14 @@ public sealed class LaunchPreferences
                 windows[sessionId] = new TelemetryProcessingOptions(window).ClampedVelocityFilterWindowMilliseconds;
         }
         LegacyProcessingWindows = windows.ToFrozenDictionary();
-        Document = document.Normalize(AppPreferenceSerialization.CurrentVersion);
+        Document = document.Normalize(AppPreferences.CurrentVersion);
         this.defaultLayoutProfile = defaultLayoutProfile;
     }
 
     // Runtime writes replace this document, preserving the launch snapshot.
     internal AppPreferences.AppPreferencesDocument Document { get; }
     internal IReadOnlyDictionary<Guid, int> LegacyProcessingWindows { get; }
+    internal IReadOnlyList<CustomTileLayerSnapshot> LegacyCustomLayers { get; }
     public SufniThemeMode ThemeMode => Document.Theme.GetMode();
     public UiLayoutProfile LayoutProfile => Document.Ui.GetLayoutProfile() ?? defaultLayoutProfile;
 }

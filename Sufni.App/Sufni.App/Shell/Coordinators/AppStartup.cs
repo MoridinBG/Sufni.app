@@ -21,6 +21,7 @@ internal sealed class AppStartup(
     IUiThreadDispatcher dispatcher,
     IBackgroundTaskRunner backgroundTaskRunner,
     IAppPaths paths,
+    IAppPreferences preferences,
     IEnumerable<IStartupJob> jobs,
     IPairingServerCoordinator? server = null) : IAppStartup, IDisposable
 {
@@ -43,6 +44,9 @@ internal sealed class AppStartup(
         try
         {
             await database.Initialization.WaitAsync(cancellation.Token);
+            reason = StartupFailureReason.Startup;
+            await preferences.InitializeAsync();
+            reason = StartupFailureReason.Database;
             await refresher.RefreshAsync(cancellation.Token);
             reason = StartupFailureReason.Startup;
             await dispatcher.InvokeAsync(tileLayers.InitializeAsync);

@@ -124,15 +124,15 @@ uses that clock for certificate validity and the 30-second token-refresh margin.
 
 `SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Protocol v3 persists `last_push_time` and `last_pull_time` independently, so a successful push cannot skip a failed or incomplete pull, and vice versa. Each direction replays the previous whole-second timestamp bucket (`sinceExclusive = cursor - 1` for a positive cursor) and de-duplicates through normal merge semantics; this closes the gap created when multiple writes share the same second as the prior upper bound.
 
-1. **Push local changes** — sample one `upperInclusive`, collect core entities and app preferences in `(lastPushTime - 1, upperInclusive]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_time` after success
-2. **Pull remote changes** — GET `/sync/pull?since=` from the pull watermark, receive the server-sampled `upper_bound`, merge core rows in one SQLite transaction, then apply app preferences. Advance only `last_pull_time`, and only after processed-BLOB swap handling leaves the pull complete
+1. **Push local changes** — sample one `upperInclusive`, collect entity rows and deletion ledger entries in `(lastPushTime - 1, upperInclusive]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_time` after success
+2. **Pull remote changes** — GET `/sync/pull?since=` from the pull watermark, receive the server-sampled `upper_bound`, merge rows and deletion ledger entries in one SQLite transaction. Advance only `last_pull_time`, and only after processed-BLOB swap handling leaves the pull complete
 3. **Push incomplete sessions** — for each session id the server advertises (a missing-blob *fill* or a held-blob *push-swap*), upload the local blob **and its stored fingerprint**; the server commits a fill or a push-swap when the fingerprint matches its target, ignores a non-matching push-swap upload, and rejects (400) a non-matching fill
 4. **Pull incomplete sessions** — download blobs for two kinds of target and commit each only when the downloaded fingerprint matches the target (otherwise keep what is local and retry later): **fills** (local rows with no blob, target = the row's own stored fingerprint) and **swaps** (rows whose held blob has a different current-schema fingerprint than the one just pulled, target = the accepted remote fingerprint — see *Processed-BLOB coherence* below)
 5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourcePayload`
 6. **Pull incomplete recorded sources** — for each local source id produced by `IRecordedSessionSourceSyncQuery`, download the server's `RecordedSessionSourcePayload`
 
-The metadata snapshot's one `upper_bound` applies to every core table and app
-preferences. Core delta queries include updates and
+The metadata snapshot's one `upper_bound` applies to every synced table, including
+custom map layers, and the deletion ledger. Core delta queries include updates and
 tombstones only in `(sinceExclusive, upperInclusive]`. Tracks are independent
 captured facts with the same delta bounds; a changed session does not resend
 unchanged tracks.
@@ -203,7 +203,8 @@ SynchronizationData
 ├── Sessions[] (metadata, tuning fields, duration, processing fingerprint; no blob)
 ├── Tracks[]
 ├── Segments[] (saved segments, JSON `segment`)
-└── AppPreferences? (map/session preferences as AppPreferencesSyncData)
+├── CustomTileLayers[]
+└── Deletions[] (durable ledger entries)
 ```
 
 Every bike sync row must carry the `rear_suspension` union. Payloads that omit

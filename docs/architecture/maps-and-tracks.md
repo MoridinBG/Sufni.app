@@ -158,16 +158,18 @@ Metadata draft saves and processed-generation swaps preserve it.
 ## Tile Layer Service
 
 `ITileLayerService` and `TileLayerService` derive one `TileLayerState` from the
-built-in providers and the current `IMapPreferences` snapshot. `Observe()` replays
-the catalog and selection together; local writes and synced preference updates
-use the same derivation. A missing selected id falls back to the first built-in
+built-in providers, `CustomTileLayerStore`, and device-local selected layer ID.
+`Observe()` replays the catalog and selection together. Store arrivals update
+available layers without changing the device selection. A missing selected id falls back to the first built-in
 layer. Publication runs through the required UI dispatcher. The singleton owns
-and disposes its preference subscription; `AppStartup` still awaits its initial
+and disposes its input subscription; `AppStartup` still awaits its initial
 snapshot through `InitializeAsync()`.
 
 `IMapLayerCoordinator` / `MapLayerCoordinator` own `AddAndSelectAsync` and
-`SelectAsync`. They persist preferences through the background runner and
-serialize local writes so concurrent additions preserve both layers. Provider
+`SelectAsync`. They persist custom layers through `ISynchronizableRepository<CustomTileLayer>`,
+publish committed snapshots, and persist the device selection through preferences.
+Writes run through the background runner and are serialized so concurrent additions
+preserve both layers. Provider
 disposal waits for accepted writes to finish. Adding a
 layer saves the catalog before selecting it. Failed catalog writes leave the
 visible state unchanged; failed selection retains the saved layer and previous
@@ -213,17 +215,21 @@ comparison of the segment comparison state (see
 
 ## Map Preferences
 
-`IMapPreferences` (`Sufni.App/Sufni.App/Infrastructure/IAppPreferences.cs`) is a facet of `IAppPreferences`. The concrete implementation in `AppPreferences` (`Sufni.App/Sufni.App/Infrastructure/AppPreferences.cs`) writes a single JSON document — `app-preferences.json` next to the SQLite database — under a `Maps` key. Reads and writes are serialized through a `SemaphoreSlim`, and writes go through a temp-file rename so a crashed write does not corrupt the document.
+`IMapPreferences` (`Sufni.App/Sufni.App/Infrastructure/IAppPreferences.cs`) is a facet of `IAppPreferences`. The concrete implementation in `AppPreferences` (`Sufni.App/Sufni.App/Infrastructure/AppPreferences.cs`) writes a single JSON document — `app-preferences.json` next to the SQLite database — under a `maps` key. Reads and writes are serialized through a `SemaphoreSlim`, and writes go through a temp-file rename so a crashed write does not corrupt the document.
 
 The facet exposes the map coordinator’s writes and tile service’s observation:
 
 - `GetSelectedLayerIdAsync` / `SetSelectedLayerIdAsync` — the `Guid` of the last-selected `TileLayerConfig`.
-- `GetCustomLayersAsync` / `SetCustomLayersAsync` — the user's custom tile-layer list (URL templates, attribution, max zoom).
-- `ObserveChanges()` — the current map snapshot and subsequent committed local/synced changes.
+- `ObserveChanges()` — replayed selected ID and subsequent committed local changes, published on the UI dispatcher.
 
 Map owners obtain the map facet from the shared `IAppPreferences` instance. `ISessionPreferences` is the sibling facet that carries per-session plot and analysis preferences; the two never share state and have no overlap.
 
-Map preferences also participate in app-preference sync. `IAppPreferences.GetSyncDataAsync` packages the map facet as `AppPreferencesSyncData.Maps`, and `TileLayerService` subscribes to the typed `IMapPreferences.ObserveChanges()` stream so committed local and remote sync-applied map-preference changes refresh the built-in/custom layer catalog and selected layer in open map views.
+Custom definitions live in the synced `custom_tile_layer` table with ordinary
+version/writer/sequence metadata and a deletion ledger. `IsCustom` is derived
+when composing the catalog. The `sync-authority` migration copies the launch
+snapshot's legacy custom layers once; startup rewrites the preference document
+only after that database migration commits. Selection, theme, analysis, plot and
+layout settings stay device-local and have no sync payload or clock.
 
 ## Where Maps Are Displayed
 

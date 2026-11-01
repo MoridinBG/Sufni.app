@@ -1,5 +1,4 @@
 using System;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Platform;
@@ -7,12 +6,11 @@ using Avalonia.Styling;
 
 namespace Sufni.App.Infrastructure.Theming;
 
-// Runtime theme coordinator for preferences, sync updates, and Avalonia state.
-public sealed class ThemeService : IThemeService, IDisposable
+// Runtime theme coordinator for local preferences and Avalonia state.
+public sealed class ThemeService : IThemeService
 {
     private readonly IThemePreferences themePreferences;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly IDisposable? themePreferenceSubscription;
 
     public ThemeService(IAppPreferences appPreferences, IUiThreadDispatcher uiThreadDispatcher)
     {
@@ -21,14 +19,6 @@ public sealed class ThemeService : IThemeService, IDisposable
         IsSystemThemeAvailable = ResolveSystemThemeAvailable();
         Mode = NormalizeMode(ResolveModeFromApplication(IsSystemThemeAvailable));
 
-        // Inbound sync writes the new mode to the document but does not invoke
-        // SetAsync, so without this we'd persist the new value yet keep
-        // rendering the previous variant until the next restart. Local writes
-        // are already applied before persisting.
-        themePreferenceSubscription = themePreferences.ObserveModeChanges()
-            .Skip(1)
-            .Where(change => change.Origin == PreferenceChangeOrigin.SyncApply)
-            .Subscribe(change => OnSyncedModeChanged(change.Value));
     }
 
     public SufniThemeMode Mode { get; private set; }
@@ -51,29 +41,6 @@ public sealed class ThemeService : IThemeService, IDisposable
         RefreshSystemThemeAvailability();
 
         var persisted = NormalizeMode(await themePreferences.GetModeAsync());
-        if (persisted == Mode && IsRequestedVariantApplied(persisted))
-        {
-            return;
-        }
-
-        await ApplyOnUiThreadAsync(persisted);
-    }
-
-    public void Dispose()
-    {
-        themePreferenceSubscription?.Dispose();
-    }
-
-    private void OnSyncedModeChanged(SufniThemeMode mode)
-    {
-        _ = ApplyObservedModeAsync(mode);
-    }
-
-    private async Task ApplyObservedModeAsync(SufniThemeMode mode)
-    {
-        RefreshSystemThemeAvailability();
-
-        var persisted = NormalizeMode(mode);
         if (persisted == Mode && IsRequestedVariantApplied(persisted))
         {
             return;

@@ -115,48 +115,7 @@ public class SynchronizationDataJsonTests
         }
     }
 
-    [Fact]
-    public void SynchronizationData_RoundTripsAppPreferencesSnapshot()
-    {
-        var selectedLayerId = Guid.NewGuid();
-        var sessionId = Guid.NewGuid();
-        var data = new SynchronizationData
-        {
-            AppPreferences = new AppPreferencesSyncData
-            {
-                Updated = 42,
-                Maps = new MapPreferencesSyncData
-                {
-                    SelectedLayerId = selectedLayerId,
-                },
-                Session = new SessionPreferencesSyncData
-                {
-                    Sessions =
-                    {
-                        [sessionId] = SessionPreferences.Default with
-                        {
-                            SignalDisplay = SessionPreferences.Default.SignalDisplay with
-                            {
-                                TravelSmoothing = PlotSmoothingLevel.Strong,
-                            },
-                            SignalLayout = new SignalLayoutPreferences(
-                            [
-                                new SignalLayoutRowPreferences(SignalRowIds.Imu, isExpanded: false),
-                            ]),
-                        },
-                    },
-                },
-            },
-        };
 
-        var roundTripped = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(data));
-
-        Assert.NotNull(roundTripped?.AppPreferences);
-        Assert.Equal(42, roundTripped!.AppPreferences!.Updated);
-        Assert.Equal(selectedLayerId, roundTripped.AppPreferences.Maps.SelectedLayerId);
-        Assert.Equal(PlotSmoothingLevel.Strong, roundTripped.AppPreferences.Session.Sessions[sessionId].SignalDisplay.TravelSmoothing);
-        Assert.False(roundTripped.AppPreferences.Session.Sessions[sessionId].SignalLayout.Rows[0].IsExpanded);
-    }
 
     [Fact]
     public void InboundContext_RejectsSynchronizationDataBikeWithMalformedRearSuspension()

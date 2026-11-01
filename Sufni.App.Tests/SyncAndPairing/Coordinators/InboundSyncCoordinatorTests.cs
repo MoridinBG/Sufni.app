@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -28,6 +30,8 @@ public class InboundSyncCoordinatorTests : IDisposable
     private readonly InMemorySynchronizableRepository<Board> boards;
     private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
     private readonly BoardStore boardStore;
+    private readonly InMemorySynchronizableRepository<CustomTileLayer> customLayers;
+    private readonly CustomTileLayerStore customLayerStore;
     private readonly BikeStore bikeStore;
     private readonly SetupStore setupStore;
     private readonly SessionSegmentStore segmentStore;
@@ -40,17 +44,20 @@ public class InboundSyncCoordinatorTests : IDisposable
         bikes = new(clock);
         setups = new(clock);
         boards = new(clock);
+        customLayers = new(clock);
+        customLayerStore = new(publication);
         boardStore = new(publication);
         bikeStore = new(publication);
         setupStore = new(publication);
         segmentStore = new(publication);
         _ = new InboundSyncCoordinator(bikes, setups, bikeStore, setupStore, segmentStore, server,
-            new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner(), boards, boardStore, publication);
+            new InlineUiThreadDispatcher(), segmentRepository, new InlineBackgroundTaskRunner(), boards, boardStore, publication, customLayers, customLayerStore);
     }
 
     public void Dispose()
     {
         boardStore.Dispose();
+        customLayerStore.Dispose();
         bikeStore.Dispose();
         setupStore.Dispose();
         segmentStore.Dispose();
@@ -63,6 +70,23 @@ public class InboundSyncCoordinatorTests : IDisposable
             .FirstAsync().ToTask(TestContext.Current.CancellationToken);
         server.SynchronizationDataArrived += Raise.EventWith(server, new SynchronizationDataArrivedEventArgs(data));
         await published.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task CustomLayerArrivalAndLedgerRemoval_PublishTheCommittedCatalog()
+    {
+        var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
+        customLayers.Seed(layer);
+        await PublishAsync(new SynchronizationData { CustomTileLayers = [layer] }, customLayerStore);
+        Assert.Equal("Trail", customLayerStore.Get(layer.Id)!.Name);
+
+        await customLayers.DeleteAsync(layer.Id);
+        await PublishAsync(new SynchronizationData
+        {
+            Deletions = [SynchronizationDeletion.From(layer, "custom_tile_layer")]
+        }, customLayerStore);
+
+        Assert.Empty(customLayerStore.GetAll());
     }
 
     [Fact]

@@ -88,7 +88,7 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - Check `Sufni.App.Tests/TestSupport/` before creating a new local helper. It carries the shared fixtures: `TempDatabase` and `TempDirectory` (`Io/`), `InlineUiThreadDispatcher` and `InlineBackgroundTaskRunner` (`Async/`), and `TestRecordedSessionTimeline` and the golden telemetry fixtures (`Fixtures/`). The golden telemetry fixtures live in `Sufni.Telemetry.Tests` and are linked into the app tests.
 - Reuse shared builders, snapshot factories, app/test-environment helpers, and synchronization helpers when they fit the test.
 - If the same helper pattern starts appearing in multiple test classes, move it into shared test infrastructure.
-- `TestAppPreferences.Load` supplies isolated launch preferences and a fake clock for file-backed preference tests. `TestPersistenceHarness` and `PersistenceTestData.CreateConnectionContext` share a fixed test clock by default and accept an explicit clock for expiry and timestamp scenarios.
+- `TestAppPreferences.Load` supplies isolated launch preferences and inline background/dispatcher seams for file-backed preference tests. `TestPersistenceHarness` and `PersistenceTestData.CreateConnectionContext` share a fixed test clock by default and accept an explicit clock for expiry and timestamp scenarios.
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
 
 `RecordingProgress<T>` collects reports synchronously and safely across worker tasks.

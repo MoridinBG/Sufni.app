@@ -56,7 +56,6 @@ public class SynchronizationServerService : ISynchronizationServerService
     private readonly ISessionSyncApplier sessionSyncApplier;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
-    private readonly IAppPreferences appPreferences;
     private readonly ISessionBlobSwapRequestStore swapRequestStore;
     private readonly ISecureStorage secureStorage;
     private readonly System.Threading.Lock advertisingGate = new();
@@ -239,7 +238,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         ISessionSyncApplier sessionSyncApplier,
         IRecordedSessionSourceRepository recordedSessionSourceRepository,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
-        IAppPreferences appPreferences,
         ISecureStorage secureStorage,
         ISessionBlobSwapRequestStore swapRequestStore,
         IAppPaths paths,
@@ -251,7 +249,6 @@ public class SynchronizationServerService : ISynchronizationServerService
         this.sessionSyncApplier = sessionSyncApplier;
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
-        this.appPreferences = appPreferences;
         this.secureStorage = secureStorage;
         this.swapRequestStore = swapRequestStore;
         certPath = paths.CertificatePath;
@@ -550,11 +547,9 @@ public class SynchronizationServerService : ISynchronizationServerService
     internal static async Task<IResult> ApplySynchronizationPushAsync(
         SynchronizationData data,
         ISyncDataStore syncDataStore,
-        IAppPreferences appPreferences,
         Action<SynchronizationData> synchronizationDataArrived)
     {
         await syncDataStore.MergeAllAsync(data);
-        await appPreferences.ApplySyncDataAsync(data.AppPreferences);
 
         synchronizationDataArrived(data);
         return Results.NoContent();
@@ -761,20 +756,16 @@ public class SynchronizationServerService : ISynchronizationServerService
                             since,
                             upperInclusive);
                         data.UpperBound = upperInclusive;
-                        data.AppPreferences = await appPreferences.GetSyncDataAsync(
-                            since,
-                            upperInclusive);
 
                         logger.Verbose(
-                            "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+                            "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
                             since,
                             upperInclusive,
                             data.Boards.Count,
                             data.Bikes.Count,
                             data.Setups.Count,
                             data.Sessions.Count,
-                            data.Tracks.Count,
-                            data.AppPreferences is not null);
+                            data.Tracks.Count);
 
                         return Results.Ok(data);
                     });
@@ -787,18 +778,16 @@ public class SynchronizationServerService : ISynchronizationServerService
                     async () =>
                     {
                         logger.Verbose(
-                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks, and app preferences present {HasAppPreferences}",
+                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
                             data.Boards.Count,
                             data.Bikes.Count,
                             data.Setups.Count,
                             data.Sessions.Count,
-                            data.Tracks.Count,
-                            data.AppPreferences is not null);
+                            data.Tracks.Count);
 
                         return await ApplySynchronizationPushAsync(
                             data,
                             syncDataStore,
-                            appPreferences,
                             arrived => SynchronizationDataArrived?.Invoke(
                                 this,
                                 new SynchronizationDataArrivedEventArgs(arrived)));

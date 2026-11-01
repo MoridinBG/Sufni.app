@@ -101,7 +101,7 @@ public static class AppComposition
         services.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
                 root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>(),
-                root.LaunchPreferences.LegacyProcessingWindows));
+                root.LaunchPreferences.LegacyProcessingWindows, root.LaunchPreferences.LegacyCustomLayers));
         services.AddSingleton<IStartupDatabase>(sp => sp.GetRequiredService<SqliteConnectionContext>());
         services.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         services.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();
@@ -116,7 +116,7 @@ public static class AppComposition
         services.AddSingleton<ISessionContentReader, SessionContentReader>();
         services.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
         services.AddSingleton<IAppPreferences>(sp => new AppPreferences(
-            root.Paths.PreferencesPath, root.LaunchPreferences, sp.GetRequiredService<TimeProvider>()));
+            root.Paths.PreferencesPath, root.LaunchPreferences, sp.GetRequiredService<IBackgroundTaskRunner>(), sp.GetRequiredService<IUiThreadDispatcher>()));
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<ISessionPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Session);
         services.AddSingleton<IUiPreferences>(sp => sp.GetRequiredService<IAppPreferences>().Ui);
@@ -221,6 +221,9 @@ public static class AppComposition
         services.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
         services.AddSingleton<LiveDaqCoordinator>();
         services.AddSingleton<ILiveDaqCoordinator>(sp => sp.GetRequiredService<LiveDaqCoordinator>());
+        services.AddSingleton<CustomTileLayerStore>();
+        services.AddSingleton<ICustomTileLayerStore>(sp => sp.GetRequiredService<CustomTileLayerStore>());
+        services.AddSingleton<ICustomTileLayerStoreWriter>(sp => sp.GetRequiredService<CustomTileLayerStore>());
         services.AddSingleton<BoardStore>();
         services.AddSingleton<IBoardStore>(sp => sp.GetRequiredService<BoardStore>());
         services.AddSingleton<IBoardStoreWriter>(sp => sp.GetRequiredService<BoardStore>());

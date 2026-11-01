@@ -1,25 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
-using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Infrastructure;
-
-public enum PreferenceChangeOrigin
-{
-    LocalWrite,
-    SyncApply
-}
-
-public sealed record PreferenceValueChange<T>(
-    T Value,
-    PreferenceChangeOrigin Origin,
-    bool AdvancesSyncClock);
-
-public sealed record MapPreferencesValue(
-    Guid? SelectedLayerId,
-    IReadOnlyList<TileLayerConfig> CustomLayers);
 
 public interface IAppPreferences
 {
@@ -27,8 +10,7 @@ public interface IAppPreferences
     ISessionPreferences Session { get; }
     IThemePreferences Theme { get; }
     IUiPreferences Ui { get; }
-    Task<AppPreferencesSyncData?> GetSyncDataAsync(long sinceExclusive, long upperInclusive);
-    Task ApplySyncDataAsync(AppPreferencesSyncData? preferences);
+    Task InitializeAsync();
 }
 
 public interface IUiPreferences
@@ -40,16 +22,13 @@ public interface IMapPreferences
 {
     Task<Guid?> GetSelectedLayerIdAsync();
     Task SetSelectedLayerIdAsync(Guid selectedLayerId);
-    Task<IReadOnlyList<TileLayerConfig>> GetCustomLayersAsync();
-    Task SetCustomLayersAsync(IReadOnlyList<TileLayerConfig> customLayers);
-    IObservable<PreferenceValueChange<MapPreferencesValue>> ObserveChanges();
+    IObservable<Guid?> ObserveChanges();
 }
 
 public interface IThemePreferences
 {
     Task<SufniThemeMode> GetModeAsync();
     Task SetModeAsync(SufniThemeMode mode);
-    IObservable<PreferenceValueChange<SufniThemeMode>> ObserveModeChanges();
 }
 
 public interface ISessionPreferences

@@ -14,6 +14,67 @@ namespace Sufni.App.Tests.Infrastructure;
 public class AppPreferencesTests
 {
     [Fact]
+    public async Task Initialization_RemovesLegacySyncFields_AfterCapturingCustomLayersForMigration()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var id = Guid.NewGuid();
+        await File.WriteAllTextAsync(path, """
+            {"version":3,"updated":77,"maps":{"selectedLayerId":"LAYER_ID","customLayers":[
+            {"id":"LAYER_ID","name":"Legacy","url_template":"https://tiles/{z}/{x}/{y}","attribution_text":"Tiles","attribution_url":"https://tiles","max_zoom":18,"is_custom":true}]},"theme":{"mode":"Light"}}
+            """.Replace("LAYER_ID", id.ToString()), TestContext.Current.CancellationToken);
+        var launch = AppPreferences.ReadLaunchValues(path, UiLayoutProfile.Workspace);
+        Assert.Equal((id, 77L), (Assert.Single(launch.LegacyCustomLayers).Id, launch.LegacyCustomLayers[0].Updated));
+        var preferences = new AppPreferences(path, launch, new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher());
+
+        await preferences.InitializeAsync();
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+        Assert.False(json.RootElement.TryGetProperty("updated", out _));
+        Assert.False(json.RootElement.GetProperty("maps").TryGetProperty("customLayers", out _));
+        Assert.Equal(id, await preferences.Map.GetSelectedLayerIdAsync());
+        Assert.Equal(SufniThemeMode.Light, await preferences.Theme.GetModeAsync());
+    }
+
+    [Fact]
+    public async Task PreferencePublication_WaitsForDispatcher_AfterAtomicFileCommit()
+    {
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var dispatcher = new ManualUiThreadDispatcher();
+        var preferences = new AppPreferences(path, AppPreferences.ReadLaunchValues(path, UiLayoutProfile.Workspace), new InlineBackgroundTaskRunner(), dispatcher);
+        var observed = new List<Guid?>();
+        using var subscription = preferences.Map.ObserveChanges().Subscribe(value =>
+        {
+            Assert.True(dispatcher.CheckAccess());
+            observed.Add(value);
+        });
+        await dispatcher.DrainAsync();
+        var selected = Guid.NewGuid();
+
+        var write = preferences.Map.SetSelectedLayerIdAsync(selected);
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(new Guid?[] { null }, observed);
+        Assert.False(write.IsCompleted);
+        Assert.Equal(selected, await TestAppPreferences.Load(path).Map.GetSelectedLayerIdAsync());
+        await dispatcher.DrainAsync();
+        await write.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(new Guid?[] { null, selected }, observed);
+    }
+
+    [Fact]
+    public async Task FailedFileCommit_PreservesCurrentPreference()
+    {
+        using var directory = new TempDirectory();
+        var preferences = TestAppPreferences.Load(directory.Path);
+
+        await Assert.ThrowsAnyAsync<IOException>(() => preferences.Theme.SetModeAsync(SufniThemeMode.Light));
+
+        Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
+    }
+
+    [Fact]
     public async Task Launch_CapturesLegacyFilterForMigration_BeforeRuntimePreferencesDropIt()
     {
         using var temp = new TempDirectory("legacy-processing-preference");
@@ -25,7 +86,7 @@ public class AppPreferencesTests
             } } } }
             """, TestContext.Current.CancellationToken);
         var launch = AppPreferences.ReadLaunchValues(path, UiLayoutProfile.Workspace);
-        var preferences = new AppPreferences(path, launch, new FakeTimeProvider());
+        var preferences = new AppPreferences(path, launch, new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher());
 
         await preferences.Session.UpdateRecordedAsync(id, value => value with
         {
@@ -55,7 +116,6 @@ public class AppPreferencesTests
 
     public enum ObserveRecordedValueCase
     {
-        SyncApply,
         LocalUpdate,
         ReplayCurrentValue,
     }
@@ -79,64 +139,24 @@ public class AppPreferencesTests
         Assert.Equal(SufniThemeMode.Dark, launch.ThemeMode);
     }
 
-    [Fact]
-    public async Task LocalPreferenceWrite_UsesInjectedClockForSyncWindow()
-    {
-        using var directory = new TempDirectory("sufni-preferences-clock-test");
-        var path = Path.Combine(directory.Path, "app-preferences.json");
-        var time = new FakeTimeProvider(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
-        var preferences = TestAppPreferences.Load(path, time);
-        var before = time.GetUtcNow().ToUnixTimeSeconds();
-        time.Advance(TimeSpan.FromSeconds(5));
 
-        await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
-
-        Assert.Null(await preferences.GetSyncDataAsync(0, before));
-        var changes = await preferences.GetSyncDataAsync(before, before + 5);
-        Assert.NotNull(changes);
-        Assert.Equal(before + 5, changes.Updated);
-    }
 
     [Fact]
-    public async Task MapPreferences_PersistSelectedLayerAndCustomLayers_UnderMapsGroup()
+    public async Task MapPreferences_PersistsOnlyDeviceSelection()
     {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var layer = new TileLayerConfig
-        {
-            Id = Guid.NewGuid(),
-            Name = "Trail maps",
-            UrlTemplate = "https://tiles.example/{z}/{x}/{y}.png",
-            AttributionText = "Example tiles",
-            AttributionUrl = "https://tiles.example",
-            MaxZoom = 18,
-            IsCustom = true,
-        };
+        using var directory = new TempDirectory();
+        var path = CreatePreferencesPath(directory);
+        var selected = Guid.NewGuid();
+        var preferences = TestAppPreferences.Load(path);
+        await preferences.Map.SetSelectedLayerIdAsync(selected);
 
-        var preferences = TestAppPreferences.Load(preferencesPath);
-
-        await preferences.Map.SetSelectedLayerIdAsync(layer.Id);
-        await preferences.Map.SetCustomLayersAsync([layer]);
-
-        var reloaded = TestAppPreferences.Load(preferencesPath);
-        var selectedLayerId = await reloaded.Map.GetSelectedLayerIdAsync();
-        var customLayers = await reloaded.Map.GetCustomLayersAsync();
-
-        Assert.Equal(layer.Id, selectedLayerId);
-        var customLayer = Assert.Single(customLayers);
-        Assert.Equal(layer.Id, customLayer.Id);
-        Assert.Equal("Trail maps", customLayer.Name);
-
-        customLayer.Name = "Mutated outside preferences";
-        var rereadCustomLayer = Assert.Single(await reloaded.Map.GetCustomLayersAsync());
-        Assert.Equal("Trail maps", rereadCustomLayer.Name);
-
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
-        var maps = json.RootElement.GetProperty("maps");
-        Assert.Equal(layer.Id.ToString("D"), maps.GetProperty("selectedLayerId").GetString());
-        Assert.Single(maps.GetProperty("customLayers").EnumerateArray());
-        Assert.Empty(Directory.EnumerateFiles(tempDirectory.Path, "*.tmp"));
+        Assert.Equal(selected, await TestAppPreferences.Load(path).Map.GetSelectedLayerIdAsync());
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
+        Assert.False(json.RootElement.TryGetProperty("updated", out _));
+        Assert.False(json.RootElement.GetProperty("maps").TryGetProperty("customLayers", out _));
+        Assert.Empty(Directory.EnumerateFiles(directory.Path, "*.tmp"));
     }
+
 
     [Fact]
     public async Task Preferences_UsesLaunchSnapshot_WhenFileChangesBeforeRuntimeConstruction()
@@ -171,7 +191,7 @@ public class AppPreferencesTests
             }
             """, cancellationToken: TestContext.Current.CancellationToken);
 
-        var preferences = new AppPreferences(preferencesPath, launch, new FakeTimeProvider());
+        var preferences = new AppPreferences(preferencesPath, launch, new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher());
         Assert.Equal(initialLayerId, await preferences.Map.GetSelectedLayerIdAsync());
 
         var reloaded = TestAppPreferences.Load(preferencesPath);
@@ -179,74 +199,20 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task MapPreferences_ObserveChanges_ReplaysAndReportsLocalAndSyncOrigins()
+    public async Task MapPreferences_ObserveChanges_ReplaysAndReportsCommittedLocalSelection()
     {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var localLayerId = Guid.NewGuid();
-        var syncedLayer = new TileLayerConfig
-        {
-            Id = Guid.NewGuid(),
-            Name = "Synced custom",
-            UrlTemplate = "https://tiles.example/{z}/{x}/{y}.png",
-            AttributionText = "Example",
-            AttributionUrl = "https://tiles.example",
-            MaxZoom = 18,
-            IsCustom = true,
-        };
-        var preferences = TestAppPreferences.Load(preferencesPath);
+        using var directory = new TempDirectory();
+        var preferences = TestAppPreferences.Load(CreatePreferencesPath(directory));
+        var observed = new List<Guid?>();
+        using var watch = preferences.Map.ObserveChanges().Subscribe(observed.Add);
+        var selected = Guid.NewGuid();
 
-        var initialEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var localEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var syncEmission = new TaskCompletionSource<PreferenceValueChange<MapPreferencesValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var emissions = 0;
-        using var subscription = preferences.Map.ObserveChanges()
-            .Subscribe(change =>
-            {
-                var emission = Interlocked.Increment(ref emissions);
-                if (emission == 1)
-                {
-                    initialEmission.TrySetResult(change);
-                }
-                else if (emission == 2)
-                {
-                    localEmission.TrySetResult(change);
-                }
-                else
-                {
-                    syncEmission.TrySetResult(change);
-                }
-            });
+        await preferences.Map.SetSelectedLayerIdAsync(selected);
+        await preferences.Map.SetSelectedLayerIdAsync(selected);
 
-        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
-        Assert.False(initial.AdvancesSyncClock);
-        Assert.Null(initial.Value.SelectedLayerId);
-        Assert.Empty(initial.Value.CustomLayers);
-
-        await preferences.Map.SetSelectedLayerIdAsync(localLayerId);
-
-        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
-        Assert.True(local.AdvancesSyncClock);
-        Assert.Equal(localLayerId, local.Value.SelectedLayerId);
-
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 9_999_999_999,
-            Maps = new MapPreferencesSyncData
-            {
-                SelectedLayerId = syncedLayer.Id,
-                CustomLayers = [syncedLayer],
-            },
-        });
-
-        var synced = await syncEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.SyncApply, synced.Origin);
-        Assert.False(synced.AdvancesSyncClock);
-        Assert.Equal(syncedLayer.Id, synced.Value.SelectedLayerId);
-        Assert.Equal(syncedLayer.Id, Assert.Single(synced.Value.CustomLayers).Id);
+        Assert.Equal(new Guid?[] { null, selected }, observed);
     }
+
 
     [Theory]
     [InlineData(SufniThemeMode.Light, "Light")]
@@ -268,58 +234,7 @@ public class AppPreferencesTests
         Assert.Equal(storedMode, json.RootElement.GetProperty("theme").GetProperty("mode").GetString());
     }
 
-    [Fact]
-    public async Task ThemePreferences_ObserveModeChanges_ReplaysAndReportsLocalAndSyncOrigins()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var preferences = TestAppPreferences.Load(preferencesPath);
 
-        var initialEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var localEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var syncEmission = new TaskCompletionSource<PreferenceValueChange<SufniThemeMode>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var emissions = 0;
-        using var subscription = preferences.Theme.ObserveModeChanges()
-            .Subscribe(change =>
-            {
-                var emission = Interlocked.Increment(ref emissions);
-                if (emission == 1)
-                {
-                    initialEmission.TrySetResult(change);
-                }
-                else if (emission == 2)
-                {
-                    localEmission.TrySetResult(change);
-                }
-                else
-                {
-                    syncEmission.TrySetResult(change);
-                }
-            });
-
-        var initial = await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.SyncApply, initial.Origin);
-        Assert.False(initial.AdvancesSyncClock);
-        Assert.Equal(SufniThemeMode.Dark, initial.Value);
-
-        await preferences.Theme.SetModeAsync(SufniThemeMode.Light);
-
-        var local = await localEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.LocalWrite, local.Origin);
-        Assert.True(local.AdvancesSyncClock);
-        Assert.Equal(SufniThemeMode.Light, local.Value);
-
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 9_999_999_999,
-            Theme = new ThemePreferencesSyncData { Mode = SufniThemeMode.Dark.ToString() },
-        });
-
-        var synced = await syncEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PreferenceChangeOrigin.SyncApply, synced.Origin);
-        Assert.False(synced.AdvancesSyncClock);
-        Assert.Equal(SufniThemeMode.Dark, synced.Value);
-    }
 
     [Theory]
     [InlineData(null, SufniThemeMode.Dark)]
@@ -340,19 +255,18 @@ public class AppPreferencesTests
     }
 
     [Fact]
-    public async Task UiPreferences_PersistsNextLaunchLayout_WithoutAdvancingSyncClock()
+    public async Task UiPreferences_PersistsNextLaunchLayout()
     {
         using var tempDirectory = new TempDirectory("sufni-preferences-test");
         var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
         var launch = AppPreferences.ReadLaunchValues(preferencesPath, UiLayoutProfile.Compact);
-        var preferences = new AppPreferences(preferencesPath, launch, new FakeTimeProvider());
+        var preferences = new AppPreferences(preferencesPath, launch, new InlineBackgroundTaskRunner(), new InlineUiThreadDispatcher());
 
         await preferences.Ui.SetLayoutProfileAsync(UiLayoutProfile.Workspace);
 
         Assert.Equal(UiLayoutProfile.Compact, launch.LayoutProfile);
         Assert.Equal(UiLayoutProfile.Workspace,
             AppPreferences.ReadLaunchValues(preferencesPath, UiLayoutProfile.Compact).LayoutProfile);
-        Assert.Null(await preferences.GetSyncDataAsync(0, long.MaxValue));
     }
 
     [Fact]
@@ -663,7 +577,7 @@ public class AppPreferencesTests
         });
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
-        Assert.Equal(AppPreferenceSerialization.CurrentVersion, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(AppPreferences.CurrentVersion, json.RootElement.GetProperty("version").GetInt32());
         var session = json.RootElement
             .GetProperty("session")
             .GetProperty("sessions")
@@ -686,92 +600,9 @@ public class AppPreferencesTests
         Assert.Equal(SessionLayoutPaneIds.Signals, panes[0].GetProperty("paneId").GetString());
     }
 
-    [Fact]
-    public void SessionPreferences_SyncModelDeserializesLegacyKeys()
-    {
-        const string json = """
-            {
-              "plots": {
-                "travel": false,
-                "travel_smoothing": "strong"
-              },
-              "statistics": {
-                "travel_histogram_mode": "dynamic_sag",
-                "session_analysis_target_profile": "enduro"
-              },
-              "graph": {
-                "rows": [
-                  {
-                    "row_id": "travel",
-                    "is_expanded": false
-                  }
-                ]
-              },
-              "layout": {
-                "desktop_graph_media_columns": {
-                  "panes": [
-                    {
-                      "pane_id": "graph",
-                      "ratio": 0.7
-                    },
-                    {
-                      "pane_id": "media",
-                      "ratio": 0.3
-                    }
-                  ]
-                }
-              }
-            }
-            """;
 
-        var preferences = JsonSerializer.Deserialize<SessionPreferences>(json, AppJson.Options);
 
-        Assert.NotNull(preferences);
-        Assert.False(preferences!.SignalDisplay.Travel);
-        Assert.Equal(PlotSmoothingLevel.Strong, preferences.SignalDisplay.TravelSmoothing);
-        Assert.Equal(TravelDistributionMode.DynamicSag, preferences.Analysis.TravelDistributionMode);
-        Assert.Equal(SessionInsightsTargetProfile.Enduro, preferences.Analysis.SessionInsightsTargetProfile);
-        Assert.Equal(SignalRowIds.Travel, preferences.SignalLayout.Rows[0].RowId);
-        Assert.False(preferences.SignalLayout.Rows[0].IsExpanded);
-        Assert.NotNull(preferences.Layout.DesktopSignalsMediaColumns);
-        Assert.Equal(SessionLayoutPaneIds.Signals, preferences.Layout.DesktopSignalsMediaColumns!.Panes[0].PaneId);
-    }
 
-    [Fact]
-    public void SessionPreferences_SyncModelWritesNewOnlyKeysByDefault()
-    {
-        var preferences = new SessionPreferences(
-            signalDisplay: new SignalDisplayPreferences(Travel: false),
-            analysis: new AnalysisPreferences(
-                TravelDistributionMode.DynamicSag,
-                SessionInsightsTargetProfile: SessionInsightsTargetProfile.Enduro),
-            signalLayout: new SignalLayoutPreferences(
-            [
-                new SignalLayoutRowPreferences(SignalRowIds.Imu),
-            ]),
-            layout: new SessionLayoutPreferences(
-                desktopSignalsMediaColumns: new SessionPaneGroupPreferences(
-                [
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Signals, 0.7),
-                    new SessionPaneSizePreference(SessionLayoutPaneIds.Media, 0.3),
-                ])));
-
-        using var json = JsonDocument.Parse(AppJson.Serialize(preferences));
-
-        Assert.False(json.RootElement.TryGetProperty("plots", out _));
-        Assert.False(json.RootElement.TryGetProperty("statistics", out _));
-        Assert.False(json.RootElement.TryGetProperty("graph", out _));
-        Assert.True(json.RootElement.TryGetProperty("signal_display", out _));
-        Assert.True(json.RootElement.TryGetProperty("analysis", out var analysis));
-        Assert.True(json.RootElement.TryGetProperty("signal_layout", out _));
-        Assert.False(analysis.TryGetProperty("travel_histogram_mode", out _));
-        Assert.False(analysis.TryGetProperty("session_analysis_target_profile", out _));
-
-        var layout = json.RootElement.GetProperty("layout");
-        Assert.False(layout.TryGetProperty("desktop_graph_media_columns", out _));
-        var panes = layout.GetProperty("desktop_signals_media_columns").GetProperty("panes");
-        Assert.Equal(SessionLayoutPaneIds.Signals, panes[0].GetProperty("pane_id").GetString());
-    }
 
     [Fact]
     public void SignalRowIds_KeepPersistedStringValues()
@@ -866,122 +697,13 @@ public class AppPreferencesTests
         Assert.True(json.RootElement.TryGetProperty("session", out _));
     }
 
-    [Fact]
-    public async Task GetSyncDataAsync_ReturnsChangedPreferencesSnapshot()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var sessionId = Guid.NewGuid();
-        var layer = new TileLayerConfig
-        {
-            Id = Guid.NewGuid(),
-            Name = "Trail maps",
-            UrlTemplate = "https://tiles.example/{z}/{x}/{y}.png",
-            AttributionText = "Example tiles",
-            AttributionUrl = "https://tiles.example",
-            MaxZoom = 18,
-            IsCustom = true,
-        };
 
-        var preferences = TestAppPreferences.Load(preferencesPath);
 
-        await preferences.Map.SetSelectedLayerIdAsync(layer.Id);
-        await preferences.Map.SetCustomLayersAsync([layer]);
-        await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
-        {
-            SignalDisplay = current.SignalDisplay with { Velocity = false },
-        });
 
-        var snapshot = await preferences.GetSyncDataAsync(0, long.MaxValue);
 
-        Assert.NotNull(snapshot);
-        Assert.True(snapshot!.Updated > 0);
-        Assert.Equal(layer.Id, snapshot.Maps.SelectedLayerId);
-        Assert.Single(snapshot.Maps.CustomLayers);
-        Assert.False(snapshot.Session.Sessions[sessionId].SignalDisplay.Velocity);
-        Assert.Null(await preferences.GetSyncDataAsync(0, snapshot.Updated - 1));
-        Assert.NotNull(await preferences.GetSyncDataAsync(snapshot.Updated - 1, snapshot.Updated));
-    }
 
-    [Fact]
-    public async Task GetSyncDataAsync_MigratesLegacyDocumentWithoutUpdatedTimestamp()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var selectedLayerId = Guid.NewGuid();
-
-        await File.WriteAllTextAsync(
-            preferencesPath,
-            $$"""
-            {
-              "version": 1,
-              "maps": {
-                "selectedLayerId": "{{selectedLayerId:D}}",
-                "customLayers": []
-              }
-            }
-            """, cancellationToken: TestContext.Current.CancellationToken);
-        var preferences = TestAppPreferences.Load(preferencesPath);
-
-        var snapshot = await preferences.GetSyncDataAsync(1, long.MaxValue);
-
-        Assert.NotNull(snapshot);
-        Assert.True(snapshot!.Updated > 1);
-        Assert.Equal(selectedLayerId, snapshot.Maps.SelectedLayerId);
-
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken: TestContext.Current.CancellationToken));
-        Assert.True(json.RootElement.GetProperty("updated").GetInt64() > 1);
-    }
-
-    [Fact]
-    public async Task ApplySyncDataAsync_AppliesNewerSnapshotAndIgnoresOlderSnapshot()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
-        var sessionId = Guid.NewGuid();
-        var selectedLayerId = Guid.NewGuid();
-        var olderLayerId = Guid.NewGuid();
-
-        var preferences = TestAppPreferences.Load(preferencesPath);
-
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 100,
-            Maps = new MapPreferencesSyncData
-            {
-                SelectedLayerId = selectedLayerId,
-            },
-            Session = new SessionPreferencesSyncData
-            {
-                Sessions =
-                {
-                    [sessionId] = SessionPreferences.Default with
-                    {
-                        Analysis = SessionPreferences.Default.Analysis with
-                        {
-                            TravelDistributionMode = TravelDistributionMode.DynamicSag,
-                        },
-                    },
-                },
-            },
-        });
-
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 99,
-            Maps = new MapPreferencesSyncData
-            {
-                SelectedLayerId = olderLayerId,
-            },
-        });
-
-        Assert.Equal(selectedLayerId, await preferences.Map.GetSelectedLayerIdAsync());
-        var stored = await preferences.Session.GetRecordedAsync(sessionId);
-        Assert.Equal(TravelDistributionMode.DynamicSag, stored.Analysis.TravelDistributionMode);
-    }
 
     [Theory]
-    [InlineData(ObserveRecordedValueCase.SyncApply)]
     [InlineData(ObserveRecordedValueCase.LocalUpdate)]
     [InlineData(ObserveRecordedValueCase.ReplayCurrentValue)]
     public async Task ObserveRecorded_EmitsExpectedValue(ObserveRecordedValueCase valueCase)
@@ -1026,56 +748,16 @@ public class AppPreferencesTests
 
         AssertDefaultSessionPreferences(await initialEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
 
-        if (valueCase == ObserveRecordedValueCase.SyncApply)
+        await preferences.Session.UpdateRecordedAsync(sessionId, current => current with
         {
-            await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-            {
-                Updated = 100,
-                Session = new SessionPreferencesSyncData
-                {
-                    Sessions =
-                    {
-                        [sessionId] = SessionPreferences.Default with
-                        {
-                            Analysis = SessionPreferences.Default.Analysis with
-                            {
-                                TravelDistributionMode = TravelDistributionMode.DynamicSag,
-                            },
-                        },
-                    },
-                },
-            });
-        }
-        else
-        {
-            await preferences.Session.UpdateRecordedAsync(sessionId, current =>
-                current with
-                {
-                    Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag },
-                });
-        }
+            Analysis = current.Analysis with { TravelDistributionMode = TravelDistributionMode.DynamicSag }
+        });
 
         var observed = await changedEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(TravelDistributionMode.DynamicSag, observed.Analysis.TravelDistributionMode);
     }
 
-    [Fact]
-    public async Task ApplySyncData_OverridesThemeMode_WhenIncomingUpdatedIsNewer()
-    {
-        using var tempDirectory = new TempDirectory("sufni-preferences-test");
-        var preferencesPath = Path.Combine(tempDirectory.Path, "app-preferences.json");
 
-        var preferences = TestAppPreferences.Load(preferencesPath);
-        Assert.Equal(SufniThemeMode.Dark, await preferences.Theme.GetModeAsync());
-
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 200,
-            Theme = new ThemePreferencesSyncData { Mode = "Light" },
-        });
-
-        Assert.Equal(SufniThemeMode.Light, await preferences.Theme.GetModeAsync());
-    }
 
     [Fact]
     public async Task ObserveRecorded_ReusesObservableAfterLastUnsubscribe_WithoutInterruptingOtherObservers()
@@ -1145,24 +827,10 @@ public class AppPreferencesTests
                 TravelDistributionMode = TravelDistributionMode.DynamicSag,
             },
         };
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 100,
-            Session = new SessionPreferencesSyncData
-            {
-                Sessions = { [sessionId] = stored },
-            },
-        });
+        await preferences.Session.UpdateRecordedAsync(sessionId, _ => stored);
         await firstStoredEmission.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        await preferences.ApplySyncDataAsync(new AppPreferencesSyncData
-        {
-            Updated = 101,
-            Session = new SessionPreferencesSyncData
-            {
-                Sessions = { [sessionId] = stored },
-            },
-        });
+        await preferences.Session.UpdateRecordedAsync(sessionId, _ => stored);
 
         await AssertDoesNotCompleteAsync(duplicateEmission.Task, TimeSpan.FromMilliseconds(100));
         Assert.Equal(2, emissions);

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using Sufni.Telemetry;
 
-using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Infrastructure;
 
@@ -384,41 +383,4 @@ public static class SignalRowIds
     public const string PitchRoll = "pitch_roll";
     public const string Speed = "speed";
     public const string Elevation = "elevation";
-}
-
-
-public sealed class AppPreferencesSyncData
-{
-    [JsonPropertyName("updated")]
-    public long Updated { get; set; }
-
-    [JsonPropertyName("maps")]
-    public MapPreferencesSyncData Maps { get; set; } = new();
-
-    [JsonPropertyName("session")]
-    public SessionPreferencesSyncData Session { get; set; } = new();
-
-    [JsonPropertyName("theme")]
-    public ThemePreferencesSyncData Theme { get; set; } = new();
-}
-
-public sealed class MapPreferencesSyncData
-{
-    [JsonPropertyName("selected_layer_id")]
-    public Guid? SelectedLayerId { get; set; }
-
-    [JsonPropertyName("custom_layers")]
-    public List<TileLayerConfig> CustomLayers { get; set; } = [];
-}
-
-public sealed class SessionPreferencesSyncData
-{
-    [JsonPropertyName("sessions")]
-    public Dictionary<Guid, SessionPreferences> Sessions { get; set; } = [];
-}
-
-public sealed class ThemePreferencesSyncData
-{
-    [JsonPropertyName("mode")]
-    public string? Mode { get; set; }
 }

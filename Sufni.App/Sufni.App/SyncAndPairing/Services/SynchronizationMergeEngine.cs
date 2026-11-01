@@ -142,6 +142,7 @@ internal sealed class SynchronizationMergeEngine(
         var setups = await GetChangedAsync<Setup>(connection, sinceExclusive, upperInclusive);
         var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
         var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
+        var customLayers = await GetChangedAsync<CustomTileLayer>(connection, sinceExclusive, upperInclusive);
         var segments = await GetChangedAsync<SessionSegment>(connection, sinceExclusive, upperInclusive);
         var deletions = await connection.QueryAsync<SynchronizationDeletion>(
             "SELECT * FROM sync_deletion WHERE (updated > ? AND updated <= ?) OR (deleted > ? AND deleted <= ?)",
@@ -156,7 +157,8 @@ internal sealed class SynchronizationMergeEngine(
             Sessions = sessions,
             Tracks = tracks,
             Segments = segments,
-            Deletions = deletions
+            Deletions = deletions,
+            CustomTileLayers = customLayers
         };
     }
 
@@ -227,6 +229,7 @@ internal sealed class SynchronizationMergeEngine(
                 case "board": MergeDeletion<Board>(connection, deletion, asHub); break;
                 case "track": MergeDeletion<Track>(connection, deletion, asHub); break;
                 case "session": MergeDeletion<Session>(connection, deletion, asHub); break;
+                case "custom_tile_layer": MergeDeletion<CustomTileLayer>(connection, deletion, asHub); break;
                 case "session_segment": MergeDeletion<SessionSegment>(connection, deletion, asHub); break;
                 default: throw new InvalidOperationException("Unknown synchronized deletion table.");
             }
@@ -235,6 +238,7 @@ internal sealed class SynchronizationMergeEngine(
         foreach (var row in data.Setups) Merge(connection, row, asHub);
         foreach (var row in data.Boards) Merge(connection, row, asHub);
         foreach (var row in data.Tracks) Merge(connection, row, asHub);
+        foreach (var row in data.CustomTileLayers) Merge(connection, row, asHub);
         var swaps = new List<SessionBlobSwap>();
         foreach (var row in data.Sessions)
             if (Merge(connection, row, asHub) is { } swap) swaps.Add(swap);

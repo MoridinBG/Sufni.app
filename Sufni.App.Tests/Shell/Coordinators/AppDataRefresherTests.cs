@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
@@ -42,7 +43,7 @@ public class AppDataRefresherTests
             reachedLastRead.TrySetResult();
             return lastRead.Task;
         });
-        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?)>();
+        var observed = new List<(string?, Guid?, string?, string?, string?, string?, string?, bool, TrackSnapshot?, BoardSnapshot?, CustomTileLayerSnapshot?)>();
         using var subscription = fixture.Publication.Committed.Subscribe(_ => observed.Add((
             fixture.Bikes.Get(fixture.Bike.Id)?.Name,
             fixture.Setups.Get(fixture.Setup.Id)?.Id,
@@ -52,7 +53,7 @@ public class AppDataRefresherTests
             fixture.Videos.Get(fixture.Clip.Id)?.Path,
             fixture.Segments.Get(fixture.Segment.Id)?.Name,
             fixture.Bikes.Get(oldBike.Id) is null,
-            fixture.Tracks.Get(fixture.Track.Id), fixture.Boards.Get(fixture.Board.Id))));
+            fixture.Tracks.Get(fixture.Track.Id), fixture.Boards.Get(fixture.Board.Id), fixture.CustomLayers.Get(fixture.CustomLayer.Id))));
 
         var refresh = fixture.Refresher.RefreshAsync(TestContext.Current.CancellationToken);
         Assert.Empty(observed);
@@ -62,7 +63,7 @@ public class AppDataRefresherTests
         lastRead.SetResult([fixture.Segment]);
         await refresh.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board)),
+        Assert.Equal(("bike", fixture.Setup.Id, "session", "source hash", "Phone", "", "segment", true, fixture.Track, BoardSnapshot.From(fixture.Board), CustomTileLayerSnapshot.From(fixture.CustomLayer)),
             Assert.Single(observed));
     }
 
@@ -119,6 +120,8 @@ public class AppDataRefresherTests
         public Bike Bike { get; } = new(Guid.NewGuid(), "bike");
         public Setup Setup { get; }
         public Board Board { get; }
+        public CustomTileLayer CustomLayer { get; } = new() { Name = "Custom", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
+        public CustomTileLayerStore CustomLayers { get; }
         public Session Session { get; }
         public SessionVideoClip Clip { get; }
         public SessionSegment Segment { get; }
@@ -145,6 +148,8 @@ public class AppDataRefresherTests
             var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
             var setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
             var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
+            var customLayerRepository = Substitute.For<ISynchronizableRepository<CustomTileLayer>>();
+            customLayerRepository.GetAllAsync().Returns([CustomLayer]);
             var sessionRepository = Substitute.For<ISessionRepository>();
             var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
             var deviceRepository = Substitute.For<IPairedDeviceRepository>();
@@ -162,6 +167,7 @@ public class AppDataRefresherTests
             Publication = new StorePublication(dispatcher);
             Tracks = new TrackStore(Publication);
             Boards = new BoardStore(Publication);
+            CustomLayers = new CustomTileLayerStore(Publication);
             Bikes = new BikeStore(Publication);
             Setups = new SetupStore(Publication);
             Sessions = new SessionStore(Publication);
@@ -172,13 +178,15 @@ public class AppDataRefresherTests
             Refresher = new AppDataRefresher(Bikes, Setups, Sessions, Sources, Devices, Videos, Segments,
                 bikeRepository, setupRepository, boardRepository, sessionRepository, sourceRepository,
                 deviceRepository, videoRepository, SegmentRepository, new InlineBackgroundTaskRunner(),
-                dispatcher, Publication, Tracks, trackRepository, Boards);
+                dispatcher, Publication, Tracks, trackRepository, Boards,
+                customLayerRepository, CustomLayers);
         }
 
         public void Dispose()
         {
             Tracks.Dispose();
             Boards.Dispose();
+            CustomLayers.Dispose();
             Bikes.Dispose();
             Setups.Dispose();
             Sessions.Dispose();

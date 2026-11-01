@@ -27,7 +27,6 @@ public class SynchronizationServerServiceTests
             Substitute.For<ISessionSyncApplier>(),
             Substitute.For<IRecordedSessionSourceRepository>(),
             Substitute.For<IRecordedSessionSourceSyncQuery>(),
-            Substitute.For<IAppPreferences>(),
             secureStorage,
             Substitute.For<ISessionBlobSwapRequestStore>(),
             Substitute.For<IAppPaths>(),
@@ -71,30 +70,22 @@ public class SynchronizationServerServiceTests
     }
 
     [Fact]
-    public async Task ApplySynchronizationPushAsync_MergesCoreAndPreferencesBeforePublishing()
+    public async Task ApplySynchronizationPushAsync_MergesBeforePublishing()
     {
         var calls = new List<string>();
         var data = new SynchronizationData();
         var syncDataStore = Substitute.For<ISyncDataStore>();
-        var appPreferences = Substitute.For<IAppPreferences>();
         syncDataStore.MergeAllAsync(data).Returns(_ =>
         {
             calls.Add("core");
             return Task.CompletedTask;
         });
-        appPreferences.ApplySyncDataAsync(data.AppPreferences).Returns(_ =>
-        {
-            calls.Add("preferences");
-            return Task.CompletedTask;
-        });
-
         var result = await SynchronizationServerService.ApplySynchronizationPushAsync(
             data,
             syncDataStore,
-            appPreferences,
             _ => calls.Add("publish"));
 
-        Assert.Equal(["core", "preferences", "publish"], calls);
+        Assert.Equal(["core", "publish"], calls);
         await AssertStatusCodeAsync(result, StatusCodes.Status204NoContent);
     }
 

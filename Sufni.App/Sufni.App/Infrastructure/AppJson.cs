@@ -67,7 +67,6 @@ internal static class AppJson
         {
             PropertyNameCaseInsensitive = true
         };
-        AddPreferenceConverters(options);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }
@@ -79,18 +78,11 @@ internal static class AppJson
         // RespectNullableAnnotations=true, RespectRequiredConstructorParameters=true.
         // Keep the snake_case enum converter (Strict does not add it).
         JsonSerializerOptions options = new(JsonSerializerDefaults.Strict);
-        AddPreferenceConverters(options);
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
         return options;
     }
 
-    private static void AddPreferenceConverters(JsonSerializerOptions options)
-    {
-        options.Converters.Add(new SessionPreferencesJsonConverter());
-        options.Converters.Add(new AnalysisPreferencesJsonConverter());
-        options.Converters.Add(new SessionLayoutPreferencesJsonConverter());
-        options.Converters.Add(new SessionPaneSizePreferenceJsonConverter());
-    }
+
 }
 
 [JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
@@ -102,20 +94,6 @@ internal static class AppJson
 [JsonSerializable(typeof(SynchronizationData))]
 [JsonSerializable(typeof(SessionProcessedGeneration))]
 [JsonSerializable(typeof(GpsMetricsKey))]
-[JsonSerializable(typeof(AppPreferencesSyncData))]
-[JsonSerializable(typeof(MapPreferencesSyncData))]
-[JsonSerializable(typeof(SessionPreferencesSyncData))]
-[JsonSerializable(typeof(SessionPreferences))]
-[JsonSerializable(typeof(SignalDisplayPreferences))]
-[JsonSerializable(typeof(AnalysisPreferences))]
-[JsonSerializable(typeof(SignalLayoutPreferences))]
-[JsonSerializable(typeof(SignalLayoutRowPreferences))]
-[JsonSerializable(typeof(SessionLayoutPreferences))]
-[JsonSerializable(typeof(SessionPaneGroupPreferences))]
-[JsonSerializable(typeof(SessionPaneSizePreference))]
-[JsonSerializable(typeof(Dictionary<Guid, SessionPreferences>))]
-[JsonSerializable(typeof(TileLayerConfig))]
-[JsonSerializable(typeof(List<TileLayerConfig>))]
 [JsonSerializable(typeof(TrackPoint))]
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
 [JsonSerializable(typeof(RecordedLiveCaptureSourcePayload))]

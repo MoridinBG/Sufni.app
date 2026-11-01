@@ -11,40 +11,40 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.Telemetry;
-
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure.Theming;
+
 namespace Sufni.App.Infrastructure;
 
 public sealed class AppPreferences : IAppPreferences
 {
-    private const int CurrentVersion = AppPreferenceSerialization.CurrentVersion;
+    internal const int CurrentVersion = 4;
     private static readonly ILogger logger = Log.ForContext<AppPreferences>();
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = true,
     };
-
     private readonly string filePath;
-    private readonly TimeProvider timeProvider;
+    private readonly IBackgroundTaskRunner background;
+    private readonly IUiThreadDispatcher dispatcher;
     private readonly SemaphoreSlim gate = new(1, 1);
     private AppPreferencesDocument document;
-
-    private readonly Subject<PreferenceValueChange<MapPreferencesValue>> mapPreferencesSubject = new();
-    private readonly Subject<PreferenceValueChange<SufniThemeMode>> themePreferencesSubject = new();
-    private readonly object recordedPreferenceSubjectsGate = new();
-    private readonly Dictionary<Guid, RecordedPreferenceWatch> recordedPreferenceSubjects = [];
+    private readonly Subject<Guid?> mapChanges = new();
+    private readonly object watchGate = new();
+    private readonly Dictionary<Guid, RecordedPreferenceWatch> recordedWatches = [];
 
     public IMapPreferences Map { get; }
     public ISessionPreferences Session { get; }
     public IThemePreferences Theme { get; }
     public IUiPreferences Ui { get; }
 
-    public AppPreferences(string filePath, LaunchPreferences launchPreferences, TimeProvider timeProvider)
+    public AppPreferences(string filePath, LaunchPreferences launchPreferences,
+        IBackgroundTaskRunner background, IUiThreadDispatcher dispatcher)
     {
         this.filePath = filePath;
-        this.timeProvider = timeProvider;
+        this.background = background;
+        this.dispatcher = dispatcher;
         document = launchPreferences.Document;
         Map = new MapPreferences(this);
         Session = new RecordedSessionPreferences(this);
@@ -55,504 +55,168 @@ public sealed class AppPreferences : IAppPreferences
     public static LaunchPreferences ReadLaunchValues(string filePath, UiLayoutProfile defaultLayoutProfile) =>
         new(ReadDocumentCore(filePath), defaultLayoutProfile);
 
+    // Startup calls this after SQLite has retained the captured legacy custom layers.
+    public Task InitializeAsync() => UpdateAsync(_ => { }, _ => { });
+
     private async Task<TResult> ReadAsync<TResult>(Func<AppPreferencesDocument, TResult> read)
     {
         await gate.WaitAsync();
-        try
-        {
-            return read(document);
-        }
-        finally
-        {
-            gate.Release();
-        }
+        try { return read(document); }
+        finally { gate.Release(); }
     }
 
-    public async Task<AppPreferencesSyncData?> GetSyncDataAsync(long sinceExclusive, long upperInclusive)
+    private async Task UpdateAsync(Action<AppPreferencesDocument> update, Action<AppPreferencesDocument> publish)
     {
         await gate.WaitAsync();
         try
         {
-            if (document.Updated <= 0 && document.HasUserPreferences())
+            var current = document;
+            var next = await background.RunAsync(() =>
             {
-                var next = CloneDocument();
-                next.Updated = GetCurrentTimestamp();
-                await WriteDocumentCoreAsync(next);
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(current, JsonOptions);
+                return JsonSerializer.Deserialize<AppPreferencesDocument>(bytes, JsonOptions)!.Normalize(CurrentVersion);
+            });
+            update(next);
+            await background.RunAsync(() => WriteDocumentAsync(next));
+            await dispatcher.InvokeAsync(() =>
+            {
                 document = next;
-            }
-
-            return document.Updated > sinceExclusive && document.Updated <= upperInclusive
-                ? document.ToSyncData()
-                : null;
+                publish(next);
+            });
         }
-        finally
-        {
-            gate.Release();
-        }
+        finally { gate.Release(); }
     }
 
-    public async Task ApplySyncDataAsync(AppPreferencesSyncData? preferences)
+    private IObservable<Guid?> ObserveMap() => Observable.Create<Guid?>(async observer =>
     {
-        if (preferences is null)
-        {
-            return;
-        }
-
-        // Apply under the gate and publish typed preference streams for the
-        // affected consumers: map preference changes, theme preference changes,
-        // and recorded-session preference changes.
         await gate.WaitAsync();
         try
         {
-            if (preferences.Updated < document.Updated)
+            IDisposable subscription = Disposable.Empty;
+            await dispatcher.InvokeAsync(() =>
             {
-                return;
-            }
-
-            var next = CloneDocument();
-            next.ApplySyncData(preferences, CurrentVersion, GetCurrentTimestamp());
-            await WriteDocumentCoreAsync(next);
-            document = next;
-            PublishMapPreferenceChange(
-                next.Maps.ToModel(),
-                PreferenceChangeOrigin.SyncApply,
-                advancesSyncClock: false);
-            PublishThemePreferenceChange(
-                next.Theme.GetMode(),
-                PreferenceChangeOrigin.SyncApply,
-                advancesSyncClock: false);
-            var recordedChanges = GetObservedRecordedSessionIds()
-                .Select(sessionId => (sessionId, next.Session.GetRecorded(sessionId)))
-                .ToArray();
-            PublishRecordedPreferenceChanges(
-                PreferenceChangeOrigin.SyncApply,
-                advancesSyncClock: false,
-                recordedChanges);
+                subscription = mapChanges.Subscribe(observer);
+                observer.OnNext(document.Maps.GetSelectedId());
+            });
+            return subscription;
         }
-        finally
-        {
-            gate.Release();
-        }
-    }
+        finally { gate.Release(); }
+    }).DistinctUntilChanged();
 
-    private IObservable<PreferenceValueChange<SessionPreferences>> ObserveRecordedPreferences(Guid sessionId) =>
-        Observable.Create<PreferenceValueChange<SessionPreferences>>(async observer =>
+    private IObservable<SessionPreferences> ObserveRecorded(Guid id) => Observable.Create<SessionPreferences>(async observer =>
+    {
+        await gate.WaitAsync();
+        try
         {
-            await gate.WaitAsync();
-            try
+            RecordedPreferenceWatch? watch = null;
+            IDisposable subscription = Disposable.Empty;
+            await dispatcher.InvokeAsync(() =>
             {
-                RecordedPreferenceWatch watch;
-                IDisposable subscription;
-                lock (recordedPreferenceSubjectsGate)
+                lock (watchGate)
                 {
-                    if (!recordedPreferenceSubjects.TryGetValue(sessionId, out watch!))
-                    {
-                        watch = new RecordedPreferenceWatch();
-                        recordedPreferenceSubjects.Add(sessionId, watch);
-                    }
+                    if (!recordedWatches.TryGetValue(id, out watch))
+                        recordedWatches.Add(id, watch = new RecordedPreferenceWatch());
                     watch.Subscribers++;
                     subscription = watch.Subject.Subscribe(observer);
-                    // The document gate keeps initial replay adjacent to subscription.
-                    observer.OnNext(new PreferenceValueChange<SessionPreferences>(
-                        document.Session.GetRecorded(sessionId), PreferenceChangeOrigin.SyncApply, false));
+                    observer.OnNext(document.Session.GetRecorded(id));
                 }
-                return Disposable.Create(() =>
-                {
-                    subscription.Dispose();
-                    lock (recordedPreferenceSubjectsGate)
-                    {
-                        if (--watch.Subscribers == 0)
-                        {
-                            recordedPreferenceSubjects.Remove(sessionId);
-                            watch.Subject.Dispose();
-                        }
-                    }
-                });
-            }
-            finally
+            });
+            return Disposable.Create(() =>
             {
-                gate.Release();
-            }
-        });
+                subscription.Dispose();
+                lock (watchGate)
+                {
+                    if (--watch!.Subscribers == 0)
+                    {
+                        recordedWatches.Remove(id);
+                        watch.Subject.Dispose();
+                    }
+                }
+            });
+        }
+        finally { gate.Release(); }
+    }).DistinctUntilChanged();
+
+    private void PublishRecorded(Guid id, SessionPreferences value)
+    {
+        lock (watchGate)
+            if (recordedWatches.TryGetValue(id, out var watch)) watch.Subject.OnNext(value);
+    }
 
     private sealed class RecordedPreferenceWatch
     {
-        public Subject<PreferenceValueChange<SessionPreferences>> Subject { get; } = new();
+        public Subject<SessionPreferences> Subject { get; } = new();
         public int Subscribers;
-    }
-
-    private Guid[] GetObservedRecordedSessionIds()
-    {
-        lock (recordedPreferenceSubjectsGate)
-        {
-            return recordedPreferenceSubjects.Keys.ToArray();
-        }
-    }
-
-    private void PublishRecordedPreferenceChanges(
-        PreferenceChangeOrigin origin,
-        bool advancesSyncClock,
-        params (Guid SessionId, SessionPreferences Value)[] recordedChanges)
-    {
-        foreach (var (sessionId, value) in recordedChanges)
-        {
-            lock (recordedPreferenceSubjectsGate)
-            {
-                if (recordedPreferenceSubjects.TryGetValue(sessionId, out var watch))
-                    watch.Subject.OnNext(new PreferenceValueChange<SessionPreferences>(value, origin, advancesSyncClock));
-            }
-        }
-    }
-
-    private void PublishMapPreferenceChange(
-        MapPreferencesValue value,
-        PreferenceChangeOrigin origin,
-        bool advancesSyncClock)
-    {
-        mapPreferencesSubject.OnNext(new PreferenceValueChange<MapPreferencesValue>(
-            value,
-            origin,
-            advancesSyncClock));
-    }
-
-    private void PublishThemePreferenceChange(
-        SufniThemeMode value,
-        PreferenceChangeOrigin origin,
-        bool advancesSyncClock)
-    {
-        themePreferencesSubject.OnNext(new PreferenceValueChange<SufniThemeMode>(
-            value,
-            origin,
-            advancesSyncClock));
-    }
-
-    private static TileLayerConfig CloneTileLayerConfig(TileLayerConfig layer)
-    {
-        return new TileLayerConfig
-        {
-            Id = layer.Id,
-            Name = layer.Name,
-            UrlTemplate = layer.UrlTemplate,
-            AttributionText = layer.AttributionText,
-            AttributionUrl = layer.AttributionUrl,
-            MaxZoom = layer.MaxZoom,
-            IsCustom = layer.IsCustom,
-        };
-    }
-
-    private long GetCurrentTimestamp() => timeProvider.GetUtcNow().ToUnixTimeSeconds();
-
-    private AppPreferencesDocument CloneDocument()
-    {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
-        return JsonSerializer.Deserialize<AppPreferencesDocument>(bytes, JsonOptions)?.Normalize(CurrentVersion)
-            ?? new AppPreferencesDocument().Normalize(CurrentVersion);
     }
 
     private static AppPreferencesDocument ReadDocumentCore(string filePath)
     {
-        if (!File.Exists(filePath))
-        {
-            return new AppPreferencesDocument();
-        }
-
+        if (!File.Exists(filePath)) return new AppPreferencesDocument();
         try
         {
             using var stream = File.OpenRead(filePath);
-            var document = JsonSerializer.Deserialize<AppPreferencesDocument>(stream, JsonOptions);
-            return document ?? new AppPreferencesDocument();
+            return JsonSerializer.Deserialize<AppPreferencesDocument>(stream, JsonOptions) ?? new AppPreferencesDocument();
         }
-        catch (JsonException ex)
+        catch (JsonException exception)
         {
-            logger.Warning(ex, "Failed to read app preferences JSON at {PreferencesPath}; using defaults", filePath);
+            logger.Warning(exception, "Failed to read app preferences JSON at {PreferencesPath}; using defaults", filePath);
             return new AppPreferencesDocument();
         }
     }
 
-    private async Task WriteDocumentCoreAsync(AppPreferencesDocument document)
+    private async Task WriteDocumentAsync(AppPreferencesDocument next)
     {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(next.Normalize(CurrentVersion), JsonOptions);
         var directory = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var tempPath = Path.Combine(directory ?? string.Empty, $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
+        if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+        var temp = Path.Combine(directory ?? string.Empty, $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            await using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
-            {
-                await JsonSerializer.SerializeAsync(stream, document.Normalize(CurrentVersion), JsonOptions);
-            }
-
-            File.Move(tempPath, filePath, overwrite: true);
+            await File.WriteAllBytesAsync(temp, bytes);
+            File.Move(temp, filePath, overwrite: true);
         }
-        finally
-        {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
-        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 
     private sealed class MapPreferences(AppPreferences owner) : IMapPreferences
     {
-        public Task<Guid?> GetSelectedLayerIdAsync()
-        {
-            return owner.ReadAsync(document =>
-                Guid.TryParse(document.Maps.SelectedLayerId, out var selectedLayerId)
-                    ? selectedLayerId
-                    : (Guid?)null);
-        }
-
-        public Task SetSelectedLayerIdAsync(Guid selectedLayerId)
-        {
-            return SetAsync(document =>
-                document.Maps.SelectedLayerId = selectedLayerId.ToString("D"));
-        }
-
-        public Task<IReadOnlyList<TileLayerConfig>> GetCustomLayersAsync()
-        {
-            return owner.ReadAsync<IReadOnlyList<TileLayerConfig>>(document =>
-                document.Maps.GetCustomLayers());
-        }
-
-        public Task SetCustomLayersAsync(IReadOnlyList<TileLayerConfig> customLayers)
-        {
-            return SetAsync(document =>
-                document.Maps.SetCustomLayers(customLayers));
-        }
-
-        public IObservable<PreferenceValueChange<MapPreferencesValue>> ObserveChanges()
-        {
-            return Observable
-                .FromAsync(async () => new PreferenceValueChange<MapPreferencesValue>(
-                    await owner.ReadAsync(document => document.Maps.ToModel()),
-                    PreferenceChangeOrigin.SyncApply,
-                    AdvancesSyncClock: false))
-                .Concat(owner.mapPreferencesSubject)
-                .DistinctUntilChanged(MapPreferenceChangeComparer.Instance);
-        }
-
-        private async Task SetAsync(Action<AppPreferencesDocument> update)
-        {
-            await owner.gate.WaitAsync();
-            try
-            {
-                var next = owner.CloneDocument();
-                update(next);
-                next.Updated = owner.GetCurrentTimestamp();
-                await owner.WriteDocumentCoreAsync(next);
-                owner.document = next;
-                owner.PublishMapPreferenceChange(
-                    next.Maps.ToModel(),
-                    PreferenceChangeOrigin.LocalWrite,
-                    advancesSyncClock: true);
-            }
-            finally
-            {
-                owner.gate.Release();
-            }
-        }
-
-        private sealed class MapPreferenceChangeComparer :
-            IEqualityComparer<PreferenceValueChange<MapPreferencesValue>>
-        {
-            public static readonly MapPreferenceChangeComparer Instance = new();
-
-            public bool Equals(
-                PreferenceValueChange<MapPreferencesValue>? previous,
-                PreferenceValueChange<MapPreferencesValue>? current)
-            {
-                if (ReferenceEquals(previous, current))
-                {
-                    return true;
-                }
-
-                if (previous is null || current is null)
-                {
-                    return false;
-                }
-
-                return previous.Origin == current.Origin &&
-                    previous.AdvancesSyncClock == current.AdvancesSyncClock &&
-                    previous.Value.SelectedLayerId == current.Value.SelectedLayerId &&
-                    TileLayerListsEqual(previous.Value.CustomLayers, current.Value.CustomLayers);
-            }
-
-            public int GetHashCode(PreferenceValueChange<MapPreferencesValue> change)
-            {
-                return HashCode.Combine(
-                    change.Origin,
-                    change.AdvancesSyncClock,
-                    change.Value.SelectedLayerId);
-            }
-
-            private static bool TileLayerListsEqual(
-                IReadOnlyList<TileLayerConfig> previous,
-                IReadOnlyList<TileLayerConfig> current)
-            {
-                if (previous.Count != current.Count)
-                {
-                    return false;
-                }
-
-                for (var i = 0; i < previous.Count; i++)
-                {
-                    if (!TileLayersEqual(previous[i], current[i]))
-                    {
-                        return false;
-                    }
-                }
-
-                return true;
-            }
-
-            private static bool TileLayersEqual(TileLayerConfig previous, TileLayerConfig current)
-            {
-                return previous.Id == current.Id &&
-                    previous.Name == current.Name &&
-                    previous.UrlTemplate == current.UrlTemplate &&
-                    previous.AttributionText == current.AttributionText &&
-                    previous.AttributionUrl == current.AttributionUrl &&
-                    previous.MaxZoom == current.MaxZoom &&
-                    previous.IsCustom == current.IsCustom;
-            }
-        }
+        public Task<Guid?> GetSelectedLayerIdAsync() => owner.ReadAsync(document => document.Maps.GetSelectedId());
+        public Task SetSelectedLayerIdAsync(Guid id) => owner.UpdateAsync(
+            document => document.Maps.SelectedLayerId = id.ToString("D"),
+            document => owner.mapChanges.OnNext(document.Maps.GetSelectedId()));
+        public IObservable<Guid?> ObserveChanges() => owner.ObserveMap();
     }
 
     private sealed class UiPreferenceStore(AppPreferences owner) : IUiPreferences
     {
-        public async Task SetLayoutProfileAsync(UiLayoutProfile? layoutProfile)
-        {
-            await owner.gate.WaitAsync();
-            try
-            {
-                var next = owner.CloneDocument();
-                next.Ui.LayoutProfile = layoutProfile?.ToString();
-                await owner.WriteDocumentCoreAsync(next);
-                owner.document = next;
-            }
-            finally
-            {
-                owner.gate.Release();
-            }
-        }
-    }
-
-    private sealed class RecordedSessionPreferences(AppPreferences owner) : ISessionPreferences
-    {
-        public Task<SessionPreferences> GetRecordedAsync(Guid sessionId)
-        {
-            return owner.ReadAsync(document => document.Session.GetRecorded(sessionId));
-        }
-
-        public async Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update)
-        {
-            ArgumentNullException.ThrowIfNull(update);
-
-            await owner.gate.WaitAsync();
-            try
-            {
-                var next = owner.CloneDocument();
-                var current = next.Session.GetRecorded(sessionId);
-                var updated = update(current);
-                next.Session.Sessions[SessionKey(sessionId)] = SessionPreferencesDocument.FromModel(updated);
-                next.Updated = owner.GetCurrentTimestamp();
-                await owner.WriteDocumentCoreAsync(next);
-                owner.document = next;
-                owner.PublishRecordedPreferenceChanges(
-                    PreferenceChangeOrigin.LocalWrite,
-                    advancesSyncClock: true,
-                    (sessionId, updated));
-            }
-            finally
-            {
-                owner.gate.Release();
-            }
-        }
-
-        public async Task RemoveRecordedAsync(Guid sessionId)
-        {
-            await owner.gate.WaitAsync();
-            try
-            {
-                var next = owner.CloneDocument();
-                next.Session.Sessions.Remove(SessionKey(sessionId));
-                next.Updated = owner.GetCurrentTimestamp();
-                await owner.WriteDocumentCoreAsync(next);
-                owner.document = next;
-                owner.PublishRecordedPreferenceChanges(
-                    PreferenceChangeOrigin.LocalWrite,
-                    advancesSyncClock: true,
-                    (sessionId, SessionPreferences.Default));
-            }
-            finally
-            {
-                owner.gate.Release();
-            }
-        }
-
-        public IObservable<SessionPreferences> ObserveRecorded(Guid sessionId)
-        {
-            return owner.ObserveRecordedPreferences(sessionId)
-                .Select(change => change.Value)
-                .DistinctUntilChanged();
-        }
-
-        private static string SessionKey(Guid sessionId) => sessionId.ToString("D");
+        public Task SetLayoutProfileAsync(UiLayoutProfile? profile) => owner.UpdateAsync(
+            document => document.Ui.LayoutProfile = profile?.ToString(), _ => { });
     }
 
     private sealed class ThemePreferences(AppPreferences owner) : IThemePreferences
     {
-        public Task<SufniThemeMode> GetModeAsync()
-        {
-            return owner.ReadAsync(document => document.Theme.GetMode());
-        }
+        public Task<SufniThemeMode> GetModeAsync() => owner.ReadAsync(document => document.Theme.GetMode());
+        public Task SetModeAsync(SufniThemeMode mode) => owner.UpdateAsync(
+            document => document.Theme.Mode = mode.ToString(), _ => { });
+    }
 
-        public Task SetModeAsync(SufniThemeMode mode)
-        {
-            return SetAsync(mode);
-        }
-
-        public IObservable<PreferenceValueChange<SufniThemeMode>> ObserveModeChanges()
-        {
-            return Observable
-                .FromAsync(async () => new PreferenceValueChange<SufniThemeMode>(
-                    await GetModeAsync(),
-                    PreferenceChangeOrigin.SyncApply,
-                    AdvancesSyncClock: false))
-                .Concat(owner.themePreferencesSubject)
-                .DistinctUntilChanged();
-        }
-
-        private async Task SetAsync(SufniThemeMode mode)
-        {
-            await owner.gate.WaitAsync();
-            try
-            {
-                var next = owner.CloneDocument();
-                next.Theme.Mode = mode.ToString();
-                next.Updated = owner.GetCurrentTimestamp();
-                await owner.WriteDocumentCoreAsync(next);
-                owner.document = next;
-                owner.PublishThemePreferenceChange(
-                    next.Theme.GetMode(),
-                    PreferenceChangeOrigin.LocalWrite,
-                    advancesSyncClock: true);
-            }
-            finally
-            {
-                owner.gate.Release();
-            }
-        }
+    private sealed class RecordedSessionPreferences(AppPreferences owner) : ISessionPreferences
+    {
+        public Task<SessionPreferences> GetRecordedAsync(Guid id) => owner.ReadAsync(document => document.Session.GetRecorded(id));
+        public Task UpdateRecordedAsync(Guid id, Func<SessionPreferences, SessionPreferences> update) => owner.UpdateAsync(
+            document => document.Session.Sessions[id.ToString("D")] = SessionPreferencesDocument.FromModel(update(document.Session.GetRecorded(id))),
+            document => owner.PublishRecorded(id, document.Session.GetRecorded(id)));
+        public Task RemoveRecordedAsync(Guid id) => owner.UpdateAsync(
+            document => document.Session.Sessions.Remove(id.ToString("D")),
+            document => owner.PublishRecorded(id, document.Session.GetRecorded(id)));
+        public IObservable<SessionPreferences> ObserveRecorded(Guid id) => owner.ObserveRecorded(id);
     }
 
     internal sealed class AppPreferencesDocument
     {
         public int Version { get; set; } = CurrentVersion;
-        public long Updated { get; set; }
+        [JsonPropertyName("updated")]
+        public long? LegacyUpdated { get; set; }
         public MapPreferencesDocument Maps { get; set; } = new();
         public SessionPreferencesGroupDocument Session { get; set; } = new();
         public ThemePreferencesDocument Theme { get; set; } = new();
@@ -561,83 +225,15 @@ public sealed class AppPreferences : IAppPreferences
         public AppPreferencesDocument Normalize(int targetVersion)
         {
             Version = Math.Max(Version, targetVersion);
+            LegacyUpdated = null;
             Maps ??= new MapPreferencesDocument();
-            Maps.CustomLayers ??= [];
+            Maps.CustomLayers = null;
             Session ??= new SessionPreferencesGroupDocument();
             Session.Sessions ??= [];
             Session.Normalize();
             Theme ??= new ThemePreferencesDocument();
             Ui ??= new UiPreferencesDocument();
             return this;
-        }
-
-        public bool HasUserPreferences()
-        {
-            return !string.IsNullOrWhiteSpace(Maps.SelectedLayerId)
-                || Maps.CustomLayers?.Count > 0
-                || Session.Sessions.Count > 0
-                || !string.IsNullOrWhiteSpace(Theme.Mode);
-        }
-
-        public AppPreferencesSyncData ToSyncData()
-        {
-            var sessions = Session.Sessions
-                .Where(pair => pair.Value is not null && Guid.TryParse(pair.Key, out _))
-                .ToDictionary(
-                    pair => Guid.Parse(pair.Key),
-                    pair => pair.Value!.ToModel());
-
-            return new AppPreferencesSyncData
-            {
-                Updated = Updated,
-                Maps = new MapPreferencesSyncData
-                {
-                    SelectedLayerId = Guid.TryParse(Maps.SelectedLayerId, out var selectedLayerId)
-                        ? selectedLayerId
-                        : null,
-                    CustomLayers = Maps.GetCustomLayers().ToList(),
-                },
-                Session = new SessionPreferencesSyncData
-                {
-                    Sessions = sessions,
-                },
-                Theme = new ThemePreferencesSyncData
-                {
-                    Mode = Theme.Mode,
-                },
-            };
-        }
-
-        public void ApplySyncData(AppPreferencesSyncData preferences, int targetVersion, long timestamp)
-        {
-            var maps = preferences.Maps ?? new MapPreferencesSyncData();
-            var session = preferences.Session ?? new SessionPreferencesSyncData();
-            var theme = preferences.Theme ?? new ThemePreferencesSyncData();
-
-            Updated = preferences.Updated > 0
-                ? preferences.Updated
-                : timestamp;
-            Maps = new MapPreferencesDocument
-            {
-                SelectedLayerId = maps.SelectedLayerId?.ToString("D"),
-                CustomLayers = maps.CustomLayers?
-                    .Where(layer => layer is not null)
-                    .Select(CloneTileLayerConfig)
-                    .ToList() ?? [],
-            };
-            Session = new SessionPreferencesGroupDocument
-            {
-                Sessions = session.Sessions?
-                    .ToDictionary(
-                        pair => pair.Key.ToString("D"),
-                        pair => (SessionPreferencesDocument?)SessionPreferencesDocument.FromModel(pair.Value))
-                    ?? [],
-            };
-            Theme = new ThemePreferencesDocument
-            {
-                Mode = theme.Mode,
-            };
-            Normalize(targetVersion);
         }
     }
 
@@ -666,32 +262,8 @@ public sealed class AppPreferences : IAppPreferences
     internal sealed class MapPreferencesDocument
     {
         public string? SelectedLayerId { get; set; }
-        public List<TileLayerConfig>? CustomLayers { get; set; } = [];
-
-        public MapPreferencesValue ToModel()
-        {
-            return new MapPreferencesValue(
-                Guid.TryParse(SelectedLayerId, out var selectedLayerId)
-                    ? selectedLayerId
-                    : null,
-                GetCustomLayers());
-        }
-
-        public IReadOnlyList<TileLayerConfig> GetCustomLayers()
-        {
-            return CustomLayers?
-                .Where(layer => layer is not null)
-                .Select(CloneTileLayerConfig)
-                .ToList() ?? [];
-        }
-
-        public void SetCustomLayers(IReadOnlyList<TileLayerConfig> customLayers)
-        {
-            CustomLayers = customLayers
-                .Where(layer => layer is not null)
-                .Select(CloneTileLayerConfig)
-                .ToList();
-        }
+        public List<TileLayerConfig>? CustomLayers { get; set; }
+        public Guid? GetSelectedId() => Guid.TryParse(SelectedLayerId, out var id) ? id : null;
     }
 
     internal sealed class SessionPreferencesGroupDocument

@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.SyncAndPairing.Services;
 using System.Text.Json;
 using SQLite;
 using Sufni.Kinematics;
@@ -22,6 +24,27 @@ namespace Sufni.App.Tests.Infrastructure;
 
 public class DatabaseMigrationRunnerTests
 {
+    [Fact]
+    public async Task Initialization_MigratesLegacyCustomLayers_OnceWithoutPersistingIsCustom()
+    {
+        using var temp = new TempDatabase();
+        var layer = new CustomTileLayerSnapshot(Guid.NewGuid(), "Legacy", "https://tiles/{z}/{x}/{y}", "Tiles", "https://tiles", 18, 77);
+        await using (var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath, legacyCustomLayers: [layer]))
+        {
+            await context.Initialization;
+            var row = await context.Connection.GetAsync<CustomTileLayer>(layer.Id);
+            Assert.Equal(("Legacy", 77L, 1L, ""), (row.Name, row.Updated, row.Version, row.UpdatedBy));
+            Assert.DoesNotContain(await context.Connection.GetTableInfoAsync("custom_tile_layer"), column => column.Name == "is_custom");
+            row.Name = "Edited";
+            await new SynchronizableRepository<CustomTileLayer>(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity()).PutAsync(row);
+        }
+        await using var reopened = PersistenceTestData.CreateConnectionContext(temp.DatabasePath, legacyCustomLayers: [layer]);
+        await reopened.Initialization;
+        var retained = await reopened.Connection.GetAsync<CustomTileLayer>(layer.Id);
+        Assert.Equal("Edited", retained.Name);
+        Assert.Equal(2, retained.Version);
+    }
+
     [Fact]
     public async Task Initialization_SeedsVersionsAndDeletionLedgerWithoutRestampingAuthoredTime()
     {

@@ -1,5 +1,6 @@
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.MapsAndTracks.Stores;
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -10,7 +11,8 @@ using Sufni.App.Shared.Models;
 namespace Sufni.App.MapsAndTracks.Coordinators;
 
 /// <summary>Owns custom map-layer writes and the device's map selection.</summary>
-public sealed class MapLayerCoordinator(IAppPreferences preferences, IBackgroundTaskRunner backgroundTaskRunner)
+public sealed class MapLayerCoordinator(IAppPreferences preferences, IBackgroundTaskRunner backgroundTaskRunner,
+    ISynchronizableRepository<CustomTileLayer> repository, ICustomTileLayerStoreWriter store)
     : IMapLayerCoordinator, IAsyncDisposable
 {
     private static readonly ILogger logger = Log.ForContext<MapLayerCoordinator>();
@@ -31,8 +33,9 @@ public sealed class MapLayerCoordinator(IAppPreferences preferences, IBackground
             {
                 if (custom is not null)
                 {
-                    var layers = await preferences.Map.GetCustomLayersAsync();
-                    await preferences.Map.SetCustomLayersAsync(layers.Append(custom).ToArray());
+                    var row = CustomTileLayer.From(custom);
+                    await repository.PutAsync(row);
+                    await store.PublishChangedAsync([CustomTileLayerSnapshot.From(row)]);
                 }
                 reason = MapLayerFailureReason.Select;
                 if (await preferences.Map.GetSelectedLayerIdAsync() != layerId)

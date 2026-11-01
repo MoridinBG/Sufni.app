@@ -5,7 +5,6 @@ using MessagePack;
 using SQLite;
 
 using Sufni.App.Bikes.Models;
-using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
@@ -80,5 +79,5 @@ public class SynchronizationData
     [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
     [JsonPropertyName("segment")] public List<SessionSegment> Segments { get; set; } = [];
     [JsonPropertyName("deletions")] public List<SynchronizationDeletion> Deletions { get; set; } = [];
-    [JsonPropertyName("app_preferences")] public AppPreferencesSyncData? AppPreferences { get; set; }
+    [JsonPropertyName("custom_tile_layers")] public List<CustomTileLayer> CustomTileLayers { get; set; } = [];
 }

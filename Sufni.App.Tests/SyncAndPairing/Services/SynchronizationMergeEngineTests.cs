@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Sessions.Services;
 using SQLite;
 using Sufni.Telemetry;
@@ -19,6 +20,27 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationMergeEngineTests
 {
+    [Fact]
+    public async Task CustomLayer_TravelsThroughOrdinaryRowMerge_WithoutADevicePreferencePayload()
+    {
+        using var sourceFile = new TempDatabase();
+        using var peerFile = new TempDatabase();
+        var source = new TestPersistenceHarness(sourceFile.DatabasePath);
+        var peer = new TestPersistenceHarness(peerFile.DatabasePath);
+        var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
+        await source.PutAsync(layer);
+        var changes = await source.GetSynchronizationDataAsync(0, long.MaxValue);
+        var json = AppJson.Serialize(changes);
+        Assert.DoesNotContain("app_preferences", json);
+        Assert.DoesNotContain("is_custom", json);
+
+        await peer.MergeAllAsync(AppJson.Deserialize<SynchronizationData>(json)!);
+
+        var received = Assert.Single(await peer.GetAllAsync<CustomTileLayer>());
+        Assert.Equal((layer.Id, layer.UrlTemplate, layer.Version, layer.UpdatedBy),
+            (received.Id, received.UrlTemplate, received.Version, received.UpdatedBy));
+    }
+
     [Theory]
     [InlineData(2, 100, "a", null, 1, 200, "z", null, false)]
     [InlineData(2, 100, "a", null, 2, 101, "a", null, true)]
