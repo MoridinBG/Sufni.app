@@ -180,6 +180,20 @@ close. The archive is retained; a separate connection creates the replacement
 through the normal migration path and closes it. The existing context and its
 consumers are not reinitialized; the replacement requires a new launch.
 
+The `sync-authority` migration seeds `version = 1` and an empty unknown-writer
+`updated_by` while preserving authored `updated`, allocates initial `local_seq`
+and `sync_seq` values, and retains current tombstones in `sync_deletion` before
+payload cleanup. `sync_sequence` holds the two transactionally allocated counters.
+Every local authored write advances its row version above both the payload and
+ledger version, stamps the shared installation identity and advances sequences.
+Derived generation writes advance sequences while preserving version, timestamp
+and writer. GPS metric materializations remain local and do not advance them.
+Deletes write the payload tombstone and ledger atomically. Ledger entries are
+never purged; explicit restoration advances above their versions.
+
+The remote merge and cursor paths still use the earlier clocks during this Epic 6
+migration; `client_updated` remains until those paths move to the new metadata.
+
 ## SQLite Persistence Repositories
 
 `SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives the database path from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner` through the background runner, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and applies the one-time track content migration.
@@ -247,7 +261,7 @@ persist first and inbound appliers prepare and publish the resulting snapshots.
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
 - `GetChangedAsync<T>(long since)` — returns records where `Updated > since` OR (`Deleted != null` AND `Deleted > since`)
 - `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
-- `DeleteAsync<T>(id)` — soft-deletes the row when it exists and is not already tombstoned.
+- `DeleteAsync<T>(id)` — stamps an authored deletion and writes its durable ledger entry when the row exists and is not already tombstoned.
 
 `ISessionRepository` operations split metadata and processed-data handling, and store the values they are given: reprocessing produces a pure `ProcessedGeneration`, and import/live-save/recompute owners prepare the optional content track and session before calling the repository. Incoming synchronized bytes are validated, prepared, committed and published by `SessionSyncApplier`. `session.data` is the authoritative local processed-telemetry cache; there is no separate `has_data` column. Metadata and sync-delta reads use `SessionMetadataRow`, projecting availability from `data IS NOT NULL` without selecting the BLOB. A payload-bearing `Session` derives `HasProcessedData` only from its loaded `ProcessedData`; metadata drafts carry no availability override. Persistence helpers map the declared entity schema, so projection-only fields cannot become writes. Duration remains a derived session column. GPS distance/ascent/descent and their input key live in device-local `session_gps_metrics`; metadata reads join that table without loading point JSON. The corresponding properties on `Session` are ignored by entity writes and JSON, and `SessionSnapshot` carries those joined values plus `GpsMetricsKey`. Metadata draft updates preserve `timestamp` and `gps_offset_seconds`; only creation/window editing sets the timestamp, and the explicit alignment command owns the offset. Split copies the current alignment to its new session; trim and undo preserve it. `gps_offset_seconds` is authored per-session state applied when deriving the session-window GPS track from a reusable full `Track`; it is stored on `session` rather than `track` because the same full ride track can back multiple recorded sessions or segments.
 

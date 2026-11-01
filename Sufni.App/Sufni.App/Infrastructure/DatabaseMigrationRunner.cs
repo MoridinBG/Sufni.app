@@ -1,3 +1,4 @@
+using Sufni.App.SyncAndPairing.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,12 +48,12 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("CREATE TABLE database_identity (id INTEGER PRIMARY KEY CHECK (id = 1), db_incarnation TEXT NOT NULL)");
             transaction.Execute("INSERT INTO database_identity (id, db_incarnation) VALUES (1, ?)", Guid.NewGuid().ToString());
         });
-        await MigrateSyncAuthorityAsync();
-        await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-video");
         await MigrateSessionDerivationWindowsAsync();
         await MigrateSessionDomainAsync();
         await MigrateTrackMaterializationsAsync();
+        await MigrateSyncAuthorityAsync();
+        await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
         await DropSchemaVersionTableAsync();
 
@@ -149,10 +150,11 @@ internal sealed class DatabaseMigrationRunner(
             canonical.Id = group.Key;
             transaction.Insert(canonical);
         }
-        foreach (var row in transaction.Query<LegacySessionGenerationRow>(
-                     "SELECT session_id, target_generation FROM session_blob_swap_request WHERE target_generation IS NOT NULL"))
-            transaction.Execute("UPDATE session_blob_swap_request SET target_generation = ? WHERE session_id = ?",
-                AppJson.Serialize(AppJson.Deserialize<SessionProcessedGeneration>(row.Generation)), row.SessionId);
+        if (transaction.GetTableInfo(SessionBlobSwapRequestStore.TableName).Any(column => column.Name == "target_generation"))
+            foreach (var row in transaction.Query<LegacySessionGenerationRow>(
+                         "SELECT session_id, target_generation FROM session_blob_swap_request WHERE target_generation IS NOT NULL"))
+                transaction.Execute("UPDATE session_blob_swap_request SET target_generation = ? WHERE session_id = ?",
+                    AppJson.Serialize(AppJson.Deserialize<SessionProcessedGeneration>(row.Generation)), row.SessionId);
         foreach (var column in new[] { "track", "track_projection_revision", "full_track_id", "distance_meters", "ascent_meters", "descent_meters" })
             if (transaction.GetTableInfo("session").Any(info => info.Name == column))
                 transaction.Execute($"ALTER TABLE session DROP COLUMN {column}");
@@ -197,6 +199,29 @@ internal sealed class DatabaseMigrationRunner(
 
     private Task MigrateSyncAuthorityAsync() => coreMigrations.ApplyAsync("sync-authority", transaction =>
     {
+        transaction.Execute("CREATE TABLE sync_sequence (id INTEGER PRIMARY KEY CHECK (id = 1), local_seq INTEGER NOT NULL, sync_seq INTEGER NOT NULL)");
+        transaction.Execute("INSERT INTO sync_sequence VALUES (1, 0, 0)");
+        transaction.Execute("""
+            CREATE TABLE sync_deletion (
+                entity_table TEXT NOT NULL, id TEXT NOT NULL, version INTEGER NOT NULL,
+                updated INTEGER NOT NULL, updated_by TEXT NOT NULL, deleted INTEGER NOT NULL,
+                local_seq INTEGER NOT NULL, sync_seq INTEGER NOT NULL,
+                PRIMARY KEY (entity_table, id))
+            """);
+        foreach (var table in SyncIndexedTables)
+        {
+            var names = transaction.GetTableInfo(table).Select(column => column.Name).ToHashSet();
+            foreach (var (name, type) in new[] { ("version", "INTEGER"), ("updated_by", "TEXT"), ("local_seq", "INTEGER"), ("sync_seq", "INTEGER") })
+                if (!names.Contains(name)) transaction.Execute($"ALTER TABLE {table} ADD COLUMN {name} {type}");
+            foreach (var row in transaction.Query<Synchronizable>($"SELECT id FROM {table} ORDER BY id"))
+                transaction.Execute($"UPDATE {table} SET version=1, updated_by='', local_seq=?, sync_seq=? WHERE id=?",
+                    SynchronizationWriteMetadata.NextLocalSequence(transaction), SynchronizationWriteMetadata.NextSyncSequence(transaction), row.Id);
+            transaction.Execute($"INSERT INTO sync_deletion SELECT ?, id, version, updated, updated_by, deleted, local_seq, sync_seq FROM {table} WHERE deleted IS NOT NULL", table);
+            transaction.Execute($"CREATE INDEX ix_{table}_local_seq ON {table}(local_seq)");
+            transaction.Execute($"CREATE INDEX ix_{table}_sync_seq ON {table}(sync_seq)");
+        }
+        transaction.Execute("CREATE INDEX ix_sync_deletion_local_seq ON sync_deletion(local_seq)");
+        transaction.Execute("CREATE INDEX ix_sync_deletion_sync_seq ON sync_deletion(sync_seq)");
         var columns = transaction.GetTableInfo(SessionBlobSwapRequestStore.TableName);
         if (columns.Count > 0 && columns.All(column => column.Name != "target_generation"))
             transaction.Execute($"DROP TABLE {SessionBlobSwapRequestStore.TableName}");

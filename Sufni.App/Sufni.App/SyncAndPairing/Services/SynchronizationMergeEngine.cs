@@ -71,7 +71,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                        {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                       rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
-                                                                      updated,
+                                                                      updated, version, updated_by, local_seq, sync_seq,
                                                                       client_updated,
                                                                       deleted,
                                                                       {SessionSqlProjection.HasDataProjection}

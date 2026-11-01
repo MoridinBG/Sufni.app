@@ -1,3 +1,4 @@
+using Sufni.App.SyncAndPairing.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,7 +29,7 @@ public interface ISessionSegmentRepository
     Task<SessionSegment?> DeleteAsync(Guid segmentId);
 }
 
-internal sealed class SessionSegmentRepository(SqliteConnectionContext connectionContext, TimeProvider timeProvider) : ISessionSegmentRepository
+internal sealed class SessionSegmentRepository(SqliteConnectionContext connectionContext, TimeProvider timeProvider, ILocalDeviceIdentity localDeviceIdentity) : ISessionSegmentRepository
 {
     public async Task<List<SessionSegment>> GetLiveAsync()
     {
@@ -43,9 +44,12 @@ internal sealed class SessionSegmentRepository(SqliteConnectionContext connectio
 
     public async Task InsertAsync(SessionSegment segment)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        segment.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        await connection.InsertAsync(segment);
+        var writer = await localDeviceIdentity.GetIdAsync();
+        await connectionContext.RunInTransactionAsync(connection =>
+        {
+            SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, segment, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
+            connection.Insert(segment);
+        });
     }
 
     public Task<SessionSegment?> RenameAsync(Guid segmentId, string name) =>
@@ -56,18 +60,17 @@ internal sealed class SessionSegmentRepository(SqliteConnectionContext connectio
 
     private async Task<SessionSegment?> UpdateLiveAsync(Guid segmentId, Action<SessionSegment, long> change)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        var segment = await connection.FindAsync<SessionSegment>(segmentId);
-        if (segment is null || segment.Deleted is not null)
+        var writer = await localDeviceIdentity.GetIdAsync();
+        return await connectionContext.RunInTransactionAsync(connection =>
         {
-            return null;
-        }
-
-        var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        change(segment, now);
-        segment.Updated = now;
-        await connection.UpdateAsync(segment);
-        return segment;
+            var segment = connection.Find<SessionSegment>(segmentId);
+            if (segment is null || segment.Deleted is not null) return null;
+            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+            change(segment, now);
+            SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, segment, now, writer);
+            connection.Update(segment);
+            if (segment.Deleted is not null) SynchronizationWriteMetadata.RecordDeletion(connection, segment);
+            return segment;
+        });
     }
-
 }

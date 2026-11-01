@@ -11,6 +11,49 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 public class SynchronizableRepositoryTests
 {
     [Fact]
+    public async Task SameSecondEdits_AdvanceVersionAndSequences_WithStableWriter()
+    {
+        using var temp = new TempDatabase();
+        var database = new TestPersistenceHarness(temp.DatabasePath, writerId: "writer-a");
+        var board = new Board(Guid.NewGuid(), null);
+        await database.PutAsync(board);
+        var first = (await database.GetAsync<Board>(board.Id))!;
+        var assignedSetup = Guid.NewGuid();
+
+        await database.PutAsync(new Board(board.Id, assignedSetup));
+
+        var second = (await database.GetAsync<Board>(board.Id))!;
+        Assert.Equal(first.Updated, second.Updated);
+        Assert.Equal(first.Version + 1, second.Version);
+        Assert.Equal("writer-a", second.UpdatedBy);
+        Assert.True(second.LocalSequence > first.LocalSequence);
+        Assert.True(second.SyncSequence > first.SyncSequence);
+    }
+
+    [Fact]
+    public async Task DeleteLedger_SurvivesPayloadPurge_AndExplicitRestoreAdvancesPastIt()
+    {
+        using var temp = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var database = new TestPersistenceHarness(temp.DatabasePath, clock, "writer-a");
+        var board = new Board(Guid.NewGuid(), null);
+        await database.PutAsync(board);
+        await database.DeleteAsync(board);
+        var connection = await database.GetInitializedConnectionAsync();
+        var deletedVersion = await connection.ExecuteScalarAsync<long>("SELECT version FROM sync_deletion WHERE entity_table='board' AND id=?", board.Id);
+        clock.Advance(TimeSpan.FromDays(2));
+        var restarted = new TestPersistenceHarness(temp.DatabasePath, clock, "writer-a");
+        Assert.Empty(await restarted.GetAllAsync<Board>());
+        Assert.Equal(0, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM board WHERE id=?", board.Id));
+
+        await restarted.PutAsync(new Board(board.Id, Guid.NewGuid()));
+
+        var restored = (await restarted.GetAsync<Board>(board.Id))!;
+        Assert.Equal(deletedVersion + 1, restored.Version);
+        Assert.Equal(deletedVersion, await connection.ExecuteScalarAsync<long>("SELECT version FROM sync_deletion WHERE entity_table='board' AND id=?", board.Id));
+    }
+
+    [Fact]
     public async Task AuthoredWriteAndDeletion_UseInjectedTimeInChangeWindow()
     {
         using var tempDatabase = new TempDatabase("board-clock.db");
@@ -24,7 +67,7 @@ public class SynchronizableRepositoryTests
         await database.DeleteAsync(board);
 
         var deleted = Assert.Single(await database.GetChangedAsync<Board>(createdAt, createdAt + 10));
-        Assert.Equal(createdAt, deleted.Updated);
+        Assert.Equal(createdAt + 10, deleted.Updated);
         Assert.Equal(createdAt + 10, deleted.Deleted);
     }
 

@@ -20,7 +20,7 @@ public class SessionPersistenceTransactionRunnerTests
         await using var context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
         var connection = await context.GetInitializedConnectionAsync(cancellationToken: TestContext.Current.CancellationToken);
         var sourceRepository = new RecordedSessionSourceRepository(context);
-        var runner = new SessionPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider());
+        var runner = new SessionPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
         await connection.InsertAsync(track);
         await connection.InsertAsync(new Session(sessionId, "session", "desc", null)
         {

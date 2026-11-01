@@ -1,3 +1,5 @@
+using NSubstitute;
+using Sufni.App.SyncAndPairing.Services;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Tests.TestSupport.Async;
 using SQLite;
@@ -44,6 +46,13 @@ internal static class PersistenceTestData
 
     public static FakeTimeProvider CreateTimeProvider() =>
         new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
+
+    public static ILocalDeviceIdentity CreateDeviceIdentity(string id = "test-device")
+    {
+        var identity = Substitute.For<ILocalDeviceIdentity>();
+        identity.GetIdAsync().Returns(id);
+        return identity;
+    }
 
     public static SqliteConnectionContext CreateConnectionContext(string databasePath, TimeProvider? timeProvider = null,
         IReadOnlyDictionary<Guid, int>? legacyProcessingWindows = null) =>

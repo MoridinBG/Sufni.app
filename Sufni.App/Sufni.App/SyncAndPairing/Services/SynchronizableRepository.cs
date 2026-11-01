@@ -31,7 +31,8 @@ public interface ISynchronizableRepository<
 internal sealed class SynchronizableRepository<
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
     SqliteConnectionContext connectionContext,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILocalDeviceIdentity localDeviceIdentity)
     : ISynchronizableRepository<T>
     where T : Synchronizable, new()
 {
@@ -65,56 +66,37 @@ internal sealed class SynchronizableRepository<
 
     public async Task<Guid> PutAsync(T item)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        return await PutCoreAsync(connection, item);
+        var writer = await localDeviceIdentity.GetIdAsync();
+        return await connectionContext.RunInTransactionAsync(connection =>
+            PutInTransaction(connection, item, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer));
     }
 
-    public Task DeleteAsync(Guid id) =>
-        connectionContext.RunInTransactionAsync(connection => DeleteInTransaction(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds()));
+    public async Task DeleteAsync(Guid id)
+    {
+        var writer = await localDeviceIdentity.GetIdAsync();
+        await connectionContext.RunInTransactionAsync(connection =>
+            DeleteInTransaction(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer));
+    }
 
     public Task DeleteAsync(T item) => DeleteAsync(item.Id);
 
-    internal static Guid PutInTransaction(SQLiteConnection connection, T item, long now)
+    internal static Guid PutInTransaction(SQLiteConnection connection, T item, long now, string writer)
     {
         var existing = EntityExists<T>(connection, item.Id);
-        item.Updated = now;
+        SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, item, now, writer);
         item.Deleted = null;
-        if (existing)
-        {
-            UpdateEntity(connection, item);
-        }
-        else
-        {
-            InsertEntity(connection, item);
-        }
-
+        if (existing) UpdateEntity(connection, item);
+        else InsertEntity(connection, item);
         return item.Id;
     }
 
-    internal static void DeleteInTransaction(SQLiteConnection connection, Guid id, long now)
+    internal static void DeleteInTransaction(SQLiteConnection connection, Guid id, long now, string writer)
     {
-        var itemFromDatabase = connection.Find<T>(id);
-        if (itemFromDatabase is not null && itemFromDatabase.Deleted is null)
-        {
-            itemFromDatabase.Deleted = now;
-            UpdateEntity(connection, itemFromDatabase);
-        }
-    }
-
-    private async Task<Guid> PutCoreAsync(SQLiteAsyncConnection connection, T item)
-    {
-        var existing = await EntityExistsAsync<T>(connection, item.Id);
-        item.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        item.Deleted = null;
-        if (existing)
-        {
-            await UpdateEntityAsync(connection, item);
-        }
-        else
-        {
-            await InsertEntityAsync(connection, item);
-        }
-
-        return item.Id;
+        var stored = connection.Find<T>(id);
+        if (stored is null || stored.Deleted is not null) return;
+        SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, stored, now, writer);
+        stored.Deleted = now;
+        UpdateEntity(connection, stored);
+        SynchronizationWriteMetadata.RecordDeletion(connection, stored);
     }
 }

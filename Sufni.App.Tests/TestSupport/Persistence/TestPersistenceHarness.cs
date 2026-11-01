@@ -28,14 +28,16 @@ internal sealed class TestPersistenceHarness
     private readonly ISessionTelemetryProcessor sessionTelemetryProcessor;
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISyncDataStore syncDataStore;
+    private readonly ILocalDeviceIdentity localDeviceIdentity;
 
-    public TestPersistenceHarness(string databasePath, TimeProvider? timeProvider = null)
+    public TestPersistenceHarness(string databasePath, TimeProvider? timeProvider = null, string writerId = "test-device")
     {
+        localDeviceIdentity = PersistenceTestData.CreateDeviceIdentity(writerId);
         this.timeProvider = timeProvider ?? PersistenceTestData.CreateTimeProvider();
         context = PersistenceTestData.CreateConnectionContext(databasePath, this.timeProvider);
         var fingerprintService = new ProcessingFingerprintService();
-        trackRepository = new TrackRepository(context, this.timeProvider);
-        sessionRepository = new SessionRepository(context, this.timeProvider);
+        trackRepository = new TrackRepository(context, this.timeProvider, localDeviceIdentity);
+        sessionRepository = new SessionRepository(context, this.timeProvider, localDeviceIdentity);
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         var dispatcher = new InlineUiThreadDispatcher();
@@ -66,16 +68,16 @@ internal sealed class TestPersistenceHarness
 
     public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
 
-    public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context, timeProvider);
+    public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context, timeProvider, localDeviceIdentity);
 
-    public ISessionPersistenceTransactionRunner SessionTransactions => new SessionPersistenceTransactionRunner(context, timeProvider);
+    public ISessionPersistenceTransactionRunner SessionTransactions => new SessionPersistenceTransactionRunner(context, timeProvider, localDeviceIdentity);
 
     public Task<SQLiteAsyncConnection> GetInitializedConnectionAsync() =>
         context.GetInitializedConnectionAsync();
 
     public Task<List<T>> GetAllAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>()
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider).GetAllAsync();
+        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).GetAllAsync();
 
     public async Task<List<T>> GetChangedAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         long sinceExclusive,
@@ -90,22 +92,22 @@ internal sealed class TestPersistenceHarness
             return (List<T>)(object)synchronizationData.Sessions;
         }
 
-        return await new SynchronizableRepository<T>(context, timeProvider).GetChangedAsync(
+        return await new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).GetChangedAsync(
             sinceExclusive,
             upperInclusive);
     }
 
     public Task<T?> GetAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(Guid id)
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider).GetAsync(id);
+        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).GetAsync(id);
 
     public Task<Guid> PutAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T item)
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider).PutAsync(item);
+        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).PutAsync(item);
 
     public Task DeleteAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T item)
         where T : Synchronizable, new() =>
-        new SynchronizableRepository<T>(context, timeProvider).DeleteAsync(item);
+        new SynchronizableRepository<T>(context, timeProvider, localDeviceIdentity).DeleteAsync(item);
 
     public Task<List<Session>> GetSessionsAsync() =>
         sessionRepository.GetSessionsAsync();

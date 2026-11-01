@@ -1,3 +1,4 @@
+using Sufni.App.SyncAndPairing.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,7 +31,7 @@ public sealed record TrackPayloadMetadata(Guid Id, long PointsRevision);
 
 public sealed record TrackPayload(Guid Id, long PointsRevision, IReadOnlyList<TrackPoint> Points);
 
-internal sealed class TrackRepository(SqliteConnectionContext connectionContext, TimeProvider timeProvider) : ITrackRepository
+internal sealed class TrackRepository(SqliteConnectionContext connectionContext, TimeProvider timeProvider, ILocalDeviceIdentity localDeviceIdentity) : ITrackRepository
 {
     private const int TrackLookupChunkSize = 500;
     private const string ActiveTrackMetadataQuery = "SELECT id, start_time, end_time, points_revision FROM track WHERE deleted IS NULL";
@@ -54,19 +55,20 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext,
         return true;
     }, cancellationToken);
 
-    internal static void EnsureInTransaction(SQLiteConnection connection, Track track, long now)
+    internal static void EnsureInTransaction(SQLiteConnection connection, Track track, long now, string writer)
     {
         var existing = connection.FindWithQuery<Track>(
             "SELECT id, deleted FROM track WHERE id = ?", track.Id);
         if (existing is null)
         {
-            track.Updated = now;
+            SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, track, now, writer);
             track.Deleted = null;
             PersistenceGuards.InsertEntity(connection, track);
         }
         else if (existing.Deleted is not null)
         {
-            connection.Execute("UPDATE track SET deleted = NULL, updated = ? WHERE id = ?", now, track.Id);
+            connection.Execute("UPDATE track SET deleted = NULL WHERE id = ?", track.Id);
+            SynchronizationWriteMetadata.StampAuthoredChange<Track>(connection, track.Id, now, writer);
         }
     }
 
@@ -87,22 +89,27 @@ internal sealed class TrackRepository(SqliteConnectionContext connectionContext,
         return snapshots;
     }
 
-    public Task<bool> DeleteIfUnselectedAsync(Guid trackId) => connectionContext.RunInTransactionAsync(connection =>
-        DeleteIfUnselectedInTransaction(connection, trackId, timeProvider.GetUtcNow().ToUnixTimeSeconds(),
-            ReadSnapshotsInTransaction(connection)));
+    public async Task<bool> DeleteIfUnselectedAsync(Guid trackId)
+    {
+        var writer = await localDeviceIdentity.GetIdAsync();
+        return await connectionContext.RunInTransactionAsync(connection =>
+            DeleteIfUnselectedInTransaction(connection, trackId, timeProvider.GetUtcNow().ToUnixTimeSeconds(),
+                ReadSnapshotsInTransaction(connection), writer));
+    }
 
     internal static IReadOnlyList<TrackSnapshot> ReadSnapshotsInTransaction(SQLiteConnection connection) =>
         connection.Query<TrackPayloadMetadataRow>(ActiveTrackMetadataQuery).Select(row => row.ToSnapshot()).ToArray();
 
     internal static bool DeleteIfUnselectedInTransaction(SQLiteConnection connection, Guid trackId, long now,
-        IReadOnlyList<TrackSnapshot> tracks)
+        IReadOnlyList<TrackSnapshot> tracks, string writer)
     {
         if (!tracks.Any(track => track.Id == trackId)) return false;
         var sessions = connection.Query<Session>(
             "SELECT timestamp, duration_seconds, gps_offset_seconds, window_start_seconds FROM session WHERE deleted IS NULL");
         if (sessions.Any(session => SessionTrackSelection.Select(tracks, session.Timestamp,
                 session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds)?.Id == trackId)) return false;
-        return connection.Execute("UPDATE track SET deleted = ? WHERE id = ? AND deleted IS NULL", now, trackId) > 0;
+        SynchronizableRepository<Track>.DeleteInTransaction(connection, trackId, now, writer);
+        return true;
     }
 
     public async Task<TrackPayloadMetadata?> GetTrackPayloadMetadataAsync(Guid trackId)

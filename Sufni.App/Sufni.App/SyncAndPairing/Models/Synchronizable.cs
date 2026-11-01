@@ -26,6 +26,26 @@ public class Synchronizable
     [IgnoreMember]
     public long Updated { get; set; }
 
+    [Column("version")]
+    [JsonPropertyName("version")]
+    [IgnoreMember]
+    public long Version { get; set; } = 1;
+
+    [Column("updated_by")]
+    [JsonPropertyName("updated_by")]
+    [IgnoreMember]
+    public string UpdatedBy { get; set; } = string.Empty;
+
+    [Column("local_seq")]
+    [JsonIgnore]
+    [IgnoreMember]
+    public long LocalSequence { get; set; }
+
+    [Column("sync_seq")]
+    [JsonPropertyName("sync_seq")]
+    [IgnoreMember]
+    public long SyncSequence { get; set; }
+
     [Column("client_updated")]
     [JsonPropertyName("client_updated")]
     [IgnoreMember]

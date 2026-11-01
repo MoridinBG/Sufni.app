@@ -43,7 +43,7 @@ public class TrackRepositoryTests
         await connection.InsertAsync(track);
         await connection.InsertAsync(new Track { Deleted = 100 });
         await connection.ExecuteAsync("UPDATE track SET points = ? WHERE id = ?", "unreadable payload", track.Id);
-        var repository = new TrackRepository(context, PersistenceTestData.CreateTimeProvider());
+        var repository = new TrackRepository(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
 
         var expected = new TrackSnapshot(track.Id, 100.25, 101.75, 2);
         Assert.Equal(expected, Assert.Single(await repository.GetTrackSnapshotsAsync()));

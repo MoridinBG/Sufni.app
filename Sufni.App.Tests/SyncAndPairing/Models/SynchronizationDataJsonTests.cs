@@ -12,6 +12,24 @@ namespace Sufni.App.Tests.SyncAndPairing.Models;
 public class SynchronizationDataJsonTests
 {
     [Fact]
+    public void WriteMetadata_TransmitsAuthorshipAndHubSequence_WithoutLocalSequence()
+    {
+        var data = new SynchronizationData { Boards = [new Board(Guid.NewGuid(), null)
+        {
+            Version = 4, Updated = 123, UpdatedBy = "writer-a", LocalSequence = 55, SyncSequence = 80
+        }] };
+        foreach (var json in new[] { AppJson.Serialize(data), JsonSerializer.Serialize(data, AppJson.InboundContext.SynchronizationData) })
+        {
+            using var document = JsonDocument.Parse(json);
+            var board = document.RootElement.GetProperty("board")[0];
+            Assert.False(board.TryGetProperty("local_seq", out _));
+            var roundTrip = AppJson.Deserialize<SynchronizationData>(json)!.Boards.Single();
+            Assert.Equal((4L, 123L, "writer-a", 80L),
+                (roundTrip.Version, roundTrip.Updated, roundTrip.UpdatedBy, roundTrip.SyncSequence));
+        }
+    }
+
+    [Fact]
     public void SynchronizationData_RequiresUpperBound()
     {
         Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>("{}"));

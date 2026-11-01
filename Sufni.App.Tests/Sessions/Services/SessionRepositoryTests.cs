@@ -683,6 +683,10 @@ public class SessionRepositoryTests
         Assert.Equal(4, after.AscentMeters);
         Assert.Equal(2, after.DescentMeters);
         Assert.Equal(before!.Updated, after.Updated);
+        Assert.Equal(before.Version, after.Version);
+        Assert.Equal(before.UpdatedBy, after.UpdatedBy);
+        Assert.True(after.LocalSequence > before.LocalSequence);
+        Assert.True(after.SyncSequence > before.SyncSequence);
         Assert.Equal(beforeRevision + 1, after.ProcessedTelemetryRevision);
         Assert.Null(await database.SessionRepository.GetSessionRawPsstAsync(sessionId, beforeRevision));
         Assert.Equal(data, await database.SessionRepository.GetSessionRawPsstAsync(sessionId, after.ProcessedTelemetryRevision));

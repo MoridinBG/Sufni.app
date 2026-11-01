@@ -23,6 +23,34 @@ namespace Sufni.App.Tests.Infrastructure;
 public class DatabaseMigrationRunnerTests
 {
     [Fact]
+    public async Task Initialization_SeedsVersionsAndDeletionLedgerWithoutRestampingAuthoredTime()
+    {
+        using var temp = new TempDatabase();
+        var liveId = Guid.NewGuid();
+        var deletedId = Guid.NewGuid();
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.Execute("CREATE TABLE board (id TEXT PRIMARY KEY, setup_id TEXT, updated INTEGER, client_updated INTEGER, deleted INTEGER)");
+            legacy.Execute("INSERT INTO board VALUES (?, NULL, 30, 10, NULL)", liveId);
+            legacy.Execute("INSERT INTO board VALUES (?, NULL, 20, 10, 25)", deletedId);
+        }
+        long firstSequence = 0;
+        for (var launch = 0; launch < 2; launch++)
+        {
+            await using var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+            await context.Initialization;
+            var live = await context.Connection.GetAsync<Board>(liveId);
+            Assert.Equal((1L, 30L, ""), (live.Version, live.Updated, live.UpdatedBy));
+            Assert.True(live.LocalSequence > 0);
+            if (launch == 0) firstSequence = live.LocalSequence;
+            else Assert.Equal(firstSequence, live.LocalSequence);
+            Assert.Equal(1, await context.Connection.ExecuteScalarAsync<int>("SELECT version FROM sync_deletion WHERE entity_table='board' AND id=?", deletedId));
+            Assert.Equal(20, await context.Connection.ExecuteScalarAsync<long>("SELECT updated FROM sync_deletion WHERE entity_table='board' AND id=?", deletedId));
+            Assert.Equal(25, await context.Connection.ExecuteScalarAsync<long>("SELECT deleted FROM sync_deletion WHERE entity_table='board' AND id=?", deletedId));
+        }
+    }
+
+    [Fact]
     public async Task Initialization_SeparatesFractionalWindowOriginFromAuthoredGpsAlignment_ExactlyOnce()
     {
         using var temp = new TempDatabase();
@@ -169,7 +197,7 @@ public class DatabaseMigrationRunnerTests
             Assert.False(document.RootElement.TryGetProperty("Track", out _));
             Assert.False(document.RootElement.TryGetProperty("FullTrackId", out _));
             Assert.Equal(65, document.RootElement.GetProperty("DurationSeconds").GetDouble());
-            var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider());
+            var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
             var row = (await repository.GetSessionAsync(id))!;
             Assert.Equal(bytes, await repository.GetSessionRawPsstAsync(id));
             Assert.Equal(65, row.DurationSeconds);
@@ -202,7 +230,7 @@ public class DatabaseMigrationRunnerTests
             await context.Initialization;
             var columns = await context.Connection.GetTableInfoAsync("session");
             Assert.DoesNotContain(columns, column => column.Name == "has_data");
-            var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider());
+            var repository = new SessionRepository(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
             var metadata = (await repository.GetSessionAsync(id))!;
             Assert.Equal(hasBlob, metadata.HasProcessedData);
             Assert.Null(metadata.ProcessedData);

@@ -15,7 +15,8 @@ namespace Sufni.App.Sessions.Coordination;
 
 internal sealed class SessionPersistenceTransactionRunner(
     SqliteConnectionContext connectionContext,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILocalDeviceIdentity localDeviceIdentity)
     : ISessionPersistenceTransactionRunner
 {
     private const string EditableSessionProjection = """
@@ -38,8 +39,7 @@ internal sealed class SessionPersistenceTransactionRunner(
                                                       window_start_seconds=?,
                                                       window_end_seconds=?,
                                                       previous_window_start_seconds=?,
-                                                      previous_window_end_seconds=?,
-                                                      updated=?
+                                                      previous_window_end_seconds=?
                                                   WHERE id=?
                                                   """;
 
@@ -47,6 +47,7 @@ internal sealed class SessionPersistenceTransactionRunner(
         Guid sessionId,
         CancellationToken cancellationToken = default)
     {
+        var writer = await localDeviceIdentity.GetIdAsync();
         var sourceDeleted = false;
         Guid? removedTrackId = null;
         await connectionContext.RunInTransactionAsync(connection =>
@@ -57,7 +58,7 @@ internal sealed class SessionPersistenceTransactionRunner(
             var selected = session is null ? null : SessionTrackSelection.Select(tracks,
                 session.Timestamp, session.DurationSeconds, session.GpsOffsetSeconds, session.WindowStartSeconds);
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-            SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId, now);
+            SynchronizableRepository<Session>.DeleteInTransaction(connection, sessionId, now, writer);
 
             if (!RecordedSessionSourceRepository.IsSourceReferencedInTransaction(connection, sessionId))
             {
@@ -65,7 +66,7 @@ internal sealed class SessionPersistenceTransactionRunner(
                 sourceDeleted = true;
             }
 
-            if (selected is not null && TrackRepository.DeleteIfUnselectedInTransaction(connection, selected.Id, now, tracks))
+            if (selected is not null && TrackRepository.DeleteIfUnselectedInTransaction(connection, selected.Id, now, tracks, writer))
                 removedTrackId = selected.Id;
         }, cancellationToken);
 
@@ -73,9 +74,9 @@ internal sealed class SessionPersistenceTransactionRunner(
     }
 
     public Task<SessionEditCommit> TrimUntilEndAsync(SessionSnapshot session, double clickSeconds) =>
-        EditAsync(session, SessionWindowEditKind.TrimUntilEnd, clickSeconds, (connection, row, plan, now) =>
+        EditAsync(session, SessionWindowEditKind.TrimUntilEnd, clickSeconds, (connection, row, plan, now, writer) =>
         {
-            Update(connection, row.Id, plan.Current, now);
+            Update(connection, row.Id, plan.Current, now, writer);
             return new SessionEditCommit.Committed([row.Id]);
         });
 
@@ -86,14 +87,14 @@ internal sealed class SessionPersistenceTransactionRunner(
         EditAsync(session, SessionWindowEditKind.UndoTrim, 0, ApplyOriginEdit);
 
     private static SessionEditCommit ApplyOriginEdit(SQLiteConnection connection, Session row,
-        SessionWindowEditPlan.Planned plan, long now)
+        SessionWindowEditPlan.Planned plan, long now, string writer)
     {
-        Update(connection, row.Id, plan.Current, now);
+        Update(connection, row.Id, plan.Current, now, writer);
         return new SessionEditCommit.Committed([row.Id]);
     }
 
     public Task<SessionEditCommit> SplitAsync(SessionSnapshot session, double clickSeconds) =>
-        EditAsync(session, SessionWindowEditKind.Split, clickSeconds, (connection, row, plan, now) =>
+        EditAsync(session, SessionWindowEditKind.Split, clickSeconds, (connection, row, plan, now, writer) =>
         {
             var second = plan.Created!;
             var part2 = new Session(Guid.NewGuid(), second.Name, row.Description, row.Setup, second.Timestamp)
@@ -113,20 +114,22 @@ internal sealed class SessionPersistenceTransactionRunner(
                 RearLowSpeedCompression = row.RearLowSpeedCompression,
                 RearLowSpeedRebound = row.RearLowSpeedRebound,
                 RearHighSpeedRebound = row.RearHighSpeedRebound,
-                Updated = now,
             };
+            SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, part2, now, writer);
             PersistenceGuards.InsertEntity(connection, part2);
 
-            Update(connection, row.Id, plan.Current, now);
+            Update(connection, row.Id, plan.Current, now, writer);
             return new SessionEditCommit.Committed([row.Id, part2.Id], part2.Id);
         });
 
-    private Task<SessionEditCommit> EditAsync(
+    private async Task<SessionEditCommit> EditAsync(
         SessionSnapshot expected,
         SessionWindowEditKind kind,
         double clickSeconds,
-        Func<SQLiteConnection, Session, SessionWindowEditPlan.Planned, long, SessionEditCommit> edit) =>
-        connectionContext.RunInTransactionAsync(connection =>
+        Func<SQLiteConnection, Session, SessionWindowEditPlan.Planned, long, string, SessionEditCommit> edit)
+    {
+        var writer = await localDeviceIdentity.GetIdAsync();
+        return await connectionContext.RunInTransactionAsync(connection =>
         {
             var rows = connection.Query<Session>(EditableSessionProjection, expected.Id);
             if (rows.Count != 1)
@@ -147,12 +150,14 @@ internal sealed class SessionPersistenceTransactionRunner(
             return SessionWindowEditPolicy.Plan(SessionSnapshot.From(row), kind, clickSeconds) switch
             {
                 SessionWindowEditPlan.Rejected rejected => new SessionEditCommit.Rejected(rejected.Message),
-                SessionWindowEditPlan.Planned plan => edit(connection, row, plan, timeProvider.GetUtcNow().ToUnixTimeSeconds()),
+                SessionWindowEditPlan.Planned plan => edit(connection, row, plan, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer),
                 _ => throw new InvalidOperationException("Unknown session window plan.")
             };
         });
+    }
 
-    private static void Update(SQLiteConnection connection, Guid sessionId, SessionWindowPatch patch, long now) =>
+    private static void Update(SQLiteConnection connection, Guid sessionId, SessionWindowPatch patch, long now, string writer)
+    {
         connection.Execute(
             UpdateEditedSessionSql,
             patch.Name,
@@ -162,6 +167,7 @@ internal sealed class SessionPersistenceTransactionRunner(
             patch.Window?.EndSeconds,
             patch.PreviousWindow?.StartSeconds,
             patch.PreviousWindow?.EndSeconds,
-            now,
             sessionId);
+        SynchronizationWriteMetadata.StampAuthoredChange<Session>(connection, sessionId, now, writer);
+    }
 }

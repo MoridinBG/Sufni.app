@@ -1,3 +1,4 @@
+using Sufni.App.SyncAndPairing.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -104,7 +105,8 @@ public sealed record SessionPsstPayloadMetadata(
 
 internal sealed class SessionRepository(
     SqliteConnectionContext connectionContext,
-    TimeProvider timeProvider) : ISessionRepository
+    TimeProvider timeProvider,
+    ILocalDeviceIdentity localDeviceIdentity) : ISessionRepository
 {
     private sealed class RollbackWithoutResultException : Exception
     {
@@ -132,7 +134,7 @@ internal sealed class SessionRepository(
                                                                       {SessionSqlProjection.ProcessingFingerprintColumn},
                                                                      front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                      rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
-                                                                     updated,
+                                                                     updated, version, updated_by, local_seq, sync_seq,
                                                                      {SessionSqlProjection.HasDataProjection}
                                                                      """;
 
@@ -143,7 +145,7 @@ internal sealed class SessionRepository(
                                                                 velocity_filter_window_ms=?,
                                                                 front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                 rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
-                                                                updated=?,
+                                                                updated=?, version=?, updated_by=?, local_seq=?, sync_seq=?,
                                                                 deleted=NULL
                                                                 """;
 
@@ -323,39 +325,39 @@ internal sealed class SessionRepository(
 
     public async Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        await connection.ExecuteAsync(
-            "UPDATE session SET velocity_filter_window_ms = ?, updated = ? WHERE id = ? AND deleted IS NULL",
-            windowMilliseconds, timeProvider.GetUtcNow().ToUnixTimeSeconds(), id);
+        var writer = await localDeviceIdentity.GetIdAsync();
+        await connectionContext.RunInTransactionAsync(connection =>
+        {
+            if (connection.Execute("UPDATE session SET velocity_filter_window_ms = ? WHERE id = ? AND deleted IS NULL", windowMilliseconds, id) > 0)
+                SynchronizationWriteMetadata.StampAuthoredChange<Session>(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
+        });
         return await GetSessionAsync(id);
     }
 
     public async Task<Session?> RestoreProcessingOptionAsync(Guid id, int expectedWindowMilliseconds, int? previousWindowMilliseconds)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-        await connection.ExecuteAsync(
-            "UPDATE session SET velocity_filter_window_ms = ?, updated = ? WHERE id = ? AND deleted IS NULL AND velocity_filter_window_ms = ?",
-            previousWindowMilliseconds, timeProvider.GetUtcNow().ToUnixTimeSeconds(), id, expectedWindowMilliseconds);
+        var writer = await localDeviceIdentity.GetIdAsync();
+        await connectionContext.RunInTransactionAsync(connection =>
+        {
+            if (connection.Execute("UPDATE session SET velocity_filter_window_ms = ? WHERE id = ? AND deleted IS NULL AND velocity_filter_window_ms = ?",
+                    previousWindowMilliseconds, id, expectedWindowMilliseconds) > 0)
+                SynchronizationWriteMetadata.StampAuthoredChange<Session>(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
+        });
         return await GetSessionAsync(id);
     }
 
     public async Task<Guid> PutSessionAsync(Session session)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        var existing = await EntityExistsAsync<Session>(connection, session.Id);
-        session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        session.Deleted = null;
-        if (existing)
+        var writer = await localDeviceIdentity.GetIdAsync();
+        return await connectionContext.RunInTransactionAsync(connection =>
         {
-            await connection.ExecuteAsync(UpdateSessionMetadataSaveSql, CreateSessionMetadataSaveUpdateValuesWithId(session));
-        }
-        else
-        {
-            await InsertEntityAsync(connection, session);
-        }
-
-        return session.Id;
+            var existing = EntityExists<Session>(connection, session.Id);
+            SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, session, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
+            session.Deleted = null;
+            if (existing) connection.Execute(UpdateSessionMetadataSaveSql, CreateSessionMetadataSaveUpdateValuesWithId(session));
+            else InsertEntity(connection, session);
+            return session.Id;
+        });
     }
 
     public async Task<SessionImportCommitResult> ImportProcessedSessionAsync(
@@ -364,6 +366,7 @@ internal sealed class SessionRepository(
         if (source.SessionId != session.Id)
             throw new InvalidOperationException("Recorded session source must belong to the processed session.");
 
+        var writer = await localDeviceIdentity.GetIdAsync();
         var committed = await connectionContext.RunInTransactionAsync(connection =>
         {
             var existingSource = connection.FindWithQuery<RecordedSessionSource>(
@@ -380,9 +383,9 @@ internal sealed class SessionRepository(
             {
                 if (newFullTrack is not null)
                 {
-                    TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds());
+                    TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
                 }
-                session.Updated = timeProvider.GetUtcNow().ToUnixTimeSeconds();
+                SynchronizationWriteMetadata.PrepareAuthoredWrite(connection, session, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
                 session.Deleted = null;
                 if (existingSession is null)
                 {
@@ -406,6 +409,7 @@ internal sealed class SessionRepository(
         Track? newFullTrack,
         SessionProcessingInputBundle expectedInputs)
     {
+        var writer = await localDeviceIdentity.GetIdAsync();
         try
         {
             await connectionContext.RunInTransactionAsync(connection =>
@@ -419,7 +423,7 @@ internal sealed class SessionRepository(
 
                 if (newFullTrack is not null)
                 {
-                    TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds());
+                    TrackRepository.EnsureInTransaction(connection, newFullTrack, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
                 }
 
                 var updatedRows = connection.Execute(
@@ -429,6 +433,7 @@ internal sealed class SessionRepository(
                 {
                     throw new RollbackWithoutResultException();
                 }
+                SynchronizationWriteMetadata.StampDerivedChange<Session>(connection, session.Id);
             });
         }
         catch (RollbackWithoutResultException)
@@ -471,6 +476,7 @@ internal sealed class SessionRepository(
                 """,
                 data, fingerprintJson, durationSeconds,
                 id, expected.Fingerprint, expected.Revision);
+            if (updated > 0) SynchronizationWriteMetadata.StampDerivedChange<Session>(connection, id);
             if (updated > 0 && expected.PendingSwapFingerprint is not null)
                 SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
             return updated > 0;
@@ -492,34 +498,22 @@ internal sealed class SessionRepository(
                   AND {SessionSqlProjection.ProcessingFingerprintColumn} IS ? AND processed_telemetry_revision=?
                 """,
                 data, fingerprintJson, generation.DurationSeconds, id, expected.Fingerprint, expected.Revision);
+            if (updated > 0) SynchronizationWriteMetadata.StampDerivedChange<Session>(connection, id);
             if (updated > 0 && expected.PendingSwapFingerprint is not null)
                 SessionBlobSwapRequestStore.ClearInTransaction(connection, id);
             return updated > 0;
         });
     }
 
-    public async Task UpdateGpsAlignmentAsync(
-        Guid id,
-        double gpsOffsetSeconds)
+    public async Task UpdateGpsAlignmentAsync(Guid id, double gpsOffsetSeconds)
     {
-        var connection = await connectionContext.GetInitializedConnectionAsync();
-
-        var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        var updatedRows = await connection.ExecuteAsync(
-            """
-            UPDATE session
-            SET
-                gps_offset_seconds=?,
-                updated=?
-            WHERE id=? AND deleted IS NULL
-            """,
-            gpsOffsetSeconds,
-            now,
-            id);
-        if (updatedRows == 0)
+        var writer = await localDeviceIdentity.GetIdAsync();
+        await connectionContext.RunInTransactionAsync(connection =>
         {
-            throw new Exception($"Session {id} does not exist.");
-        }
+            if (connection.Execute("UPDATE session SET gps_offset_seconds=? WHERE id=? AND deleted IS NULL", gpsOffsetSeconds, id) == 0)
+                throw new Exception($"Session {id} does not exist.");
+            SynchronizationWriteMetadata.StampAuthoredChange<Session>(connection, id, timeProvider.GetUtcNow().ToUnixTimeSeconds(), writer);
+        });
     }
 
     // Values for DerivedSessionUpdateAssignments (derived columns only), in column
@@ -548,7 +542,7 @@ internal sealed class SessionRepository(
         session.RearLowSpeedCompression,
         session.RearLowSpeedRebound,
         session.RearHighSpeedRebound,
-        session.Updated,
+        session.Updated, session.Version, session.UpdatedBy, session.LocalSequence, session.SyncSequence,
         session.Id
     ];
 

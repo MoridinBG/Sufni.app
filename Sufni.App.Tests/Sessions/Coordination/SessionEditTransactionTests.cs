@@ -20,7 +20,7 @@ public class SessionEditTransactionTests : IDisposable
     public SessionEditTransactionTests()
     {
         context = PersistenceTestData.CreateConnectionContext(tempDatabase.DatabasePath);
-        runner = new SessionPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider());
+        runner = new SessionPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
     }
 
     public void Dispose() => tempDatabase.Dispose();
