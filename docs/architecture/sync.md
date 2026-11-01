@@ -43,6 +43,13 @@ sequenceDiagram
     Server-->>Mobile: {new accessToken, new refreshToken}
 ```
 
+Both directions use the same version/deletion/timestamp/writer ordering from
+[Persistence § Conflict Resolution](persistence.md#conflict-resolution). The hub
+preserves authored timestamps and versions. Deletion ledger entries travel in
+`SynchronizationData.deletions` after payload purge, and older content cannot
+revive them. Incoming session publication reads the committed winner, so a stale
+remote deletion cannot hide a retained local session.
+
 ## Server
 
 `SynchronizationServerService` (`Sufni.App/Sufni.App.Desktop/SyncAndPairing/Services/SynchronizationServerService.cs`) embeds ASP.NET Core Kestrel on port 5575 with:
@@ -160,7 +167,7 @@ independently from the missing-source queries rather than by replaying metadata.
 Local workflow owners persist and prepare snapshots for publish-only stores.
 For sync, `SynchronizationMergeEngine`, the session-data endpoints, and the
 recorded-source endpoints persist or merge rows first. Inbound coordination publishes authoritative bike/setup/board/segment changes
-in one batch, including board-only arrivals. `SessionSyncApplier` owns session
+in one batch, including board-only and ledger-only arrivals. `SessionSyncApplier` owns session
 generation/source publication. They load authoritative snapshots and publish changes or
 removals, or use a full `IAppDataRefresher.RefreshAsync()` run. Stores never read
 or write repositories, so publication does not duplicate the persistence operation.
@@ -169,7 +176,7 @@ or write repositories, so publication does not duplicate the persistence operati
 
 `session.data` (the processed telemetry blob) never travels in `SynchronizationData`; only metadata does. Because a recompute can replace an *existing* blob — not just fill a missing one — the protocol keeps one invariant: **the processed generation describes one coherent result**. A generation contains the blob and fingerprint plus `duration_seconds`; those values are retained or replaced together. GPS metrics and their key are device-local and never travel in metadata or generation payloads.
 
-- **Deferred metadata merge.** When an inbound metadata update arrives for a row that already holds a blob, both merge paths — the client pull (`ApplyRemoteSession`) and the desktop hub's push merge (`MergeSessionMetadata`) — apply independent user metadata, including authored GPS alignment, but retain the complete held processed generation. Alignment is never held for a BLOB or overwritten by its later arrival. The row therefore never advertises a fingerprint or duration from bytes it does not yet hold.
+- **Deferred metadata merge.** When an inbound metadata update arrives for a row that already holds a blob, the shared `Merge` path on client and hub apply independent user metadata, including authored GPS alignment, but retain the complete held processed generation. Alignment is never held for a BLOB or overwritten by its later arrival. The row therefore never advertises a fingerprint or duration from bytes it does not yet hold.
 - **Transient pull-swap set.** Both metadata directions use `ProcessedGenerationAcceptance.DecideProcessedGenerationTarget`: queue a current-schema incoming generation only when its fingerprint matches the local inputs and the held generation is stale, or hold the target until its source arrives. Equal fingerprints keep the held bytes. A stale or unparseable held fingerprint can be replaced by a current incoming result. The client queues a *swap* containing the id, target fingerprint, and accepted target generation. The set is never persisted; it is re-derived from the metadata delta each run. A network error or an unresolved swap (`404` or fingerprint mismatch) holds `last_pull_time` back, so the next run re-pulls the same delta and retries. Fills are not swaps — they are re-derived every run from `data IS NULL` regardless of the watermark, so they are never lost.
 - **Validate and match before commit.** `SessionSyncApplier` validates transferred MessagePack and its advertised target fingerprint, then applies the same acceptance rule against current database inputs. A missing source leaves the transfer pending. The client captures an immutable held-session snapshot before downloading. The repository compares that fingerprint, telemetry revision and captured processing-input bundle in the commit transaction; an intervening recompute or transfer supersedes the write without replacing data or publishing stale snapshots. Swaps require and install the accepted `SessionProcessedGeneration`; missing-BLOB fills normalize duration from the validated bytes. A fill cannot replace an already held generation. Neither path advances `updated`. Invalid bytes leave the current generation untouched. Unresolved client swaps retain the pull cursor for retry; session detail loading never fetches missing BLOBs.
 - **Hub push-swap (push direction).** The desktop hub runs no pull phase, so to *receive* a recomputed blob for a row it already holds it records a durable push-swap request during the same transaction as the deferred metadata merge. `session_blob_swap_request` stores the session id, target fingerprint, and serialized target generation; the `sync-authority` migration deletes legacy requests without `target_generation` while retaining the session and its held BLOB. A request is created only when the incoming current-schema fingerprint is eligible against the hub's current database inputs while the held one is not (or when the referenced source has not arrived yet, preserving the accepted target until source sync completes). Invalid/legacy/equal/ineligible targets clear the request. For derived sessions, the input probe resolves the source through the incoming derivation window. `GET /session/incomplete` advertises requests alongside data-null fills; `PATCH /session/data` validates the bytes and commits the coherent generation only for a matching target, and clears the matching request in the same transaction. A non-matching push-swap upload is ignored (`204`, not `400`) and leaves the request pending.

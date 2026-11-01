@@ -217,6 +217,7 @@ internal sealed class DatabaseMigrationRunner(
                 transaction.Execute($"UPDATE {table} SET version=1, updated_by='', local_seq=?, sync_seq=? WHERE id=?",
                     SynchronizationWriteMetadata.NextLocalSequence(transaction), SynchronizationWriteMetadata.NextSyncSequence(transaction), row.Id);
             transaction.Execute($"INSERT INTO sync_deletion SELECT ?, id, version, updated, updated_by, deleted, local_seq, sync_seq FROM {table} WHERE deleted IS NOT NULL", table);
+            if (names.Contains("client_updated")) transaction.Execute($"ALTER TABLE {table} DROP COLUMN client_updated");
             transaction.Execute($"CREATE INDEX ix_{table}_local_seq ON {table}(local_seq)");
             transaction.Execute($"CREATE INDEX ix_{table}_sync_seq ON {table}(sync_seq)");
         }

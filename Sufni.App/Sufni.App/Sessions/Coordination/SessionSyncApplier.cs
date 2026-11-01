@@ -1,3 +1,4 @@
+using System.Linq;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using System;
 using System.Collections.Generic;
@@ -167,37 +168,9 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier, IDisposable
         }
     }
 
-    private async Task HandleSynchronizationDataArrivedAsync(SynchronizationDataArrivedEventArgs e)
-    {
-        var removals = new List<Guid>();
-        var changes = new List<Guid>();
-
-        foreach (var session in e.Data.Sessions)
-        {
-            if (session.Deleted is not null)
-            {
-                removals.Add(session.Id);
-                continue;
-            }
-
-            changes.Add(session.Id);
-        }
-
-        logger.Verbose(
-            "Applying inbound session synchronization with {RemovalCount} removals and {UpsertCount} upserts",
-            removals.Count,
-            changes.Count);
-
-        if (removals.Count > 0)
-        {
-            await sessionStore.PublishSessionsRemovedAsync(removals);
-        }
-
-        if (changes.Count > 0)
-        {
-            await PublishSessionsAsync(changes);
-        }
-    }
+    private Task HandleSynchronizationDataArrivedAsync(SynchronizationDataArrivedEventArgs e) =>
+        PublishSessionsAsync(e.Data.Sessions.Select(session => session.Id)
+            .Concat(e.Data.Deletions.Where(row => row.EntityTable == "session").Select(row => row.Id)).Distinct().ToArray());
 
     private async Task PublishSessionsAsync(IReadOnlyCollection<Guid> ids)
     {

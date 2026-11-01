@@ -71,7 +71,7 @@ public class SessionSyncApplierTests
         await seed;
         var data = new SynchronizationData { Sessions =
         [
-            new Session { Id = live.Id, Updated = 6 },
+            new Session { Id = live.Id, Updated = 6, Deleted = 6 },
             new Session { Id = deleted.Id, Updated = 6, Deleted = 6 }
         ] };
 

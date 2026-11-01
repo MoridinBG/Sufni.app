@@ -78,16 +78,16 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 var changedBikes = new List<BikeSnapshot>();
                 var removedBikeCount = 0;
                 var upsertedBikeCount = 0;
-                foreach (var bike in e.Data.Bikes)
+                foreach (var bikeId in e.Data.Bikes.Select(row => row.Id).Concat(e.Data.Deletions.Where(row => row.EntityTable == "bike").Select(row => row.Id)).Distinct())
                 {
                     var freshBike = await backgroundTaskRunner.RunAsync(async () =>
                     {
-                        var row = await bikeRepository.GetAsync(bike.Id);
+                        var row = await bikeRepository.GetAsync(bikeId);
                         return row is null ? null : BikeSnapshot.From(row);
                     });
                     if (freshBike is null)
                     {
-                        removedBikeIds.Add(bike.Id);
+                        removedBikeIds.Add(bikeId);
                         removedBikeCount++;
                     }
                     else
@@ -101,17 +101,17 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                 var upsertedSetupCount = 0;
                 var removedSetupIds = new List<Guid>();
                 var changedSetups = new List<SetupSnapshot>();
-                var boards = e.Data.Boards.Count == 0 ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
-                foreach (var setup in e.Data.Setups)
+                var boards = e.Data.Boards.Count == 0 && !e.Data.Deletions.Any(row => row.EntityTable == "board") ? [] : await backgroundTaskRunner.RunAsync(boardRepository.GetAllAsync);
+                foreach (var setupId in e.Data.Setups.Select(row => row.Id).Concat(e.Data.Deletions.Where(row => row.EntityTable == "setup").Select(row => row.Id)).Distinct())
                 {
                     var freshSetup = await backgroundTaskRunner.RunAsync(async () =>
                     {
-                        var row = await setupRepository.GetAsync(setup.Id);
+                        var row = await setupRepository.GetAsync(setupId);
                         return row is null ? null : SetupSnapshot.From(row);
                     });
                     if (freshSetup is null)
                     {
-                        removedSetupIds.Add(setup.Id);
+                        removedSetupIds.Add(setupId);
                         removedSetupCount++;
                     }
                     else
@@ -121,10 +121,10 @@ public sealed class InboundSyncCoordinator : IInboundSyncCoordinator
                     }
                 }
 
-                var changedBoardIds = e.Data.Boards.Select(board => board.Id).ToHashSet();
+                var changedBoardIds = e.Data.Boards.Select(board => board.Id).Concat(e.Data.Deletions.Where(row => row.EntityTable == "board").Select(row => row.Id)).ToHashSet();
                 var boardSnapshots = boards.Where(board => changedBoardIds.Contains(board.Id)).Select(BoardSnapshot.From).ToArray();
                 var removedBoardIds = changedBoardIds.Except(boardSnapshots.Select(board => board.Id)).ToArray();
-                var segments = e.Data.Segments.Count == 0 ? null : await backgroundTaskRunner.RunAsync(async () =>
+                var segments = e.Data.Segments.Count == 0 && !e.Data.Deletions.Any(row => row.EntityTable == "session_segment") ? null : await backgroundTaskRunner.RunAsync(async () =>
                     (await segmentRepository.GetLiveAsync()).Select(SessionSegmentSnapshot.From).ToArray());
 
                 using var batch = publication.BeginBatch();

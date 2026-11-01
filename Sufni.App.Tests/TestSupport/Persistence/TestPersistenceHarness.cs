@@ -47,7 +47,7 @@ internal sealed class TestPersistenceHarness
         SessionSyncApplier = new SessionSyncApplier(PublishedSessions, PublishedSources, dispatcher,
             recordedSessionSourceRepository, sessionRepository, new InlineBackgroundTaskRunner(),
             sessionTelemetryProcessor, new SessionBlobSwapRequestStore(context), fingerprintService);
-        syncDataStore = new SynchronizationMergeEngine(context, fingerprintService, this.timeProvider);
+        syncDataStore = new SynchronizationMergeEngine(context, fingerprintService);
     }
 
     public async Task SeedGpsMetricsAsync(Guid sessionId, GpsMetrics metrics)

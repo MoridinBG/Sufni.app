@@ -20,6 +20,87 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 public class SynchronizationMergeEngineTests
 {
     [Theory]
+    [InlineData(2, 100, "a", null, 1, 200, "z", null, false)]
+    [InlineData(2, 100, "a", null, 2, 101, "a", null, true)]
+    [InlineData(2, 100, "a", null, 2, 100, "z", null, true)]
+    [InlineData(2, 200, "z", null, 2, 100, "a", 100, true)]
+    [InlineData(2, 100, "a", 100, 2, 101, "a", 101, true)]
+    [InlineData(2, 100, "a", 100, 2, 100, "z", 99, true)]
+    [InlineData(3, 1, "a", null, 2, 200, "z", 200, false)]
+    public async Task BothMergeDirections_ConvergeInEitherArrivalOrder_AndRepeatedExchangeWritesNothing(
+        long firstVersion, long firstUpdated, string firstWriter, int? firstDeleted,
+        long secondVersion, long secondUpdated, string secondWriter, int? secondDeleted, bool secondWins)
+    {
+        using var hubFile = new TempDatabase();
+        using var clientFile = new TempDatabase();
+        var hub = new TestPersistenceHarness(hubFile.DatabasePath);
+        var client = new TestPersistenceHarness(clientFile.DatabasePath);
+        var id = Guid.NewGuid();
+        await hub.PutAsync(new Board(id, null));
+        await client.PutAsync(new Board(id, null));
+        var first = new Board(id, Guid.NewGuid()) { Version = firstVersion, Updated = firstUpdated, UpdatedBy = firstWriter, Deleted = firstDeleted };
+        var second = new Board(id, Guid.NewGuid()) { Version = secondVersion, Updated = secondUpdated, UpdatedBy = secondWriter, Deleted = secondDeleted };
+        var expected = secondWins ? second : first;
+
+        await hub.MergeAllAsync(new SynchronizationData { Boards = [first] });
+        await hub.MergeAllAsync(new SynchronizationData { Boards = [second] });
+        await client.ApplyRemoteSynchronizationDataAsync(new SynchronizationData { Boards = [second] });
+        await client.ApplyRemoteSynchronizationDataAsync(new SynchronizationData { Boards = [first] });
+
+        foreach (var database in new[] { hub, client })
+        {
+            var connection = await database.GetInitializedConnectionAsync();
+            var row = await connection.GetAsync<Board>(id);
+            Assert.Equal((expected.Version, expected.Updated, expected.UpdatedBy, expected.Deleted),
+                (row.Version, row.Updated, row.UpdatedBy, row.Deleted));
+            if (expected.Deleted is null) Assert.Equal(expected.SetupId, row.SetupId);
+        }
+        var hubChanges = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await hub.GetSynchronizationDataAsync(0, long.MaxValue)))!;
+        var clientChanges = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await client.GetSynchronizationDataAsync(0, long.MaxValue)))!;
+        var hubConnection = await hub.GetInitializedConnectionAsync();
+        var clientConnection = await client.GetInitializedConnectionAsync();
+        var beforeHub = await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
+        var beforeClient = await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
+
+        await hub.MergeAllAsync(clientChanges);
+        await client.ApplyRemoteSynchronizationDataAsync(hubChanges);
+
+        Assert.Equal(beforeHub, await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
+        Assert.Equal(beforeClient, await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
+    }
+
+    [Fact]
+    public async Task PurgedDeletion_TravelsAsLedgerAndRejectsOldContent_UntilExplicitHigherVersionRestore()
+    {
+        using var sourceFile = new TempDatabase();
+        using var peerFile = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var source = new TestPersistenceHarness(sourceFile.DatabasePath, clock, "source");
+        var peer = new TestPersistenceHarness(peerFile.DatabasePath, clock, "peer");
+        var original = new Board(Guid.NewGuid(), Guid.NewGuid());
+        await source.PutAsync(original);
+        var oldPayload = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await source.GetSynchronizationDataAsync(0, long.MaxValue)))!;
+        await peer.MergeAllAsync(oldPayload);
+        await source.DeleteAsync(original);
+        clock.Advance(TimeSpan.FromDays(2));
+        source = new TestPersistenceHarness(sourceFile.DatabasePath, clock, "source");
+        var deletionPayload = await source.GetSynchronizationDataAsync(0, long.MaxValue);
+        Assert.Empty(deletionPayload.Boards);
+        Assert.Single(deletionPayload.Deletions);
+
+        await peer.ApplyRemoteSynchronizationDataAsync(AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(deletionPayload))!);
+        await peer.MergeAllAsync(oldPayload);
+
+        Assert.Null(await peer.GetAsync<Board>(original.Id));
+        var restored = new Board(original.Id, Guid.NewGuid());
+        await source.PutAsync(restored);
+        await peer.MergeAllAsync(await source.GetSynchronizationDataAsync(0, long.MaxValue));
+        var received = (await peer.GetAsync<Board>(original.Id))!;
+        Assert.Equal(3, received.Version);
+        Assert.Equal(restored.SetupId, received.SetupId);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task DirectionalCursorUpdates_InsertOrUpdateSingleRow(bool seedExistingRow)
@@ -85,14 +166,14 @@ public class SynchronizationMergeEngineTests
             Id = Guid.NewGuid(),
             Points = [new TrackPoint(100, 1, 1, 10)],
             Updated = 5,
-            ClientUpdated = 5,
+
         };
         var futureTrack = new Track
         {
             Id = Guid.NewGuid(),
             Points = [new TrackPoint(101, 2, 2, 11)],
             Updated = 6,
-            ClientUpdated = 6,
+
         };
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
@@ -129,13 +210,13 @@ public class SynchronizationMergeEngineTests
                     new TrackPoint(101, 2, 2, 11)
                 ],
                 Updated = 50,
-                ClientUpdated = 50
+
             });
 
             connection.Insert(new Session(sessionId, "session", "desc", null, 100)
             {
                 Updated = 150,
-                ClientUpdated = 150
+
             });
         }
 
@@ -181,12 +262,12 @@ public class SynchronizationMergeEngineTests
                 Id = trackId,
                 Points = [new TrackPoint(100, 1, 1, 10)],
                 Updated = 151,
-                ClientUpdated = 151,
+
             });
             connection.Insert(new Session(sessionId, "session", "desc", null, 100)
             {
                 Updated = 150,
-                ClientUpdated = 150,
+
             });
         }
 
@@ -215,16 +296,15 @@ public class SynchronizationMergeEngineTests
                     Points = [],
                     Deleted = 100,
                     Updated = 100,
-                    ClientUpdated = 100
+
                 }
             ]
         });
 
         using var verificationConnection = new SQLiteConnection(databasePath);
-        var track = verificationConnection.Table<Track>().Single(t => t.Id == trackId);
-
-        Assert.Equal(100, track.Deleted);
-        Assert.False(track.HasPoints);
+        Assert.Empty(verificationConnection.Table<Track>().Where(track => track.Id == trackId));
+        Assert.Equal(100, verificationConnection.ExecuteScalar<long>(
+            "SELECT deleted FROM sync_deletion WHERE entity_table='track' AND id=?", trackId));
 
     }
 
@@ -247,7 +327,7 @@ public class SynchronizationMergeEngineTests
             {
                 ProcessedData = originalPsst,
                 Updated = 1,
-                ClientUpdated = 1
+
             });
         }
 
@@ -262,7 +342,7 @@ public class SynchronizationMergeEngineTests
             FrontSpringRate = "50",
             RearSpringRate = "60",
             Updated = 99,
-            ClientUpdated = 88
+
         };
 
         var remoteTrack = new Track
@@ -274,7 +354,7 @@ public class SynchronizationMergeEngineTests
                 new TrackPoint(1235, 20, 20, 101)
             ],
             Updated = 99,
-            ClientUpdated = 88
+
         };
 
         var beforeMerge = await database.GetSessionAsync(sessionId);
@@ -335,7 +415,7 @@ public class SynchronizationMergeEngineTests
             {
                 ProcessedData = originalPsst,
                 Updated = 1,
-                ClientUpdated = 1
+
             });
         }
 
@@ -356,7 +436,7 @@ public class SynchronizationMergeEngineTests
                     FrontSpringRate = "50",
                     RearSpringRate = "60",
                     Updated = 99,
-                    ClientUpdated = 88
+
                 }
             ]
         });
@@ -432,7 +512,7 @@ public class SynchronizationMergeEngineTests
                 ProcessedData = [1, 2, 3],
                 ProcessingFingerprintJson = heldFingerprint,
                 Updated = 1,
-                ClientUpdated = 1
+
             }, window.Held));
         }
 
@@ -451,7 +531,7 @@ public class SynchronizationMergeEngineTests
                     GpsOffsetSeconds = 1.25,
 
                     Updated = 99,
-                    ClientUpdated = 88
+
                 }, window.Incoming)
             ]
         };
@@ -500,7 +580,7 @@ public class SynchronizationMergeEngineTests
                 ProcessedData = [1, 2, 3],
                 ProcessingFingerprintJson = localFingerprint,
                 Updated = 1,
-                ClientUpdated = 1
+
             }, window));
         }
 
@@ -519,7 +599,7 @@ public class SynchronizationMergeEngineTests
                     GpsOffsetSeconds = 1.25,
 
                     Updated = 99,
-                    ClientUpdated = 88
+
                 }, window)
             ]
         });
@@ -557,7 +637,7 @@ public class SynchronizationMergeEngineTests
                 GpsOffsetSeconds = 0.5,
 
                 Updated = 1,
-                ClientUpdated = 1,
+
             });
         }
         await database.SeedGpsMetricsAsync(sessionId, new GpsMetrics(10, 4, 2));
@@ -580,7 +660,7 @@ public class SynchronizationMergeEngineTests
                         GpsOffsetSeconds = 1.25,
 
                         Updated = 99,
-                        ClientUpdated = 88,
+
                     },
                 ],
             });
@@ -637,7 +717,7 @@ public class SynchronizationMergeEngineTests
             {
                 ProcessedData = originalPsst,
                 Updated = 1,
-                ClientUpdated = 1
+
             });
         }
 
@@ -649,7 +729,7 @@ public class SynchronizationMergeEngineTests
                 {
                     ProcessedData = [1, 2, 3],
                     Updated = 99,
-                    ClientUpdated = 88
+
                 }
             ]
         }));
@@ -682,19 +762,19 @@ public class SynchronizationMergeEngineTests
             connection.Insert(new Board(existingBoardId, null)
             {
                 Updated = 1,
-                ClientUpdated = 1
+
             });
         }
 
         var updatedBoard = new Board(existingBoardId, Guid.NewGuid())
         {
             Updated = 99,
-            ClientUpdated = 88
+
         };
         var insertedBoard = new Board(insertedBoardId, Guid.NewGuid())
         {
             Updated = 199,
-            ClientUpdated = 177
+
         };
 
         await database.MergeAllAsync(new SynchronizationData
@@ -703,17 +783,17 @@ public class SynchronizationMergeEngineTests
         });
 
         Assert.Equal(99, updatedBoard.Updated);
-        Assert.Equal(88, updatedBoard.ClientUpdated);
+
         Assert.Equal(199, insertedBoard.Updated);
-        Assert.Equal(177, insertedBoard.ClientUpdated);
+
 
         var storedUpdatedBoard = await database.GetAsync<Board>(existingBoardId);
         var storedInsertedBoard = await database.GetAsync<Board>(insertedBoardId);
 
         Assert.NotNull(storedUpdatedBoard);
         Assert.NotNull(storedInsertedBoard);
-        Assert.Equal(99, storedUpdatedBoard!.ClientUpdated);
-        Assert.Equal(199, storedInsertedBoard!.ClientUpdated);
+        Assert.Equal(99, storedUpdatedBoard!.Updated);
+        Assert.Equal(199, storedInsertedBoard!.Updated);
 
     }
 
@@ -735,19 +815,19 @@ public class SynchronizationMergeEngineTests
             {
                 ProcessedData = originalPsst,
                 Updated = 1,
-                ClientUpdated = 1
+
             });
         }
 
         var updatedSession = new Session(existingSessionId, "remote", "remote desc", null, 1234)
         {
             Updated = 99,
-            ClientUpdated = 88
+
         };
         var insertedSession = new Session(insertedSessionId, "new", "new desc", null, 2345)
         {
             Updated = 199,
-            ClientUpdated = 177
+
         };
 
         await database.MergeAllAsync(new SynchronizationData
@@ -756,9 +836,9 @@ public class SynchronizationMergeEngineTests
         });
 
         Assert.Equal(99, updatedSession.Updated);
-        Assert.Equal(88, updatedSession.ClientUpdated);
+
         Assert.Equal(199, insertedSession.Updated);
-        Assert.Equal(177, insertedSession.ClientUpdated);
+
 
         using var verificationConnection = new SQLiteConnection(databasePath);
         var storedUpdatedSession = verificationConnection.Table<Session>().Single(s => s.Id == existingSessionId);
@@ -766,68 +846,10 @@ public class SynchronizationMergeEngineTests
 
         Assert.NotNull(storedUpdatedSession);
         Assert.NotNull(storedInsertedSession);
-        Assert.Equal(99, storedUpdatedSession.ClientUpdated);
-        Assert.Equal(199, storedInsertedSession.ClientUpdated);
+        Assert.Equal(99, storedUpdatedSession.Updated);
+        Assert.Equal(199, storedInsertedSession.Updated);
         Assert.Equal(originalPsst, await database.GetSessionRawPsstAsync(existingSessionId));
         Assert.Null(await database.GetSessionRawPsstAsync(insertedSessionId));
-
-    }
-
-    [Theory]
-    [InlineData(true, 110, 100, 100, false, 150, 150, null, 100, true)]
-    [InlineData(false, 210, 200, null, true, 150, 150, 150, null, true)]
-    [InlineData(false, 110, 100, null, true, 150, 150, 150, 150, false)]
-    public async Task MergeAllAsync_AppliesBoardTombstonePrecedence(
-        bool localDeleted,
-        long localUpdated,
-        long localClientUpdated,
-        int? localDeletedAt,
-        bool incomingDeleted,
-        long incomingUpdated,
-        long incomingClientUpdated,
-        int? incomingDeletedAt,
-        int? expectedDeletedAt,
-        bool expectLocalSetup)
-    {
-        using var tempDatabase = new TempDatabase("merge-delete.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var boardId = Guid.NewGuid();
-        var localSetupId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetAllAsync<Board>();
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(new Board(boardId, localSetupId)
-            {
-                Updated = localUpdated,
-                ClientUpdated = localClientUpdated,
-                Deleted = localDeleted ? localDeletedAt : null
-            });
-        }
-
-        await database.MergeAllAsync(new SynchronizationData
-        {
-            Boards =
-            [
-                new Board(boardId, incomingDeleted ? null : Guid.NewGuid())
-                {
-                    Updated = incomingUpdated,
-                    ClientUpdated = incomingClientUpdated,
-                    Deleted = incomingDeleted ? incomingDeletedAt : null
-                }
-            ]
-        });
-
-        using var verificationConnection = new SQLiteConnection(databasePath);
-        var board = verificationConnection.Table<Board>().Single(b => b.Id == boardId);
-
-        Assert.Equal((long?)expectedDeletedAt, board.Deleted);
-        if (expectLocalSetup)
-        {
-            Assert.Equal(localSetupId, board.SetupId);
-        }
 
     }
 

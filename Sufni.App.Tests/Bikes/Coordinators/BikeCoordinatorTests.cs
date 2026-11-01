@@ -49,7 +49,7 @@ public class BikeCoordinatorTests : IDisposable
             RearWheelDiameterMm = 711,
             ImageRotationDegrees = 12.5,
             Updated = 10,
-            ClientUpdated = 5,
+
             Deleted = 1,
         };
         bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
@@ -64,7 +64,6 @@ public class BikeCoordinatorTests : IDisposable
         Assert.NotEqual(Guid.Empty, imported.Data.Bike.Id);
         Assert.NotEqual(importedBike.Id, imported.Data.Bike.Id);
         Assert.Equal(0, imported.Data.Bike.Updated);
-        Assert.Equal(0, imported.Data.Bike.ClientUpdated);
         Assert.Null(imported.Data.Bike.Deleted);
         Assert.Equal(EtrtoRimSize.Inch29, imported.Data.Bike.FrontWheelRimSize);
         Assert.Equal(2.4, imported.Data.Bike.FrontWheelTireWidth);

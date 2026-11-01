@@ -251,7 +251,6 @@ internal class BikeCoordinator(
         };
         var normalized = Bike.FromSnapshot(snapshot);
 
-        normalized.ClientUpdated = 0;
         normalized.Deleted = null;
 
         return normalized;

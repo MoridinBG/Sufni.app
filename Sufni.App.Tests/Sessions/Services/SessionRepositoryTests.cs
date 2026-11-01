@@ -121,7 +121,7 @@ public class SessionRepositoryTests
         {
             ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
             ProcessingFingerprintJson = "old-generation", DurationSeconds = 65,
-             ClientUpdated = 41,
+
             SourceSessionId = source.SessionId, WindowStartSeconds = 1.25, WindowEndSeconds = 66.25,
             PreviousWindowStartSeconds = 0
         };
@@ -159,7 +159,7 @@ public class SessionRepositoryTests
 
             Assert.NotNull(await database.GetAsync<Track>(newTrack.Id));
             Assert.Equal(source.Payload, (await database.GetRecordedSessionSourceAsync(restored.Id))!.Payload);
-            Assert.Equal(41, (await connection.FindAsync<Session>(restored.Id))!.ClientUpdated);
+            Assert.Equal(deleted.Version + 1, (await connection.FindAsync<Session>(restored.Id))!.Version);
             Assert.Single(await database.GetSessionsAsync());
         }
         else
@@ -881,7 +881,7 @@ public class SessionRepositoryTests
         var database = new TestPersistenceHarness(databasePath);
         await database.ApplyRemoteSynchronizationDataAsync(new SynchronizationData
         {
-            Sessions = [new Session(sessionId, "remote", "desc", null, 100) { Updated = 10, ClientUpdated = 10 }]
+            Sessions = [new Session(sessionId, "remote", "desc", null, 100) { Updated = 10 }]
         });
 
         var patchedPsst = PersistenceTestData.CreateTelemetryBlob(65);
@@ -944,7 +944,7 @@ public class SessionRepositoryTests
 
                 ProcessingFingerprintJson = """{"existing":true}""",
                 Updated = 10,
-                ClientUpdated = 10,
+
                 Deleted = 10
             });
         }
@@ -1019,7 +1019,7 @@ public class SessionRepositoryTests
             {
                 DurationSeconds = 65,
                 Updated = 1,
-                ClientUpdated = 1
+
             });
         }
 

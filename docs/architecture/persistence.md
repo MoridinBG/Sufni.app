@@ -41,7 +41,10 @@ erDiagram
         int rear_lsr
         int rear_hsr
         int updated
-        int client_updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
         int deleted
     }
 
@@ -83,7 +86,10 @@ erDiagram
         real rear_wheel_tire_width
         real image_rotation_degrees
         int updated
-        int client_updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
         int deleted
     }
 
@@ -94,7 +100,10 @@ erDiagram
         text front_sensor_configuration
         text rear_sensor_configuration
         int updated
-        int client_updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
         int deleted
     }
 
@@ -102,7 +111,10 @@ erDiagram
         text id PK
         text setup_id FK
         int updated
-        int client_updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
         int deleted
     }
 
@@ -113,7 +125,10 @@ erDiagram
         int end_time
         int points_revision
         int updated
-        int client_updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
         int deleted
     }
 
@@ -136,7 +151,10 @@ erDiagram
         real start_seconds
         real end_seconds
         int updated
-        int client_updated
+        int version
+        text updated_by
+        int local_seq
+        int sync_seq
         int deleted
     }
 
@@ -148,6 +166,23 @@ erDiagram
         real duration_seconds
         real alignment_offset_seconds
         int added
+    }
+
+    sync_deletion {
+        text entity_table PK
+        text id PK
+        int version
+        int updated
+        text updated_by
+        int deleted
+        int local_seq
+        int sync_seq
+    }
+
+    sync_sequence {
+        int id PK
+        int local_seq
+        int sync_seq
     }
 
     paired_device {
@@ -191,8 +226,9 @@ and writer. GPS metric materializations remain local and do not advance them.
 Deletes write the payload tombstone and ledger atomically. Ledger entries are
 never purged; explicit restoration advances above their versions.
 
-The remote merge and cursor paths still use the earlier clocks during this Epic 6
-migration; `client_updated` remains until those paths move to the new metadata.
+The remote merge uses the same authored-history rule on hub and client;
+`client_updated` is removed from schema and wire. Cursor selection still uses the
+earlier timestamps until the next Epic 6 slice switches it to sequences.
 
 ## SQLite Persistence Repositories
 
@@ -354,7 +390,7 @@ returns `AlreadyImported` without changing any rows. A live content-id session
 with no source receives only the source row; its authored fields, clock and
 processed data are preserved. If that retained row is soft-deleted, explicit
 re-import restores the same id with the newly prepared recording, clears its
-old window/deletion state and advances `Updated`, retaining `ClientUpdated`.
+old window/deletion state and advances its authored version beyond the ledger.
 Revision triggers preserve payload-generation continuity. Restoration, source
 insertion and the optional generated track commit or roll back together.
 A new recording inserts those same values atomically. Concurrent imports therefore converge on one session, and
@@ -362,7 +398,7 @@ pre-upgrade random ids are retained when their source hash already exists.
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment` — carry `Updated` (server timestamp), `ClientUpdated` (local timestamp), and nullable `Deleted` (soft delete timestamp). `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. The one-time `track-materializations` migration groups tracks by complete point
+`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence`, and hub `SyncSequence`. `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. The one-time `track-materializations` migration groups tracks by complete point
 content, preserves an active row when one exists, and chooses the lowest old ID
 within that state. It rekeys each survivor to its content ID without changing authored session clocks. Distinct points with
 matching start/end times remain separate. Retained deleted rows with points are
@@ -391,17 +427,21 @@ original owner session has been purged.
 
 ## Conflict Resolution
 
-`MergeAsync<T>()` is invoked per entity inside the lock-held `MergeAllAsync(SynchronizationData)` transaction. It compares against a derived "content version" — `existing.ClientUpdated` if set, otherwise `existing.Updated` — so locally-authored rows that have not yet round-tripped through a sync still compare correctly.
+`SynchronizationMergeEngine.Merge` is used by both push and pull inside one
+transaction. `SynchronizationMergeOrder` compares authored history in this order:
 
-The merge cases, in evaluation order:
+1. Higher `version` wins.
+2. At equal version, deletion beats content.
+3. Between two contents or two deletions, later `updated` wins, then the higher
+   `updated_by` using ordinal string ordering.
+4. Equal history is a no-op. Neither side re-stamps authored metadata.
 
-1. **New entity** (not in local DB): persist with `ClientUpdated = entity.Updated`, `Updated = now`. Insert.
-2. **Existing already locally deleted**: keep the local tombstone; if the remote tombstone is later (`entity.Deleted > existing.Deleted`), advance `existing.Deleted` to the remote value. Always bump `existing.Updated = now`. (No content is ever revived once locally deleted.)
-3. **Remote delete with `entity.Deleted > existingContentVersion`**: accept the delete — set `existing.Deleted = entity.Deleted`, `existing.Updated = now`. (Note: `Updated` is set to *now*, not to the remote's `Updated`.)
-4. **Stale remote delete** (`entity.Deleted <= existingContentVersion`): ignore the delete; only bump `existing.Updated = now`.
-5. **Local wins** (`existingContentVersion > entity.Updated`): keep local content; bump `existing.Updated = now`.
-6. **Remote wins** (otherwise): persist remote content with `ClientUpdated = entity.Updated`, `Updated = now`. Update.
-
-This gives local client changes precedence in conflicts while accepting remote deletes that are newer than the local content.
+Accepted writes allocate a local sequence; the hub additionally allocates its
+acceptance sequence, while a client preserves the received hub sequence.
+`SynchronizationData.deletions` carries durable ledger entries even after payload
+purge. Content at or below a ledger version is rejected; explicitly restored
+content above it can win. A historical deletion can be retained without hiding
+newer active content. Soft deletion preserves the retained payload. Repeating the
+same exchange changes neither rows nor sequence counters.
 
 Session merge accepts metadata, processed-generation fields, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or raw recording source through `SynchronizationData`. Those payloads use the dedicated endpoints described in [Cross-Device Synchronization](sync.md). When the local row already holds a processed BLOB, both inbound merge paths defer the **whole processed generation** — fingerprint and duration — while applying independent user metadata, including GPS alignment. Matching bytes and the accepted generation then move together through the session-data endpoint's [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).

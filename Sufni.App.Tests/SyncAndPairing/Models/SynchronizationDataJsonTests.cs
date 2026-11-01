@@ -23,6 +23,7 @@ public class SynchronizationDataJsonTests
             using var document = JsonDocument.Parse(json);
             var board = document.RootElement.GetProperty("board")[0];
             Assert.False(board.TryGetProperty("local_seq", out _));
+            Assert.False(board.TryGetProperty("client_updated", out _));
             var roundTrip = AppJson.Deserialize<SynchronizationData>(json)!.Boards.Single();
             Assert.Equal((4L, 123L, "writer-a", 80L),
                 (roundTrip.Version, roundTrip.Updated, roundTrip.UpdatedBy, roundTrip.SyncSequence));
@@ -217,7 +218,7 @@ public class SynchronizationDataJsonTests
             ForkStroke = 160,
             RearSuspension = rearSuspension,
             Updated = 1,
-            ClientUpdated = 1,
+
         };
 
     private static string SyncDataJson(string rearSuspensionMembers)
@@ -235,7 +236,7 @@ public class SynchronizationDataJsonTests
                      {
                        "id": "11111111-1111-1111-1111-111111111111",
                        "updated": 1,
-                       "client_updated": 1,
+
                        "deleted": null,
                        "name": "bad bike",
                        "head_angle": 65,

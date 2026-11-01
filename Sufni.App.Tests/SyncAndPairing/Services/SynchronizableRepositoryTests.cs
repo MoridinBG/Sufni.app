@@ -87,7 +87,7 @@ public class SynchronizableRepositoryTests
             connection.Insert(new Board(boardId, null)
             {
                 Updated = 10,
-                ClientUpdated = 10,
+
                 Deleted = 10
             });
         }
@@ -118,7 +118,7 @@ public class SynchronizableRepositoryTests
             connection.Insert(new Board(boardId, null)
             {
                 Updated = 10,
-                ClientUpdated = 10,
+
                 Deleted = 100
             });
         }

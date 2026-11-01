@@ -378,7 +378,7 @@ internal sealed class SessionRepository(
                 return (Source: RecordedSessionSourceSnapshot.From(existingSource), AlreadyImported: true);
 
             var existingSession = connection.FindWithQuery<Session>(
-                "SELECT id, deleted, client_updated FROM session WHERE id = ?", session.Id);
+                "SELECT id, deleted FROM session WHERE id = ?", session.Id);
             if (existingSession is null || existingSession.Deleted is not null)
             {
                 if (newFullTrack is not null)
@@ -393,7 +393,6 @@ internal sealed class SessionRepository(
                 }
                 else
                 {
-                    session.ClientUpdated = existingSession.ClientUpdated;
                     UpdateEntity(connection, session);
                 }
             }

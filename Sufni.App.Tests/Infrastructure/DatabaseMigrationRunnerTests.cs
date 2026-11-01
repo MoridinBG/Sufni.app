@@ -42,6 +42,7 @@ public class DatabaseMigrationRunnerTests
             var live = await context.Connection.GetAsync<Board>(liveId);
             Assert.Equal((1L, 30L, ""), (live.Version, live.Updated, live.UpdatedBy));
             Assert.True(live.LocalSequence > 0);
+            Assert.DoesNotContain(await context.Connection.GetTableInfoAsync("board"), column => column.Name == "client_updated");
             if (launch == 0) firstSequence = live.LocalSequence;
             else Assert.Equal(firstSequence, live.LocalSequence);
             Assert.Equal(1, await context.Connection.ExecuteScalarAsync<int>("SELECT version FROM sync_deletion WHERE entity_table='board' AND id=?", deletedId));
@@ -157,7 +158,7 @@ public class DatabaseMigrationRunnerTests
             var segment = await context.Connection.GetAsync<SessionSegment>(segmentId);
             Assert.Equal(source.SourceHash, segment.OwnerKey);
             Assert.Equal((12.25, 14.25), (segment.StartSeconds, segment.EndSeconds));
-            Assert.Equal((12, 11L), (segment.Updated, segment.ClientUpdated));
+            Assert.Equal(12, segment.Updated);
             Assert.DoesNotContain(await context.Connection.GetTableInfoAsync("session_segment"), column => column.Name == "session_id");
             using var json = JsonDocument.Parse(AppJson.Serialize(segment));
             Assert.Equal(source.SourceHash, json.RootElement.GetProperty("owner_key").GetString());
@@ -618,7 +619,7 @@ public class DatabaseMigrationRunnerTests
             ShockStroke = linkage.ShockStroke,
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
             Updated = 1,
-            ClientUpdated = 1,
+
         };
         var database = new TestPersistenceHarness(databasePath);
 
@@ -653,7 +654,7 @@ public class DatabaseMigrationRunnerTests
             ShockStroke = linkage.ShockStroke,
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
             Updated = 1,
-            ClientUpdated = 1,
+
         };
         var firstRun = new TestPersistenceHarness(databasePath);
         await firstRun.PutAsync(bike);
@@ -1229,18 +1230,18 @@ public class DatabaseMigrationRunnerTests
             connection.Insert(new Session(activeSessionId, "active", string.Empty, null)
             {
                 Updated = 10,
-                ClientUpdated = 10,
+
             });
             connection.Insert(new Session(deletedSessionId, "deleted", string.Empty, null)
             {
                 Updated = 10,
-                ClientUpdated = 10,
+
                 Deleted = 11,
             });
             connection.Insert(new Session(hardDeletedSessionId, "hard delete", string.Empty, null)
             {
                 Updated = 10,
-                ClientUpdated = 10,
+
             });
             foreach (var sessionId in new[] { activeSessionId, deletedSessionId, Guid.NewGuid() })
             {
@@ -1417,7 +1418,6 @@ public class DatabaseMigrationRunnerTests
         var canonical = PersistenceTestData.CreateFullTrack();
         canonical.Id = new Guid("00000000-0000-0000-0000-000000000002");
         canonical.Updated = 42;
-        canonical.ClientUpdated = 41;
         var otherActive = PersistenceTestData.CreateFullTrack();
         otherActive.Id = new Guid("00000000-0000-0000-0000-000000000003");
         otherActive.Updated = 99;
@@ -1456,7 +1456,6 @@ public class DatabaseMigrationRunnerTests
             var kept = Assert.Single(actual, track => track.Id == TrackContentHash.Compute(canonical.Points));
             Assert.Null(kept.Deleted);
             Assert.Equal(42, kept.Updated);
-            Assert.Equal(41, kept.ClientUpdated);
             Assert.Equal(canonical.PointsJson, kept.PointsJson);
             Assert.Contains(actual, track => track.Id == TrackContentHash.Compute(otherContent.Points));
             Assert.Contains(actual, track => track.Id == contentlessTombstone.Id && track.Deleted == now);
@@ -1481,14 +1480,14 @@ public class DatabaseMigrationRunnerTests
         {
             BikeId = bike.Id,
             Updated = 21,
-            ClientUpdated = 21
+
         };
         var processedData = PersistenceTestData.CreateTelemetryBlob(12.5);
         var session = new Session(Guid.NewGuid(), "seed session", string.Empty, setup.Id, timestamp: 100)
         {
             ProcessedData = processedData,
             Updated = 22,
-            ClientUpdated = 22
+
         };
         var source = PersistenceTestData.CreateRecordedSessionSource(session.Id);
         var seed = new SeededProcessedSession(bike, setup, session, source, processedData);

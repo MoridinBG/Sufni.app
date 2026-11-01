@@ -51,8 +51,7 @@ public interface ISyncDataStore
 
 internal sealed class SynchronizationMergeEngine(
     SqliteConnectionContext connectionContext,
-    IProcessingFingerprintService fingerprintService,
-    TimeProvider timeProvider) : ISyncDataStore
+    IProcessingFingerprintService fingerprintService) : ISyncDataStore
 {
     private static readonly string SessionSynchronizationProjection = $"""
                                                                       id,
@@ -72,7 +71,6 @@ internal sealed class SynchronizationMergeEngine(
                                                                       front_springrate, front_hsc, front_lsc, front_lsr, front_hsr,
                                                                       rear_springrate, rear_hsc, rear_lsc, rear_lsr, rear_hsr,
                                                                       updated, version, updated_by, local_seq, sync_seq,
-                                                                      client_updated,
                                                                       deleted,
                                                                       {SessionSqlProjection.HasDataProjection}
                                                                       """;
@@ -94,7 +92,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                   updated=?,
-                                                                  client_updated=?,
+                                                                  version=?, updated_by=?, local_seq=?, sync_seq=?,
                                                                   deleted=?
                                                                   """;
 
@@ -121,7 +119,7 @@ internal sealed class SynchronizationMergeEngine(
                                                                   front_springrate=?, front_hsc=?, front_lsc=?, front_lsr=?, front_hsr=?,
                                                                   rear_springrate=?, rear_hsc=?, rear_lsc=?, rear_lsr=?, rear_hsr=?,
                                                                   updated=?,
-                                                                  client_updated=?,
+                                                                  version=?, updated_by=?, local_seq=?, sync_seq=?,
                                                                   deleted=?
                                                                   """;
 
@@ -145,6 +143,9 @@ internal sealed class SynchronizationMergeEngine(
         var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
         var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
         var segments = await GetChangedAsync<SessionSegment>(connection, sinceExclusive, upperInclusive);
+        var deletions = await connection.QueryAsync<SynchronizationDeletion>(
+            "SELECT * FROM sync_deletion WHERE (updated > ? AND updated <= ?) OR (deleted > ? AND deleted <= ?)",
+            sinceExclusive, upperInclusive, sinceExclusive, upperInclusive);
 
         return new SynchronizationData
         {
@@ -154,34 +155,13 @@ internal sealed class SynchronizationMergeEngine(
             Setups = setups,
             Sessions = sessions,
             Tracks = tracks,
-            Segments = segments
+            Segments = segments,
+            Deletions = deletions
         };
     }
 
-    public async Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data)
-    {
-        return await connectionContext.RunInTransactionAsync<IReadOnlyList<SessionBlobSwap>>(connection =>
-        {
-            var swaps = new List<SessionBlobSwap>();
-
-            foreach (var board in data.Boards) ApplyRemoteEntity(connection, board);
-            foreach (var bike in data.Bikes) ApplyRemoteEntity(connection, bike);
-            foreach (var setup in data.Setups) ApplyRemoteEntity(connection, setup);
-            foreach (var track in data.Tracks) ApplyRemoteEntity(connection, track);
-            foreach (var session in data.Sessions)
-            {
-                var swap = ApplyRemoteSession(connection, session);
-                if (swap is not null)
-                {
-                    swaps.Add(swap);
-                }
-            }
-
-            foreach (var segment in data.Segments) ApplyRemoteEntity(connection, segment);
-
-            return swaps;
-        });
-    }
+    public Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
+        connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false));
 
     public async Task<long> GetLastPushTimeAsync(string? serverUrl)
     {
@@ -232,18 +212,34 @@ internal sealed class SynchronizationMergeEngine(
         await connection.UpdateAsync(synchronization);
     }
 
-    public async Task MergeAllAsync(SynchronizationData data)
+    public async Task MergeAllAsync(SynchronizationData data) =>
+        _ = await connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: true));
+
+    private IReadOnlyList<SessionBlobSwap> MergeRows(SQLiteConnection connection, SynchronizationData data, bool asHub)
     {
-        await connectionContext.RunInTransactionAsync(connection =>
+        foreach (var deletion in data.Deletions)
         {
-            var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-            foreach (var bike in data.Bikes) Merge(connection, bike, now, MergeGenericAcceptedContent);
-            foreach (var setup in data.Setups) Merge(connection, setup, now, MergeGenericAcceptedContent);
-            foreach (var board in data.Boards) Merge(connection, board, now, MergeGenericAcceptedContent);
-            foreach (var session in data.Sessions) Merge(connection, session, now, MergeSessionAcceptedContent);
-            foreach (var track in data.Tracks) Merge(connection, track, now, MergeGenericAcceptedContent);
-            foreach (var segment in data.Segments) Merge(connection, segment, now, MergeGenericAcceptedContent);
-        });
+            if (deletion.Deleted is null) throw new InvalidOperationException("A deletion must carry its authored deletion time.");
+            switch (deletion.EntityTable)
+            {
+                case "bike": MergeDeletion<Bike>(connection, deletion, asHub); break;
+                case "setup": MergeDeletion<Setup>(connection, deletion, asHub); break;
+                case "board": MergeDeletion<Board>(connection, deletion, asHub); break;
+                case "track": MergeDeletion<Track>(connection, deletion, asHub); break;
+                case "session": MergeDeletion<Session>(connection, deletion, asHub); break;
+                case "session_segment": MergeDeletion<SessionSegment>(connection, deletion, asHub); break;
+                default: throw new InvalidOperationException("Unknown synchronized deletion table.");
+            }
+        }
+        foreach (var row in data.Bikes) Merge(connection, row, asHub);
+        foreach (var row in data.Setups) Merge(connection, row, asHub);
+        foreach (var row in data.Boards) Merge(connection, row, asHub);
+        foreach (var row in data.Tracks) Merge(connection, row, asHub);
+        var swaps = new List<SessionBlobSwap>();
+        foreach (var row in data.Sessions)
+            if (Merge(connection, row, asHub) is { } swap) swaps.Add(swap);
+        foreach (var row in data.Segments) Merge(connection, row, asHub);
+        return swaps;
     }
 
     private static async Task<List<T>> GetChangedAsync<
@@ -291,215 +287,85 @@ internal sealed class SynchronizationMergeEngine(
             upperInclusive)];
     }
 
-    private static void ApplyRemoteEntity<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteConnection connection,
-        T entity) where T : Synchronizable, new()
+    private SessionBlobSwap? Merge<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteConnection connection, T incoming, bool asHub) where T : Synchronizable, new()
     {
-        var existing = Find<T>(connection, entity.Id);
-        if (existing is null)
+        if (incoming.Deleted is not null)
         {
-            InsertEntity(connection, entity);
-            return;
-        }
-
-        UpdateEntity(connection, entity);
-    }
-
-    private SessionBlobSwap? ApplyRemoteSession(SQLiteConnection connection, Session session)
-    {
-        var existing = Find<Session>(connection, session.Id);
-        if (existing is null)
-        {
-            InsertEntity(connection, session);
+            MergeDeletion<T>(connection, SynchronizationDeletion.From(incoming, GetTableName<T>()), asHub);
             return null;
         }
-
-        if (!existing.HasProcessedData)
+        var deleted = ReadDeletion<T>(connection, incoming.Id);
+        if (deleted is not null && incoming.Version <= deleted.Version) return null;
+        var existing = Find<T>(connection, incoming.Id);
+        if (existing is null || SynchronizationMergeOrder.Compare(incoming, existing) > 0)
         {
-            // No held BLOB: the fingerprint is just metadata, so write it normally.
-            // The BLOB, if any, arrives via the session-data fill with a match check.
-            connection.Execute(
-                UpdateRemoteSessionMetadataSql,
-                CreateRemoteSessionMetadataValues(session, session.Updated, session.ClientUpdated));
+            PersistWithSequences(connection, incoming, asHub, () =>
+            {
+                if (existing is null) InsertEntity(connection, incoming);
+                else if (incoming is Session session)
+                {
+                    if (existing is Session { HasProcessedData: true })
+                        connection.Execute(UpdateRemoteSessionMetadataExceptProcessedGenerationSql,
+                            CreateRemoteSessionMetadataExceptProcessedGenerationValues(session));
+                    else connection.Execute(UpdateRemoteSessionMetadataSql, CreateRemoteSessionMetadataValues(session));
+                }
+                else UpdateEntity(connection, incoming);
+            });
+        }
+        if (incoming is not Session incomingSession) return null;
+        var current = Find<Session>(connection, incoming.Id)!;
+        if (current.Deleted is not null) return null;
+        var target = DecideProcessedGenerationTarget(connection, incomingSession, current);
+        if (!current.HasProcessedData)
+        {
+            if (target is not null && (current.ProcessingFingerprintJson != target.TargetFingerprint || current.DurationSeconds != target.TargetGeneration.DurationSeconds))
+                PersistWithSequences(connection, incoming, asHub, () => connection.Execute(
+                    "UPDATE session SET session_processing_fingerprint=?, duration_seconds=?, local_seq=?, sync_seq=? WHERE id=?",
+                    target.TargetFingerprint, target.TargetGeneration.DurationSeconds, incoming.LocalSequence, incoming.SyncSequence, incoming.Id));
+            if (asHub) ClearSessionBlobSwapRequest(connection, incoming.Id);
             return null;
         }
-
-        // Held BLOB: retain every processed-generation field until matching bytes
-        // arrive, while applying the independent session metadata immediately.
-        connection.Execute(
-            UpdateRemoteSessionMetadataExceptProcessedGenerationSql,
-            CreateRemoteSessionMetadataExceptProcessedGenerationValues(
-                session,
-                session.Updated,
-                session.ClientUpdated));
-
-        return DecideProcessedGenerationTarget(connection, session, existing);
+        if (!asHub) return target;
+        if (target is null) ClearSessionBlobSwapRequest(connection, incoming.Id);
+        else RecordSessionBlobSwapRequest(connection, incomingSession);
+        return null;
     }
 
-    private static long GetContentVersion(Synchronizable entity) => entity.ClientUpdated > 0
-        ? entity.ClientUpdated
-        : entity.Updated;
+    private static SynchronizationDeletion? ReadDeletion<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteConnection connection, Guid id) where T : Synchronizable, new() =>
+        connection.FindWithQuery<SynchronizationDeletion>("SELECT * FROM sync_deletion WHERE entity_table=? AND id=?", GetTableName<T>(), id);
 
-    private static void Merge<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteConnection connection,
-        T entity,
-        long now,
-        Action<SQLiteConnection, T, T?, long, bool> applyAcceptedContent) where T : Synchronizable, new()
+    private static void MergeDeletion<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteConnection connection, SynchronizationDeletion incoming, bool asHub) where T : Synchronizable, new()
     {
-        var existing = Find<T>(connection, entity.Id);
-
-        if (existing is null)
+        var recorded = ReadDeletion<T>(connection, incoming.Id);
+        if (recorded is not null && SynchronizationMergeOrder.Compare(incoming, recorded) <= 0) return;
+        var current = Find<T>(connection, incoming.Id);
+        PersistWithSequences(connection, incoming, asHub, () =>
         {
-            applyAcceptedContent(connection, entity, null, now, true);
-            return;
-        }
-
-        var existingContentVersion = GetContentVersion(existing);
-
-        if (existing.Deleted.HasValue)
-        {
-            if (entity.Deleted.HasValue && entity.Deleted > existing.Deleted)
-            {
-                existing.Deleted = entity.Deleted;
-            }
-
-            existing.Updated = now;
-            UpdateEntity(connection, existing);
-            return;
-        }
-
-        if (entity.Deleted.HasValue)
-        {
-            if (entity.Deleted <= existingContentVersion)
-            {
-                existing.Updated = now;
-                UpdateEntity(connection, existing);
-                return;
-            }
-
-            existing.Deleted = entity.Deleted;
-            existing.Updated = now;
-            UpdateEntity(connection, existing);
-            return;
-        }
-
-        // Some other client updated the row later and synced earlier. Keep the
-        // local content, but advance the synchronization timestamp.
-        if (existingContentVersion > entity.Updated)
-        {
-            existing.Updated = now;
-            UpdateEntity(connection, existing);
-            return;
-        }
-
-        applyAcceptedContent(connection, entity, existing, now, false);
+            SynchronizationWriteMetadata.RecordDeletion(connection, incoming);
+            if (current is not null && SynchronizationMergeOrder.Compare(incoming, current) > 0)
+                connection.Execute($"UPDATE {GetTableName<T>()} SET version=?, updated=?, updated_by=?, deleted=?, local_seq=?, sync_seq=? WHERE id=?",
+                    incoming.Version, incoming.Updated, incoming.UpdatedBy, incoming.Deleted, incoming.LocalSequence, incoming.SyncSequence, incoming.Id);
+        });
     }
 
-    private static void PersistAcceptedEntity<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteConnection connection,
-        T entity,
-        long now,
-        bool isInsert) where T : Synchronizable, new()
+    private static void PersistWithSequences(SQLiteConnection connection, Synchronizable incoming, bool asHub, Action persist)
     {
-        PersistEntityWithServerTimestamps(
-            entity,
-            updated: now,
-            clientUpdated: entity.Updated,
-            persist: isInsert
-                ? row => InsertEntity(connection, row)
-                : row => UpdateEntity(connection, row));
-    }
-
-    private static void PersistEntityWithServerTimestamps<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        T entity,
-        long updated,
-        long clientUpdated,
-        Func<T, int> persist) where T : Synchronizable, new()
-    {
-        var originalUpdated = entity.Updated;
-        var originalClientUpdated = entity.ClientUpdated;
-
+        var originalLocal = incoming.LocalSequence;
+        var originalSync = incoming.SyncSequence;
         try
         {
-            entity.Updated = updated;
-            entity.ClientUpdated = clientUpdated;
-            persist(entity);
+            incoming.LocalSequence = SynchronizationWriteMetadata.NextLocalSequence(connection);
+            if (asHub) incoming.SyncSequence = SynchronizationWriteMetadata.NextSyncSequence(connection);
+            persist();
         }
         finally
         {
-            entity.Updated = originalUpdated;
-            entity.ClientUpdated = originalClientUpdated;
+            incoming.LocalSequence = originalLocal;
+            incoming.SyncSequence = originalSync;
         }
-    }
-
-    private static void MergeGenericAcceptedContent<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteConnection connection,
-        T entity,
-        T? existing,
-        long now,
-        bool isInsert) where T : Synchronizable, new()
-    {
-        PersistAcceptedEntity(connection, entity, now, isInsert);
-    }
-
-    private void MergeSessionMetadata(
-        SQLiteConnection connection,
-        Session session,
-        Session? existing,
-        long now)
-    {
-        if (existing is { HasProcessedData: true } heldRow)
-        {
-            // Hub-side defer: when the hub already holds a BLOB, retain the complete
-            // processed generation and sync only independent session metadata. The hub runs no
-            // session-data pull phase, so to receive a newer BLOB it records a
-            // push-swap request and asks a client to upload it.
-            connection.Execute(
-                UpdateRemoteSessionMetadataExceptProcessedGenerationSql,
-                CreateRemoteSessionMetadataExceptProcessedGenerationValues(
-                    session,
-                    now,
-                    session.Updated));
-            UpdateSessionBlobSwapRequest(connection, session, heldRow);
-            return;
-        }
-
-        // No held BLOB: write the fingerprint + data columns normally (the BLOB, if
-        // any, arrives via the data-null fill with a match check), and drop any stale
-        // push-swap request for this row.
-        connection.Execute(
-            UpdateRemoteSessionMetadataSql,
-            CreateRemoteSessionMetadataValues(session, now, session.Updated));
-        ClearSessionBlobSwapRequest(connection, session.Id);
-    }
-
-    private void MergeSessionAcceptedContent(
-        SQLiteConnection connection,
-        Session session,
-        Session? existing,
-        long now,
-        bool isInsert)
-    {
-        if (isInsert)
-        {
-            PersistAcceptedEntity(connection, session, now, isInsert: true);
-            return;
-        }
-
-        MergeSessionMetadata(connection, session, existing, now);
-    }
-
-    private void UpdateSessionBlobSwapRequest(SQLiteConnection connection, Session incoming, Session heldRow)
-    {
-        if (DecideProcessedGenerationTarget(connection, incoming, heldRow) is not null)
-            RecordSessionBlobSwapRequest(connection, incoming);
-        else
-            ClearSessionBlobSwapRequest(connection, incoming.Id);
     }
 
     private ProcessingFingerprint? TryComputeCurrentDatabaseInputs(
@@ -559,15 +425,17 @@ internal sealed class SynchronizationMergeEngine(
         SQLiteConnection connection,
         Session incoming) =>
         connection.Execute(
-            $"INSERT OR REPLACE INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint, target_generation) VALUES (?, ?, ?)",
+            $"""
+            INSERT INTO {SessionBlobSwapRequestStore.TableName} (session_id, target_fingerprint, target_generation) VALUES (?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET target_fingerprint=excluded.target_fingerprint, target_generation=excluded.target_generation
+            WHERE target_fingerprint IS NOT excluded.target_fingerprint OR target_generation IS NOT excluded.target_generation
+            """,
             incoming.Id,
             incoming.ProcessingFingerprintJson,
             AppJson.Serialize(SessionProcessedGeneration.From(incoming)));
 
     private static object?[] CreateRemoteSessionMetadataValues(
-        Session session,
-        long updated,
-        long clientUpdated) =>
+        Session session) =>
     [
         session.Name,
         session.Setup,
@@ -592,16 +460,14 @@ internal sealed class SynchronizationMergeEngine(
         session.RearLowSpeedCompression,
         session.RearLowSpeedRebound,
         session.RearHighSpeedRebound,
-        updated,
-        clientUpdated,
+        session.Updated,
+        session.Version, session.UpdatedBy, session.LocalSequence, session.SyncSequence,
         session.Deleted,
         session.Id
     ];
 
     private static object?[] CreateRemoteSessionMetadataExceptProcessedGenerationValues(
-        Session session,
-        long updated,
-        long clientUpdated) =>
+        Session session) =>
     [
         session.Name,
         session.Setup,
@@ -624,8 +490,8 @@ internal sealed class SynchronizationMergeEngine(
         session.RearLowSpeedCompression,
         session.RearLowSpeedRebound,
         session.RearHighSpeedRebound,
-        updated,
-        clientUpdated,
+        session.Updated,
+        session.Version, session.UpdatedBy, session.LocalSequence, session.SyncSequence,
         session.Deleted,
         session.Id
     ];
@@ -635,11 +501,11 @@ internal sealed class SynchronizationMergeEngine(
     {
         if (incoming.Deleted is not null) return null;
         var decision = ProcessedGenerationAcceptance.DecideProcessedGenerationTarget(
-            TryComputeCurrentDatabaseInputs(connection, incoming),
+            TryComputeCurrentDatabaseInputs(connection, held),
             fingerprintService.Parse(held.ProcessingFingerprintJson),
             fingerprintService.Parse(incoming.ProcessingFingerprintJson),
             held.HasProcessedData,
-            SessionHasRecordedSource(connection, incoming.RecordingSourceSessionId),
+            SessionHasRecordedSource(connection, held.RecordingSourceSessionId),
             fingerprintService.CurrentSchemaVersion);
         return decision == ProcessedGenerationDecision.KeepLocal ? null :
             new SessionBlobSwap(incoming.Id, incoming.ProcessingFingerprintJson!, SessionProcessedGeneration.From(incoming));
@@ -658,7 +524,11 @@ internal sealed class SynchronizationMergeEngine(
         SQLiteConnection connection,
         object primaryKey) where T : new()
     {
-        return connection.Find<T>(primaryKey);
+        if (typeof(T) == typeof(Session))
+            return (T?)(object?)connection.FindWithQuery<SessionMetadataRow>(
+                $"SELECT {SessionSynchronizationProjection} FROM session WHERE id=?", primaryKey);
+        return connection.FindWithQuery<T>(
+            $"SELECT id, version, updated, updated_by, deleted, local_seq, sync_seq FROM {GetTableName<T>()} WHERE id=?", primaryKey);
     }
 
 }

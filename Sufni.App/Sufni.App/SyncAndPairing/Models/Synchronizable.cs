@@ -12,8 +12,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Models;
 namespace Sufni.App.SyncAndPairing.Models;
 
-// Base row shape for data that participates in cross-device sync. Updated and
-// ClientUpdated are merge clocks; Deleted is a soft-delete marker.
+// Authored row history and transport sequences; local_seq never leaves this database.
 public class Synchronizable
 {
     [JsonPropertyName("id")]
@@ -45,11 +44,6 @@ public class Synchronizable
     [JsonPropertyName("sync_seq")]
     [IgnoreMember]
     public long SyncSequence { get; set; }
-
-    [Column("client_updated")]
-    [JsonPropertyName("client_updated")]
-    [IgnoreMember]
-    public long ClientUpdated { get; set; }
 
     [Column("deleted")]
     [JsonPropertyName("deleted")]
@@ -85,5 +79,6 @@ public class SynchronizationData
     [JsonPropertyName("session")] public List<Session> Sessions { get; set; } = [];
     [JsonPropertyName("track")] public List<Track> Tracks { get; set; } = [];
     [JsonPropertyName("segment")] public List<SessionSegment> Segments { get; set; } = [];
+    [JsonPropertyName("deletions")] public List<SynchronizationDeletion> Deletions { get; set; } = [];
     [JsonPropertyName("app_preferences")] public AppPreferencesSyncData? AppPreferences { get; set; }
 }

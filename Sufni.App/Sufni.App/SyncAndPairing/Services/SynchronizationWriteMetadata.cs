@@ -50,11 +50,14 @@ internal static class SynchronizationWriteMetadata
 
     public static void RecordDeletion<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteConnection connection, T row) where T : Synchronizable, new() =>
+        RecordDeletion(connection, SynchronizationDeletion.From(row, PersistenceGuards.GetTableName<T>()));
+
+    public static void RecordDeletion(SQLiteConnection connection, SynchronizationDeletion row) =>
         connection.Execute("""
             INSERT INTO sync_deletion (entity_table, id, version, updated, updated_by, deleted, local_seq, sync_seq)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(entity_table, id) DO UPDATE SET version=excluded.version, updated=excluded.updated,
                 updated_by=excluded.updated_by, deleted=excluded.deleted, local_seq=excluded.local_seq, sync_seq=excluded.sync_seq
-            """, PersistenceGuards.GetTableName<T>(), row.Id, row.Version, row.Updated, row.UpdatedBy,
+            """, row.EntityTable, row.Id, row.Version, row.Updated, row.UpdatedBy,
             row.Deleted, row.LocalSequence, row.SyncSequence);
 }

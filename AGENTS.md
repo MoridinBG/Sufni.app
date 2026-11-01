@@ -287,9 +287,10 @@ data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
 etc.).
 
 Sync-enabled entities inherit from `Models/Synchronizable.cs`, which adds
-`Updated` / `ClientUpdated` / `Deleted` timestamps used for soft delete and
-conflict resolution. Rows soft-deleted more than a day ago are purged on
-startup.
+authored `Version` / `Updated` / `UpdatedBy`, a `Deleted` marker and local/hub
+sequences. Hub and client share one merge rule; equal-version deletion ties use
+later Updated then higher UpdatedBy. Payload rows soft-deleted more than a day
+ago are purged on startup; deletion ledger entries are retained.
 
 Full details: [docs/architecture/persistence.md](docs/architecture/persistence.md),
 including [Database Service](docs/architecture/persistence.md#database-service),
