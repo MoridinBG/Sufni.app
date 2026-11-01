@@ -134,8 +134,8 @@ erDiagram
 
     sync {
         text server_url PK
-        int last_push_time
-        int last_pull_time
+        int last_push_sequence
+        int last_pull_sequence
     }
 
     session_blob_swap_request {
@@ -247,8 +247,11 @@ Deletes write the payload tombstone and ledger atomically. Ledger entries are
 never purged; explicit restoration advances above their versions.
 
 The remote merge uses the same authored-history rule on hub and client;
-`client_updated` is removed from schema and wire. Cursor selection still uses the
-earlier timestamps until the next Epic 6 slice switches it to sequences.
+`client_updated` is removed from schema and wire. Push selection uses `local_seq`
+and pull selection uses `sync_seq`, including deletion-ledger entries. The same
+migration discards timestamp cursors and recreates the cursor table for a full
+baseline exchange. The current client still uses its fixed peer key; binding
+cursors to certificate thumbprint and database incarnation remains pending.
 
 ## SQLite Persistence Repositories
 
@@ -276,18 +279,14 @@ ids and split references; stored processing fingerprints are left stale.
 
 Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
 
-Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, `ISessionSegmentRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync timestamps, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
+Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, `ISessionSegmentRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync sequences and cursors, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
 
-`DatabaseMigrationRunner` also ensures sync-delta indexes after core table
-creation. Every `Synchronizable` table (`board`,
-`bike`, `setup`, `session`, `track`, `session_segment`) has separate `updated` and `deleted`
-indexes (`ix_<table>_updated`, `ix_<table>_deleted`) so `GetChangedAsync`
-can scan changed rows and tombstones without a full table scan. Protocol v3
-persists `sync.last_push_time` and `sync.last_pull_time` separately. Delta
-projection is bounded to `(sinceExclusive, upperInclusive]` for both updates and
-tombstones; the client deliberately subtracts one second from a positive cursor
-when starting the next direction-specific snapshot, replaying the prior
-whole-second bucket rather than losing rows that share its timestamp.
+The `sync-authority` migration creates `local_seq` and `sync_seq` indexes on every
+synced table and the deletion ledger. Delta projection is bounded to
+`(sinceExclusive, upperInclusive]`. `sync.last_push_sequence` and
+`sync.last_pull_sequence` advance independently. The run's push bound is captured
+before any network work; a concurrent edit beyond that bound is selected on the
+next run. Legacy `updated` and `deleted` indexes are still maintained at startup.
 
 Two local-only revision columns identify exact payload generations without using
 the sync-facing `Updated` timestamp: `session.processed_telemetry_revision` changes

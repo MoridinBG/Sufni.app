@@ -23,17 +23,22 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
 namespace Sufni.App.SyncAndPairing.Services;
 
+public enum SynchronizationDirection { Push, Pull }
+
 public interface ISyncDataStore
 {
-    Task<long> GetLastPushTimeAsync(string? serverUrl);
+    Task<long> GetLastPushSequenceAsync(string? serverUrl);
 
-    Task<long> GetLastPullTimeAsync(string? serverUrl);
+    Task<long> GetLastPullSequenceAsync(string? serverUrl);
 
-    Task UpdateLastPushTimeAsync(string? serverUrl, long upperBound);
+    Task UpdateLastPushSequenceAsync(string? serverUrl, long upperBound);
 
-    Task UpdateLastPullTimeAsync(string? serverUrl, long upperBound);
+    Task UpdateLastPullSequenceAsync(string? serverUrl, long upperBound);
+
+    Task<long> GetSequenceUpperBoundAsync(SynchronizationDirection direction);
 
     Task<SynchronizationData> GetSynchronizationDataAsync(
+        SynchronizationDirection direction,
         long sinceExclusive,
         long upperInclusive);
 
@@ -131,22 +136,31 @@ internal sealed class SynchronizationMergeEngine(
                                                                          id=?
                                                                      """;
 
+    public async Task<long> GetSequenceUpperBoundAsync(SynchronizationDirection direction)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var column = direction == SynchronizationDirection.Push ? "local_seq" : "sync_seq";
+        return await connection.ExecuteScalarAsync<long>($"SELECT {column} FROM sync_sequence WHERE id=1");
+    }
+
     public async Task<SynchronizationData> GetSynchronizationDataAsync(
+        SynchronizationDirection direction,
         long sinceExclusive,
         long upperInclusive)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
 
-        var boards = await GetChangedAsync<Board>(connection, sinceExclusive, upperInclusive);
-        var bikes = await GetChangedAsync<Bike>(connection, sinceExclusive, upperInclusive);
-        var setups = await GetChangedAsync<Setup>(connection, sinceExclusive, upperInclusive);
-        var sessions = await GetChangedAsync<Session>(connection, sinceExclusive, upperInclusive);
-        var tracks = await GetChangedAsync<Track>(connection, sinceExclusive, upperInclusive);
-        var customLayers = await GetChangedAsync<CustomTileLayer>(connection, sinceExclusive, upperInclusive);
-        var segments = await GetChangedAsync<SessionSegment>(connection, sinceExclusive, upperInclusive);
+        var sequenceColumn = direction == SynchronizationDirection.Push ? "local_seq" : "sync_seq";
+        var boards = await GetChangedAsync<Board>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var bikes = await GetChangedAsync<Bike>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var setups = await GetChangedAsync<Setup>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var sessions = await GetChangedAsync<Session>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var tracks = await GetChangedAsync<Track>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var customLayers = await GetChangedAsync<CustomTileLayer>(connection, sequenceColumn, sinceExclusive, upperInclusive);
+        var segments = await GetChangedAsync<SessionSegment>(connection, sequenceColumn, sinceExclusive, upperInclusive);
         var deletions = await connection.QueryAsync<SynchronizationDeletion>(
-            "SELECT * FROM sync_deletion WHERE (updated > ? AND updated <= ?) OR (deleted > ? AND deleted <= ?)",
-            sinceExclusive, upperInclusive, sinceExclusive, upperInclusive);
+            $"SELECT * FROM sync_deletion WHERE {sequenceColumn} > ? AND {sequenceColumn} <= ?",
+            sinceExclusive, upperInclusive);
 
         return new SynchronizationData
         {
@@ -165,25 +179,25 @@ internal sealed class SynchronizationMergeEngine(
     public Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
         connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false));
 
-    public async Task<long> GetLastPushTimeAsync(string? serverUrl)
+    public async Task<long> GetLastPushSequenceAsync(string? serverUrl)
     {
         var synchronization = await GetSynchronizationAsync(serverUrl);
-        return synchronization?.LastPushTime ?? 0;
+        return synchronization?.LastPushSequence ?? 0;
     }
 
-    public async Task<long> GetLastPullTimeAsync(string? serverUrl)
+    public async Task<long> GetLastPullSequenceAsync(string? serverUrl)
     {
         var synchronization = await GetSynchronizationAsync(serverUrl);
-        return synchronization?.LastPullTime ?? 0;
+        return synchronization?.LastPullSequence ?? 0;
     }
 
-    public Task UpdateLastPushTimeAsync(string? serverUrl, long upperBound) =>
+    public Task UpdateLastPushSequenceAsync(string? serverUrl, long upperBound) =>
         UpdateSynchronizationAsync(serverUrl, synchronization =>
-            synchronization.LastPushTime = upperBound);
+            synchronization.LastPushSequence = upperBound);
 
-    public Task UpdateLastPullTimeAsync(string? serverUrl, long upperBound) =>
+    public Task UpdateLastPullSequenceAsync(string? serverUrl, long upperBound) =>
         UpdateSynchronizationAsync(serverUrl, synchronization =>
-            synchronization.LastPullTime = upperBound);
+            synchronization.LastPullSequence = upperBound);
 
     private async Task<Synchronization?> GetSynchronizationAsync(string? serverUrl)
     {
@@ -246,49 +260,16 @@ internal sealed class SynchronizationMergeEngine(
         return swaps;
     }
 
-    private static async Task<List<T>> GetChangedAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        long sinceExclusive,
-        long upperInclusive) where T : Synchronizable, new()
+    private static async Task<List<T>> GetChangedAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+        SQLiteAsyncConnection connection, string sequenceColumn, long sinceExclusive, long upperInclusive)
+        where T : Synchronizable, new()
     {
+        var bounds = $"{sequenceColumn} > ? AND {sequenceColumn} <= ?";
         if (typeof(T) == typeof(Session))
-        {
-            return (List<T>)(object)await GetChangedSessionsAsync(
-                connection,
-                sinceExclusive,
-                upperInclusive);
-        }
-
-        return await connection.Table<T>()
-            .Where(entity =>
-                (entity.Updated > sinceExclusive && entity.Updated <= upperInclusive) ||
-                (entity.Deleted != null &&
-                    entity.Deleted > sinceExclusive &&
-                    entity.Deleted <= upperInclusive))
-            .ToListAsync();
-    }
-
-    private static async Task<List<Session>> GetChangedSessionsAsync(
-        SQLiteAsyncConnection connection,
-        long sinceExclusive,
-        long upperInclusive)
-    {
-        var query = $"""
-                     SELECT
-                         {SessionSynchronizationProjection}
-                     FROM
-                         session
-                     WHERE
-                         (updated > ? AND updated <= ?)
-                         OR (deleted IS NOT NULL AND deleted > ? AND deleted <= ?)
-                     """;
-        return [.. await connection.QueryAsync<SessionMetadataRow>(
-            query,
-            sinceExclusive,
-            upperInclusive,
-            sinceExclusive,
-            upperInclusive)];
+            return (List<T>)(object)(await connection.QueryAsync<SessionMetadataRow>(
+                $"SELECT {SessionSynchronizationProjection} FROM session WHERE {bounds}", sinceExclusive, upperInclusive))
+                .Cast<Session>().ToList();
+        return await connection.QueryAsync<T>($"SELECT * FROM {GetTableName<T>()} WHERE {bounds}", sinceExclusive, upperInclusive);
     }
 
     private SessionBlobSwap? Merge<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(

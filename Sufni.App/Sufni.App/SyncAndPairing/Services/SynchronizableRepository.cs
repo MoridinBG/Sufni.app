@@ -48,11 +48,7 @@ internal sealed class SynchronizableRepository<
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<T>()
-            .Where(entity =>
-                (entity.Updated > sinceExclusive && entity.Updated <= upperInclusive) ||
-                (entity.Deleted != null &&
-                    entity.Deleted > sinceExclusive &&
-                    entity.Deleted <= upperInclusive))
+            .Where(entity => entity.LocalSequence > sinceExclusive && entity.LocalSequence <= upperInclusive)
             .ToListAsync();
     }
 

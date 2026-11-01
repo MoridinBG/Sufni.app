@@ -26,7 +26,6 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
     private readonly IHttpApiService httpApiService;
-    private readonly TimeProvider timeProvider;
 
     public SynchronizationClientService(
         ISyncDataStore syncDataStore,
@@ -35,7 +34,6 @@ public class SynchronizationClientService : ISynchronizationClientService
         IRecordedSessionSourceStoreWriter sourceStore,
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IHttpApiService httpApiService,
-        TimeProvider timeProvider,
         ISessionSyncApplier sessionSyncApplier)
     {
         this.syncDataStore = syncDataStore;
@@ -45,13 +43,11 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.sourceStore = sourceStore;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         this.httpApiService = httpApiService;
-        this.timeProvider = timeProvider;
     }
 
-    private async Task PushLocalChanges(long sinceExclusive, CancellationToken cancellationToken)
+    private async Task PushLocalChanges(long sinceExclusive, long upperInclusive, CancellationToken cancellationToken)
     {
-        var upperInclusive = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-        var changes = await syncDataStore.GetSynchronizationDataAsync(
+        var changes = await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push,
             sinceExclusive,
             upperInclusive);
         changes.UpperBound = upperInclusive;
@@ -67,7 +63,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             changes.Tracks.Count);
 
         await httpApiService.PushSyncAsync(changes, cancellationToken: cancellationToken);
-        await syncDataStore.UpdateLastPushTimeAsync(SyncStateKey, upperInclusive);
+        await syncDataStore.UpdateLastPushSequenceAsync(SyncStateKey, upperInclusive);
     }
 
     private async Task PushIncompleteSessions(CancellationToken cancellationToken)
@@ -136,8 +132,8 @@ public class SynchronizationClientService : ISynchronizationClientService
 
         // Count swaps that did not commit this run. Fills are re-derived every run from
         // `data IS NULL`, so an unresolved fill is naturally retried; a swap is derived
-        // from the transient pulled-metadata delta, and BLOB writes do not bump
-        // `updated`, so once the watermark advances past it the swap is never re-derived.
+        // from the transient pulled-metadata delta, so advancing the watermark
+        // can strand a transfer whose remote generation has not changed again.
         // The caller therefore holds the watermark back while any swap is unresolved.
         var unresolvedSwaps = 0;
         await Parallel.ForEachAsync(swaps, new ParallelOptions { MaxDegreeOfParallelism = SyncTransferDop, CancellationToken = cancellationToken }, async (swap, _) =>
@@ -294,35 +290,41 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         try
         {
-            var lastPushTime = await syncDataStore.GetLastPushTimeAsync(SyncStateKey);
-            var lastPullTime = await syncDataStore.GetLastPullTimeAsync(SyncStateKey);
-            var pushSinceExclusive = SynchronizationProtocol.GetSinceExclusive(lastPushTime);
-            var pullSinceExclusive = SynchronizationProtocol.GetSinceExclusive(lastPullTime);
+            var lastPushSequence = await syncDataStore.GetLastPushSequenceAsync(SyncStateKey);
+            var lastPullSequence = await syncDataStore.GetLastPullSequenceAsync(SyncStateKey);
+            var pushUpperBound = await syncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
+            var pushSinceExclusive = lastPushSequence;
+            var pullSinceExclusive = lastPullSequence;
 
             logger.Verbose(
-                "Starting synchronization client run with push cursor {LastPushTime} and pull cursor {LastPullTime}",
-                lastPushTime,
-                lastPullTime);
+                "Starting synchronization client run with push cursor {LastPushSequence} and pull cursor {LastPullSequence}",
+                lastPushSequence,
+                lastPullSequence);
 
-            // Built by the phase-2 metadata merge and consumed by the phase-4
+            // Built by the metadata merge and consumed by the phase-4
             // session-data pull. Transient: if any phase throws, the pull cursor below
             // is not advanced and the next run re-derives this set.
             IReadOnlyList<SessionBlobSwap> swaps = [];
-            var pullUpperBound = lastPullTime;
+            var pullUpperBound = lastPullSequence;
             var unresolvedSwaps = 0;
 
-            await RunPhaseAsync(progress, SynchronizationPhase.PushingLocalChanges, "Pushing local changes", 1, () => PushLocalChanges(pushSinceExclusive, cancellationToken), cancellationToken);
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", 2, async () =>
-            {
-                (swaps, pullUpperBound) = await PullRemoteChanges(pullSinceExclusive, cancellationToken);
-            }, cancellationToken);
+            (SynchronizationPhase Phase, string Message, Func<Task> Run) push =
+                (SynchronizationPhase.PushingLocalChanges, "Pushing local changes", () => PushLocalChanges(pushSinceExclusive, pushUpperBound, cancellationToken));
+            (SynchronizationPhase Phase, string Message, Func<Task> Run) pull =
+                (SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", async () =>
+                {
+                    (swaps, pullUpperBound) = await PullRemoteChanges(pullSinceExclusive, cancellationToken);
+                });
+            var rowPhases = lastPushSequence == 0 ? new[] { pull, push } : new[] { push, pull };
+            for (var index = 0; index < rowPhases.Length; index++)
+                await RunPhaseAsync(progress, rowPhases[index].Phase, rowPhases[index].Message, index + 1, rowPhases[index].Run, cancellationToken);
 
             await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, () => PushIncompleteSessions(cancellationToken), cancellationToken);
             await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(swaps, cancellationToken), cancellationToken);
 
             if (unresolvedSwaps == 0)
             {
-                await syncDataStore.UpdateLastPullTimeAsync(SyncStateKey, pullUpperBound);
+                await syncDataStore.UpdateLastPullSequenceAsync(SyncStateKey, pullUpperBound);
             }
             else
             {

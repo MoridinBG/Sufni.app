@@ -59,6 +59,7 @@ internal sealed class TestPersistenceHarness
             """, sessionId, metrics.DistanceMeters, metrics.AscentMeters, metrics.DescentMeters);
     }
 
+    public ISyncDataStore SyncDataStore => syncDataStore;
     public ISessionRepository SessionRepository => sessionRepository;
     public ITrackRepository TrackRepository => trackRepository;
 
@@ -86,7 +87,7 @@ internal sealed class TestPersistenceHarness
     {
         if (typeof(T) == typeof(Session))
         {
-            var synchronizationData = await syncDataStore.GetSynchronizationDataAsync(
+            var synchronizationData = await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push,
                 sinceExclusive,
                 upperInclusive);
             return (List<T>)(object)synchronizationData.Sessions;
@@ -203,22 +204,24 @@ internal sealed class TestPersistenceHarness
     public Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated) =>
         trackRepository.GetTrackPayloadAsync(trackId, updated);
 
-    public Task<long> GetLastPushTimeAsync(string? serverUrl) =>
-        syncDataStore.GetLastPushTimeAsync(serverUrl);
+    public Task<long> GetLastPushSequenceAsync(string? serverUrl) =>
+        syncDataStore.GetLastPushSequenceAsync(serverUrl);
 
-    public Task<long> GetLastPullTimeAsync(string? serverUrl) =>
-        syncDataStore.GetLastPullTimeAsync(serverUrl);
+    public Task<long> GetLastPullSequenceAsync(string? serverUrl) =>
+        syncDataStore.GetLastPullSequenceAsync(serverUrl);
 
-    public Task UpdateLastPushTimeAsync(string? serverUrl, long upperBound) =>
-        syncDataStore.UpdateLastPushTimeAsync(serverUrl, upperBound);
+    public Task UpdateLastPushSequenceAsync(string? serverUrl, long upperBound) =>
+        syncDataStore.UpdateLastPushSequenceAsync(serverUrl, upperBound);
 
-    public Task UpdateLastPullTimeAsync(string? serverUrl, long upperBound) =>
-        syncDataStore.UpdateLastPullTimeAsync(serverUrl, upperBound);
+    public Task UpdateLastPullSequenceAsync(string? serverUrl, long upperBound) =>
+        syncDataStore.UpdateLastPullSequenceAsync(serverUrl, upperBound);
 
     public Task<SynchronizationData> GetSynchronizationDataAsync(
         long sinceExclusive,
-        long upperInclusive) =>
-        syncDataStore.GetSynchronizationDataAsync(sinceExclusive, upperInclusive);
+        long upperInclusive, SynchronizationDirection direction = SynchronizationDirection.Push) =>
+        syncDataStore.GetSynchronizationDataAsync(direction, sinceExclusive, upperInclusive);
+
+    public Task<long> GetSequenceUpperBoundAsync(SynchronizationDirection direction) => syncDataStore.GetSequenceUpperBoundAsync(direction);
 
     public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
         syncDataStore.ApplyRemoteSynchronizationDataAsync(data);

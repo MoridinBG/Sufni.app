@@ -105,7 +105,7 @@ Authorization is enforced as a route group — `MapGroup("").RequireAuthorizatio
 `PATCH /session/data/{id}` delegates generation acceptance to `ISessionSyncApplier`, which persists and publishes before the server raises `SessionDataArrived`. Source uploads still raise `SessionSourceDataArrived` after persistence. Startup explicitly attaches `SessionSyncApplier` to source and metadata arrivals before server start, and provider disposal detaches those handlers. Session BLOB publication is owned directly by the apply command, so the arrival event cannot publish it twice.
 
 The server receives `TimeProvider` for certificate renewal, issued-token times,
-PIN/refresh-token expiration and pull cutoffs. JWT bearer authentication retains
+PIN/refresh-token expiration. JWT bearer authentication retains
 the framework's lifetime validation.
 
 ## Client
@@ -119,13 +119,13 @@ caller exits; cancellation does not abandon a credential rotation midway.
 The sync coordinator retains its active run and idle tasks for shutdown and
 releases its event subscriptions on disposal.
 
-The client samples push cutoffs through its injected clock. `HttpApiService`
-uses that clock for certificate validity and the 30-second token-refresh margin.
+`HttpApiService` uses its injected clock for certificate validity and the
+30-second token-refresh margin. Sync delta bounds use database sequences.
 
-`SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Protocol v3 persists `last_push_time` and `last_pull_time` independently, so a successful push cannot skip a failed or incomplete pull, and vice versa. Each direction replays the previous whole-second timestamp bucket (`sinceExclusive = cursor - 1` for a positive cursor) and de-duplicates through normal merge semantics; this closes the gap created when multiple writes share the same second as the prior upper bound.
+`SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Push and pull have independent sequence cursors. At run start the client captures its local sequence upper bound. Its first run after cursor reset pulls the baseline before pushing; subsequent runs push then pull. This lets upgraded replicas retain the newer authored content before their first outbound selection. Edits made after the captured bound remain for the next run.
 
-1. **Push local changes** — sample one `upperInclusive`, collect entity rows and deletion ledger entries in `(lastPushTime - 1, upperInclusive]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_time` after success
-2. **Pull remote changes** — GET `/sync/pull?since=` from the pull watermark, receive the server-sampled `upper_bound`, merge rows and deletion ledger entries in one SQLite transaction. Advance only `last_pull_time`, and only after processed-BLOB swap handling leaves the pull complete
+1. **Push local changes** — select rows and deletion ledger entries whose `local_seq` lies in `(lastPushSequence, capturedUpperBound]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_sequence` after success
+2. **Pull remote changes** — GET `/sync/pull?since=` from the pull sequence, receive the server's `sync_seq` upper bound, and merge rows and deletion ledger entries in one SQLite transaction. Advance only `last_pull_sequence`, and only after processed-BLOB swap handling leaves the pull complete
 3. **Push incomplete sessions** — for each session id the server advertises (a missing-blob *fill* or a held-blob *push-swap*), upload the local blob **and its stored fingerprint**; the server commits a fill or a push-swap when the fingerprint matches its target, ignores a non-matching push-swap upload, and rejects (400) a non-matching fill
 4. **Pull incomplete sessions** — download blobs for two kinds of target and commit each only when the downloaded fingerprint matches the target (otherwise keep what is local and retry later): **fills** (local rows with no blob, target = the row's own stored fingerprint) and **swaps** (rows whose held blob has a different current-schema fingerprint than the one just pulled, target = the accepted remote fingerprint — see *Processed-BLOB coherence* below)
 5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourcePayload`
@@ -133,7 +133,9 @@ uses that clock for certificate validity and the 30-second token-refresh margin.
 
 The metadata snapshot's one `upper_bound` applies to every synced table, including
 custom map layers, and the deletion ledger. Core delta queries include updates and
-tombstones only in `(sinceExclusive, upperInclusive]`. Tracks are independent
+tombstones only in `(sinceExclusive, upperInclusive]`, using `local_seq` for push
+and `sync_seq` for pull. Authored timestamps never select deltas; there is no
+clock overlap. Tracks are independent
 captured facts with the same delta bounds; a changed session does not resend
 unchanged tracks.
 
@@ -177,7 +179,7 @@ or write repositories, so publication does not duplicate the persistence operati
 `session.data` (the processed telemetry blob) never travels in `SynchronizationData`; only metadata does. Because a recompute can replace an *existing* blob — not just fill a missing one — the protocol keeps one invariant: **the processed generation describes one coherent result**. A generation contains the blob and fingerprint plus `duration_seconds`; those values are retained or replaced together. GPS metrics and their key are device-local and never travel in metadata or generation payloads.
 
 - **Deferred metadata merge.** When an inbound metadata update arrives for a row that already holds a blob, the shared `Merge` path on client and hub apply independent user metadata, including authored GPS alignment, but retain the complete held processed generation. Alignment is never held for a BLOB or overwritten by its later arrival. The row therefore never advertises a fingerprint or duration from bytes it does not yet hold.
-- **Transient pull-swap set.** Both metadata directions use `ProcessedGenerationAcceptance.DecideProcessedGenerationTarget`: queue a current-schema incoming generation only when its fingerprint matches the local inputs and the held generation is stale, or hold the target until its source arrives. Equal fingerprints keep the held bytes. A stale or unparseable held fingerprint can be replaced by a current incoming result. The client queues a *swap* containing the id, target fingerprint, and accepted target generation. The set is never persisted; it is re-derived from the metadata delta each run. A network error or an unresolved swap (`404` or fingerprint mismatch) holds `last_pull_time` back, so the next run re-pulls the same delta and retries. Fills are not swaps — they are re-derived every run from `data IS NULL` regardless of the watermark, so they are never lost.
+- **Transient pull-swap set.** Both metadata directions use `ProcessedGenerationAcceptance.DecideProcessedGenerationTarget`: queue a current-schema incoming generation only when its fingerprint matches the local inputs and the held generation is stale, or hold the target until its source arrives. Equal fingerprints keep the held bytes. A stale or unparseable held fingerprint can be replaced by a current incoming result. The client queues a *swap* containing the id, target fingerprint, and accepted target generation. The set is never persisted; it is re-derived from the metadata delta each run. A network error or an unresolved swap (`404` or fingerprint mismatch) holds `last_pull_sequence` back, so the next run re-pulls the same delta and retries. Fills are not swaps — they are re-derived every run from `data IS NULL` regardless of the watermark, so they are never lost.
 - **Validate and match before commit.** `SessionSyncApplier` validates transferred MessagePack and its advertised target fingerprint, then applies the same acceptance rule against current database inputs. A missing source leaves the transfer pending. The client captures an immutable held-session snapshot before downloading. The repository compares that fingerprint, telemetry revision and captured processing-input bundle in the commit transaction; an intervening recompute or transfer supersedes the write without replacing data or publishing stale snapshots. Swaps require and install the accepted `SessionProcessedGeneration`; missing-BLOB fills normalize duration from the validated bytes. A fill cannot replace an already held generation. Neither path advances `updated`. Invalid bytes leave the current generation untouched. Unresolved client swaps retain the pull cursor for retry; session detail loading never fetches missing BLOBs.
 - **Hub push-swap (push direction).** The desktop hub runs no pull phase, so to *receive* a recomputed blob for a row it already holds it records a durable push-swap request during the same transaction as the deferred metadata merge. `session_blob_swap_request` stores the session id, target fingerprint, and serialized target generation; the `sync-authority` migration deletes legacy requests without `target_generation` while retaining the session and its held BLOB. A request is created only when the incoming current-schema fingerprint is eligible against the hub's current database inputs while the held one is not (or when the referenced source has not arrived yet, preserving the accepted target until source sync completes). Invalid/legacy/equal/ineligible targets clear the request. For derived sessions, the input probe resolves the source through the incoming derivation window. `GET /session/incomplete` advertises requests alongside data-null fills; `PATCH /session/data` validates the bytes and commits the coherent generation only for a matching target, and clears the matching request in the same transaction. A non-matching push-swap upload is ignored (`204`, not `400`) and leaves the request pending.
 - **Request cleanup and excluded rows.** Startup removes swap requests whose session is missing or soft-deleted, and database triggers remove them on physical or soft deletion. Rows waiting for their source retain the held BLOB and pending target; neither fills nor swaps commit until the source and dependencies are available. An incoming legacy fingerprint is not a valid target; a legacy held result may be replaced when the incoming result matches the current inputs. Because every device recomputes the same source at the same options on the same binary, fingerprints converge and there is normally nothing to swap post-upgrade.
@@ -214,7 +216,7 @@ client pull path and the desktop inbound push path; legacy rear-suspension data
 is accepted only by the local SQLite startup migration.
 
 Saved segments use the core paths unchanged: the client applies remote rows
-verbatim and the hub merges them by timestamp and tombstone, after sessions in
+verbatim and the hub applies the shared authored-history merge rule, after sessions in
 the same transaction. Segments carry source-hash ownership and source-relative anchors. They survive
 session deletion; each session window derives visibility, including split windows
 received from a peer. The client refreshes the segment store

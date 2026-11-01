@@ -751,8 +751,8 @@ public class SynchronizationServerService : ISynchronizationServerService
                     SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
                     async () =>
                     {
-                        var upperInclusive = timeProvider.GetUtcNow().ToUnixTimeSeconds();
-                        var data = await syncDataStore.GetSynchronizationDataAsync(
+                        var upperInclusive = await syncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
+                        var data = await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Pull,
                             since,
                             upperInclusive);
                         data.UpperBound = upperInclusive;

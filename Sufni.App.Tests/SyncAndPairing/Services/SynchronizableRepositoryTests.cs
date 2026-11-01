@@ -54,7 +54,7 @@ public class SynchronizableRepositoryTests
     }
 
     [Fact]
-    public async Task AuthoredWriteAndDeletion_UseInjectedTimeInChangeWindow()
+    public async Task AuthoredWriteAndDeletion_UseInjectedTimeAndSequenceWindow()
     {
         using var tempDatabase = new TempDatabase("board-clock.db");
         var time = PersistenceTestData.CreateTimeProvider();
@@ -66,7 +66,7 @@ public class SynchronizableRepositoryTests
 
         await database.DeleteAsync(board);
 
-        var deleted = Assert.Single(await database.GetChangedAsync<Board>(createdAt, createdAt + 10));
+        var deleted = Assert.Single(await database.GetChangedAsync<Board>(board.LocalSequence, board.LocalSequence + 1));
         Assert.Equal(createdAt + 10, deleted.Updated);
         Assert.Equal(createdAt + 10, deleted.Deleted);
     }

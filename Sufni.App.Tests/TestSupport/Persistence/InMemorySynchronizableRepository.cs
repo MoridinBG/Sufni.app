@@ -8,20 +8,26 @@ internal sealed class InMemorySynchronizableRepository<[DynamicallyAccessedMembe
     : ISynchronizableRepository<T> where T : Synchronizable, new()
 {
     private readonly Dictionary<Guid, T> items = [];
+    private long sequence;
     public Exception? WriteFailure { get; set; }
     public Func<Task>? BeforeWrite { get; set; }
 
-    public void Seed(T item) => items[item.Id] = item;
+    public void Seed(T item)
+    {
+        items[item.Id] = item;
+        sequence = Math.Max(sequence, item.LocalSequence);
+    }
     public Task<List<T>> GetAllAsync() => Task.FromResult(items.Values.Where(item => item.Deleted is null).ToList());
     public Task<List<T>> GetChangedAsync(long sinceExclusive, long upperInclusive) => Task.FromResult(items.Values
-        .Where(item => item.Updated > sinceExclusive && item.Updated <= upperInclusive ||
-                       item.Deleted > sinceExclusive && item.Deleted <= upperInclusive).ToList());
+        .Where(item => item.LocalSequence > sinceExclusive && item.LocalSequence <= upperInclusive).ToList());
     public Task<T?> GetAsync(Guid id) => Task.FromResult(items.GetValueOrDefault(id) is { Deleted: null } item ? item : null);
 
     public async Task<Guid> PutAsync(T item)
     {
         if (BeforeWrite is { } beforeWrite) await beforeWrite();
         if (WriteFailure is { } failure) throw failure;
+        item.Version = items.GetValueOrDefault(item.Id)?.Version + 1 ?? 1;
+        item.LocalSequence = ++sequence;
         item.Updated = clock.GetUtcNow().ToUnixTimeSeconds();
         item.Deleted = null;
         items[item.Id] = item;
@@ -33,7 +39,12 @@ internal sealed class InMemorySynchronizableRepository<[DynamicallyAccessedMembe
     {
         if (WriteFailure is { } failure) return Task.FromException(failure);
         if (items.GetValueOrDefault(id) is { Deleted: null } item)
-            item.Deleted = clock.GetUtcNow().ToUnixTimeSeconds();
+        {
+            item.Version++;
+            item.LocalSequence = ++sequence;
+            item.Updated = clock.GetUtcNow().ToUnixTimeSeconds();
+            item.Deleted = item.Updated;
+        }
         return Task.CompletedTask;
     }
 }

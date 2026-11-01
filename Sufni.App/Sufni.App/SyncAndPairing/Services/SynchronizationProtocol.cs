@@ -24,5 +24,4 @@ public static class SynchronizationProtocol
     public const string EndpointSessionSourceIncomplete = "/session/source/incomplete";
     public const string EndpointSessionSourceData = "/session/source/data/";
 
-    public static long GetSinceExclusive(long cursor) => cursor > 0 ? cursor - 1 : 0;
 }

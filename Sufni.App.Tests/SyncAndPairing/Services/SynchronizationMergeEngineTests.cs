@@ -21,6 +21,60 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 public class SynchronizationMergeEngineTests
 {
     [Fact]
+    public async Task PullDelta_ReceivesOfflineEditAuthoredBeforeAnEarlierPull_OnThirdDevice()
+    {
+        using var hubFile = new TempDatabase();
+        using var firstFile = new TempDatabase();
+        using var secondFile = new TempDatabase();
+        var hubClock = PersistenceTestData.CreateTimeProvider();
+        var offlineClock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(hubClock.GetUtcNow().AddDays(-1));
+        var hub = new TestPersistenceHarness(hubFile.DatabasePath, hubClock, "hub");
+        var first = new TestPersistenceHarness(firstFile.DatabasePath, hubClock, "first");
+        var second = new TestPersistenceHarness(secondFile.DatabasePath, offlineClock, "second");
+        var board = new Board(Guid.NewGuid(), Guid.NewGuid());
+        await hub.PutAsync(board);
+        var cursor = await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
+        var baseline = await hub.GetSynchronizationDataAsync(0, cursor, SynchronizationDirection.Pull);
+        await first.ApplyRemoteSynchronizationDataAsync(baseline);
+        await second.ApplyRemoteSynchronizationDataAsync(baseline);
+
+        var offlineEdit = (await second.GetAsync<Board>(board.Id))!;
+        offlineEdit.SetupId = Guid.NewGuid();
+        await second.PutAsync(offlineEdit);
+        Assert.True(offlineEdit.Updated < board.Updated);
+        await hub.MergeAllAsync(await second.GetSynchronizationDataAsync(0, long.MaxValue));
+
+        var delta = await hub.GetSynchronizationDataAsync(cursor,
+            await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull), SynchronizationDirection.Pull);
+        Assert.Equal(board.Id, Assert.Single(delta.Boards).Id);
+        await first.ApplyRemoteSynchronizationDataAsync(delta);
+        var received = (await first.GetAsync<Board>(board.Id))!;
+        Assert.Equal((offlineEdit.SetupId, 2L, "second"), (received.SetupId, received.Version, received.UpdatedBy));
+    }
+
+    [Fact]
+    public async Task PullDelta_IncludesDelayedCustomLayer_AfterOtherRowsAdvancedCursor()
+    {
+        using var hubFile = new TempDatabase();
+        using var phoneFile = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        var hub = new TestPersistenceHarness(hubFile.DatabasePath, clock, "hub");
+        var phone = new TestPersistenceHarness(phoneFile.DatabasePath, clock, "phone");
+        var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
+        await phone.PutAsync(layer);
+        clock.Advance(TimeSpan.FromHours(1));
+        await hub.PutAsync(new Board(Guid.NewGuid(), null));
+        var cursor = await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
+
+        await hub.MergeAllAsync(await phone.GetSynchronizationDataAsync(0, long.MaxValue));
+        var delta = await hub.GetSynchronizationDataAsync(cursor,
+            await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull), SynchronizationDirection.Pull);
+
+        Assert.Empty(delta.Boards);
+        Assert.Equal(layer.Id, Assert.Single(delta.CustomTileLayers).Id);
+    }
+
+    [Fact]
     public async Task CustomLayer_TravelsThroughOrdinaryRowMerge_WithoutADevicePreferencePayload()
     {
         using var sourceFile = new TempDatabase();
@@ -131,23 +185,23 @@ public class SynchronizationMergeEngineTests
         var databasePath = tempDatabase.DatabasePath;
 
         var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetLastPushTimeAsync("https://sync.test");
+        _ = await database.GetLastPushSequenceAsync("https://sync.test");
         if (seedExistingRow)
         {
             using var connection = new SQLiteConnection(databasePath);
             connection.Insert(new Synchronization
             {
                 ServerUrl = "https://sync.test",
-                LastPushTime = 1,
-                LastPullTime = 2,
+                LastPushSequence = 1,
+                LastPullSequence = 2,
             });
         }
 
-        await database.UpdateLastPushTimeAsync("https://sync.test", 11);
-        await database.UpdateLastPullTimeAsync("https://sync.test", 12);
+        await database.UpdateLastPushSequenceAsync("https://sync.test", 11);
+        await database.UpdateLastPullSequenceAsync("https://sync.test", 12);
 
-        Assert.Equal(11, await database.GetLastPushTimeAsync("https://sync.test"));
-        Assert.Equal(12, await database.GetLastPullTimeAsync("https://sync.test"));
+        Assert.Equal(11, await database.GetLastPushSequenceAsync("https://sync.test"));
+        Assert.Equal(12, await database.GetLastPullSequenceAsync("https://sync.test"));
 
         using var verificationConnection = new SQLiteConnection(databasePath);
         var rows = verificationConnection.Table<Synchronization>()
@@ -156,28 +210,29 @@ public class SynchronizationMergeEngineTests
         Assert.Single(rows);
     }
 
-    [Fact]
-    public async Task LegacySingleCursor_IsResetForProtocolV3Replay()
+    [Theory]
+    [InlineData("last_sync_time INTEGER NOT NULL", "123")]
+    [InlineData("last_push_time INTEGER NOT NULL, last_pull_time INTEGER NOT NULL", "123, 456")]
+    public async Task LegacyTimestampCursor_IsResetForSequenceBaseline(string columns, string values)
     {
         using var tempDatabase = new TempDatabase("legacy-sync.db");
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
             connection.Execute(
-                "CREATE TABLE sync (server_url TEXT PRIMARY KEY, last_sync_time INTEGER NOT NULL)");
+                $"CREATE TABLE sync (server_url TEXT PRIMARY KEY, {columns})");
             connection.Execute(
-                "INSERT INTO sync (server_url, last_sync_time) VALUES (?, ?)",
-                "https://sync.test",
-                123);
+                $"INSERT INTO sync VALUES (?, {values})",
+                "https://sync.test");
         }
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
 
-        Assert.Equal(0, await database.GetLastPushTimeAsync("https://sync.test"));
-        Assert.Equal(0, await database.GetLastPullTimeAsync("https://sync.test"));
+        Assert.Equal(0, await database.GetLastPushSequenceAsync("https://sync.test"));
+        Assert.Equal(0, await database.GetLastPullSequenceAsync("https://sync.test"));
     }
 
     [Fact]
-    public async Task GetChangedAsync_ReplaysCursorSecondAndExcludesFutureRows()
+    public async Task GetChangedAsync_UsesExclusiveSequenceBounds()
     {
         using var tempDatabase = new TempDatabase("bounded-sync-window.db");
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -187,26 +242,26 @@ public class SynchronizationMergeEngineTests
         {
             Id = Guid.NewGuid(),
             Points = [new TrackPoint(100, 1, 1, 10)],
-            Updated = 5,
+            Updated = 5, LocalSequence = 5,
 
         };
         var futureTrack = new Track
         {
             Id = Guid.NewGuid(),
             Points = [new TrackPoint(101, 2, 2, 11)],
-            Updated = 6,
+            Updated = 6, LocalSequence = 6,
 
         };
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
         {
+            connection.Insert(new Track { Id = Guid.NewGuid(), LocalSequence = 4 });
             connection.Insert(boundaryTrack);
             connection.Insert(futureTrack);
         }
 
-        var sinceExclusive = SynchronizationProtocol.GetSinceExclusive(cursor: 5);
+        const long sinceExclusive = 4;
         var changed = await database.GetChangedAsync<Track>(sinceExclusive, upperInclusive: 5);
 
-        Assert.Equal(4, sinceExclusive);
         Assert.Equal(boundaryTrack.Id, Assert.Single(changed).Id);
     }
 
@@ -231,13 +286,13 @@ public class SynchronizationMergeEngineTests
                     new TrackPoint(100, 1, 1, 10),
                     new TrackPoint(101, 2, 2, 11)
                 ],
-                Updated = 50,
+                Updated = 50, LocalSequence = 50,
 
             });
 
             connection.Insert(new Session(sessionId, "session", "desc", null, 100)
             {
-                Updated = 150,
+                Updated = 150, LocalSequence = 150,
 
             });
         }
@@ -262,7 +317,7 @@ public class SynchronizationMergeEngineTests
         var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 1, EndSeconds = 4 };
         await device.SessionSegmentRepository.InsertAsync(segment);
 
-        await hub.MergeAllAsync(await device.GetSynchronizationDataAsync(0, PersistenceTestData.CreateTimeProvider().GetUtcNow().ToUnixTimeSeconds()));
+        await hub.MergeAllAsync(await device.GetSynchronizationDataAsync(0, await device.GetSequenceUpperBoundAsync(SynchronizationDirection.Push)));
 
         var merged = Assert.Single(await hub.SessionSegmentRepository.GetLiveAsync());
         Assert.Equal((segment.Id, "source-hash", "climb"), (merged.Id, merged.OwnerKey, merged.Name));
@@ -283,12 +338,12 @@ public class SynchronizationMergeEngineTests
             {
                 Id = trackId,
                 Points = [new TrackPoint(100, 1, 1, 10)],
-                Updated = 151,
+                Updated = 151, LocalSequence = 151,
 
             });
             connection.Insert(new Session(sessionId, "session", "desc", null, 100)
             {
-                Updated = 150,
+                Updated = 150, LocalSequence = 150,
 
             });
         }

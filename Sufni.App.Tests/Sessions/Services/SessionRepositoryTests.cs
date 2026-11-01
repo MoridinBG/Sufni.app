@@ -911,7 +911,7 @@ public class SessionRepositoryTests
             connection.Insert(new Session(sessionId, "session", "desc", null, 100)
             {
                 ProcessedData = PersistenceTestData.CreateTelemetryBlob(65),
-                Updated = 10
+                Updated = 10, LocalSequence = 1
             });
         }
 

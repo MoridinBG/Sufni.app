@@ -57,11 +57,11 @@ public class Synchronization
     [PrimaryKey]
     public string? ServerUrl { get; set; }
     
-    [Column("last_push_time")]
-    public long LastPushTime { get; set; }
+    [Column("last_push_sequence")]
+    public long LastPushSequence { get; set; }
 
-    [Column("last_pull_time")]
-    public long LastPullTime { get; set; }
+    [Column("last_pull_sequence")]
+    public long LastPullSequence { get; set; }
 }
 
 public class SynchronizationData

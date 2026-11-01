@@ -35,7 +35,6 @@ internal sealed class DatabaseMigrationRunner(
     {
         await connection.EnableWriteAheadLoggingAsync();
         await CreateTablesAsync();
-        await EnsureSyncCursorColumnsAsync();
         await EnsureSyncIndexesAsync();
         await EnsureSessionProcessingFingerprintColumnAsync();
         await EnsureSessionDurationColumnAsync();
@@ -194,14 +193,10 @@ internal sealed class DatabaseMigrationRunner(
             await connection.CreateTableAsync<SessionSegment>();
     }
 
-    private Task EnsureSyncCursorColumnsAsync() =>
-        EnsureColumnsAsync(
-            "sync",
-            ("last_push_time", "INTEGER NOT NULL DEFAULT 0"),
-            ("last_pull_time", "INTEGER NOT NULL DEFAULT 0"));
-
     private Task MigrateSyncAuthorityAsync() => coreMigrations.ApplyAsync("sync-authority", transaction =>
     {
+        transaction.Execute("DROP TABLE sync");
+        transaction.CreateTable<Synchronization>();
         transaction.Execute("CREATE TABLE sync_sequence (id INTEGER PRIMARY KEY CHECK (id = 1), local_seq INTEGER NOT NULL, sync_seq INTEGER NOT NULL)");
         transaction.Execute("INSERT INTO sync_sequence VALUES (1, 0, 0)");
         transaction.Execute("""
