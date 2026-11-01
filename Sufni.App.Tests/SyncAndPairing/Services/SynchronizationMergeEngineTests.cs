@@ -16,10 +16,36 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Tests.TestSupport.Persistence;
+using Sufni.App.Tests.TestSupport.Sync;
 namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationMergeEngineTests
 {
+    [Fact]
+    public async Task CursorIdentity_IsolatedByHubAndDatabase_AndRetainedAcrossRestart()
+    {
+        using var file = new TempDatabase();
+        var peer = new PeerIdentity("certificate", "database");
+        await using (var database = new TestPersistenceHarness(file.DatabasePath))
+        {
+            await Task.WhenAll(database.UpdateLastPushSequenceAsync(peer, 11), database.UpdateLastPullSequenceAsync(peer, 12));
+        }
+        await using var reopened = new TestPersistenceHarness(file.DatabasePath);
+        var resetHub = peer with { DatabaseIncarnation = "reset-database" };
+        var anotherHub = peer with { CertificateThumbprint = "other-certificate" };
+
+        Assert.Equal(11, await reopened.GetLastPushSequenceAsync(peer));
+        Assert.Equal(12, await reopened.GetLastPullSequenceAsync(peer));
+        foreach (var identity in new[] { resetHub, anotherHub })
+        {
+            Assert.Equal(0, await reopened.GetLastPushSequenceAsync(identity));
+            Assert.Equal(0, await reopened.GetLastPullSequenceAsync(identity));
+        }
+        await reopened.UpdateLastPushSequenceAsync(resetHub, 3);
+        Assert.Equal(11, await reopened.GetLastPushSequenceAsync(peer));
+        Assert.Equal(0, await reopened.GetLastPullSequenceAsync(resetHub));
+    }
+
     [Fact]
     public async Task PullDelta_ReceivesOfflineEditAuthoredBeforeAnEarlierPull_OnThirdDevice()
     {
@@ -185,27 +211,28 @@ public class SynchronizationMergeEngineTests
         var databasePath = tempDatabase.DatabasePath;
 
         var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetLastPushSequenceAsync("https://sync.test");
+        _ = await database.GetLastPushSequenceAsync(SyncTestServerHarness.Peer);
         if (seedExistingRow)
         {
             using var connection = new SQLiteConnection(databasePath);
             connection.Insert(new Synchronization
             {
-                ServerUrl = "https://sync.test",
+                CertificateThumbprint = SyncTestServerHarness.Peer.CertificateThumbprint,
+                DatabaseIncarnation = SyncTestServerHarness.Peer.DatabaseIncarnation,
                 LastPushSequence = 1,
                 LastPullSequence = 2,
             });
         }
 
-        await database.UpdateLastPushSequenceAsync("https://sync.test", 11);
-        await database.UpdateLastPullSequenceAsync("https://sync.test", 12);
+        await database.UpdateLastPushSequenceAsync(SyncTestServerHarness.Peer, 11);
+        await database.UpdateLastPullSequenceAsync(SyncTestServerHarness.Peer, 12);
 
-        Assert.Equal(11, await database.GetLastPushSequenceAsync("https://sync.test"));
-        Assert.Equal(12, await database.GetLastPullSequenceAsync("https://sync.test"));
+        Assert.Equal(11, await database.GetLastPushSequenceAsync(SyncTestServerHarness.Peer));
+        Assert.Equal(12, await database.GetLastPullSequenceAsync(SyncTestServerHarness.Peer));
 
         using var verificationConnection = new SQLiteConnection(databasePath);
         var rows = verificationConnection.Table<Synchronization>()
-            .Where(s => s.ServerUrl == "https://sync.test")
+            .Where(s => s.CertificateThumbprint == SyncTestServerHarness.Peer.CertificateThumbprint && s.DatabaseIncarnation == SyncTestServerHarness.Peer.DatabaseIncarnation)
             .ToList();
         Assert.Single(rows);
     }
@@ -227,8 +254,8 @@ public class SynchronizationMergeEngineTests
 
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
 
-        Assert.Equal(0, await database.GetLastPushSequenceAsync("https://sync.test"));
-        Assert.Equal(0, await database.GetLastPullSequenceAsync("https://sync.test"));
+        Assert.Equal(0, await database.GetLastPushSequenceAsync(SyncTestServerHarness.Peer));
+        Assert.Equal(0, await database.GetLastPullSequenceAsync(SyncTestServerHarness.Peer));
     }
 
     [Fact]

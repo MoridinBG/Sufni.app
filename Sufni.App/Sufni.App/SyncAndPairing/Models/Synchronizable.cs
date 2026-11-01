@@ -53,9 +53,11 @@ public class Synchronizable
 [Table("sync")]
 public class Synchronization
 {
-    [Column("server_url")]
-    [PrimaryKey]
-    public string? ServerUrl { get; set; }
+    [Column("hub_thumbprint")]
+    public string CertificateThumbprint { get; set; } = string.Empty;
+
+    [Column("db_incarnation")]
+    public string DatabaseIncarnation { get; set; } = string.Empty;
     
     [Column("last_push_sequence")]
     public long LastPushSequence { get; set; }

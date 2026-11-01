@@ -15,7 +15,8 @@ public record PairingConfirm(
 
 public record TokenResponse(
     [property: JsonPropertyName("access_token")] string AccessToken,
-    [property: JsonPropertyName("refresh_token")] string RefreshToken);
+    [property: JsonPropertyName("refresh_token")] string RefreshToken,
+    [property: JsonPropertyName("db_incarnation"), JsonRequired] string DatabaseIncarnation);
 
 public record RefreshRequest(
     [property: JsonPropertyName("refresh_token")] string RefreshToken);

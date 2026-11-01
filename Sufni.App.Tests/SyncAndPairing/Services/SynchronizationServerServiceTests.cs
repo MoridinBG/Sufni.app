@@ -23,7 +23,7 @@ public class SynchronizationServerServiceTests
     {
         PairingTokenResult tokens = outcome switch
         {
-            PairingCommandResult.Applied => new PairingTokenResult.Issued(new TokenResponse("access", "refresh")),
+            PairingCommandResult.Applied => new PairingTokenResult.Issued(new TokenResponse("access", "refresh", "hub-db")),
             PairingCommandResult.Rejected => new PairingTokenResult.Rejected(),
             _ => new PairingTokenResult.Failed()
         };

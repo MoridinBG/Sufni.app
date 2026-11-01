@@ -17,6 +17,7 @@ public interface IHttpApiService
     public Task ConfirmPairingAsync(string deviceId, string? displayName, string pin);
     public Task UnpairAsync(string deviceId);
     public Task<bool> IsPairedAsync();
+    public Task<PeerIdentity> GetPeerIdentityAsync();
     public Task<SynchronizationData> PullSyncAsync(long since = 0, CancellationToken cancellationToken = default);
     public Task PushSyncAsync(SynchronizationData syncData, CancellationToken cancellationToken = default);
     public Task<List<Guid>> GetIncompleteSessionIdsAsync(CancellationToken cancellationToken = default);

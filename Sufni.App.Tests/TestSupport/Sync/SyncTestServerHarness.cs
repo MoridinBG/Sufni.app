@@ -20,10 +20,13 @@ namespace Sufni.App.Tests.TestSupport.Sync;
 
 internal sealed class SyncTestServerHarness
 {
+    public static readonly PeerIdentity Peer = new("hub-certificate", "hub-database");
     public SyncTestServerHarness()
     {
         SecureStorage.GetStringAsync("ServerUrl").Returns("https://sync.example.test");
         SecureStorage.GetStringAsync("RefreshToken").Returns("refresh-1");
+        SecureStorage.GetStringAsync("ServerCertificateThumbprint").Returns(Peer.CertificateThumbprint);
+        HttpApiService.GetPeerIdentityAsync().Returns(Peer);
         SyncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push).Returns(9);
         HttpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
         HttpApiService.GetSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())

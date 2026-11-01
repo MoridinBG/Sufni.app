@@ -27,13 +27,15 @@ public enum SynchronizationDirection { Push, Pull }
 
 public interface ISyncDataStore
 {
-    Task<long> GetLastPushSequenceAsync(string? serverUrl);
+    Task<long> GetLastPushSequenceAsync(PeerIdentity peer);
 
-    Task<long> GetLastPullSequenceAsync(string? serverUrl);
+    Task<long> GetLastPullSequenceAsync(PeerIdentity peer);
 
-    Task UpdateLastPushSequenceAsync(string? serverUrl, long upperBound);
+    Task UpdateLastPushSequenceAsync(PeerIdentity peer, long upperBound);
 
-    Task UpdateLastPullSequenceAsync(string? serverUrl, long upperBound);
+    Task UpdateLastPullSequenceAsync(PeerIdentity peer, long upperBound);
+
+    Task<string> GetDatabaseIncarnationAsync();
 
     Task<long> GetSequenceUpperBoundAsync(SynchronizationDirection direction);
 
@@ -179,53 +181,45 @@ internal sealed class SynchronizationMergeEngine(
     public async Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
         (await connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false))).Swaps;
 
-    public async Task<long> GetLastPushSequenceAsync(string? serverUrl)
+    public async Task<long> GetLastPushSequenceAsync(PeerIdentity peer)
     {
-        var synchronization = await GetSynchronizationAsync(serverUrl);
+        var synchronization = await GetSynchronizationAsync(peer);
         return synchronization?.LastPushSequence ?? 0;
     }
 
-    public async Task<long> GetLastPullSequenceAsync(string? serverUrl)
+    public async Task<long> GetLastPullSequenceAsync(PeerIdentity peer)
     {
-        var synchronization = await GetSynchronizationAsync(serverUrl);
+        var synchronization = await GetSynchronizationAsync(peer);
         return synchronization?.LastPullSequence ?? 0;
     }
 
-    public Task UpdateLastPushSequenceAsync(string? serverUrl, long upperBound) =>
-        UpdateSynchronizationAsync(serverUrl, synchronization =>
-            synchronization.LastPushSequence = upperBound);
+    public Task UpdateLastPushSequenceAsync(PeerIdentity peer, long upperBound) =>
+        UpdateSynchronizationAsync(peer, "last_push_sequence", upperBound);
 
-    public Task UpdateLastPullSequenceAsync(string? serverUrl, long upperBound) =>
-        UpdateSynchronizationAsync(serverUrl, synchronization =>
-            synchronization.LastPullSequence = upperBound);
+    public Task UpdateLastPullSequenceAsync(PeerIdentity peer, long upperBound) =>
+        UpdateSynchronizationAsync(peer, "last_pull_sequence", upperBound);
 
-    private async Task<Synchronization?> GetSynchronizationAsync(string? serverUrl)
+    private async Task<Synchronization?> GetSynchronizationAsync(PeerIdentity peer)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         return await connection.Table<Synchronization>()
-            .Where(sync => sync.ServerUrl == serverUrl)
+            .Where(sync => sync.CertificateThumbprint == peer.CertificateThumbprint && sync.DatabaseIncarnation == peer.DatabaseIncarnation)
             .FirstOrDefaultAsync();
     }
 
-    private async Task UpdateSynchronizationAsync(
-        string? serverUrl,
-        Action<Synchronization> update)
+    private async Task UpdateSynchronizationAsync(PeerIdentity peer, string column, long upperBound)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        var synchronization = await connection.Table<Synchronization>()
-            .Where(sync => sync.ServerUrl == serverUrl)
-            .FirstOrDefaultAsync();
+        await connection.ExecuteAsync($"""
+            INSERT INTO sync (hub_thumbprint, db_incarnation, {column}) VALUES (?, ?, ?)
+            ON CONFLICT(hub_thumbprint, db_incarnation) DO UPDATE SET {column}=excluded.{column}
+            """, peer.CertificateThumbprint, peer.DatabaseIncarnation, upperBound);
+    }
 
-        if (synchronization is null)
-        {
-            synchronization = new Synchronization { ServerUrl = serverUrl };
-            update(synchronization);
-            await connection.InsertAsync(synchronization);
-            return;
-        }
-
-        update(synchronization);
-        await connection.UpdateAsync(synchronization);
+    public async Task<string> GetDatabaseIncarnationAsync()
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        return await connection.ExecuteScalarAsync<string>("SELECT db_incarnation FROM database_identity WHERE id=1");
     }
 
     public Task<SynchronizationApplyResult> MergeAllAsync(SynchronizationData data) =>

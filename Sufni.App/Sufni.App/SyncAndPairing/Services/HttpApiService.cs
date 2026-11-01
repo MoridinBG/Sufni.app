@@ -26,6 +26,7 @@ internal class HttpApiService : IHttpApiService
     private static readonly ILogger logger = Log.ForContext<HttpApiService>();
 
     private const string RefreshTokenKey = "RefreshToken";
+    private const string DatabaseIncarnationKey = "ServerDatabaseIncarnation";
     private const string ServerUrlKey = "ServerUrl";
     private const string ServerCertificateThumbprintKey = "ServerCertificateThumbprint";
 
@@ -50,6 +51,7 @@ internal class HttpApiService : IHttpApiService
     private string? pendingPairingCertificateThumbprint;
     private string? lastObservedCertificateThumbprint;
     private string? refreshToken;
+    private string? databaseIncarnation;
     private DateTimeOffset? tokenExpiry;
     private volatile AuthenticationHeaderValue? authorizationHeader;
     private bool pairedState;
@@ -280,6 +282,7 @@ internal class HttpApiService : IHttpApiService
         authorizationHeader = null;
         ServerUrl = null;
         refreshToken = null;
+        databaseIncarnation = null;
         tokenExpiry = null;
 
         lock (certificateStateGate)
@@ -290,6 +293,7 @@ internal class HttpApiService : IHttpApiService
         }
 
         await secureStorage.RemoveAsync(RefreshTokenKey);
+        await secureStorage.RemoveAsync(DatabaseIncarnationKey);
         await secureStorage.RemoveAsync(ServerUrlKey);
         await secureStorage.RemoveAsync(ServerCertificateThumbprintKey);
         PublishPairedState(false);
@@ -360,10 +364,12 @@ internal class HttpApiService : IHttpApiService
         authorizationHeader = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         tokenExpiry = GetTokenExpiry(tokens.AccessToken);
         refreshToken = tokens.RefreshToken;
+        databaseIncarnation = tokens.DatabaseIncarnation;
 
         logger.Verbose("Synchronization tokens refreshed and expire at {TokenExpiry}", tokenExpiry);
 
         await secureStorage.SetStringAsync(RefreshTokenKey, refreshToken);
+        await secureStorage.SetStringAsync(DatabaseIncarnationKey, databaseIncarnation);
     }
 
     private bool IsTokenRefreshRequired() =>
@@ -379,6 +385,7 @@ internal class HttpApiService : IHttpApiService
         ServerUrl = await secureStorage.GetStringAsync(ServerUrlKey);
         refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
         pinnedServerCertificateThumbprint = await secureStorage.GetStringAsync(ServerCertificateThumbprintKey);
+        databaseIncarnation = await secureStorage.GetStringAsync(DatabaseIncarnationKey);
         PublishPairedState(refreshToken is not null);
 
         logger.Verbose(
@@ -434,10 +441,12 @@ internal class HttpApiService : IHttpApiService
         authorizationHeader = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         tokenExpiry = GetTokenExpiry(tokens.AccessToken);
         refreshToken = tokens.RefreshToken;
+        databaseIncarnation = tokens.DatabaseIncarnation;
 
         logger.Verbose("Pairing confirmation stored refreshed credentials expiring at {TokenExpiry}", tokenExpiry);
 
         await secureStorage.SetStringAsync(RefreshTokenKey, tokens.RefreshToken);
+        await secureStorage.SetStringAsync(DatabaseIncarnationKey, databaseIncarnation);
         await PersistPinnedCertificateAsync();
         PublishPairedState(true);
     }
@@ -473,6 +482,14 @@ internal class HttpApiService : IHttpApiService
         {
             return pairedStateInitialized && pairedState;
         }
+    }
+
+    public async Task<PeerIdentity> GetPeerIdentityAsync()
+    {
+        await Initialization;
+        if (pinnedServerCertificateThumbprint is null) throw CreateMissingCredentialsException();
+        await EnsureTokenFreshAsync();
+        return new PeerIdentity(pinnedServerCertificateThumbprint, databaseIncarnation ?? throw CreateMissingCredentialsException());
     }
 
     private async Task EnsureTokenFreshAsync(bool forceRefresh)

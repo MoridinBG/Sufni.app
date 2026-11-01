@@ -203,7 +203,11 @@ internal sealed class DatabaseMigrationRunner(
             transaction.Execute("ALTER TABLE paired_device DROP COLUMN token");
         }
         transaction.Execute("DROP TABLE sync");
-        transaction.CreateTable<Synchronization>();
+        transaction.Execute("""
+            CREATE TABLE sync (hub_thumbprint TEXT NOT NULL, db_incarnation TEXT NOT NULL,
+                last_push_sequence INTEGER NOT NULL DEFAULT 0, last_pull_sequence INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (hub_thumbprint, db_incarnation))
+            """);
         transaction.Execute("CREATE TABLE sync_sequence (id INTEGER PRIMARY KEY CHECK (id = 1), local_seq INTEGER NOT NULL, sync_seq INTEGER NOT NULL)");
         transaction.Execute("INSERT INTO sync_sequence VALUES (1, 0, 0)");
         transaction.Execute("""

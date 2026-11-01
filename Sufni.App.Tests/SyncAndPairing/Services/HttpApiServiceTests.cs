@@ -18,6 +18,27 @@ public class HttpApiServiceTests
 {
     private readonly FakeTimeProvider time = new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
 
+    [Fact]
+    public async Task PeerIdentity_UsesPinnedHubAndIssuedIncarnation_IndependentlyOfItsAddress()
+    {
+        var storage = new InMemorySecureStorage();
+        await storage.SetStringAsync("ServerUrl", "https://first.test");
+        await storage.SetStringAsync("RefreshToken", "refresh");
+        await storage.SetStringAsync("ServerCertificateThumbprint", "certificate");
+        var incarnation = "database-one";
+        var service = CreateService(storage, (_, _) => Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(
+            SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10)), "new-refresh", incarnation))));
+
+        Assert.Equal(new PeerIdentity("certificate", incarnation), await service.GetPeerIdentityAsync());
+        service.ServerUrl = "https://another-address.test";
+        Assert.Equal(new PeerIdentity("certificate", incarnation), await service.GetPeerIdentityAsync());
+        incarnation = "database-after-reset";
+        time.Advance(TimeSpan.FromMinutes(10));
+
+        Assert.Equal(new PeerIdentity("certificate", incarnation), await service.GetPeerIdentityAsync());
+        Assert.Equal(incarnation, await storage.GetStringAsync("ServerDatabaseIncarnation"));
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.NoContent, SynchronizationTransferStatus.Completed)]
     [InlineData(HttpStatusCode.Conflict, SynchronizationTransferStatus.Pending)]
@@ -28,7 +49,7 @@ public class HttpApiServiceTests
         var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var service = CreateService(CreateSecureStorage(), (request, _) => Task.FromResult(
             request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh
-                ? SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2"))
+                ? SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation))
                 : new HttpResponseMessage(status)));
         var source = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource());
         var token = TestContext.Current.CancellationToken;
@@ -51,7 +72,7 @@ public class HttpApiServiceTests
         var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var service = CreateService(CreateSecureStorage(), (request, _) => Task.FromResult(
             request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh
-                ? SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2"))
+                ? SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation))
                 : new HttpResponseMessage(status)));
 
         var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -68,7 +89,7 @@ public class HttpApiServiceTests
         var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
         var service = CreateService(CreateSecureStorage(), (request, _) =>
             request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh
-                ? Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2")))
+                ? Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)))
                 : Task.FromException<HttpResponseMessage>(timeout ? new TaskCanceledException() : new HttpRequestException()));
 
         var result = await service.GetRecordedSessionSourceAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
@@ -100,7 +121,7 @@ public class HttpApiServiceTests
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
                     refreshRequestCount++;
-                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation));
                 case SynchronizationProtocol.EndpointSessionIncomplete:
                     dataRequestCount++;
                     seenAuthorizations.Add(request.Headers.Authorization?.Parameter);
@@ -142,7 +163,7 @@ public class HttpApiServiceTests
 
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)),
                 SynchronizationProtocol.EndpointSessionIncomplete => SyncTestServerHarness.Json(new List<Guid>()),
                 _ => throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}")
             });
@@ -162,7 +183,7 @@ public class HttpApiServiceTests
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)),
                 SynchronizationProtocol.EndpointSessionIncomplete => new HttpResponseMessage(HttpStatusCode.UpgradeRequired),
                 _ => throw new InvalidOperationException($"Unexpected request path {request.RequestUri?.AbsolutePath}")
             });
@@ -184,7 +205,7 @@ public class HttpApiServiceTests
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)),
                 var path when path == $"{SynchronizationProtocol.EndpointSessionData}{sessionId}" => SyncTestServerHarness.OctetStream([1, 2, 3], headers =>
                 {
                     headers.TryAddWithoutValidation(SynchronizationProtocol.FingerprintHeader, "fp-1");
@@ -214,7 +235,7 @@ public class HttpApiServiceTests
             switch (request.RequestUri?.AbsolutePath)
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
-                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation));
                 case var path when path == $"{SynchronizationProtocol.EndpointSessionData}{sessionId}":
                     Assert.Equal(HttpMethod.Patch, request.Method);
                     body = await request.Content!.ReadAsByteArrayAsync();
@@ -245,7 +266,7 @@ public class HttpApiServiceTests
         {
             return Task.FromResult(request.RequestUri?.AbsolutePath switch
             {
-                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")),
+                SynchronizationProtocol.EndpointPairRefresh => SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)),
                 var path when path == $"{SynchronizationProtocol.EndpointSessionSourceData}{sessionId}" => SyncTestServerHarness.OctetStream([7, 8, 9], headers =>
                 {
                     headers.TryAddWithoutValidation(SynchronizationProtocol.SourceKindHeader, RecordedSessionSourceKind.ImportedSst.StorageValue);
@@ -282,7 +303,7 @@ public class HttpApiServiceTests
             switch (request.RequestUri?.AbsolutePath)
             {
                 case SynchronizationProtocol.EndpointPairRefresh:
-                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation));
                 case var path when path == $"{SynchronizationProtocol.EndpointSessionSourceData}{sessionId}":
                     Assert.Equal(HttpMethod.Patch, request.Method);
                     body = await request.Content!.ReadAsByteArrayAsync();
@@ -333,7 +354,7 @@ public class HttpApiServiceTests
                     Interlocked.Increment(ref refreshRequestCount);
                     refreshStarted.TrySetResult();
                     await allowRefreshToComplete.Task.WaitAsync(cancellationToken);
-                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2"));
+                    return SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation));
                 case SynchronizationProtocol.EndpointSessionIncomplete:
                     Interlocked.Increment(ref dataRequestCount);
                     lock (authorizationLock)
@@ -468,7 +489,7 @@ public class HttpApiServiceTests
         {
             Assert.Equal(SynchronizationProtocol.EndpointPairConfirm, request.RequestUri?.AbsolutePath);
             return Task.FromResult<HttpResponseMessage>(
-                SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2")));
+                SyncTestServerHarness.Json(new TokenResponse(issuedAccessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)));
         });
         var pairedStates = new List<bool>();
         var paired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -496,7 +517,7 @@ public class HttpApiServiceTests
         var service = CreateService(CreateSecureStorage(), (request, token) =>
         {
             if (request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh)
-                return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2")));
+                return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)));
             started.SetResult();
             return new TaskCompletionSource<HttpResponseMessage>().Task.WaitAsync(token);
         });

@@ -8,6 +8,7 @@ using Serilog;
 using Sufni.App.Shared.Models;
 
 using Sufni.App.Infrastructure;
+using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
@@ -17,7 +18,6 @@ namespace Sufni.App.SyncAndPairing.Services;
 public class SynchronizationClientService : ISynchronizationClientService
 {
     private static readonly ILogger logger = Log.ForContext<SynchronizationClientService>();
-    public const string SyncStateKey = "paired-server";
     private const int SyncTransferDop = 3;
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
@@ -45,7 +45,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         this.httpApiService = httpApiService;
     }
 
-    private async Task PushLocalChanges(long sinceExclusive, long upperInclusive, CancellationToken cancellationToken)
+    private async Task PushLocalChanges(PeerIdentity peer, long sinceExclusive, long upperInclusive, CancellationToken cancellationToken)
     {
         var changes = await syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push,
             sinceExclusive,
@@ -63,7 +63,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             changes.Tracks.Count);
 
         await httpApiService.PushSyncAsync(changes, cancellationToken: cancellationToken);
-        await syncDataStore.UpdateLastPushSequenceAsync(SyncStateKey, upperInclusive);
+        await syncDataStore.UpdateLastPushSequenceAsync(peer, upperInclusive);
     }
 
     private async Task PushIncompleteSessions(ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
@@ -306,9 +306,10 @@ public class SynchronizationClientService : ISynchronizationClientService
     {
         try
         {
-            var lastPushSequence = await syncDataStore.GetLastPushSequenceAsync(SyncStateKey);
-            var lastPullSequence = await syncDataStore.GetLastPullSequenceAsync(SyncStateKey);
             var pushUpperBound = await syncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
+            var peer = await httpApiService.GetPeerIdentityAsync();
+            var lastPushSequence = await syncDataStore.GetLastPushSequenceAsync(peer);
+            var lastPullSequence = await syncDataStore.GetLastPullSequenceAsync(peer);
             var pushSinceExclusive = lastPushSequence;
             var pullSinceExclusive = lastPullSequence;
 
@@ -326,7 +327,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             var pending = new ConcurrentBag<SynchronizationPendingTransfer>();
 
             (SynchronizationPhase Phase, string Message, Func<Task> Run) push =
-                (SynchronizationPhase.PushingLocalChanges, "Pushing local changes", () => PushLocalChanges(pushSinceExclusive, pushUpperBound, cancellationToken));
+                (SynchronizationPhase.PushingLocalChanges, "Pushing local changes", () => PushLocalChanges(peer, pushSinceExclusive, pushUpperBound, cancellationToken));
             (SynchronizationPhase Phase, string Message, Func<Task> Run) pull =
                 (SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", async () =>
                 {
@@ -341,7 +342,7 @@ public class SynchronizationClientService : ISynchronizationClientService
 
             if (unresolvedSwaps == 0)
             {
-                await syncDataStore.UpdateLastPullSequenceAsync(SyncStateKey, pullUpperBound);
+                await syncDataStore.UpdateLastPullSequenceAsync(peer, pullUpperBound);
             }
             else
             {

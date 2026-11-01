@@ -49,6 +49,8 @@ Pairing request, confirmation, refresh and remote unpair are awaited
 `IInboundSyncCoordinator` commands with typed outcomes. PINs are bound to the
 requesting device and normalized display name and expire after 30 seconds.
 Confirmation persists the paired device and publishes it before returning tokens.
+Confirmation and refresh responses include the hub database incarnation, which
+the client persists alongside its pairing credentials.
 
 The hub persists SHA-256 refresh-token hashes, never the raw tokens. Rotation
 retains the previous hash for one recovery request while the current refresh
@@ -152,6 +154,13 @@ releases its event subscriptions on disposal.
 4. **Pull incomplete sessions** — download blobs for two kinds of target and commit each only when the downloaded fingerprint matches the target (otherwise keep what is local and retry later): **fills** (local rows with no blob, target = the row's own stored fingerprint) and **swaps** (rows whose held blob has a different current-schema fingerprint than the one just pulled, target = the accepted remote fingerprint — see *Processed-BLOB coherence* below)
 5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourcePayload`
 6. **Pull incomplete recorded sources** — for each local source id produced by `IRecordedSessionSourceSyncQuery`, download the server's `RecordedSessionSourcePayload`
+
+The client captures a `PeerIdentity` from the pinned certificate thumbprint and
+the database incarnation returned with its tokens. Both cursors use this identity;
+address changes preserve them, while a different hub or incarnation starts a
+baseline from zero. The fixed `paired-server` key is removed. Incarnation currently
+arrives through confirmation and refresh; run-start verification and the per-peer
+HTTP lifetime are still pending in Epic 6.
 
 The metadata snapshot's one `upper_bound` applies to every synced table, including
 custom map layers, and the deletion ledger. Core delta queries include updates and

@@ -99,7 +99,7 @@ public sealed class InboundSyncCoordinator(
                 var device = new PairedDevice(request.DeviceId, challenge.DisplayName, clock.GetUtcNow().UtcDateTime.AddDays(30))
                     { RefreshTokenHash = RefreshTokenHash.Compute(refresh) };
                 await pairedDeviceRepository.PutPairedDeviceAsync(device);
-                return (PairedDeviceSnapshot.From(device), new TokenResponse(access, refresh));
+                return (PairedDeviceSnapshot.From(device), new TokenResponse(access, refresh, await syncDataStore.GetDatabaseIncarnationAsync()));
             });
             await uiThreadDispatcher.InvokeAsync(async () =>
             {
@@ -133,7 +133,7 @@ public sealed class InboundSyncCoordinator(
                     RefreshTokenHash.Compute(refresh), now, now.AddDays(30));
                 if (device is null) return new PairingTokenResult.Rejected();
                 await pairedDeviceStore.PublishPairedDevicesChangedAsync([PairedDeviceSnapshot.From(device)]);
-                return new PairingTokenResult.Issued(new TokenResponse(access, refresh));
+                return new PairingTokenResult.Issued(new TokenResponse(access, refresh, await syncDataStore.GetDatabaseIncarnationAsync()));
             });
         }
         catch (Exception exception)

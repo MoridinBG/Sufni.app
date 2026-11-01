@@ -133,7 +133,8 @@ erDiagram
     }
 
     sync {
-        text server_url PK
+        text hub_thumbprint PK
+        text db_incarnation PK
         int last_push_sequence
         int last_pull_sequence
     }
@@ -221,7 +222,8 @@ erDiagram
 `database_identity` has one row (`id = 1`). The `database-incarnation`
 core migration assigns its random `db_incarnation` once, including on existing
 databases. Normal launches preserve it; creating a fresh database assigns a new
-identity. Sync will use this identity to distinguish database resets.
+identity. Pairing and refresh responses carry this identity to distinguish
+database resets in sync cursors.
 
 `IStartupDatabase` exposes initialization and the reset file operation on the
 connection context. Reset waits for initialization to settle, closes the
@@ -254,8 +256,9 @@ The remote merge uses the same authored-history rule on hub and client;
 `client_updated` is removed from schema and wire. Push selection uses `local_seq`
 and pull selection uses `sync_seq`, including deletion-ledger entries. The same
 migration discards timestamp cursors and recreates the cursor table for a full
-baseline exchange. The current client still uses its fixed peer key; binding
-cursors to certificate thumbprint and database incarnation remains pending.
+baseline exchange. Cursors are keyed by `(hub_thumbprint, db_incarnation)`.
+Each direction updates its column atomically without overwriting the other.
+An unseen hub or incarnation starts at zero, independent of its network address.
 
 ## SQLite Persistence Repositories
 

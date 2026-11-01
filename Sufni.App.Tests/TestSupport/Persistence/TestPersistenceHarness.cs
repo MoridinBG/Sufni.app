@@ -218,17 +218,17 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public Task<TrackPayload?> GetTrackPayloadAsync(Guid trackId, long updated) =>
         trackRepository.GetTrackPayloadAsync(trackId, updated);
 
-    public Task<long> GetLastPushSequenceAsync(string? serverUrl) =>
-        syncDataStore.GetLastPushSequenceAsync(serverUrl);
+    public Task<long> GetLastPushSequenceAsync(PeerIdentity peer) =>
+        syncDataStore.GetLastPushSequenceAsync(peer);
 
-    public Task<long> GetLastPullSequenceAsync(string? serverUrl) =>
-        syncDataStore.GetLastPullSequenceAsync(serverUrl);
+    public Task<long> GetLastPullSequenceAsync(PeerIdentity peer) =>
+        syncDataStore.GetLastPullSequenceAsync(peer);
 
-    public Task UpdateLastPushSequenceAsync(string? serverUrl, long upperBound) =>
-        syncDataStore.UpdateLastPushSequenceAsync(serverUrl, upperBound);
+    public Task UpdateLastPushSequenceAsync(PeerIdentity peer, long upperBound) =>
+        syncDataStore.UpdateLastPushSequenceAsync(peer, upperBound);
 
-    public Task UpdateLastPullSequenceAsync(string? serverUrl, long upperBound) =>
-        syncDataStore.UpdateLastPullSequenceAsync(serverUrl, upperBound);
+    public Task UpdateLastPullSequenceAsync(PeerIdentity peer, long upperBound) =>
+        syncDataStore.UpdateLastPullSequenceAsync(peer, upperBound);
 
     public Task<SynchronizationData> GetSynchronizationDataAsync(
         long sinceExclusive,
