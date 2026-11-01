@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Sufni.App.Shared.Models;
 
 namespace Sufni.App.SyncAndPairing.Services;
@@ -46,7 +47,13 @@ public abstract record SynchronizationRunResult
 
     public sealed record Completed : SynchronizationRunResult;
 
-    public sealed record IncompleteLocalData(
+    public sealed record IncompleteData(
         int MissingProcessedSessionCount,
-        int IncompleteRecordedSourceCount) : SynchronizationRunResult;
+        int IncompleteRecordedSourceCount,
+        IReadOnlyList<SynchronizationPendingTransfer> PendingTransfers) : SynchronizationRunResult;
 }
+
+public enum SynchronizationTransferKind { ProcessedSession, RecordedSource }
+
+public sealed record SynchronizationPendingTransfer(
+    Guid Id, SynchronizationTransferKind Kind, SynchronizationDirection Direction);

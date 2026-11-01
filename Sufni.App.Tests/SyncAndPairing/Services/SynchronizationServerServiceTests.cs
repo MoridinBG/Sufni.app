@@ -87,8 +87,9 @@ public class SynchronizationServerServiceTests
 
     [Theory]
     [InlineData(SessionDataApplyResult.Applied, StatusCodes.Status204NoContent)]
-    [InlineData(SessionDataApplyResult.Superseded, StatusCodes.Status204NoContent)]
-    [InlineData(SessionDataApplyResult.InvalidPayload, StatusCodes.Status400BadRequest)]
+    [InlineData(SessionDataApplyResult.Ignored, StatusCodes.Status204NoContent)]
+    [InlineData(SessionDataApplyResult.Pending, StatusCodes.Status409Conflict)]
+    [InlineData(SessionDataApplyResult.InvalidPayload, StatusCodes.Status409Conflict)]
     [InlineData(SessionDataApplyResult.Missing, StatusCodes.Status404NotFound)]
     [InlineData(SessionDataApplyResult.Failed, StatusCodes.Status500InternalServerError)]
     public async Task ApplySessionDataPatchAsync_MapsApplicationOutcome(
@@ -106,7 +107,7 @@ public class SynchronizationServerServiceTests
 
     [Theory]
     [InlineData(InboundSourceApplyResult.Applied, StatusCodes.Status204NoContent)]
-    [InlineData(InboundSourceApplyResult.InvalidPayload, StatusCodes.Status400BadRequest)]
+    [InlineData(InboundSourceApplyResult.InvalidPayload, StatusCodes.Status409Conflict)]
     [InlineData(InboundSourceApplyResult.Failed, StatusCodes.Status500InternalServerError)]
     public async Task ApplySourcePatchAsync_MapsApplicationOutcome(InboundSourceApplyResult outcome, int status)
     {

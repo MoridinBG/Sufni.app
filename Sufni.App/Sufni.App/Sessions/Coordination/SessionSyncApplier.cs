@@ -12,7 +12,7 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Sessions.Coordination;
 
-public enum SessionDataApplyResult { Applied, Superseded, Missing, InvalidPayload, Failed }
+public enum SessionDataApplyResult { Applied, Ignored, Pending, Missing, InvalidPayload, Failed }
 
 public interface ISessionSyncApplier
 {
@@ -58,18 +58,21 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier
             var target = swap?.TargetFingerprint ?? row.ProcessingFingerprintJson;
             if (!StringComparer.Ordinal.Equals(payload.Fingerprint, target))
             {
-                if (swap is not null) return SessionDataApplyResult.Superseded;
+                if (swap is not null) return SessionDataApplyResult.Pending;
                 logger.Warning("Uploaded session data does not match the requested fingerprint for {SessionId}", sessionId);
                 return SessionDataApplyResult.InvalidPayload;
             }
-            return await CommitTransferAsync(SessionSnapshot.From(row), payload, swap?.TargetGeneration, swap?.TargetFingerprint);
+            var result = await CommitTransferAsync(SessionSnapshot.From(row), payload, swap?.TargetGeneration, swap?.TargetFingerprint);
+            if (result == SessionDataApplyResult.Ignored && swap is not null)
+                await swapRequests.CompleteRequestAsync(sessionId, swap.TargetFingerprint);
+            return result;
         });
 
     public Task<SessionDataApplyResult> ApplyDownloadedAsync(SessionSnapshot expected, SessionBlobPayload payload,
         string? targetFingerprint, SessionProcessedGeneration? generation = null) =>
         ApplyTransferAsync(expected.Id, () => StringComparer.Ordinal.Equals(payload.Fingerprint, targetFingerprint)
             ? CommitTransferAsync(expected, payload, generation, pendingSwapFingerprint: null)
-            : Task.FromResult(SessionDataApplyResult.Superseded));
+            : Task.FromResult(SessionDataApplyResult.Pending));
 
     private async Task<SessionDataApplyResult> ApplyTransferAsync(Guid sessionId, Func<Task<SessionDataApplyResult>> operation)
     {
@@ -95,7 +98,7 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier
         var current = await sessionRepository.GetSessionAsync(expected.Id);
         if (current is null) return SessionDataApplyResult.Missing;
         var telemetry = telemetryProcessor.ReadProcessedTelemetryData(payload.Data);
-        if (generation is null && current.HasProcessedData) return SessionDataApplyResult.Superseded;
+        if (generation is null && current.HasProcessedData) return SessionDataApplyResult.Ignored;
         var inputs = await sessionRepository.GetProcessingInputBundleAsync(expected.Id);
         var decision = ProcessedGenerationAcceptance.DecideProcessedGenerationTarget(
             inputs is null ? null : fingerprintService.CreateCurrentDatabaseInputs(inputs),
@@ -104,7 +107,8 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier
             current.HasProcessedData,
             inputs is not null,
             fingerprintService.CurrentSchemaVersion);
-        if (decision != ProcessedGenerationDecision.AcceptIncoming) return SessionDataApplyResult.Superseded;
+        if (decision == ProcessedGenerationDecision.WaitForSource) return SessionDataApplyResult.Pending;
+        if (decision == ProcessedGenerationDecision.KeepLocal) return SessionDataApplyResult.Ignored;
         var guard = SessionProcessedWriteGuard.From(expected, pendingSwapFingerprint) with { ExpectedInputs = inputs };
         bool committed;
         if (generation is not null)
@@ -117,12 +121,12 @@ internal sealed class SessionSyncApplier : ISessionSyncApplier
             var duration = SessionDuration.Normalize(telemetry.Metadata?.Duration ?? current.DurationSeconds);
             committed = await sessionRepository.UpdateSessionPsstAsync(expected.Id, payload.Data, payload.Fingerprint, duration, guard);
         }
-        if (!committed) return SessionDataApplyResult.Superseded;
+        if (!committed) return SessionDataApplyResult.Pending;
         var fresh = await sessionRepository.GetSessionAsync(expected.Id);
         if (fresh is null)
         {
             await sessionStore.PublishSessionsRemovedAsync([expected.Id]);
-            return SessionDataApplyResult.Superseded;
+            return SessionDataApplyResult.Pending;
         }
         await sessionStore.PublishSessionsChangedAsync([SessionSnapshot.From(fresh)]);
         return SessionDataApplyResult.Applied;

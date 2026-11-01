@@ -18,6 +18,65 @@ public class HttpApiServiceTests
 {
     private readonly FakeTimeProvider time = new(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
 
+    [Theory]
+    [InlineData(HttpStatusCode.NoContent, SynchronizationTransferStatus.Completed)]
+    [InlineData(HttpStatusCode.Conflict, SynchronizationTransferStatus.Pending)]
+    [InlineData(HttpStatusCode.NotFound, SynchronizationTransferStatus.Pending)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, SynchronizationTransferStatus.Pending)]
+    public async Task ItemTransfers_ClassifyPeerResponsesWithoutFailingTheRun(HttpStatusCode status, SynchronizationTransferStatus expected)
+    {
+        var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
+        var service = CreateService(CreateSecureStorage(), (request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh
+                ? SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2"))
+                : new HttpResponseMessage(status)));
+        var source = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource());
+        var token = TestContext.Current.CancellationToken;
+
+        Assert.Equal(expected, await service.PatchSessionPsstAsync(source.SessionId, [1, 2, 3], "target", token));
+        Assert.Equal(expected, await service.PatchRecordedSessionSourceAsync(source, token));
+        var blob = await service.GetSessionPsstAsync(source.SessionId, token);
+        var recording = await service.GetRecordedSessionSourceAsync(source.SessionId, token);
+        Assert.Equal(expected, blob.Status);
+        Assert.Equal(expected, recording.Status);
+        Assert.Null(blob.Payload);
+        Assert.Null(recording.Payload);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.UpgradeRequired)]
+    public async Task ItemTransfer_AuthenticationAndProtocolErrorsStillFailTheRun(HttpStatusCode status)
+    {
+        var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
+        var service = CreateService(CreateSecureStorage(), (request, _) => Task.FromResult(
+            request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh
+                ? SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2"))
+                : new HttpResponseMessage(status)));
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            service.PatchSessionPsstAsync(Guid.NewGuid(), [1, 2, 3], "target", TestContext.Current.CancellationToken));
+
+        Assert.Equal(status, failure.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ItemDownload_NetworkFailureOrTimeoutRemainsPending(bool timeout)
+    {
+        var accessToken = SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10));
+        var service = CreateService(CreateSecureStorage(), (request, _) =>
+            request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRefresh
+                ? Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(accessToken, "refresh-2")))
+                : Task.FromException<HttpResponseMessage>(timeout ? new TaskCanceledException() : new HttpRequestException()));
+
+        var result = await service.GetRecordedSessionSourceAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(SynchronizationTransferStatus.Pending, result.Status);
+        Assert.Null(result.Payload);
+    }
+
     [Fact]
     public void CreateHandler_AllowsTls12AndTls13()
     {
@@ -134,7 +193,7 @@ public class HttpApiServiceTests
             });
         });
 
-        var transfer = await service.GetSessionPsstAsync(sessionId);
+        var transfer = (await service.GetSessionPsstAsync(sessionId)).Payload;
 
         Assert.NotNull(transfer);
         Assert.Equal("fp-1", transfer!.Fingerprint);
@@ -198,7 +257,7 @@ public class HttpApiServiceTests
             });
         });
 
-        var source = await service.GetRecordedSessionSourceAsync(sessionId);
+        var source = (await service.GetRecordedSessionSourceAsync(sessionId)).Payload;
 
         Assert.NotNull(source);
         Assert.Equal(sessionId, source!.SessionId);

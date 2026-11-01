@@ -590,7 +590,8 @@ internal class HttpApiService : IHttpApiService
         return incompleteSessions ?? [];
     }
 
-    public async Task<SessionBlobPayload?> GetSessionPsstAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task<SynchronizationTransferResult<SessionBlobPayload>> GetSessionPsstAsync(Guid id, CancellationToken cancellationToken = default) =>
+        TransferAsync(id, async () =>
     {
         await EnsureTokenFreshAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -600,10 +601,12 @@ internal class HttpApiService : IHttpApiService
             HttpMethod.Get,
             route,
             () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        if (response.StatusCode == HttpStatusCode.NoContent)
+            return new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Completed);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
         {
             logger.Verbose("Session data was not found on the server for {SessionId}", id);
-            return null;
+            return new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending);
         }
         response.EnsureSuccessStatusCode();
         var data = await response.Content.ReadAsByteArrayAsync(cancellationToken);
@@ -613,10 +616,11 @@ internal class HttpApiService : IHttpApiService
 
         logger.Verbose("Downloaded {ByteCount} bytes of session data for {SessionId}", transfer?.Data.Length ?? 0, id);
 
-        return transfer;
-    }
+        return new SynchronizationTransferResult<SessionBlobPayload>(transfer, SynchronizationTransferStatus.Completed);
+    }, new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending), cancellationToken);
 
-    public async Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint, CancellationToken cancellationToken = default)
+    public Task<SynchronizationTransferStatus> PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint, CancellationToken cancellationToken = default) =>
+        TransferAsync(id, async () =>
     {
         await EnsureTokenFreshAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -639,7 +643,8 @@ internal class HttpApiService : IHttpApiService
                     }
                 }, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
-    }
+        return SynchronizationTransferStatus.Completed;
+    }, SynchronizationTransferStatus.Pending, cancellationToken);
 
     public async Task<List<Guid>> GetIncompleteSessionSourceIdsAsync(CancellationToken cancellationToken = default)
     {
@@ -661,7 +666,8 @@ internal class HttpApiService : IHttpApiService
         return incompleteSources ?? [];
     }
 
-    public async Task<RecordedSessionSourcePayload?> GetRecordedSessionSourceAsync(Guid id, CancellationToken cancellationToken = default)
+    public Task<SynchronizationTransferResult<RecordedSessionSourcePayload>> GetRecordedSessionSourceAsync(Guid id, CancellationToken cancellationToken = default) =>
+        TransferAsync(id, async () =>
     {
         await EnsureTokenFreshAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -671,10 +677,12 @@ internal class HttpApiService : IHttpApiService
             HttpMethod.Get,
             route,
             () => SendRequestAsync(HttpMethod.Get, route, cancellationToken: cancellationToken));
-        if (response.StatusCode == HttpStatusCode.NotFound)
+        if (response.StatusCode == HttpStatusCode.NoContent)
+            return new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Completed);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
         {
             logger.Verbose("Recorded source was not found on the server for {SessionId}", id);
-            return null;
+            return new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Pending);
         }
 
         response.EnsureSuccessStatusCode();
@@ -711,10 +719,11 @@ internal class HttpApiService : IHttpApiService
             id,
             source?.Payload.Length ?? 0);
 
-        return source;
-    }
+        return new SynchronizationTransferResult<RecordedSessionSourcePayload>(source, SynchronizationTransferStatus.Completed);
+    }, new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Pending), cancellationToken);
 
-    public async Task PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source, CancellationToken cancellationToken = default)
+    public Task<SynchronizationTransferStatus> PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source, CancellationToken cancellationToken = default) =>
+        TransferAsync(source.SessionId, async () =>
     {
         await EnsureTokenFreshAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -737,6 +746,23 @@ internal class HttpApiService : IHttpApiService
                     request.Headers.TryAddWithoutValidation(SynchronizationProtocol.SourceHashHeader, source.SourceHash);
                 }, cancellationToken: cancellationToken));
         response.EnsureSuccessStatusCode();
+        return SynchronizationTransferStatus.Completed;
+    }, SynchronizationTransferStatus.Pending, cancellationToken);
+
+    private static async Task<T> TransferAsync<T>(Guid id, Func<Task<T>> transfer, T pending, CancellationToken cancellationToken)
+    {
+        try { return await transfer(); }
+        catch (HttpRequestException exception) when (exception.StatusCode is not
+            (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.UpgradeRequired))
+        {
+            logger.Warning(exception, "Synchronization item {ItemId} remains pending after a transfer failure", id);
+            return pending;
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.Warning(exception, "Synchronization item {ItemId} remains pending after a transfer timeout", id);
+            return pending;
+        }
     }
 
     #endregion Public methods - syncing

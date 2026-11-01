@@ -22,7 +22,7 @@ public class InboundSyncCoordinatorTests
     public async Task ApplySourceAsync_AwaitsPublication_AndPreservesExistingCapturedContent()
     {
         var dispatcher = new ManualUiThreadDispatcher();
-        using var fixture = new InboundSyncFixture(dispatcher);
+        await using var fixture = new InboundSyncFixture(dispatcher);
         var coordinator = fixture.CreateCoordinator();
         var source = SyncTestServerHarness.CreateRecordedSource();
         var apply = coordinator.ApplySourceAsync(SyncTestServerHarness.ToPayload(source));
@@ -45,7 +45,7 @@ public class InboundSyncCoordinatorTests
     [Fact]
     public async Task ApplySourceAsync_InvalidHashLeavesSourceMissing()
     {
-        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
         var payload = SyncTestServerHarness.ToPayload(SyncTestServerHarness.CreateRecordedSource()) with { SourceHash = "wrong" };
 
         Assert.Equal(InboundSourceApplyResult.InvalidPayload, await fixture.CreateCoordinator().ApplySourceAsync(payload));
@@ -57,7 +57,7 @@ public class InboundSyncCoordinatorTests
     [Fact]
     public async Task ApplySourceAsync_PersistenceFailureDoesNotPublishUncommittedSource()
     {
-        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
         var repository = Substitute.For<IRecordedSessionSourceRepository>();
         repository.PutRecordedSessionSourceAsync(Arg.Any<RecordedSessionSource>())
             .Returns(Task.FromException<RecordedSessionSourceSnapshot>(new IOException("disk full")));
@@ -73,7 +73,7 @@ public class InboundSyncCoordinatorTests
     public async Task ApplyPushAsync_PublishesAllRelatedFamiliesTogether_AndWaitsForDispatcher()
     {
         var dispatcher = new ManualUiThreadDispatcher();
-        using var fixture = new InboundSyncFixture(dispatcher);
+        await using var fixture = new InboundSyncFixture(dispatcher);
         var coordinator = fixture.CreateCoordinator();
         var bike = new Bike(Guid.NewGuid(), "bike");
         var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = bike.Id };
@@ -116,7 +116,7 @@ public class InboundSyncCoordinatorTests
     [Fact]
     public async Task ApplyPushAsync_BoardOnlyArrivalRefreshesKnownBoardQuery()
     {
-        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
         var coordinator = fixture.CreateCoordinator();
         var setup = new Setup(Guid.NewGuid(), "arrived setup");
         await coordinator.ApplyPushAsync(new SynchronizationData { Setups = [setup] });
@@ -134,7 +134,7 @@ public class InboundSyncCoordinatorTests
     [Fact]
     public async Task ApplyPushAsync_StaleDeleteRetainsCommittedSession_AndLedgerOnlyDeleteRemovesLayer()
     {
-        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
         var coordinator = fixture.CreateCoordinator();
         var session = new Session(Guid.NewGuid(), "current", "", null) { Version = 3, Updated = 8 };
         var layer = new CustomTileLayer { Name = "Trail" };
@@ -153,7 +153,7 @@ public class InboundSyncCoordinatorTests
     [Fact]
     public async Task ApplyPushAsync_MergeFailureLeavesPublishedStateUntouched_AndAllowsRetry()
     {
-        using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
         var dataStore = Substitute.For<ISyncDataStore>();
         var data = new SynchronizationData { Bikes = [new Bike(Guid.NewGuid(), "bike")] };
         dataStore.MergeAllAsync(data).Returns(_ => Task.FromException<SynchronizationApplyResult>(new IOException("database unavailable")));

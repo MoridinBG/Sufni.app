@@ -33,7 +33,7 @@ public class SessionSyncGenerationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("other", true, SessionDataApplyResult.Superseded)]
+    [InlineData("other", true, SessionDataApplyResult.Pending)]
     [InlineData("target", false, SessionDataApplyResult.InvalidPayload)]
     [InlineData("target", true, SessionDataApplyResult.Applied)]
     public async Task ApplyUploadedAsync_KeepsRequestUntilMatchingValidBytesCommit(
@@ -73,7 +73,7 @@ public class SessionSyncGenerationTests : IDisposable
         var result = await applier.ApplyDownloadedAsync(captured,
             new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(90)), targetFingerprint, new SessionProcessedGeneration(90));
 
-        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(SessionDataApplyResult.Pending, result);
         Assert.Equal(newer, await repository.Repository.GetSessionRawPsstAsync(session.Id));
         Assert.Null(sessions.Get(session.Id));
     }
@@ -142,7 +142,7 @@ public class SessionSyncGenerationTests : IDisposable
 
         var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), new SessionBlobPayload(targetFingerprint, data), targetFingerprint);
 
-        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(SessionDataApplyResult.Ignored, result);
         Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
         Assert.Null(sessions.Get(session.Id));
     }
@@ -178,7 +178,7 @@ public class SessionSyncGenerationTests : IDisposable
             ? applier.ApplyUploadedAsync(session.Id, payload)
             : applier.ApplyDownloadedAsync(SessionSnapshot.From(session), payload, targetFingerprint, generation);
 
-        Assert.Equal(SessionDataApplyResult.Superseded, await Apply());
+        Assert.Equal(SessionDataApplyResult.Pending, await Apply());
         Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
         Assert.Null(sessions.Get(session.Id));
         repository.Repository.GetProcessingInputBundleAsync(session.Id).Returns(inputs);
@@ -187,20 +187,25 @@ public class SessionSyncGenerationTests : IDisposable
         Assert.Equal(payload.Data, await repository.Repository.GetSessionRawPsstAsync(session.Id));
     }
 
-    [Fact]
-    public async Task Transfer_KeepsCurrentLocalGeneration_WhenIncomingFingerprintIsEquivalent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Transfer_KeepsCurrentLocalGeneration_AndCompletesRequest_WhenIncomingFingerprintIsEquivalent(bool upload)
     {
         var session = SeedSession();
         session.ProcessingFingerprintJson = targetFingerprint;
         repository.Seed(session);
         var payload = new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(80));
+        repository.SeedSwap(new SessionBlobSwap(session.Id, targetFingerprint, new SessionProcessedGeneration(80)));
 
-        var result = await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), payload,
-            targetFingerprint, new SessionProcessedGeneration(80));
+        var result = upload ? await applier.ApplyUploadedAsync(session.Id, payload)
+            : await applier.ApplyDownloadedAsync(SessionSnapshot.From(session), payload,
+                targetFingerprint, new SessionProcessedGeneration(80));
 
-        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(SessionDataApplyResult.Ignored, result);
         Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
         Assert.Null(sessions.Get(session.Id));
+        if (upload) Assert.Null(await repository.SwapRequests.GetRequestAsync(session.Id));
     }
 
     [Fact]
@@ -217,7 +222,7 @@ public class SessionSyncGenerationTests : IDisposable
             new SessionBlobPayload(targetFingerprint, PersistenceTestData.CreateTelemetryBlob(80)),
             targetFingerprint, new SessionProcessedGeneration(80));
 
-        Assert.Equal(SessionDataApplyResult.Superseded, result);
+        Assert.Equal(SessionDataApplyResult.Ignored, result);
         Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
         Assert.Null(sessions.Get(session.Id));
     }

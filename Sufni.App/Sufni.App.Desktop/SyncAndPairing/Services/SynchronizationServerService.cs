@@ -548,7 +548,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         Guid id, SessionBlobPayload payload, IInboundSyncCoordinator coordinator)
     {
         var result = await coordinator.ApplySessionBlobAsync(id, payload);
-        if (result == SessionDataApplyResult.InvalidPayload) return Results.BadRequest();
+        if (result is SessionDataApplyResult.InvalidPayload or SessionDataApplyResult.Pending) return Results.Conflict();
         if (result == SessionDataApplyResult.Missing) return Results.NotFound();
         if (result == SessionDataApplyResult.Failed) return Results.StatusCode(StatusCodes.Status500InternalServerError);
         return Results.NoContent();
@@ -559,7 +559,7 @@ public class SynchronizationServerService : ISynchronizationServerService
         await coordinator.ApplySourceAsync(payload) switch
         {
             InboundSourceApplyResult.Applied => Results.NoContent(),
-            InboundSourceApplyResult.InvalidPayload => Results.BadRequest(),
+            InboundSourceApplyResult.InvalidPayload => Results.Conflict(),
             _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
         };
 

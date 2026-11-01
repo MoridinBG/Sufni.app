@@ -375,7 +375,10 @@ The merge engine inserts, replaces, or clears the request inside the same
 transaction that accepts the corresponding deferred session metadata. Startup
 removes requests for missing or soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
 request with its owner session. Listing pending requests only reads the table; a
-matching request is cleared after the validated generation write succeeds.
+matching request is cleared after the validated generation write succeeds. An
+equivalent or ineligible incoming generation is terminally ignored; its owner
+clears the request only if the target fingerprint still matches. A newer request
+survives completion of the old transfer.
 
 `session_video` links a local file to an immutable recording source through `owner_key`. One source/file pair shares one owner-relative alignment offset. `ISessionVideoRepository.LinkAsync` writes distinct source links in one transaction; re-import retains an existing ID, added time and alignment. Session deletion and startup purge leave links intact. The `track-materializations` migration converts and collapses old session links by the widest-window policy, then drops `session_id`. See [video.md](video.md).
 

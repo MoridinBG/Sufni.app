@@ -20,6 +20,12 @@ internal sealed class InMemorySessionRepository
     {
         SwapRequests.GetRequestAsync(Arg.Any<Guid>()).Returns(call => swaps.GetValueOrDefault(call.Arg<Guid>()));
         SwapRequests.GetRequestedSessionIdsAsync().Returns(_ => swaps.Keys.ToList());
+        SwapRequests.CompleteRequestAsync(Arg.Any<Guid>(), Arg.Any<string>()).Returns(call =>
+        {
+            var id = call.Arg<Guid>();
+            if (swaps.GetValueOrDefault(id)?.TargetFingerprint == call.Arg<string>()) swaps.Remove(id);
+            return Task.CompletedTask;
+        });
         Repository.GetSessionAsync(Arg.Any<Guid>()).Returns(call =>
             ToEntity(snapshots.GetValueOrDefault(call.Arg<Guid>())));
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());

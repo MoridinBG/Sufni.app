@@ -20,9 +20,9 @@ public interface IHttpApiService
     public Task<SynchronizationData> PullSyncAsync(long since = 0, CancellationToken cancellationToken = default);
     public Task PushSyncAsync(SynchronizationData syncData, CancellationToken cancellationToken = default);
     public Task<List<Guid>> GetIncompleteSessionIdsAsync(CancellationToken cancellationToken = default);
-    public Task<SessionBlobPayload?> GetSessionPsstAsync(Guid id, CancellationToken cancellationToken = default);
-    public Task PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint, CancellationToken cancellationToken = default);
+    public Task<SynchronizationTransferResult<SessionBlobPayload>> GetSessionPsstAsync(Guid id, CancellationToken cancellationToken = default);
+    public Task<SynchronizationTransferStatus> PatchSessionPsstAsync(Guid id, byte[] data, string? fingerprint, CancellationToken cancellationToken = default);
     public Task<List<Guid>> GetIncompleteSessionSourceIdsAsync(CancellationToken cancellationToken = default);
-    public Task<RecordedSessionSourcePayload?> GetRecordedSessionSourceAsync(Guid id, CancellationToken cancellationToken = default);
-    public Task PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source, CancellationToken cancellationToken = default);
+    public Task<SynchronizationTransferResult<RecordedSessionSourcePayload>> GetRecordedSessionSourceAsync(Guid id, CancellationToken cancellationToken = default);
+    public Task<SynchronizationTransferStatus> PatchRecordedSessionSourceAsync(RecordedSessionSourcePayload source, CancellationToken cancellationToken = default);
 }

@@ -26,6 +26,10 @@ internal sealed class SyncTestServerHarness
         SecureStorage.GetStringAsync("RefreshToken").Returns("refresh-1");
         SyncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push).Returns(9);
         HttpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
+        HttpApiService.GetSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending));
+        HttpApiService.GetRecordedSessionSourceAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(null, SynchronizationTransferStatus.Pending));
         HttpApiService.GetIncompleteSessionIdsAsync(Arg.Any<CancellationToken>()).Returns([]);
         SessionRepository.GetIncompleteSessionIdsAsync().Returns([]);
         SessionRepository.GetIncompleteSessionIdsWithFingerprintAsync().Returns([]);
@@ -52,14 +56,14 @@ internal sealed class SyncTestServerHarness
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
         new(SecureStorage, new HttpClient(new StubHttpMessageHandler(sendAsync)), Time);
 
-    public SynchronizationClientService CreateSynchronizationClientService(ISyncDataStore? dataStore = null) =>
+    public SynchronizationClientService CreateSynchronizationClientService(ISyncDataStore? dataStore = null, IHttpApiService? api = null) =>
         new(
             dataStore ?? SyncDataStore,
             SessionRepository,
             RecordedSessionSourceRepository,
             SourceStore,
             RecordedSessionSourceSyncQuery,
-            HttpApiService,
+            api ?? HttpApiService,
             SessionSyncApplier);
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)

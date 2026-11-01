@@ -397,8 +397,12 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
         result switch
         {
             SynchronizationRunResult.Completed => "Sync successful",
-            SynchronizationRunResult.IncompleteLocalData incomplete =>
-                $"Sync incomplete: {incomplete.MissingProcessedSessionCount} session blob(s) and {incomplete.IncompleteRecordedSourceCount} recorded source(s) still missing",
+            SynchronizationRunResult.IncompleteData incomplete when incomplete.MissingProcessedSessionCount == 0
+                && incomplete.IncompleteRecordedSourceCount == 0 =>
+                $"Sync incomplete: {incomplete.PendingTransfers.Count} transfer(s) pending",
+            SynchronizationRunResult.IncompleteData incomplete =>
+                $"Sync incomplete: {incomplete.MissingProcessedSessionCount} session blob(s) and {incomplete.IncompleteRecordedSourceCount} recorded source(s) still missing"
+                + (incomplete.PendingTransfers.Count == 0 ? "" : $"; {incomplete.PendingTransfers.Count} transfer(s) pending"),
             _ => "Sync completed"
         };
 

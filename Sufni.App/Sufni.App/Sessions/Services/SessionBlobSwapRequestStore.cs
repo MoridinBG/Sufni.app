@@ -25,6 +25,7 @@ public interface ISessionBlobSwapRequestStore
 
     Task<SessionBlobSwap?> GetRequestAsync(Guid sessionId);
 
+    Task CompleteRequestAsync(Guid sessionId, string expectedFingerprint);
 }
 
 internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connectionContext)
@@ -60,6 +61,10 @@ internal sealed class SessionBlobSwapRequestStore(SqliteConnectionContext connec
             ?? throw new InvalidOperationException("A processed swap request must carry its target generation.");
         return new SessionBlobSwap(row.SessionId, row.TargetFingerprint, generation);
     }
+
+    public Task CompleteRequestAsync(Guid sessionId, string expectedFingerprint) =>
+        connectionContext.RunInTransactionAsync(connection =>
+            connection.Execute($"DELETE FROM {TableName} WHERE session_id=? AND target_fingerprint=?", sessionId, expectedFingerprint));
 
     internal static bool MatchesInTransaction(SQLiteConnection connection, Guid sessionId, string? expectedFingerprint) =>
         StringComparer.Ordinal.Equals(expectedFingerprint, connection.ExecuteScalar<string?>(

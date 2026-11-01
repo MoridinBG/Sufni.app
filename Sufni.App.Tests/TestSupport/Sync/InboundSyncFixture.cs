@@ -20,7 +20,7 @@ using Sufni.App.Tests.TestSupport.Persistence;
 
 namespace Sufni.App.Tests.TestSupport.Sync;
 
-internal sealed class InboundSyncFixture : IDisposable
+internal sealed class InboundSyncFixture : IAsyncDisposable
 {
     private readonly TempDatabase file = new();
     private readonly IUiThreadDispatcher dispatcher;
@@ -60,8 +60,9 @@ internal sealed class InboundSyncFixture : IDisposable
         Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Sources, Tracks, Segments,
         Publication, new InlineBackgroundTaskRunner(), dispatcher);
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        await Database.DisposeAsync();
         Bikes.Dispose();
         Setups.Dispose();
         Boards.Dispose();

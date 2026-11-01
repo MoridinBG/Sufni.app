@@ -390,9 +390,9 @@ public class SyncCoordinatorTests
         int missingProcessedSessionCount,
         int incompleteRecordedSourceCount) =>
         Task.FromResult<SynchronizationRunResult>(
-            new SynchronizationRunResult.IncompleteLocalData(
+            new SynchronizationRunResult.IncompleteData(
                 missingProcessedSessionCount,
-                incompleteRecordedSourceCount));
+                incompleteRecordedSourceCount, []));
 
     [Fact]
     public void ServerSyncActivity_DrivesRunningStateAndProgress()

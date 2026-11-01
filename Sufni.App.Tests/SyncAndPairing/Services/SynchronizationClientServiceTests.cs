@@ -33,6 +33,58 @@ public class SynchronizationClientServiceTests
         harness.CreateSynchronizationClientService();
 
     [Fact]
+    public async Task SyncAll_OneUploadGetsConflict_OtherItemsComplete_AndPendingItemRetriesAfterRestart()
+    {
+        using var file = new TempDatabase();
+        var database = new TestPersistenceHarness(file.DatabasePath);
+        await database.PutAsync(new Board(Guid.NewGuid(), null));
+        var bound = await database.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
+        var rejectedId = Guid.NewGuid();
+        var acceptedId = Guid.NewGuid();
+        var uploads = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+        var retry = false;
+        sessionRepository.GetSessionRawPsstWithFingerprintAsync(Arg.Any<Guid>())
+            .Returns(Task.FromResult<(byte[] Data, string? Fingerprint)?>(([1, 2, 3], "target")));
+        Task<System.Net.Http.HttpResponseMessage> Send(System.Net.Http.HttpRequestMessage request, CancellationToken token)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == SynchronizationProtocol.EndpointPairRefresh)
+                return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(
+                    SyncTestServerHarness.CreateAccessToken(harness.Time.GetUtcNow().AddMinutes(10)), "refresh-2")));
+            if (path == SynchronizationProtocol.EndpointSyncPull)
+                return Task.FromResult(SyncTestServerHarness.Json(new SynchronizationData()));
+            if (path == SynchronizationProtocol.EndpointSyncPush)
+                return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.NoContent));
+            if (path == SynchronizationProtocol.EndpointSessionIncomplete)
+                return Task.FromResult(SyncTestServerHarness.Json(retry ? new[] { rejectedId } : [rejectedId, acceptedId]));
+            if (path == SynchronizationProtocol.EndpointSessionSourceIncomplete)
+                return Task.FromResult(SyncTestServerHarness.Json(Array.Empty<Guid>()));
+            var id = Guid.Parse(path[SynchronizationProtocol.EndpointSessionData.Length..]);
+            uploads.Add(id);
+            return Task.FromResult(new System.Net.Http.HttpResponseMessage(id == rejectedId && !retry
+                ? System.Net.HttpStatusCode.Conflict : System.Net.HttpStatusCode.NoContent));
+        }
+
+        var first = await harness.CreateSynchronizationClientService(database.SyncDataStore, harness.CreateHttpApiService(Send))
+            .SyncAll(cancellationToken: TestContext.Current.CancellationToken);
+
+        var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteData>(first);
+        Assert.Equal(new SynchronizationPendingTransfer(rejectedId, SynchronizationTransferKind.ProcessedSession, SynchronizationDirection.Push),
+            Assert.Single(incomplete.PendingTransfers));
+        Assert.Contains(acceptedId, uploads);
+        Assert.Equal(bound, await database.GetLastPushSequenceAsync(SynchronizationClientService.SyncStateKey));
+
+        retry = true;
+        var reopened = new TestPersistenceHarness(file.DatabasePath);
+        var second = await harness.CreateSynchronizationClientService(reopened.SyncDataStore, harness.CreateHttpApiService(Send))
+            .SyncAll(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.IsType<SynchronizationRunResult.Completed>(second);
+        Assert.Equal(2, uploads.Count(id => id == rejectedId));
+        Assert.Equal(1, uploads.Count(id => id == acceptedId));
+    }
+
+    [Fact]
     public async Task SyncAll_UpgradeBaselinePullsFirst_AndRetainsNewerHubContentOnBothDevices()
     {
         using var clientFile = new TempDatabase();
@@ -259,13 +311,15 @@ public class SynchronizationClientServiceTests
             .Returns((IReadOnlyList<SessionBlobSwap>)[new SessionBlobSwap(sessionId, """{"target":true}""", new SessionProcessedGeneration(80))]);
         sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
         // The peer does not yet hold the target BLOB, so the swap cannot commit.
-        httpApiService.GetSessionPsstAsync(sessionId).Returns((SessionBlobPayload?)null);
+        httpApiService.GetSessionPsstAsync(sessionId).Returns(new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending));
 
         var result = await CreateService().SyncAll();
 
         // The pull cursor stays back so the next run re-derives and retries the swap;
         // advancing it would strand the swap permanently (BLOB writes do not bump updated).
-        Assert.IsType<SynchronizationRunResult.Completed>(result);
+        var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteData>(result);
+        Assert.Equal(new SynchronizationPendingTransfer(sessionId, SynchronizationTransferKind.ProcessedSession, SynchronizationDirection.Pull),
+            Assert.Single(incomplete.PendingTransfers));
         await harness.SessionSyncApplier.DidNotReceive().ApplyDownloadedAsync(
             Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), Arg.Any<string?>(), Arg.Any<SessionProcessedGeneration?>());
         await syncDataStore.Received(1).UpdateLastPushSequenceAsync(
@@ -294,10 +348,10 @@ public class SynchronizationClientServiceTests
         httpApiService.GetSessionPsstAsync(id).Returns(_ =>
         {
             current = new Session(id, "ride", "notes", null) { ProcessingFingerprintJson = "newer", ProcessedTelemetryRevision = 2 };
-            return new SessionBlobPayload("target", [1, 2, 3]);
+            return new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload("target", [1, 2, 3]), SynchronizationTransferStatus.Completed);
         });
         harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), "target", new SessionProcessedGeneration(80))
-            .Returns(SessionDataApplyResult.Superseded);
+            .Returns(SessionDataApplyResult.Pending);
 
         await CreateService().SyncAll();
 
@@ -307,8 +361,10 @@ public class SynchronizationClientServiceTests
         await syncDataStore.DidNotReceive().UpdateLastPullSequenceAsync(SynchronizationClientService.SyncStateKey, Arg.Any<long>());
     }
 
-    [Fact]
-    public async Task SyncAll_CommitsSwapAndAdvancesPullCursor_WhenDownloadedFingerprintMatchesTarget()
+    [Theory]
+    [InlineData(SessionDataApplyResult.Applied)]
+    [InlineData(SessionDataApplyResult.Ignored)]
+    public async Task SyncAll_AdvancesPullCursor_WhenSwapIsAppliedOrIgnored(SessionDataApplyResult outcome)
     {
         var sessionId = Guid.NewGuid();
         const string target = """{"target":true}""";
@@ -323,8 +379,10 @@ public class SynchronizationClientServiceTests
                 sessionId,
                 target,
                 targetGeneration)]);
-        httpApiService.GetSessionPsstAsync(sessionId).Returns(new SessionBlobPayload(target, [1, 2, 3]));
+        httpApiService.GetSessionPsstAsync(sessionId).Returns(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(target, [1, 2, 3]), SynchronizationTransferStatus.Completed));
         sessionRepository.GetSessionAsync(sessionId).Returns(new Session(sessionId, "current", "", null));
+        harness.SessionSyncApplier.ApplyDownloadedAsync(Arg.Any<SessionSnapshot>(), Arg.Any<SessionBlobPayload>(), target, targetGeneration)
+            .Returns(outcome);
 
         await CreateService().SyncAll();
 
@@ -356,13 +414,13 @@ public class SynchronizationClientServiceTests
             .Returns([(fillId, fillFingerprint)]);
 
         var fillRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var fillDownload = new TaskCompletionSource<SessionBlobPayload?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fillDownload = new TaskCompletionSource<SynchronizationTransferResult<SessionBlobPayload>>(TaskCreationOptions.RunContinuationsAsynchronously);
         httpApiService.GetSessionPsstAsync(fillId).Returns(_ =>
         {
             fillRequested.TrySetResult();
             return fillDownload.Task;
         });
-        httpApiService.GetSessionPsstAsync(swapId).Returns(new SessionBlobPayload(swapTarget, [1, 2, 3]));
+        httpApiService.GetSessionPsstAsync(swapId).Returns(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(swapTarget, [1, 2, 3]), SynchronizationTransferStatus.Completed));
         sessionRepository.GetSessionAsync(fillId).Returns(new Session(fillId, "fill", "", null));
         sessionRepository.GetSessionAsync(swapId).Returns(new Session(swapId, "swap", "", null));
 
@@ -372,7 +430,7 @@ public class SynchronizationClientServiceTests
         await fillRequested.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId);
 
-        fillDownload.SetResult(new SessionBlobPayload(fillFingerprint, [4, 5, 6]));
+        fillDownload.SetResult(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(fillFingerprint, [4, 5, 6]), SynchronizationTransferStatus.Completed));
         await syncTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await httpApiService.Received(1).GetSessionPsstAsync(swapId);
@@ -392,7 +450,7 @@ public class SynchronizationClientServiceTests
     }
 
     [Fact]
-    public async Task SyncAll_ReturnsIncompleteLocalData_WhenCompletenessVerificationFindsMissingData()
+    public async Task SyncAll_ReturnsIncompleteData_WhenCompletenessVerificationFindsMissingData()
     {
         syncDataStore.GetLastPushSequenceAsync(SynchronizationClientService.SyncStateKey).Returns(5);
         syncDataStore.GetLastPullSequenceAsync(SynchronizationClientService.SyncStateKey).Returns(5);
@@ -403,7 +461,7 @@ public class SynchronizationClientServiceTests
 
         var result = await CreateService().SyncAll();
 
-        var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteLocalData>(result);
+        var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteData>(result);
         Assert.Equal(2, incomplete.MissingProcessedSessionCount);
         Assert.Equal(1, incomplete.IncompleteRecordedSourceCount);
         await syncDataStore.Received(1).UpdateLastPushSequenceAsync(
@@ -533,7 +591,7 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([source.SessionId]);
-        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(transfer);
+        httpApiService.GetRecordedSessionSourceAsync(source.SessionId).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(transfer, SynchronizationTransferStatus.Completed));
         var storedSnapshot = RecordedSessionSourceSnapshot.From(source);
         if (outcome == PulledRecordedSourceOutcome.ExistingSource)
         {
@@ -598,8 +656,8 @@ public class SynchronizationClientServiceTests
         syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
         httpApiService.PullSyncAsync(5).Returns(new SynchronizationData { UpperBound = 12 });
         recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync().Returns([first.SessionId, second.SessionId]);
-        httpApiService.GetRecordedSessionSourceAsync(first.SessionId).Returns(firstTransfer);
-        httpApiService.GetRecordedSessionSourceAsync(second.SessionId).Returns(secondTransfer);
+        httpApiService.GetRecordedSessionSourceAsync(first.SessionId).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(firstTransfer, SynchronizationTransferStatus.Completed));
+        httpApiService.GetRecordedSessionSourceAsync(second.SessionId).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(secondTransfer, SynchronizationTransferStatus.Completed));
 
         await CreateService().SyncAll();
 

@@ -19,7 +19,7 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Video.Services;
 namespace Sufni.App.Tests.TestSupport.Persistence;
 
-internal sealed class TestPersistenceHarness
+internal sealed class TestPersistenceHarness : IAsyncDisposable
 {
     private readonly SqliteConnectionContext context;
     private readonly TimeProvider timeProvider;
@@ -29,6 +29,7 @@ internal sealed class TestPersistenceHarness
     private readonly IRecordedSessionSourceRepository recordedSessionSourceRepository;
     private readonly ISyncDataStore syncDataStore;
     private readonly ILocalDeviceIdentity localDeviceIdentity;
+    private readonly StorePublication publication;
 
     public TestPersistenceHarness(string databasePath, TimeProvider? timeProvider = null, string writerId = "test-device")
     {
@@ -41,7 +42,7 @@ internal sealed class TestPersistenceHarness
         sessionTelemetryProcessor = new SessionTelemetryProcessor();
         recordedSessionSourceRepository = new RecordedSessionSourceRepository(context);
         var dispatcher = new InlineUiThreadDispatcher();
-        var publication = new StorePublication(dispatcher);
+        publication = new StorePublication(dispatcher);
         PublishedSessions = new SessionStore(publication);
         PublishedSources = new RecordedSessionSourceStore(publication);
         SessionSyncApplier = new SessionSyncApplier(PublishedSessions, sessionRepository, new InlineBackgroundTaskRunner(),
@@ -59,6 +60,14 @@ internal sealed class TestPersistenceHarness
     }
 
     public ISyncDataStore SyncDataStore => syncDataStore;
+
+    public async ValueTask DisposeAsync()
+    {
+        await context.DisposeAsync();
+        PublishedSessions.Dispose();
+        PublishedSources.Dispose();
+        publication.Dispose();
+    }
     public ISessionBlobSwapRequestStore SwapRequests => new SessionBlobSwapRequestStore(context);
     public ISessionRepository SessionRepository => sessionRepository;
     public IRecordedSessionSourceRepository SourceRepository => recordedSessionSourceRepository;
