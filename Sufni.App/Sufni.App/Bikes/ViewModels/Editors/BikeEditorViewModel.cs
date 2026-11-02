@@ -51,7 +51,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     private readonly CancellableOperation leverageRatioImportOperation = new();
     // Guard edit-time callbacks while a snapshot is being applied.
     private bool isReplacingState;
-    private bool suppressRearSuspensionModeChange;
 
     #endregion Private fields
 
@@ -102,8 +101,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     public LinkageEditorViewModel LinkageEditor { get; } = new();
     public LeverageRatioBikeEditorViewModel LeverageRatioEditor { get; }
 
-    [ObservableProperty] public partial bool CanChangeRearSuspensionMode { get; set; }
-    [ObservableProperty] public partial RearSuspensionKind RearSuspensionMode { get; set; }
+    public bool CanChangeRearSuspensionMode { get; }
+    [ObservableProperty] public partial RearSuspensionKind RearSuspensionMode { get; private set; }
 
     public bool HasRearSuspension => RearSuspensionMode != RearSuspensionKind.None;
     public bool IsHardtailMode => RearSuspensionMode == RearSuspensionKind.None;
@@ -162,17 +161,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         OnPropertyChanged(nameof(RearSuspensionModeDisplayName));
         NotifyEditorCommandStatesChanged();
 
-        if (suppressRearSuspensionModeChange || IsReplacingState)
-        {
-            return;
-        }
-
-        _ = HandleRearSuspensionModeChangedAsync(oldValue, newValue);
-    }
-
-    partial void OnCanChangeRearSuspensionModeChanged(bool value)
-    {
-        LeverageRatioEditor.CanEdit = value;
     }
 
     #endregion Property change handlers
@@ -187,11 +175,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
+        InputCapabilities inputCapabilities,
         TimeProvider timeProvider)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
+        CanChangeRearSuspensionMode = inputCapabilities.HasPointer;
         IsInDatabase = !isNew;
         draftBase = BikeDraft.From(snapshot);
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
@@ -278,7 +268,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         ForksStroke = snapshot.ForkStroke;
         ShockStroke = snapshot.ShockStroke;
 
-        SetRearSuspensionModeSilently(snapshot.RearSuspension.Kind);
+        RearSuspensionMode = snapshot.RearSuspension.Kind;
         ApplyRearSuspension(snapshot.RearSuspension, snapshot);
         WheelGeometry.ApplySnapshot(snapshot);
     }
@@ -627,57 +617,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         QueuePlotRefresh(showPlotBusyOverlay: false);
     }
 
-    private async Task HandleRearSuspensionModeChangedAsync(
-        RearSuspensionKind oldValue,
-        RearSuspensionKind newValue)
-    {
-        if (oldValue == newValue)
-        {
-            return;
-        }
-
-        if (HasOutgoingPayload(oldValue))
-        {
-            var confirmed = await dialogService.ShowConfirmationAsync(
-                "Discard rear suspension data?",
-                $"Switching to {ModeLabel(newValue)} will discard the current {ModeLabel(oldValue)} data. Continue?");
-            if (!confirmed)
-            {
-                SetRearSuspensionModeSilently(oldValue);
-                return;
-            }
-        }
-
-        ResetOutgoingPayload(oldValue);
-
-        if (newValue == RearSuspensionKind.None)
-        {
-            ShockStroke = null;
-        }
-
-        if (newValue == RearSuspensionKind.Linkage)
-        {
-            EnsureLinkageSeeded();
-        }
-
-        EvaluateDirtiness();
-        NotifyEditorCommandStatesChanged();
-        QueuePlotRefresh(showPlotBusyOverlay: false);
-    }
-
-    private void SetRearSuspensionModeSilently(RearSuspensionKind mode)
-    {
-        suppressRearSuspensionModeChange = true;
-        try
-        {
-            RearSuspensionMode = mode;
-        }
-        finally
-        {
-            suppressRearSuspensionModeChange = false;
-        }
-    }
-
     private bool HasOutgoingPayload(RearSuspensionKind mode)
     {
         return mode switch
@@ -886,15 +825,42 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Commands
 
-    [RelayCommand]
-    private void SetRearSuspensionMode(RearSuspensionKind mode)
+    [RelayCommand(CanExecute = nameof(CanChangeRearSuspensionMode))]
+    private async Task SetRearSuspensionMode(RearSuspensionKind newValue)
     {
-        if (!CanChangeRearSuspensionMode || RearSuspensionMode == mode)
+        var oldValue = RearSuspensionMode;
+        if (!CanChangeRearSuspensionMode || oldValue == newValue)
         {
             return;
         }
 
-        RearSuspensionMode = mode;
+        if (HasOutgoingPayload(oldValue))
+        {
+            var confirmed = await dialogService.ShowConfirmationAsync(
+                "Discard rear suspension data?",
+                $"Switching to {ModeLabel(newValue)} will discard the current {ModeLabel(oldValue)} data. Continue?");
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
+        RearSuspensionMode = newValue;
+        ResetOutgoingPayload(oldValue);
+
+        if (newValue == RearSuspensionKind.None)
+        {
+            ShockStroke = null;
+        }
+
+        if (newValue == RearSuspensionKind.Linkage)
+        {
+            EnsureLinkageSeeded();
+        }
+
+        EvaluateDirtiness();
+        NotifyEditorCommandStatesChanged();
+        QueuePlotRefresh(showPlotBusyOverlay: false);
     }
 
     [RelayCommand]

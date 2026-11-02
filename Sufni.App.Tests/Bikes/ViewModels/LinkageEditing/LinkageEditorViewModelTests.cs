@@ -2,6 +2,7 @@ using Avalonia.Headless.XUnit;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.ViewModels.LinkageEditing;
+using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.Tests.TestSupport.Fixtures;
 namespace Sufni.App.Tests.Bikes.ViewModels.LinkageEditing;
 
@@ -10,6 +11,25 @@ namespace Sufni.App.Tests.Bikes.ViewModels.LinkageEditing;
 public class LinkageEditorViewModelTests
 {
     private const string DetachedPointName = "Detached point";
+
+    [AvaloniaFact]
+    public void AddPoint_CreatesMovablePointAndPublishesStateChange()
+    {
+        var viewModel = new LinkageEditorViewModel();
+        var changed = 0;
+        viewModel.StateChanged += (_, _) => changed++;
+
+        viewModel.AddPoint(37, 92);
+
+        var point = Assert.Single(viewModel.JointViewModels);
+        Assert.Equal(37, point.X);
+        Assert.Equal(92, point.Y);
+        Assert.Equal(Immutability.Modifiable, point.Immutability);
+        Assert.Equal(1, changed);
+        viewModel.SelectPointCommand.Execute(point);
+        viewModel.DeleteSelectedItemCommand.Execute(null);
+        Assert.Empty(viewModel.JointViewModels);
+    }
 
     [AvaloniaFact]
     public void Load_RoundTripsBaselineLinkage_WithoutJointOrLinkDifferences()
@@ -73,18 +93,23 @@ public class LinkageEditorViewModelTests
         var point = Assert.Single(viewModel.JointViewModels, joint => joint.Type == JointType.FrontWheel);
         var link = Assert.Single(viewModel.LinkViewModels, item => item.Name == "Shock");
 
-        viewModel.SelectedPoint = point;
+        viewModel.SelectPointCommand.Execute(point);
 
         Assert.Same(point, viewModel.SelectedPoint);
         Assert.True(point.IsSelected);
         Assert.Null(viewModel.SelectedLink);
 
-        viewModel.SelectedLink = link;
+        viewModel.SelectLinkCommand.Execute(link);
 
         Assert.Null(viewModel.SelectedPoint);
         Assert.Same(link, viewModel.SelectedLink);
         Assert.False(point.IsSelected);
         Assert.True(link.IsSelected);
+
+        viewModel.ClearSelectionCommand.Execute(null);
+        Assert.Null(viewModel.SelectedPoint);
+        Assert.Null(viewModel.SelectedLink);
+        Assert.False(link.IsSelected);
     }
 
     [AvaloniaFact]

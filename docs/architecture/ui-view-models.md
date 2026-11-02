@@ -156,7 +156,10 @@ There are five kinds of view model in the presentation layer:
   inputs without their own saved baselines or JSON serialization. `SetupCoordinator`
   builds the persisted row and sensor JSON after applying shared `SetupSaveRules`.
   Imported bikes enter the factory as a validated `BikeDraft` on `EditorKey.NewBike`;
-  they do not replace another editor’s draft.
+  they do not replace another editor’s draft. Rear-suspension mode changes are
+  awaited commands gated by the composed pointer capability; a pending or declined
+  confirmation preserves the existing draft. The linkage canvas translates Avalonia
+  gestures into point coordinates and selection commands before calling its editor.
   Editors derive editable state from the snapshot in `ResetImplementation`,
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
   `SaveResult.Conflict` they prompt the user via

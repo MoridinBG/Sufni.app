@@ -6,8 +6,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using Avalonia;
-using Avalonia.Controls.Shapes;
-using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.Kinematics;
@@ -459,15 +457,13 @@ public partial class LinkageEditorViewModel : ObservableObject
         };
     }
 
-    [RelayCommand]
-    private void DoubleTapped(TappedEventArgs args)
+    public void AddPoint(double x, double y)
     {
-        var position = args.GetPosition(args.Source as Visual);
-        jointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, position.X, position.Y, true));
+        jointViewModels.Add(new JointViewModel($"Point{pointNumber++}", JointType.Floating, x, y, true));
     }
 
     [RelayCommand]
-    private void Tapped()
+    private void ClearSelection()
     {
         SelectedLink = null;
         SelectedPoint = null;
@@ -475,29 +471,21 @@ public partial class LinkageEditorViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void PointTapped(TappedEventArgs args)
+    private void SelectPoint(JointViewModel point)
     {
-        if (args.Source is not Visual visual) return;
-
         ClearSelections();
         SelectedLink = null;
-        SelectedPoint = visual.DataContext as JointViewModel;
-        SelectedPoint?.IsSelected = true;
-
-        args.Handled = true;
+        SelectedPoint = point;
+        point.IsSelected = true;
     }
 
     [RelayCommand]
-    private void LinkTapped(TappedEventArgs args)
+    private void SelectLink(LinkViewModel link)
     {
-        if (args.Source is not Line line) return;
-
         ClearSelections();
         SelectedPoint = null;
-        SelectedLink = line.DataContext as LinkViewModel;
-        SelectedLink?.IsSelected = true;
-
-        args.Handled = true;
+        SelectedLink = link;
+        link.IsSelected = true;
     }
 
     [RelayCommand]

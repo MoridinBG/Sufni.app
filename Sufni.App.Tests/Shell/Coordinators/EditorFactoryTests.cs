@@ -1,4 +1,6 @@
 using Sufni.App.Acquisition.Coordinators;
+using Sufni.App.Infrastructure;
+using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Acquisition;
 using NSubstitute;
 using Sufni.App.Acquisition.ViewModels;
@@ -13,6 +15,21 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 
 public class EditorFactoryTests
 {
+    [Theory]
+    [InlineData(UiLayoutProfile.Compact, true)]
+    [InlineData(UiLayoutProfile.Compact, false)]
+    [InlineData(UiLayoutProfile.Workspace, true)]
+    [InlineData(UiLayoutProfile.Workspace, false)]
+    public void CreateEditor_ModeEditingUsesInputCapabilityIndependentlyOfLayout(UiLayoutProfile layout, bool hasPointer)
+    {
+        var input = new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control);
+        var factory = TestEditorFactories.Create(appEnvironment: TestAppEnvironment.Create(layout, input: input));
+
+        var editor = Assert.IsType<BikeEditorViewModel>(factory.CreateEditor(new EditorKey.NewBike(), Substitute.For<IShellCoordinator>()));
+
+        Assert.Equal(hasPointer, editor.SetRearSuspensionModeCommand.CanExecute(Sufni.App.Bikes.Models.RearSuspensionKind.Linkage));
+    }
+
     [Fact]
     public void CreateEditor_ImportedBikeIsAnIndependentUnsavedDraft()
     {

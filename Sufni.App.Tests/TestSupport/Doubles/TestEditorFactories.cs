@@ -1,4 +1,5 @@
 using Sufni.App.Acquisition.Coordinators;
+using Sufni.App.Tests.TestSupport.Harness;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
@@ -42,7 +43,8 @@ internal static class TestEditorFactories
         ILiveDaqKnownBoardsQuery? knownBoards = null,
         ILiveDaqSharedStreamRegistry? streamRegistry = null,
         ILiveSessionServiceFactory? liveSessionFactory = null,
-        IImportSessionsCoordinator? importCoordinator = null)
+        IImportSessionsCoordinator? importCoordinator = null,
+        IAppEnvironment? appEnvironment = null)
     {
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var sessionAnalysisService = Substitute.For<ISessionInsightsService>();
@@ -84,7 +86,8 @@ internal static class TestEditorFactories
             new SessionOperationRunner(),
             new Microsoft.Extensions.Time.Testing.FakeTimeProvider(),
             new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler(),
-            Substitute.For<IRecordedSessionDomainQuery>());
+            Substitute.For<IRecordedSessionDomainQuery>(),
+            appEnvironment ?? TestAppEnvironment.Create(UiLayoutProfile.Workspace));
     }
 
 }

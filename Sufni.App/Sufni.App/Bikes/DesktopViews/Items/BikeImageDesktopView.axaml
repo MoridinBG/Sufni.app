@@ -34,16 +34,10 @@ mc:Ignorable="d">
     VerticalAlignment="Stretch"
     Focusable="True"
     Stretch="None"
-    ZoomSpeed="1.2">
+    ZoomSpeed="1.2"
+    DoubleTapped="Canvas_DoubleTapped"
+    Tapped="Canvas_Tapped">
 
-        <Interaction.Behaviors>
-            <EventTriggerBehavior EventName="DoubleTapped">
-                <InvokeCommandAction Command="{Binding LinkageEditor.DoubleTappedCommand}" PassEventArgsToCommand="True" />
-            </EventTriggerBehavior>
-            <EventTriggerBehavior EventName="Tapped">
-                <InvokeCommandAction Command="{Binding LinkageEditor.TappedCommand}" />
-            </EventTriggerBehavior>
-        </Interaction.Behaviors>
 
         <paz:ZoomBorder.KeyBindings>
             <KeyBinding Command="{Binding LinkageEditor.DeleteSelectedItemCommand}" Gesture="{shortcuts:ShortcutGesture Source=DesktopViews.Items.BikeImageDesktopView, Id=delete-selection}" />
@@ -158,12 +152,9 @@ mc:Ignorable="d">
                                 Stroke="{Binding Brush}"
                                 StrokeThickness="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.LinkStrokeThickness}"
                                 StartPoint="{Binding StartPoint}"
-                                EndPoint="{Binding EndPoint}">
-                                    <Interaction.Behaviors>
-                                        <EventTriggerBehavior EventName="Tapped">
-                                            <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.LinkTappedCommand}" PassEventArgsToCommand="True" />
-                                        </EventTriggerBehavior>
-                                    </Interaction.Behaviors>
+                                EndPoint="{Binding EndPoint}"
+                                Tapped="Link_Tapped">
+
                                 </Line>
                             </DataTemplate>
                         </SelectingItemsControl.ItemTemplate>
@@ -194,12 +185,8 @@ mc:Ignorable="d">
                         </SelectingItemsControl.ItemsPanel>
                         <SelectingItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <vl:JointView>
-                                    <Interaction.Behaviors>
-                                        <EventTriggerBehavior EventName="Tapped">
-                                            <InvokeCommandAction Command="{Binding $parent[v:BikeViewBase].((vm:BikeEditorViewModel)DataContext).LinkageEditor.PointTappedCommand}" PassEventArgsToCommand="True" />
-                                        </EventTriggerBehavior>
-                                    </Interaction.Behaviors>
+                                <vl:JointView Tapped="Point_Tapped">
+
                                 </vl:JointView>
                             </DataTemplate>
                         </SelectingItemsControl.ItemTemplate>

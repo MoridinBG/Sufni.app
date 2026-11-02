@@ -65,7 +65,8 @@ internal sealed class EditorFactory(
     ISessionOperationRunner sessionOperationRunner,
     TimeProvider timeProvider,
     IUiTimerScheduler uiTimerScheduler,
-    IRecordedSessionDomainQuery recordedSessionDomainQuery) : IEditorFactory
+    IRecordedSessionDomainQuery recordedSessionDomainQuery,
+    IAppEnvironment appEnvironment) : IEditorFactory
 {
     public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
@@ -93,6 +94,7 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher,
+            appEnvironment.Input,
             timeProvider: timeProvider);
 
     private SetupEditorViewModel CreateSetupEditor(SetupDetails details, bool isNew, IShellCoordinator shell) =>

@@ -6,6 +6,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using NSubstitute;
@@ -28,6 +29,28 @@ namespace Sufni.App.Tests.Bikes.Views.Editors;
 [Collection("Ui")]
 public class BikeEditorViewSmokeTests
 {
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DesktopModeButton_FollowsPointerCapability(bool hasPointer)
+    {
+        EnsureBikeEditorViewResources();
+        ViewTestHelpers.EnsurePlotViewStyle();
+        var view = new BikeEditorDesktopView { DataContext = CreateViewModel(hasPointer: hasPointer) };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        try
+        {
+            var splitView = Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
+            var controls = Assert.IsType<BikeImageControlsDesktopView>(splitView.Pane);
+            Assert.Equal(hasPointer, controls.FindControl<ToggleButton>("LinkageModeButton")!.IsEnabled);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     [AvaloniaFact]
     public async Task BikeEditorView_RendersBoundSummaryAndSharedChrome()
     {
@@ -186,7 +209,7 @@ public class BikeEditorViewSmokeTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    private static BikeEditorViewModel CreateViewModel(BikeSnapshot? snapshot = null, IDialogService? dialogService = null)
+    private static BikeEditorViewModel CreateViewModel(BikeSnapshot? snapshot = null, IDialogService? dialogService = null, bool hasPointer = true)
     {
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
@@ -200,8 +223,7 @@ public class BikeEditorViewSmokeTests
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
-        editor.CanChangeRearSuspensionMode = true;
+            new InlineUiThreadDispatcher(), TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input with { HasPointer = hasPointer }, timeProvider: new FakeTimeProvider());
         return editor;
     }
 
