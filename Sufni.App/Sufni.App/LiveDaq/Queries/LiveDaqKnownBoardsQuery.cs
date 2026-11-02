@@ -165,8 +165,7 @@ internal sealed class LiveDaqKnownBoardsQuery : ILiveDaqKnownBoardsQuery, IDispo
                 BikeName: record.BikeName!,
                 BikeData: bikeProcessingContext.BikeData,
                 TravelCalibration: calibration,
-                DampingSpeedCutoffs: bikeSnapshot.DampingSpeedCutoffs,
-                DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(bikeSnapshot.Id, bikeSnapshot.Updated)));
+                DampingSpeedCutoffs: bikeSnapshot.DampingSpeedCutoffs));
     }
 
     private static LiveDaqTravelChannelCalibration? CreateCalibration(

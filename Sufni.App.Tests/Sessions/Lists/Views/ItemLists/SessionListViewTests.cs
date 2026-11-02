@@ -159,7 +159,7 @@ public class SessionListViewTests
         var coordinator = TestCoordinatorSubstitutes.Session();
         var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
         recomputeEngine.RequestRecomputeAsync(snapshot.Id)
-            .Returns(new SessionRecomputeResult.Recomputed(snapshot.Updated + 1));
+            .Returns(new SessionRecomputeResult.Recomputed());
 
         var viewModel = new SessionListViewModel(projection, recomputeEngine, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(sessions: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SessionListView

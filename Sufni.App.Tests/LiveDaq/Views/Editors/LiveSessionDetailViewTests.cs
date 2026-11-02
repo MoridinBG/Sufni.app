@@ -119,8 +119,7 @@ public class LiveSessionDetailViewTests
             TravelCalibration: new LiveDaqTravelCalibration(
                 new LiveDaqTravelChannelCalibration(180, measurement => measurement),
                 new LiveDaqTravelChannelCalibration(170, measurement => measurement)),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default);
     }
 
     private static async Task<MountedLiveSessionDetailView> MountAsync(LiveSessionDetailViewModel editor)

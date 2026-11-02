@@ -137,7 +137,7 @@ internal class BikeCoordinator(
 
     public async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
         Guid bikeId,
-        long baselineUpdated,
+        double expectedCutoffMmPerSecond,
         SuspensionType side,
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond)
@@ -155,7 +155,7 @@ internal class BikeCoordinator(
             return new BikeDampingSpeedCutoffUpdateResult.Missing();
         }
 
-        if (current.Updated > baselineUpdated)
+        if (current.DampingSpeedCutoffs.Get(side, circuit) != expectedCutoffMmPerSecond)
         {
             logger.Warning("Bike damping speed cutoff update conflict for {BikeId}", bikeId);
             return new BikeDampingSpeedCutoffUpdateResult.Conflict(current);

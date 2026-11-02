@@ -25,7 +25,7 @@ public interface IBikeCoordinator
 
     Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
         Guid bikeId,
-        long baselineUpdated,
+        double expectedCutoffMmPerSecond,
         SuspensionType side,
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond);

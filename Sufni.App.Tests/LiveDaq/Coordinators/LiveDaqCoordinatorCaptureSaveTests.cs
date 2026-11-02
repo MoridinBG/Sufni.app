@@ -304,8 +304,7 @@ public partial class LiveDaqCoordinatorTests
             BikeName: "demo",
             BikeData: new BikeData(180, 170, measurement => measurement / 10.0, measurement => measurement / 10.0),
             TravelCalibration: new LiveDaqTravelCalibration(null, null),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
+            DampingSpeedCutoffs: DampingSpeedCutoffs.Default);
 
         return new LiveSessionCapturePackage(
             context,

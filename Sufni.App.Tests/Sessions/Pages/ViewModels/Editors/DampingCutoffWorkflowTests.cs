@@ -70,7 +70,7 @@ public class DampingCutoffWorkflowTests : IDisposable
     public async Task CommitAsync_OlderSavedOutcomeDoesNotOverwriteNewerProjectedCutoffs()
     {
         var pending = new TaskCompletionSource<BikeDampingSpeedCutoffUpdateResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.Updated, SuspensionType.Front, DampingSpeedCircuit.Rebound, 270)
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.DampingSpeedCutoffs.Front.ReboundMmPerSecond, SuspensionType.Front, DampingSpeedCircuit.Rebound, 270)
             .Returns(pending.Task);
         var commit = workflow.CommitAsync(SuspensionType.Front, DampingSpeedCircuit.Rebound, 266);
         var latest = bike with { FrontReboundDampingCutoffMmPerSecond = 500, Updated = 9 };
@@ -88,7 +88,7 @@ public class DampingCutoffWorkflowTests : IDisposable
     public async Task CommitAsync_ConflictRestoresProjectedCutoffsAndReportsConflict()
     {
         var latest = bike with { RearCompressionDampingCutoffMmPerSecond = 310, Updated = 9 };
-        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.Updated, SuspensionType.Rear, DampingSpeedCircuit.Compression, 500)
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.DampingSpeedCutoffs.Rear.CompressionMmPerSecond, SuspensionType.Rear, DampingSpeedCircuit.Compression, 500)
             .Returns(_ =>
             {
                 PublishBike(latest);
@@ -104,7 +104,7 @@ public class DampingCutoffWorkflowTests : IDisposable
     [Fact]
     public async Task CommitAsync_FailureRestoresCommittedValuesAndReportsDiagnostics()
     {
-        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.Updated, SuspensionType.Rear, DampingSpeedCircuit.Compression, 500)
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.DampingSpeedCutoffs.Rear.CompressionMmPerSecond, SuspensionType.Rear, DampingSpeedCircuit.Compression, 500)
             .Returns(new BikeDampingSpeedCutoffUpdateResult.Failed(BikeDampingCutoffFailureReason.Save, "disk full"));
         workflow.Preview(SuspensionType.Rear, DampingSpeedCircuit.Compression, 500);
 

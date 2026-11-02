@@ -25,7 +25,7 @@ public class SessionEditingCoordinatorTests
         sessionStore.Get(session.Id).Returns(session);
         sessionRepository.GetSessionAsync(session.Id).Returns(new Session(session.Id, session.Name, "", null));
         recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>())
-            .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed(1)));
+            .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed()));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class SessionEditingCoordinatorTests
 
         Assert.Equal(part2.Id, Assert.Single(progress.Reports).CreatedSessionId);
         Assert.False(operation.IsCompleted);
-        completion.SetResult(new SessionRecomputeResult.Recomputed(1));
+        completion.SetResult(new SessionRecomputeResult.Recomputed());
         var result = await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(new SessionEditResult.Applied(), result);

@@ -210,7 +210,7 @@ public class BikeCoordinatorTests : IDisposable
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             existing.Id,
-            baselineUpdated: 5,
+            expectedCutoffMmPerSecond: 120,
             SuspensionType.Front,
             DampingSpeedCircuit.Compression,
             237);
@@ -232,7 +232,7 @@ public class BikeCoordinatorTests : IDisposable
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             existing.Id,
-            baselineUpdated: 5,
+            expectedCutoffMmPerSecond: 200,
             SuspensionType.Rear,
             DampingSpeedCircuit.Rebound,
             2500);
@@ -243,14 +243,14 @@ public class BikeCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateDampingSpeedCutoffAsync_ReturnsConflict_WhenStoreIsNewer()
+    public async Task UpdateDampingSpeedCutoffAsync_ReturnsConflict_WhenTargetCutoffChangedAtSameTimestamp()
     {
-        var current = TestSnapshots.Bike(updated: 10);
+        var current = TestSnapshots.Bike(updated: 5) with { FrontReboundDampingCutoffMmPerSecond = 240 };
         await SeedAsync(current);
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             current.Id,
-            baselineUpdated: 5,
+            expectedCutoffMmPerSecond: 200,
             SuspensionType.Front,
             DampingSpeedCircuit.Rebound,
             300);
@@ -258,6 +258,24 @@ public class BikeCoordinatorTests : IDisposable
         var conflict = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(current.Id))!), current);
+    }
+
+    [Fact]
+    public async Task UpdateDampingSpeedCutoffAsync_PreservesUnrelatedMetadataAndCutoffChanges()
+    {
+        var current = TestSnapshots.Bike(name: "Renamed elsewhere", updated: 100) with
+        {
+            RearCompressionDampingCutoffMmPerSecond = 450,
+        };
+        await SeedAsync(current);
+
+        var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
+            current.Id, 200, SuspensionType.Front, DampingSpeedCircuit.Rebound, 310);
+
+        var saved = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(result);
+        Assert.Equal(current.Name, saved.Snapshot.Name);
+        Assert.Equal(450, saved.Snapshot.RearCompressionDampingCutoffMmPerSecond);
+        Assert.Equal(310, saved.Snapshot.FrontReboundDampingCutoffMmPerSecond);
     }
 
     [Fact]
@@ -269,7 +287,7 @@ public class BikeCoordinatorTests : IDisposable
 
         var result = await CreateCoordinator().UpdateDampingSpeedCutoffAsync(
             existing.Id,
-            baselineUpdated: 5,
+            expectedCutoffMmPerSecond: 200,
             SuspensionType.Front,
             DampingSpeedCircuit.Compression,
             300);

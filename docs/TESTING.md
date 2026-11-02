@@ -245,6 +245,7 @@ Code that usually does not need direct tests includes:
 Editor and coordinator tests should make the optimistic-concurrency mechanism explicit.
 
 - Bike, setup and recorded-session editors capture an immutable draft base. Coordinators compare the fields saved by that draft against current facts. Separate damping-cutoff, alignment, processing-option and derived updates must not conflict. Test an authored-field conflict even when `Updated` is unchanged, and preservation of unrelated changes when `Updated` has advanced.
+- Damping-cutoff commits compare only the selected side/circuit’s expected value. Test rejection after that value changes, preservation of unrelated metadata/cutoffs, and advancement from saved/conflict results.
 - Setup sensor comparisons use authored values, so JSON formatting alone is not a conflict. Saved snapshots advance the draft base while preserving edits made during persistence as dirty.
 - If the values diverge, the save should be rejected with the appropriate conflict path instead of silently overwriting newer data.
 - Tests should cover unchanged authored fields and a divergent draft base.

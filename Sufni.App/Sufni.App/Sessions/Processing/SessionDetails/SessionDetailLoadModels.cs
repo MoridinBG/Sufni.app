@@ -6,8 +6,6 @@ using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 namespace Sufni.App.Sessions.Processing.SessionDetails;
 
-public sealed record DampingSpeedCutoffOwner(Guid BikeId, long BaselineUpdated);
-
 public enum SessionDetailLoadStage
 {
     PreparingSession,
@@ -66,8 +64,7 @@ public sealed record SessionCachePresentationData(
     string? ReboundBalance,
     SessionDampingPercentages DampingPercentages,
     DampingSpeedCutoffs DampingSpeedCutoffs,
-    bool BalanceAvailable,
-    DampingSpeedCutoffOwner? DampingSpeedCutoffOwner = null)
+    bool BalanceAvailable)
 {
     public SessionCachePresentationData(
         string? FrontTravelDistribution,

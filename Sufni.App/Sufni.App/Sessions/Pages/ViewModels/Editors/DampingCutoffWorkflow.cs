@@ -30,7 +30,7 @@ internal sealed class DampingCutoffWorkflow(
         if (currentDomain()?.Bike is not { } bike) return;
         var committed = currentCutoffs().With(side, circuit, DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
         setCutoffs(committed, true);
-        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.Updated, side, circuit, committed.Get(side, circuit));
+        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.DampingSpeedCutoffs.Get(side, circuit), side, circuit, committed.Get(side, circuit));
         if (currentDomain()?.Bike?.Id != bike.Id) return;
         switch (result)
         {

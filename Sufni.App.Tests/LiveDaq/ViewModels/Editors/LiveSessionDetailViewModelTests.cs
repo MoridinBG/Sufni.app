@@ -428,7 +428,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
     {
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
         var bikeId = Guid.NewGuid();
-        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
         var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
         var savedCutoffs = initialCutoffs.With(SuspensionType.Front, DampingSpeedCircuit.Compression, 260);
         var savedBike = TestSnapshots.Bike(id: bikeId, updated: 8) with
@@ -440,22 +439,21 @@ public class LiveSessionDetailViewModelTests : IDisposable
         };
         bikeCoordinator.UpdateDampingSpeedCutoffAsync(
                 bikeId,
-                owner.BaselineUpdated,
+                initialCutoffs.Front.CompressionMmPerSecond,
                 SuspensionType.Front,
                 DampingSpeedCircuit.Compression,
                 260)
             .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(savedBike));
         var context = CreateSessionContext(
             bikeId: bikeId,
-            dampingSpeedCutoffs: initialCutoffs,
-            dampingSpeedCutoffOwner: owner);
+            dampingSpeedCutoffs: initialCutoffs);
         var editor = CreateEditor(context, bikeCoordinator);
 
         await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
 
         await bikeCoordinator.Received(1).UpdateDampingSpeedCutoffAsync(
             bikeId,
-            owner.BaselineUpdated,
+            initialCutoffs.Front.CompressionMmPerSecond,
             SuspensionType.Front,
             DampingSpeedCircuit.Compression,
             260);
@@ -468,15 +466,36 @@ public class LiveSessionDetailViewModelTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task DampingSpeedCutoffCommit_AdvancesExpectedValueFromSavedOrConflictResult(bool conflict)
+    {
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        var bike = TestSnapshots.Bike() with { FrontCompressionDampingCutoffMmPerSecond = 350 };
+        var initial = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, 100, SuspensionType.Front, DampingSpeedCircuit.Compression, 350)
+            .Returns(conflict ? new BikeDampingSpeedCutoffUpdateResult.Conflict(bike)
+                : new BikeDampingSpeedCutoffUpdateResult.Saved(bike));
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, 350, SuspensionType.Front, DampingSpeedCircuit.Compression, 400)
+            .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(bike with { FrontCompressionDampingCutoffMmPerSecond = 400 }));
+        var editor = CreateEditor(CreateSessionContext(bikeId: bike.Id, dampingSpeedCutoffs: initial), bikeCoordinator);
+
+        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Compression, 350);
+        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Compression, 400);
+
+        await bikeCoordinator.Received(1).UpdateDampingSpeedCutoffAsync(bike.Id, 350, SuspensionType.Front, DampingSpeedCircuit.Compression, 400);
+        Assert.Equal(400, editor.DampingSpeedCutoffs.Front.CompressionMmPerSecond);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task DampingSpeedCutoffCommitUnsuccessful_RestoresPersistedCutoffs(bool missingBike)
     {
         var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
         var bikeId = Guid.NewGuid();
-        var owner = new DampingSpeedCutoffOwner(bikeId, 7);
         var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
         bikeCoordinator.UpdateDampingSpeedCutoffAsync(
                 bikeId,
-                owner.BaselineUpdated,
+                initialCutoffs.Rear.ReboundMmPerSecond,
                 SuspensionType.Rear,
                 DampingSpeedCircuit.Rebound,
                 600)
@@ -484,8 +503,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 : new BikeDampingSpeedCutoffUpdateResult.Failed(BikeDampingCutoffFailureReason.Save, "disk full"));
         var context = CreateSessionContext(
             bikeId: bikeId,
-            dampingSpeedCutoffs: initialCutoffs,
-            dampingSpeedCutoffOwner: owner);
+            dampingSpeedCutoffs: initialCutoffs);
         var editor = CreateEditor(context, bikeCoordinator);
         editor.PreviewDampingSpeedCutoff(SuspensionType.Rear, DampingSpeedCircuit.Rebound, 600);
 
@@ -665,8 +683,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         bool hasFrontTravelCalibration = true,
         bool hasRearTravelCalibration = true,
         Guid? bikeId = null,
-        DampingSpeedCutoffs? dampingSpeedCutoffs = null,
-        DampingSpeedCutoffOwner? dampingSpeedCutoffOwner = null)
+        DampingSpeedCutoffs? dampingSpeedCutoffs = null)
     {
         var resolvedBikeId = bikeId ?? Guid.NewGuid();
         return new LiveDaqSessionContext(
@@ -681,8 +698,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
             TravelCalibration: new LiveDaqTravelCalibration(
                 hasFrontTravelCalibration ? CreateTravelCalibration(180) : null,
                 hasRearTravelCalibration ? CreateTravelCalibration(170) : null),
-            DampingSpeedCutoffs: dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default,
-            DampingSpeedCutoffOwner: dampingSpeedCutoffOwner ?? new DampingSpeedCutoffOwner(resolvedBikeId, 0));
+            DampingSpeedCutoffs: dampingSpeedCutoffs ?? DampingSpeedCutoffs.Default);
     }
 
     private static LiveDaqTravelChannelCalibration CreateTravelCalibration(double maxTravel)

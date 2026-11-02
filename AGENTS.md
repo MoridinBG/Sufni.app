@@ -149,8 +149,8 @@ The layer roles are consistent across slices:
   etc.). Each store has an `IXxxStore` (read-only) interface for VMs/queries and an
   `IXxxStoreWriter` (read+write) interface reserved for coordinators
   and the composition root. Snapshots are immutable records carrying
-  an `Updated` field. Session editors compare draft fields against an immutable
-  draft base; bike/setup editors currently compare timestamps. The shared
+  an `Updated` field. Bike, setup and session editors compare authored fields
+  against one immutable draft base. The shared
   `SourceCacheStoreBase` lives in `Shared/Base/`.
 - `<Slice>/Queries/` — cross-entity reads (`IBikeDependencyQuery` in `Bikes/`,
   `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
@@ -332,9 +332,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Stores** own shared read state via DynamicData
   `SourceCache<TSnapshot, TKey>`. Each store is exposed behind a
   read-only and a writer interface; only coordinators get the writer.
-  Persisted snapshots carry `Updated`; bike/setup editors currently compare that
-  timestamp, while session saves compare the authored fields in `SessionDraft`
-  against the draft base and current snapshot. Runtime-only stores (`LiveDaqStore`) omit `Updated` and
+  Persisted snapshots carry `Updated`; bike, setup and session saves compare
+  authored fields against the draft base and current snapshot. Runtime-only stores (`LiveDaqStore`) omit `Updated` and
   `RefreshAsync()`.
 - **Coordinators** own feature workflows: save/delete and
   synchronization-arrival handling. `SaveAsync` returns

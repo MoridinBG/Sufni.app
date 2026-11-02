@@ -80,7 +80,7 @@ Each persisted writer interface additionally exposes:
   Import, live save and recompute publish snapshots returned by persistence;
   sync prepares snapshots after applying transferred data. A committed write
   finishes publication without checking cancellation between those steps.
-- Bike save checks its snapshot baseline once after analysis, before writing;
+- Bike save compares authored draft-base fields once after validation, before writing;
   session metadata save has one check in its command service. Missing sessions
   are workflow outcomes, not store results. Stores have no mutation-result union.
 - The shared sync applier prepares authoritative snapshots off-thread and

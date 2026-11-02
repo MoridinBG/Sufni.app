@@ -132,8 +132,7 @@ internal sealed class LiveDaqDetailHarness
         BikeName: "demo",
         BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
         TravelCalibration: new LiveDaqTravelCalibration(null, null),
-        DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-        DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
+        DampingSpeedCutoffs: DampingSpeedCutoffs.Default);
 
     private void PublishStartResult(LivePreviewStartResult result)
     {

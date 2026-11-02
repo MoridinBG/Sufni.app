@@ -397,7 +397,7 @@ public sealed class SessionRecomputeEngine : ISessionRecomputeEngine, IDisposabl
             await DeletePreviousFullTrackIfOrphanedAsync(previousFullTrackId, sessionId);
 
             logger.Information("Recorded session recompute completed for {SessionId}", sessionId);
-            return new SessionRecomputeResult.Recomputed(snapshot.Updated);
+            return new SessionRecomputeResult.Recomputed();
         }
     }
 

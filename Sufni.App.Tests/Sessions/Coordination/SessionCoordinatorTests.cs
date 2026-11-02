@@ -298,7 +298,7 @@ public class SessionCoordinatorTests
                 optionSeenDuringRecompute = store.Get(original.Id)!.VelocityFilterWindowMilliseconds;
                 return Task.FromResult<SessionRecomputeResult>(fails
                     ? new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.NoTravelData)
-                    : new SessionRecomputeResult.Recomputed(1));
+                    : new SessionRecomputeResult.Recomputed());
             });
 
         var result = await CreateCoordinator(store, repository.Repository).SetProcessingOptionAsync(original.Id, 100);

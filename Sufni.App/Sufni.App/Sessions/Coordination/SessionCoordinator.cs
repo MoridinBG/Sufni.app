@@ -300,7 +300,7 @@ public abstract record SessionRecomputeResult
 {
     private SessionRecomputeResult() { }
 
-    public sealed record Recomputed(long NewBaselineUpdated) : SessionRecomputeResult;
+    public sealed record Recomputed : SessionRecomputeResult;
 
     /// <summary>
     /// A newer explicit recompute request displaced this run before it

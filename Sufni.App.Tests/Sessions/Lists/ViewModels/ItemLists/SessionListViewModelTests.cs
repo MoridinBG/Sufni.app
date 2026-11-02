@@ -135,7 +135,7 @@ public class SessionListViewModelTests
 
             var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
             recomputeEngine.RequestRecomputeAsync(summary.Id)
-                .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
+                .Returns(new SessionRecomputeResult.Recomputed());
 
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
             var row = Assert.Single(viewModel.Items);
@@ -264,7 +264,7 @@ public class SessionListViewModelTests
 
             var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
             recomputeEngine.RequestRecomputeAsync(summary.Id)
-                .Returns(new SessionRecomputeResult.Recomputed(summary.Updated + 1));
+                .Returns(new SessionRecomputeResult.Recomputed());
 
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
             var row = Assert.Single(viewModel.Items);

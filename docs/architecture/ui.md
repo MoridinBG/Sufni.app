@@ -370,7 +370,9 @@ Bike, setup and recorded-session saves return the persisted snapshot. Their edit
 retain one draft base and compare only the fields that their save writes;
 timestamp changes and separately owned cutoff/alignment/processing-option edits
 do not conflict. Bike saves preserve current damping cutoffs, while new imports
-seed their cutoffs from the file. Missing persisted bikes are not recreated by
+seed their cutoffs from the file. Cutoff commits compare only the selected
+side/circuit’s expected value; unrelated metadata and other cutoff changes are
+preserved. Live editors keep the persisted cutoff values as the next commit base. Missing persisted bikes are not recreated by
 an existing editor. A saved baseline retains edits made during persistence as
 dirty. Setup conflicts compare sensor values rather than serialized JSON formatting.
 Plot analysis is requested independently and never carried by the bike save result.
@@ -382,7 +384,7 @@ is no optimistic-concurrency baseline for an in-memory live capture.
 
 Recorded-session recompute follows the same explicit-result pattern but is
 **baseline-free**: `ISessionRecomputeEngine.RequestRecomputeAsync(sessionId)`
-returns `Recomputed(NewBaselineUpdated)`, `Superseded`,
+returns `Recomputed`, `Superseded`,
 `NotRecomputable(SessionStaleness)`, `Missing`, `Failed(reason, details)` or
 `ProcessingFailed(reason, details)`. The `SessionRecomputeEngine` owns per-session, cancel-and-replace serialization and
 recompute liveness, so a user's own recompute never false-conflicts: a run

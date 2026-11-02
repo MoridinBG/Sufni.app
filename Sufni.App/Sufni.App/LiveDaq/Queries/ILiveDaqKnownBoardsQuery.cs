@@ -33,8 +33,7 @@ public sealed record LiveDaqSessionContext(
     string BikeName,
     BikeData BikeData,
     LiveDaqTravelCalibration TravelCalibration,
-    DampingSpeedCutoffs DampingSpeedCutoffs,
-    DampingSpeedCutoffOwner DampingSpeedCutoffOwner)
+    DampingSpeedCutoffs DampingSpeedCutoffs)
 {
     public LiveDaqSessionContext(
         string IdentityKey,
@@ -56,8 +55,7 @@ public sealed record LiveDaqSessionContext(
             BikeName,
             BikeData,
             TravelCalibration,
-            DampingSpeedCutoffs.Default,
-            new DampingSpeedCutoffOwner(BikeId, 0))
+            DampingSpeedCutoffs.Default)
     {
     }
 }

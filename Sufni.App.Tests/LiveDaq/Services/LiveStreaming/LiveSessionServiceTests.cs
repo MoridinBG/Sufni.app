@@ -1440,8 +1440,7 @@ public class LiveSessionServiceTests
                 FrontMeasurementToTravel: measurement => measurement / 10.0,
                 RearMeasurementToTravel: measurement => measurement / 10.0),
             TravelCalibration: new LiveDaqTravelCalibration(null, null),
-            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default,
-            DampingSpeedCutoffOwner: new DampingSpeedCutoffOwner(Guid.Empty, 0));
+            DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default);
     }
 
     public enum GpsSpeedScenario

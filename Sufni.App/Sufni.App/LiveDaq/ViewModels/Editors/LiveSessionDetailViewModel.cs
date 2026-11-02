@@ -74,8 +74,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly List<Task> bakeTasks = [];
     private LiveAnalysisFailure? shownAnalysisFailure;
     private FailurePresentation? shownConnectionFailure;
-    private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
-    private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
+    private DampingSpeedCutoffs? persistedDampingSpeedCutoffs;
     private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
     private int selectedPageIndex;
 
@@ -86,7 +85,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public string? SetupName { get; }
     public Guid BikeId { get; }
     public string? BikeName { get; }
-    public bool CanEditDampingSpeedCutoffs => dampingSpeedCutoffOwner is not null;
+    public bool CanEditDampingSpeedCutoffs => persistedDampingSpeedCutoffs is not null;
     public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; } =
         new RelayCommand<TelemetryRangeSelection?>(_ => { });
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection => null;
@@ -254,7 +253,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         SetupName = context.SetupName;
         BikeId = context.BikeId;
         BikeName = context.BikeName;
-        dampingSpeedCutoffOwner = context.DampingSpeedCutoffOwner;
         persistedDampingSpeedCutoffs = context.DampingSpeedCutoffs.ClampValues();
         dampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         plotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
@@ -982,7 +980,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond)
     {
-        if (dampingSpeedCutoffOwner is null)
+        if (persistedDampingSpeedCutoffs is null)
         {
             return;
         }
@@ -1010,7 +1008,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingSpeedCircuit circuit,
         double cutoffMmPerSecond)
     {
-        if (dampingSpeedCutoffOwner is not { } owner || bikeCoordinator is null)
+        if (persistedDampingSpeedCutoffs is not { } draftBase || bikeCoordinator is null)
         {
             return;
         }
@@ -1024,8 +1022,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         PlotDampingSpeedCutoffs = committedCutoffs;
 
         var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
-            owner.BikeId,
-            owner.BaselineUpdated,
+            BikeId,
+            draftBase.Get(side, circuit),
             side,
             circuit,
             committedCutoffs.Get(side, circuit));
@@ -1033,34 +1031,33 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         switch (result)
         {
             case BikeDampingSpeedCutoffUpdateResult.Saved saved:
-                ApplyPersistedDampingSpeedCutoffs(saved.Snapshot.DampingSpeedCutoffs, saved.Snapshot.Updated);
+                ApplyPersistedDampingSpeedCutoffs(saved.Snapshot.DampingSpeedCutoffs);
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Conflict conflict:
-                ApplyPersistedDampingSpeedCutoffs(conflict.CurrentSnapshot.DampingSpeedCutoffs, conflict.CurrentSnapshot.Updated);
+                ApplyPersistedDampingSpeedCutoffs(conflict.CurrentSnapshot.DampingSpeedCutoffs);
                 ErrorMessages.Add(new FailurePresentation("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff."));
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Missing:
-                dampingSpeedCutoffOwner = null;
+                persistedDampingSpeedCutoffs = null;
                 OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
-                DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                DampingSpeedCutoffs = draftBase;
+                PlotDampingSpeedCutoffs = draftBase;
                 break;
 
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
-                DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
-                PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
+                DampingSpeedCutoffs = draftBase;
+                PlotDampingSpeedCutoffs = draftBase;
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
 
-    private void ApplyPersistedDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs, long baselineUpdated)
+    private void ApplyPersistedDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
     {
         persistedDampingSpeedCutoffs = cutoffs.ClampValues();
         dampingSpeedCutoffPreviewOrigin = null;
-        dampingSpeedCutoffOwner = new DampingSpeedCutoffOwner(BikeId, baselineUpdated);
         OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         PlotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
