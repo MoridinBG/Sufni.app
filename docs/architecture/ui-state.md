@@ -89,13 +89,12 @@ Each persisted writer interface additionally exposes:
   this publication. Source
   publication contains only metadata; payload reads use the source repository.
 
-Snapshots are immutable records, not view models. Snapshots for
-editor-backed persisted entities such as bikes, setups, and sessions
-carry an `Updated` timestamp that the editors keep as their
-`BaselineUpdated` for optimistic conflict detection. Runtime-only or
-metadata-only snapshots that are not edited through that flow, such as
-`LiveDaqSnapshot`, `PairedDeviceSnapshot`, and
-`RecordedSessionSourceSnapshot`, do not expose an editor baseline.
+Snapshots are immutable records, not view models. Persisted entities carry
+an authored `Updated` timestamp. Bike/setup editors currently retain that value
+as `BaselineUpdated`; recorded-session editors compare a `SessionDraft` with
+its immutable draft base instead. Runtime-only or metadata-only snapshots such
+as `LiveDaqSnapshot`, `PairedDeviceSnapshot`, and `RecordedSessionSourceSnapshot`
+do not expose an editor baseline.
 
 `TrackStore` holds each active track's content ID, fractional start/end time and
 local points revision. Pure selectors read `GetAll()` for a snapshot of that

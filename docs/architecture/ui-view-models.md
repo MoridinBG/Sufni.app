@@ -26,7 +26,8 @@ classDiagram
     }
 
     class EditorVM {
-        +Id, BaselineUpdated, IsInDatabase
+        +Id, IsInDatabase
+        +editable draft and saved base
       inherits TabPageViewModelBase command surface
     }
 

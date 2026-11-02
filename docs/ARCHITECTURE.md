@@ -206,6 +206,12 @@ background finalize pending deletes and flush logs while preserving tabs.
 
 The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state and cache mutation without repository dependencies; workflow owners persist and prepare snapshots for publication; view models depend on read-only store interfaces; writer interfaces are used by coordinators, session use-case services behind coordinators, sync appliers, transaction runners, and composition. Read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own user-facing workflows and long-lived event subscriptions; the shell owns navigation and editor creation; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and signal row hierarchy/expanded state, signal root-row height ratios, and desktop session-detail pane ratios are stored per session through app preferences.
 
+Recorded-session editors reduce each accepted input into one coherent state.
+Workspaces read that state, and the coordinator owns staleness choices, preference
+persistence and processing-option writes. Metadata saves compare authored draft
+fields to their saved base. Readiness, highlight ranges and plot statistics run
+as keyed background analysis; the UI only renders accepted results.
+
 Presentation-layer topics:
 
 - [Architectural Invariants](architecture/ui.md#architectural-invariants) — what each role owns
