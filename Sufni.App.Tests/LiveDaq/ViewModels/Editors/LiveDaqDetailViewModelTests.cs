@@ -15,6 +15,46 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 public class LiveDaqDetailViewModelTests
 {
     [Fact]
+    public async Task Availability_FollowsConnectionLockAndCurrentSetup()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor();
+        editor.SetTabActive(true);
+        await editor.LoadedCommand.ExecuteAsync(null);
+        Assert.True(editor.CanConnect);
+        Assert.False(editor.StartSessionCommand.CanExecute(null));
+
+        var connected = LiveDaqSharedStreamState.Empty with
+        {
+            ConnectionState = new LiveConnectionState.Connected(),
+            SessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(),
+            IsConfigurationLocked = true
+        };
+        harness.PublishStreamState(connected);
+        Assert.False(editor.CanConnect);
+        Assert.False(editor.CanDisconnect);
+        Assert.False(editor.AreRequestedRatesEnabled);
+        Assert.True(editor.StartSessionCommand.CanExecute(null));
+
+        harness.PublishStreamState(connected with { IsConfigurationLocked = false });
+        Assert.True(editor.CanDisconnect);
+        Assert.True(editor.AreRequestedRatesEnabled);
+        var commandChanged = false;
+        editor.StartSessionCommand.CanExecuteChanged += (_, _) => commandChanged = true;
+        harness.KnownBoardsQuery.GetSessionContext("board-1").Returns((Sufni.App.LiveDaq.Queries.LiveDaqSessionContext?)null);
+        harness.KnownBoardsChanges.OnNext([]);
+        Assert.True(commandChanged);
+        Assert.False(editor.CanStartSession);
+        Assert.False(editor.StartSessionCommand.CanExecute(null));
+
+        harness.PublishStreamState(connected with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline) });
+        Assert.False(editor.CanConnect);
+        Assert.False(editor.CanDisconnect);
+        Assert.False(editor.AreRequestedRatesEnabled);
+        await editor.PrepareCloseAsync();
+    }
+
+    [Fact]
     public async Task ConnectFailure_RendersSafeSummaryAndDiagnosticDetails()
     {
         var harness = new LiveDaqDetailHarness();

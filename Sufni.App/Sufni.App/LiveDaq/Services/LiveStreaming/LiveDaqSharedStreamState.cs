@@ -8,12 +8,7 @@ public sealed record LiveDaqSharedStreamState(
     LiveProtocolVersion ProtocolVersion = LiveProtocolVersion.V2)
 {
     public bool IsClosed => ConnectionState is LiveConnectionState.Closed;
-    public string? LastError => ConnectionState switch
-    {
-        LiveConnectionState.Closed closed => closed.Message,
-        LiveConnectionState.Disconnected disconnected => disconnected.Outcome?.Message,
-        _ => null
-    };
+    public string? LastError => ConnectionState.Message;
 
     public LiveDaqClientDropCounters ClientDropCounters { get; init; } = LiveDaqClientDropCounters.Empty;
 

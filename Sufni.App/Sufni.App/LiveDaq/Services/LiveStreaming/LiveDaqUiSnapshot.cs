@@ -6,26 +6,14 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 public sealed record LiveSessionContractSnapshot(
     uint? SessionId,
-    LiveSensorInstanceMask RequestedSensorMask,
-    LiveSensorInstanceMask AcceptedSensorMask,
-    uint? AcceptedTravelHz,
-    uint? AcceptedImuHz,
-    uint? AcceptedGpsFixHz,
     DateTimeOffset? SessionStartUtc,
-    IReadOnlyList<LiveImuLocation> ActiveImuLocations,
     uint? AcceptedTravelRateMhz = null,
     uint? AcceptedImuRateMhz = null,
     uint? AcceptedGpsRateMhz = null)
 {
     public static readonly LiveSessionContractSnapshot Empty = new(
         SessionId: null,
-        RequestedSensorMask: LiveSensorInstanceMask.None,
-        AcceptedSensorMask: LiveSensorInstanceMask.None,
-        AcceptedTravelHz: null,
-        AcceptedImuHz: null,
-        AcceptedGpsFixHz: null,
         SessionStartUtc: null,
-        ActiveImuLocations: [],
         AcceptedTravelRateMhz: null,
         AcceptedImuRateMhz: null,
         AcceptedGpsRateMhz: null);
@@ -40,7 +28,6 @@ public sealed record LiveSessionContractSnapshot(
 public sealed record LiveTravelUiSnapshot(
     bool FrontIsActive,
     bool RearIsActive,
-    bool HasData,
     ushort? FrontMeasurement,
     ushort? RearMeasurement,
     TimeSpan? SampleDelay,
@@ -53,7 +40,6 @@ public sealed record LiveTravelUiSnapshot(
     public static readonly LiveTravelUiSnapshot Empty = new(
         FrontIsActive: false,
         RearIsActive: false,
-        HasData: false,
         FrontMeasurement: null,
         RearMeasurement: null,
         SampleDelay: null,
@@ -62,7 +48,6 @@ public sealed record LiveTravelUiSnapshot(
 
 public sealed record LiveImuUiSnapshot(
     LiveImuLocation Location,
-    bool HasData,
     short? Ax,
     short? Ay,
     short? Az,
@@ -78,7 +63,6 @@ public sealed record LiveImuUiSnapshot(
 }
 
 public sealed record LiveGpsUiSnapshot(
-    bool HasData,
     GpsPreviewState PreviewState,
     DateTime? FixTimestampUtc,
     double? Latitude,
@@ -86,7 +70,6 @@ public sealed record LiveGpsUiSnapshot(
     uint QueueDepth)
 {
     public static readonly LiveGpsUiSnapshot Empty = new(
-        HasData: false,
         PreviewState: GpsPreviewState.NoFix,
         FixTimestampUtc: null,
         Latitude: null,
@@ -96,8 +79,6 @@ public sealed record LiveGpsUiSnapshot(
 
 public sealed record LiveDaqUiSnapshot(
     LiveConnectionState ConnectionState,
-    string ConnectionStateText,
-    string? LastError,
     DateTimeOffset? LastFrameReceivedUtc,
     LiveSessionContractSnapshot Session,
     LiveTravelUiSnapshot Travel,
@@ -106,13 +87,14 @@ public sealed record LiveDaqUiSnapshot(
 {
     public static readonly LiveDaqUiSnapshot Empty = new(
         ConnectionState: new LiveConnectionState.Disconnected(),
-        ConnectionStateText: ToConnectionStateText(new LiveConnectionState.Disconnected()),
-        LastError: null,
         LastFrameReceivedUtc: null,
         Session: LiveSessionContractSnapshot.Empty,
         Travel: LiveTravelUiSnapshot.Empty,
         Imus: [],
         Gps: LiveGpsUiSnapshot.Empty);
+
+    public string ConnectionStateText => ToConnectionStateText(ConnectionState);
+    public string? LastError => ConnectionState.Message;
 
     public bool HasAcceptedSession => Session.SessionId is not null;
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);

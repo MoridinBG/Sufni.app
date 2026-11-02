@@ -70,18 +70,29 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     [NotifyPropertyChangedFor(nameof(RearTravelText))]
     public partial LiveDaqUiSnapshot Snapshot { get; set; } = LiveDaqUiSnapshot.Empty;
 
-    [ObservableProperty]
-    public partial bool CanConnect { get; set; } = true;
+    public bool CanConnect => sharedStream.CurrentState.ConnectionState is LiveConnectionState.Disconnected
+        && HasRequestedSensors && managementAvailability.CanConnect;
 
-    [ObservableProperty]
-    public partial bool CanDisconnect { get; set; }
+    public bool CanDisconnect
+    {
+        get
+        {
+            var state = sharedStream.CurrentState;
+            return state.ConnectionState is LiveConnectionState.Connected && !state.IsConfigurationLocked;
+        }
+    }
 
-    [ObservableProperty]
-    public partial bool AreRequestedRatesEnabled { get; set; } = true;
+    public bool AreRequestedRatesEnabled
+    {
+        get
+        {
+            var state = sharedStream.CurrentState;
+            return !state.IsClosed && !state.IsConfigurationLocked;
+        }
+    }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(StartSessionCommand))]
-    public partial bool CanStartSession { get; set; }
+    public bool CanStartSession => sharedStream.CurrentState.ConnectionState is LiveConnectionState.Connected
+        && knownBoardsQuery.GetSessionContext(IdentityKey) is not null;
 
     [ObservableProperty]
     public partial bool IsManagementBusy { get; set; }
@@ -476,7 +487,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         var state = sharedStream.CurrentState;
         sessionState.ApplySharedSessionState(state.SessionHeader);
-        Snapshot = sessionState.CreateSnapshot(state.ConnectionState, state.LastError);
+        Snapshot = sessionState.CreateSnapshot(state.ConnectionState);
     }
 
     partial void OnSnapshotChanged(LiveDaqUiSnapshot value)
@@ -510,13 +521,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             if (failure is not null) ErrorMessages.Add(failure);
         }
         sessionState.ApplySharedSessionState(state.SessionHeader);
-        CanConnect = !state.IsClosed
-            && state.ConnectionState is LiveConnectionState.Disconnected
-            && HasRequestedSensors
-            && managementAvailability.CanConnect;
-        CanDisconnect = !state.IsClosed && !state.IsConfigurationLocked && state.ConnectionState is LiveConnectionState.Connected;
-        AreRequestedRatesEnabled = !state.IsClosed && !state.IsConfigurationLocked;
-        RefreshSessionAvailability(state.ConnectionState);
+        OnPropertyChanged(nameof(CanConnect));
+        OnPropertyChanged(nameof(CanDisconnect));
+        OnPropertyChanged(nameof(AreRequestedRatesEnabled));
+        NotifySessionAvailability();
         OnPropertyChanged(nameof(ConnectDisabledTooltip));
         RefreshSnapshot();
     }
@@ -536,11 +544,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         if (UiThreadDispatcher.CheckAccess())
         {
-            RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState);
+            NotifySessionAvailability();
             return;
         }
 
-        UiThreadDispatcher.Post(() => RefreshSessionAvailability(sharedStream.CurrentState.ConnectionState));
+        UiThreadDispatcher.Post(NotifySessionAvailability);
     }
 
     private void RefreshTravelCalibration()
@@ -574,10 +582,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     }
 
-    private void RefreshSessionAvailability(LiveConnectionState connectionState)
+    private void NotifySessionAvailability()
     {
-        CanStartSession = connectionState is LiveConnectionState.Connected
-            && knownBoardsQuery.GetSessionContext(IdentityKey) is not null;
+        OnPropertyChanged(nameof(CanStartSession));
+        StartSessionCommand.NotifyCanExecuteChanged();
     }
 
     private CancellationTokenSource BeginManagementOperation(CancellationToken cancellationToken)
@@ -649,11 +657,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RefreshConnectAvailability()
     {
-        var state = sharedStream.CurrentState;
-        CanConnect = !state.IsClosed
-            && state.ConnectionState is LiveConnectionState.Disconnected
-            && HasRequestedSensors
-            && managementAvailability.CanConnect;
+        OnPropertyChanged(nameof(CanConnect));
         OnPropertyChanged(nameof(ConnectDisabledTooltip));
     }
 

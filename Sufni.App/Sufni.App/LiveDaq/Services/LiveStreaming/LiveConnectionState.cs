@@ -5,13 +5,17 @@ public enum LiveStreamClosedReason { Offline, ProtocolChanged, ConnectionLost, T
 public abstract record LiveConnectionState
 {
     private LiveConnectionState() { }
-    public sealed record Disconnected(LivePreviewStartResult.NotStarted? Outcome = null) : LiveConnectionState;
+    public virtual string? Message => null;
+    public sealed record Disconnected(LivePreviewStartResult.NotStarted? Outcome = null) : LiveConnectionState
+    {
+        public override string? Message => Outcome?.Message;
+    }
     public sealed record Connecting : LiveConnectionState;
     public sealed record Connected : LiveConnectionState;
     public sealed record Disconnecting : LiveConnectionState;
     public sealed record Closed(LiveStreamClosedReason Reason, string? Details = null) : LiveConnectionState
     {
-        public string Message => Reason switch
+        public override string Message => Reason switch
         {
             LiveStreamClosedReason.Offline => "DAQ went offline.",
             LiveStreamClosedReason.ProtocolChanged => "DAQ protocol changed. Reopen the live tab.",

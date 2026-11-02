@@ -35,29 +35,24 @@ public class LiveDaqSessionStateTests
             CreateHeader(LiveV2FrameType.SessionStats, 5),
             new LiveSessionStats(700, 5, 4, 1, 3, 2, 0)));
 
-        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected());
 
         Assert.Equal(new LiveConnectionState.Connected(), snapshot.ConnectionState);
         Assert.Equal((uint)700, snapshot.Session.SessionId);
-        Assert.Equal(sessionHeader.RequestedSensorMask, snapshot.Session.RequestedSensorMask);
-        Assert.Equal(sessionHeader.AcceptedSensorMask, snapshot.Session.AcceptedSensorMask);
-        Assert.Equal((uint)200, snapshot.Session.AcceptedTravelHz);
+        Assert.Equal((uint)200_000, snapshot.Session.AcceptedTravelRateMhz);
         Assert.True(snapshot.Travel.FrontIsActive);
         Assert.True(snapshot.Travel.RearIsActive);
-        Assert.True(snapshot.Travel.HasData);
         Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
         Assert.Equal((ushort)222, snapshot.Travel.RearMeasurement);
         Assert.Equal((uint)5, snapshot.Travel.QueueDepth);
 
         Assert.Equal(2, snapshot.Imus.Count);
         Assert.Equal(LiveImuLocation.Frame, snapshot.Imus[0].Location);
-        Assert.True(snapshot.Imus[0].HasData);
         Assert.Equal((short)13, snapshot.Imus[0].Ax);
         Assert.Equal(LiveImuLocation.Rear, snapshot.Imus[1].Location);
         Assert.Equal((short)19, snapshot.Imus[1].Ax);
         Assert.Equal((uint)4, snapshot.Imus[0].QueueDepth);
 
-        Assert.True(snapshot.Gps.HasData);
         Assert.Equal(48.2, snapshot.Gps.Latitude);
         Assert.Equal(16.3, snapshot.Gps.Longitude);
         Assert.Equal((uint)1, snapshot.Gps.QueueDepth);
@@ -79,11 +74,10 @@ public class LiveDaqSessionStateTests
             new LiveBatchHeader(702, 0, 10, 123456789, 1),
             [new LiveTravelRecord(111, 0)]));
 
-        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected());
 
         Assert.True(snapshot.Travel.FrontIsActive);
         Assert.False(snapshot.Travel.RearIsActive);
-        Assert.True(snapshot.Travel.HasData);
         Assert.Equal((ushort)111, snapshot.Travel.FrontMeasurement);
         Assert.Null(snapshot.Travel.RearMeasurement);
     }
@@ -96,7 +90,7 @@ public class LiveDaqSessionStateTests
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 800);
         state.ApplySharedSessionState(sessionHeader);
 
-        var snapshotInitial = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshotInitial = state.CreateSnapshot(new LiveConnectionState.Connected());
         Assert.Null(snapshotInitial.Travel.SampleDelay);
 
         state.ApplyFrame(new LiveImuBatchFrame(
@@ -110,7 +104,7 @@ public class LiveDaqSessionStateTests
             CreateHeader(LiveV2FrameType.SessionStats, 3),
             new LiveSessionStats(800, 5, 4, 1, 3, 2, 0)));
 
-        var snapshotWithoutTravel = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshotWithoutTravel = state.CreateSnapshot(new LiveConnectionState.Connected());
         Assert.Null(snapshotWithoutTravel.Travel.SampleDelay);
 
         state.ApplyFrame(new LiveTravelBatchFrame(
@@ -119,7 +113,7 @@ public class LiveDaqSessionStateTests
             [new LiveTravelRecord(100, 200)]));
 
         time.Advance(TimeSpan.FromMilliseconds(750));
-        var snapshotWithTravel = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshotWithTravel = state.CreateSnapshot(new LiveConnectionState.Connected());
         Assert.Equal(TimeSpan.FromMilliseconds(750), snapshotWithTravel.Travel.SampleDelay);
     }
 
@@ -136,7 +130,7 @@ public class LiveDaqSessionStateTests
             new LiveBatchHeader(801, 0, 10, 123456789, 1),
             [new LiveTravelRecord(100, 200)]));
 
-        var snapshotWithoutImu = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshotWithoutImu = state.CreateSnapshot(new LiveConnectionState.Connected());
         Assert.All(snapshotWithoutImu.Imus, imu => Assert.Null(imu.SampleDelay));
 
         state.ApplyFrame(new LiveImuBatchFrame(
@@ -148,7 +142,7 @@ public class LiveDaqSessionStateTests
             ]));
 
         time.Advance(TimeSpan.FromMilliseconds(250));
-        var snapshotWithImu = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshotWithImu = state.CreateSnapshot(new LiveConnectionState.Connected());
         Assert.All(snapshotWithImu.Imus, imu => Assert.Equal(TimeSpan.FromMilliseconds(250), imu.SampleDelay));
     }
 
@@ -165,7 +159,7 @@ public class LiveDaqSessionStateTests
             expectsFinalStatus: true);
         state.ApplySharedSessionState(sessionHeader);
 
-        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected());
 
         Assert.Equal("Travel: 123.45 Hz", snapshot.Session.AcceptedTravelRateText);
         Assert.Equal("IMU: 100 Hz", snapshot.Session.AcceptedImuRateText);
@@ -186,12 +180,14 @@ public class LiveDaqSessionStateTests
 
         state.Reset();
 
-        var snapshot = state.CreateSnapshot(new LiveConnectionState.Disconnected(), null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Disconnected());
 
         Assert.Null(snapshot.Session.SessionId);
-        Assert.False(snapshot.Travel.HasData);
+        Assert.Null(snapshot.Travel.FrontMeasurement);
+        Assert.Null(snapshot.Travel.RearMeasurement);
         Assert.Empty(snapshot.Imus);
-        Assert.False(snapshot.Gps.HasData);
+        Assert.Null(snapshot.Gps.Latitude);
+        Assert.Null(snapshot.Gps.Longitude);
     }
 
     private static LiveFrameMetadata CreateHeader(LiveV2FrameType frameType, uint sequence) => new(sequence);
