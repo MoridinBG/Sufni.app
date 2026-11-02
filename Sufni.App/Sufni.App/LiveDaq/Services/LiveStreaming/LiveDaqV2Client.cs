@@ -15,7 +15,7 @@ namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 // Lifecycle: ConnectAsync (TCP) → StartPreviewAsync (sends START_LIVE, awaits ACK + SESSION_HEADER)
 //   → background socket receive loop drains bytes into a channel → background parse loop decodes
 //   frames and emits Events → StopPreviewAsync (sends STOP_LIVE, awaits STOP_ACK) →
-//   DisconnectAsync (tears down socket and both background loops).
+//   DisconnectAsync (tears down the socket and drains all pipeline loops).
 //
 // The socket drain loop and the parse loop both run off the UI thread on background tasks started
 // with Task.Factory.StartNew. Start/stop handshakes use a TaskCompletionSource that the caller
@@ -40,9 +40,8 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
     private readonly Subject<LiveDaqClientEvent> events = new();
     private readonly System.Threading.Lock eventsGate = new();
     private readonly System.Threading.Lock dropCountersGate = new();
-    // Serializes all public lifecycle methods (Connect, Start, Stop, Disconnect, Dispose) and
-    // the background receive loop's frame/disconnect handlers so that state mutations (pending TCS
-    // completions, stream/CTS swaps, disposed flag) never interleave.
+    private readonly SemaphoreSlim connectionGate = new(1, 1);
+    // Serializes state changes made by public operations and the frame pipeline.
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
 
     private readonly record struct RawFrameEnvelope(LiveV2FrameHeader Header, byte[] FrameBytes);
@@ -102,15 +101,22 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
-        await lifecycleGate.WaitAsync(cancellationToken);
+        await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             ThrowIfDisposed();
-            if (IsConnected)
-            {
-                return;
-            }
+            if (IsConnected) return;
+            await DisconnectCoreAsync(cancellationToken).ConfigureAwait(false);
+            await ConnectCoreAsync(host, port, cancellationToken).ConfigureAwait(false);
+        }
+        finally { connectionGate.Release(); }
+    }
 
+    private async Task ConnectCoreAsync(string host, int port, CancellationToken cancellationToken)
+    {
+        await lifecycleGate.WaitAsync(cancellationToken);
+        try
+        {
             logger.Debug("Connecting live DAQ client to {Host} {Port}", host, port);
 
             intentionalDisconnect = false;
@@ -285,6 +291,17 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
+        await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!isDisposed) await DisconnectCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    private async Task DisconnectCoreAsync(CancellationToken cancellationToken)
+    {
+        bool notifyDisconnected;
         Task? receiveLoopToAwait = null;
         Task? receiveParseToAwait = null;
         Task? receivePublishToAwait = null;
@@ -297,7 +314,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             }
 
             logger.Debug("Disconnecting live DAQ client intentionally");
-
+            notifyDisconnected = tcpClient is not null || stream is not null;
             intentionalDisconnect = true;
             if (stream is not null && activeSessionId is not null)
             {
@@ -374,39 +391,26 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             }
         }
 
-        EmitEvent(new LiveDaqClientEvent.Disconnected(null));
+        if (notifyDisconnected) EmitEvent(new LiveDaqClientEvent.Disconnected(null));
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (isDisposed)
-        {
-            return;
-        }
-
-        await lifecycleGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        await connectionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
-            if (isDisposed)
-            {
-                return;
-            }
+            if (isDisposed) return;
+            await lifecycleGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try { isDisposed = true; }
+            finally { lifecycleGate.Release(); }
 
-            isDisposed = true;
+            await DisconnectCoreAsync(CancellationToken.None).ConfigureAwait(false);
+            lock (eventsGate) { events.OnCompleted(); }
+            receiveLoopCts?.Dispose();
+            tcpClient?.Dispose();
+            lifecycleGate.Dispose();
         }
-        finally
-        {
-            lifecycleGate.Release();
-        }
-
-        await DisconnectAsync().ConfigureAwait(false);
-        lock (eventsGate)
-        {
-            events.OnCompleted();
-        }
-        receiveLoopCts?.Dispose();
-        tcpClient?.Dispose();
-        lifecycleGate.Dispose();
+        finally { connectionGate.Release(); }
     }
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
@@ -840,6 +844,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
         {
+            if (tcpClient is null && stream is null) return;
             stream?.Close();
             tcpClient?.Close();
             stream = null;
@@ -848,13 +853,6 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             receiveLoopCts?.Cancel();
             rawTelemetryFrames?.Writer.TryComplete();
             parsedTelemetryFrames?.Writer.TryComplete();
-            receiveLoopCts?.Dispose();
-            receiveLoopCts = null;
-            receiveLoopTask = null;
-            receiveParseTask = null;
-            receivePublishTask = null;
-            rawTelemetryFrames = null;
-            parsedTelemetryFrames = null;
 
             if (pendingStartResult is not null)
             {

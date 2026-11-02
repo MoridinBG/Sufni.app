@@ -13,6 +13,54 @@ namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 public class LiveDaqV2ClientTests
 {
     [Fact]
+    public async Task DisconnectAndDispose_WaitForInFlightPublicationBeforeCompleting()
+    {
+        var harness = new LiveDaqClientProtocolHarness<LiveDaqV2Client>(() => new LiveDaqV2Client());
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publicationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var header = LiveProtocolTestFrames.CreateSessionHeaderModel();
+        await harness.WithServerAsync(async stream =>
+        {
+            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize + LiveV2ProtocolConstants.StartRequestPayloadSize);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateStartAckFrame(1, sessionId: header.SessionId), TestContext.Current.CancellationToken);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateSessionHeaderFrame(2, header), TestContext.Current.CancellationToken);
+            await stream.WriteAsync(LiveProtocolTestFrames.CreateTravelBatchFrame(3, header.SessionId, new LiveTravelRecord(1, 2)), TestContext.Current.CancellationToken);
+            _ = await ReadExactAsync(stream, LiveV2ProtocolConstants.FrameHeaderSize);
+            Assert.Equal(0, await stream.ReadAsync(new byte[1], TestContext.Current.CancellationToken));
+            closed.SetResult();
+        }, async (client, port) =>
+        {
+            using var subscription = client.Events.Subscribe(value =>
+            {
+                if (value is LiveDaqClientEvent.FrameReceived { Frame: LiveTravelBatchFrame })
+                {
+                    publicationStarted.SetResult();
+                    Assert.True(release.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+                }
+            });
+            try
+            {
+                await client.ConnectAsync(IPAddress.Loopback.ToString(), port, TestContext.Current.CancellationToken);
+                await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), TestContext.Current.CancellationToken)
+                    .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+                await publicationStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+                var first = client.DisconnectAsync(TestContext.Current.CancellationToken);
+                await closed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+                var second = client.DisconnectAsync(TestContext.Current.CancellationToken);
+                var disposal = client.DisposeAsync().AsTask();
+                Assert.False(first.IsCompleted);
+                Assert.False(second.IsCompleted);
+                Assert.False(disposal.IsCompleted);
+                release.Set();
+                await Task.WhenAll(first, second, disposal).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+                return true;
+            }
+            finally { release.Set(); }
+        });
+    }
+
+    [Fact]
     public async Task StartPreviewAsync_ReturnsStarted_WhenAckAndSessionHeaderReceived()
     {
         var expectedHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(
