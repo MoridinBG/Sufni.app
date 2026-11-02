@@ -23,7 +23,7 @@ public class LiveDaqListViewTests
     public async Task LiveDaqListView_RendersOnlineRowAndInvokesSelection()
     {
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var store = new LiveDaqStore();
+        var store = new LiveDaqStore(new InlineUiThreadDispatcher());
         store.ReplaceAll([new LiveDaqSnapshot(
             IdentityKey: "board-1",
             DisplayName: "Board 1",

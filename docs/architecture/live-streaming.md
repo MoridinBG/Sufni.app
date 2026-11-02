@@ -275,6 +275,11 @@ using the `TimeProvider` supplied to `LiveDaqSessionState` by the editor factory
 
 `LiveDaqStore` is a runtime-only in-memory `SourceCache<LiveDaqSnapshot, string>` keyed by identity key (board ID when known, protocol-qualified endpoint fallback). It does not persist to the database, has no `RefreshAsync()`, and snapshots carry no `Updated` timestamp. The read-only `ILiveDaqStore` is injected into the list view model; the `ILiveDaqStoreWriter` exposes only `ReplaceAll` for coordinator reconciliation.
 
+The store captures each replacement as an array and queues one cache edit through
+`IUiThreadDispatcher`. Every replacement is queued, including UI-thread callers,
+so an earlier discovery update cannot overwrite a later reconciliation. Disposing
+the store releases its cache and prevents queued publication after shutdown.
+
 `LiveDaqSnapshot` is an immutable sealed record carrying identity key, display name, board ID, host/port, online status, setup name, bike name, and live protocol version.
 
 ## Coordinator

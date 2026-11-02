@@ -28,7 +28,7 @@ public class MainPagesViewModelTests
     public void SelectedPrimaryIndex_ActivatesLivePage_WhenSelected_AndDeactivatesIt_WhenLeft()
     {
         var liveCoordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var livePage = new LiveDaqListViewModel(new LiveDaqStore(), liveCoordinator, UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
+        var livePage = new LiveDaqListViewModel(new LiveDaqStore(new InlineUiThreadDispatcher()), liveCoordinator, UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
         var viewModel = MainPagesViewModelTestFactory.Create(livePage);
         var liveIndex = viewModel.PrimaryPages.IndexOf(
             viewModel.PrimaryPages.Single(page => page.Role == MainPrimaryPageRole.LiveDaqs));

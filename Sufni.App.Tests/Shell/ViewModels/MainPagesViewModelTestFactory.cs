@@ -112,7 +112,7 @@ internal static class MainPagesViewModelTestFactory
         new(new SetupBoardQueryStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
-        new(new LiveDaqStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
+        new(new LiveDaqStore(new InlineUiThreadDispatcher()), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
         new(new PairedDeviceStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider());

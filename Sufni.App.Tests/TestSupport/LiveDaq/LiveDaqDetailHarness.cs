@@ -78,7 +78,7 @@ internal sealed class LiveDaqDetailHarness
     public IShellCoordinator Shell { get; } = Substitute.For<IShellCoordinator>();
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
     public ILiveDaqKnownBoardsQuery KnownBoardsQuery { get; } = Substitute.For<ILiveDaqKnownBoardsQuery>();
-    public LiveDaqStore LiveDaqStore { get; } = new();
+    public LiveDaqStore LiveDaqStore { get; } = new(new InlineUiThreadDispatcher());
     public Subject<LiveProtocolFrame> Frames { get; } = new();
     public BehaviorSubject<LiveDaqSharedStreamState> StreamStates { get; } = new(LiveDaqSharedStreamState.Empty);
     public BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> KnownBoardsChanges { get; } = new([]);

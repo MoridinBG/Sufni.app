@@ -24,7 +24,7 @@ namespace Sufni.App.Tests.LiveDaq.Coordinators;
 
 public class LiveDaqCoordinatorTests
 {
-    private readonly LiveDaqStore liveDaqStore = new();
+    private readonly LiveDaqStore liveDaqStore = new(new InlineUiThreadDispatcher());
     private readonly List<IReadOnlyCollection<LiveDaqSnapshot>> observedStates = [];
     private readonly Dictionary<string, LiveDaqSnapshot> currentObservedState = [];
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery = Substitute.For<ILiveDaqKnownBoardsQuery>();
