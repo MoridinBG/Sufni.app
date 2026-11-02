@@ -40,8 +40,29 @@ public class LiveSignalPipelineTests
         Assert.Equal(front, batch.FrontTravel);
         Assert.Equal(rear, batch.RearTravel);
         Assert.Equal(20, batch.FrontVelocity.Count);
-        Assert.All(batch.FrontVelocity, value => Assert.False(double.IsNaN(value)));
-        Assert.All(batch.RearVelocity, value => Assert.False(double.IsNaN(value)));
+        Assert.All(batch.FrontVelocity, value => Assert.Equal(1000, value, 1e-8));
+        Assert.All(batch.RearVelocity, value => Assert.Equal(1000, value, 1e-8));
+    }
+
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
+    public async Task AppendTravelSamples_AcrossBatchGap_PreservesLocalTimestampScalingAtEdgesAndInterior()
+    {
+        await using var pipeline = CreatePipeline();
+        pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
+        var batchTask = WaitForBatchAsync(pipeline, batch => batch.FrontTravel.Count == 7);
+
+        pipeline.AppendTravelSamples([0, 0.01, 0.02], [0, 1, 2], [0, 2, 4]);
+        pipeline.AppendTravelSamples([0.04, 0.05, 0.06, 0.07], [3, 4, 5, 6], [6, 8, 10, 12]);
+        time.Advance(FlushInterval);
+        var batch = await batchTask;
+
+        double[] expected = [100, 75, 80, 80, 80, 100, 100];
+        for (var index = 0; index < expected.Length; index++)
+        {
+            Assert.Equal(expected[index], batch.FrontVelocity[index], 1e-8);
+            Assert.Equal(2 * expected[index], batch.RearVelocity[index], 1e-8);
+        }
     }
 
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]

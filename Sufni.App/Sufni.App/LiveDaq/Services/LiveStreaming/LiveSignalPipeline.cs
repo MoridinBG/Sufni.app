@@ -340,7 +340,19 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             cachedVelocityFilterWindow = filterWindow;
         }
 
-        var velocities = cachedVelocityFilter.Process(travel.ToArray(), times.ToArray());
+        var velocities = cachedVelocityFilter.Process(travel.ToArray(), dt: 1);
+        // Batch gaps make live timestamps nonuniform. Preserve local spacing,
+        // including the clipped timestamp window at each edge.
+        var halfWindow = filterWindow / 2;
+        for (var index = 0; index < velocities.Length; index++)
+        {
+            var first = Math.Max(0, index - halfWindow);
+            var last = Math.Min(times.Count - 1, index + halfWindow);
+            var duration = 0.0;
+            for (var interval = first; interval < last; interval++)
+                duration += times[interval + 1] - times[interval];
+            velocities[index] /= duration / (last - first);
+        }
         if (velocities.Length >= batchCount)
         {
             return velocities[^batchCount..];

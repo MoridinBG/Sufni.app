@@ -58,21 +58,6 @@ public class SavitzkyGolay
 
     #region Private methods
 
-    private double GetHs(double[] h, int center, int half)
-    {
-        var hs = 0.0;
-        var count = 0;
-
-        for (var i = center - half; i < center + half; i++)
-        {
-            if (i < 0 || i >= h.Length - 1) continue;
-            hs += h[i + 1] - h[i];
-            count++;
-        }
-
-        return Math.Pow(hs / count, derivative);
-    }
-
     private static double GramPolynomial(int i, int m, int k, int s)
     {
         var result = k switch
@@ -133,7 +118,7 @@ public class SavitzkyGolay
         return w;
     }
 
-    private double[] ProcessCore(double[] data, double[]? h, double fixedDivisor)
+    private double[] ProcessCore(double[] data, double divisor)
     {
         if (windowSize > data.Length)
         {
@@ -143,7 +128,6 @@ public class SavitzkyGolay
         var halfWindow = (int)Math.Floor(windowSize / 2.0);
         var numPoints = data.Length;
         var results = new double[numPoints];
-        var useFixedDivisor = h is null;
 
         // For the borders
         var head = data.AsSpan(0, windowSize);                       // fixed left window
@@ -156,12 +140,10 @@ public class SavitzkyGolay
             var d2 = TensorPrimitives.Dot(wg2, tail);
 
             var leftIndex = halfWindow - i - 1;
-            var leftDivisor = useFixedDivisor ? fixedDivisor : GetHs(h!, leftIndex, halfWindow);
-            results[leftIndex] = d1 / leftDivisor;
+            results[leftIndex] = d1 / divisor;
 
             var rightIndex = numPoints - halfWindow + i;
-            var rightDivisor = useFixedDivisor ? fixedDivisor : GetHs(h!, rightIndex, halfWindow);
-            results[rightIndex] = d2 / rightDivisor;
+            results[rightIndex] = d2 / divisor;
         }
 
         // For the internal points
@@ -172,7 +154,6 @@ public class SavitzkyGolay
             var window = data.AsSpan(i - windowSize, windowSize);  // zero-alloc sliding window
             var d = TensorPrimitives.Dot(wgSpan, window);           // both spans length == windowSize
             var resultIndex = i - halfWindow - 1;
-            var divisor = useFixedDivisor ? fixedDivisor : GetHs(h!, resultIndex, halfWindow);
             results[resultIndex] = d / divisor;
         }
 
@@ -183,15 +164,10 @@ public class SavitzkyGolay
 
     #region Public methods
 
-    public double[] Process(double[] data, double[] h)
-    {
-        return ProcessCore(data, h, fixedDivisor: 0);
-    }
-
     public double[] Process(double[] data, double dt)
     {
         var divisor = Math.Pow(dt, derivative);
-        return ProcessCore(data, h: null, divisor);
+        return ProcessCore(data, divisor);
     }
 
     #endregion Public methods

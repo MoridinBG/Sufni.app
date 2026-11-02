@@ -110,9 +110,8 @@ public class FiltersTests
     {
         var filter = SavitzkyGolay.Create(11, 0, 2);
         var data = new double[10];
-        var h = new double[10];
 
-        Assert.Throws<ArgumentException>(() => filter.Process(data, h));
+        Assert.Throws<ArgumentException>(() => filter.Process(data, 1.0));
     }
 
     [Fact]
@@ -122,10 +121,8 @@ public class FiltersTests
         // f(x) = 2x. f'(x) = 2.
         int count = 20;
         var data = new double[count];
-        var time = new double[count];
         for (int i = 0; i < count; i++)
         {
-            time[i] = i; // 1 second steps
             data[i] = 2 * i;
         }
 
@@ -133,7 +130,7 @@ public class FiltersTests
         var filter = SavitzkyGolay.Create(5, 1, 2);
 
         // Act
-        var result = filter.Process(data, time);
+        var result = filter.Process(data, 1.0);
 
         // Assert
         // With polynomial order >= 1, SG filter should preserve the 1st derivative of a linear function exactly (within float precision)
@@ -150,10 +147,8 @@ public class FiltersTests
         // f(x) = x^2. f'(x) = 2x.
         int count = 20;
         var data = new double[count];
-        var time = new double[count];
         for (int i = 0; i < count; i++)
         {
-            time[i] = i;
             data[i] = i * i;
         }
 
@@ -161,7 +156,7 @@ public class FiltersTests
         var filter = SavitzkyGolay.Create(5, 1, 2);
 
         // Act
-        var result = filter.Process(data, time);
+        var result = filter.Process(data, 1.0);
 
         // Assert
         for (int i = 0; i < count; i++)
@@ -177,10 +172,8 @@ public class FiltersTests
         // f(x) = x^2 (0 derivative)
         int count = 20;
         var data = new double[count];
-        var time = new double[count];
         for (int i = 0; i < count; i++)
         {
-            time[i] = i;
             data[i] = i * i;
         }
 
@@ -188,7 +181,7 @@ public class FiltersTests
         var filter = SavitzkyGolay.Create(5, 0, 2);
 
         // Act
-        var result = filter.Process(data, time);
+        var result = filter.Process(data, 1.0);
 
         // Assert
         // Poly order 2 (parabollic) should perfectly smooth a quadratic signal
@@ -196,32 +189,6 @@ public class FiltersTests
         {
             Assert.Equal(data[i], result[i], 1e-9);
         }
-    }
-
-    [Theory]
-    [InlineData(5)]
-    [InlineData(51)]
-    public void Process_WithFixedDt_MatchesUniformTimeArray(int windowSize)
-    {
-        const double dt = 0.001;
-        var count = Math.Max(128, windowSize * 4);
-        var data = new double[count];
-        var time = new double[count];
-        for (var index = 0; index < count; index++)
-        {
-            time[index] = index * dt;
-            data[index] = 25.0 * Math.Sin(index / 9.0) + index * 0.25;
-        }
-
-        var filter = SavitzkyGolay.Create(windowSize, 1, 3);
-        var fromTime = filter.Process(data, time);
-        var fromDt = filter.Process(data, dt);
-        var interiorIndex = windowSize;
-        var borderIndex = 1;
-
-        AssertNearlyEqual(fromTime[borderIndex], fromDt[borderIndex]);
-        AssertNearlyEqual(fromTime[interiorIndex], fromDt[interiorIndex]);
-        AssertNearlyEqual(fromTime[^2], fromDt[^2]);
     }
 
     [Fact]
@@ -250,7 +217,7 @@ public class FiltersTests
         var filter = SavitzkyGolay.Create(51, 1, 3);
 
         // Act
-        var result = filter.Process(noisyData, time);
+        var result = filter.Process(noisyData, 0.001);
 
         // Assert
         var errors = new List<double>();
@@ -269,11 +236,4 @@ public class FiltersTests
         Assert.True(maxError < 40.0, $"Max error {maxError:F2} units/s exceeds threshold");
     }
 
-    private static void AssertNearlyEqual(double expected, double actual)
-    {
-        var tolerance = Math.Max(1.0, Math.Abs(expected)) * 1e-12;
-        Assert.True(
-            Math.Abs(expected - actual) <= tolerance,
-            $"Expected {actual:R} to match {expected:R} within {tolerance:R}.");
-    }
 }
