@@ -24,7 +24,7 @@ namespace Sufni.App.Tests.TestSupport.Sync;
 
 internal sealed class InboundSyncFixture : IAsyncDisposable
 {
-    private readonly TempDatabase file = new();
+    private readonly TempDatabase? file;
     private readonly IUiThreadDispatcher dispatcher;
     private readonly List<InboundSyncCoordinator> coordinators = [];
     public FakeTimeProvider Time { get; } = PersistenceTestData.CreateTimeProvider();
@@ -41,10 +41,11 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
     public TrackStore Tracks { get; }
     public SessionSegmentStore Segments { get; }
 
-    public InboundSyncFixture(IUiThreadDispatcher dispatcher)
+    public InboundSyncFixture(IUiThreadDispatcher dispatcher, bool inMemory = false)
     {
         this.dispatcher = dispatcher;
-        Database = new(file.DatabasePath, Time);
+        file = inMemory ? null : new TempDatabase();
+        Database = new(file?.DatabasePath ?? $"sync-{Guid.NewGuid():N}", Time, inMemory: inMemory);
         Tokens.CreateAccessTokenAsync(Arg.Any<string>()).Returns("access-token");
         Publication = new(dispatcher);
         PairedDevices = new(Publication);
@@ -92,6 +93,6 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
         Tracks.Dispose();
         Segments.Dispose();
         Publication.Dispose();
-        file.Dispose();
+        file?.Dispose();
     }
 }

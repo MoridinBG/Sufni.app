@@ -56,8 +56,13 @@ internal static class PersistenceTestData
     }
 
     public static SqliteConnectionContext CreateConnectionContext(string databasePath, TimeProvider? timeProvider = null,
-        IReadOnlyDictionary<Guid, int>? legacyProcessingWindows = null, IReadOnlyList<CustomTileLayerSnapshot>? legacyCustomLayers = null) =>
-        new(databasePath, timeProvider ?? CreateTimeProvider(), new InlineBackgroundTaskRunner(), legacyProcessingWindows ?? new Dictionary<Guid, int>(), legacyCustomLayers ?? []);
+        IReadOnlyDictionary<Guid, int>? legacyProcessingWindows = null, IReadOnlyList<CustomTileLayerSnapshot>? legacyCustomLayers = null,
+        bool inMemory = false) =>
+        new(new SQLiteConnectionString(databasePath,
+                SQLiteOpenFlags.ReadWrite | SQLiteOpenFlags.Create | SQLiteOpenFlags.FullMutex |
+                (inMemory ? SQLiteOpenFlags.Memory : 0), storeDateTimeAsTicks: true),
+            timeProvider ?? CreateTimeProvider(), new InlineBackgroundTaskRunner(),
+            legacyProcessingWindows ?? new Dictionary<Guid, int>(), legacyCustomLayers ?? []);
 }
 
 internal sealed class TableColumnInfo

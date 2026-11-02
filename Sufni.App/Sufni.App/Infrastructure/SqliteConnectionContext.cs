@@ -10,31 +10,32 @@ namespace Sufni.App.Infrastructure;
 
 internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposable
 {
-    private readonly string databasePath;
+    private readonly SQLiteConnectionString connectionString;
+    private string DatabasePath => connectionString.DatabasePath;
     private readonly TimeProvider timeProvider;
     private readonly IReadOnlyDictionary<Guid, int> legacyProcessingWindows;
     private readonly IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
 
     internal SqliteConnectionContext(
-        string databasePath, TimeProvider timeProvider, IBackgroundTaskRunner backgroundTaskRunner,
+        SQLiteConnectionString connectionString, TimeProvider timeProvider, IBackgroundTaskRunner backgroundTaskRunner,
         IReadOnlyDictionary<Guid, int> legacyProcessingWindows, IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers)
     {
-        this.databasePath = databasePath;
+        this.connectionString = connectionString;
         this.legacyProcessingWindows = legacyProcessingWindows;
         this.legacyCustomLayers = legacyCustomLayers;
         this.timeProvider = timeProvider;
         this.backgroundTaskRunner = backgroundTaskRunner;
-        Connection = new SQLiteAsyncConnection(databasePath);
+        Connection = new SQLiteAsyncConnection(connectionString);
         Initialization = backgroundTaskRunner.RunAsync(async () =>
         {
-            var directory = Path.GetDirectoryName(databasePath);
+            var directory = Path.GetDirectoryName(DatabasePath);
             if (!string.IsNullOrWhiteSpace(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            await new DatabaseMigrationRunner(databasePath, Connection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
+            await new DatabaseMigrationRunner(DatabasePath, Connection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
         });
     }
 
@@ -45,9 +46,9 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
     public Task<string> ArchiveAndResetAsync() => backgroundTaskRunner.RunAsync(async () =>
     {
         await DisposeAsync();
-        var archiveDirectory = $"{databasePath}.archive-{timeProvider.GetUtcNow():yyyyMMdd-HHmmss-fffffff}";
+        var archiveDirectory = $"{DatabasePath}.archive-{timeProvider.GetUtcNow():yyyyMMdd-HHmmss-fffffff}";
         Directory.CreateDirectory(archiveDirectory);
-        foreach (var path in new[] { databasePath, databasePath + "-wal", databasePath + "-shm" })
+        foreach (var path in new[] { DatabasePath, DatabasePath + "-wal", DatabasePath + "-shm" })
         {
             if (File.Exists(path))
             {
@@ -55,10 +56,10 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
             }
         }
 
-        var freshConnection = new SQLiteAsyncConnection(databasePath);
+        var freshConnection = new SQLiteAsyncConnection(connectionString);
         try
         {
-            await new DatabaseMigrationRunner(databasePath, freshConnection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
+            await new DatabaseMigrationRunner(DatabasePath, freshConnection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
         }
         finally
         {

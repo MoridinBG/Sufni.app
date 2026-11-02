@@ -264,7 +264,7 @@ so re-pairing to the same hub also starts a baseline.
 
 ## SQLite Persistence Repositories
 
-`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives the database path from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner` through the background runner, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and applies the one-time track content migration.
+`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives a `SQLiteConnectionString` composed from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner` through the background runner, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and applies the one-time track content migration.
 
 The connection context supplies the injected clock to startup migrations.
 Repositories and transaction runners receive `TimeProvider` for authored writes,
@@ -423,7 +423,7 @@ Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values,
 
 `ISessionRepository.ImportProcessedSessionAsync` performs the source-hash and
 content-id classification inside the write transaction. An existing source hash
-returns `AlreadyImported` without changing any rows. A live content-id session
+returns `Exists` without changing any rows; the coordinator reports `AlreadyImported`. A live content-id session
 with no source receives only the source row; its authored fields, clock and
 processed data are preserved. If that retained row is soft-deleted, explicit
 re-import restores the same id with the newly prepared recording, clears its

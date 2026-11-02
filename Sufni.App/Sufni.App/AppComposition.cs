@@ -100,7 +100,8 @@ public static class AppComposition
         services.AddSingleton<ILocalDeviceIdentity, LocalDeviceIdentity>();
         services.AddSingleton<SqliteConnectionContext>(sp =>
             new SqliteConnectionContext(
-                root.Paths.DatabasePath, sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>(),
+                new SQLite.SQLiteConnectionString(root.Paths.DatabasePath, storeDateTimeAsTicks: true),
+                sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>(),
                 root.LaunchPreferences.LegacyProcessingWindows, root.LaunchPreferences.LegacyCustomLayers));
         services.AddSingleton<IStartupDatabase>(sp => sp.GetRequiredService<SqliteConnectionContext>());
         services.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));

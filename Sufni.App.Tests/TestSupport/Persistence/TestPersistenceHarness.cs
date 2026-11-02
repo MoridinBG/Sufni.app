@@ -31,11 +31,11 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     private readonly ILocalDeviceIdentity localDeviceIdentity;
     private readonly StorePublication publication;
 
-    public TestPersistenceHarness(string databasePath, TimeProvider? timeProvider = null, string writerId = "test-device")
+    public TestPersistenceHarness(string databasePath, TimeProvider? timeProvider = null, string writerId = "test-device", bool inMemory = false)
     {
         localDeviceIdentity = PersistenceTestData.CreateDeviceIdentity(writerId);
         this.timeProvider = timeProvider ?? PersistenceTestData.CreateTimeProvider();
-        context = PersistenceTestData.CreateConnectionContext(databasePath, this.timeProvider);
+        context = PersistenceTestData.CreateConnectionContext(databasePath, this.timeProvider, inMemory: inMemory);
         var fingerprintService = new ProcessingFingerprintService();
         trackRepository = new TrackRepository(context, this.timeProvider, localDeviceIdentity);
         sessionRepository = new SessionRepository(context, this.timeProvider, localDeviceIdentity);
