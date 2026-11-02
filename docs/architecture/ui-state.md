@@ -209,7 +209,20 @@ from those inputs internally; percentages are a result, never an analysis key in
 request keyed results on demand: the editor eagerly requests the shared damping
 percentages and optional insights records, while selected/visible analysis tabs
 and plot controls request only the result records they render. Cached records are
-reused within the open editor until the inputs change or the editor is disposed.
+reused within the open editor until their semantic keys no longer match. Preview
+cutoffs key percentages/insights; committed plot cutoffs key velocity and balance
+results, so a drag does not invalidate the committed plots.
+
+The result state is UI-thread-owned: input changes, cache edits and notifications
+are synchronous UI operations. Workers receive captured telemetry/key values and
+marshal their completion back for a single guarded cache/publication step. Caller
+cancellation only stops that caller waiting; supersession or disposal cancels the
+owned work. Async disposal drains all work, including displaced jobs. Calculation
+failures carry a closed reason and separate diagnostics, logged at this boundary.
+The editor has no analysis scheduler or suppression batches. It derives requests
+from current input keys, eagerly requests damping percentages, and retains Insights
+demand after a visible surface requests it. The reducer clears stale percentages
+and Insights with the input change; results arrive as later accepted inputs.
 
 Projection recomputes are coalesced through the existing
 `IRecordedSessionProjectionScheduler`; its UI-background-priority callback captures

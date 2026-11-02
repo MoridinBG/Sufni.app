@@ -85,7 +85,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var replayingState = updates
             // Effects may emit another intent while observing a state. Finish this publication first.
             .ObserveOn(CurrentThreadScheduler.Instance)
-            .Scan(new Reduction(initial, 0, AnalysisRangeIntentState.Empty), static (current, update) => update(current))
+            .Scan(new Reduction(initial, 0, AnalysisRangeIntentState.Empty), static (current, update) =>
+            {
+                var next = update(current);
+                return next with { Editor = InvalidateAnalysisResults(current.Editor, next.Editor) };
+            })
             .Select(static current => current.Editor)
             .StartWith(initial)
             .DistinctUntilChanged()
@@ -102,6 +106,22 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private static IObservable<Func<Reduction, Reduction>> EditorUpdates<T>(
         IObservable<T> source, Func<RecordedSessionEditorState, T, RecordedSessionEditorState> reduce) =>
         Updates(source, (current, value) => current with { Editor = reduce(current.Editor, value) });
+
+    private static RecordedSessionEditorState InvalidateAnalysisResults(RecordedSessionEditorState previous, RecordedSessionEditorState next)
+    {
+        var dampingChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange ||
+            previous.Preferences.Analysis.VelocityAverageMode != next.Preferences.Analysis.VelocityAverageMode ||
+            previous.Intent.DampingSpeedCutoffs != next.Intent.DampingSpeedCutoffs;
+        var insightsChanged = dampingChanged || previous.Preferences.Analysis != next.Preferences.Analysis;
+        return next with
+        {
+            Presentation = next.Presentation with
+            {
+                DampingPercentages = dampingChanged ? SessionDampingPercentages.Empty : next.Presentation.DampingPercentages,
+                SessionInsights = insightsChanged ? SessionInsightsResult.Hidden : next.Presentation.SessionInsights,
+            },
+        };
+    }
 
     private static Reduction ReduceIntent(Reduction current, RecordedSessionEditorIntent intent)
     {
@@ -186,7 +206,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     {
         var state = current.Editor;
         var loaded = CreateLoadedDataFromLoadPresentation(load);
-        var range = ClampAnalysisRange(current.RequestedRange.AnalysisRange, loaded.TelemetryData);
+        var requested = state.TelemetryData is not null && state.TelemetryData != loaded.TelemetryData
+            ? AnalysisRangeIntentState.Empty : current.RequestedRange;
+        var range = ClampAnalysisRange(requested.AnalysisRange, loaded.TelemetryData);
         var updated = state with
         {
             Load = load,
@@ -195,7 +217,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             FullTrackPoints = loaded.FullTrackPoints,
             TrackPoints = loaded.TrackPoints,
             TrackTimelineContext = loaded.TrackTimelineContext,
-            Intent = state.Intent with { AnalysisRange = range },
+            Intent = state.Intent with { AnalysisRange = range, PendingAnalysisRangeBoundary = requested.PendingAnalysisRangeBoundary },
             Presentation = state.Presentation with
             {
                 ScreenState = CreateScreenStateFromLoadPresentation(load),
@@ -207,7 +229,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         };
         if (!ReferenceEquals(state.TelemetryData, loaded.TelemetryData) || state.Intent.AnalysisRange != range)
             updated = ApplySelection(updated, RefreshAnalysisSelectionHighlights(state.AnalysisSelection, loaded.TelemetryData, range));
-        return current with { Editor = updated };
+        return current with { Editor = updated, RequestedRange = requested };
     }
 
     private static RecordedSessionEditorState ApplyPreferences(RecordedSessionEditorState state, SessionPreferences preferences)

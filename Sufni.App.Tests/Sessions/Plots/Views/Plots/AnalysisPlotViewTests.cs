@@ -562,6 +562,7 @@ public class AnalysisPlotViewTests
             BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
             BalanceSpeedMode: BalanceSpeedMode.Both,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
     private sealed class TestAnalysisResultState(RecordedSessionAnalysisInputs inputs) : IRecordedSessionAnalysisResultState
@@ -605,6 +606,12 @@ public class AnalysisPlotViewTests
         {
             inputChanges.Dispose();
             changes.Dispose();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 

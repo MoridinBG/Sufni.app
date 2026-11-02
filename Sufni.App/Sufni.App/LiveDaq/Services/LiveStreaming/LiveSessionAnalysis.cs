@@ -37,7 +37,7 @@ public sealed record LiveSessionAnalysis(
         TelemetryData telemetry, SessionDampingPercentages percentages, bool frontExpected, bool rearExpected)
     {
         var inputs = new RecordedSessionAnalysisInputs(revision, null, options.TravelMode, options.VelocityMode,
-            options.BalanceDisplacementMode, options.BalanceSpeedMode, options.PlotDampingCutoffs,
+            options.BalanceDisplacementMode, options.BalanceSpeedMode, options.DampingCutoffs, options.PlotDampingCutoffs,
             SessionInsightsTargetProfile.Trail);
         var results = new Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult>();
         foreach (var side in new[] { SuspensionType.Front, SuspensionType.Rear })

@@ -196,8 +196,9 @@ There are five kinds of view model in the presentation layer:
   ApplyingDraft | Closed` lifecycle replaces load/disposal/reset flags, and close
   requests share their cleanup task.
   `RecordedSessionEditorEffects` drives named effects such as analysis
-  invalidation, command refresh, map/media
-  synchronization, preference persistence, and dirty/baseline tracking.
+  command refresh, map/media synchronization, preference persistence and
+  dirty tracking. Analysis requests derive directly from the accepted editor
+  state and semantic result keys; no suppression scheduler sequences them.
   `RecordedPagePresentationApplier` is limited to page-owned chart/string
   projection and balance-page insertion; core signal, analysis, map, media, and
   loaded-data availability come from `RecordedSessionEditorState`. Stable

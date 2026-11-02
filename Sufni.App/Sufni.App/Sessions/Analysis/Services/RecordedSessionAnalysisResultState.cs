@@ -1,3 +1,5 @@
+using Serilog;
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +20,7 @@ public interface ISessionAnalysisResultSource : IDisposable
     RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key);
 }
 
-public interface IRecordedSessionAnalysisResultState : ISessionAnalysisResultSource
+public interface IRecordedSessionAnalysisResultState : ISessionAnalysisResultSource, IAsyncDisposable
 {
     Task RequestAsync(RecordedSessionAnalysisKey key, CancellationToken cancellationToken = default);
     void Invalidate(RecordedSessionAnalysisInputs inputs);
@@ -42,272 +44,136 @@ internal sealed class RecordedSessionAnalysisResultStateFactory(
             telemetryAccessor);
 }
 
+/// <summary>UI-thread-owned analysis cache and requests; workers publish through the dispatcher.</summary>
 internal sealed class RecordedSessionAnalysisResultState(
     IRecordedSessionAnalysisComputer computer,
     IBackgroundTaskRunner backgroundTaskRunner,
     IUiThreadDispatcher uiThreadDispatcher,
     Func<TelemetryData?> telemetryAccessor) : IRecordedSessionAnalysisResultState
 {
-    private readonly object gate = new();
+    private static readonly ILogger logger = Log.ForContext<RecordedSessionAnalysisResultState>();
     private readonly Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> results = [];
     private readonly Dictionary<RecordedSessionAnalysisKey, InFlightAnalysis> inFlight = [];
+    private readonly HashSet<InFlightAnalysis> active = [];
     private readonly Subject<RecordedSessionAnalysisInputs> inputChanges = new();
     private readonly Subject<RecordedSessionAnalysisResultChanged> changes = new();
-    private RecordedSessionAnalysisInputs? currentInputs;
     private bool disposed;
 
-    public RecordedSessionAnalysisInputs? CurrentInputs
-    {
-        get
-        {
-            lock (gate)
-            {
-                return disposed ? null : currentInputs;
-            }
-        }
-    }
+    public RecordedSessionAnalysisInputs? CurrentInputs { get; private set; }
 
-    public IObservable<RecordedSessionAnalysisResultChanged> Connect()
-    {
-        lock (gate)
-        {
-            return disposed ? Observable.Empty<RecordedSessionAnalysisResultChanged>() : changes.AsObservable();
-        }
-    }
+    public IObservable<RecordedSessionAnalysisResultChanged> Connect() =>
+        disposed ? Observable.Empty<RecordedSessionAnalysisResultChanged>() : changes.AsObservable();
 
-    public IObservable<RecordedSessionAnalysisInputs> ConnectInputs()
-    {
-        lock (gate)
-        {
-            return disposed ? Observable.Empty<RecordedSessionAnalysisInputs>() : inputChanges.AsObservable();
-        }
-    }
+    public IObservable<RecordedSessionAnalysisInputs> ConnectInputs() =>
+        disposed ? Observable.Empty<RecordedSessionAnalysisInputs>() : inputChanges.AsObservable();
 
-    public RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key)
-    {
-        lock (gate)
-        {
-            if (disposed)
-            {
-                return null;
-            }
-
-            return results.GetValueOrDefault(key);
-        }
-    }
+    public RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key) => results.GetValueOrDefault(key);
 
     public void Invalidate(RecordedSessionAnalysisInputs inputs)
     {
-        var publishInputsChanged = false;
-        lock (gate)
+        if (disposed || inputs == CurrentInputs) return;
+        CurrentInputs = inputs;
+        foreach (var key in results.Keys.Where(key => !key.Matches(inputs)).ToArray()) results.Remove(key);
+        foreach (var (key, work) in inFlight.ToArray())
         {
-            if (disposed)
-            {
-                return;
-            }
-
-            if (inputs == currentInputs)
-            {
-                return;
-            }
-
-            currentInputs = inputs;
-
-            foreach (var key in results.Keys.Where(key => !key.Matches(inputs)).ToArray())
-            {
-                results.Remove(key);
-            }
-
-            foreach (var (key, work) in inFlight.ToArray())
-            {
-                if (!key.Matches(inputs))
-                {
-                    inFlight.Remove(key);
-                    work.StaleCancellation.Cancel();
-                    work.StaleCancellation.Dispose();
-                }
-            }
-
-            publishInputsChanged = true;
+            if (key.Matches(inputs)) continue;
+            inFlight.Remove(key);
+            work.Cancellation.Cancel();
         }
-
-        if (publishInputsChanged)
-        {
-            _ = PublishInputsChangedAsync(inputs);
-        }
+        inputChanges.OnNext(inputs);
     }
 
     public Task RequestAsync(RecordedSessionAnalysisKey key, CancellationToken cancellationToken = default)
     {
-        Task task;
-        RecordedSessionAnalysisResultChanged? immediateChange = null;
-        lock (gate)
+        if (disposed || CurrentInputs is null || !key.Matches(CurrentInputs)) return Task.CompletedTask;
+        if (results.TryGetValue(key, out var cached))
         {
-            if (disposed)
+            changes.OnNext(new RecordedSessionAnalysisResultChanged(key, cached));
+            return Task.CompletedTask;
+        }
+        if (!inFlight.TryGetValue(key, out var work))
+        {
+            if (telemetryAccessor() is not { } telemetry)
             {
+                changes.OnNext(new RecordedSessionAnalysisResultChanged(key, null));
                 return Task.CompletedTask;
             }
-
-            if (currentInputs is null || !key.Matches(currentInputs))
-            {
-                return Task.CompletedTask;
-            }
-
-            if (results.TryGetValue(key, out var cached))
-            {
-                immediateChange = new RecordedSessionAnalysisResultChanged(key, cached);
-                task = Task.CompletedTask;
-            }
-            else if (inFlight.TryGetValue(key, out var existing))
-            {
-                task = existing.Task;
-            }
-            else if (telemetryAccessor() is not { } telemetry)
-            {
-                immediateChange = new RecordedSessionAnalysisResultChanged(key, Result: null);
-                task = Task.CompletedTask;
-            }
-            else
-            {
-                var staleCancellation = new CancellationTokenSource();
-                task = ComputeAndPublishAsync(key, telemetry, staleCancellation.Token);
-                inFlight[key] = new InFlightAnalysis(task, staleCancellation);
-                _ = task.ContinueWith(
-                    _ => RemoveInFlight(key, task),
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
-            }
+            work = new InFlightAnalysis();
+            inFlight.Add(key, work);
+            active.Add(work);
+            _ = ComputeAndPublishAsync(key, telemetry, work);
         }
-
-        if (immediateChange is not null)
-        {
-            return AwaitWithCallerCancellationAsync(PublishAsync(immediateChange), cancellationToken);
-        }
-
-        return AwaitWithCallerCancellationAsync(task, cancellationToken);
+        return cancellationToken.CanBeCanceled && !work.Completion.Task.IsCompleted
+            ? work.Completion.Task.WaitAsync(cancellationToken)
+            : work.Completion.Task;
     }
 
     public void Dispose()
     {
-        lock (gate)
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            disposed = true;
-            currentInputs = null;
-            foreach (var work in inFlight.Values)
-            {
-                work.StaleCancellation.Cancel();
-                work.StaleCancellation.Dispose();
-            }
-
-            results.Clear();
-            inFlight.Clear();
-        }
-
+        if (disposed) return;
+        disposed = true;
+        CurrentInputs = null;
+        foreach (var work in active.ToArray()) work.Cancellation.Cancel();
+        results.Clear();
+        inFlight.Clear();
         inputChanges.Dispose();
         changes.Dispose();
     }
 
-    private async Task ComputeAndPublishAsync(
-        RecordedSessionAnalysisKey key,
-        TelemetryData telemetry,
-        CancellationToken staleCancellationToken)
+    public async ValueTask DisposeAsync()
     {
+        Dispose();
+        await Task.WhenAll(active.Select(work => work.Completion.Task));
+    }
+
+    private async Task ComputeAndPublishAsync(RecordedSessionAnalysisKey key, TelemetryData telemetry, InFlightAnalysis work)
+    {
+        RecordedSessionAnalysisResultChanged? change = null;
         try
         {
-            var result = await backgroundTaskRunner.RunAsync(
-                () =>
-                {
-                    staleCancellationToken.ThrowIfCancellationRequested();
-                    return computer.Compute(key, telemetry);
-                },
-                staleCancellationToken);
-            staleCancellationToken.ThrowIfCancellationRequested();
-
-            lock (gate)
+            var result = await backgroundTaskRunner.RunAsync(() =>
             {
-                if (disposed || currentInputs is null || !key.Matches(currentInputs))
-                {
-                    return;
-                }
-
-                results[key] = result;
-            }
-
-            await PublishAsync(new RecordedSessionAnalysisResultChanged(key, result));
+                work.Cancellation.Token.ThrowIfCancellationRequested();
+                return computer.Compute(key, telemetry);
+            }, work.Cancellation.Token).ConfigureAwait(false);
+            work.Cancellation.Token.ThrowIfCancellationRequested();
+            change = new RecordedSessionAnalysisResultChanged(key, result);
         }
-        catch (OperationCanceledException) when (staleCancellationToken.IsCancellationRequested)
-        {
-        }
+        catch (OperationCanceledException) when (work.Cancellation.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            lock (gate)
+            if (!work.Cancellation.IsCancellationRequested)
             {
-                if (disposed || currentInputs is null || !key.Matches(currentInputs))
-                {
-                    return;
-                }
-            }
-
-            await PublishAsync(new RecordedSessionAnalysisResultChanged(key, Result: null, exception));
-        }
-    }
-
-    private void RemoveInFlight(RecordedSessionAnalysisKey key, Task task)
-    {
-        lock (gate)
-        {
-            if (inFlight.TryGetValue(key, out var current) && ReferenceEquals(current.Task, task))
-            {
-                inFlight.Remove(key);
-                current.StaleCancellation.Dispose();
+                logger.Error(exception, "Recorded analysis {Family} failed for {Source}", key.Family, telemetry.Metadata.SourceName);
+                change = new RecordedSessionAnalysisResultChanged(key, null,
+                    new RecordedSessionAnalysisFailure(SessionEditorFailureReason.Analysis, exception.Message));
             }
         }
-    }
 
-    private static Task AwaitWithCallerCancellationAsync(Task task, CancellationToken cancellationToken)
-    {
-        return !cancellationToken.CanBeCanceled || task.IsCompleted
-            ? task
-            : task.WaitAsync(cancellationToken);
-    }
-
-    private Task PublishAsync(RecordedSessionAnalysisResultChanged change)
-    {
-        return uiThreadDispatcher.InvokeAsync(() =>
+        await uiThreadDispatcher.InvokeAsync(() =>
         {
-            lock (gate)
+            try
             {
-                if (disposed)
+                if (!disposed && !work.Cancellation.IsCancellationRequested && CurrentInputs is { } inputs && key.Matches(inputs) &&
+                    ReferenceEquals(inFlight.GetValueOrDefault(key), work) && change is not null)
                 {
-                    return;
+                    if (change.Result is { } result) results[key] = result;
+                    changes.OnNext(change);
                 }
-
-                changes.OnNext(change);
+            }
+            finally
+            {
+                if (ReferenceEquals(inFlight.GetValueOrDefault(key), work)) inFlight.Remove(key);
+                active.Remove(work);
+                work.Cancellation.Dispose();
+                work.Completion.TrySetResult();
             }
         });
     }
 
-    private Task PublishInputsChangedAsync(RecordedSessionAnalysisInputs inputs)
+    private sealed class InFlightAnalysis
     {
-        return uiThreadDispatcher.InvokeAsync(() =>
-        {
-            lock (gate)
-            {
-                if (disposed || currentInputs != inputs)
-                {
-                    return;
-                }
-
-                inputChanges.OnNext(inputs);
-            }
-        });
+        public CancellationTokenSource Cancellation { get; } = new();
+        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
-
-    private sealed record InFlightAnalysis(Task Task, CancellationTokenSource StaleCancellation);
 }

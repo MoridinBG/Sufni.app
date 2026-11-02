@@ -135,11 +135,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly CancellableOperation loadOperation = new();
     private readonly CancellableOperation viewLoadOperation = new();
     private TimelineAlignmentMark? pendingTimelineAlignmentMark;
-    private RecordedSessionAnalysisInputs analysisInputs;
-    private readonly AnalysisRequestScheduler analysisRequestScheduler;
     private int telemetryGeneration;
-    private bool suppressInsightsRecompute;
-    private bool suppressAnalysisRecompute;
+    private bool insightsRequested;
     private enum EditorLifecycle { Created, Loaded, ApplyingDraft, Closed }
     private EditorLifecycle lifecycle;
     private bool IsLoaded => lifecycle == EditorLifecycle.Loaded;
@@ -164,8 +161,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
-    private TelemetryData? telemetryData;
-    private List<TrackPoint>? trackPoints;
     private MapViewModel? mapViewModel;
     private bool mapInitializeRequested;
 
@@ -237,12 +232,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     #region Private methods
 
-    internal void ApplyDampingPercentages(SessionDampingPercentages percentages)
-    {
-        DampingPage.ApplyDampingPercentages(percentages);
-        PublishEditorInput(dampingPercentagesInput, percentages);
-    }
-
     public void PreviewDampingSpeedCutoff(
         SuspensionType side,
         DampingSpeedCircuit circuit,
@@ -257,11 +246,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         double cutoffMmPerSecond) =>
         dampingCutoffWorkflow.CommitAsync(side, circuit, cutoffMmPerSecond);
 
-    private void ClearDampingPercentages()
-    {
-        ApplyDampingPercentages(SessionDampingPercentages.Empty);
-    }
-
     private RecordedSessionAnalysisInputs CreateCurrentAnalysisInputs() =>
         new(
             telemetryGeneration,
@@ -271,11 +255,26 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             currentEditorState.Preferences.Analysis.BalanceDisplacementMode,
             currentEditorState.Preferences.Analysis.BalanceSpeedMode,
             currentEditorState.Intent.DampingSpeedCutoffs,
+            currentEditorState.Presentation.PlotDampingSpeedCutoffs,
             currentEditorState.Preferences.Analysis.SessionInsightsTargetProfile);
 
-    private void InvalidateAnalysisInputs()
+    private void UpdateAnalysisRequests(RecordedSessionEditorState previous)
     {
-        analysisRequestScheduler.InvalidateInputs();
+        var inputs = CreateCurrentAnalysisInputs();
+        var held = analysisResultState.CurrentInputs;
+        if (held != inputs)
+        {
+            analysisResultState.Invalidate(inputs);
+            if (CurrentTelemetryData is not null)
+            {
+                if (held?.DampingPercentagesKey != inputs.DampingPercentagesKey)
+                    RequestAnalysisResult(inputs.DampingPercentagesKey);
+                if ((insightsRequested || IsSessionInsightsPageSelected) && held?.SessionInsightsKey != inputs.SessionInsightsKey)
+                    RequestInsights();
+            }
+        }
+        if (previous.Intent.SelectedPageIndex != currentEditorState.Intent.SelectedPageIndex)
+            RequestVisibleInsights();
     }
 
     private void RequestAnalysisResult(RecordedSessionAnalysisKey key)
@@ -285,202 +284,31 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             ApplyAnalysisResult(key, cached);
             return;
         }
-
         _ = analysisResultState.RequestAsync(key);
     }
 
-    private void RequestCurrentDampingPercentages()
+    private void RequestInsights()
     {
-        analysisRequestScheduler.RequestDamping(includeInsights: false, respectSuppression: false);
+        insightsRequested = true;
+        if (CurrentTelemetryData is not null && analysisResultState.CurrentInputs is { } inputs)
+            RequestAnalysisResult(inputs.SessionInsightsKey);
     }
 
-    private void RequestCurrentSessionInsights(bool respectSuppression = false)
+    private void RequestVisibleInsights()
     {
-        analysisRequestScheduler.RequestInsights(respectSuppression);
-    }
-
-    private void RequestCurrentAnalysisResults(bool includeInsights, bool respectSuppression = false)
-    {
-        analysisRequestScheduler.RequestDamping(includeInsights, respectSuppression);
-    }
-
-    private sealed class AnalysisRequestScheduler(
-        SessionDetailViewModel owner,
-        RecordedSessionAnalysisInputs initialInputs)
-    {
-        private readonly Stack<bool> batchSuppressionStack = [];
-        private RecordedSessionAnalysisInputs currentInputs = initialInputs;
-        private bool pendingDampingRequest;
-        private bool pendingInsightsRequest;
-        private bool pendingTelemetryInsightsRequest;
-        private bool requestInsightsAfterDamping;
-        private bool suppressedInsightsDuringBatch;
-
-        public void BeginBatch(bool suppressInsights)
-        {
-            if (batchSuppressionStack.Count == 0)
-            {
-                suppressedInsightsDuringBatch = false;
-            }
-
-            batchSuppressionStack.Push(suppressInsights);
-        }
-
-        public void EndBatch()
-        {
-            if (batchSuppressionStack.Count == 0)
-            {
-                return;
-            }
-
-            _ = batchSuppressionStack.Pop();
-            if (batchSuppressionStack.Count > 0)
-            {
-                return;
-            }
-
-            if (suppressedInsightsDuringBatch && owner.IsSessionInsightsPageSelected)
-            {
-                pendingInsightsRequest = true;
-            }
-
-            suppressedInsightsDuringBatch = false;
-            FlushIfAllowed();
-        }
-
-        public void InvalidateInputs()
-        {
-            var nextInputs = owner.CreateCurrentAnalysisInputs();
-            if (nextInputs == currentInputs)
-            {
-                return;
-            }
-
-            currentInputs = nextInputs;
-            owner.analysisInputs = nextInputs;
-            owner.analysisResultState.Invalidate(nextInputs);
-            requestInsightsAfterDamping = false;
-        }
-
-        public void RequestDamping(bool includeInsights, bool respectSuppression)
-        {
-            InvalidateInputs();
-            pendingDampingRequest = true;
-            if (includeInsights && AllowInsights(respectSuppression))
-            {
-                pendingInsightsRequest = true;
-            }
-
-            FlushIfAllowed();
-        }
-
-        public void RequestInsights(bool respectSuppression)
-        {
-            InvalidateInputs();
-            if (!AllowInsights(respectSuppression))
-            {
-                return;
-            }
-
-            pendingInsightsRequest = true;
-            FlushIfAllowed();
-        }
-
-        public void OnTelemetryUnavailable()
-        {
-            pendingDampingRequest = false;
-            pendingInsightsRequest = false;
-            pendingTelemetryInsightsRequest = false;
-            requestInsightsAfterDamping = false;
-            InvalidateInputs();
-            owner.SetSessionInsights(SessionInsightsResult.Hidden);
-        }
-
-        public bool ConsumePendingTelemetryInsightsRequest()
-        {
-            var shouldRequest = pendingTelemetryInsightsRequest;
-            pendingTelemetryInsightsRequest = false;
-            return shouldRequest;
-        }
-
-        public void OnDampingPercentagesApplied()
-        {
-            if (!requestInsightsAfterDamping)
-            {
-                return;
-            }
-
-            requestInsightsAfterDamping = false;
-            InvalidateInputs();
-            pendingInsightsRequest = true;
-            FlushIfAllowed();
-        }
-
-        private bool AllowInsights(bool respectSuppression)
-        {
-            if (respectSuppression &&
-                batchSuppressionStack.Any(static suppressInsights => suppressInsights))
-            {
-                suppressedInsightsDuringBatch = true;
-                return false;
-            }
-
-            return true;
-        }
-
-        private void FlushIfAllowed()
-        {
-            if (batchSuppressionStack.Count > 0)
-            {
-                return;
-            }
-
-            if (owner.telemetryData is null)
-            {
-                if (pendingDampingRequest)
-                {
-                    pendingDampingRequest = false;
-                    owner.ClearDampingPercentages();
-                }
-
-                if (pendingInsightsRequest)
-                {
-                    pendingInsightsRequest = false;
-                    pendingTelemetryInsightsRequest = true;
-                    owner.SetSessionInsights(SessionInsightsResult.Hidden);
-                }
-
-                return;
-            }
-
-            if (pendingDampingRequest)
-            {
-                pendingDampingRequest = false;
-                requestInsightsAfterDamping = pendingInsightsRequest;
-                pendingInsightsRequest = false;
-                owner.RequestAnalysisResult(currentInputs.DampingPercentagesKey);
-                return;
-            }
-
-            if (pendingInsightsRequest)
-            {
-                pendingInsightsRequest = false;
-                pendingTelemetryInsightsRequest = false;
-                owner.RequestAnalysisResult(currentInputs.SessionInsightsKey);
-            }
-        }
+        if (IsSessionInsightsPageSelected) RequestInsights();
     }
 
     private void OnAnalysisResultChanged(RecordedSessionAnalysisResultChanged change)
     {
-        if (!change.Key.Matches(analysisInputs))
+        if (analysisResultState.CurrentInputs is not { } inputs || !change.Key.Matches(inputs))
         {
             return;
         }
 
-        if (change.Error is not null)
+        if (change.Failure is { } failure)
         {
-            ErrorMessages.Add(new FailurePresentation($"Failed to update session analysis: {change.Error.Message}"));
+            ErrorMessages.Add(FailurePresentation.From(failure.Reason, failure.Details));
             return;
         }
 
@@ -494,7 +322,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         RecordedSessionAnalysisKey key,
         RecordedSessionAnalysisResult result)
     {
-        if (!key.Matches(analysisInputs))
+        if (analysisResultState.CurrentInputs is not { } inputs || !key.Matches(inputs))
         {
             return;
         }
@@ -502,12 +330,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         switch (result)
         {
             case DampingPercentagesAnalysisResult damping:
-                ApplyDampingPercentages(damping.Percentages);
-                analysisRequestScheduler.OnDampingPercentagesApplied();
+                PublishEditorInput(dampingPercentagesInput, damping.Percentages);
 
                 break;
             case SessionInsightsAnalysisResult insights:
-                SetSessionInsights(insights.Insights);
+                PublishEditorInput(sessionInsightsInput, insights.Insights);
                 break;
         }
     }
@@ -523,7 +350,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             currentEditorState.Intent.SelectedPageIndex,
             Pages.Count)];
 
-    private bool IsSessionInsightsPageSelected => ReferenceEquals(SelectedPage, AnalysisPage);
+    private bool IsSessionInsightsPageSelected => AnalysisPage is not null && ReferenceEquals(SelectedPage, AnalysisPage);
 
 
     internal TelemetryData? CurrentTelemetryData => currentEditorState.TelemetryData;
@@ -689,8 +516,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 sessionStore.Get(Id) ?? currentSnapshot,
                 token);
             var loadPresentation = CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot);
-            PublishLoadResultPresentation(loadPresentation);
-            ApplyLoadedStateInputs(result);
+            PublishLoadPresentation(loadPresentation);
             presentationApplier.ApplyLoadResult(result);
 
             if (result is not SessionDetailLoadResult.Loaded loaded)
@@ -714,7 +540,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 mapExpected,
                 sessionStore.Get(Id) ?? currentSnapshot,
                 token);
-            PublishLoadResultPresentation(CreateLoadPresentation(
+            PublishLoadPresentation(CreateLoadPresentation(
                 settledResult,
                 sessionStore.Get(Id) ?? currentSnapshot));
             if (settledResult is not SessionDetailLoadResult.Loaded)
@@ -724,27 +550,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-        }
-    }
-
-    private void PublishLoadResultPresentation(RecordedSessionLoadPresentation presentation)
-    {
-        if (presentation is not RecordedSessionLoadPresentation.Loaded)
-        {
-            PublishLoadPresentation(presentation);
-            return;
-        }
-
-        suppressAnalysisRecompute = true;
-        suppressInsightsRecompute = true;
-        try
-        {
-            PublishLoadPresentation(presentation);
-        }
-        finally
-        {
-            suppressInsightsRecompute = false;
-            suppressAnalysisRecompute = false;
         }
     }
 
@@ -871,16 +676,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 snapshot),
             _ => new RecordedSessionLoadPresentation.Empty(snapshot),
         };
-    }
-
-    private void ApplyLoadedStateInputs(SessionDetailLoadResult result)
-    {
-        if (result is not SessionDetailLoadResult.Loaded loaded)
-        {
-            return;
-        }
-
-        RequestCurrentDampingPercentages();
     }
 
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
@@ -1115,8 +910,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool CanMarkGpsEventFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
         return pendingTimelineAlignmentMark is null &&
-               telemetryData is not null &&
-               trackPoints is { Count: > 0 } &&
+               CurrentTelemetryData is not null &&
+               CurrentTrackPoints is { Count: > 0 } &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1132,7 +927,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanSetAnalysisRangeFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return telemetryData is not null &&
+        return CurrentTelemetryData is not null &&
                IsTelemetryPlotContext(context);
     }
 
@@ -1175,7 +970,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private bool CanMarkGpsTelemetryEventFromPlotContext(TelemetryPlotContextMenuContext? context)
     {
-        return telemetryData is not null &&
+        return CurrentTelemetryData is not null &&
                pendingTimelineAlignmentMark is TimelineAlignmentMark.GpsTrack &&
                IsTelemetryPlotContext(context);
     }
@@ -1184,7 +979,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         if (!CanMarkGpsTelemetryEventFromPlotContext(context) ||
             pendingTimelineAlignmentMark is not TimelineAlignmentMark.GpsTrack mark ||
-            telemetryData is null)
+            CurrentTelemetryData is null)
         {
             return;
         }
@@ -1294,7 +1089,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         undoTrimCommand.IsRunning;
 
     private bool CanEditWindowAt(TelemetryPlotContextMenuContext? context, SessionWindowEditKind kind) =>
-        !IsSessionEditRunning && IsTelemetryPlotContext(context) && telemetryData is { } telemetry &&
+        !IsSessionEditRunning && IsTelemetryPlotContext(context) && CurrentTelemetryData is { } telemetry &&
         SessionWindowEditPolicy.CanEditAt(kind, context!.ClickSeconds, context.DurationSeconds, telemetry.Metadata.SampleRate);
 
     private bool CanTrimFromBeginningFromPlotContext(TelemetryPlotContextMenuContext? context) =>
@@ -1342,7 +1137,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             : Task.CompletedTask;
 
     private bool CanSaveSelectionAsSegmentFromPlotContext(TelemetryPlotContextMenuContext? context) =>
-        telemetryData is not null &&
+        CurrentTelemetryData is not null &&
         IsTelemetryPlotContext(context) &&
         context!.IsClickInsideAnalysisRange;
 
@@ -1437,10 +1232,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.sessionStore = sessionStore;
         this.recordedSessionProjection = recordedSessionProjection;
         this.processedTelemetryReader = processedTelemetryReader;
-        analysisResultState = analysisResultStateFactory.Create(() => telemetryData);
-        analysisInputs = CreateCurrentAnalysisInputs();
-        analysisResultState.Invalidate(analysisInputs);
-        analysisRequestScheduler = new AnalysisRequestScheduler(this, analysisInputs);
+        analysisResultState = analysisResultStateFactory.Create(() => CurrentTelemetryData);
+        analysisResultState.Invalidate(CreateCurrentAnalysisInputs());
         analysisResultSubscription = analysisResultState.Connect().Subscribe(OnAnalysisResultChanged);
         editorInputSubjects = new CompositeDisposable(
             pageCountInput,
@@ -1669,9 +1462,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorEffects = new RecordedSessionEditorEffects(
             [
                 RecordedSessionEditorEffects.PreferencePersistence(editorActions.Intents),
-                RecordedSessionEditorEffects.AnalysisRequests(editorStateController.State),
-                RecordedSessionEditorEffects.PageSelectionAnalysisRequests(editorStateController.State),
-                RecordedSessionEditorEffects.TelemetryAnalysisRequests(editorStateController.State),
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
@@ -1688,6 +1478,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var previous = currentEditorState;
         currentEditorState = state;
+        if (previous.TelemetryData != state.TelemetryData) telemetryGeneration++;
+        UpdateAnalysisRequests(previous);
         PreferencesPage.RefreshSignalDisplayPreferences(previous.Preferences.SignalDisplay, state.Preferences.SignalDisplay);
         signalRowActions.ApplyActionStates(state);
         if (state.Presentation.MapState.ReservesLayout && !mapInitializeRequested)
@@ -1709,12 +1501,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.TelemetryData != state.TelemetryData)
         {
-            if (telemetryData != state.TelemetryData)
-            {
-                telemetryData = state.TelemetryData;
-                telemetryGeneration++;
-            }
-
             PreferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
@@ -1722,7 +1508,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.TrackPoints != state.TrackPoints)
         {
-            trackPoints = ToTrackPointList(state.TrackPoints);
             OnPropertyChanged(nameof(CurrentTrackPoints));
         }
 
@@ -1755,6 +1540,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             OnPropertyChanged(nameof(SessionOperationState));
         }
+
+        if (previous.Presentation.DampingPercentages != state.Presentation.DampingPercentages)
+            DampingPage.ApplyDampingPercentages(state.Presentation.DampingPercentages);
 
         if (previous.Presentation.CanEditDampingSpeedCutoffs != state.Presentation.CanEditDampingSpeedCutoffs)
         {
@@ -1798,7 +1586,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         PublishEditorInput(pageCountInput, Pages.Count);
-        editorActions.RefreshSelectedPageAnalysis();
+        RequestVisibleInsights();
     }
 
     private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()
@@ -1850,11 +1638,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         editorActions.SetSignalPresentation(state);
     }
 
-    internal void SetSessionInsights(SessionInsightsResult insights)
-    {
-        PublishEditorInput(sessionInsightsInput, insights);
-    }
-
     private void EvaluateDirtinessFromPageChange()
     {
         if (lifecycle == EditorLifecycle.ApplyingDraft)
@@ -1888,20 +1671,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    private void ApplyRecordedPreferences(SessionPreferences preferences)
-    {
-        analysisRequestScheduler.BeginBatch(suppressInsights: true);
-        suppressInsightsRecompute = true;
-        try
-        {
-            PublishEditorInput(preferenceReplayInput, preferences);
-        }
-        finally
-        {
-            suppressInsightsRecompute = false;
-            analysisRequestScheduler.EndBatch();
-        }
-    }
+    private void ApplyRecordedPreferences(SessionPreferences preferences) => PublishEditorInput(preferenceReplayInput, preferences);
 
     private void ApplyRecordedSessionEditorEffect(RecordedSessionEditorEffect effect)
     {
@@ -1911,9 +1681,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (effect is RecordedSessionEditorEffect.RequestAnalysis request)
+        if (effect is RecordedSessionEditorEffect.RequestSessionInsights)
         {
-            ApplyRecordedAnalysisRequest(request.Request);
+            RequestInsights();
             return;
         }
 
@@ -1955,81 +1725,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             List<TrackPoint> list => list,
             _ => [.. points],
         };
-    }
-
-    private void ApplyRecordedAnalysisRequest(RecordedSessionAnalysisEffectRequest request)
-    {
-        switch (request)
-        {
-            case RecordedSessionAnalysisEffectRequest.RangeChanged:
-                if (suppressAnalysisRecompute)
-                {
-                    InvalidateAnalysisInputs();
-                }
-                else
-                {
-                    RequestCurrentAnalysisResults(!suppressInsightsRecompute, respectSuppression: true);
-                }
-
-                break;
-
-            case RecordedSessionAnalysisEffectRequest.SelectedPageChanged:
-                if (IsSessionInsightsPageSelected)
-                {
-                    RequestCurrentSessionInsights(respectSuppression: true);
-                }
-
-                break;
-
-            case RecordedSessionAnalysisEffectRequest.TelemetryChanged:
-                ApplyTelemetryAnalysisChange();
-                break;
-
-            case RecordedSessionAnalysisEffectRequest.Damping damping:
-                RequestCurrentAnalysisResults(damping.IncludeInsights, damping.RespectSuppression);
-                break;
-
-            case RecordedSessionAnalysisEffectRequest.Insights insights:
-                RequestCurrentSessionInsights(insights.RespectSuppression);
-                break;
-        }
-    }
-
-    private void ApplyTelemetryAnalysisChange()
-    {
-        if (telemetryData is null)
-        {
-            analysisRequestScheduler.OnTelemetryUnavailable();
-            return;
-        }
-
-        var includeDeferredInsights =
-            analysisRequestScheduler.ConsumePendingTelemetryInsightsRequest() ||
-            IsSessionInsightsPageSelected;
-
-        if (currentEditorState.Intent.AnalysisRange is not null)
-        {
-            ClearAnalysisRange();
-            if (suppressAnalysisRecompute && includeDeferredInsights)
-            {
-                RequestCurrentAnalysisResults(includeInsights: true);
-            }
-
-            return;
-        }
-
-        if (suppressAnalysisRecompute)
-        {
-            InvalidateAnalysisInputs();
-            if (includeDeferredInsights)
-            {
-                RequestCurrentAnalysisResults(includeInsights: true);
-            }
-        }
-        else
-        {
-            RequestCurrentAnalysisResults(!suppressInsightsRecompute || includeDeferredInsights);
-        }
     }
 
     private void PersistRecordedPreferenceIntent(RecordedSessionEditorIntent intent)
@@ -2129,6 +1824,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task CloseCoreAsync()
     {
         StopLoadedSession();
+        analysisResultState.Dispose();
         await Task.WhenAll(pendingDomainReactions, pendingPreferenceOperations);
         UnsubscribeVmEventHandlers();
         DisposeWorkspace(MobileWorkspace);
@@ -2145,7 +1841,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         viewLoadOperation.Dispose();
         loadOperation.Dispose();
         analysisResultSubscription.Dispose();
-        analysisResultState.Dispose();
+        await analysisResultState.DisposeAsync();
         MapViewModel?.Dispose();
         editorInputSubjects.Dispose();
     }

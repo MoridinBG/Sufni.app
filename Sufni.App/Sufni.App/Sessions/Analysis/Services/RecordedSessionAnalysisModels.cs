@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using Sufni.App.Bikes.Models;
 using Sufni.App.LiveDaq.Services.Imu;
@@ -31,6 +32,7 @@ public sealed record RecordedSessionAnalysisInputs(
     BalanceDisplacementMode BalanceDisplacementMode,
     BalanceSpeedMode BalanceSpeedMode,
     DampingSpeedCutoffs DampingSpeedCutoffs,
+    DampingSpeedCutoffs PlotDampingSpeedCutoffs,
     SessionInsightsTargetProfile SessionInsightsTargetProfile)
 {
     public RecordedSessionAnalysisKey DampingPercentagesKey => CreateKey(RecordedSessionAnalysisFamily.DampingPercentages);
@@ -109,7 +111,7 @@ public sealed record RecordedSessionAnalysisInputs(
                 VelocityAverageMode: VelocityAverageMode,
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
-                DampingSpeedCutoffs: DampingSpeedCutoffs,
+                DampingSpeedCutoffs: PlotDampingSpeedCutoffs,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.Balance => new RecordedSessionAnalysisKey(
                 family,
@@ -122,7 +124,7 @@ public sealed record RecordedSessionAnalysisInputs(
                 VelocityAverageMode: null,
                 BalanceDisplacementMode: BalanceDisplacementMode,
                 BalanceSpeedMode: BalanceSpeedMode,
-                DampingSpeedCutoffs: DampingSpeedCutoffs,
+                DampingSpeedCutoffs: PlotDampingSpeedCutoffs,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.StrokeLengthDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -275,4 +277,6 @@ public sealed record PositionVelocityAnalysisResult(
 public sealed record RecordedSessionAnalysisResultChanged(
     RecordedSessionAnalysisKey Key,
     RecordedSessionAnalysisResult? Result,
-    Exception? Error = null);
+    RecordedSessionAnalysisFailure? Failure = null);
+
+public sealed record RecordedSessionAnalysisFailure(SessionEditorFailureReason Reason, string? Details);

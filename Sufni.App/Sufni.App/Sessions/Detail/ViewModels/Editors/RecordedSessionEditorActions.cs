@@ -28,10 +28,6 @@ internal abstract record RecordedSessionEditorIntent
 
     public sealed record RequestSessionInsights : RecordedSessionEditorIntent;
 
-    public sealed record RequestDampingPercentages : RecordedSessionEditorIntent;
-
-    public sealed record RefreshSelectedPageAnalysis : RecordedSessionEditorIntent;
-
     public sealed record SetTravelDistributionMode(TravelDistributionMode Mode) : RecordedSessionEditorIntent;
 
     public sealed record SetBalanceDisplacementMode(BalanceDisplacementMode Mode) : RecordedSessionEditorIntent;
@@ -105,12 +101,6 @@ internal sealed class RecordedSessionEditorActions : IDisposable
 
     public void RequestSessionInsights() =>
         Emit(new RecordedSessionEditorIntent.RequestSessionInsights());
-
-    public void RequestDampingPercentages() =>
-        Emit(new RecordedSessionEditorIntent.RequestDampingPercentages());
-
-    public void RefreshSelectedPageAnalysis() =>
-        Emit(new RecordedSessionEditorIntent.RefreshSelectedPageAnalysis());
 
     public void SetTravelDistributionMode(TravelDistributionMode mode) =>
         Emit(new RecordedSessionEditorIntent.SetTravelDistributionMode(mode));

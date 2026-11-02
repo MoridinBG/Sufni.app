@@ -29,7 +29,7 @@ public class RecordedImuPlotViewTests
         using var state = new RecordedSessionAnalysisResultState(
             computer,
             backgroundTaskRunner,
-            new InlineUiThreadDispatcher(),
+            new AvaloniaUiThreadDispatcher(),
             () => telemetry);
         state.Invalidate(CreateInputs());
         var imuView = new CountingImuPlotView
@@ -76,8 +76,9 @@ public class RecordedImuPlotViewTests
         Assert.Equal(0, imuView.ProjectionLoadCount);
         Assert.Equal(0, pitchRollView.ProjectionLoadCount);
 
+        var completion = state.RequestAsync(state.CurrentInputs!.ImuDisplayProjectionKey, TestContext.Current.CancellationToken);
         await backgroundTaskRunner.CompleteNextAsync();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        await completion.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(1, computer.ComputeCount);
@@ -93,8 +94,9 @@ public class RecordedImuPlotViewTests
         Assert.Equal(1, imuView.ProjectionLoadCount);
         Assert.Equal(1, pitchRollView.ProjectionLoadCount);
 
+        completion = state.RequestAsync(state.CurrentInputs!.ImuDisplayProjectionKey, TestContext.Current.CancellationToken);
         await backgroundTaskRunner.CompleteNextAsync();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        await completion.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Equal(2, computer.ComputeCount);
@@ -154,6 +156,7 @@ public class RecordedImuPlotViewTests
         BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
         BalanceSpeedMode: BalanceSpeedMode.Both,
         DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+        PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
         SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
     private static AvaPlot GetPlot(Control view) => view.GetVisualDescendants().OfType<AvaPlot>().Single();
@@ -305,6 +308,12 @@ public class RecordedImuPlotViewTests
         {
             inputChanges.Dispose();
             changes.Dispose();
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
         }
     }
 }

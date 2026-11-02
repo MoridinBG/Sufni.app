@@ -8,11 +8,117 @@ using Sufni.App.Sessions.Insights.Services.SessionInsights;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
+using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Tests.Sessions.Analysis.Services;
 
 public class RecordedSessionAnalysisResultStateTests
 {
+    [Fact]
+    public async Task CutoffPreview_KeepsCommittedPlotResultUntilCommit()
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var computer = new CountingAnalysisComputer(new RecordedSessionAnalysisComputer(new SessionInsightsService()));
+        using var state = new RecordedSessionAnalysisResultState(computer, new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => telemetry);
+        var original = CreateInputs(null);
+        var key = original.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+        state.Invalidate(original);
+        await state.RequestAsync(key, TestContext.Current.CancellationToken);
+        var result = state.Get(key);
+        var preview = original with { DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(300, 400, 500, 600) };
+
+        state.Invalidate(preview);
+        await state.RequestAsync(preview.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front), TestContext.Current.CancellationToken);
+
+        Assert.Same(result, state.Get(key));
+        Assert.Equal(1, computer.ComputeCount);
+        var committed = preview with { PlotDampingSpeedCutoffs = preview.DampingSpeedCutoffs };
+        state.Invalidate(committed);
+        await state.RequestAsync(committed.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front), TestContext.Current.CancellationToken);
+        Assert.Null(state.Get(key));
+        Assert.Equal(2, computer.ComputeCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WorkerCompletion_CommitsCacheAndNotificationTogetherOnTheDispatcher(bool superseded)
+    {
+        var dispatcher = new ManualUiThreadDispatcher();
+        var runner = new Sufni.App.Tests.TestSupport.Async.DeferredBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(new TestAnalysisComputer(), runner, dispatcher, () => new TelemetryData());
+        var inputs = CreateInputs(null);
+        state.Invalidate(inputs);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(change =>
+        {
+            Assert.True(dispatcher.CheckAccess());
+            Assert.Same(change.Result, state.Get(change.Key));
+            changes.Add(change);
+        });
+        var request = state.RequestAsync(inputs.DampingPercentagesKey, TestContext.Current.CancellationToken);
+
+        await runner.RunNextAsync();
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(request.IsCompleted);
+        Assert.Null(state.Get(inputs.DampingPercentagesKey));
+        if (superseded) state.Invalidate(inputs with { TelemetryGeneration = inputs.TelemetryGeneration + 1 });
+        await dispatcher.DrainAsync();
+        await request.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        if (superseded)
+        {
+            Assert.Empty(changes);
+            Assert.Null(state.Get(inputs.DampingPercentagesKey));
+        }
+        else Assert.Single(changes);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WaitsForOwnedWorkAndSuppressesItsLateResult()
+    {
+        var computer = new BlockingAnalysisComputer();
+        var state = new RecordedSessionAnalysisResultState(computer, new NonCancellingBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => new TelemetryData());
+        var inputs = CreateInputs(null);
+        state.Invalidate(inputs);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        var request = state.RequestAsync(inputs.DampingPercentagesKey, TestContext.Current.CancellationToken);
+        await computer.Started.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        var disposal = state.DisposeAsync().AsTask();
+        Assert.False(disposal.IsCompleted);
+        computer.Complete();
+        await disposal.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await request.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(changes);
+        Assert.Null(state.CurrentInputs);
+        Assert.Null(state.Get(inputs.DampingPercentagesKey));
+    }
+
+    [Fact]
+    public async Task CalculationFailure_PublishesTypedDiagnosticsWithoutCachingAResult()
+    {
+        var computer = new FailingAnalysisComputer();
+        using var state = new RecordedSessionAnalysisResultState(computer, new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => TestTelemetryData.CreateMinimal());
+        var inputs = CreateInputs(null);
+        state.Invalidate(inputs);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+
+        await state.RequestAsync(inputs.DampingPercentagesKey, TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        var failure = Assert.Single(changes).Failure;
+        Assert.NotNull(failure);
+        Assert.Equal(SessionEditorFailureReason.Analysis, failure.Reason);
+        Assert.Equal("calculation diagnostic", failure.Details);
+        Assert.Null(state.Get(inputs.DampingPercentagesKey));
+    }
+
     [Fact]
     public async Task RequestAsync_ReusesOneTypedVelocityResult_ForIdenticalSemanticKey()
     {
@@ -414,6 +520,7 @@ public class RecordedSessionAnalysisResultStateTests
             BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
             BalanceSpeedMode: BalanceSpeedMode.Both,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
+            PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
     private static string Fingerprint<T>(T value)
@@ -432,6 +539,12 @@ public class RecordedSessionAnalysisResultStateTests
             ComputeCount++;
             return inner.Compute(key, telemetry);
         }
+    }
+
+    private sealed class FailingAnalysisComputer : IRecordedSessionAnalysisComputer
+    {
+        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
+            throw new InvalidOperationException("calculation diagnostic");
     }
 
     private sealed class TestAnalysisComputer : IRecordedSessionAnalysisComputer

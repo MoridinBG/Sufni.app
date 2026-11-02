@@ -332,10 +332,9 @@ Reset`; its blocking screen and shared error bars expose details through a
 collapsed expander. Cancellation remains neutral, and outer layers do not log
 an already-classified failure again.
 
-Failure-policy migration is incomplete in the current code: live capture and
-management, acquisition listing/folder selection, recorded preferences and
-analysis/reconciliation, session/track loading, and segment comparison still
-have presentation-owned catches or string failure payloads. Their current
+Failure-policy migration is incomplete in the current code: session/track loading,
+video-pane operations and segment comparison still have presentation-owned catches
+or string failure payloads. Their current
 ownership is described in the corresponding subsystem documents.
 
 Operations with multiple semantically distinct outcomes return a sealed
@@ -384,10 +383,11 @@ refreshed result reaches the editor through the recorded-session projection rath
 than this return value (see [recompute flow](ui-state.md#recorded-session-projection)).
 
 Recorded-session analysis requests use the same stale-result discipline on the
-read side. Analysis inputs are versioned by the open editor; result computation
-runs off the UI thread, publishes back through the UI dispatcher, and is ignored
+read side. Inputs and cached results are UI-thread-only; result computation
+runs off the UI thread and marshals back for one cache/publication step. It is ignored
 if the range, mode, cutoffs, telemetry generation, or editor lifecycle changed
-before completion.
+before completion. The editor cancels analysis when closing and awaits async
+disposal to drain even displaced computations.
 
 The same convention is used for infrastructure-facing service outcomes
 such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)

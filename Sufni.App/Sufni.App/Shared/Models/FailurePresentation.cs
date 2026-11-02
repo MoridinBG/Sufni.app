@@ -186,6 +186,7 @@ public sealed record FailurePresentation
 
     public static FailurePresentation From(SessionEditorFailureReason reason, string? details = null) => new(reason switch
     {
+        SessionEditorFailureReason.Analysis => "The session analysis could not be calculated. Change the range or reopen the session to retry.",
         SessionEditorFailureReason.Reconcile => "The session changes could not be applied. Close the session and open it again.",
         SessionEditorFailureReason.LoadPreferences => "The session preferences could not be loaded. Default preferences are shown.",
         SessionEditorFailureReason.SavePreferences => "The session preferences could not be saved. Try again.",
