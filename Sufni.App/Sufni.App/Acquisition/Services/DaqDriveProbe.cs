@@ -13,7 +13,7 @@ namespace Sufni.App.Acquisition.Services;
 public sealed class DaqDriveProbe : IDaqDriveProbe
 {
     public IReadOnlyList<DaqDrive> FindDrives() => DriveInfo.GetDrives()
-        .Where(drive => drive.IsReady && File.Exists(Path.Combine(drive.RootDirectory.FullName, "BOARDID")))
+        .Where(drive => drive.IsReady && File.Exists(Path.Combine(drive.RootDirectory.FullName, DaqDriveLayout.BoardIdFileName)))
         .Select(drive => new DaqDrive(
             drive.RootDirectory.FullName,
             drive.VolumeLabel,
@@ -22,9 +22,9 @@ public sealed class DaqDriveProbe : IDaqDriveProbe
 
     public async Task<Guid> InitializeAsync(DaqDrive drive, CancellationToken cancellationToken)
     {
-        var serialHex = (await File.ReadAllTextAsync(Path.Combine(drive.RootPath, "BOARDID"), cancellationToken))
+        var serialHex = (await File.ReadAllTextAsync(Path.Combine(drive.RootPath, DaqDriveLayout.BoardIdFileName), cancellationToken))
             .ToLowerInvariant();
-        Directory.CreateDirectory(Path.Combine(drive.RootPath, "uploaded"));
+        Directory.CreateDirectory(Path.Combine(drive.RootPath, DaqDriveLayout.UploadedDirectoryName));
         return UuidUtil.CreateDeviceUuid(serialHex);
     }
 

@@ -121,6 +121,8 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 
 Telemetry reaches the app through three `ITelemetryDataStore` implementations behind a single interface, and SST files come in three binary versions (V3 fixed-record, V4 TLV with IMU/GPS/markers/temperature, V5 chunked/segment-aware recordings). Import captures the original SST bytes as a recorded-session source, then derives processed telemetry and a processing fingerprint from that source plus the selected setup/bike calibration.
 
+`ImportSessionsCoordinator` owns browsing, listing, folder selection and the import batch. Immutable jobs capture row edits; repository checkpoints prevent duplicate imports and recover publication before acknowledgement. Network sources observe the shared live catalog and reserve the DAQ port for listing or import. Local adapters share `DaqDriveLayout` and retain malformed recordings as non-importable rows.
+
 Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
 - [Data Acquisition](architecture/acquisition.md#data-acquisition) — overview and source-flow diagram

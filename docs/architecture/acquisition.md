@@ -56,7 +56,7 @@ rows and split references remain valid.
 
 ### Interfaces
 
-**`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`. `OpenImportBatchAsync`
+**`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `ObserveTransport()` for shared port ownership, and `GetFiles(ct)` returning a typed listing outcome with immutable file adapters and resolved board identity. `OpenImportBatchAsync`
 opens the source-specific I/O lifetime before file operations; local sources
 need no resource, while network sources own a lazy shared management session.
 
@@ -130,9 +130,11 @@ source files remain unacknowledged.
 
 `MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
 
-`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) requires its dispatcher, background runner and clock. It owns a one-second `PeriodicTimer` scan loop per browse lifetime, cancels on stop, waits for the previous scan before restarting, and awaits cleanup on disposal. Each failed scan logs once and reports a closed reason with optional diagnostics through `DiscoveryIssueReported`; the next tick can retry. Drive probing, removed-storage-provider checks, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Import publication goes through the store writers, whose base marshals cache edits through `IUiThreadDispatcher`.
+`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) requires its dispatcher, background runner and clock. It owns a one-second `PeriodicTimer` scan loop per browse lifetime, cancels on stop, waits for the previous scan before restarting, and awaits cleanup on disposal. Each failed scan logs once and reports a closed reason with optional diagnostics through `DiscoveryIssueReported`; the next tick can retry. Drive probing, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Import publication goes through the store writers, whose base marshals cache edits through `IUiThreadDispatcher`.
 
-`IDaqDriveProbe` isolates drive discovery and filesystem access. `DaqDriveProbe` returns immutable drive descriptors, reads `BOARDID`, creates `uploaded/`, and enumerates recording files. `MassStorageTelemetryDataStore.CreateAsync()` uses that probe off thread. Browse matching retains volume-label identity; folder registration compares root paths. `LoadFilesAsync()` is the service surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed warnings, start-time, and duration state for the same bytes.
+`IDaqDriveProbe` isolates drive discovery and filesystem access. `DaqDriveProbe` returns immutable drive descriptors, reads `BOARDID`, creates `uploaded/`, and enumerates recording files. `MassStorageTelemetryDataStore.CreateAsync()` uses that probe off thread. Browse matching retains volume-label identity; folder registration compares root paths. `ImportSessionsCoordinator.LoadFilesAsync()` is the surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed warnings, start-time, and duration state for the same bytes. `TelemetryFileInspector` also translates invalid headers, unsupported versions and invalid timestamp values into non-importable rows; inaccessible files are skipped at the listing boundary.
+
+`DaqDriveLayout` owns the marker and destination folder names shared by local adapters. Picked folders stay registered for the browse lifetime; listing reports access failures without a separate availability probe.
 
 On import, files move to an `uploaded/` subdirectory, which the datastore creates during initialization. On trash, files move to `trash/`; the current local-file implementations expect that directory to already exist, so a missing `trash/` directory is a filesystem error surfaced by the import workflow rather than silently creating it.
 
@@ -168,7 +170,7 @@ Downloads stream into memory, post-publication acknowledgement uses
 Management protocol errors still become exceptions at the file-operation
 boundary, where the coordinator reports them per file.
 
-`DataStoreDiscoveryIssue` now reports drive-scan failures only. Network availability
+`DataStoreDiscoveryIssue` reports drive-scan failures from the service and browse-lifecycle failures from the coordinator. Network availability
 belongs to listing or batch acquisition, and scan diagnostics remain separate from
 fixed user-facing summaries.
 

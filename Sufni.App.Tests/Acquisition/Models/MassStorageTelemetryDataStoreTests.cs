@@ -16,6 +16,7 @@ public class MassStorageTelemetryDataStoreTests
         File.WriteAllBytes(Path.Combine(tempDirectory.Path, "older.SST"), olderBytes);
         File.WriteAllBytes(Path.Combine(tempDirectory.Path, "newer.SST"), newerBytes);
         File.WriteAllText(Path.Combine(tempDirectory.Path, "broken.SST"), "not telemetry");
+        File.SetLastWriteTimeUtc(Path.Combine(tempDirectory.Path, "broken.SST"), DateTimeOffset.FromUnixTimeSeconds(50).UtcDateTime);
         File.WriteAllText(Path.Combine(tempDirectory.Path, "notes.txt"), "ignored");
         var drive = new DaqDrive(tempDirectory.Path, "DAQ", "DAQ");
 
@@ -28,7 +29,13 @@ public class MassStorageTelemetryDataStoreTests
         Assert.Collection(
             files,
             first => Assert.Equal("newer.SST", first.FileName),
-            second => Assert.Equal("older.SST", second.FileName));
+            second => Assert.Equal("older.SST", second.FileName),
+            malformed =>
+            {
+                Assert.Equal("broken.SST", malformed.FileName);
+                Assert.False(malformed.CanImport);
+                Assert.NotEmpty(malformed.MalformedMessage!);
+            });
         Assert.Equal("newer.SST", source.FileName);
         Assert.Equal(newerBytes, source.SstBytes.ToArray());
     }

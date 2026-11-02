@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
-using Sufni.Telemetry;
 
 namespace Sufni.App.Acquisition.Models;
 
@@ -20,7 +19,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     private async Task Init()
     {
         await using var stream = await storageFile.OpenReadAsync();
-        var inspection = RawTelemetryData.InspectStream(stream);
+        var inspection = TelemetryFileInspector.Inspect(stream, FileName);
         ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, ResolveFallbackStartTime(storageFile)));
     }
 
@@ -48,12 +47,12 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 
     public async Task OnImported()
     {
-        await MoveToSiblingFolderAsync("uploaded", "The \"uploaded\" folder could not be accessed.");
+        await MoveToSiblingFolderAsync(DaqDriveLayout.UploadedDirectoryName, "The \"uploaded\" folder could not be accessed.");
     }
 
     public async Task OnTrashed()
     {
-        await MoveToSiblingFolderAsync("trash", "The \"trash\" folder could not be accessed.");
+        await MoveToSiblingFolderAsync(DaqDriveLayout.TrashDirectoryName, "The \"trash\" folder could not be accessed.");
     }
 
     private async Task MoveToSiblingFolderAsync(string folderName, string missingMessage)

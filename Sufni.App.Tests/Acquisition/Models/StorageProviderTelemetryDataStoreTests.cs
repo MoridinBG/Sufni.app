@@ -20,11 +20,12 @@ public class StorageProviderTelemetryDataStoreTests
         var older = CreateStorageFile("older.SST", TestSstFiles.CreateValidV3(timestamp: 100));
         var newer = CreateStorageFile("newer.SST", TestSstFiles.CreateValidV3(timestamp: 200));
         var invalid = CreateStorageFile("broken.SST", [0x01, 0x02]);
-        invalid.OpenReadAsync().ThrowsAsync(new InvalidDataException("not telemetry"));
+        var inaccessible = CreateStorageFile("inaccessible.SST", []);
+        inaccessible.OpenReadAsync().ThrowsAsync(new IOException("device disconnected"));
         var ignored = CreateStorageFile("notes.txt", Encoding.UTF8.GetBytes("not telemetry"));
         folder.GetItemsAsync().Returns(
             _ => EnumerateStorageItems(boardIdFile),
-            _ => EnumerateStorageItems(uploaded, boardIdFile, older, invalid, ignored, newer));
+            _ => EnumerateStorageItems(uploaded, boardIdFile, older, invalid, inaccessible, ignored, newer));
         folder.CreateFolderAsync("uploaded").Returns(Task.FromResult<IStorageFolder?>(uploaded));
 
         var dataStore = new StorageProviderTelemetryDataStore(folder);
@@ -37,18 +38,13 @@ public class StorageProviderTelemetryDataStoreTests
         Assert.Collection(
             files,
             first => Assert.Equal("newer.SST", first.FileName),
-            second => Assert.Equal("older.SST", second.FileName));
-    }
-
-    [Fact]
-    public void IsAvailable_ReturnsFalse_WhenFolderEnumerationCannotStart()
-    {
-        var folder = CreateFolder("DAQ");
-        folder.GetItemsAsync().Returns(_ => throw new InvalidOperationException("folder unavailable"));
-
-        var dataStore = new StorageProviderTelemetryDataStore(folder);
-
-        Assert.False(dataStore.IsAvailable());
+            second => Assert.Equal("older.SST", second.FileName),
+            malformed =>
+            {
+                Assert.Equal("broken.SST", malformed.FileName);
+                Assert.False(malformed.CanImport);
+                Assert.NotEmpty(malformed.MalformedMessage!);
+            });
     }
 
     [Fact]

@@ -15,6 +15,12 @@ public class TelemetryFileInspectionMappingTests
     [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.MalformedV4)]
     [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.TrimmedV4)]
     [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.TrimmedV4)]
+    [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.InvalidMagic)]
+    [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.InvalidMagic)]
+    [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.UnsupportedVersion)]
+    [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.UnsupportedVersion)]
+    [InlineData(TelemetryFileSourceKind.MassStorage, InspectionPayload.InvalidTimestamp)]
+    [InlineData(TelemetryFileSourceKind.StorageProvider, InspectionPayload.InvalidTimestamp)]
     public async Task TelemetryFile_MapsInspectionResult_ForSourceAndPayload(
         TelemetryFileSourceKind sourceKind,
         InspectionPayload payload)
@@ -31,6 +37,9 @@ public class TelemetryFileInspectionMappingTests
                 Assert.Equal("00:00:05", file.Duration);
                 break;
             case InspectionPayload.MalformedV4:
+            case InspectionPayload.InvalidMagic:
+            case InspectionPayload.UnsupportedVersion:
+            case InspectionPayload.InvalidTimestamp:
                 Assert.False(file.CanImport);
                 Assert.False(string.IsNullOrWhiteSpace(file.MalformedMessage));
                 break;
@@ -89,6 +98,9 @@ public class TelemetryFileInspectionMappingTests
             InspectionPayload.ValidV4WithUnknownChunk => TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000),
             InspectionPayload.MalformedV4 => TestSstFiles.CreateMalformedV4WithInvalidTelemetryLength(),
             InspectionPayload.TrimmedV4 => TestSstFiles.CreateV4WithTelemetryChunkExtendingPastEnd(telemetrySampleCount: 5000),
+            InspectionPayload.InvalidMagic => [0x01, 0x02],
+            InspectionPayload.UnsupportedVersion => [(byte)'S', (byte)'S', (byte)'T', 99],
+            InspectionPayload.InvalidTimestamp => TestSstFiles.CreateValidV3(timestamp: long.MaxValue),
             _ => throw new ArgumentOutOfRangeException(nameof(payload), payload, null)
         };
         var fileName = payload switch
@@ -127,6 +139,9 @@ public class TelemetryFileInspectionMappingTests
     {
         ValidV4WithUnknownChunk,
         MalformedV4,
-        TrimmedV4
+        TrimmedV4,
+        InvalidMagic,
+        UnsupportedVersion,
+        InvalidTimestamp
     }
 }

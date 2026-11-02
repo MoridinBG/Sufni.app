@@ -43,14 +43,10 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         if (!supportsMassStorageImport)
             return;
 
-        var (knownMassStorageDrives, storageProviderDataStores) = await uiThreadDispatcher.InvokeAsync(() => (
-            DataStores.OfType<MassStorageTelemetryDataStore>().Select(store => store.Drive).ToArray(),
-            DataStores.OfType<StorageProviderTelemetryDataStore>().ToArray()));
+        var knownMassStorageDrives = await uiThreadDispatcher.InvokeAsync(() =>
+            DataStores.OfType<MassStorageTelemetryDataStore>().Select(store => store.Drive).ToArray());
 
         var currentMassStorageDrives = await GetCurrentMassStorageDrivesAsync(cancellationToken);
-        var removedStorageProviders = await backgroundTaskRunner.RunAsync(
-            () => GetRemovedStorageProviders(storageProviderDataStores),
-            cancellationToken);
 
         var addedDrives = currentMassStorageDrives.ExceptBy(knownMassStorageDrives.Select(drive => drive.VolumeLabel), drive => drive.VolumeLabel).ToArray();
         var removedDrives = knownMassStorageDrives.ExceptBy(currentMassStorageDrives.Select(drive => drive.VolumeLabel), drive => drive.VolumeLabel).ToArray();
@@ -65,11 +61,6 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         {
             if (!isBrowsing || cancellationToken.IsCancellationRequested)
                 return;
-
-            foreach (var dataStore in removedStorageProviders)
-            {
-                DataStores.Remove(dataStore);
-            }
 
             foreach (var drive in removedDrives)
             {
@@ -112,21 +103,6 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         backgroundTaskRunner.RunAsync(
             () => MassStorageTelemetryDataStore.CreateAsync(drive, driveProbe, cancellationToken),
             cancellationToken);
-
-    private static IReadOnlyList<StorageProviderTelemetryDataStore> GetRemovedStorageProviders(
-        IReadOnlyList<StorageProviderTelemetryDataStore> storageProviderDatastores)
-    {
-        var toRemove = new List<StorageProviderTelemetryDataStore>();
-        foreach (var ds in storageProviderDatastores)
-        {
-            if (!ds.IsAvailable())
-            {
-                toRemove.Add(ds);
-            }
-        }
-
-        return toRemove;
-    }
 
     public TelemetryDataStoreService(
         ILiveDaqCatalogService catalog,

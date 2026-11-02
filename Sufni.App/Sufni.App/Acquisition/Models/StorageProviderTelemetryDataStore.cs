@@ -27,20 +27,6 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
     internal string? LocalPath { get; }
     private IStorageFolder Folder { get; }
 
-    public bool IsAvailable()
-    {
-        try
-        {
-            Folder.GetItemsAsync();
-        }
-        catch
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     public async Task<TelemetryFileListing> GetFiles(CancellationToken cancellationToken = default)
     {
         await Initialization;
@@ -72,13 +58,13 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         var items = Folder.GetItemsAsync();
         await foreach (var item in items)
         {
-            if (item.Name.Equals("BOARDID", StringComparison.Ordinal) && item is IStorageFile file)
+            if (item.Name.Equals(DaqDriveLayout.BoardIdFileName, StringComparison.Ordinal) && item is IStorageFile file)
             {
                 boardIdFile = file;
                 if (uploadedFolder is not null) break;
             }
 
-            if (item.Name.Equals("uploaded", StringComparison.Ordinal) && item is IStorageFolder folder)
+            if (item.Name.Equals(DaqDriveLayout.UploadedDirectoryName, StringComparison.Ordinal) && item is IStorageFolder folder)
             {
                 uploadedFolder = folder;
                 if (boardIdFile is not null) break;
@@ -86,7 +72,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         }
 
         if (uploadedFolder is null)
-            await Folder.CreateFolderAsync("uploaded");
+            await Folder.CreateFolderAsync(DaqDriveLayout.UploadedDirectoryName);
 
         if (boardIdFile is null) return;
 

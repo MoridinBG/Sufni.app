@@ -192,20 +192,26 @@ including [Stores](docs/architecture/ui.md#stores),
 
 # Telemetry Acquisition
 
-The app imports SST files from a DAQ device via two methods, both abstracted
+The app imports SST files from a DAQ device via three sources, all abstracted
 behind `ITelemetryDataStore` / `ITelemetryFile`:
 
 - **Mass storage** — the DAQ exposes itself as a USB drive. Sufni.App
   identifies it by a `BOARDID` marker file at the root of the drive, scans
   the root for `*.SST` files, and moves files into `uploaded/` or `trash/`
-  subdirectories after import/delete.
-- **Network** — mDNS discovery (`_sufni._tcp`) locates a WiFi-connected DAQ,
-  then the management protocol negotiates file listings and transfers. See
+  subdirectories after import/delete; `DaqDriveLayout` owns those names.
+- **Picked folder** — Avalonia storage-provider access uses the same file layout
+  and inspection mapping; the explicit `CanPickFolder` capability gates selection.
+- **Network** — the shared live catalog supplies mDNS presence (`_sufni._tcp`).
+  Listing and import reserve the shared per-identity DAQ port; TXT board identity
+  avoids IDENTIFY unless a legacy device needs that fallback. See
   `docs/architecture/daq-management.md` and
   `Services/Management/ManagementClient.cs` for the wire protocol.
 
-`TelemetryDataStoreService` aggregates every available source and polls for
-drive changes.
+`TelemetryDataStoreService` aggregates sources and polls for drive changes.
+`ImportSessionsCoordinator` owns source observations, listing, folder registration
+and import lifetime. Immutable jobs capture editable rows; persisted source hashes
+are the retry checkpoint. Publication precedes acknowledgement, whose failure
+retains the committed recording and is reported separately.
 
 Full details: [docs/architecture/acquisition.md § Data Acquisition](docs/architecture/acquisition.md#data-acquisition),
 including [Interfaces](docs/architecture/acquisition.md#interfaces),

@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.Telemetry;
 
 namespace Sufni.App.Acquisition.Models;
 
@@ -21,7 +20,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
         this.fileInfo = fileInfo;
 
         using var stream = File.Open(this.fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var inspection = RawTelemetryData.InspectStream(stream);
+        var inspection = TelemetryFileInspector.Inspect(stream, FileName);
         ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, fileInfo.LastWriteTimeUtc));
     }
 
@@ -34,14 +33,14 @@ public class MassStorageTelemetryFile : ITelemetryFile
     public Task OnImported()
     {
         File.Move(fileInfo.FullName,
-            Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, "uploaded", fileInfo.Name));
+            Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, DaqDriveLayout.UploadedDirectoryName, fileInfo.Name));
         return Task.CompletedTask;
     }
 
     public Task OnTrashed()
     {
         File.Move(fileInfo.FullName,
-            Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, "trash", fileInfo.Name));
+            Path.Combine(Path.GetDirectoryName(fileInfo.FullName)!, DaqDriveLayout.TrashDirectoryName, fileInfo.Name));
         return Task.CompletedTask;
     }
 
