@@ -72,6 +72,7 @@ public partial class ImportSessionsCoordinator
             try
             {
                 var folder = await filesService.OpenDataStoreFolderAsync();
+                shutdown.Token.ThrowIfCancellationRequested();
                 token.ThrowIfCancellationRequested();
                 return folder is null ? new StorageProviderRegistrationResult.Canceled()
                     : await dataStores.TryAddStorageProviderAsync(folder, token);

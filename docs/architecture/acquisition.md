@@ -89,7 +89,8 @@ Source observations share one browse lifetime: the first starts it and the last
 stops it. Scan issues reach only current observers. Listing and folder operations
 are retained by the coordinator, linked to caller and shutdown cancellation, and
 drained by `StopAsync`. The picker is a native UI operation; shutdown waits for
-it to settle and rejects any late selection before registration. Folder commands
+it to settle and checks shutdown directly before registering a late selection,
+while linked cancellation callbacks may still be draining. Folder commands
 are gated by `AppCapabilities.CanPickFolder`. Cancellation is neutral; listing
 and folder failures carry `ImportSourceFailureReason.ListFiles | OpenFolder`
 with fixed user summaries and separate diagnostics.
