@@ -14,6 +14,7 @@ public class StravaSegmentServiceTests
     private static readonly DateTimeOffset SessionStart = DateTimeOffset.Parse("2026-01-01T10:00:00Z");
 
     private readonly InMemorySecureStorage storage = new();
+    private readonly FakeTimeProvider clock = new(Now);
 
     [Fact]
     public async Task GetConnectionSnapshotAsync_ReadsConnectionStoredBeforeTheFold()
@@ -222,6 +223,66 @@ public class StravaSegmentServiceTests
             await CreateService().FindSegmentsAsync(SessionStart, duration, TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task ConcurrentFetches_RefreshOnce_AndCancelledWaiterDoesNotCancelTheOwner()
+    {
+        await StoreConnectionAsync(accessToken: null);
+        var response = new TaskCompletionSource<HttpResponseMessage>();
+        var refreshStarted = new TaskCompletionSource();
+        var refreshes = 0;
+        using var client = new HttpClient(new StubHttpMessageHandler((request, token) =>
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                Interlocked.Increment(ref refreshes);
+                refreshStarted.TrySetResult();
+                return response.Task;
+            }
+            return Task.FromResult(JsonResponse("[]"));
+        }));
+        await using var service = new StravaSegmentService(storage, client, clock);
+        var first = service.FindSegmentsAsync(SessionStart, 3600, TestContext.Current.CancellationToken);
+        await refreshStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        using var cancelled = new CancellationTokenSource();
+        var second = service.FindSegmentsAsync(SessionStart.AddHours(1), 3600, cancelled.Token);
+        var third = service.FindSegmentsAsync(SessionStart.AddHours(2), 3600, TestContext.Current.CancellationToken);
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        response.SetResult(TokenResponse("fresh", "rotated", "read,activity:read_all"));
+
+        Assert.IsType<StravaSegmentFetchResult.NoMatchingActivity>(await first.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.IsType<StravaSegmentFetchResult.NoMatchingActivity>(await third.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(1, refreshes);
+        Assert.Equal("rotated", await storage.GetStringAsync("SegmentAnalysis.Strava.RefreshToken"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NegativeResult_ExpiresSoNewActivitiesAndEffortsCanAppear(bool matchingActivity)
+    {
+        await StoreConnectionAsync("access");
+        var activity = "[{ \"id\": 42, \"start_date\": \"2026-01-01T10:00:00Z\", \"elapsed_time\": 3600 }]";
+        var responses = new List<Func<HttpRequestMessage, Task<HttpResponseMessage>>>
+        {
+            _ => Task.FromResult(JsonResponse(matchingActivity ? activity : "[]"))
+        };
+        if (matchingActivity) responses.Add(_ => Task.FromResult(JsonResponse("{\"segment_efforts\": []}")));
+        responses.Add(_ => Task.FromResult(JsonResponse(activity)));
+        responses.Add(_ => Task.FromResult(JsonResponse("""
+            { "segment_efforts": [{ "name": "New effort", "start_date": "2026-01-01T10:05:00Z", "elapsed_time": 30 }] }
+            """)));
+        await using var service = CreateService(responses.ToArray());
+        var first = await service.FindSegmentsAsync(SessionStart, 3600, TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromSeconds(59));
+        Assert.Equal(first, await service.FindSegmentsAsync(SessionStart, 3600, TestContext.Current.CancellationToken));
+        clock.Advance(TimeSpan.FromSeconds(1));
+
+        var loaded = Assert.IsType<StravaSegmentFetchResult.Loaded>(
+            await service.FindSegmentsAsync(SessionStart, 3600, TestContext.Current.CancellationToken));
+        Assert.Single(loaded.Segments);
+    }
+
     private StravaSegmentService CreateService(params Func<HttpRequestMessage, Task<HttpResponseMessage>>[] responses)
     {
         var queue = new Queue<Func<HttpRequestMessage, Task<HttpResponseMessage>>>(responses);
@@ -230,7 +291,7 @@ public class StravaSegmentServiceTests
             cancellationToken.ThrowIfCancellationRequested();
             return queue.Dequeue()(request);
         });
-        return new StravaSegmentService(storage, new HttpClient(handler), new FakeTimeProvider(Now));
+        return new StravaSegmentService(storage, new HttpClient(handler), clock);
     }
 
     private async Task StoreConnectionAsync(string? accessToken)

@@ -78,6 +78,49 @@ public class StravaConnectDialogViewModelTests
         Assert.Null(dialog.Error);
     }
 
+    [Fact]
+    public async Task Cancel_CancelsConnectionAndIgnoresLateSuccess()
+    {
+        var result = new TaskCompletionSource<StravaConnectResult>();
+        CancellationToken captured = default;
+        segmentCoordinator.ConnectStravaAsync(Arg.Any<StravaConnectRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call => { captured = call.Arg<CancellationToken>(); return result.Task; });
+        using var dialog = CreateDialogReadyToConnect();
+        var completions = 0;
+        dialog.Completed += (_, _) => completions++;
+        var connect = dialog.ConnectCommand.ExecuteAsync(null);
+
+        dialog.CancelCommand.Execute(null);
+        Assert.True(captured.IsCancellationRequested);
+        result.SetResult(new StravaConnectResult.Connected());
+        await connect.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(1, completions);
+        Assert.False(dialog.IsConnecting);
+        Assert.Null(dialog.Error);
+    }
+
+    [Fact]
+    public async Task Dispose_CancelsConnectionWhenDialogHostCloses()
+    {
+        CancellationToken captured = default;
+        segmentCoordinator.ConnectStravaAsync(Arg.Any<StravaConnectRequest>(), Arg.Any<CancellationToken>())
+            .Returns(async call =>
+            {
+                captured = call.Arg<CancellationToken>();
+                await Task.Delay(Timeout.Infinite, captured);
+                return (StravaConnectResult)new StravaConnectResult.Connected();
+            });
+        var dialog = CreateDialogReadyToConnect();
+        var connect = dialog.ConnectCommand.ExecuteAsync(null);
+
+        dialog.Dispose();
+        await connect.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(captured.IsCancellationRequested);
+        Assert.False(dialog.IsConnecting);
+    }
+
     private StravaConnectDialogViewModel CreateDialogReadyToConnect()
     {
         var dialog = new StravaConnectDialogViewModel(segmentCoordinator, new StravaConnectionSnapshot("client", "secret", IsConnected: false));

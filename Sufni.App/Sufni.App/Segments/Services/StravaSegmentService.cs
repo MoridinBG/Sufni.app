@@ -18,8 +18,8 @@ namespace Sufni.App.Segments.Services;
 
 /// <summary>
 /// Reads Strava segment efforts with the user's own Strava API app. The
-/// client credentials and OAuth tokens live in secure storage. Fetch results
-/// are cached per session timing until the connection changes.
+/// client credentials and OAuth tokens live in secure storage. Positive results
+/// are cached per session timing until the connection changes; negative results expire.
 /// </summary>
 public interface IStravaSegmentService
 {
@@ -47,7 +47,7 @@ public interface IStravaSegmentService
     Task ResetCredentialsAsync(CancellationToken cancellationToken = default);
 }
 
-internal sealed class StravaSegmentService : IStravaSegmentService
+internal sealed class StravaSegmentService : IStravaSegmentService, IAsyncDisposable
 {
     private static readonly ILogger logger = Log.ForContext<StravaSegmentService>();
     private const string AuthorizationEndpoint = "https://www.strava.com/oauth/authorize";
@@ -63,7 +63,9 @@ internal sealed class StravaSegmentService : IStravaSegmentService
     private readonly HttpClient httpClient;
     private readonly TimeProvider timeProvider;
     private readonly System.Threading.Lock segmentCacheLock = new();
-    private readonly Dictionary<SegmentCacheKey, StravaSegmentFetchResult> segmentCache = [];
+    private readonly Dictionary<SegmentCacheKey, CachedSegmentResult> segmentCache = [];
+    private static readonly TimeSpan NegativeCacheLifetime = TimeSpan.FromMinutes(1);
+    private readonly SemaphoreSlim credentialsGate = new(1, 1);
 
     public StravaSegmentService(ISecureStorage secureStorage, TimeProvider timeProvider)
         : this(secureStorage, new HttpClient(), timeProvider)
@@ -114,6 +116,15 @@ internal sealed class StravaSegmentService : IStravaSegmentService
         StravaConnectRequest request,
         CancellationToken cancellationToken = default)
     {
+        await credentialsGate.WaitAsync(cancellationToken);
+        try { return await ConnectCoreAsync(request, cancellationToken); }
+        finally { credentialsGate.Release(); }
+    }
+
+    private async Task<StravaConnectResult> ConnectCoreAsync(
+        StravaConnectRequest request,
+        CancellationToken cancellationToken = default)
+    {
         var clientId = NormalizeRequired(request.ClientId);
         var clientSecret = NormalizeRequired(request.ClientSecret);
         var redirectUrl = NormalizeRequired(request.RedirectUrl);
@@ -160,6 +171,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
             return new StravaConnectResult.Failed(StravaConnectFailureReason.Connect, "Strava token response was incomplete.");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         var validTokenResponse = tokenResponse!;
         if (!ScopeIncludesRequiredScope(validTokenResponse.Scope))
         {
@@ -266,13 +278,20 @@ internal sealed class StravaSegmentService : IStravaSegmentService
 
     public async Task ResetCredentialsAsync(CancellationToken cancellationToken = default)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        ClearSegmentCache();
-
-        foreach (var key in StravaSecureStorageKeys.All)
+        await credentialsGate.WaitAsync(cancellationToken);
+        try
         {
-            await secureStorage.RemoveAsync(key);
+            ClearSegmentCache();
+            foreach (var key in StravaSecureStorageKeys.All) await secureStorage.RemoveAsync(key);
         }
+        finally { credentialsGate.Release(); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await credentialsGate.WaitAsync();
+        httpClient.Dispose();
+        credentialsGate.Dispose();
     }
 
     private async Task PersistCredentialsAsync(
@@ -306,6 +325,13 @@ internal sealed class StravaSegmentService : IStravaSegmentService
     }
 
     private async Task<AccessTokenResult> GetFreshAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        await credentialsGate.WaitAsync(cancellationToken);
+        try { return await GetFreshAccessTokenCoreAsync(cancellationToken); }
+        finally { credentialsGate.Release(); }
+    }
+
+    private async Task<AccessTokenResult> GetFreshAccessTokenCoreAsync(CancellationToken cancellationToken)
     {
         var clientId = await secureStorage.GetStringAsync(StravaSecureStorageKeys.ClientId);
         var clientSecret = await secureStorage.GetStringAsync(StravaSecureStorageKeys.ClientSecret);
@@ -358,6 +384,7 @@ internal sealed class StravaSegmentService : IStravaSegmentService
             return new AccessTokenResult.Failed("Strava token response was incomplete.");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         var validTokenResponse = tokenResponse!;
         var returnedScope = string.IsNullOrWhiteSpace(validTokenResponse.Scope) ? scope : validTokenResponse.Scope;
         if (!ScopeIncludesRequiredScope(returnedScope))
@@ -414,7 +441,15 @@ internal sealed class StravaSegmentService : IStravaSegmentService
     {
         lock (segmentCacheLock)
         {
-            return segmentCache.TryGetValue(key, out result!);
+            if (segmentCache.TryGetValue(key, out var cached) &&
+                (cached.ExpiresAt is null || cached.ExpiresAt > timeProvider.GetUtcNow()))
+            {
+                result = cached.Result;
+                return true;
+            }
+            segmentCache.Remove(key);
+            result = null!;
+            return false;
         }
     }
 
@@ -424,7 +459,8 @@ internal sealed class StravaSegmentService : IStravaSegmentService
     {
         lock (segmentCacheLock)
         {
-            segmentCache[key] = result;
+            segmentCache[key] = new CachedSegmentResult(result,
+                result is StravaSegmentFetchResult.Loaded ? null : timeProvider.GetUtcNow() + NegativeCacheLifetime);
         }
 
         return result;
@@ -588,6 +624,8 @@ internal sealed class StravaSegmentService : IStravaSegmentService
             StravaJsonContext.Default.GetTypeInfo(typeof(T))!;
         return await JsonSerializer.DeserializeAsync(stream, typeInfo, cancellationToken);
     }
+
+    private sealed record CachedSegmentResult(StravaSegmentFetchResult Result, DateTimeOffset? ExpiresAt);
 
     private sealed record ActivityOverlap(
         StravaActivitySummaryDto Activity,

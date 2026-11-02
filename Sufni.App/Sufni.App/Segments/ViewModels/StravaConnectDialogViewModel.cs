@@ -15,7 +15,7 @@ namespace Sufni.App.Segments.ViewModels;
 /// opens the authorization URL in the browser and pastes the redirect URL
 /// back. The dialog completes on cancel and after a successful connect.
 /// </summary>
-public sealed partial class StravaConnectDialogViewModel : ObservableObject, IContentDialogCompletionSource
+public sealed partial class StravaConnectDialogViewModel : ObservableObject, IContentDialogCompletionSource, IDisposable
 {
     private readonly ISegmentCoordinator segmentCoordinator;
 
@@ -83,7 +83,13 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
     partial void OnClientSecretChanged(string? value) => HasOpenedAuthorizationUrl = false;
 
     [RelayCommand]
-    private void Cancel() => Completed?.Invoke(this, EventArgs.Empty);
+    private void Cancel()
+    {
+        ConnectCommand.Cancel();
+        Completed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose() => ConnectCommand.Cancel();
 
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task Connect(CancellationToken cancellationToken)
@@ -95,6 +101,7 @@ public sealed partial class StravaConnectDialogViewModel : ObservableObject, ICo
             var result = await segmentCoordinator.ConnectStravaAsync(
                 new StravaConnectRequest(ClientId, ClientSecret, RedirectUrl),
                 cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             Error = result switch
             {
                 StravaConnectResult.ValidationFailed validation => new FailurePresentation(validation.Message),

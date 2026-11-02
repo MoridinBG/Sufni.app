@@ -63,16 +63,16 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [NotifyPropertyChangedFor(nameof(HasSavedSegments))]
     public partial IReadOnlyList<SavedSegmentRow> SavedSegments { get; private set; } = [];
 
-    [ObservableProperty] public partial bool IsStravaConnected { get; private set; }
-    [ObservableProperty] public partial bool IsStravaSegmentsLoading { get; private set; }
-
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasStravaMessage))]
-    public partial string? StravaMessage { get; private set; }
+    [NotifyPropertyChangedFor(nameof(IsStravaConnected), nameof(IsStravaSegmentsLoading), nameof(StravaMessage),
+        nameof(HasStravaMessage), nameof(StravaError), nameof(StravaSegments))]
+    public partial StravaPickerState StravaState { get; private set; } = new(false, false, [], null, null);
 
-    [ObservableProperty] public partial FailurePresentation? StravaError { get; private set; }
-
-    [ObservableProperty] public partial IReadOnlyList<StravaSegmentRow> StravaSegments { get; private set; } = [];
+    public bool IsStravaConnected => StravaState.IsConnected;
+    public bool IsStravaSegmentsLoading => StravaState.IsLoading;
+    public string? StravaMessage => StravaState.Message;
+    public FailurePresentation? StravaError => StravaState.Error;
+    public IReadOnlyList<StravaSegmentRow> StravaSegments => StravaState.Segments;
 
     public SegmentPickerViewModel(
         Guid sessionId,
@@ -202,7 +202,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [RelayCommand]
     private async Task ConnectWithStrava()
     {
-        var dialog = new StravaConnectDialogViewModel(segmentCoordinator, await segmentCoordinator.GetStravaConnectionAsync());
+        using var dialog = new StravaConnectDialogViewModel(segmentCoordinator, await segmentCoordinator.GetStravaConnectionAsync());
         await dialogService.ShowContentDialogAsync(
             dialog,
             new DialogOptions(
@@ -228,16 +228,14 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         CancelStravaLoad();
         var load = new CancellationTokenSource();
         stravaLoad = load;
-        StravaSegments = [];
-        StravaMessage = null;
-        StravaError = null;
+        StravaState = new(IsStravaConnected, true, [], null, null);
         try
         {
-            IsStravaSegmentsLoading = true;
-            ApplyStravaResult(await segmentCoordinator.FindStravaSegmentsAsync(
+            var result = await segmentCoordinator.FindStravaSegmentsAsync(
                 sessionTimestamp,
                 telemetryDurationSeconds,
-                load.Token));
+                load.Token);
+            if (!load.IsCancellationRequested) ApplyStravaResult(result);
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
@@ -246,7 +244,7 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         {
             if (stravaLoad == load)
             {
-                IsStravaSegmentsLoading = false;
+                StravaState = StravaState with { IsLoading = false };
                 stravaLoad = null;
             }
 
@@ -256,50 +254,32 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
 
     private void ApplyStravaResult(StravaSegmentFetchResult result)
     {
-        IsStravaConnected = result is not (StravaSegmentFetchResult.NotConnected or StravaSegmentFetchResult.ReconnectRequired);
-        switch (result)
+        var connected = result is not (StravaSegmentFetchResult.NotConnected or StravaSegmentFetchResult.ReconnectRequired);
+        StravaState = result switch
         {
-            case StravaSegmentFetchResult.Loaded loaded:
-                StravaSegments = [.. loaded.Segments.Select(segment =>
-                    new StravaSegmentRow(segment.Name, segment.AnalysisRange, segment.DistanceMeters))];
-                break;
-            case StravaSegmentFetchResult.NotConnected:
-                ShowStravaDisconnected(ConnectFirstMessage);
-                break;
-            case StravaSegmentFetchResult.MissingSessionTiming:
-                StravaMessage = "Session timing is not available for Strava segments.";
-                break;
-            case StravaSegmentFetchResult.ReconnectRequired:
-                ShowStravaDisconnected("Strava authorization expired. Connect with Strava again.");
-                break;
-            case StravaSegmentFetchResult.NoMatchingActivity:
-                StravaMessage = "No overlapping Strava activity was found.";
-                break;
-            case StravaSegmentFetchResult.NoUsableSegments:
-                StravaMessage = "No usable Strava segment efforts were found.";
-                break;
-            case StravaSegmentFetchResult.RateLimited:
-                StravaMessage = "Strava rate limit reached.";
-                break;
-            case StravaSegmentFetchResult.Failed failed:
-                StravaError = FailurePresentation.From(failed.Reason, failed.Details);
-                break;
-        }
+            StravaSegmentFetchResult.Loaded loaded => new(connected, false,
+                [.. loaded.Segments.Select(segment => new StravaSegmentRow(segment.Name, segment.AnalysisRange, segment.DistanceMeters))], null, null),
+            StravaSegmentFetchResult.Failed failed => new(connected, false, [], null, FailurePresentation.From(failed.Reason, failed.Details)),
+            _ => new(connected, false, [], result switch
+            {
+                StravaSegmentFetchResult.NotConnected => ConnectFirstMessage,
+                StravaSegmentFetchResult.MissingSessionTiming => "Session timing is not available for Strava segments.",
+                StravaSegmentFetchResult.ReconnectRequired => "Strava authorization expired. Connect with Strava again.",
+                StravaSegmentFetchResult.NoMatchingActivity => "No overlapping Strava activity was found.",
+                StravaSegmentFetchResult.NoUsableSegments => "No usable Strava segment efforts were found.",
+                StravaSegmentFetchResult.RateLimited => "Strava rate limit reached.",
+                _ => null
+            }, null)
+        };
     }
 
-    private void ShowStravaDisconnected(string message)
-    {
-        IsStravaConnected = false;
-        StravaError = null;
-        StravaSegments = [];
-        StravaMessage = message;
-    }
+    private void ShowStravaDisconnected(string message) => StravaState = new(false, false, [], message, null);
 
     private void CancelStravaLoad()
     {
         stravaLoad?.Cancel();
         stravaLoad = null;
-        IsStravaSegmentsLoading = false;
+        StravaState = StravaState with { IsLoading = false };
     }
 
     private async Task<string?> PromptForNameAsync(string title, string confirmText, string name, Guid? segmentId)
@@ -374,3 +354,10 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
         CancelStravaLoad();
     }
 }
+
+public sealed record StravaPickerState(
+    bool IsConnected,
+    bool IsLoading,
+    IReadOnlyList<StravaSegmentRow> Segments,
+    string? Message,
+    FailurePresentation? Error);

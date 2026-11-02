@@ -276,6 +276,24 @@ public class SegmentPickerViewModelTests
         Assert.True(picker.HasStravaMessage);
     }
 
+    [Fact]
+    public async Task ClosedPicker_IgnoresLateSuccessfulStravaResponse()
+    {
+        var response = new TaskCompletionSource<StravaSegmentFetchResult>();
+        segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
+            .Returns(response.Task);
+        using var picker = CreateLoadedPicker();
+        var opening = picker.OpenCommand.ExecuteAsync(null);
+        picker.CloseCommand.Execute(null);
+        response.SetResult(new StravaSegmentFetchResult.Loaded([new("Late effort", 100, new(1, 2))]));
+
+        await opening.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(picker.IsOpen);
+        Assert.False(picker.IsStravaSegmentsLoading);
+        Assert.Empty(picker.StravaSegments);
+    }
+
     private SegmentPickerViewModel CreateLoadedPicker(double durationSeconds = 10, TelemetryTimeRange? analysisRange = null)
     {
         var picker = new SegmentPickerViewModel(
