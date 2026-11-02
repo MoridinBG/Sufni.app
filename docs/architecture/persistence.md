@@ -323,8 +323,8 @@ persist first and inbound appliers prepare and publish the resulting snapshots.
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 
 - `GetAllAsync<T>()` — returns all records where `Deleted == null`
-- `GetChangedAsync<T>(long since)` — returns records where `Updated > since` OR (`Deleted != null` AND `Deleted > since`)
-- `PutAsync<T>(item)` — upsert. Stamps `Updated = DateTimeOffset.UtcNow.ToUnixTimeSeconds()` and clears `Deleted` (resurrecting any tombstoned row with the same id).
+- `GetChangedAsync(sinceExclusive, upperInclusive)` — returns records whose device-local sequence is in that bounded range, including retained tombstones.
+- `PutAsync(item)` — upsert. Advances the authored version above both the current row and its deletion ledger, stamps the injected clock's UTC seconds and installation writer identity, assigns transport sequences, and clears `Deleted` (restoring a tombstoned or purged identity).
 - `DeleteAsync<T>(id)` — stamps an authored deletion and writes its durable ledger entry when the row exists and is not already tombstoned.
 
 `ISessionRepository` operations split metadata and processed-data handling, and store the values they are given: reprocessing produces a pure `ProcessedGeneration`, and import/live-save/recompute owners prepare the optional content track and session before calling the repository. Incoming synchronized bytes are validated, prepared, committed and published by `SessionSyncApplier`. `session.data` is the authoritative local processed-telemetry cache; there is no separate `has_data` column. Metadata and sync-delta reads use `SessionMetadataRow`, projecting availability from `data IS NOT NULL` without selecting the BLOB. A payload-bearing `Session` derives `HasProcessedData` only from its loaded `ProcessedData`; metadata drafts carry no availability override. Persistence helpers map the declared entity schema, so projection-only fields cannot become writes. Duration remains a derived session column. GPS distance/ascent/descent and their input key live in device-local `session_gps_metrics`; metadata reads join that table without loading point JSON. The corresponding properties on `Session` are ignored by entity writes and JSON, and `SessionSnapshot` carries those joined values plus `GpsMetricsKey`. Metadata draft updates preserve `timestamp` and `gps_offset_seconds`; only creation/window editing sets the timestamp, and the explicit alignment command owns the offset. Split copies the current alignment to its new session; trim and undo preserve it. `gps_offset_seconds` is authored per-session state applied when deriving the session-window GPS track from a reusable full `Track`; it is stored on `session` rather than `track` because the same full ride track can back multiple recorded sessions or segments.
@@ -411,7 +411,7 @@ that held the schema versions of the old tables.
 `AppJson` (`Sufni.App/Sufni.App/Infrastructure/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` and exposes two profiles:
 
 - **Lenient** (`AppJson.Options` / `AppJson.Context`) — all local round-trips (entity and track JSON columns; the processing dependency hash) and the entire sync client. Case-insensitive binding with a snake_case enum converter. Its output is deliberately **byte-stable**: `ProcessingDependencyHash` SHA-256s the `AppJson.Options`-serialized payload, so any change to the lenient options would silently invalidate every stored processing fingerprint. Treat the lenient profile as a wire/hash contract, not a tunable.
-- **Hardened** (`AppJson.InboundOptions` / `AppJson.InboundContext`) — network-inbound deserialization on the desktop sync server only (the two `PATCH` session/source-data endpoints). Built from the .NET 10 `Strict` preset — reject duplicate keys and unmapped members, case-sensitive binding, required non-nullable members and constructor parameters — plus the same snake_case enum converter. Because the client always emits every snake_case key explicitly (including explicit nulls for optional members), well-formed first-party traffic is unaffected while malformed or truncated bodies are rejected at the trust boundary. See [Cross-Device Sync § Server](sync.md#server).
+- **Hardened** (`AppJson.InboundOptions` / `AppJson.InboundContext`) — network-inbound deserialization for strict JSON deserialization. Built from the .NET 10 `Strict` preset — reject duplicate keys and unmapped members, case-sensitive binding, required non-nullable members and constructor parameters — plus the same snake_case enum converter. Because the client always emits every snake_case key explicitly (including explicit nulls for optional members), well-formed first-party traffic is unaffected while malformed or truncated bodies are rejected at the trust boundary. The desktop server configures the same strict rules for JSON request binding. The session/source `PATCH` endpoints use binary bodies and validated metadata headers instead of JSON. See [Cross-Device Sync § Server](sync.md#server).
 
 Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values, `LinkageSpec`, `LeverageRatioSpec`, and `WheelSpec`. Sync rows and schema-versioned bike export files require `rear_suspension`; missing unions, malformed unions, and the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` JSON triple are invalid outside the local SQLite startup migration. The pre-refactor mutable linkage classes are not serialization roots.
 
@@ -429,7 +429,7 @@ pre-upgrade random ids are retained when their source hash already exists.
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence`, and hub `SyncSequence`. `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. The one-time `track-materializations` migration groups tracks by complete point
+`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment`, `custom_tile_layer` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence`, and hub `SyncSequence`. `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. The one-time `track-materializations` migration groups tracks by complete point
 content, preserves an active row when one exists, and chooses the lowest old ID
 within that state. It rekeys each survivor to its content ID without changing authored session clocks. Distinct points with
 matching start/end times remain separate. Retained deleted rows with points are
@@ -468,7 +468,10 @@ transaction. `SynchronizationMergeOrder` compares authored history in this order
 4. Equal history is a no-op. Neither side re-stamps authored metadata.
 
 Accepted writes allocate a local sequence; the hub additionally allocates its
-acceptance sequence, while a client preserves the received hub sequence.
+acceptance sequence, while a client preserves the received hub sequence. Accepted
+replicas receive a local sequence too, so a later pairing from cursor zero includes
+every locally held fact. Returning a replica to its originating hub is a merge
+no-op; it does not allocate another sequence or perpetually circulate.
 `SynchronizationData.deletions` carries durable ledger entries even after payload
 purge. Content at or below a ledger version is rejected; explicitly restored
 content above it can win. A historical deletion can be retained without hiding

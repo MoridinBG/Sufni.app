@@ -29,7 +29,7 @@ The slice lives in `Sufni.App/Sufni.App/Segments/`:
 
 ## Persistence
 
-`session_segment` holds id, `owner_key`, `name`, source-relative `start_seconds` and `end_seconds`, and the `Synchronizable` columns `updated`, `client_updated`, and `deleted`. `ISessionSegmentRepository.GetLiveAsync` returns all non-deleted segments independently of session existence. Rename and delete change only live rows; delete is a soft delete.
+`session_segment` holds id, `owner_key`, `name`, source-relative `start_seconds` and `end_seconds`, and the `Synchronizable` columns `version`, `updated`, `updated_by`, `deleted`, `local_seq` and `sync_seq`. `ISessionSegmentRepository.GetLiveAsync` returns all non-deleted segments independently of session existence. Rename and delete change only live rows; delete soft-deletes the row and records its durable deletion ledger entry.
 
 The `track-materializations` migration resolves each old session-owned row through its recording source, adds the session's `window_start_seconds` to both anchors, and drops `session_id`. Segment IDs and authored clocks are preserved. No session-ID ownership fallback exists. Startup purges explicit segment tombstones older than one day, but retains attachments whose sessions have disappeared. Such attachments become visible again when a session of the same source returns. The private-segment table never shipped; its copy migration is removed, and the `session-segment` marker remains recorded as applied.
 
@@ -41,7 +41,7 @@ The `track-materializations` migration resolves each old session-owned row throu
 
 ## Synchronization
 
-Segments travel with source-hash ownership and source-relative anchors in the `segment` list of `SynchronizationData` (protocol v6) through the core paths: the client applies remote rows verbatim, and the hub merges them by timestamp and tombstone after sessions in the same transaction. The client refreshes the store after a sync; on the hub, `InboundSyncCoordinator` refreshes it when a push carries segments. See [sync.md](sync.md).
+Segments travel with source-hash ownership and source-relative anchors in the `segment` list of `SynchronizationData` (protocol v6). Client and hub apply the same authored-history merge rule after sessions in the same transaction. Deletion ledger entries survive payload purge and reject older content. The shared `SynchronizationApplier` publishes affected segments with the other changed row families in one batch before the operation completes. See [sync.md](sync.md).
 
 ## Trim And Split
 

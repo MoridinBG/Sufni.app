@@ -104,6 +104,47 @@ public class TrackCoordinatorTests
     }
 
     [Fact]
+    public async Task ImportGpxAsync_AfterPayloadPurge_RestoresAboveLedgerAndSurvivesMerge()
+    {
+        using var temp = new TempDatabase();
+        using var peerFile = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        filesService.OpenGpxFilesAsync().Returns([TestStorageItems.PickedTextFile("ride.gpx", ValidGpx())]);
+        TrackCoordinator ForDatabase(TestPersistenceHarness database) => new(
+            database.TrackRepository, database.GetRepository<Track>(), sessionRepository,
+            filesService, backgroundTaskRunner, sessionTrackReader, fullTrackPointReader,
+            new GpxTrackReader(), trackStore, sessionStore, new InlineUiThreadDispatcher(), publication);
+        Guid id;
+        await using (var database = new TestPersistenceHarness(temp.DatabasePath, clock))
+        {
+            using var coordinator = ForDatabase(database);
+            Assert.IsType<GpxImportResult.Completed>(await coordinator.ImportGpxAsync(TestContext.Current.CancellationToken));
+            var track = Assert.Single(await database.GetAllAsync<Track>());
+            id = track.Id;
+            await database.DeleteAsync(track);
+        }
+        clock.Advance(TimeSpan.FromDays(2));
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath, clock);
+        var deletions = await reopened.GetSynchronizationDataAsync(0, long.MaxValue);
+        Assert.Empty(deletions.Tracks);
+        var ledger = Assert.Single(deletions.Deletions);
+        await using var peer = new TestPersistenceHarness(peerFile.DatabasePath, clock);
+        await peer.MergeAllAsync(deletions);
+        using var reimport = ForDatabase(reopened);
+
+        var result = Assert.IsType<GpxImportResult.Completed>(await reimport.ImportGpxAsync(TestContext.Current.CancellationToken));
+        await peer.MergeAllAsync(await reopened.GetSynchronizationDataAsync(0, long.MaxValue));
+        await reopened.ApplyRemoteSynchronizationDataAsync(deletions);
+
+        Assert.Equal(1, result.ImportedCount);
+        var restored = (await reopened.GetAsync<Track>(id))!;
+        Assert.Equal(ledger.Version + 1, restored.Version);
+        var received = (await peer.GetAsync<Track>(id))!;
+        Assert.Equal(restored.Version, received.Version);
+        Assert.Equal(restored.PointsJson, received.PointsJson);
+    }
+
+    [Fact]
     public async Task ImportGpxAsync_PreservesDifferentContentWithSameTimeRange()
     {
         filesService.OpenGpxFilesAsync().Returns([

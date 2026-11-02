@@ -22,6 +22,61 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 public class SynchronizationMergeEngineTests
 {
     [Fact]
+    public async Task SavesWithinOneSecond_DeliveredInReverseOrder_RetainTheSecondSave()
+    {
+        using var sourceFile = new TempDatabase();
+        using var peerFile = new TempDatabase();
+        await using var source = new TestPersistenceHarness(sourceFile.DatabasePath);
+        await using var peer = new TestPersistenceHarness(peerFile.DatabasePath);
+        var board = new Board(Guid.NewGuid(), Guid.NewGuid());
+        await source.PutAsync(board);
+        var first = await source.GetSynchronizationDataAsync(0, long.MaxValue);
+        board.SetupId = Guid.NewGuid();
+        await source.PutAsync(board);
+        var second = await source.GetSynchronizationDataAsync(0, long.MaxValue);
+        Assert.Equal(first.Boards.Single().Updated, second.Boards.Single().Updated);
+
+        await peer.MergeAllAsync(second);
+        await peer.MergeAllAsync(first);
+
+        var received = (await peer.GetAsync<Board>(board.Id))!;
+        Assert.Equal(board.SetupId, received.SetupId);
+        Assert.Equal(first.Boards.Single().Version + 1, received.Version);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SessionExchange_RepeatedInBothDirections_DoesNotWrite(bool hasProcessedData)
+    {
+        using var hubFile = new TempDatabase();
+        using var clientFile = new TempDatabase();
+        await using var hub = new TestPersistenceHarness(hubFile.DatabasePath);
+        await using var client = new TestPersistenceHarness(clientFile.DatabasePath);
+        await hub.PutSessionAsync(new Session(Guid.NewGuid(), "ride", "notes", null, 100)
+        {
+            ProcessedData = hasProcessedData ? PersistenceTestData.CreateTelemetryBlob(65) : null,
+            DurationSeconds = 65
+        });
+        var hubRows = AppJson.Deserialize<SynchronizationData>(
+            AppJson.Serialize(await hub.GetSynchronizationDataAsync(0, long.MaxValue)))!;
+        await client.ApplyRemoteSynchronizationDataAsync(hubRows);
+        var clientRows = AppJson.Deserialize<SynchronizationData>(
+            AppJson.Serialize(await client.GetSynchronizationDataAsync(0, long.MaxValue)))!;
+        await hub.MergeAllAsync(clientRows);
+        var hubConnection = await hub.GetInitializedConnectionAsync();
+        var clientConnection = await client.GetInitializedConnectionAsync();
+        var beforeHub = await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
+        var beforeClient = await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
+
+        await hub.MergeAllAsync(clientRows);
+        await client.ApplyRemoteSynchronizationDataAsync(hubRows);
+
+        Assert.Equal(beforeHub, await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
+        Assert.Equal(beforeClient, await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
+    }
+
+    [Fact]
     public async Task CursorIdentity_IsolatedByHubAndDatabase_AndRetainedAcrossRestart()
     {
         using var file = new TempDatabase();
@@ -664,6 +719,12 @@ public class SynchronizationMergeEngineTests
             Assert.Equal(incomingFingerprint, swap.TargetFingerprint);
             Assert.Equal(80, swap.TargetGeneration.DurationSeconds);
         }
+
+        var connectionAfterMerge = await database.GetInitializedConnectionAsync();
+        var changes = await connectionAfterMerge.ExecuteScalarAsync<long>("SELECT total_changes()");
+        if (pull) await database.ApplyRemoteSynchronizationDataAsync(data);
+        else await database.MergeAllAsync(data);
+        Assert.Equal(changes, await connectionAfterMerge.ExecuteScalarAsync<long>("SELECT total_changes()"));
     }
 
     [Fact]

@@ -18,6 +18,42 @@ namespace Sufni.App.Tests.Sessions.Services;
 
 public class SessionRepositoryTests
 {
+    [Fact]
+    public async Task ImportProcessedSessionAsync_AfterPayloadPurge_RestoresAboveLedgerAndSurvivesMerge()
+    {
+        using var temp = new TempDatabase();
+        using var peerFile = new TempDatabase();
+        var clock = PersistenceTestData.CreateTimeProvider();
+        using var file = new TelemetryFileSource("ride.SST", [1, 2, 3]);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+        var session = new Session(source.SessionId, "ride", "notes", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65), DurationSeconds = 65
+        };
+        await using (var database = new TestPersistenceHarness(temp.DatabasePath, clock))
+        {
+            await database.SessionRepository.ImportProcessedSessionAsync(session, null, source);
+            await database.SessionTransactions.DeleteSessionAsync(session.Id, TestContext.Current.CancellationToken);
+        }
+        clock.Advance(TimeSpan.FromDays(2));
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath, clock);
+        var deletions = await reopened.GetSynchronizationDataAsync(0, long.MaxValue);
+        Assert.Empty(deletions.Sessions);
+        var ledger = Assert.Single(deletions.Deletions);
+        await using var peer = new TestPersistenceHarness(peerFile.DatabasePath, clock);
+        await peer.MergeAllAsync(deletions);
+
+        var result = await reopened.SessionRepository.ImportProcessedSessionAsync(session, null, source);
+        await peer.MergeAllAsync(await reopened.GetSynchronizationDataAsync(0, long.MaxValue));
+        await reopened.ApplyRemoteSynchronizationDataAsync(deletions);
+
+        Assert.False(result.AlreadyImported);
+        Assert.Equal(ledger.Version + 1, result.Session!.Version);
+        Assert.Equal(result.Session.Version, (await peer.GetSessionAsync(session.Id))!.Version);
+        Assert.Equal(session.ProcessedData, await reopened.GetSessionRawPsstAsync(session.Id));
+        Assert.Equal(source.Payload, (await reopened.GetRecordedSessionSourceAsync(session.Id))!.Payload);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
