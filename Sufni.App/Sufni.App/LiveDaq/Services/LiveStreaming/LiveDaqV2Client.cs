@@ -187,12 +187,12 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             ThrowIfDisposed();
             if (!IsConnected || stream is null)
             {
-                return new LivePreviewStartResult.Failed("Live client is not connected.");
+                return new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotConnected);
             }
 
             if (pendingStartResult is not null)
             {
-                return new LivePreviewStartResult.Failed("A live preview request is already in progress.");
+                return new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotReady);
             }
 
             var tcs = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -211,8 +211,9 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
         catch (Exception ex)
         {
             ClearPendingStartContextLocked();
+            if (ex is OperationCanceledException) throw;
             logger.Warning(ex, "Failed to send live preview start request");
-            return new LivePreviewStartResult.Failed(ex.Message);
+            return new LivePreviewStartResult.Failed(LiveStartFailureReason.Request, ex.ToString());
         }
         finally
         {
@@ -327,7 +328,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             receivePublishTask = null;
             rawTelemetryFrames = null;
             parsedTelemetryFrames = null;
-            pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed("Live preview disconnected before startup completed."));
+            pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.Interrupted));
             ClearPendingStartContextLocked();
             pendingStopAck?.TrySetException(new IOException("Disconnected before STOP_LIVE_ACK was received."));
             pendingStopAck = null;
@@ -762,8 +763,10 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
                     if (sessionHeaderFrame.Payload.SessionId != startAckAwaitingHeader.Value.SessionId)
                     {
-                        pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(
-                            "Live session header did not match the accepted session."));
+                        logger.Warning("Live session header {SessionId} did not match accepted session {ExpectedSessionId}",
+                            sessionHeaderFrame.Payload.SessionId, startAckAwaitingHeader.Value.SessionId);
+                        pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.SessionMismatch,
+                            $"Expected session {startAckAwaitingHeader.Value.SessionId}, received {sessionHeaderFrame.Payload.SessionId}."));
                         ClearPendingStartContextLocked();
                         shouldEmitFrame = false;
                         break;
@@ -814,8 +817,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     activeSessionId = null;
                     pendingStopAck?.TrySetResult(stopAckFrame.Payload.SessionId);
                     pendingStopAck = null;
-                    pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(
-                        "Live preview stopped before startup completed."));
+                    pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.Interrupted));
                     ClearPendingStartContextLocked();
                     break;
             }
@@ -856,8 +858,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
             if (pendingStartResult is not null)
             {
-                pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(
-                    errorMessage ?? "Live preview disconnected before startup completed."));
+                pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.Interrupted, errorMessage));
             }
             ClearPendingStartContextLocked();
 

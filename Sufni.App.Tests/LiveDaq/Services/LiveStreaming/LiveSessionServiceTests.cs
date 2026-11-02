@@ -45,7 +45,6 @@ public class LiveSessionServiceTests
         {
             currentState = new LiveDaqSharedStreamState(
                 ConnectionState: new LiveConnectionState.Connected(),
-                Error: null,
                 SessionHeader: sessionHeader,
                 SelectedStreamMask: LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps,
                 IsConfigurationLocked: true);
@@ -187,7 +186,7 @@ public class LiveSessionServiceTests
         Assert.Equal(5, capture.TelemetryCapture.FrontMeasurements.Length);
         Assert.Equal(2, capture.TelemetryCapture.GpsData!.Length);
 
-        currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost"), Error = null };
+        currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost") };
         states.OnNext(currentState);
 
         var partialCapture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -304,7 +303,7 @@ public class LiveSessionServiceTests
         var v3Header = PublishV3TravelSession();
 
         frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.ForkTravel));
-        currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost"), Error = null };
+        currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost") };
         states.OnNext(currentState);
 
         var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -1028,7 +1027,6 @@ public class LiveSessionServiceTests
         currentState = currentState with
         {
             ConnectionState = isClosed ? new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost) : new LiveConnectionState.Connected(),
-            Error = null,
             SessionHeader = header,
             SelectedStreamMask = header.AcceptedStreamMask,
         };

@@ -181,7 +181,10 @@ public class LiveDaqV2ClientTests
         var failed = await client.StartPreviewAsync(
             new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.IsType<LivePreviewStartResult.Failed>(failed);
+        var failure = Assert.IsType<LivePreviewStartResult.Failed>(failed);
+        Assert.Equal(LiveStartFailureReason.Request, failure.Reason);
+        Assert.DoesNotContain("Injected send failure", failure.Message);
+        Assert.Contains("Injected send failure", failure.Details);
 
         var retried = await client.StartPreviewAsync(
             new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)

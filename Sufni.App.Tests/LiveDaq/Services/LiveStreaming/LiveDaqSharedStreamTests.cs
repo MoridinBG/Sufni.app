@@ -24,6 +24,20 @@ public partial class LiveDaqSharedStreamTests
     }
 
     [Fact]
+    public async Task EnsureStartedAsync_Offline_ReturnsUnavailableWithoutCreatingClient()
+    {
+        await using var registry = CreateRegistry();
+        var stream = registry.GetOrCreate(CreateSnapshot("offline", "192.168.0.50", 1557) with { IsOnline = false });
+        await using var lease = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
+
+        var result = await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStartUnavailableReason.Offline, Assert.IsType<LivePreviewStartResult.Unavailable>(result).Reason);
+        Assert.Equal(result, Assert.IsType<LiveConnectionState.Disconnected>(stream.CurrentState.ConnectionState).Outcome);
+        Assert.Empty(clientFactory.CreatedClients);
+    }
+
+    [Fact]
     public async Task GetOrCreate_ReusesStreamPerIdentity_AndSeparatesDifferentBoards()
     {
         await using var registry = CreateRegistry();
@@ -206,7 +220,8 @@ public partial class LiveDaqSharedStreamTests
         await Task.Yield();
 
         Assert.False(stream.CurrentState.IsClosed);
-        Assert.Equal(new LiveConnectionState.Disconnected(), stream.CurrentState.ConnectionState);
+        Assert.Equal(LiveStartFailureReason.Request, Assert.IsType<LivePreviewStartResult.Failed>(
+            Assert.IsType<LiveConnectionState.Disconnected>(stream.CurrentState.ConnectionState).Outcome).Reason);
 
         await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
         await Task.Yield();
@@ -596,7 +611,7 @@ public partial class LiveDaqSharedStreamTests
 
         var rejected = Assert.IsType<LivePreviewStartResult.Rejected>(result);
         Assert.Equal(LiveStartErrorCode.NoSensorsStarted, rejected.ErrorCode);
-        Assert.Equal(new LiveConnectionState.Disconnected(), stream.CurrentState.ConnectionState);
+        Assert.Equal(rejected, Assert.IsType<LiveConnectionState.Disconnected>(stream.CurrentState.ConnectionState).Outcome);
         Assert.NotNull(stream.CurrentState.LastError);
     }
 
@@ -921,7 +936,7 @@ public partial class LiveDaqSharedStreamTests
             if (FailNextStartPreview)
             {
                 FailNextStartPreview = false;
-                return new LivePreviewStartResult.Failed("preview start failed");
+                return new LivePreviewStartResult.Failed(LiveStartFailureReason.Request, "preview start failed");
             }
 
             if (RejectNextStartPreview)

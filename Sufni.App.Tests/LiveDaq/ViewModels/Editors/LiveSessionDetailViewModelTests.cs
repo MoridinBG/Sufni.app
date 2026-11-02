@@ -201,6 +201,22 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ConnectionFailure_RendersDetailsWhileKeepingCaptureSaveable()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var snapshot = CreateSnapshot(true, TestTelemetryData.CreateProcessed());
+        var closed = new LiveConnectionState.Closed(LiveStreamClosedReason.TransportFailure, "private socket detail");
+        PublishSnapshot(snapshot with { Controls = snapshot.Controls with { ConnectionState = closed, LastError = closed.Message } });
+
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.DoesNotContain("private socket detail", failure.Summary);
+        Assert.Equal("private socket detail", failure.Details);
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        await editor.PrepareCloseAsync();
+    }
+
+    [Fact]
     public async Task AnalysisModeChange_ForwardsOptionsAndRendersOnlyMatchingBackgroundResults()
     {
         var editor = CreateEditor();

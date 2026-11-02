@@ -16,6 +16,18 @@ public class LiveDaqV3ClientTests
     private const byte SessionId = 42;
 
     [Fact]
+    public async Task StartPreviewAsync_WithoutConnection_ReturnsUnavailable()
+    {
+        await using var client = new LiveDaqV3Client();
+
+        var result = await client.StartPreviewAsync(
+            new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), TestContext.Current.CancellationToken);
+
+        Assert.Equal(LiveStartUnavailableReason.NotConnected, Assert.IsType<LivePreviewStartResult.Unavailable>(result).Reason);
+        Assert.False(client.IsConnected);
+    }
+
+    [Fact]
     public async Task ConnectAsync_SendsHandshakeBeforeAnyFrame()
     {
         var harness = new LiveDaqClientProtocolHarness<LiveDaqV3Client>(() => new LiveDaqV3Client());

@@ -189,18 +189,25 @@ The DAQ may partially accept a start request. If at least one requested telemetr
 
 ### Result Shape
 
-`StartPreviewAsync` returns a sealed record hierarchy rather than raw error codes:
+`StartPreviewAsync` returns a sealed record hierarchy. `Started(header)` is the
+successful result; shared connection ownership also supplies `Busy(holder)` and
+`Closed(state)`. The `NotStarted` alternatives are:
 
-```csharp
-public abstract record LivePreviewStartResult
-{
-    public sealed record Started(LiveSessionHeader Header) : LivePreviewStartResult;
-    public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : LivePreviewStartResult;
-    public sealed record Failed(string ErrorMessage) : LivePreviewStartResult;
-    public sealed record Busy(DaqTransportHolder Holder) : LivePreviewStartResult;
-    public sealed record Closed(LiveConnectionState.Closed State) : LivePreviewStartResult;
-}
-```
+- `Unavailable(reason)` for offline, not connected or not ready; these are
+  expected availability states and do not log errors.
+- `Rejected(code, message)` for a device admission decision.
+- `Failed(reason, details)` for connection, negotiation, request, session mismatch,
+  interruption or a device-ended startup. Each reason has fixed user text;
+  exception and protocol diagnostics remain separate details.
+
+`LiveConnectionState.Disconnected(outcome)` owns the last unsuccessful outcome.
+The shared snapshot derives its error text from that state; there is no separate
+mutable error field. Both live editors display failures with expandable details
+and unavailable actions as notifications. Repeated state refreshes do not append
+the same failure again. Clients log exceptions at their boundary; the shared
+stream logs exceptions escaping connect/start and does not relog typed results.
+V3 capability negotiation carries typed outcomes to its waiters, so a remote
+failure is not rethrown and logged a second time by the start caller.
 
 ## Transport Layer
 

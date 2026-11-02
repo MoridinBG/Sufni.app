@@ -73,6 +73,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private CancellationTokenSource? bakeCts;
     private readonly List<Task> bakeTasks = [];
     private LiveAnalysisFailure? shownAnalysisFailure;
+    private FailurePresentation? shownConnectionFailure;
     private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
     private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
@@ -320,6 +321,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         await mediaWorkspace.InitializeAsync();
         var start = await liveSessionService.EnsureAttachedAsync();
         if (start is LivePreviewStartResult.Busy busy) Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
+        if (start is LivePreviewStartResult.Unavailable unavailable) Notifications.Add(unavailable.Message);
 
         if (IsTabActive)
         {
@@ -540,7 +542,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     catch (Exception e)
                     {
                         Log.ForContext<LiveSessionDetailViewModel>().Warning(e, "Failed to open saved live session {SessionId}", saved.SessionId);
-                        ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Cleanup, e.Message));
+                        ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Cleanup, e.ToString()));
                     }
                     break;
 
@@ -558,7 +560,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         catch (Exception e)
         {
             Log.ForContext<LiveSessionDetailViewModel>().Error(e, "Failed to submit live capture save");
-            ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Save, e.Message));
+            ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Save, e.ToString()));
         }
         finally
         {
@@ -798,6 +800,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void ApplyPresentation(LiveSessionPresentationSnapshot snapshot)
     {
+        var connectionFailure = LiveDaqMessages.ConnectionFailure(snapshot.Controls.ConnectionState);
+        if (shownConnectionFailure != connectionFailure)
+        {
+            shownConnectionFailure = connectionFailure;
+            if (connectionFailure is not null) ErrorMessages.Add(connectionFailure);
+        }
         if (blockedSavedCaptureRevision != snapshot.CaptureRevision)
         {
             blockedSavedCaptureRevision = null;

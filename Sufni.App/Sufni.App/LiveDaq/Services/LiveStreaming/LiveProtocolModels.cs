@@ -281,17 +281,49 @@ public sealed record LiveStatusFrame(LiveFrameMetadata Header, IReadOnlyList<Liv
 public sealed record LiveSessionResultFrame(LiveFrameMetadata Header, LiveSessionResult Payload) : LiveProtocolFrame(Header);
 public sealed record LiveSessionStatsFrame(LiveFrameMetadata Header, LiveSessionStats Payload) : LiveProtocolFrame(Header);
 
+public enum LiveStartUnavailableReason { Offline, NotConnected, NotReady }
+public enum LiveStartFailureReason { Connection, Negotiation, Request, SessionMismatch, Interrupted, DeviceEnded }
+
 public abstract record LivePreviewStartResult
 {
+    public abstract record NotStarted : LivePreviewStartResult
+    {
+        public abstract string Message { get; }
+    }
+
     public sealed record Closed(LiveConnectionState.Closed State) : LivePreviewStartResult;
     public sealed record Busy(DaqTransportHolder Holder) : LivePreviewStartResult;
     public sealed record Started(LiveSessionHeader Header) : LivePreviewStartResult;
-    public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : LivePreviewStartResult
+    public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : NotStarted
     {
+        public override string Message => UserMessage;
         public IReadOnlyList<LiveStartAdmissionReason> AdmissionReasons { get; init; } = [];
     }
 
-    public sealed record Failed(string ErrorMessage) : LivePreviewStartResult;
+    public sealed record Unavailable(LiveStartUnavailableReason Reason) : NotStarted
+    {
+        public override string Message => Reason switch
+        {
+            LiveStartUnavailableReason.Offline => "DAQ is offline. Wait for it to appear before connecting.",
+            LiveStartUnavailableReason.NotConnected => "The DAQ connection is closed. Connect before starting live preview.",
+            LiveStartUnavailableReason.NotReady => "Live preview is changing state. Try again when it finishes.",
+            _ => throw new ArgumentOutOfRangeException(nameof(Reason))
+        };
+    }
+
+    public sealed record Failed(LiveStartFailureReason Reason, string? Details = null) : NotStarted
+    {
+        public override string Message => Reason switch
+        {
+            LiveStartFailureReason.Connection => "The DAQ connection could not be opened. Check the device and network, then retry.",
+            LiveStartFailureReason.Negotiation => "The DAQ's live capabilities could not be read. Reconnect and try again.",
+            LiveStartFailureReason.Request => "Live preview could not be started. Reconnect and try again.",
+            LiveStartFailureReason.SessionMismatch => "The DAQ returned an unexpected live session. Reconnect and try again.",
+            LiveStartFailureReason.Interrupted => "The DAQ connection ended before live preview started. Reconnect to retry.",
+            LiveStartFailureReason.DeviceEnded => "The DAQ ended the session before live preview started. Check the device and retry.",
+            _ => throw new ArgumentOutOfRangeException(nameof(Reason))
+        };
+    }
 }
 
 public abstract record LiveDaqClientEvent

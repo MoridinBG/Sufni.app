@@ -106,9 +106,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             {
                 if (!TryGetEndpoint(out _, out _))
                 {
-                    var failed = new LivePreviewStartResult.Failed("DAQ is offline.");
-                    PublishDisconnectedStateLocked(failed.ErrorMessage);
-                    return failed;
+                    var unavailable = new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.Offline);
+                    PublishDisconnectedStateLocked(unavailable);
+                    return unavailable;
                 }
 
                 if (ReserveTransportLocked() is { } busy) return busy;
@@ -166,7 +166,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             PublishState(currentState with
             {
                 ConnectionState = new LiveConnectionState.Disconnecting(),
-                Error = null,
             });
             waitTask = pendingLifecycleOperation.Completion.Task;
         }
@@ -221,7 +220,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             PublishState(currentState with
             {
                 ConnectionState = new LiveConnectionState.Disconnecting(),
-                Error = null,
             });
             waitTask = pendingLifecycleOperation.Completion.Task;
         }
@@ -296,7 +294,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             PublishState(currentState with
             {
                 ConnectionState = closure,
-                Error = null,
                 SessionHeader = null,
                 SelectedStreamMask = LiveStreamMask.None,
             });
@@ -335,7 +332,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
             isDisposed = true;
             if (!currentState.IsClosed)
-                PublishState(currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Disposed), Error = null });
+                PublishState(currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Disposed) });
             desiredRunning = false;
             CompletePendingLifecycleLocked(new LivePreviewStartResult.Closed(ClosedState()));
             detachedClient = DetachCurrentClientLocked();
@@ -391,7 +388,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     PublishState(currentState with
                     {
                         ConnectionState = new LiveConnectionState.Disconnecting(),
-                        Error = null,
                     });
                     operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
                 }
@@ -400,17 +396,16 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     PublishState(currentState with
                     {
                         ConnectionState = new LiveConnectionState.Disconnecting(),
-                        Error = null,
                     });
                     operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
                     replaceAfterCleanup = true;
                 }
                 else if (!TryGetEndpoint(out host, out port))
                 {
-                    var failed = new LivePreviewStartResult.Failed("DAQ is offline.");
+                    var unavailable = new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.Offline);
                     operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
-                    PublishDisconnectedStateLocked(failed.ErrorMessage);
-                    stoppedResult = failed;
+                    PublishDisconnectedStateLocked(unavailable);
+                    stoppedResult = unavailable;
                     shouldRun = false;
                 }
                 else
@@ -488,6 +483,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
         RunTransport:
             LivePreviewStartResult result;
+            var failureReason = LiveStartFailureReason.Connection;
             try
             {
                 if (!operation.Client.IsConnected)
@@ -495,6 +491,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     await operation.Client.ConnectAsync(host, port, CancellationToken.None).ConfigureAwait(false);
                 }
 
+                failureReason = LiveStartFailureReason.Request;
                 result = await operation.Client.StartPreviewAsync(
                         operation.Configuration.ToStartRequest(),
                         CancellationToken.None)
@@ -507,7 +504,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
             catch (Exception ex)
             {
-                result = new LivePreviewStartResult.Failed(ex.Message);
+                logger.Warning(ex, "Live DAQ start failed for {IdentityKey}: {Reason}", IdentityKey, failureReason);
+                result = new LivePreviewStartResult.Failed(failureReason, ex.ToString());
             }
 
             bool shouldConverge;
@@ -539,7 +537,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     PublishState(currentState with
                     {
                         ConnectionState = new LiveConnectionState.Disconnecting(),
-                        Error = null,
                     });
                 }
                 else
@@ -552,15 +549,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                             operation.Completion.TrySetResult(started);
                             return;
 
-                        case LivePreviewStartResult.Rejected rejected:
+                        case LivePreviewStartResult.NotStarted outcome:
                             detachedForConvergence = DetachCurrentClientLocked(operation.Client, operation.Generation);
-                            PublishDisconnectedStateLocked(rejected.UserMessage);
-                            completeAfterCleanup = true;
-                            break;
-
-                        case LivePreviewStartResult.Failed failed:
-                            detachedForConvergence = DetachCurrentClientLocked(operation.Client, operation.Generation);
-                            PublishDisconnectedStateLocked(failed.ErrorMessage);
+                            PublishDisconnectedStateLocked(outcome);
                             completeAfterCleanup = true;
                             break;
                     }
@@ -940,7 +931,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     break;
 
                 case LiveDaqClientEvent.PreviewRejected rejected:
-                    PublishDisconnectedStateLocked(rejected.Reason.UserMessage);
+                    PublishDisconnectedStateLocked(new LivePreviewStartResult.Rejected(rejected.Reason, rejected.Reason.UserMessage));
                     break;
 
                 case LiveDaqClientEvent.DropCountersChanged countersChanged:
@@ -981,7 +972,6 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         PublishState(currentState with
         {
             ConnectionState = new LiveConnectionState.Connected(),
-            Error = null,
             SessionHeader = started.Header,
             SelectedStreamMask = started.Header.AcceptedStreamMask,
             ClientDropCounters = LiveDaqClientDropCounters.Empty,
@@ -993,19 +983,17 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         PublishState(currentState with
         {
             ConnectionState = new LiveConnectionState.Connecting(),
-            Error = null,
             SessionHeader = null,
             SelectedStreamMask = LiveStreamMask.None,
         });
     }
 
-    private void PublishDisconnectedStateLocked(string? errorMessage)
+    private void PublishDisconnectedStateLocked(LivePreviewStartResult.NotStarted? outcome)
     {
         activeConfiguration = null;
         PublishState(currentState with
         {
-            ConnectionState = new LiveConnectionState.Disconnected(),
-            Error = errorMessage,
+            ConnectionState = new LiveConnectionState.Disconnected(outcome),
             SessionHeader = null,
             SelectedStreamMask = LiveStreamMask.None,
         });

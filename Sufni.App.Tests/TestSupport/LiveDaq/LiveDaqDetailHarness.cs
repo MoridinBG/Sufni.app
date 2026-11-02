@@ -143,19 +143,17 @@ internal sealed class LiveDaqDetailHarness
             PublishStreamState(currentStreamState with
             {
                 ConnectionState = new LiveConnectionState.Connected(),
-                Error = null,
                 SessionHeader = started.Header,
                 SelectedStreamMask = started.Header.AcceptedStreamMask,
             });
             return;
         }
 
-        if (result is LivePreviewStartResult.Rejected rejected)
+        if (result is LivePreviewStartResult.NotStarted outcome)
         {
             PublishStreamState(currentStreamState with
             {
-                ConnectionState = new LiveConnectionState.Disconnected(),
-                Error = rejected.UserMessage,
+                ConnectionState = new LiveConnectionState.Disconnected(outcome),
                 SessionHeader = null,
                 SelectedStreamMask = LiveStreamMask.None,
             });

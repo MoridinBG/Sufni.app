@@ -392,11 +392,8 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
                 return;
             }
-            if (result is LivePreviewStartResult.Rejected rejected)
-            {
-                ErrorMessages.Add(new FailurePresentation(rejected.UserMessage));
-                return;
-            }
+            if (result is LivePreviewStartResult.Unavailable unavailable)
+                Notifications.Add(unavailable.Message);
             else if (result is LivePreviewStartResult.Started started && updatedState.ConnectionState is LiveConnectionState.Connected)
             {
                 AddMissingSensorNotification(started.Header.MissingSensorMask);
@@ -501,9 +498,17 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         UiThreadDispatcher.Post(RefreshSharedStreamState);
     }
 
+    private FailurePresentation? shownConnectionFailure;
+
     private void RefreshSharedStreamState()
     {
         var state = sharedStream.CurrentState;
+        var failure = LiveDaqMessages.ConnectionFailure(state.ConnectionState);
+        if (shownConnectionFailure != failure)
+        {
+            shownConnectionFailure = failure;
+            if (failure is not null) ErrorMessages.Add(failure);
+        }
         sessionState.ApplySharedSessionState(state.SessionHeader);
         CanConnect = !state.IsClosed
             && state.ConnectionState is LiveConnectionState.Disconnected

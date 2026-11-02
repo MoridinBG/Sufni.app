@@ -5,7 +5,7 @@ public enum LiveStreamClosedReason { Offline, ProtocolChanged, ConnectionLost, T
 public abstract record LiveConnectionState
 {
     private LiveConnectionState() { }
-    public sealed record Disconnected : LiveConnectionState;
+    public sealed record Disconnected(LivePreviewStartResult.NotStarted? Outcome = null) : LiveConnectionState;
     public sealed record Connecting : LiveConnectionState;
     public sealed record Connected : LiveConnectionState;
     public sealed record Disconnecting : LiveConnectionState;

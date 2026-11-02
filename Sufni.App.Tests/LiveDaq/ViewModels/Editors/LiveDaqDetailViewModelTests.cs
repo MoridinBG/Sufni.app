@@ -15,6 +15,32 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 public class LiveDaqDetailViewModelTests
 {
     [Fact]
+    public async Task ConnectFailure_RendersSafeSummaryAndDiagnosticDetails()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor(new LivePreviewStartResult.Failed(LiveStartFailureReason.Connection, "private socket detail"));
+
+        await editor.ConnectCommand.ExecuteAsync(null);
+
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.DoesNotContain("private socket detail", failure.Summary);
+        Assert.Equal("private socket detail", failure.Details);
+        Assert.DoesNotContain("private socket detail", editor.Snapshot.LastError!);
+    }
+
+    [Fact]
+    public async Task ConnectUnavailable_ShowsNotificationWithoutFailure()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor(new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.Offline));
+
+        await editor.ConnectCommand.ExecuteAsync(null);
+
+        Assert.Single(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [Fact]
     public async Task ManagementFailure_RendersSafeSummaryAndSeparateDiagnostics()
     {
         var harness = new LiveDaqDetailHarness();
@@ -118,8 +144,8 @@ public class LiveDaqDetailViewModelTests
 
         await editor.ConnectCommand.ExecuteAsync(null);
 
-        Assert.NotEmpty(editor.ErrorMessages);
-        Assert.Equal(new LiveConnectionState.Disconnected(), editor.Snapshot.ConnectionState);
+        Assert.Single(editor.ErrorMessages);
+        Assert.IsType<LivePreviewStartResult.Rejected>(Assert.IsType<LiveConnectionState.Disconnected>(editor.Snapshot.ConnectionState).Outcome);
     }
 
     [Fact]

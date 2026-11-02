@@ -37,6 +37,12 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
     private readonly LiveV3ProtocolReader protocolReader = new();
 
+    private abstract record CapabilitiesOutcome
+    {
+        public sealed record Ready(LiveV3Capabilities Capabilities) : CapabilitiesOutcome;
+        public sealed record NotReady(LivePreviewStartResult.NotStarted Outcome) : CapabilitiesOutcome;
+    }
+
     private enum LifecyclePhase
     {
         Disconnected,
@@ -66,7 +72,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private Task? receiveLoopTask;
     private Task? parseLoopTask;
     private Task? publishLoopTask;
-    private TaskCompletionSource<LiveV3Capabilities>? pendingCapabilities;
+    private TaskCompletionSource<CapabilitiesOutcome>? pendingCapabilities;
     private TaskCompletionSource<LivePreviewStartResult>? pendingStartResult;
     private TaskCompletionSource<LiveStopResult>? pendingStopResult;
     private TaskCompletionSource<LiveSessionResult>? pendingSessionResult;
@@ -235,19 +241,9 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         LiveStartRequest request,
         CancellationToken cancellationToken = default)
     {
-        LiveV3Capabilities loadedCapabilities;
-        try
-        {
-            loadedCapabilities = await EnsureCapabilitiesLoadedAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            return new LivePreviewStartResult.Failed(ex.Message);
-        }
+        var capabilitiesOutcome = await EnsureCapabilitiesLoadedAsync(cancellationToken);
+        if (capabilitiesOutcome is CapabilitiesOutcome.NotReady notReady) return notReady.Outcome;
+        var loadedCapabilities = ((CapabilitiesOutcome.Ready)capabilitiesOutcome).Capabilities;
 
         Task<LivePreviewStartResult> task;
         await lifecycleGate.WaitAsync(cancellationToken);
@@ -256,18 +252,17 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             ThrowIfDisposed();
             if (!IsConnected || stream is null)
             {
-                return new LivePreviewStartResult.Failed("Live client is not connected.");
+                return new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotConnected);
             }
 
             if (lifecyclePhase != LifecyclePhase.Ready)
             {
-                return new LivePreviewStartResult.Failed(
-                    $"Live preview cannot start while the LIVE v3 client is {lifecyclePhase}.");
+                return new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotReady);
             }
 
             if (pendingStartResult is not null)
             {
-                return new LivePreviewStartResult.Failed("A live preview request is already in progress.");
+                return new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotReady);
             }
 
             var tcs = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -290,8 +285,9 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             pendingStartRequest = null;
             pendingRequestedStreamMask = LiveStreamMask.None;
             lifecyclePhase = LifecyclePhase.Ready;
+            if (ex is OperationCanceledException) throw;
             logger.Warning(ex, "Failed to send LIVE v3 START_REQ");
-            return new LivePreviewStartResult.Failed(ex.Message);
+            return new LivePreviewStartResult.Failed(LiveStartFailureReason.Request, ex.ToString());
         }
         finally
         {
@@ -473,70 +469,38 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         finally { connectionGate.Release(); }
     }
 
-    private async Task<LiveV3Capabilities> EnsureCapabilitiesLoadedAsync(CancellationToken cancellationToken)
+    private async Task<CapabilitiesOutcome> EnsureCapabilitiesLoadedAsync(CancellationToken cancellationToken)
     {
-        Task<LiveV3Capabilities> task;
+        Task<CapabilitiesOutcome> task;
         await lifecycleGate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfDisposed();
             if (capabilities is { } loadedCapabilities)
-            {
-                return loadedCapabilities;
-            }
-
+                return new CapabilitiesOutcome.Ready(loadedCapabilities);
             if (!IsConnected || stream is null)
-            {
-                throw new InvalidOperationException("Live client is not connected.");
-            }
-
+                return new CapabilitiesOutcome.NotReady(new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotConnected));
             if (lifecyclePhase != LifecyclePhase.Ready)
-            {
-                throw new InvalidOperationException(
-                    $"LIVE v3 capabilities cannot be requested while the client is {lifecyclePhase}.");
-            }
-
+                return new CapabilitiesOutcome.NotReady(new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.NotReady));
             if (pendingCapabilities is null)
             {
-                pendingCapabilities = new TaskCompletionSource<LiveV3Capabilities>(TaskCreationOptions.RunContinuationsAsynchronously);
+                pendingCapabilities = new TaskCompletionSource<CapabilitiesOutcome>(TaskCreationOptions.RunContinuationsAsynchronously);
                 var frame = LiveV3ProtocolReader.CreateCapabilitiesRequestFrame(GetNextSequence());
                 await sendBytesAsync(stream, frame, cancellationToken);
             }
-
             task = pendingCapabilities.Task;
         }
-        catch
+        catch (Exception ex)
         {
             pendingCapabilities = null;
-            throw;
+            if (ex is OperationCanceledException) throw;
+            logger.Warning(ex, "Failed to request LIVE v3 capabilities");
+            return new CapabilitiesOutcome.NotReady(new LivePreviewStartResult.Failed(LiveStartFailureReason.Negotiation, ex.ToString()));
         }
-        finally
-        {
-            lifecycleGate.Release();
-        }
+        finally { lifecycleGate.Release(); }
 
-        try
-        {
-            var loadedCapabilities = await task.WaitAsync(cancellationToken);
-            if (loadedCapabilities.MaxFramePayloadBytes != LiveV3ProtocolConstants.MaxPayloadLength)
-            {
-                throw new InvalidOperationException("LIVE v3 max frame payload is unsupported.");
-            }
-
-            if (serverHello is { } hello &&
-                loadedCapabilities.MaxFramePayloadBytes != hello.MaxFramePayloadBytes)
-            {
-                throw new InvalidOperationException("LIVE v3 capabilities do not match the server hello.");
-            }
-
-            return loadedCapabilities;
-        }
-        catch (OperationCanceledException)
-        {
-            // Keep the single request pending so a canceled waiter cannot cause a duplicate
-            // CAPABILITIES_REQ on this connection.
-            throw;
-        }
+        // A canceled waiter leaves the single request pending for the next caller.
+        return await task.WaitAsync(cancellationToken);
     }
 
     private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
@@ -757,8 +721,11 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                     {
                         throw new FormatException("LIVE v3 CAPABILITIES_RESP arrived without an outstanding request.");
                     }
+                    if (capabilitiesFrame.Payload.MaxFramePayloadBytes != LiveV3ProtocolConstants.MaxPayloadLength ||
+                        serverHello is { } hello && capabilitiesFrame.Payload.MaxFramePayloadBytes != hello.MaxFramePayloadBytes)
+                        throw new FormatException("LIVE v3 capabilities do not match the negotiated payload limit.");
                     capabilities = capabilitiesFrame.Payload;
-                    pendingCapabilities?.TrySetResult(capabilitiesFrame.Payload);
+                    pendingCapabilities.TrySetResult(new CapabilitiesOutcome.Ready(capabilitiesFrame.Payload));
                     pendingCapabilities = null;
                     break;
 
@@ -828,7 +795,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                         {
                             throw new FormatException("LIVE v3 pre-header SESSION_RESULT has no pending start.");
                         }
-                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(
+                        pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.DeviceEnded,
                             LiveV3ProtocolHelpers.CreateTerminalSessionMessage(
                                 sessionResultFrame.Payload.FinalStatus.SessionResultReason)));
                         pendingStartResult = null;
@@ -925,12 +892,12 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private string HandleErrorFrame(LiveV3ErrorFrame frame)
     {
         var message = LiveV3ProtocolHelpers.CreateErrorMessage(frame.Payload);
-        pendingCapabilities?.TrySetException(new IOException(message));
+        pendingCapabilities?.TrySetResult(new CapabilitiesOutcome.NotReady(new LivePreviewStartResult.Failed(LiveStartFailureReason.Negotiation, message)));
         pendingCapabilities = null;
 
         if (pendingStartResult is not null)
         {
-            pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(message));
+            pendingStartResult.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.Request, message));
             pendingStartResult = null;
             startResultAwaitingHeaderSessionId = null;
             pendingStartRequest = null;
@@ -989,9 +956,9 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
 
     private void CompletePendingForDisconnect(string startupMessage)
     {
-        pendingCapabilities?.TrySetException(new IOException(startupMessage));
+        pendingCapabilities?.TrySetResult(new CapabilitiesOutcome.NotReady(new LivePreviewStartResult.Failed(LiveStartFailureReason.Interrupted, startupMessage)));
         pendingCapabilities = null;
-        pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(startupMessage));
+        pendingStartResult?.TrySetResult(new LivePreviewStartResult.Failed(LiveStartFailureReason.Interrupted, startupMessage));
         pendingStartResult = null;
         pendingStopResult?.TrySetException(new IOException("Disconnected before STOP_RESULT was received."));
         pendingStopResult = null;
