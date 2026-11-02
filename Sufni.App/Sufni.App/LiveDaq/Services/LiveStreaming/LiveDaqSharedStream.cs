@@ -19,6 +19,11 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private readonly ILiveDaqClientFactory liveDaqClientFactory;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
+    private readonly Func<DaqTransportAcquisition> acquireTransport;
+    private IDisposable? transportLease;
+    private readonly System.Threading.Lock cleanupGate = new();
+    // Tab disposal must join an earlier disconnect before releasing the port.
+    private Task clientCleanup = Task.CompletedTask;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly BufferedFrameStream frames;
     private readonly BehaviorSubject<LiveDaqSharedStreamState> statesSubject;
@@ -36,19 +41,21 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private int observerCount;
     private int configurationLockCount;
     private bool desiredRunning;
-    private bool isEvictionPending;
-    private bool isDisposed;
-    private bool isEvicted;
+    private volatile bool isEvictionPending;
+    private volatile bool isDisposed;
+    private volatile bool isEvicted;
     private long evictionSequence;
 
     public LiveDaqSharedStream(
         LiveDaqSnapshot snapshot,
         ILiveDaqClientFactory liveDaqClientFactory,
-        Func<LiveDaqSharedStream, Task> evictAsync)
+        Func<LiveDaqSharedStream, Task> evictAsync,
+        Func<DaqTransportAcquisition> acquireTransport)
     {
         this.snapshot = snapshot;
         this.liveDaqClientFactory = liveDaqClientFactory;
         this.evictAsync = evictAsync;
+        this.acquireTransport = acquireTransport;
         currentState = LiveDaqSharedStreamState.Empty with
         {
             ProtocolVersion = snapshot.ProtocolVersion,
@@ -88,7 +95,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         try
         {
             ThrowIfDisposed();
-            if (currentState.IsClosed || currentState.ConnectionState is LiveConnectionState.Connected)
+            if (currentState.IsClosed || (currentState.ConnectionState is LiveConnectionState.Connected && liveDaqClient is not null))
             {
                 return null;
             }
@@ -102,6 +109,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     PublishDisconnectedStateLocked(failed.ErrorMessage);
                     return failed;
                 }
+
+                if (ReserveTransportLocked() is { } busy) return busy;
 
                 operationToStart = liveDaqClient is null
                     ? CreateLifecycleOperationLocked(requestedConfiguration)
@@ -125,7 +134,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         return await WaitForLifecycleResultAsync(waitTask, cancellationToken);
     }
 
-    public async Task StopAsync(CancellationToken cancellationToken = default)
+    public async Task<LiveDisconnectResult> StopAsync(CancellationToken cancellationToken = default)
     {
         Task<LivePreviewStartResult?>? waitTask = null;
         LifecycleOperation? operationToStart = null;
@@ -134,16 +143,17 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         try
         {
             ThrowIfDisposed();
+            if (configurationLockCount > 0) return LiveDisconnectResult.Locked;
             if (currentState.IsClosed)
             {
-                return;
+                return LiveDisconnectResult.Stopped;
             }
 
             desiredRunning = false;
             if (pendingLifecycleOperation is null && liveDaqClient is null)
             {
                 PublishDisconnectedStateLocked(null);
-                return;
+                return LiveDisconnectResult.Stopped;
             }
 
             if (pendingLifecycleOperation is null)
@@ -171,11 +181,12 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
         if (waitTask is not null)
         {
-            await WaitForLifecycleResultAsync(waitTask, cancellationToken);
+            await waitTask.WaitAsync(cancellationToken);
         }
+        return LiveDisconnectResult.Stopped;
     }
 
-    public async Task ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default)
+    public async Task<LivePreviewStartResult?> ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default)
     {
         Task<LivePreviewStartResult?>? waitTask = null;
         LifecycleOperation? operationToStart = null;
@@ -186,18 +197,19 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             ThrowIfDisposed();
             if (currentState.IsClosed || currentState.IsConfigurationLocked || requestedConfiguration == configuration)
             {
-                return;
+                return null;
             }
 
             requestedConfiguration = configuration;
             if (!desiredRunning && currentState.ConnectionState is LiveConnectionState.Disconnected)
             {
-                return;
+                return null;
             }
 
             desiredRunning = true;
             if (pendingLifecycleOperation is null)
             {
+                if (ReserveTransportLocked() is { } busy) return busy;
                 operationToStart = liveDaqClient is null
                     ? CreateLifecycleOperationLocked(configuration)
                     : CreateLifecycleOperationForCurrentClientLocked();
@@ -223,8 +235,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
         if (waitTask is not null)
         {
-            await WaitForLifecycleResultAsync(waitTask, cancellationToken);
+            return await WaitForLifecycleResultAsync(waitTask, cancellationToken);
         }
+        return null;
     }
 
     public async Task UpdateCatalogSnapshotAsync(LiveDaqSnapshot nextSnapshot, CancellationToken cancellationToken = default)
@@ -293,6 +306,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
 
         await DisposeDetachedClientAsync(detachedClient);
+        ReleaseTransport();
         await EvictAsync();
         await DisposeAsync();
     }
@@ -328,6 +342,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
 
         await DisposeDetachedClientAsync(detachedClient).ConfigureAwait(false);
+        ReleaseTransport();
 
         statesSubject.OnCompleted();
         frames.Complete();
@@ -344,6 +359,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             int port;
             bool shouldRun;
             bool replaceAfterCleanup = false;
+            LivePreviewStartResult? stoppedResult = null;
             LiveDaqStreamConfiguration configuration;
 
             try
@@ -390,8 +406,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     var failed = new LivePreviewStartResult.Failed("DAQ is offline.");
                     operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
                     PublishDisconnectedStateLocked(failed.ErrorMessage);
-                    pendingLifecycleOperation = null;
-                    operation.Completion.TrySetResult(failed);
+                    stoppedResult = failed;
                     shouldRun = false;
                 }
                 else
@@ -408,6 +423,12 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
             await StopDisconnectAndDisposeAsync(operation.DetachedClient, stopPreview: true);
             operation.DetachedClient = null;
+
+            if (stoppedResult is not null)
+            {
+                await CompleteOperationAfterCleanupAsync(operation, stoppedResult);
+                return;
+            }
 
             if (!shouldRun)
             {
@@ -443,6 +464,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     {
                         PublishDisconnectedStateLocked(null);
                         pendingLifecycleOperation = null;
+                        ReleaseTransport();
                         operation.Completion.TrySetResult(null);
                         return;
                     }
@@ -533,10 +555,10 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                             break;
 
                         case LivePreviewStartResult.Failed failed:
+                            detachedForConvergence = DetachCurrentClientLocked(operation.Client, operation.Generation);
                             PublishDisconnectedStateLocked(failed.ErrorMessage);
-                            pendingLifecycleOperation = null;
-                            operation.Completion.TrySetResult(failed);
-                            return;
+                            completeAfterCleanup = true;
+                            break;
                     }
                 }
             }
@@ -577,6 +599,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                 {
                     PublishDisconnectedStateLocked(null);
                     pendingLifecycleOperation = null;
+                    ReleaseTransport();
                     operation.Completion.TrySetResult(null);
                     return;
                 }
@@ -624,6 +647,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
             PublishDisconnectedStateLocked(null);
             pendingLifecycleOperation = null;
+            ReleaseTransport();
             operation.Completion.TrySetResult(null);
             return false;
         }
@@ -663,6 +687,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
 
         await StopDisconnectAndDisposeAsync(detachedClient, stopPreview: false);
+        ReleaseTransport();
     }
 
     private async Task CompleteOperationAfterCleanupAsync(
@@ -688,6 +713,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
 
             pendingLifecycleOperation = null;
+            ReleaseTransport();
             operation.Completion.TrySetResult(result);
         }
         finally
@@ -714,6 +740,26 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     {
         var binding = CreateClientBindingLocked();
         return new LifecycleOperation(binding.Client, binding.Generation, configuration);
+    }
+
+    private LivePreviewStartResult.Busy? ReserveTransportLocked()
+    {
+        if (transportLease is not null)
+            return liveDaqClient is null && pendingLifecycleOperation is null
+                ? new LivePreviewStartResult.Busy(new DaqTransportHolder.Streaming()) : null;
+        var acquisition = acquireTransport();
+        if (acquisition is DaqTransportAcquisition.Busy busy)
+            return new LivePreviewStartResult.Busy(busy.Holder);
+        transportLease = ((DaqTransportAcquisition.Acquired)acquisition).Lease;
+        return null;
+    }
+
+    private void ReleaseTransport()
+    {
+        lock (cleanupGate)
+        {
+            if (clientCleanup.IsCompleted) Interlocked.Exchange(ref transportLease, null)?.Dispose();
+        }
     }
 
     private LifecycleOperation CreateLifecycleOperationForCurrentClientLocked()
@@ -772,12 +818,25 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         pending?.Completion.TrySetResult(result);
     }
 
-    private static async Task StopDisconnectAndDisposeAsync(DetachedClient? detachedClient, bool stopPreview)
+    private Task StopDisconnectAndDisposeAsync(DetachedClient? detachedClient, bool stopPreview) =>
+        BeginClientCleanup(detachedClient, stopPreview, disconnect: true);
+
+    private Task DisposeDetachedClientAsync(DetachedClient? detachedClient) =>
+        BeginClientCleanup(detachedClient, stopPreview: false, disconnect: false);
+
+    private Task BeginClientCleanup(DetachedClient? detachedClient, bool stopPreview, bool disconnect)
     {
-        if (detachedClient is null)
+        lock (cleanupGate)
         {
-            return;
+            if (detachedClient is not null)
+                clientCleanup = CleanupClientAsync(clientCleanup, detachedClient, stopPreview, disconnect);
+            return clientCleanup;
         }
+    }
+
+    private static async Task CleanupClientAsync(Task previous, DetachedClient detachedClient, bool stopPreview, bool disconnect)
+    {
+        await previous.ConfigureAwait(false);
 
         if (stopPreview)
         {
@@ -791,23 +850,16 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             }
         }
 
-        try
+        if (disconnect)
         {
-            await detachedClient.Client.DisconnectAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            logger.Debug(ex, "Disconnecting detached shared live DAQ client failed");
-        }
-
-        await DisposeDetachedClientAsync(detachedClient).ConfigureAwait(false);
-    }
-
-    private static async Task DisposeDetachedClientAsync(DetachedClient? detachedClient)
-    {
-        if (detachedClient is null)
-        {
-            return;
+            try
+            {
+                await detachedClient.Client.DisconnectAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.Debug(ex, "Disconnecting detached shared live DAQ client failed");
+            }
         }
 
         try
@@ -848,26 +900,8 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
     }
 
-    internal bool CanBeReturnedFromRegistry()
-    {
-        try
-        {
-            gate.Wait();
-        }
-        catch (ObjectDisposedException)
-        {
-            return false;
-        }
-
-        try
-        {
-            return !isDisposed && !isEvicted && !isEvictionPending && !currentState.IsClosed;
-        }
-        finally
-        {
-            gate.Release();
-        }
-    }
+    internal bool CanBeReturnedFromRegistry() =>
+        !isDisposed && !isEvicted && !isEvictionPending && !currentState.IsClosed;
 
     private async Task HandleClientEventAsync(
         ILiveDaqClient client,
@@ -1049,6 +1083,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             CompletePendingLifecycleLocked(null);
             detachedClient = DetachCurrentClientLocked();
             isEvictionPending = true;
+            PublishState(currentState with { ConnectionState = LiveConnectionState.Disconnecting });
             currentEvictionSequence = ++evictionSequence;
             shouldBeginEviction = true;
         }
@@ -1081,6 +1116,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             {
                 return;
             }
+
+            ReleaseTransport();
+            PublishDisconnectedStateLocked(null);
 
             shouldEvict = observerCount == 0
                 && isEvictionPending

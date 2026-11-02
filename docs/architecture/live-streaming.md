@@ -84,8 +84,10 @@ User selects row
   -> shell.OpenEditor(EditorKey.LiveDaq)
     -> EditorFactory.CreateEditor(key, shell)
 
-Diagnostics tab loads
-  -> LiveDaqSharedStream.AcquireLease()
+Diagnostics tab is created after shell deduplication
+  -> LiveDaqSharedStream.AcquireLease() (retained until tab close)
+
+User connects
     -> LiveDaqSharedStream.EnsureStartedAsync
       -> ILiveDaqClientFactory.Create(snapshot.ProtocolVersion)
       -> LiveDaqV2Client or LiveDaqV3Client ConnectAsync (TCP)
@@ -221,6 +223,29 @@ The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ id
 
 `LiveDaqSharedStreamRegistry` owns one `LiveDaqSharedStream` per DAQ identity key. A shared stream keeps the current requested configuration, accepted session header, protocol version, connection state, and frame fan-out for that identity. Observers acquire a generic lease; live-session observers also hold a configuration-lock lease so the diagnostics tab cannot reconfigure rates while a live capture is attached. The lease mechanics on the recording side are described under [Configuration Lock](live-session.md#configuration-lock).
 
+Observer leases do not reserve the DAQ's single-client port. The registry owns a
+separate per-identity transport reservation, exposed through `ObserveTransport`:
+null is idle; a holder is `Streaming`, `Identify`, `Management(operation)` or
+`Import(batchId)`. Acquisitions return `Acquired(lease)` or `Busy(holder)`.
+LIVE reserves before creating a client, keeps the reservation through connection,
+reconfiguration and socket cleanup, and releases it after stop/failure/disposal.
+Stop, tab close and disposal join the retained client-cleanup task, so a second
+close cannot release the reservation while an earlier disconnect is pending.
+A second LIVE start joins the existing lifecycle/socket. A replacement tab cannot
+connect while the former stream's client is still closing. Start failure disposes
+its client before releasing the port; retry creates a fresh client.
+`AcquireManagementAsync`, `AcquireImportAsync` and `AcquireIdentifyAsync` expose
+the same arbitration for their callers. Current diagnostics management and network
+import still call their services directly; routing those workflows through the
+reservation APIs is not yet complete.
+
+Catalog callbacks enqueue immutable entries plus the stream instances that existed
+when the event arrived. One owned worker applies them in order and awaits closes;
+stale disposed targets do not prevent another device from receiving its update.
+Registry disposal ends intake, drains that worker and asynchronously disposes the
+remaining streams. There are no discarded catalog-update tasks or synchronous
+waits during registry disposal.
+
 The shared stream, not an individual caller, owns start/stop/reconfiguration lifecycle work. It records the latest desired running state and requested configuration, admits at most one lifecycle operation, and lets concurrent callers await that shared completion. Caller cancellation cancels only that caller's wait and returns a neutral result; transport connect/start/stop/disconnect and cleanup continue with the stream-owned lifetime so another observer cannot be left with a half-canceled connection. A request that arrives while lifecycle work is active updates the desired state, and the single operation converges after the current transport step by stopping or replacing the client as needed. Stop cleanup reacquires the stream gate and rechecks that desired state before publishing disconnected: if a restart arrived during stop/disconnect, the same shared completion remains pending while a fresh client binding and generation start with the latest configuration.
 
 Subscriber buffers drain asynchronously on the thread pool; they do not reserve a dedicated thread while waiting for frames.
@@ -306,7 +331,7 @@ Missing snapshots or session contexts produce no tab.
 
 **`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not implement `IListItemRow` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`, projects the shared stream frames through `LiveDaqSessionState`, and uses an injected `IUiTimerScheduler` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the only editable surface for connect, disconnect, and requested-rate reconfiguration. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream` during construction and releases it only when the tab closes. View unload stops foreground observation and timers while retaining the lease. It projects the shared stream frames through `LiveDaqSessionState`, and uses an injected `IUiTimerScheduler` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the editable surface for connect, disconnect, and requested-rate reconfiguration. Disconnect is disabled while a capture holds the configuration lock; the shared stream also returns `LiveDisconnectResult.Locked` to a direct stop request. A busy start reports the current port holder as a notification. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
 
 Management actions stay in the detail view model rather than the transport layer or coordinator:
 

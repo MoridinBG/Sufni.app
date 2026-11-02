@@ -148,6 +148,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         managementHost = snapshot.Host;
         managementPort = snapshot.Port;
         managementProtocolVersion = snapshot.ProtocolVersion;
+        streamLease = sharedStream.AcquireLease();
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
         RefreshSharedStreamState();
@@ -162,11 +163,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             IdentityKey,
             Endpoint);
 
-        if (streamLease is null)
-        {
-            streamLease = sharedStream.AcquireLease();
-        }
-
         hasLoaded = true;
         if (IsTabActive)
         {
@@ -177,7 +173,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task Unloaded()
+    private Task Unloaded()
     {
         logger.Debug(
             "Live DAQ detail unloaded for {IdentityKey} {Endpoint}; disconnect already in progress: {DisconnectInProgress}",
@@ -185,19 +181,25 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             Endpoint,
             sharedStream.CurrentState.ConnectionState == LiveConnectionState.Disconnecting);
 
-        await DeactivateAsync();
+        Deactivate();
+        return Task.CompletedTask;
     }
 
     protected override async Task CloseImplementation()
     {
-        await DeactivateAsync();
+        Deactivate();
+        if (streamLease is not null)
+        {
+            await streamLease.DisposeAsync();
+            streamLease = null;
+        }
     }
 
     protected override bool CanSave() => false;
     protected override bool CanReset() => false;
     protected override bool CanExport() => false;
 
-    private async Task DeactivateAsync()
+    private void Deactivate()
     {
         connectOperation.Cancel();
         SetTimeCommand.Cancel();
@@ -209,11 +211,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         hasLoaded = false;
         StopForegroundUpdates();
 
-        if (streamLease is not null)
-        {
-            await streamLease.DisposeAsync();
-            streamLease = null;
-        }
     }
 
     [RelayCommand]
@@ -511,6 +508,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             }
 
             var updatedState = sharedStream.CurrentState;
+            if (result is LivePreviewStartResult.Busy busy)
+            {
+                Notifications.Add(BusyMessage(busy.Holder));
+                return;
+            }
             if (result is LivePreviewStartResult.Rejected rejected)
             {
                 ErrorMessages.Add(new FailurePresentation(rejected.UserMessage));
@@ -538,6 +540,15 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         RefreshSharedStreamState();
     }
 
+    private static string BusyMessage(DaqTransportHolder holder) => holder switch
+    {
+        DaqTransportHolder.Streaming => "DAQ is busy: streaming.",
+        DaqTransportHolder.Import => "DAQ is busy: importing.",
+        DaqTransportHolder.Identify => "DAQ is busy: identifying the device.",
+        DaqTransportHolder.Management => "DAQ is busy: device management.",
+        _ => throw new ArgumentOutOfRangeException(nameof(holder))
+    };
+
     private async Task DisconnectImplementationAsync()
     {
         var currentState = sharedStream.CurrentState;
@@ -554,7 +565,11 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
         try
         {
-            await sharedStream.StopAsync();
+            if (await sharedStream.StopAsync() == LiveDisconnectResult.Locked)
+            {
+                Notifications.Add("DAQ is recording a live session. Close the capture tab before disconnecting.");
+                return;
+            }
             logger.Information(
                 "Live DAQ preview disconnected for {IdentityKey} {BoardId} {Endpoint}",
                 IdentityKey,
@@ -624,7 +639,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         CanConnect = !state.IsClosed
             && state.ConnectionState == LiveConnectionState.Disconnected
             && HasRequestedSensors;
-        CanDisconnect = !state.IsClosed && state.ConnectionState == LiveConnectionState.Connected;
+        CanDisconnect = !state.IsClosed && !state.IsConfigurationLocked && state.ConnectionState == LiveConnectionState.Connected;
         AreRequestedRatesEnabled = !state.IsClosed && !state.IsConfigurationLocked;
         RefreshSessionAvailability(state.ConnectionState);
         OnPropertyChanged(nameof(ConnectDisabledTooltip));

@@ -7,7 +7,7 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Stores;
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
-public class LiveDaqSharedStreamTests
+public partial class LiveDaqSharedStreamTests
 {
     private const int DeadlockProneTestTimeoutMs = 5000;
     private const int SlowSubscriberTestTimeoutMs = 15000;
@@ -24,9 +24,9 @@ public class LiveDaqSharedStreamTests
     }
 
     [Fact]
-    public void GetOrCreate_ReusesStreamPerIdentity_AndSeparatesDifferentBoards()
+    public async Task GetOrCreate_ReusesStreamPerIdentity_AndSeparatesDifferentBoards()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var firstSnapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         var secondSnapshot = CreateSnapshot("board-2", "192.168.0.51", 1666);
 
@@ -41,7 +41,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task CurrentState_UsesSnapshotProtocolVersion_AndUpdatesFromCatalog()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557, LiveProtocolVersion.V3);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -57,7 +57,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task CatalogProtocolChange_ClosesAndEvictsActiveStream()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557, LiveProtocolVersion.V2);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -84,7 +84,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task DisposingLastObserverLease_DisposesClient_AndEvictsStream()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -105,7 +105,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task ConfigurationLockLease_LocksConfiguration_UntilDisposed()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         var stream = registry.GetOrCreate(snapshot);
 
@@ -122,7 +122,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task DisposeAsync_CompletesObservables_DisposesClient_AndFutureLeaseAcquisitionThrows()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -156,7 +156,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task CatalogRemoval_ClosesAndEvictsActiveStream()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -184,7 +184,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task ReconfigureFailure_LeavesStreamRecoverableInsteadOfClosed()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -192,7 +192,11 @@ public class LiveDaqSharedStreamTests
         await using var lease = stream.AcquireLease();
         await stream.EnsureStartedAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        clientFactory.ConfigureBeforeReturn = client => client.FailNextStartPreview = true;
+        clientFactory.ConfigureBeforeReturn = client =>
+        {
+            client.FailNextStartPreview = true;
+            clientFactory.ConfigureBeforeReturn = null;
+        };
 
         await stream.ApplyConfigurationAsync(LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 5), cancellationToken: TestContext.Current.CancellationToken);
 
@@ -211,7 +215,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task EnsureStartedAsync_SharesPendingStart_AndCallerCancellationDoesNotCancelTransport()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -243,7 +247,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task ApplyConfigurationAsync_DuringPendingStart_ConvergesToLatestConfiguration()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -288,7 +292,7 @@ public class LiveDaqSharedStreamTests
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task LifecycleTransportWaits_DoNotHoldSharedGate()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var connectRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -313,7 +317,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task StopAsync_DuringPendingStart_InvalidatesLateCompletion_AndPermitsRestart()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -347,7 +351,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task CloseAsync_DuringPendingStart_RemainsTerminalAfterLateCompletion()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -370,7 +374,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task DisposeAsync_DuringPendingStart_IgnoresLateCompletion()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var pendingStart = new TaskCompletionSource<LivePreviewStartResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -392,7 +396,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task OldGenerationEvents_CannotMutateReplacementStateOrPublishFrames()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         clientFactory.ConfigureBeforeReturn = client =>
@@ -429,7 +433,7 @@ public class LiveDaqSharedStreamTests
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task StopAsync_DoesNotHoldGate_WhileStopOrDisconnectIsPending()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
@@ -457,7 +461,7 @@ public class LiveDaqSharedStreamTests
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task EnsureStartedAsync_DuringPendingStop_ReconvergesToRunning()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
@@ -490,7 +494,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task StopAsync_StopsPreviewBeforeDisconnecting()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
@@ -510,7 +514,7 @@ public class LiveDaqSharedStreamTests
     [InlineData(CanceledOperation.ApplyConfiguration)]
     public async Task Operations_WhenClientThrowsCanceled_DoNotPublishError(CanceledOperation operation)
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         if (operation is CanceledOperation.Connect)
@@ -549,7 +553,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task EnsureStartedAsync_PartialSuccessPublishesConnectedStateWithoutError()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         clientFactory.ConfigureBeforeReturn = c =>
@@ -573,7 +577,7 @@ public class LiveDaqSharedStreamTests
     [Fact]
     public async Task EnsureStartedAsync_NoSensorsStartedPublishesError()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         clientFactory.ConfigureBeforeReturn = c =>
@@ -596,7 +600,7 @@ public class LiveDaqSharedStreamTests
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task GetOrCreate_ReturnsReplacementStream_WhenExistingStreamIsPendingEviction()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -624,7 +628,7 @@ public class LiveDaqSharedStreamTests
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AcquireLease_RescuesPendingEviction_WhenCallerAlreadyHoldsStreamReference()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 
@@ -639,12 +643,14 @@ public class LiveDaqSharedStreamTests
         await client.DisposeStarted.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var rescuedLease = stream.AcquireLease();
+        Assert.IsType<LivePreviewStartResult.Busy>(await stream.EnsureStartedAsync(TestContext.Current.CancellationToken));
 
         client.ReleaseDispose();
         await releaseTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         var again = registry.GetOrCreate(snapshot);
         Assert.Same(stream, again);
+        Assert.IsType<LivePreviewStartResult.Started>(await stream.EnsureStartedAsync(TestContext.Current.CancellationToken));
 
         await rescuedLease.DisposeAsync();
     }
@@ -652,7 +658,7 @@ public class LiveDaqSharedStreamTests
     [Fact(Timeout = SlowSubscriberTestTimeoutMs)]
     public async Task Frames_SlowSubscriber_DoesNotBlockPublishing_AndDropsOldestBufferedFrames()
     {
-        using var registry = CreateRegistry();
+        await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
 

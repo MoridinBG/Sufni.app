@@ -347,7 +347,9 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   unifies mass-storage, network and storage-provider sources.
 - **Live DAQ streaming** uses a separate framed TCP protocol, its own
   discovery catalog and browse lease, a runtime-only store, and a
-  per-identity shared stream that tabs attach to through leases. See
+  per-identity shared stream that tabs attach to through tab-lifetime observer
+  leases. Registry transport reservations are separate from observers and stay
+  held until socket cleanup completes; capture locks reject disconnect. See
   [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with

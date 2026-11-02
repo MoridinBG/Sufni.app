@@ -302,6 +302,7 @@ public sealed record LiveSessionStatsFrame(LiveFrameMetadata Header, LiveSession
 
 public abstract record LivePreviewStartResult
 {
+    public sealed record Busy(DaqTransportHolder Holder) : LivePreviewStartResult;
     public sealed record Started(LiveSessionHeader Header) : LivePreviewStartResult;
     public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : LivePreviewStartResult
     {

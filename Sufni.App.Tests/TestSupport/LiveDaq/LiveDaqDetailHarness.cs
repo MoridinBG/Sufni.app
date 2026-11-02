@@ -62,9 +62,9 @@ internal sealed class LiveDaqDetailHarness
             .Returns(callInfo =>
             {
                 currentConfiguration = callInfo.ArgAt<LiveDaqStreamConfiguration>(0);
-                return Task.CompletedTask;
+                return Task.FromResult<LivePreviewStartResult?>(null);
             });
-        SharedStream.StopAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        SharedStream.StopAsync(Arg.Any<CancellationToken>()).Returns(LiveDisconnectResult.Stopped);
         StreamLease.DisposeAsync().Returns(ValueTask.CompletedTask);
     }
 

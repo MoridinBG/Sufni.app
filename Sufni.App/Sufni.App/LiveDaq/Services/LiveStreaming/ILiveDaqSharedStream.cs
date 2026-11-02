@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Sufni.App.LiveDaq.Stores;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
+public enum LiveDisconnectResult { Stopped, Locked }
+
 // Lease held by a consumer while it is attached to the shared DAQ connection.
 // Disposing the last lease lets the stream stop and evict itself.
 public interface ILiveDaqSharedStreamLease : IAsyncDisposable
@@ -27,6 +29,6 @@ public interface ILiveDaqSharedStream : IAsyncDisposable
     ILiveDaqSharedStreamLease AcquireConfigurationLock();
 
     Task<LivePreviewStartResult?> EnsureStartedAsync(CancellationToken cancellationToken = default);
-    Task StopAsync(CancellationToken cancellationToken = default);
-    Task ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default);
+    Task<LiveDisconnectResult> StopAsync(CancellationToken cancellationToken = default);
+    Task<LivePreviewStartResult?> ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default);
 }

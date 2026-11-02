@@ -14,6 +14,36 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 public class LiveDaqDetailViewModelTests
 {
     [Fact]
+    public async Task UnloadedCommand_RetainsObserverLease_UntilTabCloses()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor();
+        harness.SharedStream.Received(1).AcquireLease();
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        await editor.UnloadedCommand.ExecuteAsync(null);
+        await harness.StreamLease.DidNotReceive().DisposeAsync();
+        await harness.SharedStream.DidNotReceive().StopAsync(Arg.Any<CancellationToken>());
+        await editor.LoadedCommand.ExecuteAsync(null);
+        harness.SharedStream.Received(1).AcquireLease();
+        await editor.PrepareCloseAsync();
+
+        await harness.StreamLease.Received(1).DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ConnectCommand_ReportsPortHolderWithoutTreatingBusyAsFailure()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor(new LivePreviewStartResult.Busy(new DaqTransportHolder.Import(Guid.NewGuid())));
+
+        await editor.ConnectCommand.ExecuteAsync(null);
+
+        Assert.Single(editor.Notifications);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [Fact]
     public async Task ConnectCommand_AppliesConfigurationAndAcceptedSessionState()
     {
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808);
