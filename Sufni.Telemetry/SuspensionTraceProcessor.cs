@@ -5,7 +5,10 @@ public sealed record ProcessedSuspensionTrace(
     double[] Velocity,
     Strokes Strokes,
     double[] TravelBins,
-    double[] VelocityBins);
+    double[] VelocityBins)
+{
+    internal StrokeCandidate[] Idlings { get; init; } = [];
+}
 
 public static class SuspensionTraceProcessor
 {
@@ -25,7 +28,7 @@ public static class SuspensionTraceProcessor
             : velocityFilter.Process(travel, dt);
         var velocityBins = HistogramBuilder.CreateVelocityBins(velocity, Parameters.VelocityHistStep);
 
-        var strokes = StrokeAnalyzer.Analyze(
+        var analysis = StrokeAnalyzer.AnalyzeCore(
             velocity,
             travel,
             maxTravel,
@@ -34,9 +37,9 @@ public static class SuspensionTraceProcessor
         return new ProcessedSuspensionTrace(
             travel,
             velocity,
-            strokes,
+            analysis.Strokes,
             travelBins,
-            velocityBins);
+            velocityBins) { Idlings = analysis.Idlings };
     }
 
     private static double[] CalculateTravel(

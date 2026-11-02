@@ -53,9 +53,9 @@ A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed fir
 
 ### Stroke Detection
 
-`Strokes.FilterStrokes()` (`Sufni.Telemetry/Strokes.cs`) identifies strokes by finding sign changes in velocity. Adjacent strokes where both have max position < 5mm (near full extension) are concatenated — this prevents small oscillations at top-out from fragmenting the data into many tiny strokes. Strokes too short AND too brief to qualify as any category are silently discarded.
+`StrokeAnalyzer.Analyze()` (`Sufni.Telemetry/StrokeAnalyzer.cs`) identifies strokes by finding sign changes in velocity. Adjacent strokes where both have max position < 5mm (near full extension) are concatenated — this prevents small oscillations at top-out from fragmenting the data into many tiny strokes. Strokes too short AND too brief to qualify as any category are silently discarded.
 
-Each stroke records its start/end sample indices, length (travel delta in mm), duration, and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count). New processing does not populate the legacy `DigitizedTravel` or `DigitizedVelocity` arrays. When a coarse-index consumer first runs, `StrokeCoarseIndexes` accepts the legacy travel/velocity arrays only as one complete, in-range pair matching the stroke's source range; otherwise it derives both arrays from the processed samples. Segment-aware derivation uses the stroke's original segment-local coarse velocity-bin domain so gapped recordings retain their established histogram semantics. Legacy fine digitized velocity is skipped during decoding.
+Published strokes record start/end sample indices, timeline bounds and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count). Internal `StrokeCandidate` values retain travel delta, duration and airtime-candidate flags during processing; those scratch values never enter the published `TelemetryData` graph. New processing does not populate the legacy `DigitizedTravel` or `DigitizedVelocity` arrays. When a coarse-index consumer first runs, `StrokeCoarseIndexes` accepts the legacy travel/velocity arrays only as one complete, in-range pair matching the stroke's source range; otherwise it derives both arrays from the processed samples. Segment-aware derivation uses the stroke's original segment-local coarse velocity-bin domain so gapped recordings retain their established histogram semantics. Legacy fine digitized velocity is skipped during decoding.
 
 ### Stroke Categorization
 
@@ -63,7 +63,7 @@ Each stroke records its start/end sample indices, length (travel delta in mm), d
 - **Rebound**: length <= -5mm
 - **Idling**: |length| < 5mm AND duration >= 0.1s
 
-Only compressions and rebounds are MessagePack-serialized — `Strokes.Idlings` is `[IgnoreMember]`. Idlings are populated only during the same pipeline run that computes airtimes; after deserialization the `Idlings` array is not reconstructed, but the resolved `Airtimes[]` it produced is itself serialized.
+Only compressions and rebounds are published in `Strokes` and MessagePack-serialized. Internal idling candidates live only through the pipeline run that computes airtimes; the resolved `Airtimes[]` is serialized. There is no public idling collection or stroke-categorization mutation surface.
 
 ### Airtime Detection
 

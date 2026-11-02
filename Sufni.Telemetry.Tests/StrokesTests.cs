@@ -44,7 +44,7 @@ public class StrokesTests
     }
 
     [Fact]
-    public void FilterStrokes_WithSineWave_DetectsAlternatingStrokes()
+    public void Analyze_WithSineWave_DetectsAlternatingStrokes()
     {
         // Arrange
         int sampleRate = 1000;
@@ -62,7 +62,8 @@ public class StrokesTests
         }
 
         // Act
-        var strokes = Strokes.FilterStrokes(velocity, travel, 100.0, sampleRate);
+        var result = StrokeAnalyzer.Analyze(velocity, travel, 100.0, sampleRate);
+        var strokes = result.Compressions.Concat(result.Rebounds).OrderBy(stroke => stroke.Start).ToArray();
 
         // Assert
         // 5 cycles = 5 positive and 5 negative phases = 10 strokes
@@ -75,69 +76,15 @@ public class StrokesTests
     }
 
     [Fact]
-    public void Categorize_SeparatesCompressionsAndRebounds()
+    public void Analyze_SeparatesActiveStrokesAndOmitsIdling()
     {
-        // Arrange
-        var strokesObj = new Strokes();
-        var travel = new double[6];
-        var velocity = new double[6];
-        double maxTravel = 100.0;
-        
-        travel[0] = 0;
-        travel[1] = 10;
-        var comp = new Stroke(0, 1, 0.1, travel, velocity, maxTravel);
-        
-        travel[2] = 10;
-        travel[3] = 0;
-        var reb = new Stroke(2, 3, 0.1, travel, velocity, maxTravel);
-        
-        travel[4] = 5;
-        travel[5] = 6;
-        var idle = new Stroke(4, 5, 0.2, travel, velocity, maxTravel);
+        var result = StrokeAnalyzer.Analyze([100, 100, -100, -100, 0, 0], [0, 10, 10, 0, 5, 6], 100, 10);
 
-        var input = new[] { comp, reb, idle };
-
-        // Act
-        strokesObj.Categorize(input);
-
-        // Assert
-        Assert.Single(strokesObj.Compressions);
-        Assert.Single(strokesObj.Rebounds);
-        Assert.Single(strokesObj.Idlings);
-        
-        Assert.Equal(comp, strokesObj.Compressions[0]);
-        Assert.Equal(reb, strokesObj.Rebounds[0]);
-        Assert.Equal(idle, strokesObj.Idlings[0]);
-    }
-
-    [Fact]
-    public void Categorize_IdentifiesAirCandidates()
-    {
-        // Arrange
-        var strokesObj = new Strokes();
-        var travel = new double[6];
-        var velocity = new double[6];
-        double maxTravel = 100.0;
-        
-        travel[0] = 0;
-        travel[1] = 10;
-        var prev = new Stroke(0, 1, 0.01, travel, velocity, maxTravel);
-        
-        travel[2] = 2;
-        travel[3] = 3;
-        var idle = new Stroke(2, 3, 0.2, travel, velocity, maxTravel);
-        
-        travel[4] = 3;
-        travel[5] = 15;
-        velocity[5] = 600;
-        var next = new Stroke(4, 5, 0.01, travel, velocity, maxTravel);
-
-        var input = new[] { prev, idle, next };
-
-        // Act
-        strokesObj.Categorize(input);
-
-        // Assert
-        Assert.True(idle.AirCandidate);
+        var compression = Assert.Single(result.Compressions);
+        var rebound = Assert.Single(result.Rebounds);
+        Assert.Equal((0, 1), (compression.Start, compression.End));
+        Assert.Equal((2, 3), (rebound.Start, rebound.End));
+        Assert.Equal(10, compression.Stat.SumTravel);
+        Assert.Equal(-100, rebound.Stat.MaxVelocity);
     }
 }

@@ -67,16 +67,16 @@ public class TelemetryData
 
     #region Private helpers for ProcessRecording
 
-    private void CalculateAirTimes()
+    private void CalculateAirTimes(StrokeCandidate[] frontIdlings, StrokeCandidate[] rearIdlings)
     {
         var airtimes = new List<Airtime>();
 
         if (Front.Present && Rear.Present)
         {
-            foreach (var f in Front.Strokes.Idlings)
+            foreach (var f in frontIdlings)
             {
                 if (!f.AirCandidate) continue;
-                foreach (var r in Rear.Strokes.Idlings)
+                foreach (var r in rearIdlings)
                 {
                     if (!r.AirCandidate || !f.Overlaps(r)) continue;
                     f.AirCandidate = false;
@@ -94,7 +94,7 @@ public class TelemetryData
 
             var maxMean = (Front.MaxTravel + Rear.MaxTravel) / 2.0;
 
-            foreach (var f in Front.Strokes.Idlings)
+            foreach (var f in frontIdlings)
             {
                 if (!f.AirCandidate) continue;
                 if (!TryGetMeanTravel(Front, f, out var fMean) ||
@@ -112,7 +112,7 @@ public class TelemetryData
                 airtimes.Add(at);
             }
 
-            foreach (var r in Rear.Strokes.Idlings)
+            foreach (var r in rearIdlings)
             {
                 if (!r.AirCandidate) continue;
                 if (!TryGetMeanTravel(Front, r, out var fMean) ||
@@ -132,7 +132,7 @@ public class TelemetryData
         }
         else if (Front.Present)
         {
-            foreach (var f in Front.Strokes.Idlings)
+            foreach (var f in frontIdlings)
             {
                 if (!f.AirCandidate) continue;
                 var at = new Airtime
@@ -145,7 +145,7 @@ public class TelemetryData
         }
         else if (Rear.Present)
         {
-            foreach (var r in Rear.Strokes.Idlings)
+            foreach (var r in rearIdlings)
             {
                 if (!r.AirCandidate) continue;
                 var at = new Airtime
@@ -270,7 +270,7 @@ public class TelemetryData
             gap.StreamKind == SstV5ProtocolConstants.StreamTravel &&
             (gap.LocationId is null || gap.LocationId == (byte)sensorBit));
 
-    private static void ProcessSuspensionSide(
+    private static StrokeCandidate[] ProcessSuspensionSide(
         Suspension suspension,
         ushort[] rawSamples,
         bool measurementWraps,
@@ -280,7 +280,7 @@ public class TelemetryData
     {
         if (!suspension.Present)
         {
-            return;
+            return [];
         }
 
         Debug.Assert(measurementToTravel is not null);
@@ -298,9 +298,10 @@ public class TelemetryData
 
         ApplySuspensionTrace(suspension, trace);
         suspension.AnomalyRate = CalculateAnomalyRate(preprocessed.AnomalyCount, preprocessed.Samples.Length, sampleRate);
+        return trace.Idlings;
     }
 
-    private static void ProcessSegmentAwareSuspensionSide(
+    private static StrokeCandidate[] ProcessSegmentAwareSuspensionSide(
         Suspension suspension,
         RawCountSegment[] rawSegments,
         bool measurementWraps,
@@ -318,7 +319,7 @@ public class TelemetryData
             suspension.VelocityBins = [];
             suspension.Segments = [];
             suspension.HasGaps = false;
-            return;
+            return [];
         }
 
         Debug.Assert(measurementToTravel is not null);
@@ -328,7 +329,7 @@ public class TelemetryData
         var processedSegments = new List<ProcessedSuspensionSegment>();
         var compressions = new List<Stroke>();
         var rebounds = new List<Stroke>();
-        var idlings = new List<Stroke>();
+        var idlings = new List<StrokeCandidate>();
         var anomalyCount = 0;
         var sampleCount = 0;
 
@@ -351,11 +352,12 @@ public class TelemetryData
             double[] segmentTravel;
             double[] segmentVelocity;
             Strokes segmentStrokes;
+            StrokeCandidate[] segmentIdlings = [];
             if (preprocessed.Samples.Length < 5)
             {
                 segmentTravel = CalculateTravel(preprocessed.Samples, suspension.MaxTravel!.Value, measurementToTravel);
                 segmentVelocity = new double[segmentTravel.Length];
-                segmentStrokes = Strokes.FromCategorized([], [], []);
+                segmentStrokes = new Strokes { Compressions = [], Rebounds = [] };
             }
             else
             {
@@ -369,7 +371,8 @@ public class TelemetryData
                 segmentTravel = trace.Travel;
                 segmentVelocity = trace.Velocity;
                 segmentStrokes = trace.Strokes;
-                OffsetStrokeTimes(segmentStrokes, denseOffset, segmentStartSeconds, sampleRate);
+                segmentIdlings = trace.Idlings;
+                OffsetStrokeTimes(segmentStrokes, segmentIdlings, denseOffset, segmentStartSeconds, sampleRate);
             }
 
             travelValues.AddRange(segmentTravel);
@@ -383,13 +386,13 @@ public class TelemetryData
             });
             compressions.AddRange(segmentStrokes.Compressions);
             rebounds.AddRange(segmentStrokes.Rebounds);
-            idlings.AddRange(segmentStrokes.Idlings);
+            idlings.AddRange(segmentIdlings);
         }
 
         suspension.Present = travelValues.Count > 0;
         suspension.Travel = travelValues.ToArray();
         suspension.Velocity = velocityValues.ToArray();
-        suspension.Strokes = Strokes.FromCategorized([.. compressions], [.. rebounds], [.. idlings]);
+        suspension.Strokes = new Strokes { Compressions = [.. compressions], Rebounds = [.. rebounds] };
         suspension.TravelBins = suspension.MaxTravel is > 0
             ? HistogramBuilder.Linspace(0, suspension.MaxTravel.Value, Parameters.TravelHistBins + 1)
             : [];
@@ -400,6 +403,7 @@ public class TelemetryData
         suspension.Segments = [.. processedSegments];
         suspension.HasGaps = processedSegments.Count > 1;
         suspension.AnomalyRate = CalculateAnomalyRate(anomalyCount, sampleCount, sampleRate);
+        return [.. idlings];
     }
 
     private static double[] CalculateTravel(
@@ -416,9 +420,9 @@ public class TelemetryData
         return travel;
     }
 
-    private static void OffsetStrokeTimes(Strokes strokes, int denseOffset, double segmentStartSeconds, int sampleRate)
+    private static void OffsetStrokeTimes(Strokes strokes, StrokeCandidate[] idlings, int denseOffset, double segmentStartSeconds, int sampleRate)
     {
-        foreach (var stroke in strokes.Compressions.Concat(strokes.Rebounds).Concat(strokes.Idlings))
+        foreach (var stroke in strokes.Compressions.Concat(strokes.Rebounds).Concat(idlings))
         {
             var localStart = stroke.Start;
             var localEnd = stroke.End;
@@ -542,6 +546,7 @@ public class TelemetryData
         ArgumentNullException.ThrowIfNull(processingOptions);
 
         var td = new TelemetryData(metadata, bikeData.FrontMaxTravel, bikeData.RearMaxTravel);
+        StrokeCandidate[] frontIdlings = [], rearIdlings = [];
         td.Markers = rawData.Markers;
         td.ImuData = rawData.ImuData;
         td.GpsData = rawData.GpsData;
@@ -559,14 +564,14 @@ public class TelemetryData
             }
 
             Parallel.Invoke(
-                () => ProcessSegmentAwareSuspensionSide(
+                () => frontIdlings = ProcessSegmentAwareSuspensionSide(
                     td.Front,
                     rawData.FrontSegments,
                     bikeData.FrontMeasurementWraps,
                     bikeData.FrontMeasurementToTravel,
                     td.Metadata.SampleRate,
                     processingOptions),
-                () => ProcessSegmentAwareSuspensionSide(
+                () => rearIdlings = ProcessSegmentAwareSuspensionSide(
                     td.Rear,
                     rawData.RearSegments,
                     bikeData.RearMeasurementWraps,
@@ -576,7 +581,7 @@ public class TelemetryData
 
             td.Front.HasGaps = td.Front.Present && (td.Front.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorForkTravel));
             td.Rear.HasGaps = td.Rear.Present && (td.Rear.HasGaps || HasTravelGapForSide(rawData.StreamGaps, SstV5ProtocolConstants.SensorShockTravel));
-            td.CalculateAirTimes();
+            td.CalculateAirTimes(frontIdlings, rearIdlings);
 
             return td;
         }
@@ -601,7 +606,7 @@ public class TelemetryData
         {
             td.Front.Present = false;
             td.Rear.Present = false;
-            td.CalculateAirTimes();
+            td.CalculateAirTimes(frontIdlings, rearIdlings);
             return td;
         }
 
@@ -610,14 +615,14 @@ public class TelemetryData
         var filter = CreateVelocityFilter(recordCount, td.Metadata.SampleRate, processingOptions);
 
         Parallel.Invoke(
-            () => ProcessSuspensionSide(
+            () => frontIdlings = ProcessSuspensionSide(
                 td.Front,
                 rawData.Front,
                 bikeData.FrontMeasurementWraps,
                 bikeData.FrontMeasurementToTravel,
                 td.Metadata.SampleRate,
                 filter),
-            () => ProcessSuspensionSide(
+            () => rearIdlings = ProcessSuspensionSide(
                 td.Rear,
                 rawData.Rear,
                 bikeData.RearMeasurementWraps,
@@ -625,7 +630,7 @@ public class TelemetryData
                 td.Metadata.SampleRate,
                 filter));
 
-        td.CalculateAirTimes();
+        td.CalculateAirTimes(frontIdlings, rearIdlings);
 
         return td;
     }

@@ -32,29 +32,20 @@ public class Stroke
 
     #endregion Public properties
 
-    #region Public properties [non-messagepack]
-
-    [IgnoreMember] public double Length { get; private set; }
-    [IgnoreMember] public double Duration { get; set; }
-    [IgnoreMember] public bool AirCandidate { get; set; }
-
-    #endregion Public properties [non-messagepack]
-
     #region Constructors
 
     public Stroke() { }
 
-    public Stroke(int start, int end, double duration, double[] travel, double[] velocity, double maxTravel)
+    internal Stroke(int start, int end, double[] travel, double[] velocity, double maxTravel)
     {
         Start = start;
         End = end;
-        Length = travel[end] - travel[start];
-        Duration = duration;
+        var length = travel[end] - travel[start];
 
         var travelSpan = travel.AsSpan(start, end - start + 1);     // [start, end] inclusive
         var velocitySpan = velocity.AsSpan(start, end - start + 1);
 
-        var mv = Length < 0 ? TensorPrimitives.Min(velocitySpan) : TensorPrimitives.Max(velocitySpan);
+        var mv = length < 0 ? TensorPrimitives.Min(velocitySpan) : TensorPrimitives.Max(velocitySpan);
         var bo = 0;
         for (var i = start; i < end; i++)
         {
@@ -107,114 +98,4 @@ public class Strokes
 
     #endregion Public properties
 
-    #region Public properties [non-messagepack]
-
-    [IgnoreMember] public Stroke[] Idlings { get; private set; }
-
-    #endregion Public properties [non-messagepack]
-
-    #region Public methods
-
-    public void Categorize(Stroke[] strokes)
-    {
-        var compressions = new List<Stroke>();
-        var rebounds = new List<Stroke>();
-        var idlings = new List<Stroke>();
-
-        for (var i = 0; i < strokes.Length; i++)
-        {
-            var stroke = strokes[i];
-            if (Math.Abs(stroke.Length) < Parameters.StrokeLengthThreshold &&
-                stroke.Duration >= Parameters.IdlingDurationThreshold)
-            {
-                // If suitable, tag this idling stroke as a possible airtime.
-                // Whether or not it really is one will be decided with
-                // further heuristics based on both front and rear
-                // candidates.
-                if (i > 0 && i < strokes.Length - 1 &&
-                    stroke.Stat.MaxTravel <= Parameters.StrokeLengthThreshold &&
-                    stroke.Duration >= Parameters.AirtimeDurationThreshold &&
-                    strokes[i + 1].Stat.MaxVelocity >= Parameters.AirtimeVelocityThreshold)
-                {
-                    stroke.AirCandidate = true;
-                }
-
-                idlings.Add(stroke);
-            }
-            else if (stroke.Length >= Parameters.StrokeLengthThreshold)
-            {
-                compressions.Add(stroke);
-            }
-            else if (stroke.Length <= -Parameters.StrokeLengthThreshold)
-            {
-                rebounds.Add(stroke);
-            }
-        }
-
-        Compressions = [.. compressions];
-        Rebounds = [.. rebounds];
-        Idlings = [.. idlings];
-    }
-
-    public static Strokes FromCategorized(Stroke[] compressions, Stroke[] rebounds, Stroke[] idlings) => new()
-    {
-        Compressions = compressions,
-        Rebounds = rebounds,
-        Idlings = idlings,
-    };
-
-    public static Stroke[] FilterStrokes(double[] velocity, double[] travel, double maxTravel, int sampleRate)
-    {
-        var strokes = new List<Stroke>();
-        var velocityLength = velocity.Length;
-
-        for (var i = 0; i < velocityLength - 1; i++)
-        {
-            var startIndex = i;
-            var startSign = Math.Sign(velocity[i]);
-            var maxPosition = travel[startIndex];
-
-            // Loop until velocity changes sign
-            while (i < velocityLength - 1 && Math.Sign(velocity[i + 1]) == startSign)
-            {
-                i++;
-                if (travel[i] > maxPosition)
-                {
-                    maxPosition = travel[i];
-                }
-            }
-
-            // We are at the end of the data stream
-            if (i >= velocityLength)
-            {
-                i = velocityLength - 1;
-            }
-
-            // Top-out periods often oscillate a bit, so they are split into multiple
-            // strokes. We fix this by concatenating consecutive strokes if their
-            // mean position is close to zero.
-            var duration = (i - startIndex + 1) / (double)sampleRate;
-            if (maxPosition < Parameters.StrokeLengthThreshold &&
-                strokes.Count > 0 &&
-                strokes[^1].Stat.MaxTravel < Parameters.StrokeLengthThreshold)
-            {
-                strokes[^1].End = i;
-                strokes[^1].Duration += duration;
-                strokes[^1].EndSeconds = i / (double)sampleRate;
-            }
-            else
-            {
-                var stroke = new Stroke(startIndex, i, duration, travel, velocity, maxTravel)
-                {
-                    StartSeconds = startIndex / (double)sampleRate,
-                    EndSeconds = i / (double)sampleRate,
-                };
-                strokes.Add(stroke);
-            }
-        }
-
-        return [.. strokes];
-    } 
-
-    #endregion Public methods
 }

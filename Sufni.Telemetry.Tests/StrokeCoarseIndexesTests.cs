@@ -209,7 +209,7 @@ public class StrokeCoarseIndexesTests
                 VelocityBins = velocityBins,
                 Segments = segments,
                 HasGaps = segments.Length > 1,
-                Strokes = Strokes.FromCategorized([stroke], [], []),
+                Strokes = new Strokes { Compressions = [stroke], Rebounds = [] },
             },
             Rear = new Suspension
             {
@@ -218,7 +218,7 @@ public class StrokeCoarseIndexesTests
                 Velocity = [],
                 TravelBins = [],
                 VelocityBins = [],
-                Strokes = Strokes.FromCategorized([], [], []),
+                Strokes = new Strokes { Compressions = [], Rebounds = [] },
             },
             Airtimes = [],
         };

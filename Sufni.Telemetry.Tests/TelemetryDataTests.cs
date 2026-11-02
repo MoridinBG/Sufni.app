@@ -667,8 +667,7 @@ public class TelemetryDataTests
         Assert.Equal(2, result.Front.Segments.Length);
         Assert.Equal(100, result.Front.Travel.Length);
         var allStrokes = result.Front.Strokes.Compressions
-            .Concat(result.Front.Strokes.Rebounds)
-            .Concat(result.Front.Strokes.Idlings);
+            .Concat(result.Front.Strokes.Rebounds);
         Assert.All(allStrokes, stroke =>
         {
             Assert.Contains(result.Front.Segments, segment =>
@@ -751,7 +750,6 @@ public class TelemetryDataTests
         Assert.Equal([0.0, 0.0, 0.0], result.Front.Velocity);
         Assert.Empty(result.Front.Strokes.Compressions);
         Assert.Empty(result.Front.Strokes.Rebounds);
-        Assert.Empty(result.Front.Strokes.Idlings);
     }
 
     [Fact]
@@ -1535,7 +1533,7 @@ public class TelemetryDataTests
                         SampleCount = 2,
                     }
                 ],
-                Strokes = Strokes.FromCategorized([compression], [], []),
+                Strokes = new Strokes { Compressions = [compression], Rebounds = [] },
                 TravelBins = CreateTravelBins(100),
                 VelocityBins = [-100, 0, 100],
             },
@@ -1693,10 +1691,11 @@ public class TelemetryDataTests
                     Velocity = new double[6],
                     HasGaps = true,
                     Segments = unordered ? [secondTravel, firstTravel] : [firstTravel, secondTravel],
-                    Strokes = Strokes.FromCategorized(
-                        unordered ? [secondCompression, firstCompression] : [firstCompression, secondCompression],
-                        unordered ? [secondRebound, firstRebound] : [firstRebound, secondRebound],
-                        []),
+                    Strokes = new Strokes
+                    {
+                        Compressions = unordered ? [secondCompression, firstCompression] : [firstCompression, secondCompression],
+                        Rebounds = unordered ? [secondRebound, firstRebound] : [firstRebound, secondRebound],
+                    },
                     TravelBins = CreateTravelBins(100),
                     VelocityBins = [-100, 0, 100],
                 },
