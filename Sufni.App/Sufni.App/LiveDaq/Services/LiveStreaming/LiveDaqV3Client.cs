@@ -33,6 +33,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
     private readonly Subject<LiveDaqClientEvent> events = new();
     private readonly System.Threading.Lock eventsGate = new();
     private readonly System.Threading.Lock dropCountersGate = new();
+    private readonly SemaphoreSlim connectionGate = new(1, 1);
     private readonly SemaphoreSlim lifecycleGate = new(1, 1);
     private readonly LiveV3ProtocolReader protocolReader = new();
 
@@ -126,15 +127,22 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
 
     public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
     {
-        await lifecycleGate.WaitAsync(cancellationToken);
+        await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             ThrowIfDisposed();
-            if (IsConnected)
-            {
-                return;
-            }
+            if (IsConnected) return;
+            await DisconnectCoreAsync(cancellationToken).ConfigureAwait(false);
+            await ConnectCoreAsync(host, port, cancellationToken).ConfigureAwait(false);
+        }
+        finally { connectionGate.Release(); }
+    }
 
+    private async Task ConnectCoreAsync(string host, int port, CancellationToken cancellationToken)
+    {
+        await lifecycleGate.WaitAsync(cancellationToken);
+        try
+        {
             logger.Debug("Connecting LIVE v3 client to {Host} {Port}", host, port);
 
             intentionalDisconnect = false;
@@ -378,6 +386,17 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
 
     public async Task DisconnectAsync(CancellationToken cancellationToken = default)
     {
+        await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!isDisposed) await DisconnectCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { connectionGate.Release(); }
+    }
+
+    private async Task DisconnectCoreAsync(CancellationToken cancellationToken)
+    {
+        bool notifyDisconnected;
         Task? receiveLoopToAwait = null;
         Task? parseLoopToAwait = null;
         Task? publishLoopToAwait = null;
@@ -389,6 +408,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                 return;
             }
 
+            notifyDisconnected = lifecyclePhase != LifecyclePhase.Disconnected;
             intentionalDisconnect = true;
             if (stream is not null && activeSessionId is { } sessionId)
             {
@@ -431,40 +451,26 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         await AwaitLoopDuringDisconnectAsync(parseLoopToAwait, "parse");
         await AwaitLoopDuringDisconnectAsync(publishLoopToAwait, "publish");
 
-        EmitEvent(new LiveDaqClientEvent.Disconnected(null));
+        if (notifyDisconnected) EmitEvent(new LiveDaqClientEvent.Disconnected(null));
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (isDisposed)
-        {
-            return;
-        }
-
-        await lifecycleGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        await connectionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
-            if (isDisposed)
-            {
-                return;
-            }
+            if (isDisposed) return;
+            await lifecycleGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try { isDisposed = true; }
+            finally { lifecycleGate.Release(); }
 
-            isDisposed = true;
+            await DisconnectCoreAsync(CancellationToken.None).ConfigureAwait(false);
+            lock (eventsGate) { events.OnCompleted(); }
+            receiveLoopCts?.Dispose();
+            tcpClient?.Dispose();
+            lifecycleGate.Dispose();
         }
-        finally
-        {
-            lifecycleGate.Release();
-        }
-
-        await DisconnectAsync().ConfigureAwait(false);
-        lock (eventsGate)
-        {
-            events.OnCompleted();
-        }
-
-        receiveLoopCts?.Dispose();
-        tcpClient?.Dispose();
-        lifecycleGate.Dispose();
+        finally { connectionGate.Release(); }
     }
 
     private async Task<LiveV3Capabilities> EnsureCapabilitiesLoadedAsync(CancellationToken cancellationToken)
@@ -732,6 +738,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
 
     private async Task HandleFrameAsync(LiveProtocolFrame frame)
     {
+        string? disconnectError = null;
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
         {
@@ -838,7 +845,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
                     break;
 
                 case LiveV3ErrorFrame errorFrame:
-                    HandleErrorFrame(errorFrame);
+                    disconnectError = HandleErrorFrame(errorFrame);
                     break;
 
                 case LiveV3CapabilitiesRequestFrame or
@@ -854,6 +861,8 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             lifecycleGate.Release();
         }
 
+        if (disconnectError is not null)
+            await HandleDisconnectAsync(disconnectError).ConfigureAwait(false);
         if (frame is LiveSessionHeaderFrame or LiveTravelBatchFrame or LiveImuBatchFrame
             or LiveGpsBatchFrame or LiveTemperatureBatchFrame or LiveBatteryBatchFrame
             or LiveMarkerBatchFrame or LiveStatusFrame or LiveSessionResultFrame)
@@ -913,7 +922,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         }
     }
 
-    private void HandleErrorFrame(LiveV3ErrorFrame frame)
+    private string HandleErrorFrame(LiveV3ErrorFrame frame)
     {
         var message = LiveV3ProtocolHelpers.CreateErrorMessage(frame.Payload);
         pendingCapabilities?.TrySetException(new IOException(message));
@@ -928,7 +937,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             pendingRequestedStreamMask = LiveStreamMask.None;
         }
 
-        _ = Task.Run(() => HandleDisconnectAsync(message));
+        return message;
     }
 
     private async Task HandleDisconnectAsync(string? errorMessage, Exception? exception = null)
@@ -936,6 +945,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
         {
+            if (lifecyclePhase == LifecyclePhase.Disconnected) return;
             stream?.Close();
             tcpClient?.Close();
             stream = null;
@@ -946,13 +956,6 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             receiveLoopCts?.Cancel();
             rawFrames?.Writer.TryComplete();
             parsedFrames?.Writer.TryComplete();
-            receiveLoopCts?.Dispose();
-            receiveLoopCts = null;
-            receiveLoopTask = null;
-            parseLoopTask = null;
-            publishLoopTask = null;
-            rawFrames = null;
-            parsedFrames = null;
             CompletePendingForDisconnect(errorMessage ?? "Live preview disconnected before startup completed.");
         }
         finally

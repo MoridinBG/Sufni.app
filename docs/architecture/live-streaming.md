@@ -231,6 +231,14 @@ also emits typed `PreviewRejected(reason)` for the shared stream's recoverable
 disconnected state. Shared-stream and presentation code do not interpret wire
 control frames.
 
+V3 connect, disconnect and disposal share a connection gate held through pipeline
+drainage. Concurrent callers cannot reuse or dispose the client's lifecycle gate
+while an older receive/parse/publish loop is still running. Unexpected disconnect
+closes the socket and completes pending operations but retains those loop handles
+for cleanup. An ERROR-triggered disconnect is awaited by its pipeline caller;
+there is no detached disconnect task. A reconnect drains the old pipeline before
+replacing its reader context and cancellation source.
+
 ### Drop Counters
 
 `LiveDaqClientDropCounters` reports receive, parse, and subscriber-buffer pressure through `LiveDaqSharedStreamState`. `LiveSessionService` uses increasing pressure to defer analysis briefly; the counters are not copied into presentation state. Recording and display remain separate, so dropping a display update does not remove captured samples.

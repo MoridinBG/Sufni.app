@@ -848,6 +848,57 @@ public class LiveDaqV3ClientTests
     }
 
     [Fact]
+    public async Task DisconnectAndDispose_WaitForInFlightPublicationBeforeCompleting()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var socketClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publicationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releasePublication = new ManualResetEventSlim();
+        var serverTask = RunStartedServerAsync(listener,
+            () => LiveV3ProtocolTestFrames.SessionHeaderTravel(), async stream =>
+            {
+                await stream.WriteAsync(LiveV3ProtocolTestFrames.TravelData(), TestContext.Current.CancellationToken);
+                _ = await ReadFrameAsync(stream);
+                Assert.Equal(0, await stream.ReadAsync(new byte[1], TestContext.Current.CancellationToken));
+                socketClosed.SetResult();
+            });
+        await using var client = new LiveDaqV3Client();
+        var disconnectCount = 0;
+        using var subscription = client.Events.Subscribe(value =>
+        {
+            if (value is LiveDaqClientEvent.FrameReceived { Frame: LiveTravelBatchFrame })
+            {
+                publicationStarted.SetResult();
+                Assert.True(releasePublication.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+            }
+            else if (value is LiveDaqClientEvent.Disconnected)
+                Interlocked.Increment(ref disconnectCount);
+        });
+        try
+        {
+            await client.ConnectAsync(IPAddress.Loopback.ToString(), port, TestContext.Current.CancellationToken);
+            await client.StartPreviewAsync(new LiveStartRequest(LiveSensorInstanceMask.Travel, 100_000, 0, 0), TestContext.Current.CancellationToken)
+                .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            await publicationStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+            var firstDisconnect = client.DisconnectAsync(TestContext.Current.CancellationToken);
+            await socketClosed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            var secondDisconnect = client.DisconnectAsync(TestContext.Current.CancellationToken);
+            var disposal = client.DisposeAsync().AsTask();
+            Assert.False(firstDisconnect.IsCompleted);
+            Assert.False(secondDisconnect.IsCompleted);
+            Assert.False(disposal.IsCompleted);
+
+            releasePublication.Set();
+            await Task.WhenAll(firstDisconnect, secondDisconnect, disposal, serverTask).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(1, disconnectCount);
+        }
+        finally { releasePublication.Set(); }
+    }
+
+    [Fact]
     public async Task ErrorDuringActiveStream_FaultsClient()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
