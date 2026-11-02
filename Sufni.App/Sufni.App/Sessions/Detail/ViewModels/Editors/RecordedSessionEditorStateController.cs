@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System;
 using System.Collections.Generic;
 using System.Reactive.Linq;
@@ -25,7 +26,8 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<SessionOperationPresentationState> OperationStates,
     IObservable<SessionDampingPercentages> DampingPercentages,
     IObservable<SessionInsightsResult> SessionInsights,
-    IObservable<AnalysisSelectionState> AnalysisSelections,
+    IObservable<AnalysisAvailabilityResult> AnalysisAvailability,
+    IObservable<SelectionHighlightsAnalysisResult> SelectionHighlights,
     IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions,
     IObservable<RecordedSessionDomainSnapshot> DomainStates);
 
@@ -44,7 +46,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
         ArgumentNullException.ThrowIfNull(inputs.DampingPercentages);
         ArgumentNullException.ThrowIfNull(inputs.SessionInsights);
-        ArgumentNullException.ThrowIfNull(inputs.AnalysisSelections);
+        ArgumentNullException.ThrowIfNull(inputs.AnalysisAvailability);
+        ArgumentNullException.ThrowIfNull(inputs.SelectionHighlights);
         ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
         ArgumentNullException.ThrowIfNull(inputs.DomainStates);
 
@@ -76,7 +79,15 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 Presentation = state.Presentation with { SessionInsights = insights },
             }),
-            EditorUpdates(inputs.AnalysisSelections, ApplySelection),
+            EditorUpdates(inputs.AnalysisAvailability, static (state, availability) => state with
+            {
+                Presentation = state.Presentation with
+                {
+                    Analysis = RecordedSessionPresentationDeriver.CreateAnalysisPresentation(availability, state.Intent.AnalysisRange),
+                },
+            }),
+            EditorUpdates(inputs.SelectionHighlights, static (state, highlights) =>
+                ApplySelection(state, state.AnalysisSelection with { HighlightRanges = highlights.Ranges })),
             EditorUpdates(inputs.SignalPlotContextMenuActions, static (state, actions) => state with
             {
                 Presentation = state.Presentation with { SignalPlotContextMenuActionsBySignalRowId = actions },
@@ -109,7 +120,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private static RecordedSessionEditorState InvalidateAnalysisResults(RecordedSessionEditorState previous, RecordedSessionEditorState next)
     {
-        var dampingChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange ||
+        var scopeChanged = previous.TelemetryData != next.TelemetryData || previous.Intent.AnalysisRange != next.Intent.AnalysisRange;
+        if (scopeChanged)
+            next = ApplySelection(next, next.AnalysisSelection with { HighlightRanges = [] });
+        var dampingChanged = scopeChanged ||
             previous.Preferences.Analysis.VelocityAverageMode != next.Preferences.Analysis.VelocityAverageMode ||
             previous.Intent.DampingSpeedCutoffs != next.Intent.DampingSpeedCutoffs;
         var insightsChanged = dampingChanged || previous.Preferences.Analysis != next.Preferences.Analysis;
@@ -117,6 +131,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Presentation = next.Presentation with
             {
+                Analysis = scopeChanged ? CreateAnalysisPresentationFromLoadPresentation(next.Load) : next.Presentation.Analysis,
                 DampingPercentages = dampingChanged ? SessionDampingPercentages.Empty : next.Presentation.DampingPercentages,
                 SessionInsights = insightsChanged ? SessionInsightsResult.Hidden : next.Presentation.SessionInsights,
             },
@@ -140,17 +155,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     AnalysisRange = range,
                     PendingAnalysisRangeBoundary = requested.PendingAnalysisRangeBoundary,
                 },
-                Presentation = state.Presentation with
-                {
-                    Analysis = CreateAnalysisPresentationFromLoadPresentation(state.Load, range),
-                },
             };
-            if (range != state.Intent.AnalysisRange)
-                updated = ApplySelection(updated, RefreshAnalysisSelectionHighlights(state.AnalysisSelection, state.TelemetryData, range));
             return current with { Editor = updated, RequestedRange = requested };
         }
 
-        if (CreateAnalysisSelectionUpdate(intent, state.TelemetryData, state.Intent.AnalysisRange) is { } selectionUpdate)
+        if (CreateAnalysisSelectionUpdate(intent, state.TelemetryData) is { } selectionUpdate)
             return current with { Editor = ApplySelection(state, selectionUpdate(state.AnalysisSelection)) };
 
         return current with
@@ -224,11 +233,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 MapState = CreateMapStateFromLoadPresentation(load),
                 SignalAvailability = CreateSignalAvailabilityFromLoadPresentation(load),
                 Signals = CreateSignalPresentationFromLoadPresentation(load, state.Presentation.Signals),
-                Analysis = CreateAnalysisPresentationFromLoadPresentation(load, range),
+                Analysis = load is RecordedSessionLoadPresentation.Loaded && state.TelemetryData == loaded.TelemetryData && state.Intent.AnalysisRange == range
+                    ? state.Presentation.Analysis : CreateAnalysisPresentationFromLoadPresentation(load),
             },
         };
-        if (!ReferenceEquals(state.TelemetryData, loaded.TelemetryData) || state.Intent.AnalysisRange != range)
-            updated = ApplySelection(updated, RefreshAnalysisSelectionHighlights(state.AnalysisSelection, loaded.TelemetryData, range));
         return current with { Editor = updated, RequestedRange = requested };
     }
 
@@ -237,7 +245,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var updated = state with { Preferences = preferences };
         return state.Preferences.Analysis.VelocityAverageMode == preferences.Analysis.VelocityAverageMode
             ? updated
-            : ApplySelection(updated, ClearDampingRangeSelections(state.AnalysisSelection, state.TelemetryData, state.Intent.AnalysisRange));
+            : ApplySelection(updated, ClearDampingRangeSelections(state.AnalysisSelection));
     }
 
     private static RecordedSessionEditorState ApplySelection(RecordedSessionEditorState state, AnalysisSelectionState selection) =>
@@ -416,8 +424,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     }
 
     private static RecordedAnalysisPresentationState CreateAnalysisPresentationFromLoadPresentation(
-        RecordedSessionLoadPresentation load,
-        TelemetryTimeRange? analysisRange)
+        RecordedSessionLoadPresentation load)
     {
         if (load is RecordedSessionLoadPresentation.Loading)
         {
@@ -429,9 +436,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             return RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState();
         }
 
-        return RecordedSessionPresentationDeriver.CreateAnalysisPresentation(
-            loaded.Data.TelemetryPresentation.TelemetryData,
-            analysisRange);
+        return RecordedSessionPresentationDeriver.CreatePendingAnalysisPresentation(
+            loaded.Data.TelemetryPresentation.TelemetryData);
     }
 
     private static string FormatIncompleteLocalDataMessage(MissingSessionData missing)
@@ -535,68 +541,24 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private static Func<AnalysisSelectionState, AnalysisSelectionState>? CreateAnalysisSelectionUpdate(
         RecordedSessionEditorIntent intent,
-        TelemetryData? telemetryData,
-        TelemetryTimeRange? analysisRange)
-    {
-        return intent switch
+        TelemetryData? telemetryData) => intent switch
         {
-            RecordedSessionEditorIntent.SelectAnalysisRange select =>
-                current => SelectAnalysisRange(current, select.Selection, telemetryData, analysisRange),
-            RecordedSessionEditorIntent.ClearAnalysisSelection =>
-                _ => CreateEmptyAnalysisSelectionState(),
+            RecordedSessionEditorIntent.SelectAnalysisRange select when telemetryData is not null =>
+                current => SelectAnalysisRange(current, select.Selection),
+            RecordedSessionEditorIntent.ClearAnalysisSelection => _ => CreateEmptyAnalysisSelectionState(),
             _ => null,
         };
+
+    private static AnalysisSelectionState SelectAnalysisRange(AnalysisSelectionState current, TelemetryRangeSelection selection)
+    {
+        var controller = new AnalysisSelectionController(current.ActiveFront, current.ActiveRear);
+        return controller.Select(selection) ? CreateAnalysisSelectionState(controller) : current;
     }
 
-    private static AnalysisSelectionState SelectAnalysisRange(
-        AnalysisSelectionState current,
-        TelemetryRangeSelection selection,
-        TelemetryData? telemetryData,
-        TelemetryTimeRange? analysisRange)
+    private static AnalysisSelectionState ClearDampingRangeSelections(AnalysisSelectionState current)
     {
-        var controller = new AnalysisSelectionController(
-            current.ActiveFront,
-            current.ActiveRear,
-            current.HighlightRanges);
-
-        return controller.Select(selection, telemetryData, analysisRange)
-            ? CreateAnalysisSelectionState(controller)
-            : current;
-    }
-
-    private static AnalysisSelectionState ClearDampingRangeSelections(
-        AnalysisSelectionState current,
-        TelemetryData? telemetryData,
-        TelemetryTimeRange? analysisRange)
-    {
-        var controller = new AnalysisSelectionController(
-            current.ActiveFront,
-            current.ActiveRear,
-            current.HighlightRanges);
-
-        return controller.ClearDampingRangeSelections(telemetryData, analysisRange)
-            ? CreateAnalysisSelectionState(controller)
-            : current;
-    }
-
-    private static AnalysisSelectionState RefreshAnalysisSelectionHighlights(
-        AnalysisSelectionState current,
-        TelemetryData? telemetryData,
-        TelemetryTimeRange? analysisRange)
-    {
-        if (current.ActiveFront is null &&
-            current.ActiveRear is null &&
-            current.HighlightRanges.Count == 0)
-        {
-            return current;
-        }
-
-        var controller = new AnalysisSelectionController(
-            current.ActiveFront,
-            current.ActiveRear,
-            current.HighlightRanges);
-        controller.RefreshHighlightRanges(telemetryData, analysisRange);
-        return CreateAnalysisSelectionState(controller);
+        var controller = new AnalysisSelectionController(current.ActiveFront, current.ActiveRear);
+        return controller.ClearDampingRangeSelections() ? CreateAnalysisSelectionState(controller) : current;
     }
 
     private static RecordedSignalPresentationState ApplyAnalysisSelectionOverlayDefaults(
@@ -632,7 +594,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return new AnalysisSelectionState(
             controller.ActiveFrontAnalysisSelection,
             controller.ActiveRearAnalysisSelection,
-            controller.HighlightRanges);
+            []);
     }
 
     private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()

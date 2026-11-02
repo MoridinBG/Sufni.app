@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Analysis.ViewModels.Editors;
@@ -12,30 +10,17 @@ internal sealed class AnalysisSelectionController
 
     public AnalysisSelectionController(
         TelemetryRangeSelection? activeFrontAnalysisSelection,
-        TelemetryRangeSelection? activeRearAnalysisSelection,
-        IReadOnlyList<TelemetryHighlightRange> highlightRanges)
+        TelemetryRangeSelection? activeRearAnalysisSelection)
     {
         ActiveFrontAnalysisSelection = activeFrontAnalysisSelection;
         ActiveRearAnalysisSelection = activeRearAnalysisSelection;
-        HighlightRanges = highlightRanges;
     }
 
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; private set; }
 
     public TelemetryRangeSelection? ActiveRearAnalysisSelection { get; private set; }
 
-    public IReadOnlyList<TelemetryHighlightRange> HighlightRanges { get; private set; } = [];
-
-    public bool HasSelection => HighlightRanges.Count > 0;
-
-    public void Clear()
-    {
-        ActiveFrontAnalysisSelection = null;
-        ActiveRearAnalysisSelection = null;
-        HighlightRanges = [];
-    }
-
-    public bool ClearDampingRangeSelections(TelemetryData? telemetryData, TelemetryTimeRange? analysisRange)
+    public bool ClearDampingRangeSelections()
     {
         var changed = false;
         if (ActiveFrontAnalysisSelection is DampingRangeSelection)
@@ -55,21 +40,13 @@ internal sealed class AnalysisSelectionController
             return false;
         }
 
-        RecomputeHighlightRanges(telemetryData, analysisRange);
         return true;
     }
 
-    public void RefreshHighlightRanges(TelemetryData? telemetryData, TelemetryTimeRange? analysisRange)
-    {
-        RecomputeHighlightRanges(telemetryData, analysisRange);
-    }
-
     public bool Select(
-        TelemetryRangeSelection? selection,
-        TelemetryData? telemetryData,
-        TelemetryTimeRange? analysisRange)
+        TelemetryRangeSelection? selection)
     {
-        if (selection is null || telemetryData is null)
+        if (selection is null)
         {
             return false;
         }
@@ -92,7 +69,6 @@ internal sealed class AnalysisSelectionController
             ClearSelectionsFromOtherAnalysis(selection);
         }
 
-        RecomputeHighlightRanges(telemetryData, analysisRange);
         return true;
     }
 
@@ -116,28 +92,6 @@ internal sealed class AnalysisSelectionController
         }
     }
 
-    private void RecomputeHighlightRanges(TelemetryData? telemetryData, TelemetryTimeRange? analysisRange)
-    {
-        if (telemetryData is null)
-        {
-            HighlightRanges = [];
-            return;
-        }
-
-        var ranges = new List<TelemetryHighlightRange>();
-        if (ActiveFrontAnalysisSelection is { } frontSelection)
-        {
-            ranges.AddRange(CreateAnalysisHighlightRanges(telemetryData, frontSelection, analysisRange));
-        }
-
-        if (ActiveRearAnalysisSelection is { } rearSelection)
-        {
-            ranges.AddRange(CreateAnalysisHighlightRanges(telemetryData, rearSelection, analysisRange));
-        }
-
-        HighlightRanges = TelemetryStatistics.MergeHighlightRanges(ranges);
-    }
-
     private static bool ShouldClearAnalysisSelection(
         TelemetryRangeSelection? selection,
         bool clearDampingSelections,
@@ -152,12 +106,4 @@ internal sealed class AnalysisSelectionController
         return selection is StrokeLengthRangeSelection or StrokeSpeedRangeSelection or DeepTravelRangeSelection;
     }
 
-    private static IEnumerable<TelemetryHighlightRange> CreateAnalysisHighlightRanges(
-        TelemetryData telemetryData,
-        TelemetryRangeSelection selection,
-        TelemetryTimeRange? analysisRange)
-    {
-        var ranges = TelemetryStatistics.CalculateHighlightRanges(telemetryData, selection, analysisRange);
-        return ranges.Select(range => range with { SuspensionType = selection.SuspensionType });
-    }
 }

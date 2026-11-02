@@ -383,7 +383,8 @@ refreshed result reaches the editor through the recorded-session projection rath
 than this return value (see [recompute flow](ui-state.md#recorded-session-projection)).
 
 Recorded-session analysis requests use the same stale-result discipline on the
-read side. Inputs and cached results are UI-thread-only; result computation
+read side. Readiness, selection highlights and plot statistics share that keyed source.
+Inputs and cached results are UI-thread-only; result computation
 runs off the UI thread and marshals back for one cache/publication step. It is ignored
 if the range, mode, cutoffs, telemetry generation, or editor lifecycle changed
 before completion. The editor cancels analysis when closing and awaits async

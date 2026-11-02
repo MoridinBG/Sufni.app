@@ -2,7 +2,7 @@ using Sufni.Telemetry;
 using Sufni.App.Shared.Common;
 
 using Sufni.App.Sessions.Presentation;
-using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Sessions.Analysis.Services;
 namespace Sufni.App.Tests.Sessions.Presentation;
 
 public class AnalysisSurfaceStateTests
@@ -10,10 +10,7 @@ public class AnalysisSurfaceStateTests
     [Fact]
     public void ForSuspension_HidesRecordedSurface_WhenSuspensionIsAbsent()
     {
-        var telemetry = TestTelemetryData.CreateMinimal();
-        telemetry.Rear.Present = false;
-
-        var state = AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Rear);
+        var state = AnalysisSurfaceState.ForSuspension(AnalysisDataAvailability.Absent);
 
         Assert.Equal(SurfaceStateKind.Hidden, state.Kind);
     }
@@ -32,9 +29,7 @@ public class AnalysisSurfaceStateTests
     [Fact]
     public void ForSuspension_ShowsNoDataForRecordedSurface_WhenTravelHasNoStrokes()
     {
-        var telemetry = TestTelemetryData.CreateMinimal();
-
-        var state = AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Front);
+        var state = AnalysisSurfaceState.ForSuspension(AnalysisDataAvailability.Empty);
 
         Assert.Equal(SurfaceStateKind.NoData, state.Kind);
         Assert.Equal(SurfaceIndicatorKind.None, state.Indicator);
@@ -44,16 +39,8 @@ public class AnalysisSurfaceStateTests
     [Fact]
     public void ForSuspension_ShowsRangeSpecificNoDataForRecordedSurface_WhenSelectedRangeHasNoStrokes()
     {
-        var telemetry = TestTelemetryData.CreateMinimal(duration: 2, sampleRate: 2);
-        telemetry.Front.Strokes = new Strokes
-        {
-            Compressions = [new Stroke { Start = 2, End = 3 }],
-            Rebounds = [],
-        };
-
         var state = AnalysisSurfaceState.ForSuspension(
-            telemetry,
-            SuspensionType.Front,
+            AnalysisDataAvailability.Empty,
             new TelemetryTimeRange(0, 0.5));
 
         Assert.Equal(SurfaceStateKind.NoData, state.Kind);
@@ -75,12 +62,8 @@ public class AnalysisSurfaceStateTests
     [Fact]
     public void ForVibration_ShowsNoDataForRecordedSurface_WhenImuExistsButStrokeDataIsMissing()
     {
-        var telemetry = TestTelemetryData.CreateWithImu(activeLocations: [(byte)ImuLocation.Fork]);
-
         var state = AnalysisSurfaceState.ForVibration(
-            telemetry,
-            SuspensionType.Front,
-            ImuLocation.Fork);
+            AnalysisDataAvailability.Empty);
 
         Assert.Equal(SurfaceStateKind.NoData, state.Kind);
         Assert.Equal(SurfaceIndicatorKind.None, state.Indicator);

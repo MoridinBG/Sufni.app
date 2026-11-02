@@ -5,7 +5,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.Telemetry;
+using Sufni.App.Sessions.Analysis.Services;
 
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
@@ -62,13 +62,6 @@ internal sealed class RecordedPagePresentationApplier
     {
         switch (result)
         {
-            case SessionDetailLoadResult.Loaded loaded:
-                var telemetry = loaded.Data.TelemetryPresentation.TelemetryData;
-                EnsureBalancePage(
-                    TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression) ||
-                    TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound));
-                break;
-
             case SessionDetailLoadResult.IncompleteLocalData:
                 ClearRecordedPresentation();
                 break;
@@ -78,6 +71,9 @@ internal sealed class RecordedPagePresentationApplier
                 break;
         }
     }
+
+    public void ApplyAnalysisAvailability(AnalysisAvailabilityResult availability) =>
+        EnsureBalancePage(availability.FullSessionBalanceAvailable);
 
     private void EnsureBalancePage(bool balanceAvailable)
     {

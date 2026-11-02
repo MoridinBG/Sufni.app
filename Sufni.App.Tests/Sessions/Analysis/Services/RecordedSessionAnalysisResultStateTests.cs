@@ -15,6 +15,65 @@ namespace Sufni.App.Tests.Sessions.Analysis.Services;
 public class RecordedSessionAnalysisResultStateTests
 {
     [Fact]
+    public async Task Availability_UsesSelectedRangeButKeepsFullSessionBalance_AndReusesAcrossModes()
+    {
+        var telemetry = AnalysisTelemetryFixture.CreateTelemetry(AnalysisTelemetryFixture.BuildSide(), AnalysisTelemetryFixture.BuildSide());
+        var computer = new CountingAnalysisComputer(new RecordedSessionAnalysisComputer(new SessionInsightsService()));
+        using var state = new RecordedSessionAnalysisResultState(computer, new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => telemetry);
+        var inputs = CreateInputs(new TelemetryTimeRange(1.6, 1.8));
+        state.Invalidate(inputs);
+        await state.RequestAsync(inputs.AvailabilityKey, TestContext.Current.CancellationToken);
+
+        var result = Assert.IsType<AnalysisAvailabilityResult>(state.Get(inputs.AvailabilityKey));
+        Assert.Equal(AnalysisDataAvailability.Empty, result.Front);
+        Assert.Equal(AnalysisDataAvailability.Empty, result.CompressionBalance);
+        Assert.Equal(AnalysisDataAvailability.Absent, result.FrontForkVibration);
+        Assert.True(result.FullSessionBalanceAvailable);
+        state.Invalidate(inputs with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged });
+        await state.RequestAsync(inputs.AvailabilityKey, TestContext.Current.CancellationToken);
+        Assert.Same(result, state.Get(inputs.AvailabilityKey));
+        Assert.Equal(1, computer.ComputeCount);
+    }
+
+    [Fact]
+    public async Task Highlights_TagSuspension_AndRejectCompletionAfterSelectionIsCleared()
+    {
+        var telemetry = TestTelemetryData.CreateProcessed();
+        var histogram = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetry, SuspensionType.Front, BalanceType.Compression);
+        var bin = Enumerable.Range(0, histogram.Values.Count).First(index => histogram.Values[index] > 0);
+        var selection = new StrokeLengthRangeSelection(SuspensionType.Front, BalanceType.Compression,
+            TelemetryRangeSelection.BinRange.FromBins(histogram.Bins, bin));
+        var dispatcher = new ManualUiThreadDispatcher();
+        var runner = new Sufni.App.Tests.TestSupport.Async.DeferredBackgroundTaskRunner();
+        using var state = new RecordedSessionAnalysisResultState(new RecordedSessionAnalysisComputer(new SessionInsightsService()),
+            runner, dispatcher, () => telemetry);
+        var inputs = CreateInputs(null) with { FrontSelection = selection };
+        state.Invalidate(inputs);
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        var request = state.RequestAsync(inputs.SelectionHighlightsKey, TestContext.Current.CancellationToken);
+        await runner.RunNextAsync();
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await dispatcher.DrainAsync();
+        await request.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        var result = Assert.IsType<SelectionHighlightsAnalysisResult>(state.Get(inputs.SelectionHighlightsKey));
+        Assert.NotEmpty(result.Ranges);
+        Assert.All(result.Ranges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
+
+        var both = inputs with { RearSelection = selection with { SuspensionType = SuspensionType.Rear } };
+        state.Invalidate(both);
+        var pending = state.RequestAsync(both.SelectionHighlightsKey, TestContext.Current.CancellationToken);
+        await runner.RunNextAsync();
+        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        state.Invalidate(inputs with { FrontSelection = null });
+        await dispatcher.DrainAsync();
+        await pending.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.Single(changes);
+        Assert.Null(state.Get(both.SelectionHighlightsKey));
+    }
+
+    [Fact]
     public async Task CutoffPreview_KeepsCommittedPlotResultUntilCommit()
     {
         var telemetry = TestTelemetryData.CreateProcessed();

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System;
 using Sufni.App.Bikes.Models;
 using Sufni.App.LiveDaq.Services.Imu;
@@ -21,8 +23,49 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
                 CalculateDampingPercentages(key, telemetry)),
             RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry),
+            RecordedSessionAnalysisFamily.Availability => CalculateAvailability(key, telemetry),
+            RecordedSessionAnalysisFamily.SelectionHighlights => CalculateHighlights(key, telemetry),
             _ => ComputePlot(key, telemetry),
         };
+
+    private static AnalysisAvailabilityResult CalculateAvailability(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+    {
+        var front = TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Front, key.AnalysisRange);
+        var rear = TelemetryStatistics.HasStrokeData(telemetry, SuspensionType.Rear, key.AnalysisRange);
+        var compression = TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression, key.AnalysisRange);
+        var rebound = TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound, key.AnalysisRange);
+        var forkVibration = TelemetryStatistics.HasVibrationData(telemetry, ImuLocation.Fork);
+        var frameVibration = TelemetryStatistics.HasVibrationData(telemetry, ImuLocation.Frame);
+        var fullBalance = key.AnalysisRange is null ? compression || rebound
+            : TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Compression) || TelemetryStatistics.HasBalanceData(telemetry, BalanceType.Rebound);
+        return new AnalysisAvailabilityResult(
+            Availability(telemetry.Front.Present, front),
+            Availability(telemetry.Rear.Present, rear),
+            Availability(telemetry.Front.Present && telemetry.Rear.Present, compression),
+            Availability(telemetry.Front.Present && telemetry.Rear.Present, rebound),
+            Availability(telemetry.Front.Present && forkVibration, front),
+            Availability(telemetry.Front.Present && frameVibration, front),
+            Availability(telemetry.Rear.Present && forkVibration, rear),
+            Availability(telemetry.Rear.Present && frameVibration, rear), fullBalance);
+
+        static AnalysisDataAvailability Availability(bool present, bool hasData) => !present
+            ? AnalysisDataAvailability.Absent : hasData ? AnalysisDataAvailability.Available : AnalysisDataAvailability.Empty;
+    }
+
+    private static SelectionHighlightsAnalysisResult CalculateHighlights(RecordedSessionAnalysisKey key, TelemetryData telemetry)
+    {
+        var ranges = new List<TelemetryHighlightRange>();
+        Add(key.FrontSelection);
+        Add(key.RearSelection);
+        return new SelectionHighlightsAnalysisResult([.. TelemetryStatistics.MergeHighlightRanges(ranges)]);
+
+        void Add(TelemetryRangeSelection? selection)
+        {
+            if (selection is null) return;
+            ranges.AddRange(TelemetryStatistics.CalculateHighlightRanges(telemetry, selection, key.AnalysisRange)
+                .Select(range => range with { SuspensionType = selection.SuspensionType }));
+        }
+    }
 
     internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
         key.Family switch

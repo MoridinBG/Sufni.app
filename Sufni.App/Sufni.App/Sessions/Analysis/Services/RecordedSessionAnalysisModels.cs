@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sufni.App.Shared.Models;
 using System;
 using Sufni.App.Bikes.Models;
@@ -22,6 +23,8 @@ public enum RecordedSessionAnalysisFamily
     VibrationDistribution,
     ImuDisplayProjection,
     PositionVelocity,
+    Availability,
+    SelectionHighlights,
 }
 
 public sealed record RecordedSessionAnalysisInputs(
@@ -35,6 +38,11 @@ public sealed record RecordedSessionAnalysisInputs(
     DampingSpeedCutoffs PlotDampingSpeedCutoffs,
     SessionInsightsTargetProfile SessionInsightsTargetProfile)
 {
+    public TelemetryRangeSelection? FrontSelection { get; init; }
+    public TelemetryRangeSelection? RearSelection { get; init; }
+    public RecordedSessionAnalysisKey AvailabilityKey => CreateKey(RecordedSessionAnalysisFamily.Availability);
+    public RecordedSessionAnalysisKey SelectionHighlightsKey => CreateKey(RecordedSessionAnalysisFamily.SelectionHighlights);
+
     public RecordedSessionAnalysisKey DampingPercentagesKey => CreateKey(RecordedSessionAnalysisFamily.DampingPercentages);
 
     public RecordedSessionAnalysisKey SessionInsightsKey => CreateKey(RecordedSessionAnalysisFamily.SessionInsights);
@@ -204,6 +212,16 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
                 SessionInsightsTargetProfile: null),
+            RecordedSessionAnalysisFamily.Availability or RecordedSessionAnalysisFamily.SelectionHighlights => new RecordedSessionAnalysisKey(
+                family, TelemetryGeneration, AnalysisRange,
+                SuspensionType: null, BalanceType: null, ImuLocation: null,
+                TravelDistributionMode: null, VelocityAverageMode: null,
+                BalanceDisplacementMode: null, BalanceSpeedMode: null,
+                DampingSpeedCutoffs: DampingSpeedCutoffSet.Default, SessionInsightsTargetProfile: null)
+            {
+                FrontSelection = family == RecordedSessionAnalysisFamily.SelectionHighlights ? FrontSelection : null,
+                RearSelection = family == RecordedSessionAnalysisFamily.SelectionHighlights ? RearSelection : null,
+            },
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, null),
         };
 }
@@ -222,6 +240,9 @@ public sealed record RecordedSessionAnalysisKey(
     DampingSpeedCutoffs DampingSpeedCutoffs,
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
+    public TelemetryRangeSelection? FrontSelection { get; init; }
+    public TelemetryRangeSelection? RearSelection { get; init; }
+
     public bool Matches(RecordedSessionAnalysisInputs inputs) =>
         this == inputs.CreateKey(Family, SuspensionType, BalanceType, ImuLocation);
 }
@@ -280,3 +301,18 @@ public sealed record RecordedSessionAnalysisResultChanged(
     RecordedSessionAnalysisFailure? Failure = null);
 
 public sealed record RecordedSessionAnalysisFailure(SessionEditorFailureReason Reason, string? Details);
+
+public enum AnalysisDataAvailability { Absent, Empty, Available }
+
+public sealed record AnalysisAvailabilityResult(
+    AnalysisDataAvailability Front,
+    AnalysisDataAvailability Rear,
+    AnalysisDataAvailability CompressionBalance,
+    AnalysisDataAvailability ReboundBalance,
+    AnalysisDataAvailability FrontForkVibration,
+    AnalysisDataAvailability FrontFrameVibration,
+    AnalysisDataAvailability RearForkVibration,
+    AnalysisDataAvailability RearFrameVibration,
+    bool FullSessionBalanceAvailable) : RecordedSessionAnalysisResult;
+
+public sealed record SelectionHighlightsAnalysisResult(ImmutableArray<TelemetryHighlightRange> Ranges) : RecordedSessionAnalysisResult;

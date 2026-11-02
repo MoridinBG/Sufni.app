@@ -14,7 +14,7 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class RecordedSessionEditorActionsTests
 {
     [Fact]
-    public void LoadedAnalysisAvailability_DerivesFromTelemetryWithoutCachedPresentation()
+    public void LoadedAnalysisAvailability_WaitsForComputedResult()
     {
         using var driver = new RecordedSessionEditorStateControllerTestDriver();
         var observed = new List<RecordedAnalysisPresentationState>();
@@ -25,7 +25,7 @@ public class RecordedSessionEditorActionsTests
         driver.PublishTelemetry(TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: false));
 
         var analysis = observed[^1];
-        Assert.Equal(SurfaceStateKind.Ready, analysis.FrontAnalysis.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, analysis.FrontAnalysis.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, analysis.RearAnalysis.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, analysis.CompressionBalance.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, analysis.ReboundBalance.Kind);

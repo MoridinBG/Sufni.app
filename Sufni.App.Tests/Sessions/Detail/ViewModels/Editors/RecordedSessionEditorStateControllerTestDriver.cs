@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Collections.Generic;
 using System.Reactive.Subjects;
 using Sufni.App.Bikes.Models;
@@ -27,7 +28,8 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 OperationStates,
                 DampingPercentages,
                 SessionInsights,
-                AnalysisSelections,
+                AnalysisAvailability,
+                SelectionHighlights,
                 SignalPlotContextMenuActions,
                 DomainStates));
     }
@@ -39,7 +41,8 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<SessionOperationPresentationState> OperationStates { get; } = new();
     public Subject<SessionDampingPercentages> DampingPercentages { get; } = new();
     public Subject<SessionInsightsResult> SessionInsights { get; } = new();
-    public Subject<AnalysisSelectionState> AnalysisSelections { get; } = new();
+    public Subject<AnalysisAvailabilityResult> AnalysisAvailability { get; } = new();
+    public Subject<SelectionHighlightsAnalysisResult> SelectionHighlights { get; } = new();
     public Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions { get; } = new();
     public Subject<RecordedSessionDomainSnapshot> DomainStates { get; } = new();
     public RecordedSessionEditorStateController Controller { get; }
@@ -81,7 +84,8 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         OperationStates.Dispose();
         DampingPercentages.Dispose();
         SessionInsights.Dispose();
-        AnalysisSelections.Dispose();
+        AnalysisAvailability.Dispose();
+        SelectionHighlights.Dispose();
         SignalPlotContextMenuActions.Dispose();
         DomainStates.Dispose();
     }

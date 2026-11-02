@@ -57,7 +57,7 @@ public class SignalRowActionsControllerTests : IDisposable
     public void AnalysisActions_FollowSelectionAndProjectTheirToggleIntent()
     {
         Assert.All(Actions(1), action => Assert.False(action.IsEnabled));
-        driver.AnalysisSelections.OnNext(new AnalysisSelectionState(null, null, [new TelemetryHighlightRange(1, 2)]));
+        driver.SelectionHighlights.OnNext(new([new TelemetryHighlightRange(1, 2)]));
         Assert.All(Actions(1), action => Assert.True(action.IsEnabled));
 
         controller.SpeedHeaderActions[1].Command!.Execute(null);

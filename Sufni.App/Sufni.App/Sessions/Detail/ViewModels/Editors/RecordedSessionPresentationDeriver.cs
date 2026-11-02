@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Collections.Generic;
 using System.Linq;
 using Sufni.App.Shared.Common;
@@ -91,23 +92,29 @@ internal static class RecordedSessionPresentationDeriver
     }
 
     public static RecordedAnalysisPresentationState CreateAnalysisPresentation(
-        TelemetryData? telemetry,
-        TelemetryTimeRange? analysisRange)
-    {
-        if (telemetry is null)
-        {
-            return CreateHiddenAnalysisPresentationState();
-        }
+        AnalysisAvailabilityResult availability,
+        TelemetryTimeRange? analysisRange) => new(
+            AnalysisSurfaceState.ForSuspension(availability.Front, analysisRange),
+            AnalysisSurfaceState.ForSuspension(availability.Rear, analysisRange),
+            AnalysisSurfaceState.ForBalance(availability.CompressionBalance, analysisRange),
+            AnalysisSurfaceState.ForBalance(availability.ReboundBalance, analysisRange),
+            AnalysisSurfaceState.ForVibration(availability.FrontForkVibration, analysisRange),
+            AnalysisSurfaceState.ForVibration(availability.FrontFrameVibration, analysisRange),
+            AnalysisSurfaceState.ForVibration(availability.RearForkVibration, analysisRange),
+            AnalysisSurfaceState.ForVibration(availability.RearFrameVibration, analysisRange));
 
-        return new RecordedAnalysisPresentationState(
-            AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Front, analysisRange),
-            AnalysisSurfaceState.ForSuspension(telemetry, SuspensionType.Rear, analysisRange),
-            AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Compression, analysisRange),
-            AnalysisSurfaceState.ForBalance(telemetry, BalanceType.Rebound, analysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Fork, analysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Front, ImuLocation.Frame, analysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Fork, analysisRange),
-            AnalysisSurfaceState.ForVibration(telemetry, SuspensionType.Rear, ImuLocation.Frame, analysisRange));
+    public static RecordedAnalysisPresentationState CreatePendingAnalysisPresentation(TelemetryData telemetry)
+    {
+        var front = Pending(telemetry.Front.Present);
+        var rear = Pending(telemetry.Rear.Present);
+        var balance = Pending(telemetry.Front.Present && telemetry.Rear.Present);
+        var vibration = telemetry.ImuData is not null;
+        return new(front, rear, balance, balance,
+            Pending(vibration && telemetry.Front.Present), Pending(vibration && telemetry.Front.Present),
+            Pending(vibration && telemetry.Rear.Present), Pending(vibration && telemetry.Rear.Present));
+
+        static SurfacePresentationState Pending(bool present) => present
+            ? SurfacePresentationState.Loading("Loading analysis.") : SurfacePresentationState.Hidden;
     }
 
     public static SurfacePresentationState CreateMapState(

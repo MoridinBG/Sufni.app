@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Reactive.Linq;
 using Sufni.App.Shared.Common;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
@@ -9,6 +10,33 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class RecordedSessionEditorStateControllerTests
 {
+    [Fact]
+    public void AvailabilityResult_SurvivesTrackOnlyRefresh_AndRangeChangeClearsHighlightsOnce()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 10);
+        driver.PublishTelemetry(telemetry);
+        driver.Actions.SelectAnalysisRange(new DampingRangeSelection(SuspensionType.Front, VelocityAverageMode.SampleAveraged, 0, 0, 0));
+        driver.AnalysisAvailability.OnNext(new(AnalysisDataAvailability.Available, AnalysisDataAvailability.Absent,
+            AnalysisDataAvailability.Absent, AnalysisDataAvailability.Absent, AnalysisDataAvailability.Absent,
+            AnalysisDataAvailability.Absent, AnalysisDataAvailability.Absent, AnalysisDataAvailability.Absent, false));
+        driver.SelectionHighlights.OnNext(new([new TelemetryHighlightRange(1, 2, SuspensionType.Front)]));
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = driver.Controller.State.Skip(1).Subscribe(observed.Add);
+
+        driver.PublishLoadedData(telemetryData: telemetry, trackPoints: []);
+        var refreshed = Assert.Single(observed);
+        Assert.Equal(SurfaceStateKind.Ready, refreshed.Presentation.Analysis.FrontAnalysis.Kind);
+        Assert.NotEmpty(refreshed.AnalysisSelection.HighlightRanges);
+        observed.Clear();
+        driver.Actions.SetAnalysisRange(new(3, 4));
+        var ranged = Assert.Single(observed);
+        Assert.Equal(SurfaceStateKind.Loading, ranged.Presentation.Analysis.FrontAnalysis.Kind);
+        Assert.Empty(ranged.AnalysisSelection.HighlightRanges);
+        Assert.NotNull(ranged.AnalysisSelection.ActiveFront);
+        Assert.False(ranged.Presentation.Signals.ShowAnalysisSelection);
+    }
+
     [Fact]
     public void RangeChange_ClearsPreviousAnalysisOutputsInTheSameState()
     {
@@ -44,7 +72,7 @@ public class RecordedSessionEditorStateControllerTests
         Assert.Same(telemetry, state.TelemetryData);
         Assert.Equal(new TelemetryTimeRange(0, Math.Min(30, telemetry.Metadata.Duration)), state.Intent.AnalysisRange);
         Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Signals.Travel.Kind);
-        Assert.Equal(SurfaceStateKind.Ready, state.Presentation.Analysis.FrontAnalysis.Kind);
+        Assert.Equal(SurfaceStateKind.Loading, state.Presentation.Analysis.FrontAnalysis.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, state.Presentation.Analysis.RearAnalysis.Kind);
         Assert.IsType<RecordedSessionLoadPresentation.Loaded>(state.Load);
     }

@@ -110,7 +110,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
     private readonly Subject<SessionDampingPercentages> dampingPercentagesInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
-    private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
+    private readonly Subject<AnalysisAvailabilityResult> analysisAvailabilityInput = new();
+    private readonly Subject<SelectionHighlightsAnalysisResult> selectionHighlightsInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
     private readonly Subject<Unit> dirtyBaselineInput = new();
     private readonly Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> signalPlotContextMenuActionsInput = new();
@@ -256,7 +257,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             currentEditorState.Preferences.Analysis.BalanceSpeedMode,
             currentEditorState.Intent.DampingSpeedCutoffs,
             currentEditorState.Presentation.PlotDampingSpeedCutoffs,
-            currentEditorState.Preferences.Analysis.SessionInsightsTargetProfile);
+            currentEditorState.Preferences.Analysis.SessionInsightsTargetProfile)
+        {
+            FrontSelection = currentEditorState.AnalysisSelection.ActiveFront,
+            RearSelection = currentEditorState.AnalysisSelection.ActiveRear,
+        };
 
     private void UpdateAnalysisRequests(RecordedSessionEditorState previous)
     {
@@ -267,6 +272,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             analysisResultState.Invalidate(inputs);
             if (CurrentTelemetryData is not null)
             {
+                if (held?.AvailabilityKey != inputs.AvailabilityKey)
+                    RequestAnalysisResult(inputs.AvailabilityKey);
+                if (held?.SelectionHighlightsKey != inputs.SelectionHighlightsKey && (inputs.FrontSelection is not null || inputs.RearSelection is not null))
+                    RequestAnalysisResult(inputs.SelectionHighlightsKey);
                 if (held?.DampingPercentagesKey != inputs.DampingPercentagesKey)
                     RequestAnalysisResult(inputs.DampingPercentagesKey);
                 if ((insightsRequested || IsSessionInsightsPageSelected) && held?.SessionInsightsKey != inputs.SessionInsightsKey)
@@ -329,6 +338,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         switch (result)
         {
+            case AnalysisAvailabilityResult availability:
+                PublishEditorInput(analysisAvailabilityInput, availability);
+                presentationApplier.ApplyAnalysisAvailability(availability);
+                break;
+            case SelectionHighlightsAnalysisResult highlights:
+                PublishEditorInput(selectionHighlightsInput, highlights);
+                break;
             case DampingPercentagesAnalysisResult damping:
                 PublishEditorInput(dampingPercentagesInput, damping.Percentages);
 
@@ -1242,7 +1258,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionOperationStateInput,
             dampingPercentagesInput,
             sessionInsightsInput,
-            analysisSelectionInput,
+            analysisAvailabilityInput,
+            selectionHighlightsInput,
             signalPlotContextMenuActionsInput,
             domainInput,
             dirtyBaselineInput);
@@ -1255,7 +1272,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 sessionOperationStateInput,
                 dampingPercentagesInput,
                 sessionInsightsInput,
-                analysisSelectionInput,
+                analysisAvailabilityInput,
+                selectionHighlightsInput,
                 signalPlotContextMenuActionsInput,
                 domainInput));
         signalRowActions = new SignalRowActionsController(() => currentEditorState.Presentation.Signals, editorActions);
@@ -1587,14 +1605,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         PublishEditorInput(pageCountInput, Pages.Count);
         RequestVisibleInsights();
-    }
-
-    private static AnalysisSelectionState CreateEmptyAnalysisSelectionState()
-    {
-        return new AnalysisSelectionState(
-            ActiveFront: null,
-            ActiveRear: null,
-            HighlightRanges: []);
     }
 
     private RecordedSignalPresentationState CreateSignalPresentationState()

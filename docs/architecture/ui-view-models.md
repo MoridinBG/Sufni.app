@@ -199,6 +199,11 @@ There are five kinds of view model in the presentation layer:
   command refresh, map/media synchronization, preference persistence and
   dirty tracking. Analysis requests derive directly from the accepted editor
   state and semantic result keys; no suppression scheduler sequences them.
+  Readiness and selection highlights are keyed background results. The reducer
+  clears old outputs with a telemetry/range change and renders pending readiness
+  until the matching result arrives; track-only augmentation keeps valid results.
+  Selection toggles only update the active selections. Balance-tab insertion uses
+  the worker's full-session availability, so an empty selected range retains it.
   `RecordedPagePresentationApplier` is limited to page-owned chart/string
   projection and balance-page insertion; core signal, analysis, map, media, and
   loaded-data availability come from `RecordedSessionEditorState`. Stable
