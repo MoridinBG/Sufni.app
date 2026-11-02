@@ -43,7 +43,8 @@ namespace Sufni.App.macOS
                 {
                     services.AddSingleton<IWindowBehavior, MacOsWindowBehavior>();
                     services.AddSingleton<ISecureStorage, MacOsSecureStorage>();
-                    services.AddKeyedSingleton<IServiceDiscovery, BonjourServiceDiscovery>("daq");
+                    services.AddKeyedSingleton<IServiceDiscovery>("daq", (_, _) =>
+                        new BonjourServiceDiscovery(ServiceDiscoveryResolution.AnnouncedAddresses));
                     DesktopAppBootstrapper.RegisterDesktopSync(services);
                     services.AddSingleton<IVideoPlayerFactory, MacOsVideoPlayerFactory>();
                 },

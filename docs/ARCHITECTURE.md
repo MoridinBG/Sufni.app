@@ -85,6 +85,11 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | `IFriendlyNameProvider` | `Sufni.App/Sufni.App/Infrastructure/IFriendlyNameProvider.cs` | Human-readable device name for sync identification                      | `AndroidFriendlyNameProvider`, `IosFriendlyNameProvider`                                                       |
 | `IVideoPlayerFactory`   | `Sufni.App/Sufni.App/Video/Models/VideoPlayback.cs`           | Native video player for the session video pane                          | `LibVlcVideoPlayerFactory` (Win / Linux), `MacOsVideoPlayerFactory`, `IosVideoPlayerFactory`                     |
 
+DAQ browsing resolves DNS address candidates without opening TCP; connections
+try those candidates only when a workflow acquires the device port. Sync-peer
+browsing retains its reachability selection. See
+[live discovery](architecture/live-streaming.md#discovery--catalog).
+
 Each platform entry point passes its registrations, capabilities, launch
 preferences and `IAppPaths` through `PlatformRoot`. `AppComposition` constructs
 the shared graph; `App` builds it with validation enabled. `AppPaths` derives the

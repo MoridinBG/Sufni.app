@@ -41,7 +41,8 @@ namespace Sufni.App.Linux
                 services =>
                 {
                     services.AddSingleton<ISecureStorage, LinuxSecureStorage>();
-                    services.AddKeyedSingleton<IServiceDiscovery, SocketServiceDiscovery>("daq");
+                    services.AddKeyedSingleton<IServiceDiscovery>("daq", (_, _) =>
+                        new SocketServiceDiscovery(ServiceDiscoveryResolution.AnnouncedAddresses));
                     DesktopAppBootstrapper.RegisterDesktopSync(services);
                     services.AddSingleton<IVideoPlayerFactory, LibVlcVideoPlayerFactory>();
                 },

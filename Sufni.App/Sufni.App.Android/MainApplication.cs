@@ -37,8 +37,10 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
                     services,
                     static () => new AndroidSecureStorage(),
                     static () => new AndroidFriendlyNameProvider(),
-                    static _ => new AndroidServiceDiscovery(
-                        new SocketServiceDiscovery(),
+                    static role => new AndroidServiceDiscovery(
+                        new SocketServiceDiscovery(role == "daq"
+                            ? ServiceDiscoveryResolution.AnnouncedAddresses
+                            : ServiceDiscoveryResolution.ReachableTcpEndpoint),
                         new AndroidMulticastLockFactory()),
                     static () => new AndroidHapticFeedback(() => MainActivity.CurrentWindow));
             },

@@ -2,6 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Foundation;
 using CoreFoundation;
 using Network;
 using Serilog;
@@ -10,12 +14,15 @@ using Sufni.App.LiveDaq.Services;
 
 namespace Sufni.App.AppleShared;
 
-public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
+public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery, IAsyncDisposable
 {
     private readonly ILogger logger;
     private readonly string platformName;
-    private readonly DispatchQueue dispatchQueue = new("com.sghctoma.sufni-bridge.serviceDiscovery");
-    private readonly BonjourBrowseLifecycle<NWConnection> browseLifecycle = new();
+    private readonly DispatchQueue dispatchQueue = DispatchQueue.MainQueue;
+    private readonly ServiceDiscoveryResolution resolution;
+    private readonly TaskCompletionSource disposal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int disposed;
+    private readonly BonjourBrowseLifecycle<Action> browseLifecycle = new();
     private readonly NWParameters parameters = new()
     {
         LocalOnly = true,
@@ -25,9 +32,10 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
     private NWBrowser? browser;
 
-    protected AppleBonjourServiceDiscoveryBase(string platformName)
+    protected AppleBonjourServiceDiscoveryBase(string platformName, ServiceDiscoveryResolution resolution)
     {
         this.platformName = platformName;
+        this.resolution = resolution;
         logger = Log.ForContext(GetType());
     }
 
@@ -36,6 +44,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
     public void StartBrowse(string type)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         if (!browseLifecycle.TryStart())
         {
             logger.Verbose("Ignoring Bonjour browse start on {Platform} for {ServiceType} because browsing is already active", platformName, type);
@@ -53,14 +62,16 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         catch
         {
             browser = null;
-            browseLifecycle.TryStop(static connection => connection.Cancel(), PublishRemoved);
+            newBrowser.Cancel();
+            newBrowser.Dispose();
+            browseLifecycle.TryStop(static cancel => cancel(), PublishRemoved);
             throw;
         }
     }
 
     public void StopBrowse()
     {
-        if (!browseLifecycle.TryStop(static connection => connection.Cancel(), PublishRemoved))
+        if (!browseLifecycle.TryStop(static cancel => cancel(), PublishRemoved))
         {
             logger.Verbose("Ignoring Bonjour browse stop on {Platform} because browsing is not active", platformName);
             return;
@@ -68,9 +79,31 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
         logger.Verbose("Stopping Bonjour browse on {Platform}", platformName);
         Debug.Assert(browser is not null);
-        browser?.Cancel();
+        var stoppedBrowser = browser;
         browser = null;
+        dispatchQueue.DispatchAsync(() =>
+        {
+            stoppedBrowser?.Cancel();
+            stoppedBrowser?.Dispose();
+        });
     }
+
+    public ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) == 0)
+        {
+            StopBrowse();
+            dispatchQueue.DispatchAsync(() =>
+            {
+                parameters.Dispose();
+                disposal.TrySetResult();
+            });
+        }
+        return new ValueTask(disposal.Task);
+    }
+
+    private void PublishAdded(ServiceAnnouncement announcement) =>
+        ServiceAdded?.Invoke(this, new ServiceAnnouncementEventArgs(announcement));
 
     private void PublishRemoved(ServiceAnnouncement announcement) =>
         ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(announcement));
@@ -89,8 +122,14 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
             "Bonjour browse result added on {Platform} for endpoint {Endpoint}",
             platformName,
             key);
+        if (resolution == ServiceDiscoveryResolution.AnnouncedAddresses)
+        {
+            ResolveAddresses(result.EndPoint, key, txtRecords);
+            return;
+        }
+
         var connection = new NWConnection(result.EndPoint, NWParameters.CreateTcp());
-        if (!browseLifecycle.TryTrackPending(key, connection, static pendingConnection => pendingConnection.Cancel(), out var resolutionId))
+        if (!browseLifecycle.TryTrackPending(key, () => connection.Cancel(), static cancel => cancel(), out var resolutionId))
         {
             logger.Verbose(
                 "Ignoring Bonjour browse result on {Platform} because browsing is no longer active",
@@ -145,6 +184,30 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         connection.Start();
     }
 
+    private void ResolveAddresses(NWEndpoint endpoint, string key, IReadOnlyDictionary<string, string> txtRecords)
+    {
+        // Bonjour resolution uses the main run loop; it never opens the DAQ's TCP port.
+        var resolver = new NSNetService(endpoint.BonjourServiceDomain, endpoint.BonjourServiceType, endpoint.BonjourServiceName);
+        Action cancel = () => dispatchQueue.DispatchAsync(() =>
+        {
+            resolver.Stop();
+            resolver.Dispose();
+        });
+        if (!browseLifecycle.TryTrackPending(key, cancel, static action => action(), out var resolutionId)) return;
+
+        resolver.AddressResolved += (_, _) =>
+        {
+            var addresses = (resolver.Addresses ?? []).Select(data => BonjourSocketAddress.Read(data.ToArray()))
+                .OfType<IPAddress>().ToArray();
+            if (addresses.Length == 0) return;
+            var announcement = new ServiceAnnouncement(new ServiceEndpoint(addresses, checked((int)resolver.Port)), key, txtRecords);
+            browseLifecycle.PublishResolved(key, resolutionId, announcement, PublishAdded);
+        };
+        resolver.ResolveFailure += (_, _) => browseLifecycle.CompletePending(key, resolutionId, static action => action());
+        resolver.Stopped += (_, _) => browseLifecycle.CompletePending(key, resolutionId, static action => action());
+        resolver.Resolve(5);
+    }
+
     private void OnServiceRemoved(NWBrowseResult? result)
     {
         if (result is null)
@@ -154,11 +217,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         }
 
         var key = GetBrowseResultKey(result);
-        if (browseLifecycle.CancelPending(key, static pendingConnection => pendingConnection.Cancel()))
-        {
-            logger.Verbose("Canceled pending Bonjour resolution on {Platform} because the service was removed before resolution completed", platformName);
-            return;
-        }
+        browseLifecycle.CancelPending(key, static cancel => cancel());
 
         if (!browseLifecycle.TryRemoveResolved(key, out var announcement))
         {
@@ -176,7 +235,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
 
     private NWBrowser CreateBrowser(string type)
     {
-        var browserDescriptor = NWBrowserDescriptor.CreateBonjourService(type, "local.");
+        using var browserDescriptor = NWBrowserDescriptor.CreateBonjourService(type, "local.");
         browserDescriptor.IncludeTxtRecord = true;
         var newBrowser = new NWBrowser(browserDescriptor, parameters);
         newBrowser.SetDispatchQueue(dispatchQueue);

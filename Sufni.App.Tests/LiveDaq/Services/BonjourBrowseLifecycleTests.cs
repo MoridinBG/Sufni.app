@@ -7,6 +7,50 @@ namespace Sufni.App.Tests.LiveDaq.Services;
 public class BonjourBrowseLifecycleTests
 {
     [Fact]
+    public void IncrementalResolution_PublishesCandidatesUntilCompleted_AndRetainsPresence()
+    {
+        var lifecycle = new BonjourBrowseLifecycle<string>();
+        lifecycle.TryStart();
+        lifecycle.TryTrackPending("daq", "resolver", _ => { }, out var id);
+        var updates = new List<ServiceAnnouncement>();
+        var first = new ServiceAnnouncement(IPAddress.Loopback, 1557);
+        var complete = new ServiceAnnouncement(new ServiceEndpoint([IPAddress.Loopback, IPAddress.IPv6Loopback], 1557), null, null);
+
+        Assert.True(lifecycle.PublishResolved("daq", id, first, updates.Add));
+        Assert.True(lifecycle.PublishResolved("daq", id, complete, updates.Add));
+        var canceled = new List<string>();
+        Assert.True(lifecycle.CompletePending("daq", id, canceled.Add));
+        Assert.Equal(["resolver"], canceled);
+        Assert.False(lifecycle.PublishResolved("daq", id, first, updates.Add));
+        Assert.Equal(2, updates.Count);
+        Assert.True(lifecycle.TryRemoveResolved("daq", out var removed));
+        Assert.Same(complete, removed);
+    }
+
+    [Fact]
+    public void StopDuringIncrementalResolution_RemovesPresenceAndSuppressesLateCallbacks()
+    {
+        var lifecycle = new BonjourBrowseLifecycle<string>();
+        lifecycle.TryStart();
+        lifecycle.TryTrackPending("daq", "resolver", _ => { }, out var id);
+        var announcement = new ServiceAnnouncement(IPAddress.Loopback, 1557);
+        lifecycle.PublishResolved("daq", id, announcement, _ => { });
+        var removed = new List<ServiceAnnouncement>();
+        var canceled = new List<string>();
+
+        lifecycle.TryStop(canceled.Add, removed.Add);
+
+        Assert.Same(announcement, Assert.Single(removed));
+        Assert.Equal(["resolver"], canceled);
+        Assert.False(lifecycle.PublishResolved("daq", id, announcement, _ => Assert.Fail("Late presence")));
+        lifecycle.TryStart();
+        lifecycle.TryTrackPending("daq", "replacement", canceled.Add, out var replacementId);
+        Assert.False(lifecycle.CompletePending("daq", id, canceled.Add));
+        Assert.True(lifecycle.PublishResolved("daq", replacementId, announcement, _ => { }));
+        Assert.Single(canceled);
+    }
+
+    [Fact]
     public void TryStart_AndTryStop_AreRepeatableAcrossBrowseSessions()
     {
         var lifecycle = new BonjourBrowseLifecycle<string>();

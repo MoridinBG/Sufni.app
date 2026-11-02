@@ -53,7 +53,7 @@ public class LiveDaqCatalogServiceTests
         var second = service.AcquireBrowse();
         var announcement = CreateAnnouncement("192.168.0.10", 1557, LiveProtocolVersion.V2,
             bid: "0102030405060708", instanceName: "daq");
-        cache.Add(announcement.InstanceName, [announcement.Address], announcement.Port, announcement.Address);
+        cache.Add([announcement.Address], announcement);
         serviceDiscovery.ServiceAdded += Raise.EventWith(serviceDiscovery, new ServiceAnnouncementEventArgs(announcement));
 
         first.Dispose();

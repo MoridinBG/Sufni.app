@@ -46,7 +46,9 @@ namespace Sufni.App.iOS
                         services,
                         static () => new IosSecureStorage(),
                         static () => new IosFriendlyNameProvider(),
-                        static _ => new BonjourServiceDiscovery(),
+                        static role => new BonjourServiceDiscovery(role == "daq"
+                            ? ServiceDiscoveryResolution.AnnouncedAddresses
+                            : ServiceDiscoveryResolution.ReachableTcpEndpoint),
                         static () => new IosHapticFeedback());
                     services.AddSingleton<IVideoPlayerFactory, IosVideoPlayerFactory>();
                 },

@@ -115,6 +115,31 @@ internal sealed class BonjourBrowseLifecycle<TPending>
         return true;
     }
 
+    public bool CompletePending(string key, long resolutionId, Action<TPending> cancelPending)
+    {
+        TPending value;
+        lock (gate)
+        {
+            if (!pendingByKey.TryGetValue(key, out var pending) || pending.ResolutionId != resolutionId) return false;
+            pendingByKey.Remove(key);
+            value = pending.Value;
+        }
+        cancelPending(value);
+        return true;
+    }
+
+    public bool PublishResolved(string key, long resolutionId, ServiceAnnouncement announcement,
+        Action<ServiceAnnouncement> publish)
+    {
+        lock (gate)
+        {
+            if (!pendingByKey.TryGetValue(key, out var pending) || pending.ResolutionId != resolutionId) return false;
+            resolvedByKey[key] = announcement;
+            publish(announcement);
+            return true;
+        }
+    }
+
     public bool TryResolve(string key, long resolutionId, ServiceAnnouncement announcement)
     {
         lock (gate)

@@ -313,6 +313,16 @@ The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDa
 
 ### Announcement Metadata
 
+DAQ discovery resolves DNS records without connecting to the single-client port.
+Socket discovery retains Tmds's announced `Addresses`; Apple discovery resolves
+its Bonjour endpoint with `NSNetService`, retaining IPv4, IPv6 and interface
+scope. Incremental address callbacks replace the current candidate set until
+resolution completes. Removal or browse stop cancels the resolver and rejects
+late callbacks. Native Bonjour callbacks use the main run loop; adapter disposal
+drains scheduled native cleanup. The composition root chooses
+`AnnouncedAddresses` for DAQ and `ReachableTcpEndpoint` for sync-peer discovery,
+which retains its existing reachability selection.
+
 Socket discovery reads Tmds's typed `Instance` and `Txt` properties. Bonjour
 keeps the endpoint string as its announcement key and copies native TXT bytes
 before the browse result is released. `ServiceAnnouncementMetadataReader`
@@ -328,8 +338,8 @@ resolved address. Host/port labels are projections of that endpoint.
 `DaqBrowseOwner` implements reference-counted lease-based browse ownership for `_sufni._tcp`. `AcquireBrowse()` returns a disposable lease; the first lease starts the underlying `IServiceDiscovery` mDNS browse, and the last disposed lease stops it. This keeps live discovery decoupled from the import pipeline — both features can browse concurrently without one clearing the other's state. The lease uses `Interlocked.Exchange` for safe double-dispose. When browsing stops,
 socket and Bonjour adapters emit removals for every retained announcement before
 forgetting them. The catalog becomes empty; active consumers retain known boards
-as offline rows. Restarting browse begins with no stale endpoints. Socket endpoint
-probes completing after their browse session ends cannot republish that presence.
+as offline rows. Restarting browse begins with no stale endpoints. Resolution callbacks from an
+ended browse cannot republish that presence.
 
 ### Board-ID Inspector
 
@@ -366,7 +376,7 @@ the store releases its cache and prevents queued publication after shutdown.
 
 **Activate / Deactivate** — called by `MainPagesViewModel` when the Live page becomes selected or deselected. On activate: acquires a browse lease, subscribes to catalog changes and known-board query changes, seeds the store with offline known boards. On deactivate: disposes all subscriptions and the browse lease, clears online state from the store.
 
-**Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with the catalog's protocol-qualified endpoint identity. The store is cleared and rebuilt on each reconciliation.
+**Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with the catalog's protocol-qualified endpoint identity. The coordinator submits one replacement snapshot through the store's dispatcher-owned diff publication.
 
 Diagnostics and live-session opening belong to the shell. It deduplicates by
 `EditorKey.LiveDaq` or `EditorKey.LiveSession` before the factory reads the

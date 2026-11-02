@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 
 using Sufni.App.AppleShared;
 
@@ -5,8 +6,8 @@ namespace Sufni.App.iOS;
 
 public sealed class BonjourServiceDiscovery : AppleBonjourServiceDiscoveryBase
 {
-    public BonjourServiceDiscovery()
-        : base("iOS")
+    public BonjourServiceDiscovery(ServiceDiscoveryResolution resolution)
+        : base("iOS", resolution)
     {
     }
 }

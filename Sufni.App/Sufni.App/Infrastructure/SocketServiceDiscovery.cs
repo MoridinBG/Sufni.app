@@ -20,7 +20,7 @@ public class SocketServiceDiscovery : IServiceDiscovery
     private bool isBrowsing;
     private long browseGeneration;
 
-    public SocketServiceDiscovery()
+    public SocketServiceDiscovery(ServiceDiscoveryResolution resolution)
     {
         browser.ServiceAdded += (sender, args) =>
         {
@@ -31,27 +31,27 @@ public class SocketServiceDiscovery : IServiceDiscovery
                 generation = browseGeneration;
             }
             var announcedAddresses = args.Announcement.Addresses.ToArray();
-            var connectableAddress = TryConnect(announcedAddresses, args.Announcement.Port);
-            if (connectableAddress is null)
+            if (announcedAddresses.Length == 0) return;
+            var endpoint = new ServiceEndpoint(announcedAddresses, args.Announcement.Port);
+            if (resolution == ServiceDiscoveryResolution.ReachableTcpEndpoint)
             {
-                logger.Verbose(
-                    "Ignoring discovered socket service on port {Port} because no connectable endpoint was resolved",
-                    args.Announcement.Port);
-                return;
+                var connectableAddress = TryConnect(announcedAddresses, args.Announcement.Port);
+                if (connectableAddress is null) return;
+                endpoint = new ServiceEndpoint([connectableAddress], args.Announcement.Port);
             }
 
             var instanceName = string.IsNullOrWhiteSpace(args.Announcement.Instance) ? null : args.Announcement.Instance;
             var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement.Txt ?? []);
-            var announcement = new ServiceAnnouncement(connectableAddress, args.Announcement.Port, instanceName, txtRecords);
+            var announcement = new ServiceAnnouncement(endpoint, instanceName, txtRecords);
             logger.Verbose(
                 "Discovered socket service endpoint {Address}:{Port} instance {InstanceName}",
-                connectableAddress,
+                endpoint.Host,
                 args.Announcement.Port,
                 instanceName);
             lock (browseGate)
             {
                 if (!isBrowsing || generation != browseGeneration) return;
-                endpointCache.Add(instanceName, announcedAddresses, args.Announcement.Port, connectableAddress);
+                endpointCache.Add(announcedAddresses, announcement);
                 ServiceAdded?.Invoke(sender, new ServiceAnnouncementEventArgs(announcement));
             }
         };
@@ -61,7 +61,7 @@ public class SocketServiceDiscovery : IServiceDiscovery
             lock (browseGate)
             {
                 var instanceName = string.IsNullOrWhiteSpace(args.Announcement.Instance) ? null : args.Announcement.Instance;
-                if (!endpointCache.TryRemove(instanceName, args.Announcement.Addresses, args.Announcement.Port, out var removedAddress))
+                if (!endpointCache.TryRemove(instanceName, args.Announcement.Addresses, args.Announcement.Port, out var announcement))
                 {
                     logger.Verbose(
                         "Ignoring removed socket service on port {Port} because no matching added endpoint was emitted",
@@ -69,11 +69,9 @@ public class SocketServiceDiscovery : IServiceDiscovery
                     return;
                 }
 
-                var txtRecords = ServiceAnnouncementMetadataReader.ReadTxtRecords(args.Announcement.Txt ?? []);
-                var announcement = new ServiceAnnouncement(removedAddress, args.Announcement.Port, instanceName, txtRecords);
                 logger.Verbose(
                     "Removed socket service endpoint {Address}:{Port} instance {InstanceName}",
-                    removedAddress,
+                    announcement.Address,
                     args.Announcement.Port,
                     instanceName);
                 ServiceRemoved?.Invoke(sender, new ServiceAnnouncementEventArgs(announcement));

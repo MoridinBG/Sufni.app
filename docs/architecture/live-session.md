@@ -48,7 +48,9 @@ graph LR
 The capture and any unsaved edits are in-memory state. They end with the tab or
 process; they have no restart checkpoint. Desktop shutdown runs the same
 save/discard/cancel close policy as closing the capture tab and waits for its
-cleanup before disposing services. Mobile background preserves the tab; it does
+cleanup before disposing services. Capture disposal drains its loops, releases
+the configuration lock, then releases its observer lease; management owners
+cancel and drain before their registry dependency is disposed. Mobile background preserves the tab; it does
 not persist an unfinished capture.
 
 ## Data Flow
