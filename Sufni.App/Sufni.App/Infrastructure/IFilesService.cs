@@ -19,5 +19,6 @@ public interface IFilesService
     public Task<IStorageFile?> OpenLeverageRatioCsvFileAsync();
     public Task<IReadOnlyList<PickedFile>> OpenGpxFilesAsync();
     public Task<IStorageFile?> OpenVideoFileAsync();
+    public Task<IStorageBookmarkFile?> OpenBookmarkedVideoAsync(string bookmark, CancellationToken cancellationToken = default);
     public Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default);
 }

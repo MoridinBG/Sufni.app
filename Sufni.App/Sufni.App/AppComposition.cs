@@ -2,6 +2,7 @@ using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
 using System.Linq;
 
@@ -159,6 +160,8 @@ public static class AppComposition
         services.AddSingleton<RecordedSessionSourceStore>();
         services.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         services.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
+        services.TryAddSingleton<IVideoFileAccess, LocalVideoFileAccess>();
+        services.AddSingleton<IVideoImportFileService, VideoImportFileService>();
         services.AddSingleton<IVideoFilePresence, VideoFilePresence>();
         services.AddSingleton<ISessionVideoRepository, SessionVideoRepository>();
         services.AddSingleton<IVideoMetadataReader, Mp4VideoMetadataReader>();

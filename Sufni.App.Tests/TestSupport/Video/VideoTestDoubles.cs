@@ -55,7 +55,15 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
     public bool IsDisposed { get; private set; }
     public event EventHandler<VideoSizeChangedEventArgs>? VideoSizeChanged;
 
-    public void Load(Uri? videoUri) => LoadedUris.Add(videoUri);
+    public event EventHandler<VideoPlaybackFailedEventArgs>? PlaybackFailed;
+
+    public Task LoadAsync(Uri? videoUri, CancellationToken cancellationToken = default)
+    {
+        LoadedUris.Add(videoUri);
+        return Task.CompletedTask;
+    }
+
+    public void RaiseFailure(VideoPlaybackFailure failure) => PlaybackFailed?.Invoke(this, new(failure));
 
     public void RaiseVideoSizeChanged(double width, double height) =>
         VideoSizeChanged?.Invoke(this, new VideoSizeChangedEventArgs(width, height));

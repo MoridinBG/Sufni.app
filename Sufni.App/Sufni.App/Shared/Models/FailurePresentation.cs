@@ -27,7 +27,16 @@ public sealed record FailurePresentation
     {
         VideoImportFailureReason.LocalFileRequired => "Selected video must be a local file.",
         VideoImportFailureReason.InvalidMetadata => "The selected video could not be read. Choose a video with a recording time and duration.",
+        VideoImportFailureReason.Access => "Access to this video could not be retained. Choose the file again.",
         VideoImportFailureReason.Import => "The video could not be imported. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
+    public static FailurePresentation From(VideoPlaybackFailureReason reason, string? details = null) => new(reason switch
+    {
+        VideoPlaybackFailureReason.Open => "This video could not be opened. Choose a readable video file.",
+        VideoPlaybackFailureReason.Playback => "Video playback failed. Reopen the video or choose another file.",
+        VideoPlaybackFailureReason.PlayerUnavailable => "Video playback is unavailable on this device.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 

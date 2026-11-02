@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Models;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -24,9 +25,18 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
     public partial bool IsPlaying { get; set; }
 
     [ObservableProperty] public partial bool IsSyncEnabled { get; set; }
+    public bool CanSync => playbackContext?.CanSync == true && SourceState is not VideoPlaybackSourceState.Failed;
+
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ToggleSyncCommand))]
-    public partial bool CanSync { get; set; }
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(IsReady), nameof(HasFailure), nameof(Failure), nameof(CanSync))]
+    [NotifyCanExecuteChangedFor(nameof(PlayPauseCommand), nameof(ToggleSyncCommand))]
+    public partial VideoPlaybackSourceState SourceState { get; private set; } = new VideoPlaybackSourceState.Ready();
+
+    public bool IsLoading => SourceState is VideoPlaybackSourceState.Loading;
+    public bool IsReady => SourceState is VideoPlaybackSourceState.Ready;
+    public bool HasFailure => SourceState is VideoPlaybackSourceState.Failed;
+    public FailurePresentation? Failure => SourceState is VideoPlaybackSourceState.Failed failed
+        ? FailurePresentation.From(failed.Failure.Reason, failed.Failure.Details) : null;
     [ObservableProperty] public partial bool IsTimelinePlaybackActive { get; set; }
     [ObservableProperty] public partial double VideoWidth { get; set; } = 16;
     [ObservableProperty] public partial double VideoHeight { get; set; } = 9;
@@ -80,7 +90,8 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
         }
 
         playbackContext = value;
-        CanSync = value?.CanSync == true;
+        OnPropertyChanged(nameof(CanSync));
+        ToggleSyncCommand.NotifyCanExecuteChanged();
 
         if (!CanSync)
         {
@@ -93,6 +104,25 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
         {
             SeekToCursorIfPresent();
         }
+    }
+
+    public void BeginLoad(bool hasSource)
+    {
+        SetBackend(null);
+        SourceState = hasSource ? new VideoPlaybackSourceState.Loading() : new VideoPlaybackSourceState.Ready();
+    }
+
+    public void CompleteLoad(IVideoPlaybackBackend? value)
+    {
+        if (SourceState is VideoPlaybackSourceState.Loading) SourceState = new VideoPlaybackSourceState.Ready();
+        SetBackend(value);
+    }
+
+    public void ReportFailure(VideoPlaybackFailure failure)
+    {
+        SourceState = new VideoPlaybackSourceState.Failed(failure);
+        IsTimelinePlaybackActive = false;
+        PauseBackend();
     }
 
     public void SetVideoSize(double width, double height)
@@ -132,7 +162,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
     [RelayCommand(CanExecute = nameof(CanPlayPause))]
     private void PlayPause()
     {
-        if (backend is null)
+        if (backend is null || !IsReady)
         {
             return;
         }
@@ -154,7 +184,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
         }
     }
 
-    private bool CanPlayPause() => backend is not null;
+    private bool CanPlayPause() => backend is not null && IsReady;
 
     [RelayCommand(CanExecute = nameof(CanSync))]
     private void ToggleSync()
@@ -192,7 +222,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
             return;
         }
 
-        if (backend is null || playbackContext?.CanSync != true)
+        if (backend is null || !IsReady || playbackContext?.CanSync != true)
         {
             return;
         }
@@ -245,7 +275,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
 
     private void SeekToCursorIfPresent()
     {
-        if (backend is null ||
+        if (backend is null || !IsReady ||
             timeline.NormalizedCursorPosition is not { } cursor ||
             playbackContext?.TelemetryDurationSeconds is not { } telemetryDuration)
         {
@@ -260,7 +290,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
 
     private void RefreshPlaybackState()
     {
-        IsPlaying = backend?.IsPlaying == true;
+        IsPlaying = IsReady && backend?.IsPlaying == true;
     }
 
     public void Dispose()

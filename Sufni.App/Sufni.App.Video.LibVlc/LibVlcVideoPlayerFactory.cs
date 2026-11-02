@@ -1,20 +1,24 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using LibVLCSharp.Avalonia;
 using LibVLCSharp.Shared;
 using Sufni.App.Infrastructure;
 using Sufni.App.Video.Models;
+using Sufni.App.Video.Services;
+using Sufni.App.Video.Views;
 
 namespace Sufni.App.Video.LibVlc;
 
-public sealed class LibVlcVideoPlayerFactory(IUiThreadDispatcher uiThreadDispatcher) : IVideoPlayerFactory
+public sealed class LibVlcVideoPlayerFactory(IUiThreadDispatcher uiThreadDispatcher, IVideoFileAccess fileAccess) : IVideoPlayerFactory
 {
     public IVideoPlayer Create()
     {
         try
         {
-            return new LibVlcVideoPlayer(uiThreadDispatcher);
+            return new NativeVideoPlayer(new LibVlcVideoSurface(uiThreadDispatcher), fileAccess, uiThreadDispatcher);
         }
         catch (VLCException e)
         {
@@ -23,20 +27,24 @@ public sealed class LibVlcVideoPlayerFactory(IUiThreadDispatcher uiThreadDispatc
     }
 }
 
-internal sealed class LibVlcVideoPlayer : IVideoPlayer
+internal sealed class LibVlcVideoSurface : IVideoPlayerSurface
 {
     private readonly LibVLC libVlc;
     private readonly MediaPlayer mediaPlayer;
     private readonly VideoView videoView;
     private readonly LibVlcPlaybackBackend backend;
     private Media? currentMedia;
+    private NativeVideoSource? currentSource;
+    private readonly IUiThreadDispatcher dispatcher;
 
-    public LibVlcVideoPlayer(IUiThreadDispatcher uiThreadDispatcher)
+    public LibVlcVideoSurface(IUiThreadDispatcher uiThreadDispatcher)
     {
+        dispatcher = uiThreadDispatcher;
         Core.Initialize();
         libVlc = new LibVLC();
         mediaPlayer = new MediaPlayer(libVlc);
-        mediaPlayer.Vout += (_, _) => uiThreadDispatcher.Post(TryUpdateVideoSize);
+        mediaPlayer.Vout += OnVideoOutput;
+        mediaPlayer.EncounteredError += OnNativeError;
         videoView = new VideoView
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -48,44 +56,69 @@ internal sealed class LibVlcVideoPlayer : IVideoPlayer
 
     public Control View => videoView;
     public IVideoPlaybackBackend Backend => backend;
-    public event EventHandler<VideoSizeChangedEventArgs>? VideoSizeChanged;
+    public event EventHandler<NativeVideoFailureEventArgs>? Failed;
+    public event EventHandler<NativeVideoSizeEventArgs>? SizeChanged;
 
-    public void Load(Uri? videoUri)
+    public async Task LoadAsync(NativeVideoSource source)
     {
-        mediaPlayer.Stop();
-        currentMedia?.Dispose();
-        currentMedia = null;
-
-        if (videoUri is null)
+        Media? prepared = new Media(libVlc, source.Uri);
+        try
         {
-            mediaPlayer.Media = null;
-            return;
+            var parsed = await prepared.Parse(MediaParseOptions.ParseLocal, -1, source.CancellationToken);
+            source.CancellationToken.ThrowIfCancellationRequested();
+            if (parsed != MediaParsedStatus.Done) throw new InvalidDataException($"LibVLC could not parse the video ({parsed}).");
+            currentSource = source;
+            currentMedia = prepared;
+            mediaPlayer.Media = prepared;
+            prepared = null;
+            TryUpdateVideoSize(source);
         }
-
-        currentMedia = new Media(libVlc, videoUri);
-        mediaPlayer.Media = currentMedia;
-        TryUpdateVideoSize();
+        finally
+        {
+            prepared?.Dispose();
+        }
     }
 
-    private void TryUpdateVideoSize()
+    public void Clear()
     {
+        currentSource = null;
+        mediaPlayer.Stop();
+        mediaPlayer.Media = null;
+        currentMedia?.Dispose();
+        currentMedia = null;
+    }
+
+    private void OnNativeError(object? sender, EventArgs args)
+    {
+        if (currentSource is { } source)
+            Failed?.Invoke(this, new(source, new InvalidOperationException("LibVLC reported a playback failure.")));
+    }
+
+    private void OnVideoOutput(object? sender, EventArgs args)
+    {
+        if (currentSource is { } source) dispatcher.Post(() => TryUpdateVideoSize(source));
+    }
+
+    private void TryUpdateVideoSize(NativeVideoSource source)
+    {
+        if (source.CancellationToken.IsCancellationRequested) return;
         uint width = 0;
         uint height = 0;
         if (mediaPlayer.Size(0, ref width, ref height) && width > 0 && height > 0)
-        {
-            VideoSizeChanged?.Invoke(this, new VideoSizeChangedEventArgs(width, height));
-        }
+            SizeChanged?.Invoke(this, new(source, width, height));
     }
 
     public void Dispose()
     {
+        mediaPlayer.Vout -= OnVideoOutput;
+        mediaPlayer.EncounteredError -= OnNativeError;
         videoView.MediaPlayer = null;
-        mediaPlayer.Stop();
-        currentMedia?.Dispose();
+        Clear();
         backend.Dispose();
         mediaPlayer.Dispose();
         libVlc.Dispose();
     }
+
 }
 
 internal sealed class LibVlcPlaybackBackend : IVideoPlaybackBackend, IDisposable

@@ -11,9 +11,10 @@ using Avalonia.Platform.Storage;
 using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Infrastructure;
 
-public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesService
+public class FilesService(IBackgroundTaskRunner backgroundTaskRunner, IUiThreadDispatcher dispatcher) : IFilesService
 {
     private TopLevel? target;
+    private readonly TaskCompletionSource<IStorageProvider> storageReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly FilePickerFileType jsonType = new("JSON files")
     {
         Patterns = ["*.json"],
@@ -29,6 +30,7 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
     public void SetTarget(TopLevel? newTarget)
     {
         target = newTarget;
+        if (newTarget is not null) storageReady.TrySetResult(newTarget.StorageProvider);
     }
 
     public async Task<IStorageFolder?> OpenDataStoreFolderAsync()
@@ -161,6 +163,19 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner) : IFilesSe
         });
 
         return files.Count == 1 ? files[0] : null;
+    }
+
+    public async Task<IStorageBookmarkFile?> OpenBookmarkedVideoAsync(string bookmark, CancellationToken cancellationToken = default)
+    {
+        var provider = await storageReady.Task.WaitAsync(cancellationToken);
+        var opening = await dispatcher.InvokeAsync<Task<IStorageBookmarkFile?>>(() => provider.OpenFileBookmarkAsync(bookmark));
+        var file = await opening;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            file?.Dispose();
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        return file;
     }
 
     private static string SanitizeFileName(string name)

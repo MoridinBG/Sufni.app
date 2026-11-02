@@ -1,4 +1,5 @@
 using Sufni.App.Video.Models;
+using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -55,6 +56,27 @@ public class VideoPaneViewTests : IDisposable
 
         var view = (VideoPaneView)host.Content!;
         Assert.True(view.FindControl<TextBlock>("PlayerUnavailableText")!.IsVisible);
+        host.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task VideoPaneView_ShowsFailureAndHidesNativeSurface_WhenPlaybackFails()
+    {
+        using var pane = await CreatePaneAsync();
+        var host = await ShowAsync(pane);
+        var view = (VideoPaneView)host.Content!;
+        var player = Assert.Single(fixture.PlayerFactory.CreatedPlayers);
+        Assert.True(view.FindControl<ContentControl>("VideoHost")!.IsVisible);
+
+        player.RaiseFailure(new(VideoPlaybackFailureReason.Playback, "native diagnostic"));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(view.FindControl<ContentControl>("VideoHost")!.IsVisible);
+        var summary = view.FindControl<TextBlock>("PlayerUnavailableText")!;
+        Assert.True(summary.IsVisible);
+        Assert.Equal(pane.Playback.Failure!.Summary, summary.Text);
+        Assert.True(view.FindControl<Expander>("FailureDetails")!.IsVisible);
+        Assert.False(view.FindControl<Button>("PlayPauseButton")!.Command!.CanExecute(null));
         host.Close();
     }
 

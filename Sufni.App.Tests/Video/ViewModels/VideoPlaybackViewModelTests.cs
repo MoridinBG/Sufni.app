@@ -1,5 +1,6 @@
 using Sufni.App.Tests.TestSupport.Video;
 using Sufni.App.Video.Models;
+using Sufni.App.Shared.Models;
 using Sufni.App.Video.ViewModels;
 using static Sufni.App.Tests.Video.ViewModels.VideoPlaybackHarness;
 
@@ -7,6 +8,36 @@ namespace Sufni.App.Tests.Video.ViewModels;
 
 public class VideoPlaybackViewModelTests
 {
+    [Fact]
+    public void PlaybackFailure_ReleasesTimelineAndDisablesPlayback_UntilSuccessfulReload()
+    {
+        var harness = new VideoPlaybackHarness(Context(), cursor: 0.25);
+        using var viewModel = harness.ViewModel;
+        viewModel.IsSyncEnabled = true;
+        harness.Timeline.RequestPlaybackToggle();
+
+        viewModel.ReportFailure(new(VideoPlaybackFailureReason.Playback, "native diagnostic"));
+        viewModel.CompleteLoad(harness.Backend);
+        harness.Timeline.RequestPlaybackToggle();
+
+        Assert.True(viewModel.HasFailure);
+        Assert.False(viewModel.PlayPauseCommand.CanExecute(null));
+        Assert.False(viewModel.ToggleSyncCommand.CanExecute(null));
+        Assert.False(harness.Timeline.IsPlaybackActive);
+        Assert.False(harness.Backend.IsPlaying);
+        Assert.True(viewModel.Failure!.HasDetails);
+
+        viewModel.BeginLoad(true);
+        Assert.True(viewModel.IsLoading);
+        Assert.False(viewModel.PlayPauseCommand.CanExecute(null));
+        viewModel.CompleteLoad(harness.Backend);
+
+        Assert.False(viewModel.HasFailure);
+        Assert.True(viewModel.PlayPauseCommand.CanExecute(null));
+        Assert.True(viewModel.IsSyncEnabled);
+        Assert.True(viewModel.CanSync);
+    }
+
     [Fact]
     public void Sync_SeeksBackendToAlignedVideoTime_WhenTimelineCursorChanges()
     {

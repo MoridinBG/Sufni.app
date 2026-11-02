@@ -6,8 +6,11 @@ public enum VideoImportFailureReason
 {
     LocalFileRequired,
     InvalidMetadata,
+    Access,
     Import
 }
+
+public enum VideoPlaybackFailureReason { Open, Playback, PlayerUnavailable }
 
 public enum VideoAlignmentFailureReason
 {

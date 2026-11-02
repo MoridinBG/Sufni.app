@@ -1,4 +1,3 @@
-using Avalonia.Platform.Storage;
 using System.Reactive.Linq;
 using DynamicData;
 using Sufni.App.Shared.Stores;
@@ -22,8 +21,7 @@ public class VideoCoordinatorTests : IDisposable
 {
     private static readonly DateTimeOffset VideoStart = new(2026, 6, 3, 14, 0, 0, TimeSpan.Zero);
 
-    private readonly IFilesService filesService = Substitute.For<IFilesService>();
-    private readonly IVideoMetadataReader metadataReader = Substitute.For<IVideoMetadataReader>();
+    private readonly IVideoImportFileService fileService = Substitute.For<IVideoImportFileService>();
     private readonly ISessionRepository sessionRepository = Substitute.For<ISessionRepository>();
     private readonly ISessionVideoRepository videoRepository = Substitute.For<ISessionVideoRepository>();
     private readonly ISessionVideoStoreWriter videoStore = Substitute.For<ISessionVideoStoreWriter>();
@@ -36,8 +34,7 @@ public class VideoCoordinatorTests : IDisposable
     {
         videoStore.Connect().Returns(Observable.Empty<IChangeSet<SessionVideoSnapshot, Guid>>());
         coordinator = new VideoCoordinator(
-            filesService,
-            metadataReader,
+            fileService,
             sessionRepository,
             videoRepository,
             videoStore,
@@ -60,7 +57,7 @@ public class VideoCoordinatorTests : IDisposable
         var first = new SessionVideoSnapshot(Guid.NewGuid(), "first", "/videos/shared.mp4", 0, 60, 0, 1, false);
         var second = first with { Id = Guid.NewGuid(), OwnerKey = "second" };
         await store.ReplaceAllAsync([first, second]);
-        using var owner = new VideoCoordinator(filesService, metadataReader, sessionRepository, videoRepository,
+        using var owner = new VideoCoordinator(fileService, sessionRepository, videoRepository,
             store, new InlineBackgroundTaskRunner(), time, sourceStore, presence, dispatcher);
         var published = new TaskCompletionSource<IReadOnlyList<SessionVideoSnapshot>>();
         using var subscription = publication.Committed.Subscribe(_ => published.TrySetResult(store.GetAll()));
@@ -80,7 +77,7 @@ public class VideoCoordinatorTests : IDisposable
         using var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
         var clip = new SessionVideoSnapshot(Guid.NewGuid(), "source", "/videos/queued.mp4", 0, 60, 0, 1, false);
         await store.ReplaceAllAsync([clip]);
-        var owner = new VideoCoordinator(filesService, metadataReader, sessionRepository, videoRepository,
+        var owner = new VideoCoordinator(fileService, sessionRepository, videoRepository,
             store, new InlineBackgroundTaskRunner(), time, sourceStore, presence, dispatcher);
         presence.SetPresent(clip.Path, true);
 
@@ -135,7 +132,7 @@ public class VideoCoordinatorTests : IDisposable
     [Fact]
     public async Task ImportAsync_ReturnsCancelled_WhenNoFileIsSelected()
     {
-        filesService.OpenVideoFileAsync().Returns((IStorageFile?)null);
+        fileService.ReadAsync(Arg.Any<CancellationToken>()).Returns(new VideoFileReadResult.Cancelled());
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
 
@@ -146,9 +143,8 @@ public class VideoCoordinatorTests : IDisposable
     [Fact]
     public async Task ImportAsync_Fails_WhenMetadataIsInvalid()
     {
-        SelectFile();
-        metadataReader.ReadAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .Returns(new VideoMetadataReadResult.Invalid("no movie header"));
+        fileService.ReadAsync(Arg.Any<CancellationToken>())
+            .Returns(new VideoFileReadResult.Failed(VideoImportFailureReason.InvalidMetadata, "no movie header"));
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
 
@@ -233,18 +229,8 @@ public class VideoCoordinatorTests : IDisposable
 
     private void SelectVideo(double durationSeconds)
     {
-        SelectFile();
-        metadataReader.ReadAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
-            .Returns(new VideoMetadataReadResult.Parsed(new VideoMetadata(VideoStart, TimeSpan.FromSeconds(durationSeconds))));
-    }
-
-    private void SelectFile()
-    {
-        var file = Substitute.For<IStorageFile>();
-        file.Name.Returns("ride.mp4");
-        file.Path.Returns(new Uri("file:///videos/ride.mp4"));
-        file.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream([1, 2, 3])));
-        filesService.OpenVideoFileAsync().Returns(file);
+        fileService.ReadAsync(Arg.Any<CancellationToken>()).Returns(new VideoFileReadResult.Read(
+            "ride.mp4", "/videos/ride.mp4", new VideoMetadata(VideoStart, TimeSpan.FromSeconds(durationSeconds))));
     }
 
     private Session CreateSession(DateTimeOffset start, double durationSeconds)

@@ -17,12 +17,21 @@ public interface IVideoFilePresence
     IObservable<ImmutableDictionary<string, bool>> Observe(IEnumerable<string> paths);
 }
 
-internal sealed class VideoFilePresence(IBackgroundTaskRunner background, TimeProvider clock) : IVideoFilePresence
+internal sealed class VideoFilePresence(IBackgroundTaskRunner background, TimeProvider clock, IVideoFileAccess access) : IVideoFilePresence
 {
     public Task<ImmutableDictionary<string, bool>> ReadAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
         var captured = paths.Distinct(StringComparer.Ordinal).ToImmutableArray();
-        return background.RunAsync(() => captured.ToImmutableDictionary(path => path, File.Exists, StringComparer.Ordinal), cancellationToken);
+        return background.RunAsync(async () =>
+        {
+            var observed = ImmutableDictionary.CreateBuilder<string, bool>(StringComparer.Ordinal);
+            foreach (var path in captured)
+            {
+                using var lease = await access.AcquireAsync(path, cancellationToken);
+                observed[path] = lease is not null;
+            }
+            return observed.ToImmutable();
+        }, cancellationToken);
     }
 
     public IObservable<ImmutableDictionary<string, bool>> Observe(IEnumerable<string> paths)

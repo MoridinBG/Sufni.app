@@ -28,16 +28,22 @@
                 VerticalAlignment="Stretch"
                 VerticalContentAlignment="Stretch"
                 ClipToBounds="True"
-                IsHitTestVisible="False" />
+                IsHitTestVisible="False"
+                IsVisible="{Binding Playback.IsReady}" />
         </Border>
 
         <TextBlock
-            x:Name="PlayerUnavailableText"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Foreground="White"
-            IsVisible="False"
-            Text="Video playback is unavailable on this device." />
+            HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White"
+            IsVisible="{Binding Playback.IsLoading}" Text="Loading video..." />
+
+        <StackPanel Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsVisible="{Binding Playback.HasFailure}">
+            <TextBlock x:Name="PlayerUnavailableText" Foreground="White" TextWrapping="Wrap"
+                       IsVisible="{Binding Playback.HasFailure}" Text="{Binding Playback.Failure.Summary}" />
+            <Expander x:Name="FailureDetails" Header="Details" Foreground="White" IsVisible="{Binding Playback.Failure.HasDetails}" IsExpanded="False">
+                <TextBlock Foreground="White" TextWrapping="Wrap" Text="{Binding Playback.Failure.Details}" />
+            </Expander>
+        </StackPanel>
 
         <Popup
             x:Name="ControlsPopup"

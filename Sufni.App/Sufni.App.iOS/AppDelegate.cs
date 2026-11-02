@@ -7,6 +7,7 @@ using Foundation;
 using Microsoft.Extensions.DependencyInjection;
 using Sufni.App.Infrastructure;
 using Sufni.App.Video.Models;
+using Sufni.App.Video.Services;
 using UIKit;
 
 namespace Sufni.App.iOS
@@ -51,6 +52,7 @@ namespace Sufni.App.iOS
                             ? ServiceDiscoveryResolution.AnnouncedAddresses
                             : ServiceDiscoveryResolution.ReachableTcpEndpoint),
                         static () => new IosHapticFeedback());
+                    services.AddSingleton<IVideoFileAccess, BookmarkedVideoFileAccess>();
                     services.AddSingleton<IVideoPlayerFactory, IosVideoPlayerFactory>();
                 },
                 paths);

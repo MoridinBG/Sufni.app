@@ -1,4 +1,9 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Serilog;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
@@ -21,6 +26,8 @@ public sealed partial class VideoPaneView : UserControl
         Interval = TimeSpan.FromMilliseconds(180)
     };
 
+    private static readonly ILogger logger = Log.ForContext<VideoPaneView>();
+    private readonly CancellableOperation loadOperation = new();
     private VideoPaneViewModel? pane;
     private IVideoPlayer? videoPlayer;
     private bool controlsPopupUnavailable;
@@ -109,25 +116,28 @@ public sealed partial class VideoPaneView : UserControl
         {
             videoPlayer = value.PlayerFactory.Create();
         }
-        catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException or InvalidOperationException)
+        catch (Exception ex)
         {
-            PlayerUnavailableText.IsVisible = true;
+            logger.Warning(ex, "Native video player could not be created");
+            value.Playback.ReportFailure(new(VideoPlaybackFailureReason.PlayerUnavailable, ex.Message));
             return;
         }
 
         videoPlayer.VideoSizeChanged += OnVideoSizeChanged;
+        videoPlayer.PlaybackFailed += OnPlaybackFailed;
         VideoHost.Content = videoPlayer.View;
         LoadVideo(value.VideoUri);
-        value.Playback.SetBackend(videoPlayer.Backend);
     }
 
     private void DisposePlayer(VideoPaneViewModel value)
     {
+        loadOperation.Cancel();
         value.Playback.SetBackend(null);
         VideoHost.Content = null;
         if (videoPlayer is not null)
         {
             videoPlayer.VideoSizeChanged -= OnVideoSizeChanged;
+            videoPlayer.PlaybackFailed -= OnPlaybackFailed;
             videoPlayer.Dispose();
             videoPlayer = null;
         }
@@ -135,13 +145,32 @@ public sealed partial class VideoPaneView : UserControl
 
     private void LoadVideo(string? videoUri)
     {
-        if (videoPlayer is null || pane is null)
-        {
-            return;
-        }
-
+        if (videoPlayer is null || pane is null) return;
+        var token = loadOperation.Start();
         pane.Playback.SetVideoSize(16, 9);
-        videoPlayer.Load(videoUri is null ? null : new Uri(videoUri));
+        pane.Playback.BeginLoad(videoUri is not null);
+        _ = LoadVideoAsync(videoPlayer, pane, videoUri, token);
+    }
+
+    private static async Task LoadVideoAsync(IVideoPlayer player, VideoPaneViewModel value, string? uri, CancellationToken token)
+    {
+        try
+        {
+            await player.LoadAsync(uri is null ? null : new Uri(uri), token);
+            if (!token.IsCancellationRequested) value.Playback.CompleteLoad(uri is null ? null : player.Backend);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (token.IsCancellationRequested) return;
+            logger.Error(exception, "Video load failed for {VideoUri}", uri);
+            value.Playback.ReportFailure(new(VideoPlaybackFailureReason.Open, exception.Message));
+        }
+    }
+
+    private void OnPlaybackFailed(object? sender, VideoPlaybackFailedEventArgs args)
+    {
+        if (ReferenceEquals(sender, videoPlayer)) pane?.Playback.ReportFailure(args.Failure);
     }
 
     private void OnPanePropertyChanged(object? sender, PropertyChangedEventArgs e)

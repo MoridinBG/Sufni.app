@@ -4,11 +4,9 @@ using System.Collections.Immutable;
 using System.Reactive.Linq;
 using DynamicData;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Platform.Storage;
 using Serilog;
 
 using Sufni.App.Infrastructure;
@@ -57,8 +55,7 @@ public interface IVideoCoordinator
 }
 
 internal sealed class VideoCoordinator(
-    IFilesService filesService,
-    IVideoMetadataReader metadataReader,
+    IVideoImportFileService fileService,
     ISessionRepository sessionRepository,
     ISessionVideoRepository videoRepository,
     ISessionVideoStoreWriter videoStore,
@@ -94,21 +91,15 @@ internal sealed class VideoCoordinator(
     {
         try
         {
-            var file = await filesService.OpenVideoFileAsync();
-            if (file is null)
+            var result = await fileService.ReadAsync(cancellationToken);
+            return result switch
             {
-                return new VideoImportResult.Cancelled();
-            }
-
-            var localPath = file.TryGetLocalPath();
-            if (string.IsNullOrWhiteSpace(localPath))
-            {
-                return new VideoImportResult.Failed(VideoImportFailureReason.LocalFileRequired);
-            }
-
-            return await backgroundTaskRunner.RunAsync(
-                () => ImportCoreAsync(file, Path.GetFullPath(localPath), cancellationToken),
-                cancellationToken);
+                VideoFileReadResult.Cancelled => new VideoImportResult.Cancelled(),
+                VideoFileReadResult.Failed failed => new VideoImportResult.Failed(failed.Reason, failed.Details),
+                VideoFileReadResult.Read read => await backgroundTaskRunner.RunAsync(
+                    () => ImportCoreAsync(read, cancellationToken), cancellationToken),
+                _ => throw new InvalidOperationException("Unknown video file result")
+            };
         }
         catch (OperationCanceledException)
         {
@@ -148,22 +139,10 @@ internal sealed class VideoCoordinator(
     }
 
     private async Task<VideoImportResult> ImportCoreAsync(
-        IStorageFile file,
-        string path,
+        VideoFileReadResult.Read file,
         CancellationToken cancellationToken)
     {
-        VideoMetadataReadResult metadataResult;
-        await using (var stream = await file.OpenReadAsync())
-        {
-            metadataResult = await metadataReader.ReadAsync(stream, cancellationToken);
-        }
-
-        if (metadataResult is VideoMetadataReadResult.Invalid invalid)
-        {
-            return new VideoImportResult.Failed(VideoImportFailureReason.InvalidMetadata, invalid.ErrorMessage);
-        }
-
-        var metadata = ((VideoMetadataReadResult.Parsed)metadataResult).Metadata;
+        var metadata = file.Metadata;
         var sessions = await sessionRepository.GetSessionsAsync();
         var matchingSessions = sessions
             .Where(session => GetMatchFailureReason(session, metadata) is null)
@@ -180,7 +159,7 @@ internal sealed class VideoCoordinator(
 
         cancellationToken.ThrowIfCancellationRequested();
         var clips = await videoRepository.LinkAsync(
-            path,
+            file.Path,
             metadata.StartUtc.ToUnixTimeSeconds(),
             metadata.Duration.TotalSeconds,
             timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),

@@ -53,14 +53,14 @@ queued publication on disposal. Editors have no clip-refresh command.
 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 
-- `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links each source once, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, `NoMatchingSession`, `SourceUnavailable`, or `Failed(reason, details)`.
+- `ImportAsync` receives a prepared file from `IVideoImportFileService`, links each source once, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, `NoMatchingSession`, `SourceUnavailable`, or `Failed(reason, details)`.
 - `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns `VideoAlignmentResult.Updated`, `ClipMissing`, or `Failed(reason, details)`. The coordinator catches and logs persistence/publication failures once; the pane forwards the typed outcome. The editor projects a fixed save-failure sentence with separate diagnostics, and treats a missing clip as an unavailable metadata notification.
 
 ## Import
 
 The built-in "Open video" action sits beside the GPX import in the desktop nav rail and the mobile side panel. `MainPagesViewModel.OpenVideoCommand` is enabled only when `CanPlayVideo` is true. `ShellFeedbackViewModel` posts "Linked video to N recorded session(s)." globally and maps typed failures to fixed text.
 
-The selected file must have a local path. The metadata reader runs on the background runner. A session matches when its recording window overlaps the video window; sessions without a timestamp or a positive duration never match. Before linking, the coordinator requires recorded-source identities for every matching session. A missing source defers the whole import without writing links; `SourceUnavailable` asks the user to sync and retry. There is no queued import or session-ID fallback. When no session matches, the import returns `NoMatchingSession` and the shell displays a notification. The coordinator logs the reason for each session at debug level. Invalid metadata returns the `InvalidMetadata` reason with diagnostic details; file/persistence exceptions return `Import`, and a non-local selection returns `LocalFileRequired`. Parser exceptions are logged once by the metadata reader; other import exceptions are logged by the coordinator.
+`VideoImportFileService` owns the picker selection and disposes it after reading metadata and retaining file access. The selected file must have a local path. Metadata and bookmark work run on the background runner. A session matches when its recording window overlaps the video window; sessions without a timestamp or a positive duration never match. Before linking, the coordinator requires recorded-source identities for every matching session. A missing source defers the whole import without writing links; `SourceUnavailable` asks the user to sync and retry. There is no queued import or session-ID fallback. When no session matches, the import returns `NoMatchingSession` and the shell displays a notification. The coordinator logs the reason for each session at debug level. Invalid metadata returns the `InvalidMetadata` reason with diagnostic details; file/persistence exceptions return `Import`, and a non-local selection returns `LocalFileRequired`. A failed persistent file grant returns `Access`. Parser exceptions are logged once by the metadata reader; picker/read failures by the file service; persistence failures by the coordinator.
 
 ## Clip Selection
 
@@ -77,7 +77,7 @@ Visible clips share the source hash and overlap the session's source-relative wi
 - Desktop: `SessionMediaDesktopView` has one vertical `CollapsibleSplitView` (`MediaSplit`) with the map first and the video second. The split ratio is stored under the `map` and `video` pane ids.
 - Mobile: `RecordedSignalsPageView` shows the pane in a fixed-height host below the map.
 
-`VideoPaneView` owns the native player. On attach it creates the player, loads the active clip, and hands the backend to `VideoPlaybackViewModel`. On detach it releases the backend and disposes the player. When the player cannot be created (for example, a missing native library), the view shows "Video playback is unavailable on this device." instead. The play and sync controls appear on pointer hover; the S key toggles sync.
+`VideoPaneView` owns the native player. On attach it creates the player, awaits loading the active clip, and hands the prepared backend to `VideoPlaybackViewModel`. On detach it releases the backend and disposes the player. When the player cannot be created (for example, a missing native library), the view shows "Video playback is unavailable on this device." instead. The play and sync controls appear on pointer hover; the S key toggles sync. Loading, ready and failed are one source-state record. Typed `PlaybackFailed` events stop timeline playback and disable playback/sync actions. The pane hides the native surface and shows a fixed failure summary with separate collapsed diagnostics; a new load clears that failure.
 
 ## Playback And Timeline
 
@@ -116,3 +116,19 @@ Trim and split change only session windows; video rows and their alignment remai
 | iOS | `IosVideoPlayerFactory` | `AppleAvPlaybackBackend` |
 
 Each head registers its factory through `PlatformRoot` with its other platform services. `AppComposition` validates that player registration agrees with `CanPlayVideo`.
+
+`NativeVideoPlayer` owns source cancellation, the access lease and failure reporting
+for every platform. `AppleVideoSurface` shares AVFoundation preparation/status
+observation between macOS and iOS; `LibVlcVideoSurface` parses media before attaching
+it and observes native playback errors. Superseded callbacks cannot change the new
+source. The view retains player start/stop and disposal ownership.
+
+`IVideoFileAccess` lends access for presence checks and the complete player source
+lifetime. Desktop uses local read handles. iOS registers `BookmarkedVideoFileAccess`,
+which saves the storage provider's opaque bookmark under a device-local
+`VideoBookmark:` secure-storage key derived from the original path. A later process
+restores it through `IFilesService` and uses its resolved path. Avalonia iOS keeps
+security-scoped access alive through an opened storage-file stream, so each lease
+owns that stream and restored file until disposal. Presence uses short leases;
+playback retains its lease until replacement, failure or view detach. Startup
+bookmark restoration waits for the mobile top-level storage provider to be ready.

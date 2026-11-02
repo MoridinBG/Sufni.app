@@ -14,7 +14,7 @@ public class VideoFilePresenceTests
         var path = Path.Combine(directory.Path, "ride.mp4");
         var clock = new SignalingFakeTimeProvider();
         var background = new RecordingBackgroundTaskRunner();
-        var presence = new VideoFilePresence(background, clock);
+        var presence = new VideoFilePresence(background, clock, new LocalVideoFileAccess(background));
         var observed = new List<ImmutableDictionary<string, bool>>();
         using var subscription = presence.Observe([path]).Subscribe(observed.Add);
         await clock.WaitForTimerAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));

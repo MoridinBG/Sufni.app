@@ -8,75 +8,17 @@ using Foundation;
 using Sufni.App.Infrastructure;
 using Sufni.App.AppleShared;
 using Sufni.App.Video.Models;
+using Sufni.App.Video.Services;
+using Sufni.App.Video.Views;
 
 namespace Sufni.App.macOS;
 
-internal sealed class MacOsVideoPlayerFactory(IUiThreadDispatcher uiThreadDispatcher) : IVideoPlayerFactory
+internal sealed class MacOsVideoPlayerFactory(IUiThreadDispatcher uiThreadDispatcher, IVideoFileAccess fileAccess) : IVideoPlayerFactory
 {
-    public IVideoPlayer Create() => new MacOsVideoPlayer(uiThreadDispatcher);
-}
-
-internal sealed class MacOsVideoPlayer : IVideoPlayer
-{
-    private readonly AVPlayer player = new();
-    private readonly MacOsAvPlayerHost host = new();
-    private readonly AppleAvPlaybackBackend backend;
-    private AVPlayerItem? currentItem;
-    private int loadVersion;
-
-    public MacOsVideoPlayer(IUiThreadDispatcher uiThreadDispatcher)
+    public IVideoPlayer Create()
     {
-        backend = new AppleAvPlaybackBackend(player, uiThreadDispatcher);
-        host.SetPlayer(player);
-    }
-
-    public Control View => host;
-    public IVideoPlaybackBackend Backend => backend;
-    public event EventHandler<VideoSizeChangedEventArgs>? VideoSizeChanged;
-
-    public void Load(Uri? videoUri)
-    {
-        var version = ++loadVersion;
-        player.Pause();
-        var previousItem = currentItem;
-
-        if (videoUri is null)
-        {
-            player.ReplaceCurrentItemWithPlayerItem(null);
-            currentItem = null;
-            previousItem?.Dispose();
-            return;
-        }
-
-        var asset = AVAsset.FromUrl(NSUrl.FromFilename(videoUri.LocalPath));
-        var nextItem = new AVPlayerItem(asset);
-        currentItem = nextItem;
-        player.ReplaceCurrentItemWithPlayerItem(nextItem);
-        previousItem?.Dispose();
-        _ = UpdateVideoSizeAsync(asset, version);
-    }
-
-    private async Task UpdateVideoSizeAsync(AVAsset asset, int version)
-    {
-        var tracks = await asset.LoadTracksWithMediaTypeAsync(AVMediaTypes.Video);
-        var track = tracks.Length > 0 ? tracks[0] : null;
-        if (version != loadVersion || track is null || track.NaturalSize.Width <= 0 || track.NaturalSize.Height <= 0)
-        {
-            return;
-        }
-
-        VideoSizeChanged?.Invoke(
-            this,
-            new VideoSizeChangedEventArgs(track.NaturalSize.Width, track.NaturalSize.Height));
-    }
-
-    public void Dispose()
-    {
-        player.Pause();
-        player.ReplaceCurrentItemWithPlayerItem(null);
-        currentItem?.Dispose();
-        backend.Dispose();
-        player.Dispose();
+        var host = new MacOsAvPlayerHost();
+        return new NativeVideoPlayer(new AppleVideoSurface(host, host.SetPlayer, uiThreadDispatcher), fileAccess, uiThreadDispatcher);
     }
 }
 
@@ -85,7 +27,7 @@ internal sealed class MacOsAvPlayerHost : NativeControlHost
     private AVPlayer? player;
     private AVPlayerView? playerView;
 
-    public void SetPlayer(AVPlayer value)
+    public void SetPlayer(AVPlayer? value)
     {
         player = value;
         playerView?.Player = player;
