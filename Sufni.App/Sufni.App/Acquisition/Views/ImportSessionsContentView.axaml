@@ -159,7 +159,7 @@ mc:Ignorable="d">
         Margin="0,5,0,5">
             <ItemsRepeater ItemsSource="{Binding TelemetryFiles}">
                 <ItemsRepeater.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate x:DataType="vm:ImportFileRowViewModel">
                         <Expander
                         Margin="0,2,0,1"
                         HorizontalAlignment="Stretch"

@@ -8,10 +8,7 @@ namespace Sufni.App.Acquisition.Models;
 // may be backed by a mounted drive, a network DAQ, or a user-selected folder.
 public interface ITelemetryFile
 {
-    public string Name { get; set; }
     public string FileName { get; }
-    public ImportFileAction Action { get; set; }
-    public string Description { get; set; }
     /// <summary>The recording start instant in UTC.</summary>
     public DateTime StartTime { get; }
     public string Duration { get; }
@@ -24,5 +21,3 @@ public interface ITelemetryFile
     public Task OnImported();
     public Task OnTrashed();
 }
-
-public enum ImportFileAction { Ignore, Import, Trash }

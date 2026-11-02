@@ -22,7 +22,7 @@ public class TelemetryFileInspectionMappingTests
         var file = await CreateTelemetryFileAsync(sourceKind, payload);
 
         Assert.Equal(DateTimeKind.Utc, file.StartTime.Kind);
-        Assert.Equal(ImportFileAction.Ignore, file.Action);
+
         switch (payload)
         {
             case InspectionPayload.ValidV4WithUnknownChunk:

@@ -61,7 +61,7 @@ public class ImportSessionsCoordinator(
 
     public IObservable<SessionImportState> Observe() => state.AsObservable();
 
-    public async Task ImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId, CancellationToken cancellationToken = default)
+    public async Task ImportAsync(IReadOnlyList<SessionImportItem> files, Guid setupId, CancellationToken cancellationToken = default)
     {
         var run = await dispatcher.InvokeAsync<Task>(() =>
         {
@@ -76,7 +76,7 @@ public class ImportSessionsCoordinator(
         await run;
     }
 
-    private async Task RunImportAsync(IReadOnlyList<ITelemetryFile> files, Guid setupId, CancellationToken cancellationToken)
+    private async Task RunImportAsync(IReadOnlyList<SessionImportItem> files, Guid setupId, CancellationToken cancellationToken)
     {
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
         logger.Information(
@@ -131,7 +131,7 @@ public class ImportSessionsCoordinator(
     }
 
     private async Task<SessionImportResult> ImportCoreAsync(
-        IReadOnlyList<ITelemetryFile> files,
+        IReadOnlyList<SessionImportItem> files,
         Guid setupId,
         IProgress<SessionImportEvent>? progress,
         CancellationToken cancellationToken)
@@ -152,7 +152,7 @@ public class ImportSessionsCoordinator(
         IDaqManagementSession? batchSession = null;
         try
         {
-            var networkFiles = files.OfType<NetworkTelemetryFile>().ToArray();
+            var networkFiles = files.Select(item => item.File).OfType<NetworkTelemetryFile>().ToArray();
             if (networkFiles.Length > 0)
             {
                 var endpoint = networkFiles[0].EndPoint;
@@ -164,7 +164,7 @@ public class ImportSessionsCoordinator(
                 }
             }
 
-            var channel = Channel.CreateBounded<(ITelemetryFile File, TelemetryFileSource Source)>(
+            var channel = Channel.CreateBounded<(SessionImportItem Item, TelemetryFileSource Source)>(
                 new BoundedChannelOptions(4)
                 {
                     SingleReader = false,
@@ -173,7 +173,7 @@ public class ImportSessionsCoordinator(
             var totalToProcess = files.Count(f => f.Action != ImportFileAction.Ignore);
             var processedCount = 0;
             var progressGate = new object();
-            var committedImports = new ConcurrentBag<(ITelemetryFile File, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported, Guid? TrackId)>();
+            var committedImports = new ConcurrentBag<(SessionImportItem Item, SessionSnapshot? Snapshot, RecordedSessionSourceSnapshot Source, bool AlreadyImported, Guid? TrackId)>();
             var failuresQueue = new ConcurrentQueue<SessionImportFailure>();
 
             void Report(SessionImportEvent importEvent)
@@ -223,7 +223,7 @@ public class ImportSessionsCoordinator(
                 Report(new SessionImportEvent.Failed(failure));
             }
 
-            void AddFailure(ITelemetryFile telemetryFile, Exception e, SessionImportFailureOperation operation)
+            void AddFailure(SessionImportItem item, Exception e, SessionImportFailureOperation operation)
             {
                 var reason = operation switch
                 {
@@ -231,31 +231,31 @@ public class ImportSessionsCoordinator(
                     SessionImportFailureOperation.Publish => SessionImportFailureReason.Publish,
                     _ => SessionImportFailureReason.Import
                 };
-                ReportFailure(new SessionImportFailure.OperationFailed(telemetryFile.Name, operation, reason, e.Message));
+                ReportFailure(new SessionImportFailure.OperationFailed(item.Name, operation, reason, e.Message));
             }
 
             async Task RunProducerAsync()
             {
-                foreach (var telemetryFile in files)
+                foreach (var item in files)
                 {
                     if (cancellationToken.IsCancellationRequested) break;
-                    if (telemetryFile.Action == ImportFileAction.Ignore)
+                    if (item.Action == ImportFileAction.Ignore)
                     {
                         continue;
                     }
 
-                    if (telemetryFile.Action == ImportFileAction.Trash)
+                    if (item.Action == ImportFileAction.Trash)
                     {
                         ReportProgress();
                         try
                         {
-                            logger.Verbose("Trashing telemetry file {FileName}", telemetryFile.Name);
-                            await telemetryFile.OnTrashed();
+                            logger.Verbose("Trashing telemetry file {FileName}", item.Name);
+                            await item.File.OnTrashed();
                         }
                         catch (Exception e)
                         {
-                            logger.Warning(e, "Failed to trash telemetry file {FileName}", telemetryFile.Name);
-                            AddFailure(telemetryFile, e, SessionImportFailureOperation.Trash);
+                            logger.Warning(e, "Failed to trash telemetry file {FileName}", item.Name);
+                            AddFailure(item, e, SessionImportFailureOperation.Trash);
                         }
 
                         continue;
@@ -264,9 +264,9 @@ public class ImportSessionsCoordinator(
                     TelemetryFileSource? telemetrySource = null;
                     try
                     {
-                        logger.Verbose("Reading source data for {FileName}", telemetryFile.Name);
-                        telemetrySource = await telemetryFile.ReadSourceAsync(cancellationToken);
-                        await channel.Writer.WriteAsync((telemetryFile, telemetrySource));
+                        logger.Verbose("Reading source data for {FileName}", item.Name);
+                        telemetrySource = await item.File.ReadSourceAsync(cancellationToken);
+                        await channel.Writer.WriteAsync((item, telemetrySource));
                         telemetrySource = null;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -276,8 +276,8 @@ public class ImportSessionsCoordinator(
                     catch (Exception e)
                     {
                         ReportProgress();
-                        logger.Warning(e, "Failed to read telemetry file {FileName}", telemetryFile.Name);
-                        AddFailure(telemetryFile, e, SessionImportFailureOperation.Import);
+                        logger.Warning(e, "Failed to read telemetry file {FileName}", item.Name);
+                        AddFailure(item, e, SessionImportFailureOperation.Import);
                     }
                     finally
                     {
@@ -288,23 +288,23 @@ public class ImportSessionsCoordinator(
 
             async Task RunConsumerAsync()
             {
-                await foreach (var (telemetryFile, telemetrySource) in channel.Reader.ReadAllAsync())
+                await foreach (var (item, telemetrySource) in channel.Reader.ReadAllAsync())
                 {
                     using (telemetrySource)
                     {
                         ReportProgress();
                         try
                         {
-                            if (!telemetryFile.CanImport)
+                            if (!item.File.CanImport)
                             {
-                                var malformedMessage = string.IsNullOrWhiteSpace(telemetryFile.MalformedMessage)
+                                var malformedMessage = string.IsNullOrWhiteSpace(item.File.MalformedMessage)
                                     ? "The telemetry file cannot be imported."
-                                    : telemetryFile.MalformedMessage;
+                                    : item.File.MalformedMessage;
                                 logger.Warning(
                                     "Skipping malformed telemetry file {FileName}: {ErrorMessage}",
-                                    telemetryFile.Name,
+                                    item.Name,
                                     malformedMessage);
-                                ReportFailure(new SessionImportFailure.OperationFailed(telemetryFile.Name,
+                                ReportFailure(new SessionImportFailure.OperationFailed(item.Name,
                                     SessionImportFailureOperation.Import, SessionImportFailureReason.InvalidFile, malformedMessage));
                                 continue;
                             }
@@ -312,30 +312,30 @@ public class ImportSessionsCoordinator(
                             var source = RecordedSessionSourceFactory.CreateImportedSst(telemetrySource);
                             if (await sessionRepository.GetImportCheckpointAsync(source.SourceHash) is { } existing)
                             {
-                                committedImports.Add((telemetryFile,
+                                committedImports.Add((item,
                                     existing.Session is { } held ? SessionSnapshot.From(held) : null,
                                     existing.Source, true, null));
                                 continue;
                             }
                             var session = new Session(
                                 id: source.SessionId,
-                                name: telemetryFile.Name,
-                                description: telemetryFile.Description,
+                                name: item.Name,
+                                description: item.Description,
                                 setup: setupId,
-                                timestamp: ((DateTimeOffset)telemetryFile.StartTime).ToUnixTimeSeconds());
+                                timestamp: ((DateTimeOffset)item.File.StartTime).ToUnixTimeSeconds());
 
                             var input = RecordedSessionDerivationInput.Create(
                                 SessionSnapshot.From(session), setupSnapshot, bikeSnapshot, source);
-                            logger.Verbose("Reprocessing imported source for {FileName}", telemetryFile.Name);
+                            logger.Verbose("Reprocessing imported source for {FileName}", item.Name);
                             var reprocessResult = await reprocessor.ReprocessAsync(input);
                             if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
                             {
-                                ReportFailure(new SessionImportFailure.ProcessingFailed(telemetryFile.Name, failure.Reason, failure.Details));
+                                ReportFailure(new SessionImportFailure.ProcessingFailed(item.Name, failure.Reason, failure.Details));
                                 continue;
                             }
                             var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
 
-                            logger.Verbose("Persisting imported session for {FileName}", telemetryFile.Name);
+                            logger.Verbose("Persisting imported session for {FileName}", item.Name);
                             var generation = processed.Generation;
                             var newTrack = generation.TrackPoints is { Count: > 0 } points
                                 ? new Track(points) : null;
@@ -343,12 +343,12 @@ public class ImportSessionsCoordinator(
                             var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
 
                             var snapshot = committed.Session is { } persisted ? SessionSnapshot.From(persisted) : null;
-                            committedImports.Add((telemetryFile, snapshot, committed.Source, committed is SessionImportCommitResult.Exists, newTrack?.Id));
+                            committedImports.Add((item, snapshot, committed.Source, committed is SessionImportCommitResult.Exists, newTrack?.Id));
                         }
                         catch (Exception e)
                         {
-                            logger.Warning(e, "Failed to import telemetry file {FileName}", telemetryFile.Name);
-                            AddFailure(telemetryFile, e, SessionImportFailureOperation.Import);
+                            logger.Warning(e, "Failed to import telemetry file {FileName}", item.Name);
+                            AddFailure(item, e, SessionImportFailureOperation.Import);
                         }
                     }
                 }
@@ -414,7 +414,7 @@ public class ImportSessionsCoordinator(
                     logger.Warning(e, "Failed to publish imported session store updates");
                     foreach (var entry in committedEntries)
                     {
-                        var failure = new SessionImportFailure.OperationFailed(entry.File.Name,
+                        var failure = new SessionImportFailure.OperationFailed(entry.Item.Name,
                             SessionImportFailureOperation.Publish, SessionImportFailureReason.Publish, e.Message);
                         failures.Add(failure);
                         Report(new SessionImportEvent.Failed(failure));
@@ -427,16 +427,16 @@ public class ImportSessionsCoordinator(
                 foreach (var entry in committedEntries)
                 {
                     Report(entry.AlreadyImported
-                        ? new SessionImportEvent.AlreadyImported(entry.File.Name, entry.Source.SessionId)
+                        ? new SessionImportEvent.AlreadyImported(entry.Item.Name, entry.Source.SessionId)
                         : new SessionImportEvent.Imported(entry.Snapshot!));
                     try
                     {
-                        await entry.File.OnImported();
+                        await entry.Item.File.OnImported();
                     }
                     catch (Exception e)
                     {
-                        logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", entry.File.Name);
-                        Report(new SessionImportEvent.AcknowledgementFailed(entry.File.Name, e.ToString()));
+                        logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", entry.Item.Name);
+                        Report(new SessionImportEvent.AcknowledgementFailed(entry.Item.Name, e.ToString()));
                     }
                 }
             }

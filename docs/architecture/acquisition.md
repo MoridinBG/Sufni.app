@@ -58,9 +58,13 @@ rows and split references remain valid.
 
 **`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`.
 
-**`ITelemetryFile`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryFile.cs`) represents a single SST file. Key members:
+**`ITelemetryFile`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryFile.cs`) is the
+device adapter for a single SST file. It owns listing metadata and source I/O.
+`ImportFileRowViewModel` owns editable name, description and `ImportFileAction`.
+The view model captures those choices into immutable `SessionImportItem` values
+before calling the coordinator; later row edits cannot change a running batch.
+Key adapter members:
 
-- `Action` — `ImportFileAction.Ignore` (default), `Import`, or `Trash`, driving the row selector and the coordinator's explicit routing. Inspection determines importability without choosing an action.
 - `CanImport` — set from inspection; `false` for malformed files, which forces the action selector to stay disabled.
 - `MalformedMessage` — inspection warning surfaced by the import row UI.
 - `ReadSourceAsync(CancellationToken)` — returns the original recording bytes as `TelemetryFileSource(FileName, SstBytes)`. The coordinator passes those bytes through `RecordedSessionSourceFactory.CreateImportedSst(...)`, then asks the recorded-session reprocessor to derive `TelemetryData`, generated GPS track data, and the processing fingerprint.
@@ -96,7 +100,8 @@ the run. The factory creates a fresh import view model for each new tab; closing
 it releases its run observation and datastore collection handler.
 
 The import workflow is staged once the user starts a batch from the selected
-datastore. One producer reads source bytes serially and feeds a bounded channel.
+datastore. Its immutable job items carry the selected file adapters and captured
+row edits. One producer reads source bytes serially and feeds a bounded channel.
 A network batch shares one management session for downloads, trash and
 acknowledgements. A bounded set of consumer tasks
 (`ImportProcessDop = clamp(Environment.ProcessorCount / 2, 2, 4)`) performs SST

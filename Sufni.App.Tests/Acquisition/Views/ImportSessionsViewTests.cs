@@ -40,7 +40,7 @@ public class ImportSessionsViewTests
 
         Assert.Single(mounted.View.GetVisualDescendants().OfType<ImportSessionsContentView>());
         Assert.Single(mounted.View.GetVisualDescendants().OfType<ImportSessionsActionRow>());
-        Assert.Equal([file], viewModel.TelemetryFiles);
+        Assert.Equal([file], viewModel.TelemetryFiles.Select(row => row.File));
 
         var expander = mounted.View.GetVisualDescendants().OfType<Expander>().First();
         expander.IsExpanded = true;
@@ -73,26 +73,27 @@ public class ImportSessionsViewTests
     {
         var harness = new ImportWorkflowHarness();
         var dataStore = CreateDataStore();
-        var file = CreateTelemetryFile("lap", action: ImportFileAction.Ignore);
+        var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);
         harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]));
-        await using var mounted = await MountAsync(harness.CreateViewModel());
+        var viewModel = harness.CreateViewModel();
+        await using var mounted = await MountAsync(viewModel);
         var selector = Assert.Single(mounted.View.GetLogicalDescendants().OfType<ComboBox>(),
             combo => combo.Name == "ActionSelector");
         Assert.Equal(0, selector.SelectedIndex);
 
         selector.SelectedIndex = 1;
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.Equal(ImportFileAction.Import, file.Action);
+        Assert.Equal(ImportFileAction.Import, Assert.Single(viewModel.TelemetryFiles).Action);
 
         selector.SelectedIndex = 2;
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.Equal(ImportFileAction.Trash, file.Action);
+        Assert.Equal(ImportFileAction.Trash, Assert.Single(viewModel.TelemetryFiles).Action);
 
         selector.SelectedIndex = 0;
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.Equal(ImportFileAction.Ignore, file.Action);
+        Assert.Equal(ImportFileAction.Ignore, Assert.Single(viewModel.TelemetryFiles).Action);
     }
 
     [AvaloniaFact]

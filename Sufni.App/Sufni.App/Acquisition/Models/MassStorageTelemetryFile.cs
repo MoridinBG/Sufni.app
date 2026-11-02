@@ -10,10 +10,7 @@ public class MassStorageTelemetryFile : ITelemetryFile
 {
     private readonly FileInfo fileInfo;
 
-    public string Name { get; set; }
     public string FileName => fileInfo.Name;
-    public ImportFileAction Action { get; set; }
-    public string Description { get; set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; } = "unknown";
     public string? MalformedMessage { get; private set; }
@@ -26,8 +23,6 @@ public class MassStorageTelemetryFile : ITelemetryFile
         using var stream = File.Open(this.fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
         var inspection = RawTelemetryData.InspectStream(stream);
         ApplyInspection(TelemetryFileInspectionMapper.Map(inspection, fileInfo.LastWriteTimeUtc));
-        Name = fileInfo.Name;
-        Description = $"Imported from {fileInfo.Name}";
     }
 
     public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)

@@ -11,10 +11,7 @@ public class StorageProviderTelemetryFile : ITelemetryFile
 {
     private readonly IStorageFile storageFile;
 
-    public string Name { get; set; }
     public string FileName => storageFile.Name;
-    public ImportFileAction Action { get; set; }
-    public string Description { get; set; }
     public DateTime StartTime { get; private set; }
     public string Duration { get; private set; }
     public string? MalformedMessage { get; private set; }
@@ -30,8 +27,6 @@ public class StorageProviderTelemetryFile : ITelemetryFile
     private StorageProviderTelemetryFile(IStorageFile storageFile)
     {
         this.storageFile = storageFile;
-        Name = storageFile.Name;
-        Description = $"Imported from {storageFile.Name}";
         StartTime = ResolveFallbackStartTime(storageFile);
         Duration = "unknown";
     }

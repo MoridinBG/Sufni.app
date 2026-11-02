@@ -1,3 +1,4 @@
+using Sufni.App.Acquisition.ViewModels;
 using Avalonia.Platform.Storage;
 using DynamicData;
 using NSubstitute;
@@ -15,6 +16,44 @@ namespace Sufni.App.Tests.Acquisition.ViewModels;
 
 public class ImportSessionsViewModelTests
 {
+    [Fact]
+    public async Task ImportCommand_CapturesRowEditsBeforeBackgroundWorkStarts()
+    {
+        var harness = new ImportWorkflowHarness();
+        var source = CreateDataStore();
+        var file = CreateTelemetryFile("recording");
+        harness.TelemetryDataStoreService.LoadFilesAsync(source, Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]));
+        var vm = harness.CreateViewModel();
+        vm.SelectedDataStore = source;
+        vm.SelectedSetup = Guid.NewGuid();
+        var row = Assert.Single(vm.TelemetryFiles);
+        row.Name = "Morning ride";
+        row.Description = "Dry trail";
+        row.Action = ImportFileAction.Import;
+        SessionImportItem? captured = null;
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(Arg.Any<IReadOnlyList<SessionImportItem>>(), vm.SelectedSetup.Value,
+            Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            captured = Assert.Single(call.Arg<IReadOnlyList<SessionImportItem>>());
+            return release.Task;
+        });
+
+        var run = vm.ImportSessionsCommand.ExecuteAsync(null);
+        row.Name = "Edited later";
+        row.Description = "Changed";
+        row.Action = ImportFileAction.Trash;
+        release.SetResult();
+        await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(captured);
+        Assert.Same(file, captured.File);
+        Assert.Equal("Morning ride", captured.Name);
+        Assert.Equal("Dry trail", captured.Description);
+        Assert.Equal(ImportFileAction.Import, captured.Action);
+    }
+
     [Fact]
     public async Task SelectingDataStore_ResolvesSetupLoadsFilesAndIgnoresStaleLoads()
     {
@@ -44,7 +83,7 @@ public class ImportSessionsViewModelTests
 
         Assert.False(viewModel.NewDataStoresAvailable);
         Assert.Null(viewModel.SelectedSetup);
-        Assert.Equal(secondFiles, viewModel.TelemetryFiles);
+        Assert.Equal(secondFiles, viewModel.TelemetryFiles.Select(row => row.File));
     }
 
     [Fact]
@@ -65,7 +104,7 @@ public class ImportSessionsViewModelTests
         var capturedProgressText = new List<string>();
         var viewModel = harness.CreateViewModel();
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
+                Arg.Any<IReadOnlyList<SessionImportItem>>(),
                 setup.Id)
             .Returns(callInfo =>
             {
@@ -82,13 +121,13 @@ public class ImportSessionsViewModelTests
         await viewModel.ImportSessionsCommand.ExecuteAsync(null);
 
         await harness.ImportSessionsCoordinatorSubstitute.Received(1).ImportAsync(
-            Arg.Is<IReadOnlyList<ITelemetryFile>>(files => files.Count == 1 && ReferenceEquals(files[0], initialFile)),
+            Arg.Is<IReadOnlyList<SessionImportItem>>(files => files.Count == 1 && ReferenceEquals(files[0].File, initialFile)),
             setup.Id);
         Assert.Equal(["File 1/2"], capturedProgressText);
         Assert.Equal(0, viewModel.CurrentFileIndex);
         Assert.Equal(0, viewModel.TotalFiles);
         Assert.Equal(string.Empty, viewModel.ImportProgressText);
-        Assert.Equal([refreshedFile], viewModel.TelemetryFiles);
+        Assert.Equal([refreshedFile], viewModel.TelemetryFiles.Select(row => row.File));
         Assert.Contains(viewModel.Notifications, message => message.Contains("lap", StringComparison.Ordinal));
         Assert.Contains(viewModel.Notifications, message => message.Contains("Import finished", StringComparison.Ordinal));
         Assert.Single(viewModel.ErrorMessages);
@@ -111,7 +150,7 @@ public class ImportSessionsViewModelTests
         var failure = new SessionImportFailure.OperationFailed(
             "lap", SessionImportFailureOperation.Publish, SessionImportFailureReason.Publish, "publish failed");
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<IReadOnlyList<ITelemetryFile>>(),
+                Arg.Any<IReadOnlyList<SessionImportItem>>(),
                 setup.Id)
             .Returns(callInfo =>
             {
@@ -222,8 +261,8 @@ public class ImportSessionsViewModelTests
             canImport: true);
         var viewModel = harness.CreateViewModel();
 
-        viewModel.ShowMalformedMessageCommand.Execute(file);
-        viewModel.ShowMalformedMessageCommand.Execute(file);
+        viewModel.ShowMalformedMessageCommand.Execute(new ImportFileRowViewModel(file));
+        viewModel.ShowMalformedMessageCommand.Execute(new ImportFileRowViewModel(file));
 
         Assert.Single(viewModel.Notifications);
     }

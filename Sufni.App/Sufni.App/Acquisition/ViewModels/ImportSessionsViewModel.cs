@@ -26,7 +26,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     #region Observable properties
 
     public ObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
-    public ObservableCollection<ITelemetryFile> TelemetryFiles { get; } = [];
+    public ObservableCollection<ImportFileRowViewModel> TelemetryFiles { get; } = [];
 
     [ObservableProperty] public partial ITelemetryDataStore? SelectedDataStore { get; set; }
     [ObservableProperty] public partial bool NewDataStoresAvailable { get; set; }
@@ -153,7 +153,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         TelemetryFiles.Clear();
         foreach (var file in files)
         {
-            TelemetryFiles.Add(file);
+            TelemetryFiles.Add(new ImportFileRowViewModel(file));
         }
     }
 
@@ -304,13 +304,13 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         if (SelectedDataStore is null || SelectedSetup is not { } setupId)
             return;
 
-        await importSessionsCoordinator.ImportAsync(TelemetryFiles.ToList(), setupId);
+        await importSessionsCoordinator.ImportAsync(TelemetryFiles.Select(row => row.ToImportItem()).ToArray(), setupId);
     }
 
     private bool CanImportSessions() => SelectedSetup != null && !IsImporting;
 
     [RelayCommand]
-    private void ShowMalformedMessage(ITelemetryFile? file)
+    private void ShowMalformedMessage(ImportFileRowViewModel? file)
     {
         if (file is null || string.IsNullOrWhiteSpace(file.MalformedMessage))
             return;

@@ -14,7 +14,7 @@ public interface IImportSessionsCoordinator
     IObservable<SessionImportState> Observe();
 
     Task ImportAsync(
-        IReadOnlyList<ITelemetryFile> files,
+        IReadOnlyList<SessionImportItem> files,
         Guid setupId,
         CancellationToken cancellationToken = default);
 

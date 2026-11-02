@@ -13,24 +13,27 @@ public static class TestTelemetrySources
         return dataStore;
     }
 
+    public static SessionImportItem CreateImportItem(
+        string name = "file", string description = "", DateTime? startTime = null,
+        string duration = "1s", ImportFileAction action = ImportFileAction.Import,
+        string? malformedMessage = null, bool? canImport = null,
+        byte[]? sourceBytes = null, TelemetryFileSource? source = null) =>
+        new(CreateTelemetryFile(name, startTime, duration, malformedMessage, canImport, sourceBytes, source),
+            name, description, action);
+
     public static ITelemetryFile CreateTelemetryFile(
         string name = "file",
-        string description = "",
         DateTime? startTime = null,
         string duration = "1s",
-        ImportFileAction action = ImportFileAction.Import,
         string? malformedMessage = null,
         bool? canImport = null,
         byte[]? sourceBytes = null,
         TelemetryFileSource? source = null)
     {
         var telemetryFile = Substitute.For<ITelemetryFile>();
-        telemetryFile.Name.Returns(name);
         telemetryFile.FileName.Returns($"{name}.SST");
-        telemetryFile.Description.Returns(description);
         telemetryFile.StartTime.Returns(startTime ?? new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         telemetryFile.Duration.Returns(duration);
-        telemetryFile.Action = action;
         telemetryFile.MalformedMessage.Returns(malformedMessage);
         telemetryFile.CanImport.Returns(canImport ?? string.IsNullOrWhiteSpace(malformedMessage));
         telemetryFile.ReadSourceAsync(Arg.Any<CancellationToken>())

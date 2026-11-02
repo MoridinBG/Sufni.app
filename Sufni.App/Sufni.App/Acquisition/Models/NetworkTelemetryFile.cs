@@ -12,10 +12,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 {
     private static readonly DateTimeOffset FallbackStartTimeUtc = DateTimeOffset.UnixEpoch;
 
-    public string Name { get; set; }
     public string FileName { get; }
-    public ImportFileAction Action { get; set; }
-    public string Description { get; set; }
     public DateTime StartTime { get; init; }
     public string Duration { get; init; }
     public string? MalformedMessage { get; }
@@ -89,9 +86,7 @@ public class NetworkTelemetryFile : ITelemetryFile
         StartTime = (timestampUtc ?? FallbackStartTimeUtc).UtcDateTime;
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
         MalformedMessage = malformedMessage;
-        Name = name;
         FileName = name;
-        Description = $"Imported from {name}";
         ipEndPoint = source;
     }
 }
