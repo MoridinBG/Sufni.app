@@ -46,9 +46,12 @@ public static class StrokeAnalyzer
             if (maxPosition < Parameters.StrokeLengthThreshold && strokes.Count > 0 &&
                 strokes[^1].Stat.MaxTravel < Parameters.StrokeLengthThreshold)
             {
-                strokes[^1].End = i;
-                strokes[^1].Duration += duration;
-                strokes[^1].EndSeconds = i / (double)sampleRate;
+                strokes[^1] = strokes[^1] with
+                {
+                    End = i,
+                    Duration = strokes[^1].Duration + duration,
+                    EndSeconds = i / (double)sampleRate,
+                };
             }
             else
             {
@@ -65,7 +68,7 @@ public static class StrokeAnalyzer
 
 internal sealed record StrokeAnalysis(Strokes Strokes, StrokeCandidate[] Idlings);
 
-internal sealed class StrokeCandidate : Stroke
+internal sealed record StrokeCandidate : Stroke
 {
     public double Length { get; }
     public double Duration { get; set; }

@@ -231,7 +231,7 @@ public class SessionCoordinatorTests
     private SessionSnapshot PrepareAlignment(InMemorySessionRepository repository, double? storedDuration)
     {
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Duration = 3;
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 3 } };
         var track = new Track
         {
             Id = Guid.NewGuid(),

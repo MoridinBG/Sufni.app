@@ -6,29 +6,29 @@ using MessagePack;
 namespace Sufni.Telemetry;
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class StrokeStat
+public sealed record StrokeStat
 {
-    public double SumTravel { get; set; }
-    public double MaxTravel { get; set; }
-    public double SumVelocity { get; set; }
-    public double MaxVelocity { get; set; }
-    public int Bottomouts { get; set; }
-    public int Count { get; set; }
+    public double SumTravel { get; init; }
+    public double MaxTravel { get; init; }
+    public double SumVelocity { get; init; }
+    public double MaxVelocity { get; init; }
+    public int Bottomouts { get; init; }
+    public int Count { get; init; }
 };
 
 [MessagePackObject(keyAsPropertyName: true)]
 [MessagePackFormatter(typeof(StrokeFormatter))]
-public class Stroke
+public record Stroke
 {
     #region Public properties
 
-    public int Start { get; set; }
-    public int End { get; set; }
-    public StrokeStat Stat { get; set; }
-    public int[] DigitizedTravel { get; set; } = [];
-    public int[] DigitizedVelocity { get; set; } = [];
-    public double StartSeconds { get; set; }
-    public double EndSeconds { get; set; }
+    public int Start { get; init; }
+    public int End { get; init; }
+    public StrokeStat Stat { get; init; }
+    public int[] DigitizedTravel { get; init; } = [];
+    public int[] DigitizedVelocity { get; init; } = [];
+    public double StartSeconds { get; init; }
+    public double EndSeconds { get; init; }
 
     #endregion Public properties
 
@@ -89,12 +89,12 @@ public class Stroke
 }
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class Strokes
+public sealed record Strokes
 {
     #region Public properties
 
-    public Stroke[] Compressions { get; set; }
-    public Stroke[] Rebounds { get; set; }
+    public Stroke[] Compressions { get; init; }
+    public Stroke[] Rebounds { get; init; }
 
     #endregion Public properties
 

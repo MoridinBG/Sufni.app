@@ -103,11 +103,11 @@ public class TelemetryStatisticsHighlightRangeTests
                     MaxVelocity = 1,
                 },
             });
-        telemetry.Metadata.Duration = 1.2;
-        telemetry.Front.Travel = [0, 5, 10, 25];
-        telemetry.Front.Velocity = [0, 0, 0, 0];
-        telemetry.Front.HasGaps = true;
-        telemetry.Front.Segments =
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 1.2 } };
+        telemetry = telemetry with { Front = telemetry.Front with { Travel = [0, 5, 10, 25] } };
+        telemetry = telemetry with { Front = telemetry.Front with { Velocity = [0, 0, 0, 0] } };
+        telemetry = telemetry with { Front = telemetry.Front with { HasGaps = true } };
+        telemetry = telemetry with { Front = telemetry.Front with { Segments =
         [
             new ProcessedSuspensionSegment
             {
@@ -121,7 +121,7 @@ public class TelemetryStatisticsHighlightRangeTests
                 StartSeconds = 1.0,
                 SampleCount = 2,
             },
-        ];
+        ] } };
         var selection = new StrokeLengthRangeSelection(
             SuspensionType.Front,
             BalanceType.Compression,

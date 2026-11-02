@@ -130,7 +130,7 @@ public class SessionPresentationServiceTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
-        telemetry.Front.Strokes = new Sufni.Telemetry.Strokes
+        telemetry = telemetry with { Front = telemetry.Front with { Strokes = new Sufni.Telemetry.Strokes
         {
             Compressions =
             [
@@ -149,9 +149,9 @@ public class SessionPresentationServiceTests
                 },
             ],
             Rebounds = [],
-        };
+        } } };
 
-        telemetry.Rear.Strokes = new Sufni.Telemetry.Strokes
+        telemetry = telemetry with { Rear = telemetry.Rear with { Strokes = new Sufni.Telemetry.Strokes
         {
             Compressions =
             [
@@ -170,7 +170,7 @@ public class SessionPresentationServiceTests
                 },
             ],
             Rebounds = [],
-        };
+        } } };
 
         return telemetry;
     }
@@ -179,17 +179,17 @@ public class SessionPresentationServiceTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
-        telemetry.Front.Strokes = new Sufni.Telemetry.Strokes
+        telemetry = telemetry with { Front = telemetry.Front with { Strokes = new Sufni.Telemetry.Strokes
         {
             Compressions = [],
             Rebounds = [],
-        };
+        } } };
 
-        telemetry.Rear.Strokes = new Sufni.Telemetry.Strokes
+        telemetry = telemetry with { Rear = telemetry.Rear with { Strokes = new Sufni.Telemetry.Strokes
         {
             Compressions = [],
             Rebounds = [],
-        };
+        } } };
 
         return telemetry;
     }

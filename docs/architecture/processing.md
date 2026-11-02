@@ -90,7 +90,19 @@ Spike thresholds belong to `SpikeElimination`; velocity-filter defaults and boun
 
 ### Serialized Structure
 
-`TelemetryData` uses MessagePack with `[MessagePackObject]` attributes:
+`TelemetryCodec` owns processed MessagePack encoding/decoding and legacy segment
+normalization. `TelemetryData.BinaryForm` and `FromBinary` delegate to it. Library
+records remain the persisted shapes with `[MessagePackObject]` attributes. Frozen
+schema fixtures pin the complete current graph and rewrites of the committed
+legacy fixtures byte for byte.
+
+Telemetry, suspension, metadata, stroke/statistics, airtime and processed segment
+properties are init-only. The parallel pipeline constructs completed side values
+before publishing the graph. Replacing a telemetry value creates its own lazy
+coarse-index cache. Collection payloads still use arrays; immutable collection
+publication is a separate boundary from these scalar value records.
+
+The persisted graph is:
 
 ```
 TelemetryData

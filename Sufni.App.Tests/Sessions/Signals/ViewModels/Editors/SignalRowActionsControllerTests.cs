@@ -30,7 +30,7 @@ public class SignalRowActionsControllerTests : IDisposable
     {
         Assert.All(Actions(0), action => Assert.False(action.IsVisible));
         var telemetry = TestTelemetryData.CreateMinimal();
-        telemetry.Airtimes = [new Airtime { Start = 1, End = 2 }];
+        telemetry = telemetry with { Airtimes = [new Airtime { Start = 1, End = 2 }] };
 
         driver.PublishTelemetry(telemetry);
 

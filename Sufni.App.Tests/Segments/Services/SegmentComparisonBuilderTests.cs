@@ -102,9 +102,9 @@ public class SegmentComparisonBuilderTests
     {
         var match = TestSegmentMatches.Match(0, 0.2);
         var denseTelemetry = TestSegmentMatches.Telemetry();
-        denseTelemetry.ImuData = CreateImu(segmented: false);
+        denseTelemetry = denseTelemetry with { ImuData = CreateImu(segmented: false) };
         var segmentedTelemetry = TestSegmentMatches.Telemetry();
-        segmentedTelemetry.ImuData = CreateImu(segmented: true);
+        segmentedTelemetry = segmentedTelemetry with { ImuData = CreateImu(segmented: true) };
 
         var dense = SegmentComparisonBuilder.Build(match, denseTelemetry, sourceDurationSeconds: 1);
         var segmented = SegmentComparisonBuilder.Build(match, segmentedTelemetry, sourceDurationSeconds: 1);
@@ -124,7 +124,7 @@ public class SegmentComparisonBuilderTests
     public void Build_WithGappedSegmentOnlyImu_UsesSegmentTimesWithoutFillingTheGap()
     {
         var telemetry = TestSegmentMatches.Telemetry();
-        telemetry.ImuData = new RawImuData
+        telemetry = telemetry with { ImuData = new RawImuData
         {
             SampleRate = 10,
             ActiveLocations = [(byte)ImuLocation.Frame],
@@ -153,7 +153,7 @@ public class SegmentComparisonBuilderTests
                     ],
                 },
             ],
-        };
+        } };
 
         var comparison = SegmentComparisonBuilder.Build(
             TestSegmentMatches.Match(-0.2, 1.3),

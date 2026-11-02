@@ -209,7 +209,7 @@ public partial class LiveDaqCoordinatorTests
         var original = new Session(Guid.NewGuid(), "original", "notes", capture.Context.SetupId);
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveCaptureAsync(SessionSnapshot.From(original), CreateCaptureService(capture), SessionPreferences.Default));
         var before = store.Get(saved.SessionId);
-        capture.TelemetryCapture.Metadata.SourceName = "renamed setup";
+        capture = capture with { TelemetryCapture = capture.TelemetryCapture with { Metadata = capture.TelemetryCapture.Metadata with { SourceName = "renamed setup" } } };
 
         var repeated = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveCaptureAsync(SessionSnapshot.From(new Session(Guid.NewGuid(), "replacement", "other notes", capture.Context.SetupId)), CreateCaptureService(capture), SessionPreferences.Default));
 

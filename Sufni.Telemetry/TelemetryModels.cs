@@ -5,35 +5,35 @@ using MessagePack;
 namespace Sufni.Telemetry;
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class Metadata
+public sealed record Metadata
 {
-    public string SourceName { get; set; }
-    public int Version { get; set; }
-    public int SampleRate { get; set; }
-    public long Timestamp { get; set; }
-    public double Duration { get; set; }
+    public string SourceName { get; init; }
+    public int Version { get; init; }
+    public int SampleRate { get; init; }
+    public long Timestamp { get; init; }
+    public double Duration { get; init; }
 }
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class Airtime
+public sealed record Airtime
 {
-    public double Start { get; set; }
-    public double End { get; set; }
+    public double Start { get; init; }
+    public double End { get; init; }
 }
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class Suspension
+public sealed record Suspension
 {
-    public bool Present { get; set; }
-    public double AnomalyRate { get; set; }
-    public double? MaxTravel { get; set; }
-    public double[] Travel { get; set; }
-    public double[] Velocity { get; set; }
-    public Strokes Strokes { get; set; }
-    public double[] TravelBins { get; set; }
-    public double[] VelocityBins { get; set; }
-    public ProcessedSuspensionSegment[] Segments { get; set; } = [];
-    public bool HasGaps { get; set; }
+    public bool Present { get; init; }
+    public double AnomalyRate { get; init; }
+    public double? MaxTravel { get; init; }
+    public double[] Travel { get; init; }
+    public double[] Velocity { get; init; }
+    public Strokes Strokes { get; init; }
+    public double[] TravelBins { get; init; }
+    public double[] VelocityBins { get; init; }
+    public ProcessedSuspensionSegment[] Segments { get; init; } = [];
+    public bool HasGaps { get; init; }
 }
 
 public record BikeData(

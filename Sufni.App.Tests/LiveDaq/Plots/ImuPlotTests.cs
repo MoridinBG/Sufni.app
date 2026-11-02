@@ -57,7 +57,7 @@ public class ImuPlotTests
         var plot = new Plot();
         var sut = new ImuPlot(plot);
         var telemetry = CreateMinimal();
-        telemetry.ImuData = new RawImuData
+        telemetry = telemetry with { ImuData = new RawImuData
         {
             SampleRate = 10,
             ActiveLocations = [(byte)ImuLocation.Frame],
@@ -86,7 +86,7 @@ public class ImuPlotTests
                     ],
                 },
             ],
-        };
+        } };
 
         sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 

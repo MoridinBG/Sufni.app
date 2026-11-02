@@ -42,9 +42,9 @@ public class TrackSignalPlotViewTests
     {
         var view = CreateTrackSignalView();
         var oldTelemetry = CreateMinimal();
-        oldTelemetry.Markers = [new MarkerData(0.5)];
+        oldTelemetry = oldTelemetry with { Markers = [new MarkerData(0.5)] };
         var freshTelemetry = CreateMinimal();
-        freshTelemetry.Markers = [new MarkerData(0.25), new MarkerData(0.75)];
+        freshTelemetry = freshTelemetry with { Markers = [new MarkerData(0.25), new MarkerData(0.75)] };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 

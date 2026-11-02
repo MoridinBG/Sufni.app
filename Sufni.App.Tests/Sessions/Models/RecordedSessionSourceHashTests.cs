@@ -49,7 +49,7 @@ public class RecordedSessionSourceHashTests
             new BikeData(100, null, value => value, null),
             [new RawCountSegment { Counts = [10, 20, 30] }], [], null, null, [], [], null, false);
         var original = RecordedSessionSourceFactory.CreateLiveCapture(capture);
-        capture.Metadata.SourceName = "renamed setup";
+        capture = capture with { Metadata = capture.Metadata with { SourceName = "renamed setup" } };
         var renamed = RecordedSessionSourceFactory.CreateLiveCapture(capture);
         var changed = RecordedSessionSourceFactory.CreateLiveCapture(capture with
         {

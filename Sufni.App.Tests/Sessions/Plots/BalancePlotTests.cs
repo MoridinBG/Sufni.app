@@ -125,7 +125,7 @@ public class BalancePlotTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
-        telemetry.Front.Strokes = new Strokes
+        telemetry = telemetry with { Front = telemetry.Front with { Strokes = new Strokes
         {
             Compressions =
             [
@@ -144,9 +144,9 @@ public class BalancePlotTests
                 },
             ],
             Rebounds = [],
-        };
+        } } };
 
-        telemetry.Rear.Strokes = new Strokes
+        telemetry = telemetry with { Rear = telemetry.Rear with { Strokes = new Strokes
         {
             Compressions =
             [
@@ -165,7 +165,7 @@ public class BalancePlotTests
                 },
             ],
             Rebounds = [],
-        };
+        } } };
 
         return telemetry;
     }
@@ -174,9 +174,9 @@ public class BalancePlotTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
-        telemetry.Front.Travel = [0, 10, 0, 20];
-        telemetry.Front.Velocity = [0, 100, 0, 200];
-        telemetry.Front.Strokes = new Strokes
+        telemetry = telemetry with { Front = telemetry.Front with { Travel = [0, 10, 0, 20] } };
+        telemetry = telemetry with { Front = telemetry.Front with { Velocity = [0, 100, 0, 200] } };
+        telemetry = telemetry with { Front = telemetry.Front with { Strokes = new Strokes
         {
             Compressions =
             [
@@ -184,11 +184,11 @@ public class BalancePlotTests
                 CreateStroke(2, 3, maxTravel: 20, maxVelocity: 200),
             ],
             Rebounds = [],
-        };
+        } } };
 
-        telemetry.Rear.Travel = [0, 10, 0, 20];
-        telemetry.Rear.Velocity = [0, 100, 0, 150];
-        telemetry.Rear.Strokes = new Strokes
+        telemetry = telemetry with { Rear = telemetry.Rear with { Travel = [0, 10, 0, 20] } };
+        telemetry = telemetry with { Rear = telemetry.Rear with { Velocity = [0, 100, 0, 150] } };
+        telemetry = telemetry with { Rear = telemetry.Rear with { Strokes = new Strokes
         {
             Compressions =
             [
@@ -196,7 +196,7 @@ public class BalancePlotTests
                 CreateStroke(2, 3, maxTravel: 20, maxVelocity: 150),
             ],
             Rebounds = [],
-        };
+        } } };
 
         return telemetry;
     }

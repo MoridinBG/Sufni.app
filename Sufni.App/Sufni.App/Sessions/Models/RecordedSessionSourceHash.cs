@@ -29,7 +29,7 @@ public static class RecordedSessionSourceHash
         var capture = JsonSerializer.Deserialize(payload.Span, AppJson.Context.RecordedLiveCaptureSourcePayload)
             ?? throw new JsonException("Live capture source is missing.");
         // The live metadata name comes from the setup selected at capture time.
-        capture.Metadata.SourceName = string.Empty;
+        capture = capture with { Metadata = capture.Metadata with { SourceName = string.Empty } };
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(AppJson.Serialize(capture))));
     }
 

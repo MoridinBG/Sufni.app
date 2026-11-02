@@ -107,8 +107,8 @@ public class TravelPlotViewTests
             ShowAirtime = true,
         };
         var telemetry = CreateMinimal();
-        telemetry.Front.Present = false;
-        telemetry.Rear.Present = false;
+        telemetry = telemetry with { Front = telemetry.Front with { Present = false } };
+        telemetry = telemetry with { Rear = telemetry.Rear with { Present = false } };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -189,11 +189,10 @@ public class TravelPlotViewTests
             ShowAirtime = true,
         };
         var telemetry = CreateMinimal(duration: 10);
-        telemetry.Airtimes =
-        [
+        telemetry = telemetry with { Airtimes = [
             new Airtime { Start = 1.90, End = 2.10 },
             new Airtime { Start = 1.75, End = 2.25 },
-        ];
+        ] };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -212,11 +211,10 @@ public class TravelPlotViewTests
             ShowAirtime = true,
         };
         var telemetry = CreateMinimal(duration: 10);
-        telemetry.Airtimes =
-        [
+        telemetry = telemetry with { Airtimes = [
             new Airtime { Start = 1.8, End = 2.2 },
             new Airtime { Start = 7.8, End = 8.2 },
-        ];
+        ] };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -247,7 +245,7 @@ public class TravelPlotViewTests
             ShowAirtime = false,
         };
         var telemetry = CreateMinimal(duration: 10);
-        telemetry.Airtimes = [new Airtime { Start = 1.8, End = 2.2 }];
+        telemetry = telemetry with { Airtimes = [new Airtime { Start = 1.8, End = 2.2 }] };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -264,7 +262,7 @@ public class TravelPlotViewTests
     {
         var view = new VelocityPlotView();
         var telemetry = CreateMinimal(duration: 10);
-        telemetry.Airtimes = [new Airtime { Start = 1.8, End = 2.2 }];
+        telemetry = telemetry with { Airtimes = [new Airtime { Start = 1.8, End = 2.2 }] };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
@@ -287,9 +285,9 @@ public class TravelPlotViewTests
         var view = new TravelPlotView();
         var container = new Border { Child = view };
         var oldTelemetry = CreateMinimal();
-        oldTelemetry.Markers = [new MarkerData(0.5)];
+        oldTelemetry = oldTelemetry with { Markers = [new MarkerData(0.5)] };
         var freshTelemetry = CreateMinimal();
-        freshTelemetry.Markers = [new MarkerData(0.25), new MarkerData(1.5)];
+        freshTelemetry = freshTelemetry with { Markers = [new MarkerData(0.25), new MarkerData(1.5)] };
 
         await using var mounted = await PlotViewTestSupport.MountAsync(container);
 

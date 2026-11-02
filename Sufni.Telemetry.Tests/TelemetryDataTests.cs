@@ -1045,9 +1045,9 @@ public class TelemetryDataTests
     public void CalculateTravelStatistics_WithGappedDynamicSagRange_UsesSegmentTimes()
     {
         var telemetry = CreateTelemetry([1.0, 2.0, 10.0, 20.0], maxTravel: 100, sampleRate: 10);
-        telemetry.Metadata.Duration = 1.2;
-        telemetry.Front.HasGaps = true;
-        telemetry.Front.Segments =
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 1.2 } };
+        telemetry = telemetry with { Front = telemetry.Front with { HasGaps = true } };
+        telemetry = telemetry with { Front = telemetry.Front with { Segments =
         [
             new ProcessedSuspensionSegment
             {
@@ -1061,7 +1061,7 @@ public class TelemetryDataTests
                 StartSeconds = 1.0,
                 SampleCount = 2,
             },
-        ];
+        ] } };
         var options = new TravelStatisticsOptions(
             Range: new TelemetryTimeRange(0.9, 1.2),
             HistogramMode: TravelDistributionMode.DynamicSag);
@@ -1504,8 +1504,8 @@ public class TelemetryDataTests
     public void CalculateVibration_WithSegmentedImu_SkipsSamplesInTravelGaps()
     {
         var compression = CreateStroke(0, 1);
-        compression.StartSeconds = 0.0;
-        compression.EndSeconds = 0.1;
+        compression = compression with { StartSeconds = 0.0 };
+        compression = compression with { EndSeconds = 0.1 };
         var telemetry = new TelemetryData
         {
             Metadata = new Metadata { SampleRate = 10, Duration = 1.2 },
@@ -1580,11 +1580,11 @@ public class TelemetryDataTests
     public void CalculateVibration_WithSegmentedData_PreservesInclusiveStrokeEndsAndCompressionPrecedence()
     {
         var compression = CreateStroke(0, 2);
-        compression.StartSeconds = 0.0;
-        compression.EndSeconds = 0.2;
+        compression = compression with { StartSeconds = 0.0 };
+        compression = compression with { EndSeconds = 0.2 };
         var rebound = CreateStroke(1, 3);
-        rebound.StartSeconds = 0.1;
-        rebound.EndSeconds = 0.3;
+        rebound = rebound with { StartSeconds = 0.1 };
+        rebound = rebound with { EndSeconds = 0.3 };
         var imuData = CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 4, vibrationG: 1);
         imuData.Segments =
         [
@@ -1603,7 +1603,7 @@ public class TelemetryDataTests
             compressions: [compression],
             rebounds: [rebound],
             imuData: imuData);
-        telemetry.Front.Segments =
+        telemetry = telemetry with { Front = telemetry.Front with { Segments =
         [
             new ProcessedSuspensionSegment
             {
@@ -1611,8 +1611,8 @@ public class TelemetryDataTests
                 StartSeconds = 0,
                 SampleCount = 4,
             },
-        ];
-        telemetry.Front.HasGaps = true;
+        ] } };
+        telemetry = telemetry with { Front = telemetry.Front with { HasGaps = true } };
 
         var stats = TelemetryStatistics.CalculateVibration(
             telemetry,
@@ -1631,8 +1631,8 @@ public class TelemetryDataTests
         static Stroke TimedStroke(int start, int end, double startSeconds, double endSeconds)
         {
             var stroke = CreateStroke(start, end);
-            stroke.StartSeconds = startSeconds;
-            stroke.EndSeconds = endSeconds;
+            stroke = stroke with { StartSeconds = startSeconds };
+            stroke = stroke with { EndSeconds = endSeconds };
             return stroke;
         }
 
@@ -2028,7 +2028,7 @@ public class TelemetryDataTests
                 telemetry.ImuData!.Meta.Clear();
                 break;
             case VibrationNullCase.ZeroTelemetrySampleRate:
-                telemetry.Metadata.SampleRate = 0;
+                telemetry = telemetry with { Metadata = telemetry.Metadata with { SampleRate = 0 } };
                 break;
             case VibrationNullCase.ZeroImuSampleRate:
                 telemetry.ImuData!.SampleRate = 0;

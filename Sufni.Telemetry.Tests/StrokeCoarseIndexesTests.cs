@@ -101,8 +101,6 @@ public class StrokeCoarseIndexesTests
                         telemetry,
                         SuspensionType.Front),
                     TestContext.Current.CancellationToken)));
-        telemetry.Front.Travel = [19, 19, 19, 19];
-        telemetry.Front.Velocity = [500, 500, 500, 500];
         var repeated = TelemetryStatistics.CalculateTravelHistogram(
             telemetry,
             SuspensionType.Front);
@@ -156,6 +154,19 @@ public class StrokeCoarseIndexesTests
             legacyVelocity.Values.SelectMany(values => values),
             derivedVelocity.Values.SelectMany(values => values));
         Assert.Equal(legacyHighlights, derivedHighlights);
+    }
+
+    [Fact]
+    public void ReplacedTelemetry_OwnsFreshLazyIndexesWithoutChangingTheOriginal()
+    {
+        var original = CreateTelemetryData();
+        var before = TelemetryStatistics.CalculateTravelHistogram(original, SuspensionType.Front);
+        var replacement = original with { Front = original.Front with { Travel = [19, 19, 19, 19] } };
+
+        var changed = TelemetryStatistics.CalculateTravelHistogram(replacement, SuspensionType.Front);
+
+        Assert.False(before.Values.SequenceEqual(changed.Values));
+        Assert.Equal(before.Values, TelemetryStatistics.CalculateTravelHistogram(original, SuspensionType.Front).Values);
     }
 
     private static TelemetryData CreateTelemetryData(

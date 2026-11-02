@@ -87,7 +87,7 @@ internal sealed class SessionDetailViewTestContext
         var telemetry = TestTelemetryData.CreateProcessed(rearPresent: includeBalance);
         if (includeImu)
         {
-            telemetry.ImuData = TestTelemetryData.CreateWithImu().ImuData;
+            telemetry = telemetry with { ImuData = TestTelemetryData.CreateWithImu().ImuData };
         }
 
         return new SessionDetailLoadResult.Loaded(new SessionDetailData(

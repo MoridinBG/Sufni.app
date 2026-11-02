@@ -91,8 +91,8 @@ public class TrackSignalPlotTests
         var plot = new Plot();
         var sut = new TrackSignalPlot(plot);
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Duration = 1;
-        telemetry.Markers = [new MarkerData(0.5), new MarkerData(0.75)];
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 1 } };
+        telemetry = telemetry with { Markers = [new MarkerData(0.5), new MarkerData(0.75)] };
 
         sut.LoadTrackData(
             [

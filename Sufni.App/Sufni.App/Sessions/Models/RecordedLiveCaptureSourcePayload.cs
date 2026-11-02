@@ -7,7 +7,7 @@ namespace Sufni.App.Sessions.Models;
 /// JSON payload shape for a saved live-capture source.
 /// It preserves raw capture data so processed telemetry can be rebuilt later.
 /// </summary>
-public sealed class RecordedLiveCaptureSourcePayload
+public sealed record RecordedLiveCaptureSourcePayload
 {
     [JsonPropertyName("schema_version")]
     public int SchemaVersion { get; init; }

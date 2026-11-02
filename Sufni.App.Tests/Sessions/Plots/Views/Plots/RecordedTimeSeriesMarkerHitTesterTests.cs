@@ -10,8 +10,8 @@ public class RecordedTimeSeriesMarkerHitTesterTests
     public void TryGetHitMarkerSeconds_ReturnsMarkerInsideThreshold()
     {
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Duration = 2;
-        telemetry.Markers = [new MarkerData(0.5), new MarkerData(1.5)];
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 2 } };
+        telemetry = telemetry with { Markers = [new MarkerData(0.5), new MarkerData(1.5)] };
 
         var hit = RecordedTimeSeriesMarkerHitTester.TryGetHitMarkerSeconds(
             telemetry,
@@ -27,8 +27,8 @@ public class RecordedTimeSeriesMarkerHitTesterTests
     public void TryGetHitMarkerSeconds_ClampsMarkersToTelemetryDuration()
     {
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Duration = 2;
-        telemetry.Markers = [new MarkerData(3)];
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 2 } };
+        telemetry = telemetry with { Markers = [new MarkerData(3)] };
 
         var hit = RecordedTimeSeriesMarkerHitTester.TryGetHitMarkerSeconds(
             telemetry,
@@ -44,8 +44,8 @@ public class RecordedTimeSeriesMarkerHitTesterTests
     public void TryGetHitMarkerSeconds_IgnoresInvalidAndOutOfRangeMarkers()
     {
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Duration = 2;
-        telemetry.Markers = [new MarkerData(double.NaN), new MarkerData(1.5)];
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 2 } };
+        telemetry = telemetry with { Markers = [new MarkerData(double.NaN), new MarkerData(1.5)] };
 
         var hit = RecordedTimeSeriesMarkerHitTester.TryGetHitMarkerSeconds(
             telemetry,

@@ -16,7 +16,7 @@ public class TravelVelocityLegendTests
     public void TravelPlot_LoadTelemetryData_ShowsLegend_WhenOnlyFrontSourceIsPresent()
     {
         var telemetry = CreateMinimal();
-        telemetry.Rear.Present = false;
+        telemetry = telemetry with { Rear = telemetry.Rear with { Present = false } };
         var plot = new Plot();
         var sut = new TravelPlot(plot);
 
@@ -32,7 +32,7 @@ public class TravelVelocityLegendTests
     public void VelocityPlot_LoadTelemetryData_ShowsLegend_WhenOnlyRearSourceIsPresent()
     {
         var telemetry = CreateMinimal();
-        telemetry.Front.Present = false;
+        telemetry = telemetry with { Front = telemetry.Front with { Present = false } };
         var plot = new Plot();
         var sut = new VelocityPlot(plot);
 
@@ -76,18 +76,16 @@ public class TravelVelocityLegendTests
     public void TravelPlot_TryToggleInteractiveLegendAt_TogglesAllSegmentPlottablesForSource()
     {
         var telemetry = CreateMinimal();
-        telemetry.Front.HasGaps = true;
-        telemetry.Front.Segments =
-        [
+        telemetry = telemetry with { Front = telemetry.Front with { HasGaps = true } };
+        telemetry = telemetry with { Front = telemetry.Front with { Segments = [
             new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, SampleCount = 2 },
             new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, SampleCount = 2 },
-        ];
-        telemetry.Rear.HasGaps = true;
-        telemetry.Rear.Segments =
-        [
+        ] } };
+        telemetry = telemetry with { Rear = telemetry.Rear with { HasGaps = true } };
+        telemetry = telemetry with { Rear = telemetry.Rear with { Segments = [
             new ProcessedSuspensionSegment { FirstDenseIndex = 0, StartSeconds = 0.0, SampleCount = 2 },
             new ProcessedSuspensionSegment { FirstDenseIndex = 2, StartSeconds = 1.0, SampleCount = 2 },
-        ];
+        ] } };
         var visibility = new TelemetrySourceVisibilityStore();
         var plot = new Plot();
         var sut = new TravelPlot(plot)

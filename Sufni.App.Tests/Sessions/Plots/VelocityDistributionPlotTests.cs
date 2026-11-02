@@ -15,7 +15,7 @@ public class VelocityDistributionPlotTests
     public void LoadAnalysisData_WithoutCompressionStrokes_SkipsCompressionPercentileLabel()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
-        telemetry.Front.Strokes.Compressions = [];
+        telemetry = telemetry with { Front = telemetry.Front with { Strokes = telemetry.Front.Strokes with { Compressions = [] } } };
         var plot = new Plot();
         var sut = new VelocityDistributionPlot(plot, SuspensionType.Front);
 

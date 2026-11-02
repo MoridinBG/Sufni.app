@@ -254,8 +254,8 @@ public class TrackCoordinatorTests
         using var tracks = new TrackStore(new StorePublication(new InlineUiThreadDispatcher()));
         var sessionId = Guid.NewGuid();
         var telemetry = TestTelemetryData.CreateProcessed();
-        telemetry.Metadata.Timestamp = new DateTimeOffset(2025, 6, 1, 12, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
-        telemetry.Metadata.Duration = 2;
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Timestamp = new DateTimeOffset(2025, 6, 1, 12, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds() } };
+        telemetry = telemetry with { Metadata = telemetry.Metadata with { Duration = 2 } };
         var timestamp = telemetry.Metadata.Timestamp;
         var first = new Track([new TrackPoint(timestamp, 0, 0, 0), new TrackPoint(timestamp + 0.5, 1, 1, 1)]);
         trackEntityRepository.Seed(first);

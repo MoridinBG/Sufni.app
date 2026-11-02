@@ -44,8 +44,8 @@ public class TravelDistributionPlotTests
     {
         var original = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var recomputed = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
-        recomputed.Front.MaxTravel = 240;
-        recomputed.Front.TravelBins = HistogramBuilder.Linspace(0, 240, Parameters.TravelHistBins + 1);
+        recomputed = recomputed with { Front = recomputed.Front with { MaxTravel = 240 } };
+        recomputed = recomputed with { Front = recomputed.Front with { TravelBins = HistogramBuilder.Linspace(0, 240, Parameters.TravelHistBins + 1) } };
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 
@@ -67,17 +67,17 @@ public class TravelDistributionPlotTests
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
 
-        telemetry.Front.Strokes = new Strokes
+        telemetry = telemetry with { Front = telemetry.Front with { Strokes = new Strokes
         {
             Compressions = [],
             Rebounds = [],
-        };
+        } } };
 
-        telemetry.Rear.Strokes = new Strokes
+        telemetry = telemetry with { Rear = telemetry.Rear with { Strokes = new Strokes
         {
             Compressions = [],
             Rebounds = [],
-        };
+        } } };
 
         return telemetry;
     }

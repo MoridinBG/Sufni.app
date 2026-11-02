@@ -52,10 +52,10 @@ public class SstStreamFinalStatus
 }
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class ProcessedSuspensionSegment
+public sealed record ProcessedSuspensionSegment
 {
-    public int FirstDenseIndex { get; set; }
-    public ulong FirstSourceIndex { get; set; }
-    public double StartSeconds { get; set; }
-    public int SampleCount { get; set; }
+    public int FirstDenseIndex { get; init; }
+    public ulong FirstSourceIndex { get; init; }
+    public double StartSeconds { get; init; }
+    public int SampleCount { get; init; }
 }

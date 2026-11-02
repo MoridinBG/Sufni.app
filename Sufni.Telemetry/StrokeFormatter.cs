@@ -47,7 +47,11 @@ public sealed class StrokeFormatter : IMessagePackFormatter<Stroke?>
         options.Security.DepthStep(ref reader);
         try
         {
-            var stroke = new Stroke();
+            var start = 0;
+            var end = 0;
+            StrokeStat stat = null!;
+            int[] digitizedTravel = [], digitizedVelocity = [];
+            double startSeconds = 0, endSeconds = 0;
             var fieldCount = reader.ReadMapHeader();
             for (var fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++)
             {
@@ -55,28 +59,28 @@ public sealed class StrokeFormatter : IMessagePackFormatter<Stroke?>
                 switch (fieldName)
                 {
                     case nameof(Stroke.Start):
-                        stroke.Start = reader.ReadInt32();
+                        start = reader.ReadInt32();
                         break;
                     case nameof(Stroke.End):
-                        stroke.End = reader.ReadInt32();
+                        end = reader.ReadInt32();
                         break;
                     case nameof(Stroke.Stat):
-                        stroke.Stat = options.Resolver.GetFormatterWithVerify<StrokeStat>()
+                        stat = options.Resolver.GetFormatterWithVerify<StrokeStat>()
                             .Deserialize(ref reader, options)!;
                         break;
                     case nameof(Stroke.DigitizedTravel):
-                        stroke.DigitizedTravel = options.Resolver.GetFormatterWithVerify<int[]>()
+                        digitizedTravel = options.Resolver.GetFormatterWithVerify<int[]>()
                             .Deserialize(ref reader, options)!;
                         break;
                     case nameof(Stroke.DigitizedVelocity):
-                        stroke.DigitizedVelocity = options.Resolver.GetFormatterWithVerify<int[]>()
+                        digitizedVelocity = options.Resolver.GetFormatterWithVerify<int[]>()
                             .Deserialize(ref reader, options)!;
                         break;
                     case nameof(Stroke.StartSeconds):
-                        stroke.StartSeconds = reader.ReadDouble();
+                        startSeconds = reader.ReadDouble();
                         break;
                     case nameof(Stroke.EndSeconds):
-                        stroke.EndSeconds = reader.ReadDouble();
+                        endSeconds = reader.ReadDouble();
                         break;
                     default:
                         reader.Skip();
@@ -84,7 +88,12 @@ public sealed class StrokeFormatter : IMessagePackFormatter<Stroke?>
                 }
             }
 
-            return stroke;
+            return new Stroke
+            {
+                Start = start, End = end, Stat = stat,
+                DigitizedTravel = digitizedTravel, DigitizedVelocity = digitizedVelocity,
+                StartSeconds = startSeconds, EndSeconds = endSeconds,
+            };
         }
         finally
         {

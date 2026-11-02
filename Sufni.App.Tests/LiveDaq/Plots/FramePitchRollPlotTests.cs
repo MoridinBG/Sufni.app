@@ -36,7 +36,7 @@ public class FramePitchRollPlotTests
         var plot = new Plot();
         var sut = new FramePitchRollPlot(plot);
         var telemetry = CreateMinimal();
-        telemetry.ImuData = new RawImuData
+        telemetry = telemetry with { ImuData = new RawImuData
         {
             SampleRate = 10,
             ActiveLocations = [(byte)ImuLocation.Frame],
@@ -57,7 +57,7 @@ public class FramePitchRollPlotTests
                     Records = [Rest(), new ImuRecord(2, 0, 10, 0, 30, 0)],
                 },
             ],
-        };
+        } };
 
         sut.LoadProjection(telemetry, ImuDisplaySignalProcessor.ProcessRecorded(telemetry));
 
