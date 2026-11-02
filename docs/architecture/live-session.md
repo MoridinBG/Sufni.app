@@ -115,6 +115,12 @@ configuration-lock lease exists, keeping the capture transport running.
 
 ### Lifecycle and Attachment
 
+The service owns one capture phase: `Active` accepts frames, `AwaitingReset`
+retains a prior firmware session for save, `Closed` rejects new frames permanently,
+and `Disposed` rejects service operations. Reset can return `AwaitingReset` to
+`Active` only when the shared stream still has an open session header; reset never
+reopens `Closed`. Attachment is derived from the owned observer lease.
+
 `EnsureAttachedAsync` is idempotent and acquires resources in this order under the gate: observer lease, configuration-lock lease, `signalPipeline.Start()`, the display loop task, frame subscription, state subscription. Either lease acquisition can return `Closed(reason)`; any observer acquired before that closure is released and no connection is attempted. Acquiring resources is followed by a non-locked `sharedStream.EnsureStartedAsync(...)` so connect work runs outside the gate. The service returns that typed start outcome, including `Busy(holder)`, and the editor displays busy feedback. These outcomes preserve captured data. An unexpected exception tears down resources acquired during this attach. `DisposeAsync` mirrors this: it stops subscriptions, completes the display channel, awaits the statistics and display loops, releases both leases, and disposes the signal pipeline.
 
 `ResetCaptureAsync` clears the travel and IMU segment builders, temperature and GPS buffers, markers, gaps, final status, latest session statistics, analysis state, and track points, and bumps two monotonic counters: `captureRevision` (observed by the analysis loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published. After a recoverable DAQ session rollover, reset also adopts the shared stream's current session header, rebuilds the IMU builders, and reopens streaming only if that stream is still open and still has a header; otherwise the capture remains closed.
@@ -125,7 +131,7 @@ configuration-lock lease exists, keeping the capture transport running.
 
 The travel handler is also where `CanSave` flips from `false` to `true` (>= 5 samples on either travel channel) and where the first saveable-capture snapshot is published so the tab's save command becomes enabled.
 
-A change in `LiveDaqSharedStreamState.SessionHeader` to a different `SessionId` while the capture stores already hold any data flips `isTerminalClosed = true` with a "DAQ started a new live session." error. The old header and captured data remain available for save until the user resets, and no more frames are accepted while terminal. After a recoverable reset, identity-bearing travel, IMU, temperature, GPS, battery, marker, statistics, and session-result frames are accepted only for the newly adopted session ID, so late frames from the previous firmware session cannot enter the next capture.
+A change in `LiveDaqSharedStreamState.SessionHeader` to a different `SessionId` while the capture stores already hold any data moves the capture to `AwaitingReset` with a "DAQ started a new live session." error. The old header and captured data remain available for save until the user resets, and no more frames are accepted while terminal. After a recoverable reset, identity-bearing travel, IMU, temperature, GPS, battery, marker, statistics, and session-result frames are accepted only for the newly adopted session ID, so late frames from the previous firmware session cannot enter the next capture.
 
 ### Statistics Loop
 

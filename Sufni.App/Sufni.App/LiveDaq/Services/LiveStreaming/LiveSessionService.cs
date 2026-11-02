@@ -128,10 +128,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private Task? analysisLoopTask;
 
     private bool hasPublishedSaveableCapture;
-    private bool isTerminalClosed;
-    private bool isRecoverableRolloverTerminal;
-    private bool isAttached;
-    private bool isDisposed;
+    private enum CapturePhase { Active, AwaitingReset, Closed, Disposed }
+    private CapturePhase phase = CapturePhase.Active;
     private DateTimeOffset nextAnalysisRunAt = DateTimeOffset.MinValue;
     private DateTimeOffset lastClientPressureUtc = DateTimeOffset.MinValue;
 
@@ -179,7 +177,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             lock (gate)
             {
                 ThrowIfDisposed();
-                if (!isAttached)
+                if (observerLease is null)
                 {
                     var observerResult = sharedStream.AcquireLease();
                     if (observerResult is LiveStreamLeaseResult.Closed observerClosed) attachClosed = observerClosed.State;
@@ -199,12 +197,11 @@ internal sealed class LiveSessionService : ILiveSessionService
                             configurationLockLease = attachedConfigurationLockLease;
                             framesSubscription = attachedFramesSubscription;
                             statesSubscription = attachedStatesSubscription;
-                            isAttached = true;
                         }
                     }
                 }
 
-                shouldStart = !isTerminalClosed;
+                shouldStart = phase == CapturePhase.Active;
             }
 
             HandleSharedStreamState(sharedStream.CurrentState);
@@ -249,8 +246,6 @@ internal sealed class LiveSessionService : ILiveSessionService
                     {
                         observerLease = null;
                     }
-
-                    isAttached = false;
                 }
 
                 attachedFramesSubscription?.Dispose();
@@ -304,7 +299,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             lastClientPressureUtc = DateTimeOffset.MinValue;
             hasPublishedSaveableCapture = false;
 
-            if (isRecoverableRolloverTerminal)
+            if (phase == CapturePhase.AwaitingReset)
             {
                 var state = sharedStream.CurrentState;
                 connectionState = state.ConnectionState;
@@ -314,13 +309,12 @@ internal sealed class LiveSessionService : ILiveSessionService
                     sessionHeader = currentHeader;
                     imuBuilders.Clear();
                     EnsureImuBuildersLocked();
-                    isTerminalClosed = false;
-                    isRecoverableRolloverTerminal = false;
+                    phase = CapturePhase.Active;
                     lastError = state.LastError;
                 }
                 else if (state.IsClosed)
                 {
-                    isRecoverableRolloverTerminal = false;
+                    phase = CapturePhase.Closed;
                     lastError = state.LastError;
                 }
             }
@@ -367,12 +361,12 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         lock (gate)
         {
-            if (isDisposed)
+            if (phase == CapturePhase.Disposed)
             {
                 return;
             }
 
-            isDisposed = true;
+            phase = CapturePhase.Disposed;
             frames = framesSubscription;
             states = statesSubscription;
             configurationLock = configurationLockLease;
@@ -437,7 +431,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         LiveSessionPresentationSnapshot snapshot;
         lock (gate)
         {
-            if (isDisposed)
+            if (phase == CapturePhase.Disposed)
             {
                 return;
             }
@@ -455,8 +449,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 if (sessionHeader is not null && nextHeader.SessionId != sessionHeader.SessionId && HasAnyCaptureLocked())
                 {
-                    isTerminalClosed = true;
-                    isRecoverableRolloverTerminal = !state.IsClosed;
+                    phase = state.IsClosed ? CapturePhase.Closed : CapturePhase.AwaitingReset;
                     lastError ??= SessionRolloverError;
                 }
                 else
@@ -474,8 +467,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             if (state.IsClosed)
             {
-                isTerminalClosed = true;
-                isRecoverableRolloverTerminal = false;
+                phase = CapturePhase.Closed;
             }
 
             snapshot = BuildSnapshotLocked();
@@ -492,7 +484,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         lock (gate)
         {
-            if (isDisposed || isTerminalClosed || !IsCurrentSessionFrameLocked(frame))
+            if (phase != CapturePhase.Active || !IsCurrentSessionFrameLocked(frame))
             {
                 return;
             }
@@ -991,7 +983,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 long currentEpoch;
                 lock (gate)
                 {
-                    if (isDisposed)
+                    if (phase == CapturePhase.Disposed)
                     {
                         return;
                     }
@@ -1043,7 +1035,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         lock (gate)
         {
-            if (!CanBuildAnalysisLocked() || isDisposed)
+            if (!CanBuildAnalysisLocked() || phase == CapturePhase.Disposed)
             {
                 return;
             }
@@ -1072,7 +1064,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             lock (gate)
             {
-                if (isDisposed || !CanBuildAnalysisLocked() || queuedAnalysisRevision <= latestAnalysisRevision)
+                if (phase == CapturePhase.Disposed || !CanBuildAnalysisLocked() || queuedAnalysisRevision <= latestAnalysisRevision)
                 {
                     return;
                 }
@@ -1095,7 +1087,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
             lock (gate)
             {
-                if (isDisposed || !CanBuildAnalysisLocked() || queuedAnalysisRevision <= latestAnalysisRevision)
+                if (phase == CapturePhase.Disposed || !CanBuildAnalysisLocked() || queuedAnalysisRevision <= latestAnalysisRevision)
                 {
                     return;
                 }
@@ -1118,7 +1110,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 bool shouldContinue;
                 lock (gate)
                 {
-                    if (isDisposed)
+                    if (phase == CapturePhase.Disposed)
                     {
                         return;
                     }
@@ -1218,7 +1210,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             FinalStatus: finalStatus,
             MissingFinalStatus: sessionHeader?.ProtocolVersion == LiveProtocolVersion.V3 &&
                 finalStatus is null &&
-                isTerminalClosed);
+                phase is CapturePhase.AwaitingReset or CapturePhase.Closed);
     }
 
     private LiveTelemetryCapture BuildCapture(LiveCaptureSnapshot snapshot)
@@ -1424,7 +1416,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private void ThrowIfDisposed()
     {
-        if (isDisposed)
+        if (phase == CapturePhase.Disposed)
         {
             throw new ObjectDisposedException(nameof(LiveSessionService));
         }

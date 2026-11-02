@@ -547,6 +547,23 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task ResetCaptureAsync_AfterConnectionClosure_DoesNotResumeCaptureOrRestartTransport()
+    {
+        await using var service = CreateService();
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        frames.OnNext(CreateTravelBatchFrame());
+        PublishSharedState(sessionHeader, isClosed: true);
+
+        await service.ResetCaptureAsync(TestContext.Current.CancellationToken);
+        frames.OnNext(CreateTravelBatchFrame());
+        var result = await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsType<LivePreviewStartResult.Closed>(result);
+        Assert.False(service.Current.Controls.CanSave);
+        await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task ResetCaptureAsync_AfterSessionRollover_RejectsOldSessionFramesAndSavesNewSessionFrames()
     {
         await using var service = CreateService();
