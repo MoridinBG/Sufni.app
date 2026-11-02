@@ -92,7 +92,7 @@ public class LiveV2ProtocolReaderTests
         var frame = Assert.IsType<LiveSessionHeaderFrame>(LiveV2ProtocolReader.ParseFrame(frameBytes));
 
         Assert.Equal(sessionHeader.SessionId, frame.Payload.SessionId);
-        Assert.Equal(LiveProtocolVersion.V2, frame.Payload.ProtocolVersion);
+        Assert.False(frame.Payload.ExpectsFinalStatus);
         Assert.Equal(sessionHeader.AcceptedTravelRateMhz, frame.Payload.AcceptedTravelRateMhz);
         Assert.Equal(sessionHeader.AcceptedImuRateMhz, frame.Payload.AcceptedImuRateMhz);
         Assert.Equal(sessionHeader.AcceptedGpsRateMhz, frame.Payload.AcceptedGpsRateMhz);

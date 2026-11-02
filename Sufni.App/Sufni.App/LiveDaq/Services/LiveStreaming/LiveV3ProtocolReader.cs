@@ -684,10 +684,8 @@ public sealed class LiveV3ProtocolReader
                 SessionStartMonotonicUs: sessionStartMonotonicUs,
                 ActiveImuMask: CreateActiveImuMask(descriptor),
                 ImuCalibrationScales: CreateImuCalibrationScales(descriptor),
-                Flags: LiveSessionFlags.None,
                 RequestedSensorMask: LiveSensorInstanceMask.None,
-                AcceptedSensorMask: acceptedSensorMask,
-                ProtocolVersion: LiveProtocolVersion.V3)
+                AcceptedSensorMask: acceptedSensorMask)
             {
                 BoardId = boardId,
                 AcceptedStreamMask = acceptedStreamMask,
@@ -695,7 +693,7 @@ public sealed class LiveV3ProtocolReader
                     descriptor,
                     SstV5ProtocolConstants.StreamTemperature),
                 AdmissionOmissions = admissionOmissions,
-                StreamDescriptors = descriptor.StreamDescriptors,
+                ExpectsFinalStatus = true,
             });
     }
 

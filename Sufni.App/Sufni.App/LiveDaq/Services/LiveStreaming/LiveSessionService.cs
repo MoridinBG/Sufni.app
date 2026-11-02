@@ -1220,7 +1220,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             Markers: [.. markers],
             StreamGaps: [.. streamGaps],
             FinalStatus: finalStatus,
-            MissingFinalStatus: sessionHeader?.ProtocolVersion == LiveProtocolVersion.V3 &&
+            MissingFinalStatus: sessionHeader?.ExpectsFinalStatus == true &&
                 finalStatus is null &&
                 phase is CapturePhase.AwaitingReset or CapturePhase.Closed);
     }

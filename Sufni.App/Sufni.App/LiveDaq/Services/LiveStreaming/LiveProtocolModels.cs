@@ -35,14 +35,6 @@ public enum LiveSensorInstanceMask : uint
 }
 
 [Flags]
-public enum LiveSessionFlags : uint
-{
-    None = 0,
-    CalibratedOnly = 0x01,
-    MutuallyExclusiveWithRecording = 0x02,
-}
-
-[Flags]
 public enum LiveImuLocationMask : uint
 {
     None = 0,
@@ -116,10 +108,7 @@ public sealed record LiveImuCalibrationScales(
 }
 
 
-// Sent by the DAQ after START_LIVE_ACK to describe the accepted session parameters.
-// Contains the actual sampling rates the firmware chose (which may differ from requested),
-// timing bases for monotonic-to-wall-clock conversion, active IMU sensor topology,
-// and per-location calibration scales.
+// Accepted live-session parameters after protocol decoding and start negotiation.
 public sealed record LiveSessionHeader(
     uint SessionId,
     uint AcceptedTravelRateMhz,      // actual travel sampling rate in millihertz
@@ -129,17 +118,15 @@ public sealed record LiveSessionHeader(
     ulong SessionStartMonotonicUs,   // firmware monotonic clock at session start
     LiveImuLocationMask ActiveImuMask,
     LiveImuCalibrationScales ImuCalibrationScales,
-    LiveSessionFlags Flags,
     LiveSensorInstanceMask RequestedSensorMask,
-    LiveSensorInstanceMask AcceptedSensorMask,
-    LiveProtocolVersion ProtocolVersion = LiveProtocolVersion.V2)
+    LiveSensorInstanceMask AcceptedSensorMask)
 {
     public byte BoardId { get; init; }
     public LiveStreamMask RequestedStreamMask { get; init; }
     public LiveStreamMask AcceptedStreamMask { get; init; }
     public uint AcceptedTemperatureRateMhz { get; init; }
     public IReadOnlyList<LiveStartAdmissionReason> AdmissionOmissions { get; init; } = [];
-    public IReadOnlyList<SstV5StreamDescriptor> StreamDescriptors { get; init; } = [];
+    public bool ExpectsFinalStatus { get; init; }
 
     public double AcceptedTravelHzDouble => AcceptedTravelRateMhz / 1000.0;
     public double AcceptedImuHzDouble => AcceptedImuRateMhz / 1000.0;
@@ -155,12 +142,6 @@ public sealed record LiveSessionHeader(
     public uint GpsFixIntervalMs => AcceptedGpsRateMhz == 0 ? 0 : checked((uint)Math.Round(1_000_000.0 / AcceptedGpsRateMhz, MidpointRounding.AwayFromZero));
     public LiveSensorInstanceMask MissingSensorMask => RequestedSensorMask & ~AcceptedSensorMask;
     public IReadOnlyList<LiveImuLocation> GetActiveImuLocations() => LiveProtocolHelpers.GetActiveImuLocations(ActiveImuMask);
-    public IReadOnlyList<LiveImuLocation> GetActiveTemperatureLocations() =>
-        StreamDescriptors
-            .Where(stream => stream.StreamKind == SstV5ProtocolConstants.StreamTemperature)
-            .SelectMany(stream => stream.Sources)
-            .Select(source => (LiveImuLocation)SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask))
-            .ToArray();
 }
 
 public readonly record struct LiveStopAck(uint SessionId);

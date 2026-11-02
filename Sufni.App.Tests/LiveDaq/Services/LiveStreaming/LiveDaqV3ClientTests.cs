@@ -167,10 +167,11 @@ public class LiveDaqV3ClientTests
             }
         });
         await client.ConnectAsync(IPAddress.Loopback.ToString(), port, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.IsType<LivePreviewStartResult.Started>(
+        var started = Assert.IsType<LivePreviewStartResult.Started>(
             await client.StartPreviewAsync(
                     new LiveStartRequest(LiveSensorInstanceMask.Travel, 200_000, 0, 0), cancellationToken: TestContext.Current.CancellationToken)
                 .AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(started.Header.ExpectsFinalStatus);
         await travelObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await client.DisconnectAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -241,7 +242,7 @@ public class LiveDaqV3ClientTests
         var result = await startTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         var started = Assert.IsType<LivePreviewStartResult.Started>(result);
         Assert.Equal(SessionId, started.Header.SessionId);
-        Assert.Equal(LiveProtocolVersion.V3, started.Header.ProtocolVersion);
+        Assert.True(started.Header.ExpectsFinalStatus);
         Assert.Equal((uint)200_000, started.Header.AcceptedTravelRateMhz);
         Assert.Equal((uint)200_000, started.Header.AcceptedImuRateMhz);
         Assert.Equal((uint)5_000, started.Header.AcceptedGpsRateMhz);

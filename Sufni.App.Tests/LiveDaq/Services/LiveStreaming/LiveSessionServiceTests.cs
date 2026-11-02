@@ -255,32 +255,6 @@ public class LiveSessionServiceTests
         {
             AcceptedTemperatureRateMhz = 30,
             AcceptedStreamMask = LiveStreamMask.Travel | LiveStreamMask.Temperature,
-            StreamDescriptors =
-            [
-                new SstV5StreamDescriptor
-                {
-                    StreamKind = SstV5ProtocolConstants.StreamTemperature,
-                    TimingModelId = SstV5ProtocolConstants.TimingMonotonicEventStatus,
-                    SourceDescriptorCount = 1,
-                    AcceptedSensorMask = SstV5ProtocolConstants.SensorFrameImu,
-                    AcceptedRateMhz = 30,
-                    CompactPayloadRecordBytes = 2,
-                    Sources =
-                    [
-                        new SstV5SourceDescriptor
-                        {
-                            StreamKind = SstV5ProtocolConstants.StreamTemperature,
-                            SourceBitMask = SstV5ProtocolConstants.SensorFrameImu,
-                            PayloadEncodingId = SstV5ProtocolConstants.EncodingTemperatureRawI16,
-                            PayloadRecordBytes = 2,
-                            PayloadValueCount = 1,
-                            PayloadValueWidthBits = 16,
-                            TemperatureLsbPerCelsius = 340,
-                            TemperatureCelsiusAtRawZero = 36.53f,
-                        },
-                    ],
-                },
-            ],
         };
         currentState = currentState with
         {
@@ -959,7 +933,7 @@ public class LiveSessionServiceTests
             imuMask: LiveImuLocationMask.Frame,
             requestedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.Gps,
             acceptedSensorMask: LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.Gps,
-            protocolVersion: LiveProtocolVersion.V3) with
+            expectsFinalStatus: true) with
         {
             AcceptedTemperatureRateMhz = 30,
             AcceptedStreamMask = LiveStreamMask.Travel |
@@ -979,7 +953,6 @@ public class LiveSessionServiceTests
             Error = null,
             SessionHeader = header,
             SelectedStreamMask = header.AcceptedStreamMask,
-            ProtocolVersion = header.ProtocolVersion,
         };
         states.OnNext(currentState);
     }
@@ -1238,7 +1211,7 @@ public class LiveSessionServiceTests
             imuMask: activeImuMask,
             requestedSensorMask: requestedSensorMask,
             acceptedSensorMask: acceptedSensorMask,
-            protocolVersion: LiveProtocolVersion.V3);
+            expectsFinalStatus: true);
         currentState = currentState with
         {
             SessionHeader = v3Header,

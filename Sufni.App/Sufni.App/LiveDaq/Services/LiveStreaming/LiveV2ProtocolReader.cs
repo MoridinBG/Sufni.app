@@ -182,7 +182,6 @@ public sealed class LiveV2ProtocolReader
                 FrameGyroLsbPerDps: ReadSingleLittleEndian(payload[48..52]),
                 ForkGyroLsbPerDps: ReadSingleLittleEndian(payload[52..56]),
                 RearGyroLsbPerDps: ReadSingleLittleEndian(payload[56..60])),
-            Flags: (LiveSessionFlags)BinaryPrimitives.ReadUInt32LittleEndian(payload[60..64]),
             RequestedSensorMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[64..68]),
             AcceptedSensorMask: (LiveSensorInstanceMask)BinaryPrimitives.ReadUInt32LittleEndian(payload[68..72]));
     }

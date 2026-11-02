@@ -162,7 +162,7 @@ public class LiveDaqSessionStateTests
             acceptedTravelRateMhz: 123_450,
             acceptedImuRateMhz: 100_000,
             acceptedGpsRateMhz: 5_500,
-            protocolVersion: LiveProtocolVersion.V3);
+            expectsFinalStatus: true);
         state.ApplySharedSessionState(sessionHeader);
 
         var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);

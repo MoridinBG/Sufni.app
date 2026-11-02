@@ -14,7 +14,7 @@ internal static class LiveProtocolTestFrames
         uint acceptedTravelRateMhz = 200_000,
         uint acceptedImuRateMhz = 100_000,
         uint acceptedGpsRateMhz = 10_000,
-        LiveProtocolVersion protocolVersion = LiveProtocolVersion.V2)
+        bool expectsFinalStatus = false)
     {
         return new LiveSessionHeader(
             SessionId: sessionId,
@@ -31,10 +31,8 @@ internal static class LiveProtocolTestFrames
                 FrameGyroLsbPerDps: 131f,
                 ForkGyroLsbPerDps: 0f,
                 RearGyroLsbPerDps: 65.5f),
-            Flags: LiveSessionFlags.CalibratedOnly | LiveSessionFlags.MutuallyExclusiveWithRecording,
             RequestedSensorMask: requestedSensorMask,
-            AcceptedSensorMask: acceptedSensorMask,
-            ProtocolVersion: protocolVersion);
+            AcceptedSensorMask: acceptedSensorMask) { ExpectsFinalStatus = expectsFinalStatus };
     }
 
     public static byte[] CreateStartAckFrame(
@@ -89,7 +87,7 @@ internal static class LiveProtocolTestFrames
         WriteSingleLittleEndian(payload.AsSpan(48, 4), header.ImuCalibrationScales.FrameGyroLsbPerDps);
         WriteSingleLittleEndian(payload.AsSpan(52, 4), header.ImuCalibrationScales.ForkGyroLsbPerDps);
         WriteSingleLittleEndian(payload.AsSpan(56, 4), header.ImuCalibrationScales.RearGyroLsbPerDps);
-        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(60, 4), (uint)header.Flags);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(60, 4), 0x03);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(64, 4), (uint)header.RequestedSensorMask);
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(68, 4), (uint)header.AcceptedSensorMask);
         return LiveV2ProtocolReader.CreateFrame(LiveV2FrameType.SessionHeader, sequence, payload);

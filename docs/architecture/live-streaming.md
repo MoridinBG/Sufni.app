@@ -212,6 +212,12 @@ All transport types live in `Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/
 
 ### Client
 
+`LiveSessionHeader` exposes accepted rates, sensor topology, timing and calibration
+plus `ExpectsFinalStatus`, which capture uses to detect an incomplete ending.
+Protocol version stays with discovery and client selection. Unused v2 session
+flags and SST v5 descriptors are absent from the shared header; v3 descriptors
+remain in the reader's session decode context.
+
 `ILiveDaqClientFactory` creates `LiveDaqV2Client` or `LiveDaqV3Client` from the current `LiveDaqSnapshot.ProtocolVersion`. The selected client owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. The v2 client establishes its active session identity from every valid matching session header even when the direct start waiter has been canceled, so a later stop still targets the transport session. A `STOP_LIVE_ACK` that arrives while a newer start is pending completes that start as failed before clearing its control state; no lifecycle waiter is abandoned. The v3 client models awaiting hello, ready, start pending, awaiting session header, active, and stopping phases. A terminal result replaces the session decode context and returns the connection to ready, so denied starts, completed sessions, and session-ID wrap from 255 to 1 all work without reconnecting. Stop waits for `STOP_RESULT` and then `SESSION_RESULT` in that order.
 
 Three background tasks run off the UI thread. The receive loop reads exact frame headers and payloads, handles ordinary control frames immediately, and pushes telemetry into a bounded raw channel. A terminal result enters the same pipeline as a non-droppable ordering barrier, so every retained earlier telemetry frame is published before session completion. Each queued telemetry frame retains the descriptor context that owned it, so the terminal reset cannot invalidate already-received data. The parse loop decodes raw telemetry into canonical frames and writes them to a second bounded channel; the publish loop emits them as `LiveDaqClientEvent` values. Telemetry pressure may drop telemetry according to the bounded-channel counters, but cannot lose lifecycle frames. A `SemaphoreSlim` gate serializes lifecycle state mutations, and no-request-ID operations retain one outstanding response slot until the matching response arrives.

@@ -245,9 +245,9 @@ public class LiveV3ProtocolSerializationTests
         Assert.Equal(30u, frame.Payload.AcceptedTemperatureRateMhz);
         Assert.Equal(5_000u, frame.Payload.AcceptedGpsRateMhz);
         Assert.Equal(LiveImuLocationMask.Frame | LiveImuLocationMask.Fork, frame.Payload.ActiveImuMask);
-        Assert.Equal(6, frame.Payload.StreamDescriptors.Count);
+        Assert.Equal(6, context.StreamDescriptors.Count);
         Assert.Collection(
-            frame.Payload.StreamDescriptors,
+            context.StreamDescriptors,
             stream => Assert.Equal((ushort)4, stream.CompactPayloadRecordBytes),
             stream => Assert.Equal((ushort)24, stream.CompactPayloadRecordBytes),
             stream => Assert.Equal((ushort)4, stream.CompactPayloadRecordBytes),
