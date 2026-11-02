@@ -474,6 +474,79 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task GpsFrames_DerivingFirstPointSpeed_DoesNotMutatePublishedSnapshot()
+    {
+        await using var service = CreateService();
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        frames.OnNext(CreateGpsBatchFrame());
+        var before = service.Current;
+        var first = Assert.Single(before.SessionTrackPoints);
+        var originalSpeed = first.Speed;
+
+        frames.OnNext(CreateGpsBatchFrame(
+            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
+            latitude: 42.6978, longitude: 23.3220, altitude: 601));
+
+        Assert.Equal(originalSpeed, first.Speed);
+        Assert.NotSame(first, service.Current.SessionTrackPoints[0]);
+        Assert.True(service.Current.SessionTrackPoints[0].Speed > 0);
+    }
+
+    [Fact]
+    public async Task SnapshotObserver_ResetDuringPublication_PreservesRevisionOrderForAllObservers()
+    {
+        await using var service = CreateService();
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        Task? reset = null;
+        using var resetSubscription = service.Snapshots.Subscribe(snapshot =>
+        {
+            if (snapshot.Controls.CanSave)
+                reset = service.ResetCaptureAsync(TestContext.Current.CancellationToken);
+        });
+        var observed = new List<LiveSessionPresentationSnapshot>();
+        using var subscription = service.Snapshots.Subscribe(observed.Add);
+
+        frames.OnNext(CreateTravelBatchFrame());
+        await Assert.IsAssignableFrom<Task>(reset);
+
+        Assert.True(observed.Any(snapshot => snapshot.Controls.CanSave));
+        Assert.False(observed[^1].Controls.CanSave);
+        Assert.Same(service.Current, observed[^1]);
+        Assert.True(observed.Zip(observed.Skip(1), (previous, next) => previous.Revision < next.Revision).All(ordered => ordered));
+    }
+
+    [Fact]
+    public async Task ResetCaptureAsync_WhenStreamClosesDuringReset_DoesNotPublishOlderOpenSnapshot()
+    {
+        var pipeline = new BlockingSignalPipeline();
+        await using var service = CreateService(signalPipeline: pipeline);
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        var observed = new List<LiveSessionPresentationSnapshot>();
+        using var subscription = service.Snapshots.Subscribe(observed.Add);
+        pipeline.OnReset = () => PublishSharedState(sessionHeader, isClosed: true);
+
+        await service.ResetCaptureAsync(TestContext.Current.CancellationToken);
+
+        Assert.IsType<LiveConnectionState.Closed>(service.Current.Controls.ConnectionState);
+        Assert.Same(service.Current, observed[^1]);
+        Assert.Equal(2, observed.Count);
+    }
+
+    [Fact]
+    public async Task SnapshotObserver_ConnectionChangeWithoutNewSamples_AdvancesPublicationRevision()
+    {
+        await using var service = CreateService();
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        var before = service.Current;
+
+        PublishSharedState(sessionHeader, isClosed: true);
+
+        Assert.Equal(before.CaptureRevision, service.Current.CaptureRevision);
+        Assert.True(before.Revision < service.Current.Revision);
+        Assert.IsType<LiveConnectionState.Closed>(service.Current.Controls.ConnectionState);
+    }
+
+    [Fact]
     public async Task ResetCaptureAsync_ClearsAccumulatedCaptureAndAnalysis()
     {
         await using var service = CreateService();
@@ -1012,6 +1085,7 @@ public class LiveSessionServiceTests
         private int shouldBlock = 1;
 
         public TaskCompletionSource AppendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Action? OnReset { get; set; }
 
         public IObservable<LiveSignalBatch> SignalBatches => signalBatches.AsObservable();
 
@@ -1038,6 +1112,7 @@ public class LiveSessionServiceTests
 
         public void Reset()
         {
+            OnReset?.Invoke();
         }
 
         public void Release()

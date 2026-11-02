@@ -85,6 +85,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private readonly System.Threading.Lock gate = new();
     private readonly System.Threading.Lock displayQueueGate = new();
     private readonly BehaviorSubject<LiveSessionPresentationSnapshot> snapshotsSubject = new(LiveSessionPresentationSnapshot.Empty);
+    private readonly Queue<LiveSessionPresentationSnapshot?> snapshotNotifications = new();
+    private readonly TaskCompletionSource snapshotPublicationCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CancellationTokenSource disposalCts = new();
     private readonly Channel<LiveDisplayUpdate> displayUpdates = Channel.CreateBounded<LiveDisplayUpdate>(
         new BoundedChannelOptions(DisplayUpdateQueueCapacity)
@@ -121,6 +123,8 @@ internal sealed class LiveSessionService : ILiveSessionService
     private ulong? captureStartMonotonicUs;
     private DateTimeOffset? captureStartUtc;
     private long captureRevision;
+    private long snapshotRevision;
+    private bool publishingSnapshots;
     private long displayEpoch;
     private int queuedDisplayUpdates;
     private long latestAnalysisRevision = -1;
@@ -161,7 +165,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     public IObservable<LiveSignalBatch> SignalBatches => signalPipeline.SignalBatches;
 
-    public LiveSessionPresentationSnapshot Current => current;
+    public LiveSessionPresentationSnapshot Current => Volatile.Read(ref current);
 
     public async Task<LivePreviewStartResult?> EnsureAttachedAsync(CancellationToken cancellationToken = default)
     {
@@ -421,8 +425,8 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         await signalPipeline.DisposeAsync();
 
-        snapshotsSubject.OnCompleted();
-        snapshotsSubject.Dispose();
+        PublishSnapshot(null);
+        await snapshotPublicationCompleted.Task;
         disposalCts.Dispose();
     }
 
@@ -817,8 +821,16 @@ internal sealed class LiveSessionService : ILiveSessionService
                 && projected.Speed is { } secondSpeed
                 && double.IsFinite(secondSpeed))
             {
-                var firstPoint = sessionTrackPoints.Length == 0 ? appendedTrackPoints[0] : sessionTrackPoints[0];
-                firstPoint.Speed = secondSpeed;
+                if (sessionTrackPoints.Length == 0)
+                {
+                    appendedTrackPoints[0].Speed = secondSpeed;
+                }
+                else
+                {
+                    var first = sessionTrackPoints[0];
+                    sessionTrackPoints = [new TrackPoint(first.Time, first.X, first.Y,
+                        first.Elevation, secondSpeed, first.FixMode, first.Satellites, first.Epe2d, first.Epe3d)];
+                }
             }
 
             lastTrackPointTime = projected.Time;
@@ -1159,7 +1171,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             DampingPercentages: dampingPercentages,
             SessionTrackPoints: sessionTrackPoints,
             Controls: BuildControlsLocked(),
-            CaptureRevision: captureRevision);
+            CaptureRevision: captureRevision) { Revision = ++snapshotRevision };
     }
 
     private LiveSessionControlState BuildControlsLocked()
@@ -1285,10 +1297,44 @@ internal sealed class LiveSessionService : ILiveSessionService
             Counts = segment.Values.ToArray(),
         }).ToArray();
 
-    private void PublishSnapshot(LiveSessionPresentationSnapshot snapshot)
+    private void PublishSnapshot(LiveSessionPresentationSnapshot? snapshot)
     {
-        current = snapshot;
-        snapshotsSubject.OnNext(snapshot);
+        lock (gate)
+        {
+            if (snapshot is not null)
+            {
+                if (phase == CapturePhase.Disposed || snapshot.Revision <= current.Revision) return;
+                Volatile.Write(ref current, snapshot);
+            }
+
+            // Null completes the stream after the preceding notifications drain.
+            snapshotNotifications.Enqueue(snapshot);
+            if (publishingSnapshots) return;
+            publishingSnapshots = true;
+        }
+
+        while (true)
+        {
+            LiveSessionPresentationSnapshot? next;
+            lock (gate)
+            {
+                if (!snapshotNotifications.TryDequeue(out next))
+                {
+                    publishingSnapshots = false;
+                    return;
+                }
+            }
+
+            if (next is null)
+            {
+                snapshotsSubject.OnCompleted();
+                snapshotsSubject.Dispose();
+                snapshotPublicationCompleted.SetResult();
+                return;
+            }
+
+            snapshotsSubject.OnNext(next);
+        }
     }
 
     private static double ConvertTravel(ushort measurement, Func<ushort, double>? measurementToTravel, double? maxTravel)

@@ -125,6 +125,17 @@ reopens `Closed`. Attachment is derived from the owned observer lease.
 
 `ResetCaptureAsync` clears the travel and IMU segment builders, temperature and GPS buffers, markers, gaps, final status, latest session statistics, analysis state, and track points, and bumps two monotonic counters: `captureRevision` (observed by the analysis loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published. After a recoverable DAQ session rollover, reset also adopts the shared stream's current session header, rebuilds the IMU builders, and reopens streaming only if that stream is still open and still has a header; otherwise the capture remains closed.
 
+### Snapshot Publication
+
+Snapshots get a monotonically increasing `Revision` under the capture lock,
+separate from `CaptureRevision`: a connection or analysis change can publish
+without receiving new samples. Publication rejects an older revision and updates
+`Current` atomically. A synchronous notification queue serializes concurrent and
+reentrant publications; reentrant updates wait until the current notification finishes. Disposal
+waits for queued notifications before completing the observable. Enriching the
+first GPS point with derived speed replaces that point instead of mutating one
+already included in an earlier snapshot.
+
 ### Frame Handlers
 
 `HandleFrame` dispatches by the data-bearing canonical frame types. Travel and IMU batches accumulate raw samples into fixed-rate segment builders under the gate, record invalid-validity and first-index gaps as `RawStreamGap`, build a `LiveDisplayUpdate.Travel` or `LiveDisplayUpdate.Imu` carrying the calibrated values for the live plots, and push that update onto a bounded `Channel<LiveDisplayUpdate>` (`DisplayUpdateQueueCapacity = 8`, `BoundedChannelFullMode.DropOldest`). IMU display values are derived by `LiveImuDisplaySignalProcessor`: firmware has already bias-corrected and rotated IMU readings into the bike frame, so per-location vibration RMS uses dynamic acceleration after low-pass gravity removal without waiting for a session-start rest window, and optional frame pitch/roll fuses frame accelerometer plus gyro data relative to the bike-frame calibration while accepting accelerometer correction only from gravity-like samples. Raw IMU segment records remain the saved source of truth; new live captures do not populate the legacy dense `RawImuData.Records` graph, including aligned gap-free captures. Temperature frames append low-rate `TemperatureSample` values to a separate buffer and never enter the high-rate IMU motion path. Display pressure starts a quiet period for analysis recomputation; capture accumulation continues independently. GPS frames append the complete raw batch before projecting `TrackPoint`s incrementally. If any record is older than the current projected tail, the service reprojects all retained GPS records; later records from that same batch remain available both to the fallback projection and to save. `LiveMarkerBatchFrame` appends user markers, and `LiveSessionResultFrame` stores final SST stream status for v3 captures, including sink backlog batches.
@@ -198,7 +209,7 @@ The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it
 
 `LiveSessionPresentation.cs` defines the records the service publishes for the view model:
 
-- **`LiveSessionPresentationSnapshot`** — what the live-session tab projects. Carries the latest `TelemetryData` from the statistics loop, computed `SessionDampingPercentages`, the projected `TrackPoint[]` for the map, the full `LiveSessionControlState`, and a `CaptureRevision` integer the view model uses as a save-already-applied marker.
+- **`LiveSessionPresentationSnapshot`** — what the live-session tab projects. Carries the latest `TelemetryData` from the statistics loop, computed `SessionDampingPercentages`, the projected `TrackPoint[]` for the map, the full `LiveSessionControlState`, a `CaptureRevision` integer the view model uses as a save-already-applied marker, and a separate publication `Revision`.
 - **`LiveSignalBatch`** — described under [Live Signal Pipeline](#live-signal-pipeline).
 - **`LiveSessionCapturePackage(Context, TelemetryCapture)` with `CaptureRevision`** — the immutable result of `PrepareCaptureForSaveAsync`, prepared inside `LiveDaqCoordinator.SaveCaptureAsync`; its revision is captured under the same lock as its buffers.
 

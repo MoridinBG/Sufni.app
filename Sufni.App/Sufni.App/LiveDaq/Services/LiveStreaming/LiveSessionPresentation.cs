@@ -42,6 +42,8 @@ public sealed record LiveSessionPresentationSnapshot(
     LiveSessionControlState Controls,
     long CaptureRevision)
 {
+    public long Revision { get; init; }
+
     public static readonly LiveSessionPresentationSnapshot Empty = new(
         AnalysisTelemetry: null,
         DampingPercentages: SessionDampingPercentages.Empty,
