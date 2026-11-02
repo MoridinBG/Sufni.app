@@ -186,6 +186,9 @@ public sealed record FailurePresentation
 
     public static FailurePresentation From(LiveSessionSaveFailureReason reason, string? details = null) => new(reason switch
     {
+        LiveSessionSaveFailureReason.Publish => "The session was saved, but app state could not be refreshed. Reopen Sessions to find it.",
+        LiveSessionSaveFailureReason.Cleanup => "The session was saved, but post-save cleanup could not finish. Open it from Sessions.",
+        LiveSessionSaveFailureReason.Preferences => "The session was saved, but its display preferences could not be saved. Set them again after opening it.",
         LiveSessionSaveFailureReason.Save => "The live session could not be saved. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);

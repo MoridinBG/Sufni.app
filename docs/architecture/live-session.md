@@ -24,7 +24,7 @@ The live-session slice runs in its own dedicated tab opened from the Live primar
 The recording side is decoupled from the transport in three ways:
 
 1. The shared stream owns connection, frame parsing, fan-out, and disconnect. Capture, signal batches, statistics, and save live in `ILiveSessionService` and never touch the socket directly.
-2. The session-coordinator path is the only persistence surface. The live DAQ coordinator does not write `Session` rows; the shell routes the tab.
+2. `LiveDaqCoordinator.SaveCaptureAsync` is the persistence workflow. It prepares the capture, saves and publishes the recording, then resets the service. The shell owns navigation.
 3. The live-session view model holds no transport state of its own — it consumes `ILiveSessionService` snapshots and signal batches and forwards user choices back through `SessionPreferences`.
 
 ```mermaid
@@ -36,7 +36,7 @@ graph LR
     SignalPipe --> RecentTravel["Recent travel lists<br/>(127 ms velocity context)"]
     Service -->|"Snapshots"| DetailVM["LiveSessionDetailViewModel"]
     SignalPipe -->|"SignalBatches"| DetailVM
-    DetailVM --> Coord["SessionCoordinator<br/>SaveLiveCaptureAsync"]
+    DetailVM --> Coord["LiveDaqCoordinator<br/>SaveCaptureAsync"]
     Coord --> Source["RecordedSessionSourceFactory<br/>live_capture"]
     Coord --> Reprocessor["RecordedSessionReprocessor<br/>telemetry + track + fingerprint"]
     Coord --> Repo["ISessionRepository<br/>ImportProcessedSessionAsync"]
@@ -84,16 +84,15 @@ Statistics loop (Task.Run)
 
 User presses Save
   -> LiveSessionDetailViewModel.SaveImplementation
-    -> ILiveSessionService.PrepareCaptureForSaveAsync
-      -> snapshot travel/IMU segment builders, temperature/GPS buffers, markers, gaps, and final status under lock
-        -> background BuildCapture -> LiveTelemetryCapture
-    -> SessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
+    -> LiveDaqCoordinator.SaveCaptureAsync(immutable draft, capture service, preferences)
+      -> ILiveSessionService.PrepareCaptureForSaveAsync (capture and its revision)
       -> RecordedSessionSourceFactory.CreateLiveCapture
       -> RecordedSessionReprocessor.ReprocessAsync
-      -> databaseService.ImportProcessedSessionAsync(session, track, source)
-      -> ISessionPreferences.UpdateRecordedAsync(sessionId, preferences)
-      -> SessionStore.Upsert(snapshot) + RecordedSessionSourceStore.Upsert(source)
-        -> LiveSessionSaveResult.Saved -> reset capture + open recorded editor
+      -> ISessionRepository.ImportProcessedSessionAsync
+      -> ISessionPreferences.UpdateRecordedAsync
+      -> session + source + track publication in one UI batch
+      -> ILiveSessionService.ResetCaptureAsync
+        -> LiveSessionSaveResult.Saved -> view model opens recorded editor
 
 User presses Reset
   -> ILiveSessionService.ResetCaptureAsync
@@ -193,7 +192,7 @@ The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it
 
 - **`LiveSessionPresentationSnapshot`** — what the live-session tab projects. Carries the latest `TelemetryData` from the statistics loop, computed `SessionDampingPercentages`, the projected `TrackPoint[]` for the map, the full `LiveSessionControlState`, and a `CaptureRevision` integer the view model uses as a save-already-applied marker.
 - **`LiveSignalBatch`** — described under [Live Signal Pipeline](#live-signal-pipeline).
-- **`LiveSessionCapturePackage(Context, TelemetryCapture)`** — the immutable result of `PrepareCaptureForSaveAsync`, fed to `SessionCoordinator.SaveLiveCaptureAsync`.
+- **`LiveSessionCapturePackage(Context, TelemetryCapture)` with `CaptureRevision`** — the immutable result of `PrepareCaptureForSaveAsync`, prepared inside `LiveDaqCoordinator.SaveCaptureAsync`; its revision is captured under the same lock as its buffers.
 
 **`LiveSessionControlState`** (`LiveSessionControlState.cs`) is the recording state machine in record form. It carries the connection state, last error, accepted `LiveSessionHeader`, capture start UTC, capture duration, and a `CanSave` boolean. The view model reads this directly to drive command enablement, sidebar text, and the save/reset buttons.
 
@@ -203,7 +202,7 @@ The editor receives `TimeProvider` for automatic local-time names and elapsed
 capture duration. Automatic names refresh at save time; authored names remain
 unchanged. Capture timestamps still come from the recording metadata.
 
-`LiveSessionDetailViewModel` (`Sufni.App/Sufni.App/LiveDaq/ViewModels/Editors/LiveSessionDetailViewModel.cs`) extends `TabPageViewModelBase`, one instance per open live-session tab. It is the only writer of UI state for the tab and the only caller of `SessionCoordinator.SaveLiveCaptureAsync`.
+`LiveSessionDetailViewModel` (`Sufni.App/Sufni.App/LiveDaq/ViewModels/Editors/LiveSessionDetailViewModel.cs`) extends `TabPageViewModelBase`, one instance per open live-session tab. It is the only writer of UI state for the tab and the only caller of `LiveDaqCoordinator.SaveCaptureAsync`.
 
 The view model wires together five things and owns no transport state:
 
@@ -227,34 +226,35 @@ The save lifecycle is split between the service (snapshotting capture state unde
 
 ```
 LiveSessionDetailViewModel.SaveImplementation
-  -> liveSessionService.PrepareCaptureForSaveAsync
-       (snapshot segment builders, temperature/GPS buffers, markers, gaps, and final status under lock,
-        flatten to LiveTelemetryCapture on the background runner)
-  -> session = new Session(name, description, setup, capture timestamp)
-       with fork/shock spring + damping settings copied from NotesPage
-  -> sessionCoordinator.SaveLiveCaptureAsync(session, capture, preferences)
-       1. source = RecordedSessionSourceFactory.CreateLiveCapture(...)
-       2. capture metadata with source.SessionId as the recorded id
-       3. RecordedSessionReprocessor.ReprocessAsync(...) -> ProcessedGeneration
-       4. create/reuse track, resolve association, prepare session
-       5. committed = sessionRepository.ImportProcessedSessionAsync(session, track, source)
-       6. snapshot = SessionSnapshot.From(committed.Session)
-       7. sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences)
-       8. sessionStore.PublishSessionsChangedAsync([snapshot])
-       9. recordedSessionSourceStore.PublishSourcesChangedAsync([committed.Source])
-       -> LiveSessionSaveResult.Saved(SessionId, Updated)
-            | LiveSessionSaveResult.Failed(Reason, Details)
-            | LiveSessionSaveResult.ProcessingFailed(Reason, Details)
-  -> on Saved: liveSessionService.ResetCaptureAsync
-              + shell.OpenEditor(new EditorKey.Session(savedId))
-  -> on Failed: append to ErrorMessages
+  -> build immutable SessionSnapshot draft from sidebar and processing preferences
+  -> LiveDaqCoordinator.SaveCaptureAsync(draft, liveSessionService, preferences)
+       1. PrepareCaptureForSaveAsync: snapshot buffers and revision under lock,
+          flatten capture off-thread
+       2. source = RecordedSessionSourceFactory.CreateLiveCapture(...)
+       3. draft with content-derived id and capture timestamp
+       4. RecordedSessionReprocessor.ReprocessAsync(...) -> ProcessedGeneration
+       5. ImportProcessedSessionAsync(session, optional track, source)
+       6. update recorded preferences
+       7. publish session, source and tracks in one dispatcher-owned batch
+       8. ResetCaptureAsync (awaited even after persistence completes)
+       -> Saved(SessionId, CaptureRevision, PublicationWarning?, CleanupFailure?, PreferenceWarning?)
+            | Failed(Reason, Details) | ProcessingFailed(Reason, Details)
+  -> on Saved without cleanup failure: clear presentation + open recorded editor
+  -> on failure: render fixed summary and separate diagnostic details
 ```
 
-`SaveLiveCaptureAsync` (`SessionCoordinator.cs`) derives the recorded session id from the live source hash, replacing the temporary draft id without mutating the draft. There is no editor conflict baseline for live saves. It creates the live-capture source through `RecordedSessionSourceFactory`, then asks `IRecordedSessionReprocessor` for the pure generation; the coordinator owns track association and persistence. A retry of the same capture uses the same id and keeps the existing recording, including its authored metadata and processed generation. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, temperature data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `ImportProcessedSessionAsync` applies the same source-hash/content-id classification as file import and atomically persists a new session, optional generated full track, and source. Publication uses the retained source snapshot on a duplicate. The session and source stores publish in one dispatcher-owned `StorePublication` batch.
+`SaveCaptureAsync` (`LiveDaqCoordinator.CaptureSave.cs`) derives the recorded session id from the live source hash, replacing the temporary draft id without mutating the draft. There is no editor conflict baseline for live saves. It creates the live-capture source through `RecordedSessionSourceFactory`, then asks `IRecordedSessionReprocessor` for the pure generation; the coordinator owns track association and persistence. A retry of the same capture uses the same id and keeps the existing recording, including its authored metadata and processed generation. The recorded source payload stores capture metadata, raw front/rear segments, IMU data, temperature data, GPS data, markers, stream gaps, final status with sink backlog counters, and missing-final-status flags; compatibility reading still accepts older flat front/rear measurement payloads. It does not store `BikeData`, so recorded recompute resolves calibration from the saved session's current setup and bike. `ImportProcessedSessionAsync` applies the same source-hash/content-id classification as file import and atomically persists a new session, optional generated full track, and source. Publication uses the retained source snapshot on a duplicate. The session and source stores publish in one dispatcher-owned `StorePublication` batch.
 
-`SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After a successful save, the view model resets the live capture (so the same tab can immediately start a second one) and routes the user to the recorded editor for the new session via `shell.OpenEditor`.
+`SessionPreferences` (built from `PreferencesPage` plus the per-mode analysis pickers via `CreateCurrentSessionPreferences`) is persisted through `ISessionPreferences.UpdateRecordedAsync`, so when the user reopens the saved session in the recorded editor, their plot and analysis choices come back. After the coordinator resets the saved capture, the view model clears its presentation and routes the user to the recorded editor via `shell.OpenEditor`. The coordinator has no navigation dependency.
 
-`OperationCanceledException` is rethrown out of `SaveLiveCaptureAsync` — database failures return `LiveSessionSaveResult.Failed(reason, details)`, while typed calibration/telemetry failures return `ProcessingFailed(reason, details)` without persisting or clearing the capture. These typed outcomes are not logged again by their callers. The view model also surfaces a "Live session was saved, but post-save cleanup failed" message when the post-save reset or `OpenEditor` throws after `Saved` has already been observed, so a partial post-save failure does not lose the saved row.
+Cancellation before commit propagates neutrally; failures during preparation or
+persistence return `Failed`, and typed processing failures return `ProcessingFailed`,
+without resetting the capture. After commit, preference, publication and reset failures remain
+`Saved` outcomes with separate diagnostic details, logged once by their owner.
+Reset is awaited without caller cancellation after commit. The view model uses the
+saved capture revision to prevent resubmitting unchanged capture state after a
+cleanup failure; explicit reset remains available. It only navigates after reset
+succeeds and renders fixed failure summaries with expandable details.
 
 ## Design Decisions
 
@@ -262,5 +262,5 @@ LiveSessionDetailViewModel.SaveImplementation
 2. **Bounded display channel with `DropOldest`.** The display loop is allowed to lag behind capture without ever holding the gate or dropping captured samples — only the _display_ update for those samples is coalesced, and the count is surfaced as backpressure on the control state. Capture itself is never dropped.
 3. **Sliding window only inside the signal pipeline.** Velocity is a presentation concern (the saved telemetry recomputes velocity from the SG filter inside `TelemetryData.FromLiveCapture`), so the sliding window lives next to the flush loop and the pipeline owns the cached SG instance.
 4. **Configuration lock instead of per-tab transport.** A live-session tab and the diagnostics tab on the same DAQ share one connection through the registry. The lock makes the diagnostics tab read-only for the duration of a recording so its rate controls cannot tear down a live capture.
-5. **Create-only save path through `SessionCoordinator`.** Live captures persist as plain recorded sessions; the live DAQ coordinator only routes the tab and never writes to `SessionStore`. Post-save the user is moved to the recorded editor so the live tab is free to start the next capture.
-6. **`SessionPreferences` round-tripped on save.** The same `PreferencesPage` and analysis pickers used in the recorded editor are forwarded through `SaveLiveCaptureAsync`, so reopening the saved session restores the user's plot/analysis choices.
+5. **Create-only save path through `LiveDaqCoordinator`.** Live captures persist as plain recorded sessions; the coordinator owns preparation, publication and reset. Post-save the user is moved to the recorded editor so the live tab is free to start the next capture.
+6. **`SessionPreferences` round-tripped on save.** The same `PreferencesPage` and analysis pickers used in the recorded editor are forwarded through `SaveCaptureAsync`, so reopening the saved session restores the user's plot/analysis choices.

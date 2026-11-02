@@ -22,7 +22,9 @@ using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.SessionPages;
 using Sufni.App.MapsAndTracks.ViewModels;
-using Sufni.App.Sessions.Coordination;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.Sessions.Store;
+using Serilog;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
@@ -47,7 +49,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly LiveSessionSignalsWorkspaceViewModel signalsWorkspace;
     private readonly LiveSessionMediaWorkspaceViewModel mediaWorkspace;
     private readonly ILiveSessionService liveSessionService;
-    private readonly ISessionCoordinator sessionCoordinator;
+    private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -225,7 +227,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public LiveSessionDetailViewModel(
         LiveDaqSessionContext context,
         ILiveSessionService liveSessionService,
-        ISessionCoordinator sessionCoordinator,
+        ILiveDaqCoordinator liveDaqCoordinator,
         ISessionPresentationService sessionPresentationService,
         IBackgroundTaskRunner backgroundTaskRunner,
         IMapViewModelFactory mapViewModelFactory,
@@ -248,7 +250,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         dampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         plotDampingSpeedCutoffs = persistedDampingSpeedCutoffs;
         this.liveSessionService = liveSessionService;
-        this.sessionCoordinator = sessionCoordinator;
+        this.liveDaqCoordinator = liveDaqCoordinator;
         this.bikeCoordinator = bikeCoordinator;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -470,16 +472,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         try
         {
-            var capture = await liveSessionService.PrepareCaptureForSaveAsync();
-            var savedCaptureRevision = liveSessionService.Current.CaptureRevision;
             var saveTime = Clock.GetLocalNow();
             var sessionName = shouldRefreshAutoName ? CreateDefaultName(saveTime) : Name!;
             var session = new Session(
                 id: Guid.NewGuid(),
                 name: sessionName,
                 description: DescriptionText ?? string.Empty,
-                setup: SetupId,
-                timestamp: capture.TelemetryCapture.Metadata.Timestamp)
+                setup: SetupId)
             {
                 VelocityFilterWindowMilliseconds = PreferencesPage.CreateProcessingOptions().ClampedVelocityFilterWindowMilliseconds,
                 FrontSpringRate = ForkSettings.SpringRate,
@@ -494,19 +493,27 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                 RearHighSpeedRebound = ShockSettings.HighSpeedRebound,
             };
 
-            var result = await sessionCoordinator.SaveLiveCaptureAsync(session, capture, CreateCurrentSessionPreferences());
+            var result = await liveDaqCoordinator.SaveCaptureAsync(SessionSnapshot.From(session), liveSessionService, CreateCurrentSessionPreferences());
             switch (result)
             {
                 case LiveSessionSaveResult.Saved saved:
-                    blockedSavedCaptureRevision = savedCaptureRevision;
+                    blockedSavedCaptureRevision = saved.CaptureRevision;
+                    if (saved.PreferenceWarning is not null)
+                    {
+                        ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Preferences, saved.PreferenceWarning));
+                    }
                     if (saved.PublicationWarning is not null)
                     {
-                        ErrorMessages.Add(new FailurePresentation(saved.PublicationWarning));
+                        ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Publish, saved.PublicationWarning));
                     }
 
+                    if (saved.CleanupFailure is not null)
+                    {
+                        ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Cleanup, saved.CleanupFailure));
+                        break;
+                    }
                     try
                     {
-                        await liveSessionService.ResetCaptureAsync();
                         ResetCapturePresentation();
                         if (shouldRefreshAutoName)
                         {
@@ -521,7 +528,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
                     }
                     catch (Exception e)
                     {
-                        ErrorMessages.Add(new FailurePresentation($"Live session was saved, but post-save cleanup failed: {e.Message}"));
+                        Log.ForContext<LiveSessionDetailViewModel>().Warning(e, "Failed to open saved live session {SessionId}", saved.SessionId);
+                        ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Cleanup, e.Message));
                     }
                     break;
 
@@ -538,7 +546,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
         catch (Exception e)
         {
-            ErrorMessages.Add(new FailurePresentation($"Live session could not be saved: {e.Message}"));
+            Log.ForContext<LiveSessionDetailViewModel>().Error(e, "Failed to submit live capture save");
+            ErrorMessages.Add(FailurePresentation.From(LiveSessionSaveFailureReason.Save, e.Message));
         }
         finally
         {

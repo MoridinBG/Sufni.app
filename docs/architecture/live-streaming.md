@@ -288,7 +288,8 @@ the store releases its cache and prevents queued publication after shutdown.
 
 ## Coordinator
 
-`LiveDaqCoordinator` owns all store writes and browse lifecycle.
+`LiveDaqCoordinator` owns live-catalog store writes, browse lifecycle, and the
+[capture-save workflow](live-session.md#save-flow).
 
 **Activate / Deactivate** — called by `MainPagesViewModel` when the Live page becomes selected or deselected. On activate: acquires a browse lease, subscribes to catalog changes and known-board query changes, seeds the store with offline known boards. On deactivate: disposes all subscriptions and the browse lease, clears online state from the store.
 
@@ -339,4 +340,4 @@ Both desktop and mobile heads add the Live tab and bind to the same view models.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Protocol-specific clients behind a canonical frame model** — v2 and v3 wire parsing stays inside protocol-specific readers/clients. Everything above `ILiveDaqClientFactory` receives canonical live frames and does not branch on wire layout.
 9. **Disconnected v2-only management** — the detail tab disables management actions while its live client is connected instead of trying to arbitrate concurrent LIVE and MGMT workflows on the DAQ's single-client port. It also disables management for v3 snapshots because the v3 management protocol is not specified.
-10. **Recording is its own slice** — capture, analysis computation, the live signal pipeline, and the `Session` save path are owned by `ILiveSessionService` and `SessionCoordinator.SaveLiveCaptureAsync`, not by anything in this file. See [Live Session Recording](live-session.md).
+10. **Capture service and save workflow** — `ILiveSessionService` owns capture buffers, analysis and signal batches; `LiveDaqCoordinator.SaveCaptureAsync` owns recording persistence and post-save reset. See [Live Session Recording](live-session.md).

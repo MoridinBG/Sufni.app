@@ -15,11 +15,5 @@ public interface ISessionCoordinator
 
     Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated);
 
-    Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
-        Session session,
-        LiveSessionCapturePackage capture,
-        SessionPreferences preferences,
-        CancellationToken cancellationToken = default);
-
     Task<SessionDeleteResult> DeleteAsync(Guid sessionId);
 }

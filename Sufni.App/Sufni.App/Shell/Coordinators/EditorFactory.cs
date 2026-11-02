@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators;
 using Sufni.App.Setups.Queries;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Bikes.Models;
@@ -40,6 +41,7 @@ internal sealed class EditorFactory(
     ISetupCoordinator setupCoordinator,
     ISetupBoardQuery setupQuery,
     ISessionCoordinator sessionCoordinator,
+    ILiveDaqCoordinator liveDaqCoordinator,
     ISessionLoader sessionLoader,
     ISessionRecomputeEngine recomputeEngine,
     ISessionStore sessionStore,
@@ -164,7 +166,7 @@ internal sealed class EditorFactory(
         new(
             context,
             liveSessionService,
-            sessionCoordinator,
+            liveDaqCoordinator,
             sessionPresentationService,
             backgroundTaskRunner,
             mapViewModelFactory,

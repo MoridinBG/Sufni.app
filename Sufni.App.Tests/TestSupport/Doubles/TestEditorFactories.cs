@@ -60,6 +60,7 @@ internal static class TestEditorFactories
             TestCoordinatorSubstitutes.Setup(),
             setupQuery ?? Substitute.For<ISetupBoardQuery>(),
             TestCoordinatorSubstitutes.Session(),
+            TestCoordinatorSubstitutes.LiveDaq(),
             TestCoordinatorSubstitutes.SessionLoader(),
             TestCoordinatorSubstitutes.RecomputeEngine(),
             sessionStore ?? Substitute.For<ISessionStore>(),

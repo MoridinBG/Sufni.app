@@ -166,7 +166,7 @@ There are five kinds of view model in the presentation layer:
   `ErrorMessages` while keeping management busy state separate from the
   live connect/disconnect workflow. The live session editor projects
   signals/media/analysis state from the live session service and
-  persists through `SessionCoordinator.SaveLiveCaptureAsync(...)`.
+  persists through `LiveDaqCoordinator.SaveCaptureAsync(...)`.
   The bike editor likewise keeps presentation concerns at this edge:
   `IBikeCoordinator` exposes neutral bike-editor result contracts, and
   `LoadImageAsync` returns encoded bytes rather than an Avalonia bitmap.
@@ -341,7 +341,7 @@ Two pages diverge from that pattern:
   sessions, `SessionDetailViewModel.SignalLayoutPreferences` loads and writes
   that signal layout preference through `ISessionPreferences`; live captures
   carry the current live signal layout preference into
-  `SessionCoordinator.SaveLiveCaptureAsync(...)` so the newly saved
+  `LiveDaqCoordinator.SaveCaptureAsync(...)` so the newly saved
   session opens with the same row layout. The pure
   `SignalLayoutPreferenceTree` helper owns preference normalization,
   capture, root moves, child moves, duplicate removal, unknown-row

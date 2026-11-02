@@ -320,6 +320,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     public async Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default)
     {
         LiveCaptureSnapshot captureSnapshot;
+        long revision;
 
         lock (gate)
         {
@@ -330,12 +331,13 @@ internal sealed class LiveSessionService : ILiveSessionService
             }
 
             captureSnapshot = CreateCaptureSnapshotLocked();
+            revision = captureRevision;
         }
 
         var capture = await backgroundTaskRunner.RunAsync(
             () => BuildCapture(captureSnapshot),
             cancellationToken);
-        return new LiveSessionCapturePackage(context, capture);
+        return new LiveSessionCapturePackage(context, capture) { CaptureRevision = revision };
     }
 
     public async ValueTask DisposeAsync()

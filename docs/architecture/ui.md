@@ -359,8 +359,8 @@ comparing the baseline `Updated` value the editor opened on against
 the store's current snapshot — so a sync arrival or another tab's
 save during an edit cannot silently overwrite the user's changes.
 The live session path is deliberately separate:
-`SaveLiveCaptureAsync(...)` is create-only and returns
-`Saved(SessionId, Updated, PublicationWarning?)`, `Failed(reason, details)` or
+`SaveCaptureAsync(...)` is create-only and returns
+`Saved(SessionId, CaptureRevision, PublicationWarning?, CleanupFailure?, PreferenceWarning?)`, `Failed(reason, details)` or
 `ProcessingFailed(reason, details)` because there
 is no optimistic-concurrency baseline for an in-memory live capture.
 

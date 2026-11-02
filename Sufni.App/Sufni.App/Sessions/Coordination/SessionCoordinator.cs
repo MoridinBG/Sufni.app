@@ -24,7 +24,7 @@ using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
 namespace Sufni.App.Sessions.Coordination;
 
-/// <summary>Owns session metadata, processing options, GPS alignment, live saves and deletion.</summary>
+/// <summary>Owns session metadata, processing options, GPS alignment and deletion.</summary>
 internal sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
@@ -34,11 +34,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     private readonly ISynchronizableRepository<Track> trackRepository;
     private readonly ISessionStoreWriter sessionStore;
     private readonly ISessionRepository sessionRepository;
-    private readonly ITrackRepository trackQueries;
-    private readonly ISynchronizableRepository<Setup> setupRepository;
-    private readonly ISynchronizableRepository<Bike> bikeRepository;
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
-    private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly ISessionPreferences sessionPreferences;
     private readonly ISessionRecomputeEngine recomputeEngine;
@@ -49,11 +45,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
-        ITrackRepository trackQueries,
-        ISynchronizableRepository<Setup> setupRepository,
-        ISynchronizableRepository<Bike> bikeRepository,
         IRecordedSessionSourceStoreWriter sourceStore,
-        IRecordedSessionReprocessor recordedSessionReprocessor,
         IBackgroundTaskRunner backgroundTaskRunner,
         ISessionPreferences sessionPreferences,
         ISessionRecomputeEngine recomputeEngine,
@@ -71,11 +63,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         this.trackRepository = trackRepository;
         this.sessionStore = sessionStore;
         this.sessionRepository = sessionRepository;
-        this.trackQueries = trackQueries;
-        this.setupRepository = setupRepository;
-        this.bikeRepository = bikeRepository;
         this.sourceStore = sourceStore;
-        this.recordedSessionReprocessor = recordedSessionReprocessor;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.sessionPreferences = sessionPreferences;
         this.recomputeEngine = recomputeEngine;
@@ -202,93 +190,6 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<LiveSessionSaveResult> SaveLiveCaptureAsync(
-        Session session,
-        LiveSessionCapturePackage capture,
-        SessionPreferences preferences,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(preferences);
-
-        logger.Information("Starting live session save for {SessionId}", session.Id);
-
-        try
-        {
-            return await backgroundTaskRunner.RunAsync<LiveSessionSaveResult>(async () =>
-            {
-                var source = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture);
-                var setup = await setupRepository.GetAsync(capture.Context.SetupId)
-                            ?? throw new InvalidOperationException("Setup is missing.");
-                var bike = await bikeRepository.GetAsync(setup.BikeId)
-                           ?? throw new InvalidOperationException("Bike is missing.");
-                var setupSnapshot = SetupSnapshot.From(setup);
-                var bikeSnapshot = BikeSnapshot.From(bike);
-                var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
-                var sessionSnapshot = SessionSnapshot.From(session) with { Id = source.SessionId };
-                var input = new RecordedSessionDerivationInput(
-                    sessionSnapshot, setupSnapshot, bikeSnapshot, sourceSnapshot, source.Payload);
-
-                var reprocessResult = await recordedSessionReprocessor.ReprocessAsync(input, cancellationToken);
-
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if (reprocessResult is RecordedSessionReprocessResult.Failed failure)
-                    return new LiveSessionSaveResult.ProcessingFailed(failure.Reason, failure.Details);
-                var processed = (RecordedSessionReprocessResult.Processed)reprocessResult;
-                var generation = processed.Generation;
-                var newTrack = generation.TrackPoints is { Count: > 0 } points
-                    ? new Track(points) : null;
-                var prepared = generation.CreateSession(sessionSnapshot);
-                var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
-                var fresh = committed.Session
-                    ?? throw new InvalidOperationException("The capture source exists, but its recorded session is no longer available.");
-
-                var snapshot = SessionSnapshot.From(fresh);
-                try
-                {
-                    await sessionPreferences.UpdateRecordedAsync(snapshot.Id, _ => preferences);
-                }
-                catch (Exception e)
-                {
-                    logger.Warning(e, "Failed to update recorded-session preferences after saving session {SessionId}", session.Id);
-                }
-
-                string? publicationWarning = null;
-                try
-                {
-                    var tracks = await trackQueries.GetTrackSnapshotsAsync(newTrack is { } track ? [track.Id] : []);
-                    await dispatcher.InvokeAsync(async () =>
-                    {
-                        using var batch = publication.BeginBatch();
-                        await sessionStore.PublishSessionsChangedAsync([snapshot]);
-                        await sourceStore.PublishSourcesChangedAsync([committed.Source]);
-                        await trackStore.PublishTracksChangedAsync(tracks);
-                    });
-                }
-                catch (Exception e)
-                {
-                    publicationWarning = $"Live session was saved, but app state could not be refreshed: {e.Message}";
-                    logger.Warning(e, "Failed to publish live session state after saving session {SessionId}", session.Id);
-                }
-
-                logger.Information("Live session save completed for {SessionId}", session.Id);
-                return new LiveSessionSaveResult.Saved(
-                    snapshot.Id,
-                    snapshot.Updated,
-                    publicationWarning);
-            }, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Live session save failed for {SessionId}", session.Id);
-            return new LiveSessionSaveResult.Failed(LiveSessionSaveFailureReason.Save, e.Message);
-        }
-    }
-
     public async Task<SessionDeleteResult> DeleteAsync(Guid sessionId)
     {
         logger.Information("Starting session delete for {SessionId}", sessionId);
@@ -332,18 +233,6 @@ public abstract record SessionSaveResult
     public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionSaveResult;
     public sealed record Missing : SessionSaveResult;
     public sealed record Failed(SessionSaveFailureReason Reason, string? Details = null) : SessionSaveResult;
-}
-
-public abstract record LiveSessionSaveResult
-{
-    private LiveSessionSaveResult() { }
-
-    public sealed record Saved(
-        Guid SessionId,
-        long Updated,
-        string? PublicationWarning = null) : LiveSessionSaveResult;
-    public sealed record Failed(LiveSessionSaveFailureReason Reason, string? Details = null) : LiveSessionSaveResult;
-    public sealed record ProcessingFailed(SessionProcessingFailureReason Reason, string? Details = null) : LiveSessionSaveResult;
 }
 
 /// <summary>

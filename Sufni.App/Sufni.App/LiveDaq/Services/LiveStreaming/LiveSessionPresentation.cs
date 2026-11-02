@@ -52,4 +52,7 @@ public sealed record LiveSessionPresentationSnapshot(
 
 public sealed record LiveSessionCapturePackage(
     LiveDaqSessionContext Context,
-    LiveTelemetryCapture TelemetryCapture);
+    LiveTelemetryCapture TelemetryCapture)
+{
+    public long CaptureRevision { get; init; }
+}

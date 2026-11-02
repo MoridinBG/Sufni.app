@@ -13,7 +13,8 @@ using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using Sufni.App.MapsAndTracks.Services;
-using Sufni.App.Sessions.Coordination;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
@@ -34,7 +35,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
     private readonly ManualUiTimerScheduler uiTimers;
     private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider time = new();
     private readonly ILiveSessionService liveSessionService = Substitute.For<ILiveSessionService>();
-    private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
+    private readonly ILiveDaqCoordinator liveDaqCoordinator = TestCoordinatorSubstitutes.LiveDaq();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly IBackgroundTaskRunner backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
@@ -72,12 +73,17 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 Arg.Any<VelocityAverageMode>(),
                 Arg.Any<DampingSpeedCutoffs?>())
             .Returns(SessionDampingPercentages.Empty);
-        sessionCoordinator.SaveLiveCaptureAsync(
-            Arg.Any<Session>(),
-            Arg.Any<LiveSessionCapturePackage>(),
+        liveDaqCoordinator.SaveCaptureAsync(
+            Arg.Any<SessionSnapshot>(),
+            Arg.Any<ILiveSessionService>(),
             Arg.Any<SessionPreferences>(),
             Arg.Any<CancellationToken>())
-            .Returns(new LiveSessionSaveResult.Saved(Guid.NewGuid(), 5));
+            .Returns(_ =>
+            {
+                var revision = currentSnapshot.CaptureRevision;
+                PublishSnapshot(LiveSessionPresentationSnapshot.Empty);
+                return new LiveSessionSaveResult.Saved(Guid.NewGuid(), revision);
+            });
     }
 
     public void Dispose()
@@ -190,9 +196,9 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
-            Arg.Is<Session>(session => session.Name == "Live Session 02-01-2026 03:06:05"),
-            capturePackage, Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>());
+        await liveDaqCoordinator.Received(1).SaveCaptureAsync(
+            Arg.Is<SessionSnapshot>(session => session.Name == "Live Session 02-01-2026 03:06:05"),
+            liveSessionService, Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -216,16 +222,13 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        await liveSessionService.Received(1).PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>());
-        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
-        await sessionCoordinator.Received(1).SaveLiveCaptureAsync(
-            Arg.Is<Session>(session =>
+        await liveDaqCoordinator.Received(1).SaveCaptureAsync(
+            Arg.Is<SessionSnapshot>(session =>
                 session.Name == "Morning lap"
                 && session.Description == "first lap"
-                && session.Setup == editor.SetupId
-                && session.Timestamp == capturePackage.TelemetryCapture.Metadata.Timestamp
+                && session.SetupId == editor.SetupId
                 && session.FrontSpringRate == "550 lb/in"),
-            capturePackage,
+            liveSessionService,
             Arg.Is<SessionPreferences>(preferences =>
                 preferences.SignalDisplay.Travel &&
                 preferences.SignalDisplay.Velocity &&
@@ -245,7 +248,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
     public async Task SaveCommand_ProcessingFailure_PreservesCaptureForRetryAndSeparatesDetails()
     {
         const string details = "calibration diagnostic";
-        sessionCoordinator.SaveLiveCaptureAsync(Arg.Any<Session>(), Arg.Any<LiveSessionCapturePackage>(),
+        liveDaqCoordinator.SaveCaptureAsync(Arg.Any<SessionSnapshot>(), Arg.Any<ILiveSessionService>(),
                 Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>())
             .Returns(new LiveSessionSaveResult.ProcessingFailed(SessionProcessingFailureReason.InvalidCalibration, details));
         var editor = CreateEditor();
@@ -260,7 +263,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
         var failure = Assert.Single(editor.ErrorMessages);
         Assert.Equal(details, failure.Details);
         Assert.DoesNotContain(details, failure.Summary);
-        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
         shell.DidNotReceive().OpenEditor(Arg.Any<EditorKey>(), Arg.Any<bool>());
     }
 
@@ -268,15 +270,17 @@ public class LiveSessionDetailViewModelTests : IDisposable
     public async Task SaveCommand_ResetsCaptureAndReportsWarning_WhenCommittedSavePublicationFails()
     {
         var savedId = Guid.NewGuid();
-        sessionCoordinator.SaveLiveCaptureAsync(
-                Arg.Any<Session>(),
-                Arg.Any<LiveSessionCapturePackage>(),
+        liveDaqCoordinator.SaveCaptureAsync(
+                Arg.Any<SessionSnapshot>(),
+                Arg.Any<ILiveSessionService>(),
                 Arg.Any<SessionPreferences>(),
                 Arg.Any<CancellationToken>())
-            .Returns(new LiveSessionSaveResult.Saved(
-                savedId,
-                5,
-                "Live session was saved, but app state could not be refreshed: publish failed"));
+            .Returns(_ =>
+            {
+                var revision = currentSnapshot.CaptureRevision;
+                PublishSnapshot(LiveSessionPresentationSnapshot.Empty);
+                return new LiveSessionSaveResult.Saved(savedId, revision, "publish diagnostic");
+            });
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
         PublishSnapshot(CreateSnapshot(
@@ -285,10 +289,32 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
         shell.Received(1).OpenEditor(new EditorKey.Session(savedId));
         Assert.NotEmpty(editor.ErrorMessages);
         Assert.False(editor.SaveCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task SaveCommand_CleanupFailureKeepsCaptureAndReportsSavedOutcomeWithoutNavigating()
+    {
+        const string details = "reset diagnostic";
+        liveDaqCoordinator.SaveCaptureAsync(Arg.Any<SessionSnapshot>(), Arg.Any<ILiveSessionService>(),
+                Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveSessionSaveResult.Saved(Guid.NewGuid(), 5, CleanupFailure: details));
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: telemetry, captureRevision: 5));
+
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        Assert.Same(telemetry, editor.TelemetryData);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.True(editor.ResetCommand.CanExecute(null));
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal(details, failure.Details);
+        Assert.DoesNotContain(details, failure.Summary);
+        shell.DidNotReceive().OpenEditor(Arg.Any<EditorKey>(), Arg.Any<bool>());
     }
 
     [Fact]
@@ -483,7 +509,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         var editor = new LiveSessionDetailViewModel(
             context ?? CreateSessionContext(),
             liveSessionService,
-            sessionCoordinator,
+            liveDaqCoordinator,
             sessionPresentationService,
             backgroundTaskRunner,
             new TestMapViewModelFactory(tileLayerService),

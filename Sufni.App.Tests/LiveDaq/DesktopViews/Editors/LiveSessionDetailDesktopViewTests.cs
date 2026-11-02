@@ -56,7 +56,7 @@ public class LiveSessionDetailDesktopViewTests
 
     private static LiveSessionDetailViewModel CreateEditor()
     {
-        var sessionCoordinator = TestCoordinatorSubstitutes.Session();
+        var liveDaqCoordinator = TestCoordinatorSubstitutes.LiveDaq();
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var backgroundTaskRunner = Substitute.For<IBackgroundTaskRunner>();
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
@@ -104,7 +104,7 @@ public class LiveSessionDetailDesktopViewTests
         return new LiveSessionDetailViewModel(
             CreateSessionContext(),
             liveSessionService,
-            sessionCoordinator,
+            liveDaqCoordinator,
             sessionPresentationService,
             backgroundTaskRunner,
             new TestMapViewModelFactory(tileLayerService),

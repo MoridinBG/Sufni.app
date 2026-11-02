@@ -2,23 +2,45 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Disposables;
-using System.Threading.Tasks;
 using Serilog;
-
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Stores;
+using Sufni.App.MapsAndTracks.Services;
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Setups.Models;
+using Sufni.App.Shared.Stores;
+using Sufni.App.SyncAndPairing.Services;
+
 namespace Sufni.App.LiveDaq.Coordinators;
 
-// Reconciles discovery presence with known boards.
-public class LiveDaqCoordinator : ILiveDaqCoordinator
+// Owns live DAQ presence reconciliation and capture-save workflows.
+public partial class LiveDaqCoordinator : ILiveDaqCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
 
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
+
+    private readonly ISessionStoreWriter sessionStore;
+    private readonly ISessionRepository sessionRepository;
+    private readonly ITrackRepository trackQueries;
+    private readonly ISynchronizableRepository<Setup> setupRepository;
+    private readonly ISynchronizableRepository<Bike> bikeRepository;
+    private readonly IRecordedSessionSourceStoreWriter sourceStore;
+    private readonly IRecordedSessionReprocessor recordedSessionReprocessor;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly ISessionPreferences sessionPreferences;
+    private readonly IUiThreadDispatcher dispatcher;
+    private readonly StorePublication publication;
+    private readonly ITrackStoreWriter trackStore;
 
     private readonly System.Threading.Lock reconcileGate = new();
     private IReadOnlyDictionary<string, KnownLiveDaqRecord> knownBoards = new Dictionary<string, KnownLiveDaqRecord>();
@@ -28,11 +50,35 @@ public class LiveDaqCoordinator : ILiveDaqCoordinator
     public LiveDaqCoordinator(
         ILiveDaqStoreWriter liveDaqStore,
         ILiveDaqKnownBoardsQuery knownBoardsQuery,
-        ILiveDaqCatalogService liveDaqCatalogService)
+        ILiveDaqCatalogService liveDaqCatalogService,
+        ISessionStoreWriter sessionStore,
+        ISessionRepository sessionRepository,
+        ITrackRepository trackQueries,
+        ISynchronizableRepository<Setup> setupRepository,
+        ISynchronizableRepository<Bike> bikeRepository,
+        IRecordedSessionSourceStoreWriter sourceStore,
+        IRecordedSessionReprocessor recordedSessionReprocessor,
+        IBackgroundTaskRunner backgroundTaskRunner,
+        ISessionPreferences sessionPreferences,
+        IUiThreadDispatcher dispatcher,
+        StorePublication publication,
+        ITrackStoreWriter trackStore)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqCatalogService = liveDaqCatalogService;
+        this.sessionStore = sessionStore;
+        this.sessionRepository = sessionRepository;
+        this.trackQueries = trackQueries;
+        this.setupRepository = setupRepository;
+        this.bikeRepository = bikeRepository;
+        this.sourceStore = sourceStore;
+        this.recordedSessionReprocessor = recordedSessionReprocessor;
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        this.sessionPreferences = sessionPreferences;
+        this.dispatcher = dispatcher;
+        this.publication = publication;
+        this.trackStore = trackStore;
     }
 
     public void Activate()

@@ -1,3 +1,5 @@
+using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Sessions.Store;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using DynamicData;
@@ -22,7 +24,7 @@ using Sufni.App.Tests.TestSupport.Extensions;
 
 namespace Sufni.App.Tests.LiveDaq.Coordinators;
 
-public class LiveDaqCoordinatorTests
+public partial class LiveDaqCoordinatorTests
 {
     private readonly LiveDaqStore liveDaqStore = new(new InlineUiThreadDispatcher());
     private readonly List<IReadOnlyCollection<LiveDaqSnapshot>> observedStates = [];
@@ -42,11 +44,14 @@ public class LiveDaqCoordinatorTests
 
     }
 
-    private LiveDaqCoordinator CreateCoordinator() =>
+    private LiveDaqCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null,
+        IRecordedSessionSourceStoreWriter? sources = null, ITrackStoreWriter? tracks = null) =>
         new(
             liveDaqStore,
             knownBoardsQuery,
-            catalogService);
+            catalogService, store ?? sessionStore, repository ?? sessionRepository,
+            trackQueries, setupRepository, bikeRepository, sources ?? sourceStore, reprocessor,
+            backgroundTaskRunner, sessionPreferences, new InlineUiThreadDispatcher(), publication, tracks ?? trackStore);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
