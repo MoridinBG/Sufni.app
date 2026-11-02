@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Sufni.App.Shared.Models;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 
 namespace Sufni.App.Acquisition.Coordinators;
 
@@ -7,6 +8,8 @@ namespace Sufni.App.Acquisition.Coordinators;
 public abstract record SessionImportState(ImmutableList<SessionImportEvent> Events)
 {
     public sealed record Idle() : SessionImportState([]);
+    public sealed record SourceBusy(DaqTransportHolder Holder) : SessionImportState([]);
+    public sealed record SourceUnavailable() : SessionImportState([]);
 
     public sealed record Running(
         int Current,

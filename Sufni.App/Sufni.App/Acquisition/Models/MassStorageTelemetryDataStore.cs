@@ -11,15 +11,15 @@ public sealed class MassStorageTelemetryDataStore : ITelemetryDataStore
 {
     private readonly IDaqDriveProbe driveProbe;
 
-    public Task<IAsyncDisposable?> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IAsyncDisposable?>(null);
+    public Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(null));
 
     public string Name => Drive.DisplayName;
     public Guid? BoardId { get; }
     public DaqDrive Drive { get; }
 
-    public Task<List<ITelemetryFile>> GetFiles() => Task.FromResult(
-        driveProbe.GetFiles(Drive).OrderByDescending(file => file.StartTime).ToList());
+    public Task<TelemetryFileListing> GetFiles(CancellationToken cancellationToken = default) => Task.FromResult<TelemetryFileListing>(
+        new TelemetryFileListing.Listed([.. driveProbe.GetFiles(Drive).OrderByDescending(file => file.StartTime)], BoardId));
 
     public static async Task<MassStorageTelemetryDataStore> CreateAsync(
         DaqDrive drive,

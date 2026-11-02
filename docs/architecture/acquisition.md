@@ -129,16 +129,36 @@ On import, files move to an `uploaded/` subdirectory, which the datastore create
 
 ### Network (WiFi DAQ)
 
-`NetworkTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/NetworkTelemetryDataStore.cs`) connects to a DAQ device discovered via mDNS (service type `_sufni._tcp`). Network import goes through `IDaqManagementService`: `TelemetryDataStoreService` constructs the datastore with both `IDaqManagementService` and `ILiveDaqBoardIdInspector`.
+`TelemetryDataStoreService` observes `ILiveDaqCatalogService`; the catalog is the
+only raw mDNS subscriber for acquisition. Browse leases keep sources present
+while consumers need them. Catalog updates create, replace or remove network
+source adapters on the UI dispatcher, and queued updates from an ended browse
+cannot republish sources. Only entries supporting management (currently v2)
+become import sources. Discovery makes no device connection or IDENTIFY request.
 
-- `Initialization` performs only board-ID resolution through `ILiveDaqBoardIdInspector.InspectAsync(...)`, which opens a short-lived LIVE identify handshake and returns `BoardIdInspection.Found | TimedOut | Unreachable`. Only `Found` stores the device GUID and admits the datastore to the discovered collection. Timeout/unreachable results become notification state; caller cancellation propagates. File listing happens in `GetFiles()`.
-- `GetFiles()` calls `IDaqManagementService.ListDirectoryAsync(host, port, DaqDirectoryId.Root)`, pattern-matches the returned `DaqRootDirectoryRecord`, ignores `DaqConfigFileRecord` entries, maps `DaqSstFileRecord` values into importable `NetworkTelemetryFile` instances, and maps `DaqMalformedSstFileRecord` values into non-importable `NetworkTelemetryFile` instances (`canImport: false`) carrying the malformed message. The combined list is returned sorted by descending `StartTime`.
-- `NetworkTelemetryFile` carries the DAQ `recordId` from the management directory listing. `ReadSourceAsync(...)` streams bytes through the batch's `IDaqManagementSession.GetFileAsync(...)` directly into a `MemoryStream` and returns a `TelemetryFileSource`; it does not create a temporary local SST file. `OnImported()` calls `IDaqManagementSession.MarkSstUploadedAsync(...)` (wire request `MARK_SST_UPLOADED`) after the validated session has been persisted, and `OnTrashed()` routes remote delete through `IDaqManagementSession.TrashFileAsync(...)`.
-- Typed management failures are translated back into exceptions at the `ITelemetryDataStore` / `ITelemetryFile` boundary so the import workflow remains exception-based.
+`NetworkTelemetryDataStore` resolves its current endpoint from the catalog for
+listing and batch acquisition. `GetFiles(ct)` returns `TelemetryFileListing`:
+`Listed(files, boardId)`, `Busy(holder)` or `Unavailable`. TXT board identity is
+used directly. For a legacy entry without identity, listing first acquires
+`Identify`, awaits the inspector, releases that reservation and verifies that the
+catalog entry is still current. The resolved identity travels with the immutable
+listing for setup selection. Listing then holds `Management(ListFiles)` until
+its I/O completes. Cancellation releases the reservation.
 
-Import still shares the DAQ's single-client TCP port with live preview. The diagnostics tab disables its management actions while the LIVE client is connected, but the import path does not globally coordinate with open live tabs. Listing or file-transfer conflicts therefore surface as load/import failures on the import page; `TelemetryDataStoreService.DiscoveryIssueReported` distinguishes expected DAQ unavailability from browse-time failures, whose diagnostic details stay separate from the fixed error summary.
+`OpenImportBatchAsync` acquires `Import(batchId)` before allowing file operations.
+The batch lazily opens one management session and keeps the port reserved until
+session disposal completes. Busy or missing sources end the request with a typed
+outcome. The import screen presents these as availability notifications.
+`NetworkTelemetryFile` carries the listed record id and gets its operation session
+from the owning batch; the coordinator never casts files or attaches sessions.
+Downloads stream into memory, post-publication acknowledgement uses
+`MARK_SST_UPLOADED`, and trash uses the corresponding management operation.
+Management protocol errors still become exceptions at the file-operation
+boundary, where the coordinator reports them per file.
 
-Network add / remove handling follows the same split as mass storage: any initialization work completes first, and only the `DataStores` collection mutation is marshaled back to the UI thread.
+`DataStoreDiscoveryIssue` now reports drive-scan failures only. Network availability
+belongs to listing or batch acquisition, and scan diagnostics remain separate from
+fixed user-facing summaries.
 
 ### Storage Provider
 

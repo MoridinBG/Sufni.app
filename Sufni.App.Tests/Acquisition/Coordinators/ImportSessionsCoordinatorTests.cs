@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
@@ -27,6 +28,27 @@ namespace Sufni.App.Tests.Acquisition.Coordinators;
 
 public class ImportSessionsCoordinatorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAsync_UnavailableSourceEndsWithExpectedStateAndLeavesFilesUntouched(bool busy)
+    {
+        var harness = new ImportWorkflowHarness();
+        using var coordinator = harness.CreateCoordinator();
+        var source = CreateDataStore();
+        var holder = new DaqTransportHolder.Streaming();
+        source.OpenImportBatchAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<TelemetryImportBatchAcquisition>(busy
+            ? new TelemetryImportBatchAcquisition.Busy(holder) : new TelemetryImportBatchAcquisition.Unavailable()));
+        var item = CreateImportItem();
+
+        await coordinator.ImportAsync(source, [item], Guid.NewGuid(), TestContext.Current.CancellationToken);
+
+        if (busy) Assert.Equal(holder, Assert.IsType<SessionImportState.SourceBusy>(coordinator.State).Holder);
+        else Assert.IsType<SessionImportState.SourceUnavailable>(coordinator.State);
+        await item.File.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
+        await item.File.DidNotReceive().OnImported();
+    }
+
     [Fact]
     public async Task ImportAsync_PublishesRecordingAndSourceTogether()
     {
@@ -437,7 +459,7 @@ public class ImportSessionsCoordinatorTests
         var source = CreateDataStore();
         var batch = Substitute.For<IAsyncDisposable>();
         source.OpenImportBatchAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IAsyncDisposable?>(batch));
+            .Returns(Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(batch)));
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var first = CreateImportItem("first", action: ImportFileAction.Trash);

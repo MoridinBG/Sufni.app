@@ -10,6 +10,8 @@ public static class TestTelemetrySources
         var dataStore = Substitute.For<ITelemetryDataStore>();
         dataStore.Name.Returns(name);
         dataStore.BoardId.Returns(boardId);
+        dataStore.OpenImportBatchAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(null)));
         return dataStore;
     }
 

@@ -20,7 +20,7 @@ public class MassStorageTelemetryDataStoreTests
         var drive = new DaqDrive(tempDirectory.Path, "DAQ", "DAQ");
 
         var dataStore = await MassStorageTelemetryDataStore.CreateAsync(drive, new DaqDriveProbe(), cancellationToken: TestContext.Current.CancellationToken);
-        var files = await dataStore.GetFiles();
+        var files = Assert.IsType<TelemetryFileListing.Listed>(await dataStore.GetFiles(TestContext.Current.CancellationToken)).Files;
         using var source = await files[0].ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);

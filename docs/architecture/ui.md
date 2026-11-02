@@ -220,9 +220,12 @@ its existing publication warning.
 `SessionImportFailure` is `OperationFailed | ProcessingFailed` with file identity
 and operation. `SessionImportFailureReason` covers import, invalid file,
 publication, trash, acknowledgement and batch failure. `SessionImportEvent` is
-`Imported | Failed | Progress`; failed events carry the same failure as the
-completed result. Import feedback adds the file name to the fixed summary and
-keeps technical details in the expander.
+`Imported | AlreadyImported | AcknowledgementFailed | Failed | Progress`.
+Acknowledgement failures have their own event and do not increase failed-import
+counts; failed events carry the same failure as the completed result. A busy or
+unavailable source ends a start request with `SourceBusy` / `SourceUnavailable`
+state and an availability notification. Import feedback adds the file name to the
+fixed summary and keeps technical details in the expander.
 
 `MapLayerWriteResult` is `Saved | Failed(reason, details)` with
 `MapLayerFailureReason.Add | Select`. Add failure leaves the catalog unchanged;

@@ -5,12 +5,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform.Storage;
-using Microsoft.Extensions.DependencyInjection;
+using System.Reactive.Linq;
 using Serilog;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.LiveDaq.Services;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Models;
 namespace Sufni.App.Acquisition.Services;
@@ -19,8 +20,10 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
 {
     private static readonly ILogger logger = Log.ForContext<TelemetryDataStoreService>();
     private readonly IDaqDriveProbe driveProbe;
-    private readonly IServiceDiscovery serviceDiscovery;
-    private readonly IDaqBrowseOwner browseOwner;
+    private readonly ILiveDaqCatalogService catalog;
+    private readonly ILiveDaqSharedStreamRegistry registry;
+    private IDisposable? catalogSubscription;
+    private long browseGeneration;
     private readonly IDaqManagementService daqManagementService;
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
@@ -86,56 +89,18 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         });
     }
 
-    private async Task RemoveNetworkDataStoreAsync(ServiceAnnouncementEventArgs e)
+    private void ApplyCatalog(IReadOnlyList<LiveDaqCatalogEntry> entries, long generation)
     {
-        var ipAddress = e.Announcement.Address;
-        var port = e.Announcement.Port;
-        var name = $"gosst://{ipAddress}:{port}";
-
-        await uiThreadDispatcher.InvokeAsync(() =>
+        if (!isBrowsing || generation != browseGeneration) return;
+        var available = entries.Where(entry => entry.SupportsManagement).ToDictionary(entry => entry.IdentityKey, StringComparer.OrdinalIgnoreCase);
+        foreach (var existing in DataStores.OfType<NetworkTelemetryDataStore>().ToArray())
         {
-            if (!isBrowsing)
-                return;
-
-            var toRemove = DataStores.FirstOrDefault(x => x.Name == name);
-            if (toRemove is not null)
-            {
-                DataStores.Remove(toRemove);
-            }
-        });
-    }
-
-    private async Task AddNetworkDataStoreAsync(ServiceAnnouncementEventArgs e)
-    {
-        var ipAddress = e.Announcement.Address;
-        var port = e.Announcement.Port;
-
-        NetworkTelemetryDataStore ds;
-        try
-        {
-            ds = new NetworkTelemetryDataStore(e.Announcement.Endpoint, daqManagementService, liveDaqBoardIdInspector);
-            if (await ds.Initialization is not BoardIdInspection.Found)
-            {
-                await uiThreadDispatcher.InvokeAsync(() =>
-                    DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue.DaqUnavailable()));
-                return;
-            }
+            if (!available.Remove(existing.CatalogEntry.IdentityKey, out var entry)) DataStores.Remove(existing);
+            else if (existing.CatalogEntry != entry)
+                DataStores[DataStores.IndexOf(existing)] = new NetworkTelemetryDataStore(entry, catalog, registry, daqManagementService, liveDaqBoardIdInspector);
         }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "DAQ discovery failed at {Address}:{Port}", ipAddress, port);
-            await uiThreadDispatcher.InvokeAsync(() =>
-                DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue.Failed(DataStoreDiscoveryFailureReason.Connect, ex.Message)));
-            return;
-        }
-
-        await uiThreadDispatcher.InvokeAsync(() =>
-        {
-            if (!isBrowsing || DataStores.Any(existing => existing.Name == ds.Name))
-                return;
-
-            DataStores.Add(ds);
-        });
+        foreach (var entry in available.Values)
+            DataStores.Add(new NetworkTelemetryDataStore(entry, catalog, registry, daqManagementService, liveDaqBoardIdInspector));
     }
 
     private Task<IReadOnlyList<DaqDrive>> GetCurrentMassStorageDrivesAsync(CancellationToken cancellationToken = default) =>
@@ -164,8 +129,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
     }
 
     public TelemetryDataStoreService(
-        [FromKeyedServices("daq")] IServiceDiscovery serviceDiscovery,
-        IDaqBrowseOwner browseOwner,
+        ILiveDaqCatalogService catalog,
+        ILiveDaqSharedStreamRegistry registry,
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector,
         IBackgroundTaskRunner backgroundTaskRunner,
@@ -175,8 +140,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         TimeProvider timeProvider)
     {
         this.driveProbe = driveProbe;
-        this.serviceDiscovery = serviceDiscovery;
-        this.browseOwner = browseOwner;
+        this.catalog = catalog;
+        this.registry = registry;
         this.daqManagementService = daqManagementService;
         this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -211,7 +176,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
                         await uiThreadDispatcher.InvokeAsync(() =>
                         {
                             if (!token.IsCancellationRequested)
-                                DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue.Failed(DataStoreDiscoveryFailureReason.Scan, exception.Message));
+                                DiscoveryIssueReported?.Invoke(this, new DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason.Scan, exception.Message));
                         });
                     }
                 }
@@ -234,15 +199,16 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
             return;
 
         isBrowsing = true;
-        serviceDiscovery.ServiceAdded += OnServiceAdded;
-        serviceDiscovery.ServiceRemoved += OnServiceRemoved;
+        var generation = ++browseGeneration;
+        catalogSubscription = catalog.Observe().ObserveOnUiThread(uiThreadDispatcher)
+            .Subscribe(entries => ApplyCatalog(entries, generation));
         if (supportsMassStorageImport)
         {
             massStorageScanCancellation = new CancellationTokenSource();
             massStorageScanTask = RunMassStorageScanLoopAsync(massStorageScanTask, massStorageScanCancellation);
         }
 
-        browseLease = browseOwner.AcquireBrowse();
+        browseLease = catalog.AcquireBrowse();
     }
 
     public void StopBrowse()
@@ -251,8 +217,8 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
             return;
 
         isBrowsing = false;
-        serviceDiscovery.ServiceAdded -= OnServiceAdded;
-        serviceDiscovery.ServiceRemoved -= OnServiceRemoved;
+        catalogSubscription?.Dispose();
+        catalogSubscription = null;
         massStorageScanCancellation?.Cancel();
         massStorageScanCancellation = null;
         browseLease?.Dispose();
@@ -260,36 +226,10 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         DataStores.Clear();
     }
 
-    private async void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
-    {
-        if (!IsV2DaqAnnouncement(e.Announcement))
-        {
-            logger.Verbose(
-                "Ignoring network import announcement from {Address}:{Port} because TXT live_proto is not 2",
-                e.Announcement.Address,
-                e.Announcement.Port);
-            return;
-        }
-
-        await AddNetworkDataStoreAsync(e);
-    }
-
-    private async void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e) =>
-        await RemoveNetworkDataStoreAsync(e);
-
-    private static bool IsV2DaqAnnouncement(ServiceAnnouncement announcement) =>
-        announcement.TxtRecords.Any(record =>
-            string.Equals(record.Key, "live_proto", StringComparison.Ordinal) &&
-            string.Equals(record.Value, "2", StringComparison.Ordinal));
-
-    public Task<IReadOnlyList<ITelemetryFile>> LoadFilesAsync(
+    public Task<TelemetryFileListing> LoadFilesAsync(
         ITelemetryDataStore dataStore,
         CancellationToken cancellationToken = default) =>
-        backgroundTaskRunner.RunAsync(async () =>
-        {
-            var files = await dataStore.GetFiles();
-            return (IReadOnlyList<ITelemetryFile>)files;
-        }, cancellationToken);
+        backgroundTaskRunner.RunAsync(() => dataStore.GetFiles(cancellationToken), cancellationToken);
 
     public async Task<StorageProviderRegistrationResult> TryAddStorageProviderAsync(
         IStorageFolder folder,

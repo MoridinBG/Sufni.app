@@ -38,7 +38,7 @@ internal sealed class ImportWorkflowHarness
     {
         TelemetryDataStoreService.DataStores.Returns(DataStores);
         TelemetryDataStoreService.LoadFilesAsync(Arg.Any<ITelemetryDataStore>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([]));
+            .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([], null)));
         ImportSessionsCoordinatorSubstitute.State.Returns(_ => ImportState.Value);
         ImportSessionsCoordinatorSubstitute.Observe().Returns(ImportState);
         ConfigureDefaultReprocessor();

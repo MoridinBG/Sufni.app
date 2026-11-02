@@ -153,7 +153,6 @@ public sealed record FailurePresentation
     public static FailurePresentation From(DataStoreDiscoveryFailureReason reason, string? details = null) => new(reason switch
     {
         DataStoreDiscoveryFailureReason.Scan => "DAQ drives could not be scanned. Check the connection and try again.",
-        DataStoreDiscoveryFailureReason.Connect => "The DAQ could not be opened. Check the connection and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
     public static FailurePresentation From(GpxImportFailureReason reason, string? details = null) => new(reason switch

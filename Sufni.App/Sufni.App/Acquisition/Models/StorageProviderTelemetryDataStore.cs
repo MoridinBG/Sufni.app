@@ -14,8 +14,8 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
 {
     private static readonly ILogger logger = Log.ForContext<StorageProviderTelemetryDataStore>();
 
-    public Task<IAsyncDisposable?> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IAsyncDisposable?>(null);
+    public Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(null));
 
     public Task Initialization { get; }
     public string Name { get; }
@@ -37,13 +37,13 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
         return true;
     }
 
-    public async Task<List<ITelemetryFile>> GetFiles()
+    public async Task<TelemetryFileListing> GetFiles(CancellationToken cancellationToken = default)
     {
         await Initialization;
 
         var files = new List<ITelemetryFile>();
         var items = Folder.GetItemsAsync();
-        await foreach (var item in items)
+        await foreach (var item in items.WithCancellation(cancellationToken))
         {
             if (item.Name.EndsWith(".SST", StringComparison.Ordinal) && item is IStorageFile file)
             {
@@ -58,7 +58,7 @@ public class StorageProviderTelemetryDataStore : ITelemetryDataStore
             }
         }
 
-        return files.OrderByDescending(f => f.StartTime).ToList();
+        return new TelemetryFileListing.Listed([.. files.OrderByDescending(f => f.StartTime)], BoardId);
     }
 
     private async Task Init()

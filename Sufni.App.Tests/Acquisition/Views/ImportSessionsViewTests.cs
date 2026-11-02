@@ -33,7 +33,7 @@ public class ImportSessionsViewTests
         var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);
         harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+            .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { file }], null)));
         var viewModel = harness.CreateViewModel();
 
         await using var mounted = await MountAsync(viewModel);
@@ -76,7 +76,7 @@ public class ImportSessionsViewTests
         var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);
         harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]));
+            .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
         var viewModel = harness.CreateViewModel();
         await using var mounted = await MountAsync(viewModel);
         var selector = Assert.Single(mounted.View.GetLogicalDescendants().OfType<ComboBox>(),
@@ -108,7 +108,7 @@ public class ImportSessionsViewTests
             canImport: true);
         harness.DataStores.Add(dataStore);
         harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>(new[] { file }));
+            .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { file }], null)));
         var viewModel = harness.CreateViewModel();
 
         await using var mounted = await MountAsync(viewModel);
@@ -128,7 +128,7 @@ public class ImportSessionsViewTests
         var file = CreateTelemetryFile("lap", startTime: startUtc);
         harness.DataStores.Add(store);
         harness.TelemetryDataStoreService.LoadFilesAsync(store, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<ITelemetryFile>>([file]));
+            .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
 
         await using var mounted = await MountAsync(harness.CreateViewModel());
 

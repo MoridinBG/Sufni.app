@@ -84,19 +84,20 @@ public class ImportSessionsCoordinator(
         try
         {
             var progress = new UiThreadProgress<SessionImportEvent>(dispatcher, ReportProgress);
-            var result = await backgroundTaskRunner.RunAsync(
-                async () =>
-                {
-                    await using var batch = await dataStore.OpenImportBatchAsync(Guid.NewGuid(), runCancellation.Token);
-                    return await ImportCoreAsync(files, setupId, progress, runCancellation.Token);
-                });
+            var outcome = await backgroundTaskRunner.RunAsync<SessionImportState>(async () =>
+            {
+                var acquisition = await dataStore.OpenImportBatchAsync(Guid.NewGuid(), runCancellation.Token);
+                if (acquisition is TelemetryImportBatchAcquisition.Busy busy) return new SessionImportState.SourceBusy(busy.Holder);
+                if (acquisition is TelemetryImportBatchAcquisition.Unavailable) return new SessionImportState.SourceUnavailable();
+                await using var batch = ((TelemetryImportBatchAcquisition.Acquired)acquisition).Lifetime;
+                var result = await ImportCoreAsync(files, setupId, progress, runCancellation.Token);
+                return new SessionImportState.Completed(result, []);
+            });
 
-            logger.Information(
-                "Session import completed with {ImportedCount} imported sessions and {FailureCount} failures",
-                result.Imported.Count,
-                result.Failures.Count);
-            await dispatcher.InvokeAsync(() =>
-                state.OnNext(new SessionImportState.Completed(result, State.Events)));
+            if (outcome is SessionImportState.Completed completed)
+                logger.Information("Session import completed with {ImportedCount} imported sessions and {FailureCount} failures",
+                    completed.Result.Imported.Count, completed.Result.Failures.Count);
+            await dispatcher.InvokeAsync(() => state.OnNext(outcome with { Events = State.Events }));
         }
         catch (OperationCanceledException) when (runCancellation.IsCancellationRequested)
         {

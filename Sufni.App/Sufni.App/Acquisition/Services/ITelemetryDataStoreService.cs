@@ -18,7 +18,7 @@ public interface ITelemetryDataStoreService
     public void StartBrowse();
     public void StopBrowse();
 
-    public Task<IReadOnlyList<ITelemetryFile>> LoadFilesAsync(
+    public Task<TelemetryFileListing> LoadFilesAsync(
         ITelemetryDataStore dataStore,
         CancellationToken cancellationToken = default);
 
@@ -36,9 +36,4 @@ public abstract record StorageProviderRegistrationResult
     public sealed record AlreadyOpen(ITelemetryDataStore DataStore) : StorageProviderRegistrationResult;
 }
 
-public abstract record DataStoreDiscoveryIssue
-{
-    private DataStoreDiscoveryIssue() { }
-    public sealed record DaqUnavailable : DataStoreDiscoveryIssue;
-    public sealed record Failed(DataStoreDiscoveryFailureReason Reason, string? Details = null) : DataStoreDiscoveryIssue;
-}
+public sealed record DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason Reason, string? Details = null);

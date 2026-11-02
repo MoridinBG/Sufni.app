@@ -2,7 +2,8 @@ using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Tests.TestSupport.Acquisition;
 using System.Threading.Channels;
-using System.Net;
+using System.Reactive.Linq;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using NSubstitute;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestStorageItems;
 
@@ -20,17 +21,18 @@ public class TelemetryDataStoreServiceTests
     [Fact]
     public async Task StartBrowse_AcquiresBrowseLeaseOnce_AndStopBrowseDisposesLeaseAndClearsStores()
     {
-        var browseOwner = Substitute.For<IDaqBrowseOwner>();
+        var catalog = Substitute.For<ILiveDaqCatalogService>();
+        catalog.Observe().Returns(Observable.Return<IReadOnlyList<LiveDaqCatalogEntry>>([]));
         var lease = Substitute.For<IDisposable>();
-        browseOwner.AcquireBrowse().Returns(lease);
-        await using var service = CreateService(browseOwner: browseOwner);
+        catalog.AcquireBrowse().Returns(lease);
+        await using var service = CreateService(catalog: catalog);
         service.DataStores.Add(CreateDataStore("DAQ"));
 
         service.StartBrowse();
         service.StartBrowse();
         service.StopBrowse();
 
-        browseOwner.Received(1).AcquireBrowse();
+        catalog.Received(1).AcquireBrowse();
         lease.Received(1).Dispose();
         Assert.Empty(service.DataStores);
     }
@@ -42,13 +44,13 @@ public class TelemetryDataStoreServiceTests
         await using var service = CreateService(backgroundTaskRunner: backgroundTaskRunner);
         var file = Substitute.For<ITelemetryFile>();
         var dataStore = CreateDataStore("DAQ");
-        dataStore.GetFiles().Returns(Task.FromResult(new List<ITelemetryFile> { file }));
+        dataStore.GetFiles(Arg.Any<CancellationToken>()).Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
 
         var files = await service.LoadFilesAsync(dataStore, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Same(file, Assert.Single(files));
+        Assert.Same(file, Assert.Single(Assert.IsType<TelemetryFileListing.Listed>(files).Files));
         Assert.Equal(1, backgroundTaskRunner.InvocationCount);
-        await dataStore.Received(1).GetFiles();
+        await dataStore.Received(1).GetFiles(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -87,150 +89,66 @@ public class TelemetryDataStoreServiceTests
         duplicateFolder.DidNotReceive().GetItemsAsync();
     }
 
-    [Fact]
-    public async Task ServiceAdded_AddsDiscoveredNetworkDataStore()
-    {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
-        await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
-        service.StartBrowse();
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
-
-        var store = Assert.Single(service.DataStores);
-        Assert.Equal("gosst://127.0.0.1:5555", store.Name);
-        Assert.Equal(boardId, store.BoardId);
-    }
-
-    [Fact]
-    public async Task ServiceAdded_AddsDiscoveredNetworkDataStore_WhenMassStorageUnsupported()
-    {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
-        await using var service = CreateService(
-            serviceDiscovery: serviceDiscovery,
-            boardIdInspector: boardIdInspector,
-            appEnvironment: CreateEnvironment(supportsMassStorageImport: false));
-        service.StartBrowse();
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
-
-        var store = Assert.Single(service.DataStores);
-        Assert.Equal("gosst://127.0.0.1:5555", store.Name);
-        Assert.Equal(boardId, store.BoardId);
-    }
-
-    [Fact]
-    public async Task ServiceAdded_DoesNotDuplicateExistingStore()
-    {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        await using var service = CreateService(serviceDiscovery: serviceDiscovery);
-        service.StartBrowse();
-        var announcement = new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2"));
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(announcement);
-        serviceDiscovery.ServiceAdded += Raise.EventWith(announcement);
-
-        Assert.Single(service.DataStores);
-    }
-
-    [Fact]
-    public async Task ServiceAdded_ReportsError_WhenDiscoveryInitializationFails()
-    {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        boardIdInspector.InspectAsync(Arg.Any<ServiceEndpoint>(),
-                cancellationToken: Arg.Any<CancellationToken>())
-            .Returns<Task<BoardIdInspection>>(_ => throw new InvalidOperationException("discovery failed"));
-        await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
-        var errors = new List<DataStoreDiscoveryIssue>();
-        service.DiscoveryIssueReported += (_, message) => errors.Add(message);
-        service.StartBrowse();
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
-
-        Assert.Empty(service.DataStores);
-        Assert.Single(errors);
-    }
-
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ServiceAdded_ReportsUnavailable_WithoutAddingUnidentifiedStore(bool timedOut)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CatalogPresence_CreatesNetworkSourcesWithoutOpeningDeviceConnections(bool supportsMassStorage, bool advertisedIdentity)
     {
-        var discovery = Substitute.For<IServiceDiscovery>();
-        var inspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        inspector.InspectAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>())
-            .Returns(timedOut ? new BoardIdInspection.TimedOut() : (BoardIdInspection)new BoardIdInspection.Unreachable());
-        await using var service = CreateService(serviceDiscovery: discovery, boardIdInspector: inspector);
-        var issues = new List<DataStoreDiscoveryIssue>();
-        service.DiscoveryIssueReported += (_, issue) => issues.Add(issue);
+        var network = new NetworkTelemetrySourceHarness();
+        if (!advertisedIdentity) network.Entries.OnNext([network.Entries.Value.Single() with { BoardId = null }]);
+        await using var service = CreateService(catalog: network.Catalog, registry: network.Registry,
+            boardIdInspector: network.Inspector, management: network.Management,
+            appEnvironment: CreateEnvironment(supportsMassStorage));
+
         service.StartBrowse();
 
-        discovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
-
-        Assert.Empty(service.DataStores);
-        Assert.IsType<DataStoreDiscoveryIssue.DaqUnavailable>(Assert.Single(issues));
+        var store = Assert.Single(service.DataStores);
+        Assert.Equal("gosst://127.0.0.1:5555", store.Name);
+        Assert.Equal(advertisedIdentity ? network.BoardId : (Guid?)null, store.BoardId);
+        await network.Inspector.DidNotReceive().InspectAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+        await network.Management.DidNotReceive().ListDirectoryAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ServiceRemoved_RemovesTheMatchingStoreOnly()
+    public async Task CatalogChanges_ReplaceChangedEndpoints_IgnoreV3_AndRemoveOnlyNetworkSources()
     {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        await using var service = CreateService(serviceDiscovery: serviceDiscovery);
+        var network = new NetworkTelemetrySourceHarness();
+        var entry = network.Entries.Value.Single();
+        network.Entries.OnNext([entry, entry with { IdentityKey = "v3", ProtocolVersion = LiveProtocolVersion.V3 }]);
+        await using var service = CreateService(catalog: network.Catalog);
+        var local = CreateDataStore("USB");
+        service.DataStores.Add(local);
         service.StartBrowse();
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 6666, "2")));
+        var first = Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>());
 
-        serviceDiscovery.ServiceRemoved += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Loopback, 5555)));
+        network.Entries.OnNext([entry]);
+        Assert.Same(first, Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>()));
+        network.Entries.OnNext([entry with { NetworkEndpoint = new ServiceEndpoint("127.0.0.1", 6666) }]);
+        var replacement = Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>());
+        Assert.NotSame(first, replacement);
+        Assert.Equal("gosst://127.0.0.1:6666", replacement.Name);
+        network.Entries.OnNext([]);
 
-        var remaining = Assert.Single(service.DataStores);
-        Assert.Equal("gosst://127.0.0.1:6666", remaining.Name);
+        Assert.Same(local, Assert.Single(service.DataStores));
     }
 
     [Fact]
-    public async Task ServiceAnnouncements_AreIgnoredAfterStopBrowse()
+    public async Task StopBrowse_RejectsQueuedCatalogPresence_AndRestartUsesCurrentCatalog()
     {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        await using var service = CreateService(serviceDiscovery: serviceDiscovery);
+        var network = new NetworkTelemetrySourceHarness();
+        var dispatcher = new ManualUiThreadDispatcher();
+        await using var service = CreateService(catalog: network.Catalog, dispatcher: dispatcher);
         service.StartBrowse();
         service.StopBrowse();
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, "2")));
-
+        await dispatcher.DrainAsync();
         Assert.Empty(service.DataStores);
-    }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("3")]
-    [InlineData("4")]
-    public async Task ServiceAdded_IgnoresAnnouncementsWithoutV2Protocol(string? liveProto)
-    {
-        var serviceDiscovery = Substitute.For<IServiceDiscovery>();
-        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         service.StartBrowse();
+        await dispatcher.DrainAsync();
 
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, liveProto)));
-
-        Assert.Empty(service.DataStores);
-        await boardIdInspector.DidNotReceive().InspectAsync(Arg.Any<ServiceEndpoint>(),
-            cancellationToken: Arg.Any<CancellationToken>());
+        Assert.Single(service.DataStores);
     }
 
     [Fact]
@@ -312,7 +230,7 @@ public class TelemetryDataStoreServiceTests
         service.StartBrowse();
         time.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(DataStoreDiscoveryFailureReason.Scan,
-            Assert.IsType<DataStoreDiscoveryIssue.Failed>(await error.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2))).Reason);
+            (await error.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2))).Reason);
 
         scanFails = false;
         time.Advance(TimeSpan.FromSeconds(1));
@@ -322,35 +240,30 @@ public class TelemetryDataStoreServiceTests
     }
 
     private static TelemetryDataStoreService CreateService(
-        IDaqBrowseOwner? browseOwner = null,
+        ILiveDaqCatalogService? catalog = null,
+        ILiveDaqSharedStreamRegistry? registry = null,
         IBackgroundTaskRunner? backgroundTaskRunner = null,
-        IServiceDiscovery? serviceDiscovery = null,
         ILiveDaqBoardIdInspector? boardIdInspector = null,
+        IDaqManagementService? management = null,
         IAppEnvironment? appEnvironment = null,
         IDaqDriveProbe? driveProbe = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IUiThreadDispatcher? dispatcher = null)
     {
-        if (browseOwner is null)
+        if (catalog is null)
         {
-            browseOwner = Substitute.For<IDaqBrowseOwner>();
-            browseOwner.AcquireBrowse().Returns(Substitute.For<IDisposable>());
+            catalog = Substitute.For<ILiveDaqCatalogService>();
+            catalog.Observe().Returns(Observable.Return<IReadOnlyList<LiveDaqCatalogEntry>>([]));
+            catalog.AcquireBrowse().Returns(Substitute.For<IDisposable>());
         }
-
-        if (boardIdInspector is null)
-        {
-            boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-            boardIdInspector.InspectAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>())
-                .Returns(new BoardIdInspection.Found(Guid.NewGuid()));
-        }
-
         return new TelemetryDataStoreService(
-            serviceDiscovery ?? Substitute.For<IServiceDiscovery>(),
-            browseOwner,
-            Substitute.For<IDaqManagementService>(),
-            boardIdInspector,
+            catalog,
+            registry ?? Substitute.For<ILiveDaqSharedStreamRegistry>(),
+            management ?? Substitute.For<IDaqManagementService>(),
+            boardIdInspector ?? Substitute.For<ILiveDaqBoardIdInspector>(),
             backgroundTaskRunner ?? new InlineBackgroundTaskRunner(),
             driveProbe ?? new FakeMassStorageDriveSource(),
-            new InlineUiThreadDispatcher(),
+            dispatcher ?? new InlineUiThreadDispatcher(),
             appEnvironment ?? CreateEnvironment(supportsMassStorageImport: true),
             timeProvider ?? new FakeTimeProvider());
     }
@@ -376,17 +289,6 @@ public class TelemetryDataStoreServiceTests
         var dataStore = Substitute.For<ITelemetryDataStore>();
         dataStore.Name.Returns(name);
         return dataStore;
-    }
-
-    private static ServiceAnnouncement CreateDaqAnnouncement(IPAddress address, ushort port, string? liveProto)
-    {
-        var txtRecords = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (liveProto is not null)
-        {
-            txtRecords.Add("live_proto", liveProto);
-        }
-
-        return new ServiceAnnouncement(address, port, instanceName: null, txtRecords);
     }
 
     private static IStorageFolder CreateStorageProviderFolder(string localPath, string boardId)

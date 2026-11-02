@@ -2,7 +2,7 @@ using System;
 
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
-public enum DaqManagementOperation { SetTime, ReadConfig, WriteConfig }
+public enum DaqManagementOperation { SetTime, ReadConfig, WriteConfig, ListFiles }
 
 // The operation holding the DAQ's single-client port, independently of tab observers.
 public abstract record DaqTransportHolder

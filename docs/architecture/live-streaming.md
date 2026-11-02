@@ -281,8 +281,9 @@ connect while the former stream's client is still closing. Start failure dispose
 its client before releasing the port; retry creates a fresh client.
 `AcquireManagementAsync`, `AcquireImportAsync` and `AcquireIdentifyAsync` expose
 the same arbitration for their callers. Diagnostics management acquires its reservation through `LiveDaqCoordinator`.
-Network import and IDENTIFY still call their services directly; their routing
-through the reservation APIs is not yet complete.
+Network sources reserve `Management(ListFiles)` for listing, `Identify` only when
+TXT identity is absent, and `Import(batchId)` through management-session cleanup.
+Busy acquisitions return the current holder without opening a competing socket.
 
 Catalog callbacks enqueue immutable entries plus the stream instances that existed
 when the event arrived. One owned worker applies them in order and awaits closes;
@@ -343,7 +344,7 @@ ended browse cannot republish that presence.
 
 ### Board-ID Inspector
 
-`LiveDaqBoardIdInspector` is a v2 compatibility helper used by the network import path. It opens a short-lived v2 LIVE connection, sends an `IDENTIFY` frame, and parses the matching `IDENTIFY_ACK` to recover the board GUID for legacy v2 endpoints. The inspector returns `BoardIdInspection.Found | TimedOut | Unreachable`, uses an injected clock for its five-second deadline, and propagates caller cancellation. The live catalog no longer probes devices for identity; it reads TXT `bid` when available.
+`LiveDaqBoardIdInspector` is a v2 compatibility helper used by the network import path. It opens a short-lived v2 LIVE connection, sends an `IDENTIFY` frame, and parses the matching `IDENTIFY_ACK` to recover the board GUID for legacy v2 endpoints. The inspector returns `BoardIdInspection.Found | TimedOut | Unreachable`, uses an injected clock for its five-second deadline, and propagates caller cancellation. The live catalog reads TXT `bid` when available. Import listing invokes the inspector only when that identity is absent and the per-identity port reservation is idle.
 
 ### Catalog Service
 

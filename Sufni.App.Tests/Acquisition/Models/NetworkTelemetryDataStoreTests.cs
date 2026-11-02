@@ -1,3 +1,5 @@
+using Sufni.App.Tests.TestSupport.Acquisition;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using System;
 using System.IO;
 using System.Net;
@@ -20,6 +22,115 @@ public class NetworkTelemetryDataStoreTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task GetFiles_WhenPortIsBusy_ReturnsHolderWithoutIdentifyingOrListing(bool advertisedIdentity)
+    {
+        var harness = new NetworkTelemetrySourceHarness();
+        if (!advertisedIdentity) harness.Entries.OnNext([harness.Entries.Value.Single() with { BoardId = null }]);
+        var holder = new DaqTransportHolder.Streaming();
+        harness.Registry.AcquireIdentifyAsync("daq").Returns(Task.FromResult<DaqTransportAcquisition>(new DaqTransportAcquisition.Busy(holder)));
+        harness.Registry.AcquireManagementAsync("daq", DaqManagementOperation.ListFiles)
+            .Returns(Task.FromResult<DaqTransportAcquisition>(new DaqTransportAcquisition.Busy(holder)));
+
+        var result = await harness.CreateStore().GetFiles(TestContext.Current.CancellationToken);
+
+        Assert.Equal(holder, Assert.IsType<TelemetryFileListing.Busy>(result).Holder);
+        await harness.Inspector.DidNotReceive().InspectAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+        await harness.Management.DidNotReceive().ListDirectoryAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RemovedCatalogEntry_BlocksListingAndImportWithoutOpeningAConnection()
+    {
+        var harness = new NetworkTelemetrySourceHarness();
+        var store = harness.CreateStore();
+        harness.Entries.OnNext([]);
+
+        Assert.IsType<TelemetryFileListing.Unavailable>(await store.GetFiles(TestContext.Current.CancellationToken));
+        Assert.IsType<TelemetryImportBatchAcquisition.Unavailable>(await store.OpenImportBatchAsync(Guid.NewGuid(), TestContext.Current.CancellationToken));
+
+        await harness.Management.DidNotReceive().ListDirectoryAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+        await harness.Registry.DidNotReceive().AcquireImportAsync(Arg.Any<string>(), Arg.Any<Guid>());
+    }
+
+    [Fact]
+    public async Task GetFiles_RejectsIdentityResultForRemovedCatalogEntry()
+    {
+        var harness = new NetworkTelemetrySourceHarness();
+        harness.Entries.OnNext([harness.Entries.Value.Single() with { BoardId = null }]);
+        var identity = new TaskCompletionSource<BoardIdInspection>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.Inspector.InspectAsync(harness.Endpoint, Arg.Any<CancellationToken>()).Returns(identity.Task);
+        var request = harness.CreateStore().GetFiles(TestContext.Current.CancellationToken);
+        harness.Entries.OnNext([]);
+        identity.SetResult(new BoardIdInspection.Found(harness.BoardId));
+
+        Assert.IsType<TelemetryFileListing.Unavailable>(await request.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        await harness.Management.DidNotReceive().ListDirectoryAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetFiles_CancellationReleasesIdentifyReservation()
+    {
+        var harness = new NetworkTelemetrySourceHarness();
+        harness.Entries.OnNext([harness.Entries.Value.Single() with { BoardId = null }]);
+        var reservation = Substitute.For<IDisposable>();
+        harness.Registry.AcquireIdentifyAsync("daq").Returns(Task.FromResult<DaqTransportAcquisition>(new DaqTransportAcquisition.Acquired(reservation)));
+        harness.Inspector.InspectAsync(harness.Endpoint, Arg.Any<CancellationToken>()).Returns(call =>
+            new TaskCompletionSource<BoardIdInspection>().Task.WaitAsync(call.Arg<CancellationToken>()));
+        using var cancellation = new CancellationTokenSource();
+        var request = harness.CreateStore().GetFiles(cancellation.Token);
+
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+
+        reservation.Received(1).Dispose();
+        await harness.Management.DidNotReceive().ListDirectoryAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OpenImportBatchAsync_WhenPortIsBusy_ReturnsHolder()
+    {
+        var harness = new NetworkTelemetrySourceHarness();
+        var holder = new DaqTransportHolder.Management(DaqManagementOperation.SetTime);
+        harness.Registry.AcquireImportAsync("daq", Arg.Any<Guid>()).Returns(Task.FromResult<DaqTransportAcquisition>(new DaqTransportAcquisition.Busy(holder)));
+
+        var acquisition = await harness.CreateStore().OpenImportBatchAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(holder, Assert.IsType<TelemetryImportBatchAcquisition.Busy>(acquisition).Holder);
+        await harness.Management.DidNotReceive().OpenSessionAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ImportBatch_DisposalKeepsReservationUntilManagementSessionCloses()
+    {
+        var harness = new NetworkTelemetrySourceHarness();
+        harness.SetDirectory(new DaqSstFileRecord(DaqFileClass.RootSst, "ride.SST", 100, 1,
+            DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(1), 4));
+        var session = Substitute.For<IDaqManagementSession>();
+        session.TrashFileAsync(1, Arg.Any<CancellationToken>()).Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        harness.Management.OpenSessionAsync(harness.Endpoint, Arg.Any<CancellationToken>()).Returns(Task.FromResult(session));
+        var reservation = Substitute.For<IDisposable>();
+        harness.Registry.AcquireImportAsync("daq", Arg.Any<Guid>()).Returns(Task.FromResult<DaqTransportAcquisition>(new DaqTransportAcquisition.Acquired(reservation)));
+        var closing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.DisposeAsync().Returns(_ => { closing.SetResult(); return new ValueTask(release.Task); });
+        var store = harness.CreateStore();
+        var files = Assert.IsType<TelemetryFileListing.Listed>(await store.GetFiles(TestContext.Current.CancellationToken)).Files;
+        var acquisition = Assert.IsType<TelemetryImportBatchAcquisition.Acquired>(await store.OpenImportBatchAsync(Guid.NewGuid(), TestContext.Current.CancellationToken));
+        await files[0].OnTrashed();
+
+        var disposal = acquisition.Lifetime!.DisposeAsync().AsTask();
+        await closing.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(disposal.IsCompleted);
+        reservation.DidNotReceive().Dispose();
+        release.SetResult();
+        await disposal.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        reservation.Received(1).Dispose();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task OpenImportBatchAsync_SharesSessionAndRetriesAFileAfterFailedOpen(bool firstOpenFails)
     {
         var endpoint = new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555);
@@ -36,10 +147,11 @@ public class NetworkTelemetryDataStoreTests
             Task.FromResult<DaqListDirectoryResult>(new DaqListDirectoryResult.Listed(new DaqRootDirectoryRecord([
                 new DaqSstFileRecord(DaqFileClass.RootSst, "first.SST", 100, 1, DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(1), 4),
                 new DaqSstFileRecord(DaqFileClass.RootSst, "second.SST", 100, 2, DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(1), 4)]))));
-        var store = new NetworkTelemetryDataStore(endpoint, management, CreateBoardIdInspector());
-        var files = await store.GetFiles();
+        var store = new NetworkTelemetrySourceHarness(management).CreateStore();
+        var files = Assert.IsType<TelemetryFileListing.Listed>(await store.GetFiles(TestContext.Current.CancellationToken)).Files;
 
-        await using (await store.OpenImportBatchAsync(Guid.NewGuid(), TestContext.Current.CancellationToken))
+        await using (Assert.IsType<TelemetryImportBatchAcquisition.Acquired>(
+            await store.OpenImportBatchAsync(Guid.NewGuid(), TestContext.Current.CancellationToken)).Lifetime)
         {
             await management.DidNotReceive().OpenSessionAsync(endpoint, Arg.Any<CancellationToken>());
             if (firstOpenFails) await Assert.ThrowsAsync<IOException>(files[0].OnTrashed);
@@ -52,21 +164,21 @@ public class NetworkTelemetryDataStoreTests
         await session.Received(1).DisposeAsync();
     }
 
-    [Fact]
-    public async Task Initialization_SetsBoardIdFromInspector()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetFiles_UsesAdvertisedIdentityAndInspectsOnlyWhenItIsAbsent(bool advertised)
     {
-        var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        var daqManagementService = Substitute.For<IDaqManagementService>();
-        var expectedBoardId = Guid.NewGuid();
-        boardIdInspector
-            .InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(expectedBoardId)));
+        var harness = new NetworkTelemetrySourceHarness();
+        if (!advertised) harness.Entries.OnNext([harness.Entries.Value.Single() with { BoardId = null }]);
+        var store = harness.CreateStore();
 
-        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
+        var listed = Assert.IsType<TelemetryFileListing.Listed>(await store.GetFiles(TestContext.Current.CancellationToken));
 
-        await dataStore.Initialization;
-
-        Assert.Equal(expectedBoardId, dataStore.BoardId);
+        Assert.Equal(harness.BoardId, listed.BoardId);
+        await harness.Inspector.Received(advertised ? 0 : 1).InspectAsync(harness.Endpoint, Arg.Any<CancellationToken>());
+        await harness.Registry.Received(advertised ? 0 : 1).AcquireIdentifyAsync("daq");
+        await harness.Registry.Received(1).AcquireManagementAsync("daq", DaqManagementOperation.ListFiles);
     }
 
     [Fact]
@@ -99,10 +211,9 @@ public class NetworkTelemetryDataStoreTests
                             4)
                     ]))));
 
-        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
-        await dataStore.Initialization;
+        var dataStore = new NetworkTelemetrySourceHarness(daqManagementService, boardIdInspector).CreateStore();
 
-        var files = await dataStore.GetFiles();
+        var files = Assert.IsType<TelemetryFileListing.Listed>(await dataStore.GetFiles(TestContext.Current.CancellationToken)).Files;
 
         Assert.Collection(
             files,
@@ -132,7 +243,7 @@ public class NetworkTelemetryDataStoreTests
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
 
-        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
+        var dataStore = new NetworkTelemetrySourceHarness(daqManagementService, boardIdInspector).CreateStore();
 
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => dataStore.GetFiles());
 
@@ -169,10 +280,9 @@ public class NetworkTelemetryDataStoreTests
                             4)
                     ]))));
 
-        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
-        await dataStore.Initialization;
+        var dataStore = new NetworkTelemetrySourceHarness(daqManagementService, boardIdInspector).CreateStore();
 
-        var files = await dataStore.GetFiles();
+        var files = Assert.IsType<TelemetryFileListing.Listed>(await dataStore.GetFiles(TestContext.Current.CancellationToken)).Files;
 
         Assert.Collection(
             files,

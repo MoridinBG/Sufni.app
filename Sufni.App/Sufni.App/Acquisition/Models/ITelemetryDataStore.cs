@@ -27,6 +27,6 @@ public interface ITelemetryDataStore
 {
     public string Name { get; }
     public Guid? BoardId { get; }
-    public Task<List<ITelemetryFile>> GetFiles();
-    public Task<IAsyncDisposable?> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
+    public Task<TelemetryFileListing> GetFiles(CancellationToken cancellationToken = default);
+    public Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
 }

@@ -29,7 +29,7 @@ public class StorageProviderTelemetryDataStoreTests
 
         var dataStore = new StorageProviderTelemetryDataStore(folder);
         await dataStore.Initialization;
-        var files = await dataStore.GetFiles();
+        var files = Assert.IsType<TelemetryFileListing.Listed>(await dataStore.GetFiles(TestContext.Current.CancellationToken)).Files;
 
         Assert.Equal("DAQ", dataStore.Name);
         Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);

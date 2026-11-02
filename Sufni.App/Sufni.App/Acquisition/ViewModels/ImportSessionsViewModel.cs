@@ -1,4 +1,5 @@
 using Sufni.App.Setups.Queries;
+using Sufni.App.LiveDaq.ViewModels;
 using Sufni.App.Shared.Models;
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -61,6 +62,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly ISetupBoardQuery setupQuery;
     private readonly IDisposable importSubscription;
     private int displayedEventCount;
+    private TelemetryFileListing.Listed? loadedListing;
+    private Guid? SelectedBoardId => loadedListing?.BoardId ?? SelectedDataStore?.BoardId;
 
     #endregion Private members
 
@@ -110,6 +113,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private async Task HandleSelectedDataStoreChangedAsync(ITelemetryDataStore? value)
     {
+        loadedListing = null;
+        TelemetryFiles.Clear();
         if (value is null)
         {
             TelemetryFiles.Clear();
@@ -141,11 +146,22 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private async Task LoadTelemetryFilesAsync(ITelemetryDataStore dataStore)
     {
-        var files = await telemetryDataStoreService.LoadFilesAsync(dataStore);
-        if (!IsCurrentTelemetryFilesLoad(dataStore))
-            return;
-
-        ApplyTelemetryFiles(files);
+        var listing = await telemetryDataStoreService.LoadFilesAsync(dataStore);
+        if (!IsCurrentTelemetryFilesLoad(dataStore)) return;
+        switch (listing)
+        {
+            case TelemetryFileListing.Listed listed:
+                loadedListing = listed;
+                ApplyTelemetryFiles(listed.Files);
+                if (SelectedSetup is null) ResolveSelectedSetup();
+                break;
+            case TelemetryFileListing.Busy busy:
+                Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
+                break;
+            case TelemetryFileListing.Unavailable:
+                Notifications.Add("The DAQ is unavailable. Try again when it is connected.");
+                break;
+        }
     }
 
     private void ApplyTelemetryFiles(IReadOnlyList<ITelemetryFile> files)
@@ -199,6 +215,12 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 AddImportSummary(completed.Result);
                 if (SelectedDataStore is { } dataStore) _ = RefreshAfterImportAsync(dataStore);
                 break;
+            case SessionImportState.SourceBusy busy:
+                Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
+                break;
+            case SessionImportState.SourceUnavailable:
+                Notifications.Add("The DAQ is unavailable. Try again when it is connected.");
+                break;
             case SessionImportState.Failed failed:
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
@@ -236,7 +258,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private void ResolveSelectedSetup()
     {
-        var boardId = SelectedDataStore?.BoardId;
+        var boardId = SelectedBoardId;
         SelectedSetup = boardId.HasValue
             ? setupQuery.FindByBoardId(boardId.Value)?.Id
             : null;
@@ -266,6 +288,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 }
                 break;
             case NotifyCollectionChangedAction.Replace:
+                if (ReferenceEquals(SelectedDataStore, removed)) SelectedDataStore = e.NewItems?.OfType<ITelemetryDataStore>().FirstOrDefault();
+                break;
             case NotifyCollectionChangedAction.Move:
             case NotifyCollectionChangedAction.Reset:
                 break;
@@ -335,7 +359,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private Task AddSetup()
     {
-        shell.OpenEditor(new EditorKey.NewSetup(SelectedDataStore?.BoardId));
+        shell.OpenEditor(new EditorKey.NewSetup(SelectedBoardId));
         return Task.CompletedTask;
     }
 
@@ -373,18 +397,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         return Task.CompletedTask;
     }
 
-    private void OnDiscoveryIssueReported(object? sender, DataStoreDiscoveryIssue issue)
-    {
-        switch (issue)
-        {
-            case DataStoreDiscoveryIssue.DaqUnavailable:
-                Notifications.Add("The DAQ is unavailable. Check that it is connected and not in use.");
-                break;
-            case DataStoreDiscoveryIssue.Failed failed:
-                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
-                break;
-        }
-    }
+    private void OnDiscoveryIssueReported(object? sender, DataStoreDiscoveryIssue issue) =>
+        ErrorMessages.Add(FailurePresentation.From(issue.Reason, issue.Details));
 
     #endregion Commands
 }
