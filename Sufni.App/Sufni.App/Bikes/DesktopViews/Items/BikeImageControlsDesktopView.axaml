@@ -39,7 +39,7 @@ mc:Ignorable="d">
         <Grid
         Margin="10"
         ColumnDefinitions="auto *"
-        RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto">
+        RowDefinitions="auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto auto">
 
             <!--  Name  -->
             <TextBlock
@@ -587,19 +587,10 @@ mc:Ignorable="d">
             Grid.Column="0"
             Grid.ColumnSpan="2" />
 
-            <!--  Import  -->
-            <Button
-            Grid.Row="18"
-            Grid.Column="0"
-            Grid.ColumnSpan="2"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Center"
-            Command="{Binding ImportCommand}"
-            Content="Import from JSON" />
 
             <!--  Export  -->
             <Button
-            Grid.Row="19"
+            Grid.Row="18"
             Grid.Column="0"
             Grid.ColumnSpan="2"
             HorizontalAlignment="Stretch"
@@ -608,7 +599,7 @@ mc:Ignorable="d">
             Content="Export as JSON" />
 
             <Button
-            Grid.Row="20"
+            Grid.Row="19"
             Grid.Column="0"
             Grid.ColumnSpan="2"
             HorizontalAlignment="Stretch"

@@ -116,6 +116,11 @@ There are five kinds of view model in the presentation layer:
   constructs its own menu items. `IShellActions` supplies the shared sync
   command and import availability; the session list owns `OpenImportCommand`,
   and its desktop view binds directly to it without finding a parent shell.
+  Bike and setup lists own file import commands, feedback and read cancellation.
+  Their desktop buttons and compact pull menus invoke the same command. A bike
+  import opens a fresh unsaved draft; a setup import opens its newly persisted
+  setup by ID. Unloading cancels file reads and suppresses late navigation; an
+  accepted setup import still completes persistence and publication.
 
 - **Row view models** (`ViewModels/Rows/`) — `BikeRowViewModel`,
   `SetupRowViewModel`, `SessionRowViewModel`,
@@ -150,7 +155,8 @@ There are five kinds of view model in the presentation layer:
   keep any later edits dirty. Setup sensor sub-editors expose immutable `SensorDraft`
   inputs without their own saved baselines or JSON serialization. `SetupCoordinator`
   builds the persisted row and sensor JSON after applying shared `SetupSaveRules`.
-  Bike imports carry a validated `BikeDraft` and request analysis after applying it.
+  Imported bikes enter the factory as a validated `BikeDraft` on `EditorKey.NewBike`;
+  they do not replace another editor’s draft.
   Editors derive editable state from the snapshot in `ResetImplementation`,
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
   `SaveResult.Conflict` they prompt the user via

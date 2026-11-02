@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Bikes.Coordinators;
 
 namespace Sufni.App.Shell.Coordinators;
 
@@ -8,7 +9,7 @@ public abstract record EditorKey
     private EditorKey() { }
 
     public sealed record Bike(Guid Id) : EditorKey;
-    public sealed record NewBike : EditorKey;
+    public sealed record NewBike(BikeDraft? Draft = null) : EditorKey;
     public sealed record Setup(Guid Id) : EditorKey;
     public sealed record NewSetup(Guid? SuggestedBoardId = null) : EditorKey;
     public sealed record Session(Guid Id) : EditorKey;

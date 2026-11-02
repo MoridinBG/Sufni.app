@@ -36,7 +36,6 @@ mc:Ignorable="d">
             <shared:EditorBusyOverlay.IsActive>
                 <MultiBinding Converter="{x:Static BoolConverters.Or}">
                     <Binding Path="LoadedCommand.IsRunning" />
-                    <Binding Path="ImportCommand.IsRunning" />
                     <Binding Path="OpenImageCommand.IsRunning" />
                     <Binding Path="SaveCommand.IsRunning" />
                 </MultiBinding>

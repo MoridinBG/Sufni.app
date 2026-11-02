@@ -90,6 +90,7 @@ internal static class MainPagesViewModelTestFactory
         new(
             new BikeStoreStub(),
             Substitute.For<IBikeDependencyQuery>(),
+            TestCoordinatorSubstitutes.Bike(),
             UiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
@@ -109,7 +110,7 @@ internal static class MainPagesViewModelTestFactory
     }
 
     private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell, IShellActions feedback) =>
-        new(new SetupBoardQueryStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
+        new(new SetupBoardQueryStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
         new(new LiveDaqStore(new InlineUiThreadDispatcher()), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);

@@ -34,7 +34,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, bikeCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -65,6 +65,7 @@ public class BikeListViewModelTests
         var viewModel = new BikeListViewModel(
             bikeStore,
             Substitute.For<IBikeDependencyQuery>(),
+            TestCoordinatorSubstitutes.Bike(),
             UiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(bikes: TestCoordinatorSubstitutes.Bike(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
 
@@ -99,7 +100,7 @@ public class BikeListViewModelTests
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
 
-        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        var viewModel = new BikeListViewModel(bikeStore, dependencyQuery, bikeCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(bikes: bikeCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -109,5 +110,75 @@ public class BikeListViewModelTests
 
         Assert.Single(viewModel.Items);
         Assert.NotEmpty(viewModel.ErrorMessages);
+    }
+
+    [Fact]
+    public async Task Import_OpensNewEditorThroughShell()
+    {
+        var coordinator = TestCoordinatorSubstitutes.Bike();
+        var draft = BikeDraft.From(TestSnapshots.Bike(name: "Imported bike"));
+        var imported = new BikeImportResult.Imported(draft);
+        coordinator.ImportBikeAsync(Arg.Any<CancellationToken>()).Returns(imported);
+        var store = new BikeStoreStub();
+        using var viewModel = new BikeListViewModel(store, Substitute.For<IBikeDependencyQuery>(), coordinator,
+            UiThreadDispatcher, TestPendingDeletes.Create(bikes: coordinator, shell: shell),
+            new FakeTimeProvider(), shell, TestShellFeedback.Create());
+
+        await viewModel.ImportCommand.ExecuteAsync(null);
+
+        shell.Received(1).OpenEditor(new EditorKey.NewBike(draft));
+        Assert.Empty(viewModel.ErrorMessages);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Import_CancelsOnDetachAndIgnoresLateCompletion(bool dispose)
+    {
+        var coordinator = TestCoordinatorSubstitutes.Bike();
+        var pending = new TaskCompletionSource<BikeImportResult>();
+        CancellationToken token = default;
+        coordinator.ImportBikeAsync(Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            token = call.Arg<CancellationToken>();
+            return pending.Task;
+        });
+        var store = new BikeStoreStub();
+        using var viewModel = new BikeListViewModel(store, Substitute.For<IBikeDependencyQuery>(), coordinator,
+            UiThreadDispatcher, TestPendingDeletes.Create(bikes: coordinator, shell: shell),
+            new FakeTimeProvider(), shell, TestShellFeedback.Create());
+        viewModel.LoadedCommand.Execute(null);
+        var task = viewModel.ImportCommand.ExecuteAsync(null);
+
+        if (dispose) viewModel.Dispose();
+        else viewModel.UnloadedCommand.Execute(null);
+        Assert.True(token.IsCancellationRequested);
+        var draft = BikeDraft.From(TestSnapshots.Bike(name: "Imported bike"));
+        var imported = new BikeImportResult.Imported(draft);
+        pending.SetResult(imported);
+        await task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        shell.DidNotReceive().OpenEditor(Arg.Any<EditorKey>());
+        Assert.Empty(viewModel.ErrorMessages);
+    }
+
+    [Fact]
+    public async Task Import_ReportsFailureWithoutNavigation_AndCancellationIsNeutral()
+    {
+        var coordinator = TestCoordinatorSubstitutes.Bike();
+        coordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
+            .Returns(new BikeImportResult.InvalidFile("Invalid file"), new BikeImportResult.Canceled());
+        var store = new BikeStoreStub();
+        using var viewModel = new BikeListViewModel(store, Substitute.For<IBikeDependencyQuery>(), coordinator,
+            UiThreadDispatcher, TestPendingDeletes.Create(bikes: coordinator, shell: shell),
+            new FakeTimeProvider(), shell, TestShellFeedback.Create());
+
+        await viewModel.ImportCommand.ExecuteAsync(null);
+        Assert.Single(viewModel.ErrorMessages);
+        viewModel.ErrorMessages.Clear();
+        await viewModel.ImportCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.ErrorMessages);
+        shell.DidNotReceive().OpenEditor(Arg.Any<EditorKey>());
     }
 }

@@ -17,7 +17,7 @@
     lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
     mc:Ignorable="d">
 
-    <Grid ColumnDefinitions="* auto" RowDefinitions="auto * auto auto">
+    <Grid ColumnDefinitions="* auto auto" RowDefinitions="auto * auto auto">
 
         <!--  Search bar  -->
         <controls:SearchBar
@@ -40,12 +40,24 @@
                 Source="{SvgImage /Assets/fa-circle-plus.svg}" />
         </Button>
 
+        <Button
+            Name="ImportButton"
+            Grid.Row="0"
+            Grid.Column="2"
+            Width="20"
+            Margin="0,25,10,0"
+            VerticalAlignment="Top"
+            Classes="embedded"
+            Command="{Binding ImportCommand}">
+            <Image Width="18" Source="{SvgImage /Assets/fa-file-import.svg}" />
+        </Button>
+
         <!--  List of Setups  -->
         <ScrollViewer
             Name="Scroll"
             Grid.Row="1"
             Grid.Column="0"
-            Grid.ColumnSpan="2">
+            Grid.ColumnSpan="3">
             <ItemsRepeater ItemsSource="{Binding Items}">
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate>
@@ -59,6 +71,6 @@
             Grid.Row="0"
             Grid.RowSpan="4"
             Grid.Column="0"
-            Grid.ColumnSpan="2" />
+            Grid.ColumnSpan="3" />
     </Grid>
 </UserControl>

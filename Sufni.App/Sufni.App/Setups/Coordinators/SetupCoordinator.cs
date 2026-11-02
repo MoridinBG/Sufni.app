@@ -193,8 +193,7 @@ internal class SetupCoordinator(
                 payload.Bike.Id,
                 payload.BoardId);
 
-            return new SetupImportResult.Imported(
-                new ImportedSetupEditorData(prepared.Setup, prepared.Bike, payload.BoardId));
+            return new SetupImportResult.Imported(prepared.Setup.Id);
         }
         catch (JsonException exception)
         {

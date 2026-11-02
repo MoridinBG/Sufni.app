@@ -17,6 +17,8 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Rows;
 using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.Bikes.ViewModels.ItemLists;
 
 // Inherits from ItemListViewModelBase for the shared search-bar /
@@ -27,6 +29,8 @@ public partial class BikeListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly IBikeCoordinator bikeCoordinator;
+    private readonly CancellableOperation importOperation = new();
     private readonly IShellCoordinator shell;
     private readonly IBikeStore bikeStore;
     private readonly IBikeDependencyQuery dependencyQuery;
@@ -47,6 +51,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
     public BikeListViewModel(
         IBikeStore bikeStore,
         IBikeDependencyQuery dependencyQuery,
+        IBikeCoordinator bikeCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
@@ -56,11 +61,13 @@ public partial class BikeListViewModel : ItemListViewModelBase
     {
         this.bikeStore = bikeStore;
         this.shell = shell;
+        this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
         bikeRows = new ReadOnlyObservableCollection<BikeRowViewModel>(bikeRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Bike>(pendingDeletes);
         MenuItems.Add(new("sync", shellActions.SyncCommand));
         MenuItems.Add(new("add", AddCommand));
+        MenuItems.Add(new("import", ImportCommand));
     }
 
     #endregion Constructors
@@ -69,6 +76,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     protected override void AttachSubscriptions(CompositeDisposable subscriptions)
     {
+        subscriptions.Add(Disposable.Create(importOperation.Cancel));
         bikeRowsSource.Clear();
         RebuildFilter();
 
@@ -94,6 +102,7 @@ public partial class BikeListViewModel : ItemListViewModelBase
 
     protected override void OnSubscriptionsDetached()
     {
+        importOperation.Cancel();
         bikeRowsSource.Clear();
     }
 
@@ -130,6 +139,33 @@ public partial class BikeListViewModel : ItemListViewModelBase
     #endregion Private methods
 
     #region Commands
+
+    [RelayCommand]
+    private async Task Import()
+    {
+        var token = importOperation.Start();
+        try
+        {
+            var result = await bikeCoordinator.ImportBikeAsync(token);
+            if (token.IsCancellationRequested) return;
+
+            switch (result)
+            {
+                case BikeImportResult.Imported imported:
+                    shell.OpenEditor(new EditorKey.NewBike(imported.Draft));
+                    break;
+                case BikeImportResult.InvalidFile invalid:
+                    ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
+                    break;
+                case BikeImportResult.Failed failed:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+    }
 
     [RelayCommand]
     private System.Threading.Tasks.Task RowSelected(BikeRowViewModel? row)

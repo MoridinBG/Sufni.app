@@ -370,6 +370,9 @@ constructs a fresh editor from the current snapshot. New drafts, imports and
 live tabs have no restore entry. Successful deletion uses `CloseEditorAsync`,
 which performs tab cleanup and forgets its history, with no extra back step.
 Normal close runs `TryPrepareCloseAsync` before removing the tab.
+Bike/setup file imports are list actions. Bike import passes a validated draft
+to a fresh `NewBike` tab; setup import returns the saved setup ID and opens it
+from the published store. Existing editors keep their unsaved changes.
 
 Import tabs are factory-created per open lifetime and dispose their run
 observation and datastore collection handler on final close. The coordinator

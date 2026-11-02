@@ -1102,42 +1102,6 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Import_AppliesImportedBike_AndResetsBaselineToDraft()
-    {
-        var snapshot = TestSnapshots.Bike(updated: 5, name: "old bike");
-        var editor = CreateEditor(snapshot);
-        var importedBike = new Bike(Guid.NewGuid(), "imported bike")
-        {
-            HeadAngle = 63,
-            ForkStroke = 170,
-            FrontWheelRimSize = EtrtoRimSize.Inch29,
-            FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            RearWheelRimSize = EtrtoRimSize.Inch275,
-            RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-            ImageRotationDegrees = 12.5,
-        };
-        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImportResult>(
-                new BikeImportResult.Imported(BikeDraft.From(BikeSnapshot.From(importedBike)))));
-
-        await editor.ImportCommand.ExecuteAsync(null);
-
-        Assert.Equal("imported bike", editor.Name);
-        Assert.Equal(63, editor.HeadAngle);
-        Assert.Equal(170, editor.ForksStroke);
-        Assert.Equal(EtrtoRimSize.Inch29, editor.WheelGeometry.FrontWheelRimSize);
-        Assert.Equal(2.4, editor.WheelGeometry.FrontWheelTireWidth);
-        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), editor.WheelGeometry.FrontWheelDiameter);
-        Assert.Equal(EtrtoRimSize.Inch275, editor.WheelGeometry.RearWheelRimSize);
-        Assert.Equal(2.5, editor.WheelGeometry.RearWheelTireWidth);
-        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
-        Assert.Equal(0, editor.ImageCanvas.ImageRotationDegrees);
-        Assert.False(editor.IsInDatabase);
-    }
-
-    [AvaloniaFact]
     public async Task Reset_ShowsPlotBusyWhileAnalysisRefreshRuns()
     {
         var snapshot = TestSnapshots.Bike(name: "old bike");
@@ -1199,62 +1163,6 @@ public class BikeEditorViewModelTests
         await loadedTask;
 
         Assert.Null(editor.LeverageRatioData);
-    }
-
-    [AvaloniaFact]
-    public async Task Import_CancelsInFlightAnalysis()
-    {
-        var snapshot = TestSnapshots.Bike(updated: 5);
-        var editor = CreateEditor(snapshot);
-        CancellationToken capturedToken = default;
-        var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        bikeCoordinator
-            .LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                capturedToken = call.Arg<CancellationToken>();
-                return pendingAnalysis.Task;
-            });
-
-        var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
-        Assert.False(capturedToken.IsCancellationRequested);
-
-        await editor.ImportCommand.ExecuteAsync(null);
-
-        Assert.True(capturedToken.IsCancellationRequested);
-        pendingAnalysis.SetCanceled();
-        await loadedTask;
-    }
-
-    [AvaloniaFact]
-    public async Task Import_SupersedesEarlierPendingAnalysisResult()
-    {
-        var snapshot = TestSnapshots.Bike(updated: 5, name: "old bike");
-        var editor = CreateEditor(snapshot);
-        var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var pendingImport = new TaskCompletionSource<BikeImportResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var importedData = new CoordinateList([5, 6], [7, 8]);
-
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(pendingAnalysis.Task);
-        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(pendingImport.Task);
-
-        var loadedTask = editor.LoadedCommand.ExecuteAsync(null);
-        var importTask = editor.ImportCommand.ExecuteAsync(null);
-
-        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Computed(
-            PresentationData(new CoordinateList([1, 2], [3, 4]))));
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.Computed(PresentationData(importedData)));
-        pendingImport.SetResult(new BikeImportResult.Imported(BikeDraft.From(TestSnapshots.Bike(name: "imported bike"))));
-
-        await loadedTask;
-        await importTask;
-
-        Assert.Equal("imported bike", editor.Name);
-        Assert.Equal(importedData, editor.LeverageRatioData);
     }
 
     [AvaloniaFact]

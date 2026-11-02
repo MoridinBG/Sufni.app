@@ -103,7 +103,7 @@ public class SetupCoordinatorTests : IDisposable
 
         var result = Assert.IsType<SetupImportResult.Imported>(await coordinator.ImportSetupAsync(cancellation.Token));
 
-        Assert.Equal(setup.Id, result.Data.Setup.Id);
+        Assert.Equal(setup.Id, result.SetupId);
         Assert.Equal(setup.Name, (await setups.GetAsync(setup.Id))!.Name);
         Assert.Equal(setup.Id, (await boards.GetAsync(boardId))!.SetupId);
         Assert.Equal(boardId, query.Get(setup.Id)!.BoardId);

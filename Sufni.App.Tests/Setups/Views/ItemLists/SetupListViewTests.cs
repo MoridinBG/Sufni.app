@@ -1,3 +1,9 @@
+using System.Linq;
+using System.Windows.Input;
+using Sufni.App.Shell.ViewModels;
+using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Setups.Coordinators;
+using Sufni.App.Setups.DesktopViews.ItemLists;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.Threading.Tasks;
@@ -19,6 +25,32 @@ namespace Sufni.App.Tests.Setups.Views.ItemLists;
 public class SetupListViewTests
 {
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAction_UsesListCommandAndOpensNewEditor(bool desktop)
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var coordinator = TestCoordinatorSubstitutes.Setup();
+        var setupId = System.Guid.NewGuid();
+        coordinator.ImportSetupAsync(Arg.Any<System.Threading.CancellationToken>()).Returns(new SetupImportResult.Imported(setupId));
+        using var viewModel = new SetupListViewModel(new SetupBoardQueryStub(), coordinator,
+            new InlineUiThreadDispatcher(), TestPendingDeletes.Create(setups: coordinator, shell: shell),
+            new FakeTimeProvider(), shell, TestShellFeedback.Create());
+        UserControl view = desktop ? new SetupListDesktopView() : new SetupListView();
+        view.DataContext = viewModel;
+        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
+        ICommand command = desktop
+            ? view.FindControl<Button>("ImportButton")!.Command!
+            : Assert.Single(mounted.Control.FindFirstVisual<PullableMenuScrollViewer>()!
+                .MenuItems.Cast<PullMenuItemViewModel>(), item => item.Name == "import").Command;
+
+        Assert.Same(viewModel.ImportCommand, command);
+        await ((IAsyncRelayCommand)command).ExecuteAsync(null);
+
+        shell.Received(1).OpenEditor(new EditorKey.Setup(setupId));
+    }
+
     [AvaloniaFact]
     public async Task SetupListView_RendersBoundRows_AndOpensSelectedSetup()
     {
@@ -28,7 +60,7 @@ public class SetupListViewTests
         var store = new SetupBoardQueryStub(new Sufni.App.Setups.Queries.SetupDetails(snapshot, null));
         var coordinator = TestCoordinatorSubstitutes.Setup();
 
-        var viewModel = new SetupListViewModel(store, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(setups: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        var viewModel = new SetupListViewModel(store, coordinator, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(setups: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new SetupListView
         {
             DataContext = viewModel,

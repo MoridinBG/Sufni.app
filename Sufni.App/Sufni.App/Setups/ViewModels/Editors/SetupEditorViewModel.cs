@@ -45,7 +45,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
-    private readonly CancellableOperation importOperation = new();
     private SetupDraft draftBase;
 
     #endregion Private fields
@@ -338,56 +337,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task Import()
-    {
-        if (IsDirty)
-        {
-            var discard = await dialogService.ShowConfirmationAsync(
-                "Discard unsaved changes?",
-                "Importing will replace your unsaved changes. Continue?");
-            if (!discard) return;
-        }
-
-        var token = importOperation.Start();
-        try
-        {
-            var result = await setupCoordinator.ImportSetupAsync(token);
-            if (token.IsCancellationRequested) return;
-
-            switch (result)
-            {
-                case SetupImportResult.Imported imported:
-                    await ApplyImportedSetupAsync(imported.Data);
-                    break;
-                case SetupImportResult.BoardInUse:
-                    ErrorMessages.Add(FailurePresentation.From(SetupValidationFailureReason.BoardInUse));
-                    break;
-                case SetupImportResult.InvalidFile invalid:
-                    ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
-                    break;
-                case SetupImportResult.Failed failed:
-                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
-                    break;
-            }
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-        }
-    }
-
-    private async Task ApplyImportedSetupAsync(ImportedSetupEditorData data)
-    {
-        Id = data.Setup.Id;
-        IsInDatabase = true;
-        draftBase = SetupDraft.From(data.Setup, data.BoardId);
-
-        await ResetImplementation();
-        EvaluateDirtiness();
-        NotifyEditorCommandStateChanged();
-
-    }
-
-    [RelayCommand]
     private void Loaded()
     {
         EnsureScopedSubscription(s => s.Add(
@@ -403,7 +352,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private void Unloaded()
     {
         DisposeScopedSubscriptions();
-        importOperation.Cancel();
 
         // Clear the source so a subsequent Loaded rebuilds from scratch.
         bikesSource.Clear();

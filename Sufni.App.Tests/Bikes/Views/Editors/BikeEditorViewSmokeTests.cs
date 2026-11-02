@@ -49,11 +49,11 @@ public class BikeEditorViewSmokeTests
         ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var importButton = view.FindControl<Button>("ImportButton");
-
-        Assert.NotNull(importButton);
-        Assert.NotNull(importButton!.Command);
-        Assert.Same(viewModel.ImportCommand, importButton.Command);
+        var saveButton = Assert.Single(view.GetVisualDescendants().OfType<Button>(), button => button.Name == "SaveButton");
+        Assert.Same(viewModel.SaveCommand, saveButton.Command);
+        viewModel.Name = "Changed name";
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(saveButton.IsEnabled);
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();

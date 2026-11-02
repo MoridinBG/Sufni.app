@@ -3,6 +3,8 @@ using Sufni.App.Tests.TestSupport.Acquisition;
 using NSubstitute;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Doubles;
@@ -11,6 +13,24 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 
 public class EditorFactoryTests
 {
+    [Fact]
+    public void CreateEditor_ImportedBikeIsAnIndependentUnsavedDraft()
+    {
+        var factory = TestEditorFactories.Create();
+        var shell = Substitute.For<IShellCoordinator>();
+        var draft = BikeDraft.From(TestSnapshots.Bike(name: "Imported bike"));
+        var original = Assert.IsType<BikeEditorViewModel>(factory.CreateEditor(new EditorKey.NewBike(), shell));
+        original.Name = "Unsaved original";
+
+        var imported = Assert.IsType<BikeEditorViewModel>(factory.CreateEditor(new EditorKey.NewBike(draft), shell));
+
+        Assert.Equal(draft.Id, imported.Id);
+        Assert.Equal(draft.Name, imported.Name);
+        Assert.True(imported.IsDirty);
+        Assert.False(imported.IsInDatabase);
+        Assert.Equal("Unsaved original", original.Name);
+    }
+
     [Fact]
     public void CreateEditor_NewDraftsAreDirty()
     {

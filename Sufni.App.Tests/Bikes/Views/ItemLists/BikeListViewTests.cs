@@ -1,3 +1,9 @@
+using System.Linq;
+using System.Windows.Input;
+using Sufni.App.Shell.ViewModels;
+using CommunityToolkit.Mvvm.Input;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.DesktopViews.ItemLists;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
@@ -22,6 +28,32 @@ namespace Sufni.App.Tests.Bikes.Views.ItemLists;
 public class BikeListViewTests
 {
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAction_UsesListCommandAndOpensNewEditor(bool desktop)
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var coordinator = TestCoordinatorSubstitutes.Bike();
+        var draft = BikeDraft.From(TestSnapshots.Bike());
+        coordinator.ImportBikeAsync(Arg.Any<System.Threading.CancellationToken>()).Returns(new BikeImportResult.Imported(draft));
+        using var viewModel = new BikeListViewModel(new BikeStoreStub(), Substitute.For<IBikeDependencyQuery>(), coordinator,
+            new InlineUiThreadDispatcher(), TestPendingDeletes.Create(bikes: coordinator, shell: shell),
+            new FakeTimeProvider(), shell, TestShellFeedback.Create());
+        UserControl view = desktop ? new BikeListDesktopView() : new BikeListView();
+        view.DataContext = viewModel;
+        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);
+        ICommand command = desktop
+            ? view.FindControl<Button>("ImportButton")!.Command!
+            : Assert.Single(mounted.Control.FindFirstVisual<PullableMenuScrollViewer>()!
+                .MenuItems.Cast<PullMenuItemViewModel>(), item => item.Name == "import").Command;
+
+        Assert.Same(viewModel.ImportCommand, command);
+        await ((IAsyncRelayCommand)command).ExecuteAsync(null);
+
+        shell.Received(1).OpenEditor(new EditorKey.NewBike(draft));
+    }
+
     [AvaloniaFact]
     public async Task BikeListView_RendersBoundRows_AndOpensSelectedBike()
     {
@@ -34,7 +66,7 @@ public class BikeListViewTests
         dependencyQuery.IsBikeInUse(snapshot.Id).Returns(false);
         dependencyQuery.Changes.Returns(Observable.Return(Unit.Default));
 
-        var viewModel = new BikeListViewModel(store, dependencyQuery, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(bikes: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        var viewModel = new BikeListViewModel(store, dependencyQuery, coordinator, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(bikes: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         var view = new BikeListView
         {
             DataContext = viewModel,
@@ -65,7 +97,7 @@ public class BikeListViewTests
 
         var view = new BikeListView
         {
-            DataContext = new BikeListViewModel(store, dependencyQuery, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(bikes: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create()),
+            DataContext = new BikeListViewModel(store, dependencyQuery, coordinator, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(bikes: coordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create()),
         };
 
         await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(view);

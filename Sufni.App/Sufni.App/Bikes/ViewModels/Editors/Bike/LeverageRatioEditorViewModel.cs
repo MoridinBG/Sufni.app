@@ -18,7 +18,7 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
 
     public event EventHandler? Changed;
 
-    public IRelayCommand? ImportCommand { get; set; }
+    public IRelayCommand? ImportLeverageRatioCommand { get; set; }
 
     public int PointCount => Value?.Points.Count ?? 0;
     public double? MaxShockStroke => Value?.MaxShockStroke;
@@ -43,7 +43,7 @@ public sealed partial class LeverageRatioEditorViewModel : ObservableObject
 
     partial void OnCanEditChanged(bool value)
     {
-        ImportCommand?.NotifyCanExecuteChanged();
+        ImportLeverageRatioCommand?.NotifyCanExecuteChanged();
         ClearCommand.NotifyCanExecuteChanged();
     }
 

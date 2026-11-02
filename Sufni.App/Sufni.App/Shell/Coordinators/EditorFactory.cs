@@ -69,7 +69,8 @@ internal sealed class EditorFactory(
 {
     public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
-        EditorKey.NewBike => CreateBikeEditor(BikeSnapshot.From(new Bike(Guid.NewGuid(), "new bike")), true, shell),
+        EditorKey.NewBike bike => CreateBikeEditor(
+            bike.Draft?.ToSnapshot() ?? BikeSnapshot.From(new Bike(Guid.NewGuid(), "new bike")), true, shell),
         EditorKey.Bike bike => bikeStore.Get(bike.Id) is { } snapshot ? CreateBikeEditor(snapshot, false, shell) : null,
         EditorKey.NewSetup setup => CreateSetupEditor(setupCoordinator.CreateDraft(setup.SuggestedBoardId), true, shell),
         EditorKey.Setup setup => setupQuery.Get(setup.Id) is { } snapshot ? CreateSetupEditor(snapshot, false, shell) : null,

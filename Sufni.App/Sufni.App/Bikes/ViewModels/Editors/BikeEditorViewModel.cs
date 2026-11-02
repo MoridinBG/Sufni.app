@@ -48,7 +48,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     private BikeDraft draftBase;
     private readonly CancellableOperation analysisOperation = new();
     private readonly CancellableOperation imageOperation = new();
-    private readonly CancellableOperation importOperation = new();
     private readonly CancellableOperation leverageRatioImportOperation = new();
     // Guard edit-time callbacks while a snapshot is being applied.
     private bool isReplacingState;
@@ -196,7 +195,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IsInDatabase = !isNew;
         draftBase = BikeDraft.From(snapshot);
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
-        LeverageRatioEditor.ImportCommand = ImportLeverageRatioCommand;
+        LeverageRatioEditor.ImportLeverageRatioCommand = ImportLeverageRatioCommand;
         LinkageEditor.PreviewChanged += OnLinkageEditorPreviewChanged;
         LinkageEditor.StateChanged += OnLinkageEditorStateChanged;
         LeverageRatioEditor.Changed += OnLeverageRatioEditorChanged;
@@ -480,16 +479,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
-    }
-
-    private void ApplyImportedBike(BikeDraft draft)
-    {
-        var importedSnapshot = draft.ToSnapshot();
-        IsInDatabase = false;
-
-        ReplaceState(importedSnapshot, refreshAnalysis: true);
-
-        NotifyDeleteCommandStateChanged();
     }
 
     private void NotifyEditorCommandStatesChanged()
@@ -964,42 +953,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     }
 
     [RelayCommand]
-    private async Task Import()
-    {
-        if (IsDirty)
-        {
-            var discard = await dialogService.ShowConfirmationAsync(
-                "Discard unsaved changes?",
-                "Importing will replace your unsaved changes. Continue?");
-            if (!discard) return;
-        }
-
-        analysisOperation.Cancel();
-        var token = importOperation.Start();
-        try
-        {
-            var result = await bikeCoordinator.ImportBikeAsync(token);
-            if (token.IsCancellationRequested) return;
-
-            switch (result)
-            {
-                case BikeImportResult.Imported imported:
-                    ApplyImportedBike(imported.Draft);
-                    break;
-                case BikeImportResult.InvalidFile invalid:
-                    ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
-                    break;
-                case BikeImportResult.Failed failed:
-                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
-                    break;
-            }
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-        }
-    }
-
-    [RelayCommand]
     private async Task Loaded()
     {
         // Refresh Delete CanExecute when "in use" status changes.
@@ -1017,7 +970,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         DisposeScopedSubscriptions();
         analysisOperation.Cancel();
         imageOperation.Cancel();
-        importOperation.Cancel();
         leverageRatioImportOperation.Cancel();
     }
 

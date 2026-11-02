@@ -17,6 +17,8 @@ using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.Rows;
 using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
 namespace Sufni.App.Setups.ViewModels.ItemLists;
 
 // Inherits from ItemListViewModelBase for the shared search-bar /
@@ -27,6 +29,8 @@ public partial class SetupListViewModel : ItemListViewModelBase
 {
     #region Private fields
 
+    private readonly ISetupCoordinator setupCoordinator;
+    private readonly CancellableOperation importOperation = new();
     private readonly IShellCoordinator shell;
     private readonly ISetupBoardQuery setupQuery;
     private readonly ObservableCollectionExtended<SetupRowViewModel> setupRowsSource = [];
@@ -45,6 +49,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     public SetupListViewModel(
         ISetupBoardQuery setupQuery,
+        ISetupCoordinator setupCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
@@ -54,10 +59,12 @@ public partial class SetupListViewModel : ItemListViewModelBase
     {
         this.setupQuery = setupQuery;
         this.shell = shell;
+        this.setupCoordinator = setupCoordinator;
         setupRows = new ReadOnlyObservableCollection<SetupRowViewModel>(setupRowsSource);
         ObservePendingDeletes<PendingDeleteKey.Setup>(pendingDeletes);
         MenuItems.Add(new("sync", shellActions.SyncCommand));
         MenuItems.Add(new("add", AddCommand));
+        MenuItems.Add(new("import", ImportCommand));
     }
 
     #endregion Constructors
@@ -66,6 +73,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     protected override void AttachSubscriptions(CompositeDisposable subscriptions)
     {
+        subscriptions.Add(Disposable.Create(importOperation.Cancel));
         setupRowsSource.Clear();
         RebuildFilter();
 
@@ -83,6 +91,7 @@ public partial class SetupListViewModel : ItemListViewModelBase
 
     protected override void OnSubscriptionsDetached()
     {
+        importOperation.Cancel();
         setupRowsSource.Clear();
     }
 
@@ -119,6 +128,36 @@ public partial class SetupListViewModel : ItemListViewModelBase
     #endregion Private methods
 
     #region Commands
+
+    [RelayCommand]
+    private async Task Import()
+    {
+        var token = importOperation.Start();
+        try
+        {
+            var result = await setupCoordinator.ImportSetupAsync(token);
+            if (token.IsCancellationRequested) return;
+
+            switch (result)
+            {
+                case SetupImportResult.Imported imported:
+                    shell.OpenEditor(new EditorKey.Setup(imported.SetupId));
+                    break;
+                case SetupImportResult.BoardInUse:
+                    ErrorMessages.Add(FailurePresentation.From(SetupValidationFailureReason.BoardInUse));
+                    break;
+                case SetupImportResult.InvalidFile invalid:
+                    ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
+                    break;
+                case SetupImportResult.Failed failed:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+    }
 
     [RelayCommand]
     private System.Threading.Tasks.Task RowSelected(SetupRowViewModel? row)
