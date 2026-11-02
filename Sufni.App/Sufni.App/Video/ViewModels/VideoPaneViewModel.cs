@@ -62,7 +62,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
 
     /// <summary>
     /// Adds <paramref name="deltaSeconds"/> to the clip's alignment offset.
-    /// Returns false when the clip no longer exists.
+    /// Returns the coordinator’s typed alignment outcome.
     /// </summary>
     public Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds) =>
         videoCoordinator.ShiftAlignmentAsync(clipId, deltaSeconds);

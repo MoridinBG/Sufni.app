@@ -49,6 +49,35 @@ public class ErrorMessagesBarTests
         }
     }
 
+    // The adoption plan requires sentence checks at the rendered failure boundary.
+    [AvaloniaTheory]
+    [InlineData(true, "GPS alignment could not be saved. Try again.")]
+    [InlineData(false, "Session video alignment could not be saved. Try again.")]
+    public async Task AlignmentFailure_ShowsCauseSpecificSentenceAndKeepsDiagnosticsCollapsed(bool gps, string expected)
+    {
+        ViewTestHelpers.EnsureFluentTheme();
+        var viewModel = new TestViewModel();
+        const string diagnostic = "database constraint diagnostic";
+        viewModel.ErrorMessages.Add(gps
+            ? FailurePresentation.From(GpsOffsetFailureReason.Save, diagnostic)
+            : FailurePresentation.From(VideoAlignmentFailureReason.Save, diagnostic));
+        var view = new ErrorMessagesBar { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        try
+        {
+            var summary = view.GetVisualDescendants().OfType<TextBlock>().Single(control => control.Name == "FailureSummary");
+            Assert.Equal(expected, summary.Text);
+            var expander = view.GetVisualDescendants().OfType<Expander>().Single();
+            Assert.True(expander.IsVisible);
+            Assert.False(expander.IsExpanded);
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     [AvaloniaFact]
     public async Task ErrorMessagesBar_HidesItself_WhenThereAreNoErrors()
     {

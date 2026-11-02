@@ -51,7 +51,7 @@ off-thread, including the file-presence check, before publication. The snapshot 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 
 - `ImportAsync` picks a file through `IFilesService.OpenVideoFileAsync`, links each source once, and returns `VideoImportResult.Cancelled`, `Linked(sessionCount)`, `NoMatchingSession`, `SourceUnavailable`, or `Failed(reason, details)`.
-- `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns `VideoAlignmentResult.Updated`, `ClipMissing`, or `Failed(reason, details)`. The coordinator catches and logs persistence/publication failures once; callers project fixed failure text and treat a missing clip as unavailable.
+- `ShiftAlignmentAsync(clipId, deltaSeconds)` adds the delta to the clip's alignment offset and publishes the updated clip. It returns `VideoAlignmentResult.Updated`, `ClipMissing`, or `Failed(reason, details)`. The coordinator catches and logs persistence/publication failures once; the pane forwards the typed outcome. The editor projects a fixed save-failure sentence with separate diagnostics, and treats a missing clip as an unavailable metadata notification.
 
 ## Import
 

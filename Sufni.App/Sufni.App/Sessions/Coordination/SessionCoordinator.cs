@@ -180,7 +180,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
                 var current = await sessionRepository.GetSessionAsync(sessionId);
                 if (current is null) return (GpsOffsetResult)new GpsOffsetResult.SessionMissing();
                 var telemetry = await processedTelemetryReader.GetAsync(sessionId, cancellationToken);
-                if (telemetry is null) return new GpsOffsetResult.NoMatchingTrack();
+                if (telemetry is null) return new GpsOffsetResult.TelemetryUnavailable();
 
                 var offset = SessionTrackTimeline.NormalizeGpsOffsetSeconds(current.GpsOffsetSeconds + deltaSeconds);
                 var timestamp = current.Timestamp ?? telemetry.Metadata.Timestamp;
@@ -343,6 +343,7 @@ public abstract record GpsOffsetResult
     private GpsOffsetResult() { }
     public sealed record Applied : GpsOffsetResult;
     public sealed record NoMatchingTrack : GpsOffsetResult;
+    public sealed record TelemetryUnavailable : GpsOffsetResult;
     public sealed record SessionMissing : GpsOffsetResult;
     public sealed record Failed(GpsOffsetFailureReason Reason, string? Details = null) : GpsOffsetResult;
 }

@@ -198,6 +198,22 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task ShiftGpsOffsetAsync_ReportsUnavailableTelemetryWithoutChangingAlignment()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var original = PrepareAlignment(repository, 3);
+        await store.PublishSessionsChangedAsync([original]);
+        processedTelemetryReader.Set(original.Id, null);
+
+        var result = await CreateCoordinator(store, repository.Repository).ShiftGpsOffsetAsync(original.Id, 1.25, TestContext.Current.CancellationToken);
+
+        Assert.IsType<GpsOffsetResult.TelemetryUnavailable>(result);
+        Assert.Equal(original, store.Get(original.Id));
+        Assert.Equal(original, SessionSnapshot.From((await repository.Repository.GetSessionAsync(original.Id))!));
+    }
+
+    [Fact]
     public async Task ShiftGpsOffsetAsync_LeavesSessionUnchanged_WhenNoTrackSegmentMatches()
     {
         var repository = new InMemorySessionRepository(new FakeTimeProvider());

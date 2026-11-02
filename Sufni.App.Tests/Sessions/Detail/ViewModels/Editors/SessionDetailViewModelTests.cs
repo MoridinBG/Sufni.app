@@ -775,6 +775,72 @@ public class SessionDetailViewModelTests
         Assert.Empty(editor.ErrorMessages);
     }
 
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task VideoAlignment_DistinguishesMissingClipFromSaveFailure(bool missing)
+    {
+        using var videos = new VideoFixture();
+        var (editor, clip) = await CreateEditorWithVideoAsync(videos);
+        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(missing
+            ? new VideoAlignmentResult.ClipMissing()
+            : new VideoAlignmentResult.Failed(VideoAlignmentFailureReason.Save, "disk full"));
+
+        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
+
+        if (missing)
+        {
+            Assert.Single(editor.Notifications);
+            Assert.Empty(editor.ErrorMessages);
+        }
+        else
+        {
+            Assert.Equal(FailurePresentation.From(VideoAlignmentFailureReason.Save, "disk full"), Assert.Single(editor.ErrorMessages));
+            Assert.Empty(editor.Notifications);
+        }
+        Assert.False(FindSignalAction(editor, "video-mark-telemetry-event").Command.CanExecute(CreatePlotContext(3)));
+        await editor.PrepareCloseAsync();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task GpsAlignment_ReportsUnavailabilitySeparatelyFromSaveFailure(int outcome)
+    {
+        var harness = new SessionDetailHarness();
+        var editor = harness.CreateLoadedRecordedSession(loadResult: harness.CreateLoadedResult(trackPoints: [new TrackPoint(1, 0, 0, 0)]));
+        await harness.LoadAsync(editor);
+        GpsOffsetResult result = outcome switch
+        {
+            0 => new GpsOffsetResult.NoMatchingTrack(),
+            1 => new GpsOffsetResult.SessionMissing(),
+            2 => new GpsOffsetResult.TelemetryUnavailable(),
+            _ => new GpsOffsetResult.Failed(GpsOffsetFailureReason.Save, "disk full"),
+        };
+        harness.SessionCoordinator.ShiftGpsOffsetAsync(editor.Id, Arg.Any<double>(), Arg.Any<CancellationToken>()).Returns(result);
+
+        ExecuteSignalAction(editor, "gps-mark-gps-event", clickSeconds: 5);
+        await ((IAsyncRelayCommand)FindSignalAction(editor, "gps-mark-telemetry-event").Command)
+            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
+
+        if (outcome < 3)
+        {
+            Assert.Single(editor.Notifications);
+            Assert.Empty(editor.ErrorMessages);
+        }
+        else
+        {
+            Assert.Equal(FailurePresentation.From(GpsOffsetFailureReason.Save, "disk full"), Assert.Single(editor.ErrorMessages));
+            Assert.Empty(editor.Notifications);
+        }
+        Assert.False(FindSignalAction(editor, "gps-mark-telemetry-event").Command.CanExecute(CreatePlotContext(3)));
+        await harness.CloseAsync(editor);
+    }
+
     [AvaloniaFact]
     public async Task VideoAlignment_Cancel_DropsPendingVideoMark()
     {

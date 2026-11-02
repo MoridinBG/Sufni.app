@@ -352,9 +352,10 @@ Missing | Failed(reason, details)`, with `SessionSaveFailureReason.Save`.
 `SessionEditResult` is `Applied(RecomputeFailure?) | Missing | Failed(reason, details)`;
 `SessionEditFailureReason` distinguishes `Edit` from `Rejected`. Missing sessions
 show notification state and cannot complete a save or close a dirty editor.
-GPS alignment returns `GpsOffsetResult.Applied | NoMatchingTrack | SessionMissing |
-Failed(reason, details)` with `GpsOffsetFailureReason.Save`. Unavailability is
-shown as a notification; persistence failures retain technical details.
+GPS alignment returns `GpsOffsetResult.Applied | NoMatchingTrack | TelemetryUnavailable |
+SessionMissing | Failed(reason, details)` with `GpsOffsetFailureReason.Save`. Unavailability is
+shown as a cause-specific notification; missing telemetry asks the user to sync or
+recompute, while persistence failures retain technical details.
 
 `BikeSaveResult.Saved` additionally carries
 a `BikeEditorAnalysisResult AnalysisResult` so the editor can react

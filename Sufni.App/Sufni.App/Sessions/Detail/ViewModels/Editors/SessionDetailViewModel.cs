@@ -1006,6 +1006,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         switch (applied)
         {
+            case GpsOffsetResult.TelemetryUnavailable:
+                Notifications.Add("GPS alignment could not be applied because session telemetry is unavailable. Sync or recompute the session and try again.");
+                break;
             case GpsOffsetResult.NoMatchingTrack:
                 Notifications.Add("GPS offset could not be applied: no matching track segment was found.");
                 break;
