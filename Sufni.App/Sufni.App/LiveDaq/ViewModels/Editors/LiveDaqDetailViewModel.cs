@@ -25,6 +25,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     private static readonly ILogger logger = Log.ForContext<LiveDaqDetailViewModel>();
 
     public string IdentityKey { get; }
+    public bool IsStreamClosed => sharedStream.CurrentState.IsClosed;
 
     [ObservableProperty]
     public partial string? BoardId { get; set; }

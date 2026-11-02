@@ -349,7 +349,8 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   discovery catalog and browse lease, a runtime-only store, and a
   per-identity shared stream that tabs attach to through tab-lifetime observer
   leases. Registry transport reservations are separate from observers and stay
-  held until socket cleanup completes; capture locks reject disconnect. See
+  held until socket cleanup completes; capture locks reject disconnect. The shell
+  replaces closed diagnostics tabs on reselect and owns detached-tab cleanup. See
   [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with

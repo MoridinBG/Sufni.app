@@ -324,7 +324,11 @@ the store releases its cache and prevents queued publication after shutdown.
 Diagnostics and live-session opening belong to the shell. It deduplicates by
 `EditorKey.LiveDaq` or `EditorKey.LiveSession` before the factory reads the
 snapshot/context and acquires the shared stream or creates a capture service.
-Missing snapshots or session contexts produce no tab.
+Missing snapshots or session contexts produce no tab. Reselecting a diagnostics
+tab with a closed stream replaces that tab and its stream reference. The shell
+owns cleanup of the detached editor; replacement does not wait for the old socket
+to close, and the registry keeps its port busy until that cleanup finishes.
+Live-capture tabs retain their captured data and are not replaced by reselect.
 
 ## View Models
 

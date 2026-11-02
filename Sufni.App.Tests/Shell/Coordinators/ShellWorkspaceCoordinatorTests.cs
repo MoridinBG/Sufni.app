@@ -19,6 +19,70 @@ public class ShellWorkspaceCoordinatorTests
 {
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
+    [Theory]
+    [InlineData(UiLayoutProfile.Compact, false)]
+    [InlineData(UiLayoutProfile.Workspace, false)]
+    [InlineData(UiLayoutProfile.Workspace, true)]
+    public async Task OpenEditor_ReplacesClosedDiagnostics_AndOwnsDetachedCleanup(UiLayoutProfile profile, bool background)
+    {
+        var oldHarness = new LiveDaqDetailHarness();
+        var freshHarness = new LiveDaqDetailHarness();
+        var old = oldHarness.CreateEditor();
+        var fresh = freshHarness.CreateEditor();
+        var cleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        oldHarness.StreamLease.DisposeAsync().Returns(new ValueTask(cleanup.Task));
+        var key = new EditorKey.LiveDaq(old.IdentityKey);
+        var factory = Substitute.For<IEditorFactory>();
+        factory.CreateEditor(key, Arg.Any<IShellCoordinator>()).Returns(old, fresh);
+        var workspace = CreateWorkspace();
+        await using var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(profile), factory,
+            Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
+        var previous = new TestTabPageViewModel();
+        shell.Open(previous);
+        shell.OpenEditor(key);
+        shell.OpenEditor(key);
+        factory.Received(1).CreateEditor(key, shell);
+        oldHarness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+
+        shell.OpenEditor(key, background);
+        shell.OpenEditor(key, background);
+
+        Assert.DoesNotContain(old, workspace.Tabs);
+        Assert.Contains(fresh, workspace.Tabs);
+        Assert.Same(background ? (TabPageViewModelBase)previous : fresh, workspace.CurrentTab);
+        factory.Received(2).CreateEditor(key, shell);
+        Assert.False(oldHarness.ManagementAvailability.HasObservers);
+        var disposal = shell.DisposeAsync().AsTask();
+        Assert.False(disposal.IsCompleted);
+        cleanup.SetResult();
+        await disposal.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await fresh.PrepareCloseAsync();
+    }
+
+    [Fact]
+    public async Task ReplacedDiagnosticsCleanupFailure_GoesToShellFeedback_WithoutBlockingFreshTab()
+    {
+        var oldHarness = new LiveDaqDetailHarness();
+        var old = oldHarness.CreateEditor();
+        var fresh = new LiveDaqDetailHarness().CreateEditor();
+        oldHarness.StreamLease.DisposeAsync().Returns(ValueTask.FromException(new IOException("cleanup diagnostic")));
+        var key = new EditorKey.LiveDaq(old.IdentityKey);
+        var factory = Substitute.For<IEditorFactory>();
+        factory.CreateEditor(key, Arg.Any<IShellCoordinator>()).Returns(old, fresh);
+        var workspace = CreateWorkspace();
+        using var feedback = TestShellFeedback.Create();
+        await using var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace), factory,
+            Substitute.For<IUiPreferences>(), TestDispatcher, feedback);
+        shell.OpenEditor(key);
+        oldHarness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+
+        shell.OpenEditor(key);
+
+        Assert.Same(fresh, Assert.Single(workspace.Tabs));
+        Assert.DoesNotContain("cleanup diagnostic", Assert.Single(feedback.ErrorMessages).Summary);
+        await fresh.PrepareCloseAsync();
+    }
+
     [Fact]
     public async Task OpenEditor_DeduplicatesBackgroundTabs_AndRestoresCurrentSnapshot()
     {
@@ -27,7 +91,7 @@ public class ShellWorkspaceCoordinatorTests
         var original = TestSnapshots.Session(name: "original");
         store.Get(original.Id).Returns(original);
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
-            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher);
+            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
         var previous = new TestTabPageViewModel();
         shell.Open(previous);
         var key = new EditorKey.Session(original.Id);
@@ -58,7 +122,7 @@ public class ShellWorkspaceCoordinatorTests
         var snapshot = TestSnapshots.Session();
         store.Get(snapshot.Id).Returns(snapshot);
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
-            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher);
+            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
         var previous = new TestTabPageViewModel();
         shell.Open(previous);
         var key = new EditorKey.Session(snapshot.Id);
@@ -78,7 +142,7 @@ public class ShellWorkspaceCoordinatorTests
     {
         var workspace = CreateWorkspace();
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
-            TestEditorFactories.Create(), Substitute.For<IUiPreferences>(), TestDispatcher);
+            TestEditorFactories.Create(), Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
         var key = new EditorKey.ImportSessions();
         shell.OpenEditor(key);
         var first = Assert.IsType<ImportSessionsViewModel>(workspace.CurrentTab);
@@ -107,11 +171,12 @@ public class ShellWorkspaceCoordinatorTests
         var workspace = CreateWorkspace();
         var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace),
             TestEditorFactories.Create(liveDaqStore: live.LiveDaqStore, knownBoards: live.KnownBoardsQuery,
-                streamRegistry: registry, liveSessionFactory: services), Substitute.For<IUiPreferences>(), TestDispatcher);
+                streamRegistry: registry, liveSessionFactory: services), Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
         var key = new EditorKey.LiveSession(snapshot.IdentityKey);
 
         shell.OpenEditor(key);
         var first = Assert.IsType<LiveSessionDetailViewModel>(workspace.CurrentTab);
+        live.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
         shell.OpenEditor(key);
 
         Assert.Same(first, Assert.Single(workspace.Tabs));
@@ -217,7 +282,7 @@ public class ShellWorkspaceCoordinatorTests
         var persisted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         preferences.SetLayoutProfileAsync(target).Returns(persisted.Task);
         var shell = new ShellWorkspaceCoordinator(workspace, environment, Substitute.For<IEditorFactory>(),
-            preferences, TestDispatcher);
+            preferences, TestDispatcher, TestShellFeedback.Create());
         var background = new TestTabPageViewModel(1) { IsDirty = true };
         var current = new TestTabPageViewModel(2) { IsDirty = true };
         shell.Open(background);
@@ -249,7 +314,7 @@ public class ShellWorkspaceCoordinatorTests
         var environment = Substitute.For<IAppEnvironment>();
         environment.LayoutProfile.Returns(UiLayoutProfile.Workspace);
         var coordinator = new ShellWorkspaceCoordinator(workspace, environment,
-            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher);
+            TestEditorFactories.Create(sessionStore: store), Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
         var previous = new TestTabPageViewModel();
         coordinator.Open(previous);
         var key = new EditorKey.Session(snapshot.Id);
@@ -370,7 +435,7 @@ public class ShellWorkspaceCoordinatorTests
     private static ShellWorkspaceCoordinator CreateCoordinator(
         ShellWorkspaceViewModel workspace,
         UiLayoutProfile layoutProfile = UiLayoutProfile.Workspace) =>
-        new(workspace, CreateEnvironment(layoutProfile), Substitute.For<IEditorFactory>(), Substitute.For<IUiPreferences>(), TestDispatcher);
+        new(workspace, CreateEnvironment(layoutProfile), Substitute.For<IEditorFactory>(), Substitute.For<IUiPreferences>(), TestDispatcher, TestShellFeedback.Create());
 
     private static IAppEnvironment CreateEnvironment(UiLayoutProfile layoutProfile) =>
         new AppEnvironment(

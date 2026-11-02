@@ -4,8 +4,10 @@ using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.LiveDaq.ViewModels.Editors;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Serilog;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
@@ -18,8 +20,13 @@ public sealed class ShellWorkspaceCoordinator(
     IAppEnvironment appEnvironment,
     IEditorFactory editorFactory,
     IUiPreferences uiPreferences,
-    IUiThreadDispatcher dispatcher) : IShellCoordinator
+    IUiThreadDispatcher dispatcher,
+    ShellFeedbackViewModel feedback) : IShellCoordinator, IAsyncDisposable
 {
+    private static readonly ILogger logger = Log.ForContext<ShellWorkspaceCoordinator>();
+    private readonly System.Threading.Lock cleanupGate = new();
+    private readonly HashSet<Task> detachedTabCleanup = [];
+    private bool disposed;
     private bool ShouldRememberClosedTabs => appEnvironment.LayoutProfile == UiLayoutProfile.Workspace;
 
     public async Task SwitchLayoutProfileAsync(UiLayoutProfile profile)
@@ -31,6 +38,17 @@ public sealed class ShellWorkspaceCoordinator(
     public void OpenEditor(EditorKey key, bool background = false)
     {
         var existing = workspace.Tabs.FirstOrDefault(tab => Matches(key, tab));
+        if (existing is LiveDaqDetailViewModel { IsStreamClosed: true } closed)
+        {
+            lock (cleanupGate)
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                detachedTabCleanup.RemoveWhere(task => task.IsCompleted);
+                detachedTabCleanup.Add(CloseDetachedTabAsync(closed));
+            }
+            workspace.CloseTab(closed, rememberForRestore: false);
+            existing = null;
+        }
         if (existing is not null)
         {
             if (!background) workspace.OpenOrFocus(existing, CreateRestoreEntry(key));
@@ -42,6 +60,28 @@ public sealed class ShellWorkspaceCoordinator(
             : workspace.TakeTabHistory(restoreEntry.TabType, restoreEntry.Key)?.Restore();
         if ((restored ?? editorFactory.CreateEditor(key, this)) is { } editor)
             OpenTab(editor, restoreEntry, background);
+    }
+
+    private async Task CloseDetachedTabAsync(LiveDaqDetailViewModel tab)
+    {
+        try { await tab.PrepareCloseAsync(); }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Failed to clean up replaced DAQ tab {IdentityKey}", tab.IdentityKey);
+            await dispatcher.InvokeAsync(feedback.ShowUnexpectedFailure);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Task[] pending;
+        lock (cleanupGate)
+        {
+            disposed = true;
+            pending = [.. detachedTabCleanup];
+        }
+        await Task.WhenAll(pending).ConfigureAwait(false);
+        lock (cleanupGate) detachedTabCleanup.Clear();
     }
 
     public async Task CloseEditorAsync(EditorKey key)

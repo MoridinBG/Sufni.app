@@ -330,7 +330,13 @@ and control-internal keys stay local to their controls.
 tab; a background request preserves current focus. The factory reads the current
 store snapshot (or joined setup/board details) and returns no editor for missing entities. It creates live
 stream/capture dependencies only after deduplication, so a second request does
-not create an unused capture service.
+not create an unused capture service. A diagnostics tab whose shared stream is
+closed is replaced on reselect in either layout. The shell detaches that tab and
+creates its replacement synchronously, retaining the old tab's asynchronous
+cleanup task. Shell disposal drains those tasks before dependencies are disposed;
+cleanup failure is logged once and reported through shell feedback. The registry
+retains the old port reservation until socket cleanup completes. Live-capture tabs
+are still deduplicated, preserving their unsaved capture even after stream closure.
 
 Persisted bike, setup and session keys have closed-tab restore entries. Restore
 constructs a fresh editor from the current snapshot. New drafts, imports and
