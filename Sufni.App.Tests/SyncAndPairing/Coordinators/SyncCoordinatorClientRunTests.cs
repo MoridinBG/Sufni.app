@@ -43,7 +43,12 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await database.UpdateLastPushSequenceAsync(SyncTestServerHarness.Peer, 1);
         await database.UpdateLastPullSequenceAsync(SyncTestServerHarness.Peer, 50);
         var resetPeer = SyncTestServerHarness.Peer with { DatabaseIncarnation = "reset-database" };
-        httpApiService.GetPeerIdentityAsync().Returns(resetPeer);
+        var announcements = new List<SynchronizationRunStart>();
+        httpApiService.BeginRunAsync(Arg.Any<SynchronizationRunStart>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            announcements.Add(call.Arg<SynchronizationRunStart>());
+            return resetPeer;
+        });
         var requests = new List<string>();
         httpApiService.PullSyncAsync(0, Arg.Any<CancellationToken>()).Returns(_ =>
         {
@@ -62,6 +67,10 @@ public class SyncCoordinatorClientRunTests : IDisposable
             .RunSyncAsync(cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.Equal(["pull", "push"], requests);
+        Assert.Equal(2, announcements.Count);
+        Assert.Equal(announcements[0].RunId, announcements[1].RunId);
+        Assert.Equal(SynchronizationPhase.PushingLocalChanges, announcements[0].Phases[0]);
+        Assert.Equal(SynchronizationPhase.PullingRemoteChanges, announcements[1].Phases[0]);
         Assert.Equal(board.Id, Assert.Single(pushed!.Boards).Id);
         Assert.Equal(1, await database.GetLastPushSequenceAsync(resetPeer));
         Assert.Equal(0, await database.GetLastPullSequenceAsync(resetPeer));
@@ -87,6 +96,10 @@ public class SyncCoordinatorClientRunTests : IDisposable
             if (path == SynchronizationProtocol.EndpointPairRefresh)
                 return Task.FromResult(SyncTestServerHarness.Json(new TokenResponse(
                     SyncTestServerHarness.CreateAccessToken(harness.Time.GetUtcNow().AddMinutes(10)), "refresh-2", SyncTestServerHarness.Peer.DatabaseIncarnation)));
+            if (path == SynchronizationProtocol.EndpointRunStart)
+                return Task.FromResult(SyncTestServerHarness.Json(new SynchronizationRunStarted(SyncTestServerHarness.Peer.DatabaseIncarnation)));
+            if (path == SynchronizationProtocol.EndpointRunEnd)
+                return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.NoContent));
             if (path == SynchronizationProtocol.EndpointSyncPull)
                 return Task.FromResult(SyncTestServerHarness.Json(new SynchronizationData()));
             if (path == SynchronizationProtocol.EndpointSyncPush)
@@ -719,6 +732,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         var result = await coordinator.RunSyncAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<SynchronizationRunResult.Failed>(result);
+        await httpApiService.DidNotReceive().CompleteRunAsync(Arg.Any<CancellationToken>());
         Assert.Equal(board.Id, fixture.Boards.Get(board.Id)!.Id);
         Assert.Equal(board.Version, (await fixture.Database.GetAsync<Board>(board.Id))!.Version);
         Assert.Equal(0, await fixture.Database.GetLastPullSequenceAsync(SyncTestServerHarness.Peer));
@@ -750,6 +764,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await cancellation.CancelAsync();
 
         Assert.Null(await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        await httpApiService.DidNotReceive().CompleteRunAsync(Arg.Any<CancellationToken>());
         Assert.Equal(first.SourceHash, sourceStore.Get(first.SessionId)?.SourceHash);
         Assert.Null(sourceStore.Get(second));
         Assert.Equal(first.Payload, (await fixture.Database.GetRecordedSessionSourceAsync(first.SessionId))!.Payload);

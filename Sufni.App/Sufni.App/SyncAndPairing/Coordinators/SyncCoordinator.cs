@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Serilog;
 using Sufni.App.Shared.Models;
+using Sufni.App.SyncAndPairing.Models;
 
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Infrastructure;
@@ -18,39 +19,18 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
     private static readonly TimeSpan ServerDiscoveryTimeout = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan DefaultInboundActivityIdleGrace = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan FinalInboundActivityIdleGrace = TimeSpan.FromSeconds(2);
-
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
-    private readonly TimeSpan inboundActivityIdleGrace;
-    private readonly TimeSpan finalInboundActivityIdleGrace;
-    private readonly TimeProvider timeProvider;
 
     private readonly CancellationTokenSource shutdown = new();
-    private readonly HashSet<Task> idleTasks = [];
     private readonly IDisposable? pairedStateSubscription;
-    private readonly ISynchronizationServerService? synchronizationServer;
+    private readonly IDisposable? inboundActivitySubscription;
+    private SyncActivity activity;
     private Task? activeRun;
-    private bool isRunning;
-    private bool outboundSyncRunning;
-    private bool inboundSyncRunning;
-    private int inboundActivityDepth;
-    private int inboundIdleGeneration;
     private SynchronizationProgressSnapshot? progress;
 
-    public bool IsRunning
-    {
-        get => isRunning;
-        private set
-        {
-            if (isRunning == value) return;
-            isRunning = value;
-            IsRunningChanged?.Invoke(this, EventArgs.Empty);
-            CanSyncChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    public bool IsRunning => activity != SyncActivity.Idle;
 
     public bool IsPaired => pairingClientCoordinator?.IsPaired ?? false;
     public bool CanSync => !shutdown.IsCancellationRequested && !IsRunning && IsPaired;
@@ -83,11 +63,8 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
-        TimeProvider timeProvider,
         IPairingClientCoordinator? pairingClientCoordinator = null,
-        ISynchronizationServerService? synchronizationServerService = null,
-        TimeSpan? inboundActivityIdleGrace = null,
-        TimeSpan? finalInboundActivityIdleGrace = null)
+        IInboundSyncCoordinator? inboundSyncCoordinator = null)
     {
         this.syncDataStore = syncDataStore;
         this.rowApplier = rowApplier;
@@ -96,13 +73,9 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         this.recordedSessionSourceRepository = recordedSessionSourceRepository;
         this.sourceStore = sourceStore;
         this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
-        synchronizationServer = synchronizationServerService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
-        this.inboundActivityIdleGrace = inboundActivityIdleGrace ?? DefaultInboundActivityIdleGrace;
-        this.finalInboundActivityIdleGrace = finalInboundActivityIdleGrace ?? FinalInboundActivityIdleGrace;
-        this.timeProvider = timeProvider;
 
         if (pairingClientCoordinator is not null)
         {
@@ -110,11 +83,9 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
             pairingClientCoordinator.PairingConfirmed += OnPairingConfirmed;
         }
 
-        if (synchronizationServerService is not null)
-        {
-            synchronizationServerService.SyncActivityStarted += OnSyncActivityStarted;
-            synchronizationServerService.SyncActivityEnded += OnSyncActivityEnded;
-        }
+        if (inboundSyncCoordinator is not null)
+            inboundActivitySubscription = inboundSyncCoordinator.Activity.Subscribe(value =>
+                uiThreadDispatcher.Post(() => ApplyInboundActivity(value)));
     }
 
     public async Task SyncAllAsync(CancellationToken cancellationToken = default)
@@ -133,20 +104,15 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
     public async Task StopAsync()
     {
         await shutdown.CancelAsync();
-        var work = await uiThreadDispatcher.InvokeAsync(() =>
-            idleTasks.Concat(activeRun is null ? [] : new[] { activeRun }).ToArray());
-        await Task.WhenAll(work);
+        var work = await uiThreadDispatcher.InvokeAsync<Task?>(() => activeRun);
+        if (work is not null) await work;
     }
 
     public void Dispose()
     {
         pairedStateSubscription?.Dispose();
         if (pairingClientCoordinator is not null) pairingClientCoordinator.PairingConfirmed -= OnPairingConfirmed;
-        if (synchronizationServer is not null)
-        {
-            synchronizationServer.SyncActivityStarted -= OnSyncActivityStarted;
-            synchronizationServer.SyncActivityEnded -= OnSyncActivityEnded;
-        }
+        inboundActivitySubscription?.Dispose();
         shutdown.Dispose();
     }
 
@@ -162,7 +128,7 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         }
 
         logger.Information("Starting synchronization");
-        SetOutboundSyncRunning(true);
+        SetActivity(SyncActivity.Outbound);
         try
         {
             if (pairingClientCoordinator is not null)
@@ -205,8 +171,8 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         {
             await uiThreadDispatcher.InvokeAsync(() =>
             {
-                if (!inboundSyncRunning) Progress = null;
-                SetOutboundSyncRunning(false);
+                Progress = null;
+                SetActivity(SyncActivity.Idle);
             });
         }
     }
@@ -228,146 +194,40 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         CanSyncChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void SetOutboundSyncRunning(bool value)
+    private void SetActivity(SyncActivity value)
     {
-        outboundSyncRunning = value;
-        UpdateIsRunning();
+        if (activity == value) return;
+        activity = value;
+        IsRunningChanged?.Invoke(this, EventArgs.Empty);
+        CanSyncChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void SetInboundSyncRunning(bool value)
+    private void ApplyInboundActivity(PeerSyncActivity value)
     {
-        inboundSyncRunning = value;
-        UpdateIsRunning();
-    }
-
-    private void UpdateIsRunning()
-    {
-        IsRunning = outboundSyncRunning || inboundSyncRunning;
-    }
-
-    private void OnSyncActivityStarted(object? sender, SynchronizationActivityEventArgs e)
-    {
-        uiThreadDispatcher.Post(() =>
+        if (shutdown.IsCancellationRequested) return;
+        if (value is PeerSyncActivity.Running running)
         {
-            if (shutdown.IsCancellationRequested) return;
-            inboundIdleGeneration++;
-            inboundActivityDepth++;
-            SetInboundSyncRunning(true);
-            Progress = NormalizeInboundProgress(e.Progress);
-        });
-    }
-
-    private void OnSyncActivityEnded(object? sender, SynchronizationActivityEventArgs e)
-    {
-        uiThreadDispatcher.Post(() =>
-        {
-            if (shutdown.IsCancellationRequested) return;
-            if (inboundActivityDepth > 0)
+            SetActivity(SyncActivity.Inbound);
+            var message = running.Phase switch
             {
-                inboundActivityDepth--;
-            }
-
-            if (inboundActivityDepth > 0)
-            {
-                return;
-            }
-
-            ScheduleInboundActivityIdleClear(GetInboundActivityIdleGrace());
-        });
-    }
-
-    private void ScheduleInboundActivityIdleClear(TimeSpan idleGrace)
-    {
-        var generation = ++inboundIdleGeneration;
-        if (idleGrace <= TimeSpan.Zero)
-        {
-            ClearInboundActivityIfIdle(generation);
-            return;
+                SynchronizationPhase.PushingLocalChanges => "Receiving remote changes",
+                SynchronizationPhase.PullingRemoteChanges => "Serving remote changes",
+                SynchronizationPhase.PushingIncompleteSessions => "Receiving session data",
+                SynchronizationPhase.PullingIncompleteSessions => "Serving session data",
+                SynchronizationPhase.PushingIncompleteSessionSources => "Receiving recorded sources",
+                SynchronizationPhase.PullingIncompleteSessionSources => "Serving recorded sources",
+                _ => "Syncing"
+            };
+            Progress = new SynchronizationProgressSnapshot(running.Phase, message, running.Step, running.PhaseCount, true);
         }
-
-        var task = ClearInboundActivityAfterDelayAsync(generation, idleGrace);
-        idleTasks.Add(task);
-        _ = RemoveIdleTaskAsync(task);
-    }
-
-    private async Task ClearInboundActivityAfterDelayAsync(int generation, TimeSpan idleGrace)
-    {
-        try
+        else
         {
-            await Task.Delay(idleGrace, timeProvider, shutdown.Token);
-            await uiThreadDispatcher.InvokeAsync(() => ClearInboundActivityIfIdle(generation));
-        }
-        catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { }
-    }
-
-    private async Task RemoveIdleTaskAsync(Task task)
-    {
-        await task;
-        await uiThreadDispatcher.InvokeAsync(() => idleTasks.Remove(task));
-    }
-
-    private void ClearInboundActivityIfIdle(int generation)
-    {
-        if (generation != inboundIdleGeneration || inboundActivityDepth > 0)
-        {
-            return;
-        }
-
-        SetInboundSyncRunning(false);
-        if (!outboundSyncRunning)
-        {
+            SetActivity(SyncActivity.Idle);
             Progress = null;
+            if (value is PeerSyncActivity.Interrupted)
+                SyncFailed?.Invoke(this, new SyncFailedEventArgs(SyncFailureReason.Interrupted));
         }
     }
-
-    private TimeSpan GetInboundActivityIdleGrace()
-    {
-        return Progress is { IsDeterminate: true, CurrentStep: >= 5 }
-            ? finalInboundActivityIdleGrace
-            : inboundActivityIdleGrace;
-    }
-
-    private static SynchronizationProgressSnapshot NormalizeInboundProgress(SynchronizationProgressSnapshot progress) =>
-        progress.Phase switch
-        {
-            SynchronizationPhase.ReceivingChanges => InboundProgress(
-                progress,
-                "Receiving remote changes",
-                currentStep: 1),
-            SynchronizationPhase.ServingChanges => InboundProgress(
-                progress,
-                "Serving remote changes",
-                currentStep: 2),
-            SynchronizationPhase.CheckingIncompleteSessions or SynchronizationPhase.ReceivingSessionData => InboundProgress(
-                progress,
-                "Receiving session data",
-                currentStep: 3),
-            SynchronizationPhase.ServingSessionData => InboundProgress(
-                progress,
-                "Serving session data",
-                currentStep: 4),
-            SynchronizationPhase.CheckingIncompleteSessionSources or SynchronizationPhase.ReceivingSessionSourceData => InboundProgress(
-                progress,
-                "Receiving recorded sources",
-                currentStep: 5),
-            SynchronizationPhase.ServingSessionSourceData => InboundProgress(
-                progress,
-                "Serving recorded sources",
-                currentStep: 6),
-            _ => progress
-        };
-
-    private static SynchronizationProgressSnapshot InboundProgress(
-        SynchronizationProgressSnapshot progress,
-        string message,
-        int currentStep) =>
-        progress with
-        {
-            Message = message,
-            CurrentStep = currentStep,
-            TotalSteps = 6,
-            IsDeterminate = true
-        };
 }
 
 public sealed record SyncCompletedEventArgs(SynchronizationRunResult Result);

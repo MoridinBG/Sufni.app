@@ -17,6 +17,10 @@ public static class SynchronizationProtocol
     public const string EndpointPairConfirm = "/pair/confirm";
     public const string EndpointPairRefresh = "/pair/refresh";
     public const string EndpointPairUnpair = "/pair/unpair";
+    public const string RunIdHeader = "X-Sufni-Sync-Run";
+    public const string RunPhaseHeader = "X-Sufni-Sync-Phase";
+    public const string EndpointRunStart = "/sync/run/start";
+    public const string EndpointRunEnd = "/sync/run/end";
     public const string EndpointSyncPush = "/sync/push";
     public const string EndpointSyncPull = "/sync/pull";
     public const string EndpointSessionIncomplete = "/session/incomplete";

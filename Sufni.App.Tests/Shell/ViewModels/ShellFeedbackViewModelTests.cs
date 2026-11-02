@@ -58,7 +58,7 @@ public class ShellFeedbackViewModelTests
             if (args.PropertyName == nameof(feedback.SyncProgressValue)) observedProgress.Add(feedback.SyncProgressValue);
         };
         sync.IsRunning.Returns(true);
-        sync.Progress.Returns(new SynchronizationProgressSnapshot(SynchronizationPhase.ReceivingChanges,
+        sync.Progress.Returns(new SynchronizationProgressSnapshot(SynchronizationPhase.PushingLocalChanges,
             "receiving", 3, 8, true));
         sync.IsRunningChanged += Raise.Event();
 

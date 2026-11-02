@@ -37,6 +37,8 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
     private DateTimeOffset? tokenExpiry;
     private volatile AuthenticationHeaderValue? authorizationHeader;
     private PeerEndpoint? endpoint;
+    private sealed record RunHeaders(Guid Id, SynchronizationPhase Phase);
+    private RunHeaders? runHeaders;
 
     public CancellationToken Lifetime { get; }
     private PeerEndpoint Endpoint => Volatile.Read(ref endpoint) ?? throw CreateMissingCredentialsException();
@@ -111,6 +113,38 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
         return new PeerIdentity(certificateThumbprint ?? throw CreateMissingCredentialsException(),
             databaseIncarnation ?? throw CreateMissingCredentialsException());
     }
+
+    public async Task<PeerIdentity> BeginRunAsync(SynchronizationRunStart request, CancellationToken cancellationToken)
+    {
+        await EnsureTokenFreshAsync();
+        var route = $"{Endpoint.Address}{SynchronizationProtocol.EndpointRunStart}";
+        using var response = await SendWithLoggingAsync(HttpMethod.Post, route, () =>
+            SendRequestAsync(HttpMethod.Post, route, JsonContent.Create(request, AppJson.Context.SynchronizationRunStart),
+                cancellationToken: cancellationToken));
+        response.EnsureSuccessStatusCode();
+        var started = await response.Content.ReadFromJsonAsync(AppJson.Context.SynchronizationRunStarted, cancellationToken);
+        lock (refreshGate) databaseIncarnation = started!.DatabaseIncarnation;
+        if (request.DatabaseIncarnation == started.DatabaseIncarnation)
+            Volatile.Write(ref runHeaders, new RunHeaders(request.RunId, request.Phases[0]));
+        return new PeerIdentity(certificateThumbprint!, started.DatabaseIncarnation);
+    }
+
+    public void SetRunPhase(SynchronizationPhase phase)
+    {
+        var current = Volatile.Read(ref runHeaders) ?? throw new InvalidOperationException("No synchronization run is active.");
+        Volatile.Write(ref runHeaders, current with { Phase = phase });
+    }
+
+    public async Task CompleteRunAsync(CancellationToken cancellationToken)
+    {
+        await EnsureTokenFreshAsync();
+        var route = $"{Endpoint.Address}{SynchronizationProtocol.EndpointRunEnd}";
+        using var response = await SendWithLoggingAsync(HttpMethod.Post, route, () =>
+            SendRequestAsync(HttpMethod.Post, route, cancellationToken: cancellationToken));
+        response.EnsureSuccessStatusCode();
+    }
+
+    public void ClearRun() => Volatile.Write(ref runHeaders, null);
 
     private async Task SaveTokensAsync(TokenResponse tokens)
     {
@@ -239,6 +273,11 @@ internal sealed class SynchronizationPeer : ISynchronizationPeer, IDisposable
             request.Headers.Authorization = authorization;
         }
 
+        if (Volatile.Read(ref runHeaders) is { } run)
+        {
+            request.Headers.TryAddWithoutValidation(SynchronizationProtocol.RunIdHeader, run.Id.ToString());
+            request.Headers.TryAddWithoutValidation(SynchronizationProtocol.RunPhaseHeader, run.Phase.ToString());
+        }
         configureRequest?.Invoke(request);
         linked.Token.ThrowIfCancellationRequested();
         return await client.SendAsync(request, linked.Token);

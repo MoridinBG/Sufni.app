@@ -222,8 +222,8 @@ erDiagram
 `database_identity` has one row (`id = 1`). The `database-incarnation`
 core migration assigns its random `db_incarnation` once, including on existing
 databases. Normal launches preserve it; creating a fresh database assigns a new
-identity. Pairing and refresh responses carry this identity to distinguish
-database resets in sync cursors.
+identity. Pairing, refresh and run-start responses carry this identity to distinguish
+database resets in sync cursors. Run-start verifies it before transfers use a cursor.
 
 `IStartupDatabase` exposes initialization and the reset file operation on the
 connection context. Reset waits for initialization to settle, closes the

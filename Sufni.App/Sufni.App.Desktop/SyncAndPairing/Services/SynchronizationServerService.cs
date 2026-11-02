@@ -210,8 +210,6 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     private Task Initialization { get; }
 
-    public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityStarted;
-    public event EventHandler<SynchronizationActivityEventArgs>? SyncActivityEnded;
 
     #region Constructors
 
@@ -487,17 +485,15 @@ public class SynchronizationServerService : ISynchronizationServerService
         return builder.Build();
     }
 
-    private IResult RunSyncActivity(
-        SynchronizationProgressSnapshot progress,
-        Func<Task<IResult>> action)
+    internal static async Task<IResult> BeginSynchronizationRunAsync(
+        string deviceId, SynchronizationRunStart request, IInboundSyncCoordinator coordinator)
     {
-        return new SynchronizationActivityResult(this, progress, action);
+        if (request.RunId == Guid.Empty || string.IsNullOrWhiteSpace(request.DatabaseIncarnation) ||
+            request.Phases is not { Length: 6 } || request.Phases.Distinct().Count() != 6 ||
+            request.Phases.Any(phase => !Enum.IsDefined(phase) || phase == SynchronizationPhase.ResolvingServer))
+            return Results.BadRequest();
+        return Results.Ok(await coordinator.BeginRunAsync(deviceId, request));
     }
-
-    private static SynchronizationProgressSnapshot SyncActivity(
-        SynchronizationPhase phase,
-        string message) =>
-        new(phase, message, CurrentStep: 0, TotalSteps: 0, IsDeterminate: false);
 
     internal static IResult MapPairingCommand(PairingCommandResult result) => result switch
     {
@@ -536,36 +532,6 @@ public class SynchronizationServerService : ISynchronizationServerService
             InboundSourceApplyResult.InvalidPayload => Results.Conflict(),
             _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
         };
-
-    private void RaiseSyncActivityStarted(SynchronizationProgressSnapshot progress)
-    {
-        SyncActivityStarted?.Invoke(this, new SynchronizationActivityEventArgs(progress));
-    }
-
-    private void RaiseSyncActivityEnded(SynchronizationProgressSnapshot progress)
-    {
-        SyncActivityEnded?.Invoke(this, new SynchronizationActivityEventArgs(progress));
-    }
-
-    private sealed class SynchronizationActivityResult(
-        SynchronizationServerService owner,
-        SynchronizationProgressSnapshot progress,
-        Func<Task<IResult>> action) : IResult
-    {
-        public async Task ExecuteAsync(HttpContext httpContext)
-        {
-            owner.RaiseSyncActivityStarted(progress);
-            try
-            {
-                var result = await action();
-                await result.ExecuteAsync(httpContext);
-            }
-            finally
-            {
-                owner.RaiseSyncActivityEnded(progress);
-            }
-        }
-    }
 
     #endregion Private methods
 
@@ -649,178 +615,161 @@ public class SynchronizationServerService : ISynchronizationServerService
             // Authenticated sync surface — one RequireAuthorization for the whole group.
             var authorized = app.MapGroup("").RequireAuthorization();
             authorized.AddEndpointFilter(RequireSyncProtocolVersionAsync);
-
-            authorized.MapGet(SynchronizationProtocol.EndpointSyncPull, ([FromQuery] long since, ClaimsPrincipal user) =>
+            authorized.AddEndpointFilter(async (context, next) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.ServingChanges, "Serving remote changes"),
-                    async () =>
-                    {
-                        var data = await inboundSyncCoordinator.GetPullAsync(since);
-                        var upperInclusive = data.UpperBound;
-
-                        logger.Verbose(
-                            "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
-                            since,
-                            upperInclusive,
-                            data.Boards.Count,
-                            data.Bikes.Count,
-                            data.Setups.Count,
-                            data.Sessions.Count,
-                            data.Tracks.Count);
-
-                        return Results.Ok(data);
-                    });
+                var http = context.HttpContext;
+                if (http.Request.Path == SynchronizationProtocol.EndpointRunStart) return await next(context);
+                if (!Guid.TryParse(http.Request.Headers[SynchronizationProtocol.RunIdHeader], out var runId) ||
+                    !Enum.TryParse<SynchronizationPhase>(http.Request.Headers[SynchronizationProtocol.RunPhaseHeader], out var phase) ||
+                    !Enum.IsDefined(phase) || phase == SynchronizationPhase.ResolvingServer)
+                    return Results.BadRequest();
+                await inboundSyncCoordinator.ObserveRequestAsync(
+                    http.User.FindFirstValue(ClaimTypes.NameIdentifier)!, runId, phase);
+                return await next(context);
             });
 
-            authorized.MapPut(SynchronizationProtocol.EndpointSyncPush, ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
+            authorized.MapPost(SynchronizationProtocol.EndpointRunStart,
+                async ([FromBody] SynchronizationRunStart request, ClaimsPrincipal user) =>
+                    await BeginSynchronizationRunAsync(user.FindFirstValue(ClaimTypes.NameIdentifier)!, request, inboundSyncCoordinator));
+            authorized.MapPost(SynchronizationProtocol.EndpointRunEnd, async (HttpRequest request, ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.ReceivingChanges, "Receiving remote changes"),
-                    async () =>
-                    {
-                        logger.Verbose(
-                            "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
-                            data.Boards.Count,
-                            data.Bikes.Count,
-                            data.Setups.Count,
-                            data.Sessions.Count,
-                            data.Tracks.Count);
-
-                        return await ApplySynchronizationPushAsync(data, inboundSyncCoordinator);
-                    });
+                await inboundSyncCoordinator.CompleteRunAsync(user.FindFirstValue(ClaimTypes.NameIdentifier)!,
+                    Guid.Parse(request.Headers[SynchronizationProtocol.RunIdHeader]!));
+                return Results.NoContent();
             });
 
-            authorized.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, (ClaimsPrincipal user) =>
+
+            authorized.MapGet(SynchronizationProtocol.EndpointSyncPull, async ([FromQuery] long since, ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.CheckingIncompleteSessions, "Checking missing session data"),
-                    async () =>
-                    {
-                        var incompleteSessions = await sessionRepository.GetIncompleteSessionIdsAsync();
-                        var pendingSwaps = await swapRequestStore.GetRequestedSessionIdsAsync();
-                        // Advertise both rows with no BLOB (fills) and held-BLOB rows the
-                        // hub wants a newer BLOB for (push-swaps), so a client uploads the
-                        // matching bytes. The two sets are disjoint, but Union guards overlap.
-                        var requestedSessions = incompleteSessions.Union(pendingSwaps).ToList();
-                        logger.Verbose(
-                            "Synchronization incomplete-session query returned {SessionCount} sessions ({FillCount} fills, {SwapCount} push-swaps)",
-                            requestedSessions.Count,
-                            incompleteSessions.Count,
-                            pendingSwaps.Count);
-                        return Results.Ok(requestedSessions);
-                    });
+                var data = await inboundSyncCoordinator.GetPullAsync(since);
+                var upperInclusive = data.UpperBound;
+
+                logger.Verbose(
+                    "Synchronization pull in ({SinceExclusive}, {UpperInclusive}] returned {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
+                    since,
+                    upperInclusive,
+                    data.Boards.Count,
+                    data.Bikes.Count,
+                    data.Setups.Count,
+                    data.Sessions.Count,
+                    data.Tracks.Count);
+
+                return Results.Ok(data);
             });
 
-            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", ([FromRoute] Guid id, HttpResponse response, ClaimsPrincipal user) =>
+            authorized.MapPut(SynchronizationProtocol.EndpointSyncPush, async ([FromBody] SynchronizationData data, ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.ServingSessionData, "Serving session data"),
-                    async () =>
-                    {
-                        var blob = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(id);
-                        if (blob is null)
-                        {
-                            logger.Warning("Session data download failed because session {SessionId} was not found", id);
-                            return Results.Problem(statusCode: StatusCodes.Status404NotFound, detail: "Session does not exist.");
-                        }
+                logger.Verbose(
+                    "Synchronization push received with {BoardCount} boards, {BikeCount} bikes, {SetupCount} setups, {SessionCount} sessions, {TrackCount} tracks",
+                    data.Boards.Count,
+                    data.Bikes.Count,
+                    data.Setups.Count,
+                    data.Sessions.Count,
+                    data.Tracks.Count);
 
-                        logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, blob.Value.Data.Length);
-
-                        if (!string.IsNullOrEmpty(blob.Value.Fingerprint))
-                        {
-                            response.Headers[SynchronizationProtocol.FingerprintHeader] = blob.Value.Fingerprint;
-                        }
-
-                        return Results.Bytes(blob.Value.Data, SynchronizationProtocol.OctetStreamContentType);
-                    });
+                return await ApplySynchronizationPushAsync(data, inboundSyncCoordinator);
             });
 
-            authorized.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            authorized.MapGet(SynchronizationProtocol.EndpointSessionIncomplete, async (ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.ReceivingSessionData, "Receiving session data"),
-                    async () =>
-                    {
-                        if (!IsOctetStreamRequest(request))
-                        {
-                            logger.Warning("Session data patch rejected because request content type was invalid for {SessionId}", id);
-                            return CreateInvalidContentTypeResult();
-                        }
-
-                        var payload = new SessionBlobPayload(
-                            GetOptionalHeader(request, SynchronizationProtocol.FingerprintHeader),
-                            await ReadRequestBodyAsync(request));
-
-                        return await ApplySessionDataPatchAsync(
-                            id,
-                            payload,
-                            inboundSyncCoordinator);
-                    });
+                var incompleteSessions = await sessionRepository.GetIncompleteSessionIdsAsync();
+                var pendingSwaps = await swapRequestStore.GetRequestedSessionIdsAsync();
+                // Advertise both rows with no BLOB (fills) and held-BLOB rows the
+                // hub wants a newer BLOB for (push-swaps), so a client uploads the
+                // matching bytes. The two sets are disjoint, but Union guards overlap.
+                var requestedSessions = incompleteSessions.Union(pendingSwaps).ToList();
+                logger.Verbose(
+                    "Synchronization incomplete-session query returned {SessionCount} sessions ({FillCount} fills, {SwapCount} push-swaps)",
+                    requestedSessions.Count,
+                    incompleteSessions.Count,
+                    pendingSwaps.Count);
+                return Results.Ok(requestedSessions);
             });
 
-            authorized.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, (ClaimsPrincipal user) =>
+            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", async ([FromRoute] Guid id, HttpResponse response, ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.CheckingIncompleteSessionSources, "Checking missing recorded sources"),
-                    async () =>
-                    {
-                        var incompleteSources = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
-                        logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
-                        return Results.Ok(incompleteSources);
-                    });
+                var blob = await sessionRepository.GetSessionRawPsstWithFingerprintAsync(id);
+                if (blob is null)
+                {
+                    logger.Warning("Session data download failed because session {SessionId} was not found", id);
+                    return Results.Problem(statusCode: StatusCodes.Status404NotFound, detail: "Session does not exist.");
+                }
+
+                logger.Verbose("Serving session data for {SessionId} with {ByteCount} bytes", id, blob.Value.Data.Length);
+
+                if (!string.IsNullOrEmpty(blob.Value.Fingerprint))
+                {
+                    response.Headers[SynchronizationProtocol.FingerprintHeader] = blob.Value.Fingerprint;
+                }
+
+                return Results.Bytes(blob.Value.Data, SynchronizationProtocol.OctetStreamContentType);
             });
 
-            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", ([FromRoute] Guid id, HttpResponse response, ClaimsPrincipal user) =>
+            authorized.MapPatch($"{SynchronizationProtocol.EndpointSessionData}{{id:guid}}", async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.ServingSessionSourceData, "Serving recorded source data"),
-                    async () =>
-                    {
-                        var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
-                        if (source is null)
-                        {
-                            logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
-                            return Results.Problem(statusCode: StatusCodes.Status404NotFound, detail: "Recorded source does not exist.");
-                        }
+                if (!IsOctetStreamRequest(request))
+                {
+                    logger.Warning("Session data patch rejected because request content type was invalid for {SessionId}", id);
+                    return CreateInvalidContentTypeResult();
+                }
 
-                        logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
-                        response.Headers[SynchronizationProtocol.SourceKindHeader] = source.SourceKind.StorageValue;
-                        response.Headers[SynchronizationProtocol.SourceNameHeader] = Uri.EscapeDataString(source.SourceName);
-                        response.Headers[SynchronizationProtocol.SchemaVersionHeader] = source.SchemaVersion.ToString(CultureInfo.InvariantCulture);
-                        response.Headers[SynchronizationProtocol.SourceHashHeader] = source.SourceHash;
-                        return Results.Bytes(source.Payload, SynchronizationProtocol.OctetStreamContentType);
-                    });
+                var payload = new SessionBlobPayload(
+                    GetOptionalHeader(request, SynchronizationProtocol.FingerprintHeader),
+                    await ReadRequestBodyAsync(request));
+
+                return await ApplySessionDataPatchAsync(
+                    id,
+                    payload,
+                    inboundSyncCoordinator);
             });
 
-            authorized.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            authorized.MapGet(SynchronizationProtocol.EndpointSessionSourceIncomplete, async (ClaimsPrincipal user) =>
             {
-                return RunSyncActivity(
-                    SyncActivity(SynchronizationPhase.ReceivingSessionSourceData, "Receiving recorded source data"),
-                    async () =>
-                    {
-                        if (!IsOctetStreamRequest(request))
-                        {
-                            logger.Warning("Recorded source patch rejected because request content type was invalid for {SessionId}", id);
-                            return CreateInvalidContentTypeResult();
-                        }
+                var incompleteSources = await recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync();
+                logger.Verbose("Synchronization incomplete-session-source query returned {SourceCount} sessions", incompleteSources.Count);
+                return Results.Ok(incompleteSources);
+            });
 
-                        if (!TryReadRecordedSourceRequestMetadata(request, out var metadata, out var metadataError))
-                        {
-                            logger.Warning("Recorded source patch rejected because metadata headers were invalid for {SessionId}", id);
-                            return metadataError;
-                        }
+            authorized.MapGet($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", async ([FromRoute] Guid id, HttpResponse response, ClaimsPrincipal user) =>
+            {
+                var source = await recordedSessionSourceRepository.GetRecordedSessionSourceAsync(id);
+                if (source is null)
+                {
+                    logger.Warning("Recorded source download failed because source {SessionId} was not found", id);
+                    return Results.Problem(statusCode: StatusCodes.Status404NotFound, detail: "Recorded source does not exist.");
+                }
 
-                        var transfer = new RecordedSessionSourcePayload(
-                            id,
-                            metadata.SourceKind,
-                            metadata.SourceName,
-                            metadata.SchemaVersion,
-                            metadata.SourceHash,
-                            await ReadRequestBodyAsync(request));
+                logger.Verbose("Serving recorded source for {SessionId} with {ByteCount} bytes", id, source.Payload.Length);
+                response.Headers[SynchronizationProtocol.SourceKindHeader] = source.SourceKind.StorageValue;
+                response.Headers[SynchronizationProtocol.SourceNameHeader] = Uri.EscapeDataString(source.SourceName);
+                response.Headers[SynchronizationProtocol.SchemaVersionHeader] = source.SchemaVersion.ToString(CultureInfo.InvariantCulture);
+                response.Headers[SynchronizationProtocol.SourceHashHeader] = source.SourceHash;
+                return Results.Bytes(source.Payload, SynchronizationProtocol.OctetStreamContentType);
+            });
 
-                        return await ApplySourcePatchAsync(transfer, inboundSyncCoordinator);
-                    });
+            authorized.MapPatch($"{SynchronizationProtocol.EndpointSessionSourceData}{{id:guid}}", async ([FromRoute] Guid id, HttpRequest request, ClaimsPrincipal user) =>
+            {
+                if (!IsOctetStreamRequest(request))
+                {
+                    logger.Warning("Recorded source patch rejected because request content type was invalid for {SessionId}", id);
+                    return CreateInvalidContentTypeResult();
+                }
+
+                if (!TryReadRecordedSourceRequestMetadata(request, out var metadata, out var metadataError))
+                {
+                    logger.Warning("Recorded source patch rejected because metadata headers were invalid for {SessionId}", id);
+                    return metadataError;
+                }
+
+                var transfer = new RecordedSessionSourcePayload(
+                    id,
+                    metadata.SourceKind,
+                    metadata.SourceName,
+                    metadata.SchemaVersion,
+                    metadata.SourceHash,
+                    await ReadRequestBodyAsync(request));
+
+                return await ApplySourcePatchAsync(transfer, inboundSyncCoordinator);
             });
 
             await app.StartAsync();

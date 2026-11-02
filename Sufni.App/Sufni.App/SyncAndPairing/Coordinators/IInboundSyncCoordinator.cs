@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
 
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
@@ -12,6 +13,10 @@ public enum InboundSourceApplyResult { Applied, InvalidPayload, Failed }
 /// <summary>Owns desktop inbound persistence and publication before the peer is acknowledged.</summary>
 public interface IInboundSyncCoordinator
 {
+    IObservable<PeerSyncActivity> Activity { get; }
+    Task<SynchronizationRunStarted> BeginRunAsync(string deviceId, SynchronizationRunStart request);
+    Task ObserveRequestAsync(string deviceId, Guid runId, SynchronizationPhase phase);
+    Task CompleteRunAsync(string deviceId, Guid runId);
     IObservable<PairingChallenge?> PairingPrompt { get; }
     Task<PairingCommandResult> RequestPairingAsync(PairingRequest request);
     Task<PairingTokenResult> ConfirmPairingAsync(PairingConfirm request);

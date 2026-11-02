@@ -294,53 +294,65 @@ public partial class SyncCoordinator
         {
             var pushUpperBound = await syncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
             peer = await httpApiService.GetPeerIdentityAsync();
-            var lastPushSequence = await syncDataStore.GetLastPushSequenceAsync(peer);
-            var lastPullSequence = await syncDataStore.GetLastPullSequenceAsync(peer);
-            var pushSinceExclusive = lastPushSequence;
-            var pullSinceExclusive = lastPullSequence;
+            var runId = Guid.NewGuid();
+            long lastPushSequence;
+            long lastPullSequence;
+            (SynchronizationPhase Phase, string Message)[] phases;
+            for (var attempt = 0; ; attempt++)
+            {
+                lastPushSequence = await syncDataStore.GetLastPushSequenceAsync(peer);
+                lastPullSequence = await syncDataStore.GetLastPullSequenceAsync(peer);
+                var push = (SynchronizationPhase.PushingLocalChanges, "Pushing local changes");
+                var pull = (SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes");
+                phases = [lastPushSequence == 0 ? pull : push, lastPushSequence == 0 ? push : pull,
+                    (SynchronizationPhase.PushingIncompleteSessions, "Uploading session data"),
+                    (SynchronizationPhase.PullingIncompleteSessions, "Downloading session data"),
+                    (SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources"),
+                    (SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources")];
+                var verified = await httpApiService.BeginRunAsync(new SynchronizationRunStart(
+                    runId, peer.DatabaseIncarnation, phases.Select(value => value.Phase).ToArray()), cancellationToken);
+                if (verified == peer) break;
+                if (attempt == 1) throw new System.Net.Http.HttpRequestException("The hub identity changed during run negotiation.");
+                peer = verified;
+            }
 
-            logger.Verbose(
-                "Starting synchronization client run with push cursor {LastPushSequence} and pull cursor {LastPullSequence}",
-                lastPushSequence,
-                lastPullSequence);
-
-            // Built by the metadata merge and consumed by the phase-4
-            // session-data pull. Transient: if any phase throws, the pull cursor below
-            // is not advanced and the next run re-derives this set.
             IReadOnlyList<SessionBlobSwap> swaps = [];
             var pullUpperBound = lastPullSequence;
-            var unresolvedSwaps = 0;
             var pending = new ConcurrentBag<SynchronizationPendingTransfer>();
-
-            (SynchronizationPhase Phase, string Message, Func<Task> Run) push =
-                (SynchronizationPhase.PushingLocalChanges, "Pushing local changes", () => PushLocalChanges(httpApiService, peer, pushSinceExclusive, pushUpperBound, cancellationToken));
-            (SynchronizationPhase Phase, string Message, Func<Task> Run) pull =
-                (SynchronizationPhase.PullingRemoteChanges, "Pulling remote changes", async () =>
+            for (var index = 0; index < phases.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var phase = phases[index];
+                httpApiService.SetRunPhase(phase.Phase);
+                await uiThreadDispatcher.InvokeAsync(() => Progress = new SynchronizationProgressSnapshot(
+                    phase.Phase, phase.Message, index + 2, phases.Length + 1, true));
+                switch (phase.Phase)
                 {
-                    (swaps, pullUpperBound) = await PullRemoteChanges(httpApiService, pullSinceExclusive, cancellationToken);
-                });
-            var rowPhases = lastPushSequence == 0 ? new[] { pull, push } : new[] { push, pull };
-            for (var index = 0; index < rowPhases.Length; index++)
-                await RunPhaseAsync( rowPhases[index].Phase, rowPhases[index].Message, index + 1, rowPhases[index].Run, cancellationToken);
-
-            await RunPhaseAsync( SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, () => PushIncompleteSessions(httpApiService, pending, cancellationToken), cancellationToken);
-            await RunPhaseAsync( SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(httpApiService, swaps, pending, cancellationToken), cancellationToken);
-
-            if (unresolvedSwaps == 0)
-            {
-                await syncDataStore.UpdateLastPullSequenceAsync(peer, pullUpperBound);
+                    case SynchronizationPhase.PushingLocalChanges:
+                        await PushLocalChanges(httpApiService, peer, lastPushSequence, pushUpperBound, cancellationToken);
+                        break;
+                    case SynchronizationPhase.PullingRemoteChanges:
+                        (swaps, pullUpperBound) = await PullRemoteChanges(httpApiService, lastPullSequence, cancellationToken);
+                        break;
+                    case SynchronizationPhase.PushingIncompleteSessions:
+                        await PushIncompleteSessions(httpApiService, pending, cancellationToken);
+                        break;
+                    case SynchronizationPhase.PullingIncompleteSessions:
+                        var unresolved = await PullIncompleteSessions(httpApiService, swaps, pending, cancellationToken);
+                        if (unresolved == 0) await syncDataStore.UpdateLastPullSequenceAsync(peer, pullUpperBound);
+                        else logger.Information("Holding pull cursor for {UnresolvedSwapCount} pending session generations", unresolved);
+                        break;
+                    case SynchronizationPhase.PushingIncompleteSessionSources:
+                        await PushIncompleteSessionSources(httpApiService, pending, cancellationToken);
+                        break;
+                    case SynchronizationPhase.PullingIncompleteSessionSources:
+                        await PullIncompleteSessionSources(httpApiService, pending, cancellationToken);
+                        break;
+                }
             }
-            else
-            {
-                logger.Information(
-                    "Holding pull cursor: {UnresolvedSwapCount} session-blob swap(s) did not resolve this run and will be retried next sync",
-                    unresolvedSwaps);
-            }
-
-            await RunPhaseAsync( SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, () => PushIncompleteSessionSources(httpApiService, pending, cancellationToken), cancellationToken);
-            await RunPhaseAsync( SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, () => PullIncompleteSessionSources(httpApiService, pending, cancellationToken), cancellationToken);
             var result = await VerifyLocalCompleteness(pending);
 
+            await httpApiService.CompleteRunAsync(cancellationToken);
             logger.Verbose("Synchronization client run completed");
             return result;
         }
@@ -353,18 +365,7 @@ public partial class SyncCoordinator
                 : SyncFailureReason.Synchronize;
             return new SynchronizationRunResult.Failed(reason, exception.Message);
         }
-    }
-
-    private async Task RunPhaseAsync(
-        SynchronizationPhase phase,
-        string message,
-        int currentStep,
-        Func<Task> action,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await uiThreadDispatcher.InvokeAsync(() => Progress = new SynchronizationProgressSnapshot(phase, message, currentStep + 1, 7, true));
-        await action();
+        finally { httpApiService.ClearRun(); }
     }
 
     private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(

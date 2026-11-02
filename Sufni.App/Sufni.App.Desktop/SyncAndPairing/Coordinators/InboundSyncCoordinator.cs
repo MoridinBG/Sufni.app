@@ -19,7 +19,7 @@ using Sufni.App.SyncAndPairing.Stores;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>Owns inbound pairing and synchronization writes through their committed publication.</summary>
-public sealed class InboundSyncCoordinator(
+public sealed partial class InboundSyncCoordinator(
     ISyncDataStore syncDataStore,
     ISynchronizationApplier rowApplier,
     ISessionSyncApplier sessionSyncApplier,
@@ -148,6 +148,9 @@ public sealed class InboundSyncCoordinator(
 
     public void Dispose()
     {
+        disposed = true;
+        interruptionTimer?.Dispose();
+        activity.Dispose();
         pairingPrompt.Dispose();
         applyGate.Dispose();
     }

@@ -287,7 +287,8 @@ still reports failure after the transaction has committed.
 
 `SynchronizationRunResult` is `Completed | IncompleteData | Failed(reason, details)`.
 Incomplete results include local missing-data counts and pending transfers. `SyncCoordinator`
-logs run failures once and returns `SyncFailureReason.Synchronize | ProtocolMismatch`;
+logs run failures once and returns `SyncFailureReason.Synchronize | ProtocolMismatch`; the inbound silence deadline
+reports `Interrupted` with a fixed retry message;
 shell feedback consumes the typed completion or failure without re-logging. Discovery without an
 endpoint raises `ServerUnavailable`, displayed as a notification. Progress and
 completion `Message` values remain ordinary text.

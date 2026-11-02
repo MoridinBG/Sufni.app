@@ -108,71 +108,29 @@ public class SyncCoordinatorTests : IDisposable
         Assert.IsType<SynchronizationRunResult.Completed>(await completion.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
     }
 
-    [Fact]
-    public void ServerSyncActivity_DrivesRunningStateAndProgress()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InboundActivity_UsesDeclaredProgress_AndSettlesOnCompletionOrInterruption(bool interrupted)
     {
-        var server = new TestSynchronizationServerService();
-        var coordinator = harness.CreateCoordinator(server: server, idleGrace: TimeSpan.Zero);
-        var progress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.ReceivingChanges,
-            "Receiving remote changes",
-            CurrentStep: 0,
-            TotalSteps: 0,
-            IsDeterminate: false);
+        var coordinator = harness.CreateCoordinator(inbound: harness.Inbound);
+        var id = Guid.NewGuid();
+        SyncFailedEventArgs? failure = null;
+        coordinator.SyncFailed += (_, args) => failure = args;
 
-        server.RaiseSyncActivityStarted(progress);
+        harness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", id,
+            SynchronizationPhase.PullingRemoteChanges, 1, 6, harness.Time.GetUtcNow()));
 
         Assert.True(coordinator.IsRunning);
-        var currentProgress = coordinator.Progress;
-        Assert.NotNull(currentProgress);
-        Assert.Equal(SynchronizationPhase.ReceivingChanges, currentProgress.Phase);
-        Assert.Equal("Receiving remote changes", currentProgress.Message);
-        Assert.Equal(1, currentProgress.CurrentStep);
-        Assert.Equal(6, currentProgress.TotalSteps);
-        Assert.True(currentProgress.IsDeterminate);
-
-        server.RaiseSyncActivityEnded(progress);
+        Assert.Equal(SynchronizationPhase.PullingRemoteChanges, coordinator.Progress?.Phase);
+        Assert.Equal(1.0 / 6, coordinator.Progress!.Fraction);
+        harness.InboundActivity.OnNext(interrupted ? new PeerSyncActivity.Interrupted(id) : new PeerSyncActivity.Completed(id));
 
         Assert.False(coordinator.IsRunning);
         Assert.Null(coordinator.Progress);
+        if (interrupted) Assert.Equal(Sufni.App.Shared.Models.SyncFailureReason.Interrupted, failure?.Reason);
+        else Assert.Null(failure);
     }
 
-    [Fact]
-    public async Task ServerSyncActivity_RemainsRunningDuringInboundIdleGrace()
-    {
-        var server = new TestSynchronizationServerService();
-        var time = harness.Time;
-        var dispatcher = new ManualUiThreadDispatcher();
-        var coordinator = harness.CreateCoordinator(server: server, dispatcher: dispatcher);
-        var firstProgress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.ReceivingChanges, "Receiving remote changes", 0, 0, false);
-        var secondProgress = firstProgress with { Phase = SynchronizationPhase.ServingSessionData };
-
-        server.RaiseSyncActivityStarted(firstProgress);
-        server.RaiseSyncActivityEnded(firstProgress);
-        await dispatcher.DrainAsync();
-        time.Advance(TimeSpan.FromSeconds(9));
-        Assert.True(coordinator.IsRunning);
-
-        server.RaiseSyncActivityStarted(secondProgress);
-        await dispatcher.DrainAsync();
-        time.Advance(TimeSpan.FromSeconds(1));
-        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken);
-        await dispatcher.DrainAsync();
-
-        Assert.True(coordinator.IsRunning);
-        Assert.Equal(SynchronizationPhase.ServingSessionData, coordinator.Progress?.Phase);
-
-        server.RaiseSyncActivityEnded(secondProgress);
-        await dispatcher.DrainAsync();
-        time.Advance(TimeSpan.FromSeconds(9));
-        Assert.True(coordinator.IsRunning);
-        time.Advance(TimeSpan.FromSeconds(1));
-        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken);
-        await dispatcher.DrainAsync();
-
-        Assert.False(coordinator.IsRunning);
-        Assert.Null(coordinator.Progress);
-    }
     public void Dispose() => harness.Dispose();
 }

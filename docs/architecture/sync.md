@@ -107,6 +107,8 @@ MiB.
 | `/pair/confirm`                | POST   | No   | Confirm PIN, returns access + refresh tokens                |
 | `/pair/refresh`                | POST   | No   | Rotate both access and refresh tokens                       |
 | `/pair/unpair`                 | POST   | No   | Revoke pairing (validates `deviceId` + refresh token in body) |
+| `/sync/run/start`             | POST   | JWT  | Verify the hub incarnation and announce the run ID and ordered phase list |
+| `/sync/run/end`               | POST   | JWT  | Complete the matching observed run |
 | `/sync/push`                   | PUT    | JWT  | Receive one bounded `SynchronizationData` snapshot from mobile |
 | `/sync/pull`                   | GET    | JWT  | Return changes in `(since, upper_bound]`                    |
 | `/session/incomplete`          | GET    | JWT  | List session IDs the hub needs a blob for: missing-blob **fills** and held-blob **push-swaps** |
@@ -116,7 +118,7 @@ MiB.
 | `/session/source/data/{id}`    | GET    | JWT  | Download a recorded-source payload as `application/octet-stream`; source kind/name/schema/hash travel in `X-Sufni-Source-*` headers |
 | `/session/source/data/{id}`    | PATCH  | JWT  | Upload a recorded-source payload as `application/octet-stream` with source kind/name/schema/hash in `X-Sufni-Source-*` headers |
 
-Authorization is enforced as a route group — `MapGroup("").RequireAuthorization()` wrapping the eight JWT endpoints — not a per-endpoint attribute. The four `/pair/*` endpoints form a separate anonymous, rate-limited group. `/pair/unpair` stays in that anonymous group and authenticates by matching `deviceId` + refresh token in its body, because a device revoking itself may no longer hold a valid access token.
+Authorization is enforced as a route group — `MapGroup("").RequireAuthorization()` wrapping the ten JWT endpoints — not a per-endpoint attribute. The four `/pair/*` endpoints form a separate anonymous, rate-limited group. `/pair/unpair` stays in that anonymous group and authenticates by matching `deviceId` + refresh token in its body, because a device revoking itself may no longer hold a valid access token.
 
 Session BLOB and recorded-source upload endpoints await `IInboundSyncCoordinator`.
 The coordinator serializes inbound writes through their publication. BLOBs use
@@ -139,8 +141,8 @@ HTTP sends/body reads. A canceled run is neutral. Each committed row batch publi
 phase; source transfers publish committed sources while draining cancellation. The shared token
 refresh is allowed to finish and persist rotated credentials before a canceled
 caller exits; cancellation does not abandon a credential rotation midway.
-The sync coordinator retains its active run and idle tasks for shutdown and
-releases its event subscriptions on disposal.
+The sync coordinator retains its active run for shutdown and releases its state
+subscriptions on disposal. The inbound coordinator owns the interruption timer.
 
 `SynchronizationPeer` uses its injected clock for certificate validity and the
 30-second token-refresh margin. Sync delta bounds use database sequences.
@@ -168,9 +170,12 @@ removed at initialization; an endpoint comes only from discovery.
 The client captures a `PeerIdentity` from the peer’s pinned certificate thumbprint
 and the database incarnation returned with its tokens. Both cursors use this identity;
 address changes preserve them, while a different hub or incarnation starts a
-baseline from zero. The fixed `paired-server` key is removed. Incarnation currently
-arrives through confirmation and refresh; run-start verification and explicit
-re-pair cursor reset are still pending in Epic 6.
+baseline from zero. Run-start verifies the incarnation even while the access token is still current.
+The client proposes the identity's cursor-dependent phase order. A mismatched
+incarnation returns the current value without starting hub activity. The client
+loads that identity's cursors and announces the corrected order before any row
+or payload transfer; a new identity starts with a pull-first baseline. Explicit
+re-pair cursor reset remains pending in Epic 6.
 
 The metadata snapshot's one `upper_bound` applies to every synced table, including
 custom map layers, and the deletion ledger. Core delta queries include updates and
@@ -222,6 +227,24 @@ through `ISyncDataStore`, prepares snapshots for the affected IDs and publishes
 one batch. The client does not refresh all stores after a run. Stores never read
 or write repositories, so publication does not duplicate the persistence operation.
 
+### Run activity
+
+The run-start request carries a random run ID, the expected database incarnation
+and the actual ordered list of six transfer phases. Every subsequent sync request
+carries `X-Sufni-Sync-Run` and `X-Sufni-Sync-Phase`; malformed headers are rejected
+before the endpoint executes. The peer transport captures these values per HTTP
+request. The client sends run-end only after its phases settle normally, including
+runs that report pending items; failures and cancellation do not claim completion.
+
+The inbound coordinator publishes the declared phase and its position, rather
+than inferring steps from endpoint names. The desktop bar is determinate from
+those facts. One injected-clock timer marks a run interrupted after two minutes
+without a matching request; accepted requests renew the deadline, and completion
+stops it. A new run replaces the displayed run. Old run IDs, requests from another
+device, and regressing phases cannot change the current run. An interrupted run
+stays terminal until a new run begins, and shell feedback reports a fixed retry
+message. The coordinator disposes the timer with its lifetime.
+
 ### Processed-BLOB coherence (download-then-swap)
 
 `session.data` (the processed telemetry blob) never travels in `SynchronizationData`; only metadata does. Because a recompute can replace an *existing* blob — not just fill a missing one — the protocol keeps one invariant: **the processed generation describes one coherent result**. A generation contains the blob and fingerprint plus `duration_seconds`; those values are retained or replaced together. GPS metrics and their key are device-local and never travel in metadata or generation payloads.
@@ -234,7 +257,10 @@ or write repositories, so publication does not duplicate the persistence operati
 
 "Incomplete," for the purpose of these phases, therefore means **missing _or_ awaiting a matching processed blob**.
 
-`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and owns the full client run. Row merges publish through the shared `SynchronizationApplier`; BLOB commits use `SessionSyncApplier`; the coordinator publishes committed source snapshots from the transfer drain, including on failure or cancellation. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as a seven-step determinate run: resolve server, then six transfer phases. There is no separate full-refresh phase. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop inbound sync activity is reported from `SynchronizationServerService` activity results that cover the full request and response-body lifetime, then normalized by `SyncCoordinator` into the same six service phases as one determinate run. Its inbound idle grace uses the injected `TimeProvider`. The coordinator bridges longer endpoint gaps during session-data transfer so the desktop shell does not flash or fall back to indeterminate activity while the mobile side is doing local work between requests. Inbound row and source writes are awaited coordinator operations; processed BLOB commits use the session applier — see [Coordinators](ui-workflows.md#coordinators).
+`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and owns the full client run. Row merges publish through the shared `SynchronizationApplier`; BLOB commits use `SessionSyncApplier`; the coordinator publishes committed source snapshots from the transfer drain, including on failure or cancellation. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as a seven-step determinate run: resolve server, then six transfer phases. There is no separate full-refresh phase. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop observes `IInboundSyncCoordinator.Activity`: `Idle`, `Running`,
+`Completed` or `Interrupted`. `SyncActivity` is the coordinator's mutually
+exclusive idle/outbound/inbound state. No server activity events or grace timers
+remain. Inbound row and source writes are awaited coordinator operations; processed BLOB commits use the session applier — see [Coordinators](ui-workflows.md#coordinators).
 
 `HttpApiService` is registered by `MobileAppBootstrapper` alongside the outbound sync and pairing clients. Desktop composition does not register it.
 

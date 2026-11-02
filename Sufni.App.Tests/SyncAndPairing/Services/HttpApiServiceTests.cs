@@ -533,6 +533,45 @@ public class HttpApiServiceTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RunRequests_CarryDeclaredRunAndPhase_AndVerifyCurrentIncarnation()
+    {
+        var seen = new List<(string Path, string? Run, string? Phase)>();
+        var peer = await CreateService(CreateSecureStorage(), async (request, _) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            seen.Add((path, SyncTestServerHarness.Header(request, SynchronizationProtocol.RunIdHeader),
+                SyncTestServerHarness.Header(request, SynchronizationProtocol.RunPhaseHeader)));
+            if (path == SynchronizationProtocol.EndpointPairRefresh)
+                return SyncTestServerHarness.Json(new TokenResponse(
+                    SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10)), "refresh", "previous-db"));
+            if (path == SynchronizationProtocol.EndpointRunStart)
+            {
+                var start = await SyncTestServerHarness.ReadJsonAsync<SynchronizationRunStart>(request);
+                Assert.Equal(6, start!.Phases.Length);
+                return SyncTestServerHarness.Json(new SynchronizationRunStarted("current-db"));
+            }
+            return path == SynchronizationProtocol.EndpointRunEnd
+                ? new HttpResponseMessage(HttpStatusCode.NoContent)
+                : SyncTestServerHarness.Json(new List<Guid>());
+        });
+        var run = new SynchronizationRunStart(Guid.NewGuid(), "previous-db", SyncTestServerHarness.TransferPhases);
+        var verified = await peer.BeginRunAsync(run, TestContext.Current.CancellationToken);
+        Assert.Equal(new PeerIdentity("certificate", "current-db"), verified);
+        await peer.BeginRunAsync(run with { DatabaseIncarnation = verified.DatabaseIncarnation }, TestContext.Current.CancellationToken);
+        peer.SetRunPhase(SynchronizationPhase.PushingIncompleteSessions);
+        await peer.GetIncompleteSessionIdsAsync(TestContext.Current.CancellationToken);
+        await peer.CompleteRunAsync(TestContext.Current.CancellationToken);
+        peer.ClearRun();
+
+        Assert.All(seen.Where(value => value.Path == SynchronizationProtocol.EndpointRunStart), value => Assert.Null(value.Run));
+        Assert.All(seen.Where(value => value.Path is SynchronizationProtocol.EndpointSessionIncomplete or SynchronizationProtocol.EndpointRunEnd), value =>
+        {
+            Assert.Equal(run.RunId.ToString(), value.Run);
+            Assert.Equal(nameof(SynchronizationPhase.PushingIncompleteSessions), value.Phase);
+        });
+    }
+
+    [Fact]
     public async Task Rediscovery_KeepsThePeerPin_AndRejectsAnotherHubAtTheNewAddress()
     {
         using var original = CreateCertificate();

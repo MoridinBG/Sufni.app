@@ -10,6 +10,7 @@ using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Store;
@@ -103,8 +104,7 @@ public class MainPagesDesktopViewTests
 
         var pairingCoordinator = Substitute.For<IInboundSyncCoordinator>();
         using var syncHarness = new Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness();
-        var server = new TestSynchronizationServerService();
-        var syncCoordinator = syncHarness.CreateCoordinator(server: server, idleGrace: TimeSpan.Zero);
+        var syncCoordinator = syncHarness.CreateCoordinator(inbound: syncHarness.Inbound);
         var viewModel = MainPagesViewModelTestFactory.Create(
             syncCoordinator: syncCoordinator,
             pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider(), new ManualUiTimerScheduler()));
@@ -122,14 +122,9 @@ public class MainPagesDesktopViewTests
         Assert.NotNull(panel);
         Assert.NotNull(overlay);
 
-        var progress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.ReceivingChanges,
-            "Receiving remote changes",
-            CurrentStep: 0,
-            TotalSteps: 0,
-            IsDeterminate: false);
-
-        server.RaiseSyncActivityStarted(progress);
+        var runId = Guid.NewGuid();
+        syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", runId,
+            SynchronizationPhase.PullingRemoteChanges, 1, 6, syncHarness.Time.GetUtcNow()));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(viewModel.IsPairedDevicesListOpen);
@@ -145,10 +140,10 @@ public class MainPagesDesktopViewTests
         Assert.True(overlay.IsActive);
         Assert.True(overlay.ShowProgress);
         Assert.False(overlay.IsProgressIndeterminate);
-        Assert.Equal("Receiving remote changes", overlay.Message);
+        Assert.Equal("Serving remote changes", overlay.Message);
         Assert.Equal(1.0 / 6, overlay.ProgressValue, precision: 6);
 
-        server.RaiseSyncActivityEnded(progress);
+        syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Completed(runId));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(buttonSpinner.IsVisible);

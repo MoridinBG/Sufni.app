@@ -12,6 +12,10 @@ public interface ISynchronizationPeer
 {
     CancellationToken Lifetime { get; }
     public Task<PeerIdentity> GetPeerIdentityAsync();
+    Task<PeerIdentity> BeginRunAsync(SynchronizationRunStart request, CancellationToken cancellationToken);
+    void SetRunPhase(SynchronizationPhase phase);
+    Task CompleteRunAsync(CancellationToken cancellationToken);
+    void ClearRun();
     public Task<SynchronizationData> PullSyncAsync(long since = 0, CancellationToken cancellationToken = default);
     public Task PushSyncAsync(SynchronizationData syncData, CancellationToken cancellationToken = default);
     public Task<List<Guid>> GetIncompleteSessionIdsAsync(CancellationToken cancellationToken = default);

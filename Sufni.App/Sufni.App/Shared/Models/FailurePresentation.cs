@@ -110,6 +110,7 @@ public sealed record FailurePresentation
     public static FailurePresentation From(SyncFailureReason reason, string? details = null) => new(reason switch
     {
         SyncFailureReason.Synchronize => "Synchronization could not be completed. Check the connection and try again.",
+        SyncFailureReason.Interrupted => "Synchronization was interrupted. Check the connection and sync again.",
         SyncFailureReason.ProtocolMismatch => "The devices use different sync versions. Update both devices to the same app version.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);

@@ -13,14 +13,7 @@ public enum SynchronizationPhase
     PullingIncompleteSessions,
     PushingIncompleteSessionSources,
     PullingIncompleteSessionSources,
-    ReceivingChanges,
-    ServingChanges,
-    CheckingIncompleteSessions,
-    ReceivingSessionData,
-    ServingSessionData,
-    CheckingIncompleteSessionSources,
-    ReceivingSessionSourceData,
-    ServingSessionSourceData
+
 }
 
 public sealed record SynchronizationProgressSnapshot(
@@ -36,7 +29,7 @@ public sealed record SynchronizationProgressSnapshot(
             : 0;
 }
 
-public sealed record SynchronizationActivityEventArgs(SynchronizationProgressSnapshot Progress);
+public enum SyncActivity { Idle, Outbound, Inbound }
 
 public abstract record SynchronizationRunResult
 {

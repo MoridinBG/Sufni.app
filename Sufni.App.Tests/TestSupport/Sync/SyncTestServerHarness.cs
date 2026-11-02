@@ -27,6 +27,7 @@ internal sealed class SyncTestServerHarness : IDisposable
     public SyncTestServerHarness()
     {
         SourceStore = new RecordedSessionSourceStore(publication);
+        Inbound.Activity.Returns(InboundActivity);
         Pairing.PairedState.Returns(PairedState);
         Pairing.IsPaired.Returns(_ => PairedState.Value);
         Pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(_ => HttpApiService);
@@ -37,6 +38,8 @@ internal sealed class SyncTestServerHarness : IDisposable
         SecureStorage.GetStringAsync("RefreshToken").Returns("refresh-1");
         SecureStorage.GetStringAsync("ServerCertificateThumbprint").Returns(Peer.CertificateThumbprint);
         HttpApiService.GetPeerIdentityAsync().Returns(Peer);
+        HttpApiService.BeginRunAsync(Arg.Any<SynchronizationRunStart>(), Arg.Any<CancellationToken>())
+            .Returns(call => Peer with { DatabaseIncarnation = call.Arg<SynchronizationRunStart>().DatabaseIncarnation });
         SyncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push).Returns(9);
         HttpApiService.GetSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending));
@@ -62,6 +65,12 @@ internal sealed class SyncTestServerHarness : IDisposable
     private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
     private readonly List<SyncCoordinator> coordinators = [];
     public RecordedSessionSourceStore SourceStore { get; }
+    public IInboundSyncCoordinator Inbound { get; } = Substitute.For<IInboundSyncCoordinator>();
+    public BehaviorSubject<PeerSyncActivity> InboundActivity { get; } = new(new PeerSyncActivity.Idle());
+    public static SynchronizationPhase[] TransferPhases =>
+        [SynchronizationPhase.PushingLocalChanges, SynchronizationPhase.PullingRemoteChanges,
+         SynchronizationPhase.PushingIncompleteSessions, SynchronizationPhase.PullingIncompleteSessions,
+         SynchronizationPhase.PushingIncompleteSessionSources, SynchronizationPhase.PullingIncompleteSessionSources];
     public BehaviorSubject<bool> PairedState { get; } = new(true);
     public IPairingClientCoordinator Pairing { get; } = Substitute.For<IPairingClientCoordinator>();
     public IRecordedSessionSourceSyncQuery RecordedSessionSourceSyncQuery { get; } = Substitute.For<IRecordedSessionSourceSyncQuery>();
@@ -74,7 +83,7 @@ internal sealed class SyncTestServerHarness : IDisposable
     public SyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null,
         ISynchronizationPeer? peer = null, ISynchronizationApplier? applier = null,
         IUiThreadDispatcher? dispatcher = null, IBackgroundTaskRunner? runner = null,
-        ISynchronizationServerService? server = null, TimeSpan? idleGrace = null)
+        IInboundSyncCoordinator? inbound = null)
     {
         if (peer is not null)
             Pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(peer);
@@ -87,8 +96,8 @@ internal sealed class SyncTestServerHarness : IDisposable
         }
         var coordinator = new SyncCoordinator(store, applier, SessionRepository, SessionSyncApplier,
             RecordedSessionSourceRepository, SourceStore, RecordedSessionSourceSyncQuery,
-            runner ?? new InlineBackgroundTaskRunner(), dispatcher ?? new InlineUiThreadDispatcher(), Time,
-            Pairing, server, idleGrace);
+            runner ?? new InlineBackgroundTaskRunner(), dispatcher ?? new InlineUiThreadDispatcher(),
+            Pairing, inbound);
         coordinators.Add(coordinator);
         return coordinator;
     }
@@ -102,6 +111,7 @@ internal sealed class SyncTestServerHarness : IDisposable
         SourceStore.Dispose();
         publication.Dispose();
         PairedState.Dispose();
+        InboundActivity.Dispose();
     }
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)
@@ -155,7 +165,7 @@ internal sealed class SyncTestServerHarness : IDisposable
     public static async Task<T?> ReadJsonAsync<T>(HttpRequestMessage request)
     {
         var json = await request.Content!.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<T>(json);
+        return JsonSerializer.Deserialize<T>(json, AppJson.Options);
     }
 }
 

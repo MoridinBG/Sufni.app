@@ -4,6 +4,7 @@ using Sufni.App.Bikes.Models;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.Tests.TestSupport.Sync;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
@@ -11,6 +12,19 @@ namespace Sufni.App.Tests.SyncAndPairing.Models;
 
 public class SynchronizationDataJsonTests
 {
+    [Fact]
+    public void RunNegotiation_PreservesPhaseOrderAcrossClientAndHardenedServerProfiles()
+    {
+        var request = new SynchronizationRunStart(Guid.NewGuid(), "database", SyncTestServerHarness.TransferPhases.Reverse().ToArray());
+        var received = JsonSerializer.Deserialize(AppJson.Serialize(request), AppJson.InboundContext.SynchronizationRunStart)!;
+        Assert.Equal(request.RunId, received.RunId);
+        Assert.Equal(request.DatabaseIncarnation, received.DatabaseIncarnation);
+        Assert.Equal(request.Phases, received.Phases);
+        var reply = new SynchronizationRunStarted("replacement-database");
+        Assert.Equal(reply, AppJson.Deserialize<SynchronizationRunStarted>(
+            JsonSerializer.Serialize(reply, AppJson.InboundContext.SynchronizationRunStarted)));
+    }
+
     [Fact]
     public void WriteMetadata_TransmitsAuthorshipAndHubSequence_WithoutLocalSequence()
     {

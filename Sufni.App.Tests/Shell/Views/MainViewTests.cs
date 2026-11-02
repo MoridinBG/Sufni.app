@@ -6,6 +6,7 @@ using NSubstitute;
 using Sufni.App.Shell.Views;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Setups.Stores;
@@ -59,8 +60,7 @@ public class MainViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
         using var syncHarness = new Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness();
-        var server = new TestSynchronizationServerService();
-        var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: syncHarness.CreateCoordinator(server: server, idleGrace: TimeSpan.Zero));
+        var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: syncHarness.CreateCoordinator(inbound: syncHarness.Inbound));
         var root = CreateRoot(mainPages);
         var view = new MainView
         {
@@ -73,24 +73,19 @@ public class MainViewTests
         Assert.NotNull(overlay);
         Assert.False(overlay!.IsVisible);
 
-        var progress = new SynchronizationProgressSnapshot(
-            SynchronizationPhase.PullingRemoteChanges,
-            "Pulling remote changes",
-            CurrentStep: 3,
-            TotalSteps: 8,
-            IsDeterminate: true);
-
-        server.RaiseSyncActivityStarted(progress);
+        var runId = Guid.NewGuid();
+        syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Running("phone", runId,
+            SynchronizationPhase.PullingRemoteChanges, 1, 6, syncHarness.Time.GetUtcNow()));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(overlay.IsVisible);
         Assert.True(overlay.IsActive);
         Assert.True(overlay.ShowProgress);
         Assert.False(overlay.IsProgressIndeterminate);
-        Assert.Equal("Pulling remote changes", overlay.Message);
-        Assert.Equal(0.375, overlay.ProgressValue);
+        Assert.Equal("Serving remote changes", overlay.Message);
+        Assert.Equal(1.0 / 6, overlay.ProgressValue, precision: 6);
 
-        server.RaiseSyncActivityEnded(progress);
+        syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Completed(runId));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(overlay.IsVisible);
