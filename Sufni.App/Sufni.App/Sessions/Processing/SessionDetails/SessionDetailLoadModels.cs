@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Models;
 using System.Collections.Generic;
 using Sufni.Telemetry;
 using Sufni.App.Bikes.Models;
@@ -104,7 +105,9 @@ public sealed record MissingSessionData(
     bool ProcessedTelemetryBlob,
     bool RecordedSourceMissing);
 
-public sealed record SessionDetailData(SessionTelemetryPresentationData TelemetryPresentation);
+public sealed record SessionDetailData(
+    SessionTelemetryPresentationData TelemetryPresentation,
+    SessionDetailTrackLoadResult.Failed? TrackFailure = null);
 
 public abstract record SessionDetailLoadResult
 {
@@ -120,5 +123,5 @@ public abstract record SessionDetailTrackLoadResult
     private SessionDetailTrackLoadResult() { }
 
     public sealed record Loaded(SessionTrackPresentationData Data) : SessionDetailTrackLoadResult;
-    public sealed record Failed(string ErrorMessage) : SessionDetailTrackLoadResult;
+    public sealed record Failed(SessionTrackFailureReason Reason, string? Details = null) : SessionDetailTrackLoadResult;
 }

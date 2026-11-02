@@ -1,4 +1,5 @@
 using Sufni.App.MapsAndTracks.Stores;
+using Sufni.App.Shared.Models;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.App.Bikes.Models;
@@ -115,7 +116,7 @@ public class SessionLoaderTests
 
         var result = await CreateLoader().LoadTrackAsync(snapshot.Id, telemetry, progress, cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.IsType<SessionDetailTrackLoadResult.Failed>(result);
+        Assert.Equal(SessionTrackFailureReason.Load, Assert.IsType<SessionDetailTrackLoadResult.Failed>(result).Reason);
         Assert.Equal(
             [SessionDetailLoadStage.LoadingMapData],
             progress.Reports.Select(report => report.Stage));

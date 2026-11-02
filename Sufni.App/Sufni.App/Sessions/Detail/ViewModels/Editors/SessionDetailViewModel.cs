@@ -559,10 +559,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             PublishLoadPresentation(CreateLoadPresentation(
                 settledResult,
                 sessionStore.Get(Id) ?? currentSnapshot));
-            if (settledResult is not SessionDetailLoadResult.Loaded)
-            {
-                presentationApplier.ApplyLoadResult(settledResult);
-            }
+            if (settledResult.Data.TrackFailure is { } failure)
+                ErrorMessages.Add(FailurePresentation.From(failure.Reason, failure.Details));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -653,7 +651,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    private static SessionDetailLoadResult CreateSettledLoadResult(
+    private static SessionDetailLoadResult.Loaded CreateSettledLoadResult(
         SessionDetailLoadResult.Loaded initialResult,
         SessionDetailTrackLoadResult trackResult)
     {
@@ -669,7 +667,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                             TrackPoints = loaded.Data.TrackPoints,
                         })),
             SessionDetailTrackLoadResult.Failed failed =>
-                new SessionDetailLoadResult.Failed(failed.ErrorMessage),
+                new SessionDetailLoadResult.Loaded(initialResult.Data with { TrackFailure = failed }),
             _ => throw new InvalidOperationException("Unsupported session track load result."),
         };
     }

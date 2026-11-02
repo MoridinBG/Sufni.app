@@ -267,6 +267,10 @@ Hardtails are not applicable; incomplete drafts and typed invalid-geometry input
 are unsolvable. Unexpected failures carry `BikeAnalysisFailureReason.Analyze`
 with optional details and no longer disappear into the unavailable state.
 
+`SessionDetailLoadResult.Loaded` may carry a typed `TrackFailure` on its data.
+The session remains ready with telemetry and analysis, while the map renders a
+fixed unavailable summary; track diagnostics appear separately in error feedback.
+
 Bike save returns `BikeSaveResult.Saved(Snapshot) | Conflict(CurrentDraft) | Missing | Invalid | Failed`.
 Its failure carries `BikeSaveFailureReason.Save | Analysis` and optional details.
 Cutoff updates return `BikeDampingSpeedCutoffUpdateResult.Saved | Conflict | Missing | Failed`

@@ -144,6 +144,12 @@ public sealed record FailurePresentation
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 
+    public static FailurePresentation From(SessionTrackFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionTrackFailureReason.Load => "Map unavailable. The track could not be loaded. Reopen the session to retry.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
     public static FailurePresentation From(BikeLoadFailureReason reason, string? details = null) => new(reason switch
     {
         BikeLoadFailureReason.Read => "The bike could not be loaded. Close this tab and try again.",

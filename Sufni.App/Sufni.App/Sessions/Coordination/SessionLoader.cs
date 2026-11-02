@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Shared.Models;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -133,7 +134,7 @@ public sealed class SessionLoader : ISessionLoader
         catch (Exception e)
         {
             logger.Error(e, "Session track load failed for {SessionId}", sessionId);
-            return new SessionDetailTrackLoadResult.Failed(e.Message);
+            return new SessionDetailTrackLoadResult.Failed(SessionTrackFailureReason.Load, e.Message);
         }
     }
 

@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Reactive.Concurrency;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
@@ -349,6 +350,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             RecordedSessionLoadPresentation.Loading loading => loading.MapExpected
                 ? SurfacePresentationState.Loading("Loading map data.")
                 : SurfacePresentationState.Hidden,
+            RecordedSessionLoadPresentation.Loaded { Data.TrackFailure: { } failure } =>
+                SurfacePresentationState.Error(FailurePresentation.From(failure.Reason).Summary),
             RecordedSessionLoadPresentation.Loaded loaded =>
                 RecordedSessionPresentationDeriver.CreateMapState(
                     loaded.Data.TelemetryPresentation.TrackPoints,

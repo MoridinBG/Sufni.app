@@ -298,7 +298,7 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task TrackFailure_ReplacesFirstContentWithFailedState()
+    public async Task TrackFailure_PreservesTelemetryAndShowsMapUnavailable()
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession();
@@ -311,14 +311,17 @@ public class SessionDetailViewModelTests
                 telemetry,
                 Arg.Any<IProgress<SessionDetailLoadProgress>>(),
                 Arg.Any<CancellationToken>())
-            .Returns(new SessionDetailTrackLoadResult.Failed("track failed"));
+            .Returns(new SessionDetailTrackLoadResult.Failed(SessionTrackFailureReason.Load, "track failed"));
 
         await harness.LoadAsync(editor);
 
-        Assert.Null(editor.CurrentTelemetryData);
+        Assert.Same(telemetry, editor.CurrentTelemetryData);
         Assert.Null(editor.CurrentTrackPoints);
-        Assert.Equal(SessionScreenStateKind.Error, editor.ScreenState.Kind);
-        Assert.Equal(SurfaceStateKind.Hidden, editor.SignalsWorkspace.TravelSignalState.Kind);
+        Assert.Equal(SessionScreenStateKind.Ready, editor.ScreenState.Kind);
+        Assert.Equal(SurfaceStateKind.Error, editor.MediaWorkspace.MapState.Kind);
+        Assert.Equal("track failed", Assert.Single(editor.ErrorMessages).Details);
+        Assert.DoesNotContain("track failed", editor.MediaWorkspace.MapState.Message);
+        Assert.Equal(SurfaceStateKind.Ready, editor.SignalsWorkspace.TravelSignalState.Kind);
     }
 
     [AvaloniaFact]

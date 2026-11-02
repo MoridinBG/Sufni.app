@@ -5,11 +5,47 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class RecordedSessionEditorStateControllerTests
 {
+    [Fact]
+    public void TrackFailure_RemainsLoadedAndSuccessfulRetryReplacesOnlyMapState()
+    {
+        using var driver = new RecordedSessionEditorStateControllerTestDriver();
+        var telemetry = TestTelemetryData.CreateMinimal(duration: 10);
+        var data = new SessionDetailData(new SessionTelemetryPresentationData(telemetry, Guid.NewGuid(), null, null));
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loaded(data));
+        driver.Actions.SetAnalysisRange(new(2, 4));
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = driver.Controller.State.Skip(1).Subscribe(observed.Add);
+        var failure = new SessionDetailTrackLoadResult.Failed(SessionTrackFailureReason.Load, "reader diagnostic");
+
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loaded(data with { TrackFailure = failure }));
+
+        var failed = Assert.Single(observed);
+        Assert.Equal(failure, Assert.IsType<RecordedSessionLoadPresentation.Loaded>(failed.Load).Data.TrackFailure);
+        Assert.Same(telemetry, failed.TelemetryData);
+        Assert.Equal(new TelemetryTimeRange(2, 4), failed.Intent.AnalysisRange);
+        Assert.Equal(SurfaceStateKind.Error, failed.Presentation.MapState.Kind);
+        Assert.Equal(SurfaceStateKind.Ready, failed.Presentation.Signals.Travel.Kind);
+        observed.Clear();
+
+        driver.LoadPresentations.OnNext(new RecordedSessionLoadPresentation.Loaded(data with
+        {
+            TelemetryPresentation = data.TelemetryPresentation with { TrackPoints = [new(0, 0, 0, 0), new(1, 1, 0, 1)] },
+        }));
+
+        var recovered = Assert.Single(observed);
+        Assert.Null(Assert.IsType<RecordedSessionLoadPresentation.Loaded>(recovered.Load).Data.TrackFailure);
+        Assert.Same(telemetry, recovered.TelemetryData);
+        Assert.Equal(failed.Intent.AnalysisRange, recovered.Intent.AnalysisRange);
+        Assert.Equal(SurfaceStateKind.Ready, recovered.Presentation.MapState.Kind);
+    }
+
     [Fact]
     public void AvailabilityResult_SurvivesTrackOnlyRefresh_AndRangeChangeClearsHighlightsOnce()
     {

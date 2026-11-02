@@ -40,6 +40,8 @@ public enum GpsOffsetFailureReason { Save }
 
 public enum SyncFailureReason { Synchronize, ProtocolMismatch, Interrupted }
 
+public enum SessionTrackFailureReason { Load }
+
 public enum BikeLoadFailureReason { Read }
 
 public enum BikeAnalysisFailureReason { Analyze }
