@@ -126,11 +126,11 @@ public class StrokeDistributionPlotTests
             MaxTravel = 200,
             Travel = [0, 20, 40, 60],
             Velocity = [120, 0, 360, 0],
-            TravelBins = HistogramBuilder.Linspace(0, 200, Parameters.TravelHistBins + 1),
+            TravelBins = [.. (HistogramBuilder.Linspace(0, 200, Parameters.TravelHistBins + 1))],
             VelocityBins = [-400, -300, -200, -100, 0, 100, 200, 300, 400],
             Strokes = new Strokes
             {
-                Compressions = compressions,
+                Compressions = [.. (compressions)],
                 Rebounds = [],
             },
         };

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using MessagePack;
 
 #pragma warning disable CS8618
@@ -27,12 +28,12 @@ public sealed record Suspension
     public bool Present { get; init; }
     public double AnomalyRate { get; init; }
     public double? MaxTravel { get; init; }
-    public double[] Travel { get; init; }
-    public double[] Velocity { get; init; }
+    public ImmutableArray<double> Travel { get; init; }
+    public ImmutableArray<double> Velocity { get; init; }
     public Strokes Strokes { get; init; }
-    public double[] TravelBins { get; init; }
-    public double[] VelocityBins { get; init; }
-    public ProcessedSuspensionSegment[] Segments { get; init; } = [];
+    public ImmutableArray<double> TravelBins { get; init; }
+    public ImmutableArray<double> VelocityBins { get; init; }
+    public ImmutableArray<ProcessedSuspensionSegment> Segments { get; init; } = [];
     public bool HasGaps { get; init; }
 }
 

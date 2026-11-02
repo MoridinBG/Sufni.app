@@ -183,8 +183,8 @@ public class StrokeCoarseIndexesTests
                 MaxTravel = 18,
                 MaxVelocity = 50,
             },
-            DigitizedTravel = digitizedTravel ?? [],
-            DigitizedVelocity = digitizedVelocity ?? [],
+            DigitizedTravel = [.. (digitizedTravel ?? [])],
+            DigitizedVelocity = [.. (digitizedVelocity ?? [])],
         };
         return CreateTelemetryData(
             stroke,
@@ -214,11 +214,11 @@ public class StrokeCoarseIndexesTests
             {
                 Present = true,
                 MaxTravel = 20,
-                Travel = travel,
-                Velocity = velocity,
-                TravelBins = Enumerable.Range(0, 21).Select(index => (double)index).ToArray(),
-                VelocityBins = velocityBins,
-                Segments = segments,
+                Travel = [.. (travel)],
+                Velocity = [.. (velocity)],
+                TravelBins = [.. (Enumerable.Range(0, 21).Select(index => (double)index).ToArray())],
+                VelocityBins = [.. (velocityBins)],
+                Segments = [.. (segments)],
                 HasGaps = segments.Length > 1,
                 Strokes = new Strokes { Compressions = [stroke], Rebounds = [] },
             },

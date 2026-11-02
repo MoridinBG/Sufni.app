@@ -75,14 +75,14 @@ public class VelocityDistributionPlotTests
         {
             Present = true,
             MaxTravel = 100,
-            Travel = travel,
-            Velocity = velocity,
-            TravelBins = HistogramBuilder.Linspace(0, 100, Parameters.TravelHistBins + 1),
+            Travel = [.. (travel)],
+            Velocity = [.. (velocity)],
+            TravelBins = [.. (HistogramBuilder.Linspace(0, 100, Parameters.TravelHistBins + 1))],
             VelocityBins = [-200, -100, 0, 100, 200],
             Strokes = new Strokes
             {
-                Compressions = compressions,
-                Rebounds = rebounds,
+                Compressions = [.. (compressions)],
+                Rebounds = [.. (rebounds)],
             },
         };
     }
@@ -124,8 +124,8 @@ public class VelocityDistributionPlotTests
                 MaxTravel = maxTravel,
                 Count = end - start + 1,
             },
-            DigitizedTravel = digitizedTravel,
-            DigitizedVelocity = digitizedVelocity,
+            DigitizedTravel = [.. (digitizedTravel)],
+            DigitizedVelocity = [.. (digitizedVelocity)],
         };
     }
 

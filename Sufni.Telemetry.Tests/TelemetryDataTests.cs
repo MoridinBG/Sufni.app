@@ -439,7 +439,6 @@ public class TelemetryDataTests
         var result = TelemetryData.FromBinary(bytes);
 
         // Assert
-        Assert.NotNull(result.Markers);
         Assert.Single(result.Markers);
         Assert.Equal(1.23, result.Markers[0].TimestampOffset);
         Assert.NotNull(result.ImuData);
@@ -1534,7 +1533,7 @@ public class TelemetryDataTests
                     }
                 ],
                 Strokes = new Strokes { Compressions = [compression], Rebounds = [] },
-                TravelBins = CreateTravelBins(100),
+                TravelBins = [.. (CreateTravelBins(100))],
                 VelocityBins = [-100, 0, 100],
             },
             Rear = new Suspension { Strokes = new Strokes(), Travel = [], Velocity = [], TravelBins = [], VelocityBins = [] },
@@ -1688,7 +1687,7 @@ public class TelemetryDataTests
                     Present = true,
                     MaxTravel = 100,
                     Travel = [10, 20, 30, 70, 80, 90],
-                    Velocity = new double[6],
+                    Velocity = [.. (new double[6])],
                     HasGaps = true,
                     Segments = unordered ? [secondTravel, firstTravel] : [firstTravel, secondTravel],
                     Strokes = new Strokes
@@ -1696,7 +1695,7 @@ public class TelemetryDataTests
                         Compressions = unordered ? [secondCompression, firstCompression] : [firstCompression, secondCompression],
                         Rebounds = unordered ? [secondRebound, firstRebound] : [firstRebound, secondRebound],
                     },
-                    TravelBins = CreateTravelBins(100),
+                    TravelBins = [.. (CreateTravelBins(100))],
                     VelocityBins = [-100, 0, 100],
                 },
                 Rear = CreateSuspension([], 100, [], []),
@@ -1960,14 +1959,14 @@ public class TelemetryDataTests
         {
             Present = true,
             MaxTravel = maxTravel,
-            Travel = travel,
-            Velocity = velocity ?? new double[travel.Length],
-            TravelBins = CreateTravelBins(maxTravel),
+            Travel = [.. (travel)],
+            Velocity = [.. (velocity ?? new double[travel.Length])],
+            TravelBins = [.. (CreateTravelBins(maxTravel))],
             VelocityBins = [-100, 0, 100],
             Strokes = new Strokes
             {
-                Compressions = compressions ?? [],
-                Rebounds = rebounds ?? [],
+                Compressions = [.. (compressions ?? [])],
+                Rebounds = [.. (rebounds ?? [])],
             },
         };
     }
@@ -1999,8 +1998,8 @@ public class TelemetryDataTests
                 MaxTravel = maxTravel ?? 0,
                 Count = end - start + 1,
             },
-            DigitizedTravel = digitizedTravel ?? [],
-            DigitizedVelocity = digitizedVelocity ?? [],
+            DigitizedTravel = [.. (digitizedTravel ?? [])],
+            DigitizedVelocity = [.. (digitizedVelocity ?? [])],
         };
     }
 

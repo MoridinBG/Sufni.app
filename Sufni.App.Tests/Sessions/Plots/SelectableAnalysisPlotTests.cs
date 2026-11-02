@@ -87,7 +87,7 @@ public class SelectableAnalysisPlotTests
         var dampingSelection = Assert.IsType<DampingRangeSelection>(selection);
 
         Assert.True(selected);
-        Assert.Equal(HistogramBuilder.DigitizeValue(y, telemetry.Front.VelocityBins), dampingSelection.VelocityBinIndex);
+        Assert.Equal(HistogramBuilder.DigitizeValue(y, telemetry.Front.VelocityBins.AsSpan()), dampingSelection.VelocityBinIndex);
         Assert.Equal(0, dampingSelection.TravelBinStartIndex);
         Assert.Equal(TelemetryData.TravelBinsForVelocityHistogram - 1, dampingSelection.TravelBinEndIndex);
     }
@@ -386,7 +386,7 @@ public class SelectableAnalysisPlotTests
             MaxTravel = 100,
             Travel = [0, 10, 20, 10, 0],
             Velocity = [100, 120, 80, -60, -90],
-            TravelBins = HistogramBuilder.Linspace(0, 100, Parameters.TravelHistBins + 1),
+            TravelBins = [.. (HistogramBuilder.Linspace(0, 100, Parameters.TravelHistBins + 1))],
             VelocityBins = [-200, -100, 0, 100, 200],
             Strokes = new Strokes
             {
@@ -436,7 +436,7 @@ public class SelectableAnalysisPlotTests
             MaxTravel = 100,
             Travel = [0, 20, 20, 30, 0],
             Velocity = [0, 700, 0, -600, 0],
-            TravelBins = HistogramBuilder.Linspace(0, 100, 11),
+            TravelBins = [.. (HistogramBuilder.Linspace(0, 100, 11))],
             VelocityBins = [-1000, 0, 1000],
             Strokes = new Strokes
             {
@@ -503,8 +503,8 @@ public class SelectableAnalysisPlotTests
                 MaxTravel = maxTravel,
                 Count = end - start + 1,
             },
-            DigitizedTravel = digitizedTravel,
-            DigitizedVelocity = digitizedVelocity,
+            DigitizedTravel = [.. (digitizedTravel)],
+            DigitizedVelocity = [.. (digitizedVelocity)],
         };
     }
 }

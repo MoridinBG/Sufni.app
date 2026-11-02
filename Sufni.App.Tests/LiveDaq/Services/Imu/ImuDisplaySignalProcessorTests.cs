@@ -337,18 +337,18 @@ public class ImuDisplaySignalProcessorTests
             Front = new Suspension
             {
                 Present = true,
-                Travel = Enumerable.Repeat(0.0, records.Count).ToArray(),
-                Velocity = frontVelocity?.ToArray() ?? Enumerable.Repeat(0.0, records.Count).ToArray(),
+                Travel = [.. (Enumerable.Repeat(0.0, records.Count).ToArray())],
+                Velocity = [.. (frontVelocity?.ToArray() ?? Enumerable.Repeat(0.0, records.Count).ToArray())],
                 Strokes = new Strokes(),
             },
             Rear = new Suspension
             {
                 Present = true,
-                Travel = Enumerable.Repeat(0.0, records.Count).ToArray(),
-                Velocity = Enumerable.Repeat(0.0, records.Count).ToArray(),
+                Travel = [.. (Enumerable.Repeat(0.0, records.Count).ToArray())],
+                Velocity = [.. (Enumerable.Repeat(0.0, records.Count).ToArray())],
                 Strokes = new Strokes(),
             },
-            Airtimes = airtimes?.ToArray() ?? [],
+            Airtimes = [.. (airtimes?.ToArray() ?? [])],
             ImuData = CreateRawImuData(
                 activeLocations: [(byte)ImuLocation.Frame],
                 meta: [new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100)],

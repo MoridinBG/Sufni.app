@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -89,7 +90,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
     {
         if (!suspension.HasGaps)
         {
-            return new SampledValues(suspension.Travel, sampleRate);
+            return new SampledValues(suspension.Travel.ToArray(), sampleRate);
         }
 
         return new SegmentedValues(
@@ -99,7 +100,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
                 .ToArray());
     }
 
-    private static double[] GetSegmentValues(double[] values, ProcessedSuspensionSegment segment)
+    private static double[] GetSegmentValues(ImmutableArray<double> values, ProcessedSuspensionSegment segment)
     {
         if (segment.SampleCount <= 0 ||
             segment.FirstDenseIndex < 0 ||
@@ -109,7 +110,7 @@ public class TravelPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSerie
         }
 
         var endIndex = Math.Min(segment.FirstDenseIndex + segment.SampleCount, values.Length);
-        return values[segment.FirstDenseIndex..endIndex];
+        return values[segment.FirstDenseIndex..endIndex].ToArray();
     }
 
     private static ExplicitValues CreateExplicitSegment(

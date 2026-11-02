@@ -73,8 +73,8 @@ public static class PositionVelocityTraceBuilder
             suspension.MaxTravel is not { } maxTravel ||
             !double.IsFinite(maxTravel) ||
             maxTravel <= 0 ||
-            suspension.Travel is not { Length: > 1 } travel ||
-            suspension.Velocity is not { Length: > 1 } velocity ||
+            suspension.Travel is not { IsDefault: false, Length: > 1 } travel ||
+            suspension.Velocity is not { IsDefault: false, Length: > 1 } velocity ||
             suspension.Strokes is null)
         {
             return null;
@@ -123,8 +123,8 @@ public static class PositionVelocityTraceBuilder
 
     private static Stroke[] BuildCandidateStrokes(Strokes strokes)
     {
-        return (strokes.Compressions ?? [])
-            .Concat(strokes.Rebounds ?? [])
+        return (strokes.Compressions.IsDefault ? [] : strokes.Compressions)
+            .Concat(strokes.Rebounds.IsDefault ? [] : strokes.Rebounds)
             .Where(stroke => stroke is not null)
             .OrderBy(stroke => stroke.Start)
             .ThenBy(stroke => stroke.End)
@@ -231,8 +231,8 @@ public static class PositionVelocityTraceBuilder
 
     private static List<StrokeBuildPlan> BuildStrokePlans(
         IReadOnlyList<Stroke> strokes,
-        double[] travel,
-        double[] velocity,
+        IReadOnlyList<double> travel,
+        IReadOnlyList<double> velocity,
         int pairedCount,
         IReadOnlyList<SampleRange> sampleRanges)
     {
@@ -305,8 +305,8 @@ public static class PositionVelocityTraceBuilder
 
     private static PositionVelocityStrokeTrace BuildStrokeTrace(
         StrokeBuildPlan plan,
-        double[] travel,
-        double[] velocity,
+        IReadOnlyList<double> travel,
+        IReadOnlyList<double> velocity,
         double maxTravel,
         int stride)
     {

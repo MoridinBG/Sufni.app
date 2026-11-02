@@ -48,7 +48,7 @@ internal sealed class StrokeCoarseIndexes
 
         internal static SideIndexes Create(Suspension suspension)
         {
-            var indexes = new Dictionary<Stroke, StrokeCoarseIndexPair>();
+            var indexes = new Dictionary<Stroke, StrokeCoarseIndexPair>(ReferenceEqualityComparer.Instance);
             var segmentVelocityBins = new Dictionary<ProcessedSuspensionSegment, double[]>();
             foreach (var stroke in suspension.Strokes.Compressions.Concat(suspension.Strokes.Rebounds))
             {
@@ -60,7 +60,7 @@ internal sealed class StrokeCoarseIndexes
                 indexes.Add(
                     stroke,
                     IsValidLegacyPair(stroke, count, suspension.TravelBins.Length - 1, velocityBins.Length - 1)
-                        ? new StrokeCoarseIndexPair(stroke.DigitizedTravel, stroke.DigitizedVelocity)
+                        ? new StrokeCoarseIndexPair(stroke.DigitizedTravel.AsMemory(), stroke.DigitizedVelocity.AsMemory())
                         : Derive(suspension, stroke, count, velocityBins));
             }
 
@@ -71,7 +71,7 @@ internal sealed class StrokeCoarseIndexes
             Suspension suspension,
             Stroke stroke,
             int count,
-            double[] velocityBins)
+            ReadOnlySpan<double> velocityBins)
         {
             if (stroke.Start < 0 || count <= 0 || stroke.End >= suspension.Travel.Length || stroke.End >= suspension.Velocity.Length)
             {
@@ -80,21 +80,21 @@ internal sealed class StrokeCoarseIndexes
 
             var travel = HistogramBuilder.Digitize(
                 suspension.Travel.AsSpan(stroke.Start, count),
-                suspension.TravelBins);
+                suspension.TravelBins.AsSpan());
             var velocity = HistogramBuilder.Digitize(
                 suspension.Velocity.AsSpan(stroke.Start, count),
                 velocityBins);
             return new StrokeCoarseIndexPair(travel, velocity);
         }
 
-        private static double[] VelocityBinsForStroke(
+        private static ReadOnlySpan<double> VelocityBinsForStroke(
             Suspension suspension,
             Stroke stroke,
             Dictionary<ProcessedSuspensionSegment, double[]> segmentVelocityBins)
         {
             if (suspension.Segments.Length <= 1)
             {
-                return suspension.VelocityBins;
+                return suspension.VelocityBins.AsSpan();
             }
 
             foreach (var segment in suspension.Segments)
@@ -127,8 +127,8 @@ internal sealed class StrokeCoarseIndexes
         {
             return expectedCount > 0 &&
                 stroke.Stat.Count == expectedCount &&
-                stroke.DigitizedTravel is { } travel &&
-                stroke.DigitizedVelocity is { } velocity &&
+                stroke.DigitizedTravel is { IsDefault: false } travel &&
+                stroke.DigitizedVelocity is { IsDefault: false } velocity &&
                 travel.Length == expectedCount &&
                 velocity.Length == expectedCount &&
                 travel.All(index => index >= 0 && index < travelBinCount) &&

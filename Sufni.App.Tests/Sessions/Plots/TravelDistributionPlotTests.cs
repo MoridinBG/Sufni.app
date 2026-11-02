@@ -45,7 +45,7 @@ public class TravelDistributionPlotTests
         var original = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         var recomputed = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         recomputed = recomputed with { Front = recomputed.Front with { MaxTravel = 240 } };
-        recomputed = recomputed with { Front = recomputed.Front with { TravelBins = HistogramBuilder.Linspace(0, 240, Parameters.TravelHistBins + 1) } };
+        recomputed = recomputed with { Front = recomputed.Front with { TravelBins = [.. (HistogramBuilder.Linspace(0, 240, Parameters.TravelHistBins + 1))] } };
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 

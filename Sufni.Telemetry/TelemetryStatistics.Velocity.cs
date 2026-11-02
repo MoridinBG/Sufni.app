@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using MathNet.Numerics;
 using MathNet.Numerics.Distributions;
@@ -44,8 +45,8 @@ public static partial class TelemetryStatistics
         var compressions = GetIncludedCompressions(telemetryData, suspension, range);
         var rebounds = GetIncludedRebounds(telemetryData, suspension, range);
         var statistics = new NormalDistributionStatistics();
-        AccumulateStrokeVelocity(suspension.Velocity, compressions, ref statistics);
-        AccumulateStrokeVelocity(suspension.Velocity, rebounds, ref statistics);
+        AccumulateStrokeVelocity(suspension.Velocity.AsSpan(), compressions, ref statistics);
+        AccumulateStrokeVelocity(suspension.Velocity.AsSpan(), rebounds, ref statistics);
         if (statistics.Count < 2)
         {
             return new NormalDistributionData([], []);
@@ -72,8 +73,8 @@ public static partial class TelemetryStatistics
     }
 
     private static void AccumulateStrokeVelocity(
-        double[] velocity,
-        Stroke[] strokes,
+        ReadOnlySpan<double> velocity,
+        ImmutableArray<Stroke> strokes,
         ref NormalDistributionStatistics statistics)
     {
         foreach (var stroke in strokes)
@@ -439,8 +440,8 @@ public static partial class TelemetryStatistics
         var totalCount = 0;
         foreach (var stroke in GetIncludedCompressions(telemetryData, suspension, range).Concat(GetIncludedRebounds(telemetryData, suspension, range)))
         {
-            var velocityBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxVelocity, suspension.VelocityBins);
-            var travelBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, suspension.TravelBins) / divider;
+            var velocityBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxVelocity, suspension.VelocityBins.AsSpan());
+            var travelBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, suspension.TravelBins.AsSpan()) / divider;
             histogram[velocityBin][Math.Clamp(travelBin, 0, TelemetryData.TravelBinsForVelocityHistogram - 1)] += 1;
             totalCount += 1;
         }
@@ -510,8 +511,8 @@ public static partial class TelemetryStatistics
         DampingRangeSelection selection)
     {
         return
-            suspension.TravelBins?.Length > TelemetryData.TravelBinsForVelocityHistogram &&
-            suspension.VelocityBins?.Length > 1 &&
+            !suspension.TravelBins.IsDefault && suspension.TravelBins.Length > TelemetryData.TravelBinsForVelocityHistogram &&
+            !suspension.VelocityBins.IsDefault && suspension.VelocityBins.Length > 1 &&
             selection.VelocityBinIndex >= 0 &&
             selection.VelocityBinIndex < suspension.VelocityBins.Length - 1 &&
             selection.TravelBinStartIndex >= 0 &&
@@ -531,7 +532,7 @@ public static partial class TelemetryStatistics
         StrokeLengthRangeSelection selection,
         TelemetryTimeRange? range)
     {
-        if (suspension.TravelBins is not { Length: >= 2 } travelBins ||
+        if (suspension.TravelBins is not { IsDefault: false, Length: >= 2 } travelBins ||
             !selection.Bin.MatchesBins(travelBins))
         {
             return [];
@@ -547,7 +548,7 @@ public static partial class TelemetryStatistics
             }
 
             var length = Math.Abs(suspension.Travel[stroke.End] - suspension.Travel[stroke.Start]);
-            if (HistogramBuilder.DigitizeValue(length, travelBins) == selection.Bin.Index)
+            if (HistogramBuilder.DigitizeValue(length, travelBins.AsSpan()) == selection.Bin.Index)
             {
                 ranges.Add(CreateHighlightRange(stroke, telemetryData.Metadata.SampleRate));
             }
@@ -589,7 +590,7 @@ public static partial class TelemetryStatistics
         TelemetryTimeRange? range)
     {
         if (suspension.MaxTravel is not { } maxTravel ||
-            suspension.TravelBins is not { Length: >= 6 } travelBins)
+            suspension.TravelBins is not { IsDefault: false, Length: >= 6 } travelBins)
         {
             return [];
         }
@@ -609,7 +610,7 @@ public static partial class TelemetryStatistics
                 continue;
             }
 
-            if (HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, bins) == selection.Bin.Index)
+            if (HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, bins.AsSpan()) == selection.Bin.Index)
             {
                 ranges.Add(CreateHighlightRange(stroke, telemetryData.Metadata.SampleRate));
             }
@@ -680,8 +681,8 @@ public static partial class TelemetryStatistics
         var ranges = new List<TelemetryHighlightRange>();
         foreach (var stroke in strokes)
         {
-            var velocityBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxVelocity, suspension.VelocityBins);
-            var travelBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, suspension.TravelBins) / divider;
+            var velocityBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxVelocity, suspension.VelocityBins.AsSpan());
+            var travelBin = HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, suspension.TravelBins.AsSpan()) / divider;
             travelBin = Math.Clamp(travelBin, 0, TelemetryData.TravelBinsForVelocityHistogram - 1);
             if (velocityBin != selection.VelocityBinIndex ||
                 travelBin < selection.TravelBinStartIndex ||
@@ -717,7 +718,7 @@ public static partial class TelemetryStatistics
             strokeStartSeconds + (lastStrokeSampleOffset + 1) * step);
     }
 
-    private static double CalculateSampleAverageVelocity(Stroke[] strokes)
+    private static double CalculateSampleAverageVelocity(ImmutableArray<Stroke> strokes)
     {
         var sum = 0.0;
         var count = 0.0;
@@ -730,7 +731,7 @@ public static partial class TelemetryStatistics
         return count > 0 ? sum / count : 0;
     }
 
-    private static double CalculateStrokePeakAverageVelocity(Stroke[] strokes, bool signedRebound)
+    private static double CalculateStrokePeakAverageVelocity(ImmutableArray<Stroke> strokes, bool signedRebound)
     {
         if (strokes.Length == 0)
         {
@@ -741,17 +742,17 @@ public static partial class TelemetryStatistics
         return signedRebound ? -average : average;
     }
 
-    private static double CalculateMaxCompressionVelocity(Stroke[] compressions)
+    private static double CalculateMaxCompressionVelocity(ImmutableArray<Stroke> compressions)
     {
         return compressions.Length == 0 ? 0 : compressions.Max(stroke => stroke.Stat.MaxVelocity);
     }
 
-    private static double CalculateMaxReboundVelocity(Stroke[] rebounds)
+    private static double CalculateMaxReboundVelocity(ImmutableArray<Stroke> rebounds)
     {
         return rebounds.Length == 0 ? 0 : rebounds.Min(stroke => stroke.Stat.MaxVelocity);
     }
 
-    private static double CalculatePercentile95(Stroke[] strokes, bool signedRebound)
+    private static double CalculatePercentile95(ImmutableArray<Stroke> strokes, bool signedRebound)
     {
         if (strokes.Length == 0)
         {

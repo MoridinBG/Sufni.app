@@ -146,10 +146,10 @@ public static class AnalysisTelemetryFixture
         {
             Present = true,
             MaxTravel = spec.MaxTravel,
-            Travel = travel,
-            Velocity = velocity,
+            Travel = [.. (travel)],
+            Velocity = [.. (velocity)],
             Strokes = new Strokes { Compressions = [.. compressions], Rebounds = [.. rebounds] },
-            TravelBins = Enumerable.Range(0, 21).Select(i => spec.MaxTravel / 20.0 * i).ToArray(),
+            TravelBins = [.. (Enumerable.Range(0, 21).Select(i => spec.MaxTravel / 20.0 * i).ToArray())],
             VelocityBins = [],
         };
     }

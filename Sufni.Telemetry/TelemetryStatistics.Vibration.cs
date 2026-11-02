@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 
 namespace Sufni.Telemetry;
@@ -132,8 +133,8 @@ public static partial class TelemetryStatistics
         ImuMetaEntry meta,
         double selectedStartSeconds,
         double selectedEndSeconds,
-        Stroke[] compressions,
-        Stroke[] rebounds,
+        ImmutableArray<Stroke> compressions,
+        ImmutableArray<Stroke> rebounds,
         bool segmented,
         double totalMovement)
     {
@@ -309,7 +310,7 @@ public static partial class TelemetryStatistics
 
     private struct VibrationTraversalCursor
     {
-        private readonly double[] travel;
+        private readonly ImmutableArray<double> travel;
         private readonly int sampleRate;
         private readonly bool segmented;
         private SuspensionSegmentCursor suspensionCursor;
@@ -321,8 +322,8 @@ public static partial class TelemetryStatistics
         public VibrationTraversalCursor(
             Suspension suspension,
             int sampleRate,
-            Stroke[] compressions,
-            Stroke[] rebounds,
+            ImmutableArray<Stroke> compressions,
+            ImmutableArray<Stroke> rebounds,
             bool segmented)
         {
             travel = suspension.Travel;
@@ -386,12 +387,12 @@ public static partial class TelemetryStatistics
 
     private struct SuspensionSegmentCursor
     {
-        private readonly ProcessedSuspensionSegment[] segments;
-        private readonly double[] values;
+        private readonly IReadOnlyList<ProcessedSuspensionSegment> segments;
+        private readonly IReadOnlyList<double> values;
         private readonly int sampleRate;
         private int segmentIndex;
 
-        public SuspensionSegmentCursor(ProcessedSuspensionSegment[] segments, double[] values, int sampleRate)
+        public SuspensionSegmentCursor(IReadOnlyList<ProcessedSuspensionSegment> segments, IReadOnlyList<double> values, int sampleRate)
         {
             this.segments = OrderedSuspensionSegments(segments);
             this.values = values;
@@ -404,7 +405,7 @@ public static partial class TelemetryStatistics
         public bool TrySample(double seconds, out double value)
         {
             value = 0;
-            while (segmentIndex < segments.Length)
+            while (segmentIndex < segments.Count)
             {
                 var segment = segments[segmentIndex];
                 if (segment.SampleCount <= 0)
@@ -436,9 +437,9 @@ public static partial class TelemetryStatistics
                 var lowerDenseIndex = segment.FirstDenseIndex + lower;
                 var upperDenseIndex = segment.FirstDenseIndex + upper;
                 if (lowerDenseIndex < 0 ||
-                    lowerDenseIndex >= values.Length ||
+                    lowerDenseIndex >= values.Count ||
                     upperDenseIndex < 0 ||
-                    upperDenseIndex >= values.Length)
+                    upperDenseIndex >= values.Count)
                 {
                     return false;
                 }
@@ -451,16 +452,16 @@ public static partial class TelemetryStatistics
             return false;
         }
 
-        private static ProcessedSuspensionSegment[] OrderedSuspensionSegments(ProcessedSuspensionSegment[] source)
+        private static IReadOnlyList<ProcessedSuspensionSegment> OrderedSuspensionSegments(IReadOnlyList<ProcessedSuspensionSegment> source)
         {
-            for (var index = 1; index < source.Length; index++)
+            for (var index = 1; index < source.Count; index++)
             {
                 if (source[index - 1].StartSeconds.CompareTo(source[index].StartSeconds) <= 0)
                 {
                     continue;
                 }
 
-                var sorted = (ProcessedSuspensionSegment[])source.Clone();
+                var sorted = source.ToArray();
                 StableSort(sorted);
                 return sorted;
             }
@@ -488,7 +489,7 @@ public static partial class TelemetryStatistics
 
     private struct StrokeCursor
     {
-        private readonly Stroke[] strokes;
+        private readonly IReadOnlyList<Stroke> strokes;
         private readonly int sampleRate;
         private readonly bool useTime;
         private readonly int maximumDenseIndex;
@@ -496,7 +497,7 @@ public static partial class TelemetryStatistics
         private double maximumEnd;
 
         public StrokeCursor(
-            Stroke[] strokes,
+            IReadOnlyList<Stroke> strokes,
             int sampleRate,
             bool useTime,
             int maximumDenseIndex)
@@ -517,7 +518,7 @@ public static partial class TelemetryStatistics
 
         public bool Contains(double position)
         {
-            while (nextIndex < strokes.Length && Start(strokes[nextIndex]) <= position)
+            while (nextIndex < strokes.Count && Start(strokes[nextIndex]) <= position)
             {
                 maximumEnd = Math.Max(maximumEnd, End(strokes[nextIndex]));
                 nextIndex++;
@@ -534,8 +535,8 @@ public static partial class TelemetryStatistics
             ? StrokeEndSeconds(stroke, sampleRate)
             : Math.Clamp(stroke.End, 0, maximumDenseIndex);
 
-        private static Stroke[] OrderedStrokes(
-            Stroke[] source,
+        private static IReadOnlyList<Stroke> OrderedStrokes(
+            IReadOnlyList<Stroke> source,
             int sampleRate,
             bool useTime,
             int maximumDenseIndex)
@@ -544,7 +545,7 @@ public static partial class TelemetryStatistics
                 ? StrokeStartSeconds(stroke, sampleRate)
                 : Math.Clamp(stroke.Start, 0, maximumDenseIndex);
 
-            for (var index = 1; index < source.Length; index++)
+            for (var index = 1; index < source.Count; index++)
             {
                 var previousStart = Start(source[index - 1], sampleRate, useTime, maximumDenseIndex);
                 var currentStart = Start(source[index], sampleRate, useTime, maximumDenseIndex);
@@ -553,7 +554,7 @@ public static partial class TelemetryStatistics
                     continue;
                 }
 
-                var sorted = (Stroke[])source.Clone();
+                var sorted = source.ToArray();
                 for (var sortIndex = 1; sortIndex < sorted.Length; sortIndex++)
                 {
                     var current = sorted[sortIndex];

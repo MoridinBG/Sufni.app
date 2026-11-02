@@ -3,10 +3,10 @@ namespace Sufni.Telemetry;
 public sealed class SuspensionTimeSeriesSampler
 {
     private readonly ProcessedSuspensionSegment[] segments;
-    private readonly double[] values;
+    private readonly IReadOnlyList<double> values;
     private readonly int sampleRate;
 
-    public SuspensionTimeSeriesSampler(ProcessedSuspensionSegment[] segments, double[] values, int sampleRate)
+    public SuspensionTimeSeriesSampler(IReadOnlyList<ProcessedSuspensionSegment> segments, IReadOnlyList<double> values, int sampleRate)
     {
         this.segments = segments.OrderBy(segment => segment.StartSeconds).ToArray();
         this.values = values;
@@ -51,9 +51,9 @@ public sealed class SuspensionTimeSeriesSampler
             var lowerDenseIndex = segment.FirstDenseIndex + lower;
             var upperDenseIndex = segment.FirstDenseIndex + upper;
             if (lowerDenseIndex < 0 ||
-                lowerDenseIndex >= values.Length ||
+                lowerDenseIndex >= values.Count ||
                 upperDenseIndex < 0 ||
-                upperDenseIndex >= values.Length)
+                upperDenseIndex >= values.Count)
             {
                 return false;
             }

@@ -20,7 +20,7 @@ public static partial class TelemetryStatistics
             return new HistogramData([], []);
         }
 
-        var mean = TensorPrimitives.Sum<double>(travelSamples) / travelSamples.Length;
+        var mean = TensorPrimitives.Sum<double>(travelSamples.AsSpan()) / travelSamples.Length;
 
         var minimumCount = Math.Max(
             2,

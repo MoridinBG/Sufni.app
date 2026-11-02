@@ -34,8 +34,8 @@ public class TelemetryNormalDistributionTests
         var front = new Suspension
         {
             Present = true,
-            Travel = new double[velocity.Length],
-            Velocity = velocity,
+            Travel = [.. (new double[velocity.Length])],
+            Velocity = [.. (velocity)],
             TravelBins = [0, 100],
             VelocityBins = [-100, 0, 100],
             Strokes = new Strokes

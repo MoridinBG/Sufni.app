@@ -111,7 +111,7 @@ public class TravelPlotAirtimeLabelTests
     private static TelemetryData CreateTelemetryWithAirtimes(Airtime[] airtimes)
     {
         var telemetry = CreateMinimal(duration: 10, sampleRate: 2);
-        telemetry = telemetry with { Airtimes = airtimes };
+        telemetry = telemetry with { Airtimes = [.. (airtimes)] };
         return telemetry;
     }
 

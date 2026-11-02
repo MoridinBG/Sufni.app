@@ -52,8 +52,8 @@ internal static class TestSegmentMatches
             {
                 Present = true,
                 MaxTravel = 100,
-                Travel = travel,
-                Velocity = velocity,
+                Travel = [.. (travel)],
+                Velocity = [.. (velocity)],
                 Strokes = new Strokes { Compressions = [], Rebounds = [] },
                 TravelBins = [],
                 VelocityBins = [],

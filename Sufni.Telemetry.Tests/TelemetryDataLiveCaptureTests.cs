@@ -54,12 +54,18 @@ public class TelemetryDataLiveCaptureTests
         var result = TelemetryData.FromLiveCapture(capture);
 
         Assert.Same(imuData, result.ImuData);
-        Assert.Same(gpsData, result.GpsData);
+        Assert.Equal(gpsData, result.GpsData!.Value);
         Assert.Equal(markers, result.Markers);
         Assert.True(result.Front.Present);
         Assert.True(result.Rear.Present);
         Assert.True(result.Front.AnomalyRate > 0);
         Assert.True(result.Rear.AnomalyRate > 0);
+        var frozen = result.BinaryForm;
+        gpsData[0] = gpsData[0] with { Latitude = 0 };
+        markers[0] = new MarkerData(99);
+        front[0] = 0;
+        rear[0] = 0;
+        Assert.Equal(frozen, result.BinaryForm);
     }
 
     [Fact]

@@ -73,7 +73,7 @@ public class TelemetryDataRegressionOutputTests
         }
     }
 
-    private static int[] Bounds(Stroke[] strokes) =>
+    private static int[] Bounds(IEnumerable<Stroke> strokes) =>
         strokes.SelectMany(s => new[] { s.Start, s.End }).ToArray();
 
     [Fact]

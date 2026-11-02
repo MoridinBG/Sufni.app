@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 
 namespace Sufni.Telemetry;
@@ -44,7 +45,7 @@ public static partial class TelemetryStatistics
         foreach (var stroke in strokes)
         {
             var length = Math.Abs(suspension.Travel[stroke.End] - suspension.Travel[stroke.Start]);
-            hist[HistogramBuilder.DigitizeValue(length, suspension.TravelBins)] += 1;
+            hist[HistogramBuilder.DigitizeValue(length, suspension.TravelBins.AsSpan())] += 1;
         }
 
         if (strokes.Length > 0)
@@ -81,7 +82,7 @@ public static partial class TelemetryStatistics
         return new HistogramData(bins.ToList(), [.. hist]);
     }
 
-    private static double[] CreateStrokeSpeedHistogramBins(Stroke[] strokes)
+    private static double[] CreateStrokeSpeedHistogramBins(ImmutableArray<Stroke> strokes)
     {
         var maxSpeed = strokes.Length == 0
             ? Parameters.VelocityHistStep
@@ -111,7 +112,7 @@ public static partial class TelemetryStatistics
                 continue;
             }
 
-            hist[HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, bins)] += 1;
+            hist[HistogramBuilder.DigitizeValue(stroke.Stat.MaxTravel, bins.AsSpan())] += 1;
         }
 
         return new HistogramData(bins.ToList(), [.. hist]);
@@ -177,7 +178,7 @@ public static partial class TelemetryStatistics
 
         foreach (var travel in travelSamples)
         {
-            histogram[HistogramBuilder.DigitizeValue(travel, suspension.TravelBins)] += 1;
+            histogram[HistogramBuilder.DigitizeValue(travel, suspension.TravelBins.AsSpan())] += 1;
         }
 
         if (travelSamples.Length > 0)
@@ -234,7 +235,7 @@ public static partial class TelemetryStatistics
             CountBottomouts(travelSamples, suspension.MaxTravel));
     }
 
-    private static int CountBottomouts(double[] travelSamples, double? maxTravel)
+    private static int CountBottomouts(ImmutableArray<double> travelSamples, double? maxTravel)
     {
         if (maxTravel is null)
         {

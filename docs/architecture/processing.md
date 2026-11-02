@@ -99,8 +99,11 @@ legacy fixtures byte for byte.
 Telemetry, suspension, metadata, stroke/statistics, airtime and processed segment
 properties are init-only. The parallel pipeline constructs completed side values
 before publishing the graph. Replacing a telemetry value creates its own lazy
-coarse-index cache. Collection payloads still use arrays; immutable collection
-publication is a separate boundary from these scalar value records.
+coarse-index cache. Travel, velocity, bin, stroke, segment, airtime, marker, GPS and temperature
+collections use `ImmutableArray`; processing copies mutable raw-source arrays at
+publication. Statistics consume read-only spans/lists without copying entire
+traces. Travel rendering takes its own mutable buffer at the plot boundary. IMU
+still uses its raw-data representation; that branch has a separate sample graph.
 
 The persisted graph is:
 

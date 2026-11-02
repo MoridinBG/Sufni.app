@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 namespace Sufni.Telemetry;
 
 public static partial class TelemetryStatistics
@@ -62,7 +63,7 @@ public static partial class TelemetryStatistics
         return true;
     }
 
-    private static double[] GetTravelSamples(
+    private static ImmutableArray<double> GetTravelSamples(
         TelemetryData telemetryData,
         Suspension suspension,
         TelemetryTimeRange? range)
@@ -82,7 +83,7 @@ public static partial class TelemetryStatistics
             : suspension.Travel[sampleRange.Start..(sampleRange.End + 1)];
     }
 
-    private static double[] GetSegmentTravelSamples(
+    private static ImmutableArray<double> GetSegmentTravelSamples(
         TelemetryData telemetryData,
         Suspension suspension,
         TelemetryTimeRange range)
@@ -115,16 +116,16 @@ public static partial class TelemetryStatistics
             }
         }
 
-        return samples.ToArray();
+        return [.. samples];
     }
 
-    private static Stroke[] GetIncludedStrokes(
+    private static ImmutableArray<Stroke> GetIncludedStrokes(
         TelemetryData telemetryData,
         Suspension suspension,
-        Stroke[]? strokes,
+        ImmutableArray<Stroke>? source,
         TelemetryTimeRange? range)
     {
-        if (strokes is null || strokes.Length == 0 ||
+        if (source is not { IsDefaultOrEmpty: false } strokes ||
             telemetryData.Metadata.SampleRate <= 0)
         {
             return [];
@@ -146,7 +147,7 @@ public static partial class TelemetryStatistics
                 .Where(stroke =>
                     StrokeStartSeconds(stroke, telemetryData.Metadata.SampleRate) >= startSeconds &&
                     StrokeEndSeconds(stroke, telemetryData.Metadata.SampleRate) <= endSeconds)
-                .ToArray();
+                .ToImmutableArray();
         }
 
         if (!TryGetSampleRange(telemetryData, suspension, range, out var sampleRange))
@@ -154,10 +155,10 @@ public static partial class TelemetryStatistics
             return [];
         }
 
-        return strokes.Where(sampleRange.Contains).ToArray();
+        return strokes.Where(sampleRange.Contains).ToImmutableArray();
     }
 
-    private static Stroke[] GetIncludedCompressions(
+    private static ImmutableArray<Stroke> GetIncludedCompressions(
         TelemetryData telemetryData,
         Suspension suspension,
         TelemetryTimeRange? range)
@@ -165,7 +166,7 @@ public static partial class TelemetryStatistics
         return GetIncludedStrokes(telemetryData, suspension, suspension.Strokes?.Compressions, range);
     }
 
-    private static Stroke[] GetIncludedRebounds(
+    private static ImmutableArray<Stroke> GetIncludedRebounds(
         TelemetryData telemetryData,
         Suspension suspension,
         TelemetryTimeRange? range)
@@ -173,7 +174,7 @@ public static partial class TelemetryStatistics
         return GetIncludedStrokes(telemetryData, suspension, suspension.Strokes?.Rebounds, range);
     }
 
-    private static Stroke[] GetIncludedStrokes(
+    private static ImmutableArray<Stroke> GetIncludedStrokes(
         TelemetryData telemetryData,
         Suspension suspension,
         BalanceType strokeKind,

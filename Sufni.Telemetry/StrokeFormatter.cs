@@ -91,7 +91,7 @@ public sealed class StrokeFormatter : IMessagePackFormatter<Stroke?>
             return new Stroke
             {
                 Start = start, End = end, Stat = stat,
-                DigitizedTravel = digitizedTravel, DigitizedVelocity = digitizedVelocity,
+                DigitizedTravel = [.. digitizedTravel], DigitizedVelocity = [.. digitizedVelocity],
                 StartSeconds = startSeconds, EndSeconds = endSeconds,
             };
         }

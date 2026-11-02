@@ -201,7 +201,7 @@ public class SessionPresentationServiceTests
             Present = true,
             MaxTravel = 100,
             Travel = [0, 10, 20, 30],
-            Velocity = velocity,
+            Velocity = [.. (velocity)],
             TravelBins = [0, 10, 20, 30, 40],
             VelocityBins = [-500, 0, 500],
             Strokes = new Strokes

@@ -463,12 +463,12 @@ public class PositionVelocityTraceBuilderTests
         {
             Present = true,
             MaxTravel = maxTravel,
-            Travel = travel,
-            Velocity = velocity,
-            Strokes = new Strokes { Compressions = compressions ?? [], Rebounds = rebounds ?? [] },
+            Travel = [.. (travel)],
+            Velocity = [.. (velocity)],
+            Strokes = new Strokes { Compressions = [.. (compressions ?? [])], Rebounds = [.. (rebounds ?? [])] },
             TravelBins = [],
             VelocityBins = [],
-            Segments = segments ?? [],
+            Segments = [.. (segments ?? [])],
             HasGaps = hasGaps
         };
 

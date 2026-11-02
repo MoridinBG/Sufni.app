@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics;
 using MathNet.Numerics.Statistics;
 using MessagePack;
@@ -18,11 +19,11 @@ public sealed record TelemetryData
     public Metadata Metadata { get; init; }
     public Suspension Front { get; init; }
     public Suspension Rear { get; init; }
-    public Airtime[] Airtimes { get; init; }
-    public MarkerData[] Markers { get; init; } = [];
+    public ImmutableArray<Airtime> Airtimes { get; init; }
+    public ImmutableArray<MarkerData> Markers { get; init; } = [];
     public RawImuData? ImuData { get; init; }
-    public GpsRecord[]? GpsData { get; init; }
-    public TemperatureAverage[] TemperatureAverages { get; init; } = [];
+    public ImmutableArray<GpsRecord>? GpsData { get; init; }
+    public ImmutableArray<TemperatureAverage> TemperatureAverages { get; init; } = [];
     [IgnoreMember] public byte[] BinaryForm => TelemetryCodec.Encode(this);
     [IgnoreMember] internal StrokeCoarseIndexes CoarseStrokeIndexes => strokeCoarseIndexes.Value;
 
@@ -246,11 +247,11 @@ public sealed record TelemetryData
         {
             Present = true,
             MaxTravel = maxTravel,
-            Travel = trace.Travel,
-            Velocity = trace.Velocity,
+            Travel = [.. trace.Travel],
+            Velocity = [.. trace.Velocity],
             Strokes = trace.Strokes,
-            TravelBins = trace.TravelBins,
-            VelocityBins = trace.VelocityBins,
+            TravelBins = [.. trace.TravelBins],
+            VelocityBins = [.. trace.VelocityBins],
             Segments = trace.Travel.Length == 0 ? [] : [new ProcessedSuspensionSegment { SampleCount = trace.Travel.Length }],
             AnomalyRate = CalculateAnomalyRate(preprocessed.AnomalyCount, preprocessed.Samples.Length, sampleRate),
         }, trace.Idlings);
@@ -342,11 +343,11 @@ public sealed record TelemetryData
         {
             Present = travel.Length > 0,
             MaxTravel = maxTravel,
-            Travel = travel,
-            Velocity = velocity,
+            Travel = [.. travel],
+            Velocity = [.. velocity],
             Strokes = new Strokes { Compressions = [.. compressions], Rebounds = [.. rebounds] },
-            TravelBins = maxTravel is > 0 ? HistogramBuilder.Linspace(0, maxTravel.Value, Parameters.TravelHistBins + 1) : [],
-            VelocityBins = HistogramBuilder.CreateVelocityBins(velocity.Length == 0 ? [0.0] : velocity, Parameters.VelocityHistStep),
+            TravelBins = maxTravel is > 0 ? [.. HistogramBuilder.Linspace(0, maxTravel.Value, Parameters.TravelHistBins + 1)] : [],
+            VelocityBins = [.. HistogramBuilder.CreateVelocityBins(velocity.Length == 0 ? [0.0] : velocity, Parameters.VelocityHistStep)],
             Segments = [.. processedSegments],
             HasGaps = travel.Length > 0 && (processedSegments.Count > 1 || hasGap),
             AnomalyRate = CalculateAnomalyRate(anomalyCount, sampleCount, sampleRate),
@@ -377,7 +378,7 @@ public sealed record TelemetryData
             EndSeconds = segmentStartSeconds + stroke.End / (double)sampleRate,
         };
         for (var i = 0; i < idlings.Length; i++) idlings[i] = (StrokeCandidate)Offset(idlings[i]);
-        return new Strokes { Compressions = strokes.Compressions.Select(Offset).ToArray(), Rebounds = strokes.Rebounds.Select(Offset).ToArray() };
+        return new Strokes { Compressions = [.. strokes.Compressions.Select(Offset)], Rebounds = [.. strokes.Rebounds.Select(Offset)] };
     }
 
     private sealed record ProcessedSide(Suspension Suspension, StrokeCandidate[] Idlings);
@@ -489,11 +490,11 @@ public sealed record TelemetryData
             Metadata = metadata,
             Front = front!.Suspension,
             Rear = rear!.Suspension,
-            Airtimes = CalculateAirTimes(front.Suspension, rear.Suspension, metadata.SampleRate, front.Idlings, rear.Idlings),
-            Markers = rawData.Markers,
+            Airtimes = [.. CalculateAirTimes(front.Suspension, rear.Suspension, metadata.SampleRate, front.Idlings, rear.Idlings)],
+            Markers = [.. rawData.Markers],
             ImuData = rawData.ImuData,
-            GpsData = rawData.GpsData,
-            TemperatureAverages = CalculateTemperatureAverages(rawData.TemperatureData),
+            GpsData = rawData.GpsData?.ToImmutableArray(),
+            TemperatureAverages = [.. CalculateTemperatureAverages(rawData.TemperatureData)],
         };
     }
 

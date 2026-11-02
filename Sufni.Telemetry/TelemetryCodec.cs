@@ -19,18 +19,19 @@ public static class TelemetryCodec
     private static Suspension NormalizeSegmentSampleCounts(Suspension suspension)
     {
         if (suspension is null) return null!;
-        if (suspension.Segments is not { Length: > 0 } segments)
-            return suspension.Segments is null ? suspension with { Segments = [] } : suspension;
+        var segments = suspension.Segments;
+        if (segments.IsDefaultOrEmpty)
+            return segments.IsDefault ? suspension with { Segments = [] } : suspension;
         if (segments.All(segment => segment.SampleCount > 0)) return suspension;
-        var length = suspension.Travel?.Length ?? 0;
+        var length = suspension.Travel.IsDefault ? 0 : suspension.Travel.Length;
         return suspension with
         {
-            Segments = segments.Select((segment, index) => segment with
+            Segments = [.. segments.Select((segment, index) => segment with
             {
                 SampleCount = length == 0 ? 0 : index < segments.Length - 1
                     ? segments[index + 1].FirstDenseIndex - segment.FirstDenseIndex
                     : length - segment.FirstDenseIndex,
-            }).ToArray(),
+            })],
         };
     }
 }

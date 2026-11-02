@@ -568,7 +568,7 @@ internal sealed class AttitudeCorrectionContext
         rear = telemetryData.Rear;
         frontVelocitySampler = CreateVelocitySampler(front, travelSampleRate);
         rearVelocitySampler = CreateVelocitySampler(rear, travelSampleRate);
-        airtimes = telemetryData.Airtimes ?? [];
+        airtimes = telemetryData.Airtimes.IsDefault ? [] : telemetryData.Airtimes;
     }
 
     private static SuspensionTimeSeriesSampler? CreateVelocitySampler(Suspension? suspension, int sampleRate) =>

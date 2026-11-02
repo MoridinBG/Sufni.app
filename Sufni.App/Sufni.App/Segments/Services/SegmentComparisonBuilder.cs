@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -136,7 +137,7 @@ internal static class SegmentComparisonBuilder
     private static void AddSuspensionSeries(
         ICollection<SegmentComparisonSeries> series,
         Suspension suspension,
-        Func<Suspension, double[]> valuesSelector,
+        Func<Suspension, ImmutableArray<double>> valuesSelector,
         string label,
         string unit,
         SegmentComparisonSeriesRole role,
@@ -147,7 +148,7 @@ internal static class SegmentComparisonBuilder
         double valueScale)
     {
         var sourceValues = valuesSelector(suspension);
-        if (!suspension.Present || sourceValues is not { Length: > 0 })
+        if (!suspension.Present || sourceValues.IsDefaultOrEmpty)
         {
             return;
         }
