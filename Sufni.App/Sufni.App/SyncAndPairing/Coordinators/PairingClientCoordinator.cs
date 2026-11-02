@@ -218,7 +218,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         serviceDiscovery.StopBrowse();
     }
 
-    public async Task<string?> ResolveServerUrlAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public async Task<ISynchronizationPeer?> ResolvePeerAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         await Initialization.WaitAsync(cancellationToken);
 
@@ -229,8 +229,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
         if (serverUrl is not null)
         {
-            httpApiService.ServerUrl = serverUrl;
-            return serverUrl;
+            return await httpApiService.GetPeerAsync(new PeerEndpoint(serverUrl));
         }
 
         var resolution = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -246,12 +245,8 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             try { resolvedServerUrl = await resolution.Task.WaitAsync(timeout, timeProvider, cancellationToken); }
             catch (TimeoutException) { return null; }
 
-            if (resolvedServerUrl is not null)
-            {
-                httpApiService.ServerUrl = resolvedServerUrl;
-            }
-
-            return resolvedServerUrl;
+            return resolvedServerUrl is null ? null
+                : await httpApiService.GetPeerAsync(new PeerEndpoint(resolvedServerUrl));
         }
         finally
         {
@@ -284,7 +279,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             normalized is not null);
         try
         {
-            await httpApiService.RequestPairingAsync(serverUrl, deviceId!, normalized);
+            await httpApiService.RequestPairingAsync(new PeerEndpoint(serverUrl), deviceId!, normalized);
             logger.Information("Pairing request sent");
             return new RequestPairingResult.Sent();
         }

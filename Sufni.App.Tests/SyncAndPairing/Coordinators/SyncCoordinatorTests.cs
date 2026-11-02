@@ -22,9 +22,9 @@ public class SyncCoordinatorTests
     public SyncCoordinatorTests()
     {
         pairing.PairedState.Returns(pairedState);
-        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>("https://sync.test"));
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
+        pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ISynchronizationPeer?>(Substitute.For<ISynchronizationPeer>()));
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
             .Returns(CompletedSync());
         appDataRefresher.RefreshAsync(Arg.Any<CancellationToken>())
             .Returns(Task.CompletedTask);
@@ -56,7 +56,7 @@ public class SyncCoordinatorTests
     {
         SetPairingState(true);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(call =>
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             started.SetResult();
             return new TaskCompletionSource<SynchronizationRunResult>().Task.WaitAsync(call.Arg<CancellationToken>());
@@ -94,7 +94,7 @@ public class SyncCoordinatorTests
     {
         SetPairingState(true);
         var gate = new TaskCompletionSource();
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
             .Returns(gate.Task.ContinueWith(_ => (SynchronizationRunResult)new SynchronizationRunResult.Completed()));
 
         var coordinator = CreateCoordinator();
@@ -121,7 +121,7 @@ public class SyncCoordinatorTests
 
         await coordinator.SyncAllAsync();
 
-        await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        await syncClient.DidNotReceive().SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
         await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
@@ -131,12 +131,12 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_CallsSyncAll_AndRefreshesState()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(CompletedSync());
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(CompletedSync());
 
         var coordinator = CreateCoordinator();
         await coordinator.SyncAllAsync();
 
-        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        await syncClient.Received(1).SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
         await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
@@ -144,7 +144,7 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_RaisesEvents_AndLeavesIsRunningFalse()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(CompletedSync());
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(CompletedSync());
         var coordinator = CreateCoordinator();
 
         var isRunningChanged = 0;
@@ -181,7 +181,7 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_RaisesIncompleteSyncCompletedMessage_WhenLocalDataRemainsIncomplete()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
             .Returns(IncompleteSync(missingProcessedSessionCount: 2, incompleteRecordedSourceCount: 1));
         var coordinator = CreateCoordinator();
 
@@ -202,10 +202,10 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_ReportsOuterAndServiceProgress_AndClearsItAfterSuccess()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
-                callInfo.ArgAt<IProgress<SynchronizationProgressSnapshot>?>(0)?.Report(
+                callInfo.Arg<IProgress<SynchronizationProgressSnapshot>?>()?.Report(
                     new SynchronizationProgressSnapshot(
                         SynchronizationPhase.PushingLocalChanges,
                         "Pushing local changes",
@@ -234,8 +234,8 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_WhenNoServerEndpointIsDiscovered_ReportsUnavailableClearsProgressAndHasNoSideEffects()
     {
         SetPairingState(true);
-        pairing.ResolveServerUrlAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<string?>(null));
+        pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<ISynchronizationPeer?>(null));
         var coordinator = CreateCoordinator();
         var events = new List<SynchronizationProgressSnapshot?>();
         var failed = 0;
@@ -252,7 +252,7 @@ public class SyncCoordinatorTests
         Assert.Null(events.Last());
         Assert.Null(coordinator.Progress);
         Assert.False(coordinator.IsRunning);
-        await syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        await syncClient.DidNotReceive().SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
         await appDataRefresher.DidNotReceive().RefreshAsync(Arg.Any<CancellationToken>());
     }
 
@@ -262,7 +262,7 @@ public class SyncCoordinatorTests
     public async Task SyncAllAsync_RaisesSyncFailed_AndResetsIsRunning_WhenRunFails()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(new SynchronizationRunResult.Failed(SyncFailureReason.Synchronize, "boom"));
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(new SynchronizationRunResult.Failed(SyncFailureReason.Synchronize, "boom"));
         var coordinator = CreateCoordinator();
 
         var failed = 0;
@@ -314,7 +314,7 @@ public class SyncCoordinatorTests
         // Wait for the detached SyncAllAsync task to drive SyncCompleted.
         await syncCompleted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        await syncClient.Received(1).SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
         await appDataRefresher.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
@@ -327,7 +327,7 @@ public class SyncCoordinatorTests
 
         pairing.PairingConfirmed += Raise.Event();
 
-        _ = syncClient.DidNotReceive().SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        _ = syncClient.DidNotReceive().SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -358,15 +358,15 @@ public class SyncCoordinatorTests
 
         await coordinator.SyncAllAsync();
 
-        await pairing.Received(1).ResolveServerUrlAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
-        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        await pairing.Received(1).ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>());
+        await syncClient.Received(1).SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task SyncAllAsync_RunsClientSyncThroughBackgroundRunner()
     {
         SetPairingState(true);
-        syncClient.SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(CompletedSync());
+        syncClient.SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>()).Returns(CompletedSync());
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
         var coordinator = new SyncCoordinator(
             appDataRefresher,
@@ -380,7 +380,7 @@ public class SyncCoordinatorTests
         await coordinator.SyncAllAsync();
 
         Assert.Equal(1, backgroundTaskRunner.InvocationCount);
-        await syncClient.Received(1).SyncAll(Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
+        await syncClient.Received(1).SyncAll(Arg.Any<ISynchronizationPeer>(), Arg.Any<IProgress<SynchronizationProgressSnapshot>?>(), Arg.Any<CancellationToken>());
     }
 
     private static Task<SynchronizationRunResult> CompletedSync() =>

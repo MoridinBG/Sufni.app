@@ -28,7 +28,6 @@ internal sealed class SyncTestServerHarness
         SecureStorage.GetStringAsync("ServerCertificateThumbprint").Returns(Peer.CertificateThumbprint);
         HttpApiService.GetPeerIdentityAsync().Returns(Peer);
         SyncDataStore.GetSequenceUpperBoundAsync(SynchronizationDirection.Push).Returns(9);
-        HttpApiService.ServerUrl.Returns("https://temporary-sync-endpoint.test");
         HttpApiService.GetSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new SynchronizationTransferResult<SessionBlobPayload>(null, SynchronizationTransferStatus.Pending));
         HttpApiService.GetRecordedSessionSourceAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
@@ -53,20 +52,19 @@ internal sealed class SyncTestServerHarness
     public IRecordedSessionSourceRepository RecordedSessionSourceRepository { get; } = Substitute.For<IRecordedSessionSourceRepository>();
     public IRecordedSessionSourceStoreWriter SourceStore { get; } = Substitute.For<IRecordedSessionSourceStoreWriter>();
     public IRecordedSessionSourceSyncQuery RecordedSessionSourceSyncQuery { get; } = Substitute.For<IRecordedSessionSourceSyncQuery>();
-    public IHttpApiService HttpApiService { get; } = Substitute.For<IHttpApiService>();
+    public ISynchronizationPeer HttpApiService { get; } = Substitute.For<ISynchronizationPeer>();
 
     public HttpApiService CreateHttpApiService(
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
-        new(SecureStorage, new HttpClient(new StubHttpMessageHandler(sendAsync)), Time);
+        new(SecureStorage, _ => new HttpClient(new StubHttpMessageHandler(sendAsync)), Time);
 
-    public SynchronizationClientService CreateSynchronizationClientService(ISyncDataStore? dataStore = null, IHttpApiService? api = null) =>
+    public SynchronizationClientService CreateSynchronizationClientService(ISyncDataStore? dataStore = null) =>
         new(
             dataStore ?? SyncDataStore,
             SessionRepository,
             RecordedSessionSourceRepository,
             SourceStore,
             RecordedSessionSourceSyncQuery,
-            api ?? HttpApiService,
             SessionSyncApplier);
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)

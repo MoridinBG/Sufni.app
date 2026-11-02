@@ -96,7 +96,7 @@ the merge engine writes them in both remote-update variants, including the one
 that keeps the held processed generation. Protocol v5 adds the saved-segment
 list. Protocol v6 carries the app calibration version in processing fingerprints
 the authored session filter option and source-owned segment anchors. It removes
-stored session-track links/windows and GPS metrics from the session payload, and rejects older peers. The client installs the header on its shared
+stored session-track links/windows and GPS metrics from the session payload, and rejects older peers. The client installs the header on each peer’s
 `HttpClient`, so new endpoint groups must either stay behind that service or
 explicitly add the same version gate. Kestrel caps sync request bodies at 256
 MiB.
@@ -155,12 +155,23 @@ releases its event subscriptions on disposal.
 5. **Push incomplete recorded sources** — for each source id the server advertises, upload the local `RecordedSessionSourcePayload`
 6. **Pull incomplete recorded sources** — for each local source id produced by `IRecordedSessionSourceSyncQuery`, download the server's `RecordedSessionSourcePayload`
 
-The client captures a `PeerIdentity` from the pinned certificate thumbprint and
-the database incarnation returned with its tokens. Both cursors use this identity;
+Discovery resolves an atomic `PeerEndpoint` and captures an `ISynchronizationPeer`
+for the entire run. That peer owns its HTTP client, certificate pin, credentials
+and single-flight refresh. Address rediscovery updates only its endpoint; pairing
+replacement creates a new peer. A run links cancellation to the captured peer’s
+lifetime, so later requests cannot switch to a newly paired hub. Re-pairing and
+unpairing cancel old transfers, await an already-started credential rotation, and
+dispose the old client before another pairing can write secure credentials.
+Unpairing clears local credentials before its remote revocation request, which
+still validates the old peer’s certificate. The legacy persisted `ServerUrl` is
+removed at initialization; an endpoint comes only from discovery.
+
+The client captures a `PeerIdentity` from the peer’s pinned certificate thumbprint
+and the database incarnation returned with its tokens. Both cursors use this identity;
 address changes preserve them, while a different hub or incarnation starts a
 baseline from zero. The fixed `paired-server` key is removed. Incarnation currently
-arrives through confirmation and refresh; run-start verification and the per-peer
-HTTP lifetime are still pending in Epic 6.
+arrives through confirmation and refresh; run-start verification and explicit
+re-pair cursor reset are still pending in Epic 6.
 
 The metadata snapshot's one `upper_bound` applies to every synced table, including
 custom map layers, and the deletion ledger. Core delta queries include updates and
@@ -227,7 +238,7 @@ or write repositories, so publication does not duplicate the persistence operati
 
 `HttpApiService` is registered by `MobileAppBootstrapper` alongside the outbound sync and pairing clients. Desktop composition does not register it.
 
-`HttpApiService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/HttpApiService.cs`) handles JWT auto-refresh and owns the replayed `PairedState` stream: startup publishes whether a refresh token exists, confirm publishes paired, and local credential clearing publishes unpaired. When the access token is within 30 seconds of expiry, it calls `/pair/refresh` (which rotates both the access and refresh tokens). If `/pair/refresh` itself returns 401, the stored pairing credentials are cleared and `PairedState` publishes `false`. The client enables TLS 1.2 and TLS 1.3 to match the desktop server.
+`HttpApiService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/HttpApiService.cs`) owns peer creation/retirement and the replayed `PairedState` stream: startup publishes whether a refresh token exists, confirm publishes paired, and local credential clearing publishes unpaired. `SynchronizationPeer` owns JWT auto-refresh. When the access token is within 30 seconds of expiry, it calls `/pair/refresh` (which rotates both the access and refresh tokens). If `/pair/refresh` itself returns 401, the stored pairing credentials are cleared and `PairedState` publishes `false`. The client enables TLS 1.2 and TLS 1.3 to match the desktop server.
 
 TLS validation is performed by `SynchronizationCertificateValidator.TryValidate(...)` and is stricter than a generic CN check: it rejects expired certificates, requires an exact subject match against the constant `SynchronizationProtocol.CertificateSubjectName` (`cn=com.sghctoma.sst-api`), and pins the **certificate thumbprint** captured at pairing time against `SecureStorage`. The certificate chain itself is not validated — that's what makes LAN self-signed certs viable, but the thumbprint pin replaces the missing chain trust with TOFU.
 

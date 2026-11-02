@@ -8,12 +8,14 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
 public class PairingClientCoordinatorTests
 {
     private const string DisplayNameKey = "DisplayName";
 
+    private readonly ISynchronizationPeer peer = Substitute.For<ISynchronizationPeer>();
     private readonly ILocalDeviceIdentity localDeviceIdentity = Substitute.For<ILocalDeviceIdentity>();
     private readonly ISecureStorage secureStorage = Substitute.For<ISecureStorage>();
     private readonly IHttpApiService httpApiService = Substitute.For<IHttpApiService>();
@@ -24,6 +26,7 @@ public class PairingClientCoordinatorTests
 
     public PairingClientCoordinatorTests()
     {
+        httpApiService.GetPeerAsync(Arg.Any<PeerEndpoint>()).Returns(peer);
         httpApiService.PairedState.Returns(pairedState);
         httpApiService.ConfirmPairingAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>())
             .Returns(_ =>
@@ -158,13 +161,13 @@ public class PairingClientCoordinatorTests
     }
 
     [Fact]
-    public async Task ResolveServerUrlAsync_EndsTemporaryBrowseWhenDeadlineExpires()
+    public async Task ResolvePeerAsync_EndsTemporaryBrowseWhenDeadlineExpires()
     {
         SeedInitDefaults(isPaired: true);
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
 
-        var resolving = coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(5));
+        var resolving = coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(5));
         time.Advance(TimeSpan.FromSeconds(4));
         Assert.False(resolving.IsCompleted);
         time.Advance(TimeSpan.FromSeconds(1));
@@ -174,7 +177,7 @@ public class PairingClientCoordinatorTests
     }
 
     [Fact]
-    public async Task ResolveServerUrlAsync_ReturnsCurrentDiscoveryUrl_AndUpdatesHttpEndpoint()
+    public async Task ResolvePeerAsync_ReturnsCurrentDiscoveryUrl_AndUpdatesHttpEndpoint()
     {
         SeedInitDefaults(isPaired: true);
         var coordinator = CreateCoordinator();
@@ -183,21 +186,21 @@ public class PairingClientCoordinatorTests
             serviceDiscovery,
             new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
 
-        var resolvedUrl = await coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(1));
+        var resolvedUrl = await coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(1));
 
-        Assert.Equal("https://192.168.1.10:8443", resolvedUrl);
-        httpApiService.Received(1).ServerUrl = "https://192.168.1.10:8443";
+        Assert.Same(peer, resolvedUrl);
+        await httpApiService.Received(1).GetPeerAsync(new PeerEndpoint("https://192.168.1.10:8443"));
         serviceDiscovery.DidNotReceive().StartBrowse(Arg.Any<string>());
     }
 
     [Fact]
-    public async Task ResolveServerUrlAsync_StartsTemporaryBrowseUntilServerIsDiscovered()
+    public async Task ResolvePeerAsync_StartsTemporaryBrowseUntilServerIsDiscovered()
     {
         SeedInitDefaults(isPaired: true);
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
 
-        var resolving = coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(1));
+        var resolving = coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(1));
         serviceDiscovery.Received(1).StartBrowse(SynchronizationProtocol.ServiceType);
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
@@ -206,20 +209,20 @@ public class PairingClientCoordinatorTests
 
         var resolvedUrl = await resolving;
 
-        Assert.Equal("https://192.168.1.10:8443", resolvedUrl);
-        httpApiService.Received(1).ServerUrl = "https://192.168.1.10:8443";
+        Assert.Same(peer, resolvedUrl);
+        await httpApiService.Received(1).GetPeerAsync(new PeerEndpoint("https://192.168.1.10:8443"));
         serviceDiscovery.Received(1).StopBrowse();
     }
 
     [Fact]
-    public async Task ResolveServerUrlAsync_DoesNotStopExistingBrowseLease()
+    public async Task ResolvePeerAsync_DoesNotStopExistingBrowseLease()
     {
         SeedInitDefaults(isPaired: true);
         var coordinator = CreateCoordinator();
         await DrainInitializationAsync(coordinator);
         coordinator.StartBrowsing();
 
-        var resolving = coordinator.ResolveServerUrlAsync(TimeSpan.FromSeconds(1));
+        var resolving = coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(1));
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -372,7 +375,7 @@ public class PairingClientCoordinatorTests
 
         Assert.IsType<RequestPairingResult.Sent>(result);
         await httpApiService.Received(1).RequestPairingAsync(
-            "https://192.168.1.10:8443",
+            new PeerEndpoint("https://192.168.1.10:8443"),
             "device-123",
             "My Phone");
     }
@@ -385,7 +388,7 @@ public class PairingClientCoordinatorTests
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
             new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
-        httpApiService.RequestPairingAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
+        httpApiService.RequestPairingAsync(Arg.Any<PeerEndpoint>(), Arg.Any<string>(), Arg.Any<string?>())
             .ThrowsAsync(new InvalidOperationException("boom"));
 
         var result = await coordinator.RequestPairingAsync("label");

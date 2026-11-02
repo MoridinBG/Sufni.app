@@ -144,6 +144,7 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
     {
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
         var token = runCancellation.Token;
+        ISynchronizationPeer? peer = null;
         if (!CanSync)
         {
             logger.Verbose("Sync request ignored because synchronization is unavailable");
@@ -163,8 +164,8 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
                     TotalSteps: 8,
                     IsDeterminate: true);
 
-                var serverUrl = await pairingClientCoordinator.ResolveServerUrlAsync(ServerDiscoveryTimeout, token);
-                if (serverUrl is null)
+                peer = await pairingClientCoordinator.ResolvePeerAsync(ServerDiscoveryTimeout, token);
+                if (peer is null)
                 {
                     ServerUnavailable?.Invoke(this, EventArgs.Empty);
                     return;
@@ -173,7 +174,7 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
 
             logger.Verbose("Running remote synchronization phases");
             var result = await backgroundTaskRunner.RunAsync(() =>
-                synchronizationClientService!.SyncAll(new SyncProgressReporter(ReportOutboundServiceProgress), token));
+                synchronizationClientService!.SyncAll(peer!, new SyncProgressReporter(ReportOutboundServiceProgress), token));
 
             if (result is SynchronizationRunResult.Failed failed)
             {
@@ -194,7 +195,7 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
             logger.Information("Synchronization completed: {CompletionMessage}", completionMessage);
             SyncCompleted?.Invoke(this, new SyncCompletedEventArgs(completionMessage));
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested || peer?.Lifetime.IsCancellationRequested == true)
         {
             // Already committed phases still need to reach the shared read state.
             await RefreshStateOnUiThreadAsync();
