@@ -236,6 +236,8 @@ public class ProcessingDependencyHashIndexTests
 
         public IReadOnlyList<SetupSnapshot> GetAll() => cache.Items.ToArray();
 
+        public bool IsBikeReferenced(Guid bikeId) => cache.Items.Any(setup => setup.BikeId == bikeId);
+
         public void Add(SetupSnapshot snapshot) => cache.AddOrUpdate(snapshot);
 
         public void Remove(Guid id) => cache.RemoveKey(id);

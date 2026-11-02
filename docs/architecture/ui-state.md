@@ -306,9 +306,10 @@ each slice's `Queries/` folder (e.g. `Bikes/Queries/`, `LiveDaq/Queries/`).
 `IBikeDependencyQuery.IsBikeInUseAsync(Guid)` (backed by
 `BikeDependencyQuery` over `ISynchronizableRepository<Setup>`) reports whether any
 setup currently references a bike. `BikeCoordinator.DeleteAsync` uses
-it to short-circuit deletes with `BikeDeleteResult.InUse`. The
-answer is sourced from the database, not from any list view model, so
-it does not depend on which screens the user has visited.
+it to short-circuit deletes with `BikeDeleteResult.InUse`. That authoritative
+answer comes from the database. For command availability the query delegates to
+`ISetupStore.IsBikeReferenced` and exposes its change stream directly; it owns
+no duplicate setup cache or subscription.
 
 `ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency or fallback through setup snapshots. See [Live DAQ Streaming](live-streaming.md).
 

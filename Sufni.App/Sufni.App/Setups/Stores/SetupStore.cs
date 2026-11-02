@@ -13,6 +13,8 @@ internal sealed class SetupStore(StorePublication publication)
 {
     public IReadOnlyList<SetupSnapshot> GetAll() => Items.ToArray();
 
+    public bool IsBikeReferenced(Guid bikeId) => Items.Any(setup => setup.BikeId == bikeId);
+
     public Task PublishSetupsChangedAsync(IReadOnlyCollection<SetupSnapshot> snapshots, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

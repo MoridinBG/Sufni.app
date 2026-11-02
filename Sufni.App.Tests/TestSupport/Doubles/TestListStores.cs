@@ -61,6 +61,8 @@ internal sealed class SetupStoreStub : ISetupStore, IDisposable
 
     public IReadOnlyList<SetupSnapshot> GetAll() => cache.Items.ToArray();
 
+    public bool IsBikeReferenced(Guid bikeId) => cache.Items.Any(setup => setup.BikeId == bikeId);
+
 }
 
 internal sealed class PairedDeviceStoreStub : IPairedDeviceStore

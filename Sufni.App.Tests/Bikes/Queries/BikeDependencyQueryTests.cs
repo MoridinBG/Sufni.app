@@ -1,25 +1,21 @@
-using Sufni.App.Shared.Models;
 using Sufni.App.Shared.Stores;
-using System.Reactive;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using NSubstitute;
 
 using Sufni.App.Bikes.Queries;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
-using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Tests.Bikes.Queries;
 
-public class BikeDependencyQueryTests
+public class BikeDependencyQueryTests : IDisposable
 {
     private readonly ISynchronizableRepository<Setup> setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
-    private readonly ISynchronizableRepository<Board> boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
     private readonly SetupStore setupStore;
 
     public BikeDependencyQueryTests()
     {
         setupStore = new SetupStore(new StorePublication(new InlineUiThreadDispatcher()));
-        boardRepository.GetAllAsync().Returns(Task.FromResult(new List<Board>()));
     }
 
     private BikeDependencyQuery CreateQuery() => new(setupRepository, setupStore);
@@ -33,7 +29,7 @@ public class BikeDependencyQueryTests
             new(Guid.NewGuid(), "other") { BikeId = Guid.NewGuid() },
             new(Guid.NewGuid(), "match") { BikeId = bikeId },
         }));
-        using var query = CreateQuery();
+        var query = CreateQuery();
 
         Assert.True(await query.IsBikeInUseAsync(bikeId));
         Assert.False(await query.IsBikeInUseAsync(Guid.NewGuid()));
@@ -43,7 +39,7 @@ public class BikeDependencyQueryTests
     public async Task IsBikeInUseAsync_ToleratesNullRepositoryEntries()
     {
         setupRepository.GetAllAsync().Returns(Task.FromResult(new List<Setup> { null! }));
-        using var query = CreateQuery();
+        var query = CreateQuery();
 
         Assert.False(await query.IsBikeInUseAsync(Guid.NewGuid()));
     }
@@ -56,7 +52,7 @@ public class BikeDependencyQueryTests
         {
             new(Guid.NewGuid(), "match") { BikeId = bikeId },
         }));
-        using var query = CreateQuery();
+        var query = CreateQuery();
 
         Assert.False(query.IsBikeInUse(bikeId));
 
@@ -67,29 +63,22 @@ public class BikeDependencyQueryTests
     }
 
     [Fact]
-    public async Task Changes_EmitsInitiallyAndPerStoreChange()
+    public async Task Changes_ObserversReadCurrentReferenceAfterReassignmentAndRemoval()
     {
-        var setupId = Guid.NewGuid();
-        var bikeId = Guid.NewGuid();
-        setupRepository.GetAllAsync().Returns(
-            Task.FromResult(new List<Setup>
-            {
-                new(setupId, "race") { BikeId = bikeId, Updated = 1 },
-            }),
-            Task.FromResult(new List<Setup>
-            {
-                new(setupId, "race updated") { BikeId = bikeId, Updated = 2 },
-            }));
-        using var query = CreateQuery();
-        await setupStore.ReplaceAllAsync((await setupRepository.GetAllAsync()).Select(setup => SetupSnapshot.From(setup)).ToArray());
+        var firstBike = Guid.NewGuid();
+        var secondBike = Guid.NewGuid();
+        var setup = TestSnapshots.Setup() with { BikeId = firstBike };
+        await setupStore.PublishSetupsChangedAsync([setup]);
+        var query = CreateQuery();
+        var observed = new List<(bool First, bool Second)>();
+        using var subscription = query.Changes.Subscribe(_ =>
+            observed.Add((query.IsBikeInUse(firstBike), query.IsBikeInUse(secondBike))));
 
-        // A subscriber arriving after items exist receives the cache's
-        // current state as an initial emit, then one emit per change.
-        var emits = 0;
-        using var subscription = query.Changes.Subscribe(_ => emits++);
-        Assert.Equal(1, emits);
+        await setupStore.PublishSetupsChangedAsync([setup with { BikeId = secondBike }]);
+        await setupStore.PublishSetupsRemovedAsync([setup.Id]);
 
-        await setupStore.ReplaceAllAsync((await setupRepository.GetAllAsync()).Select(setup => SetupSnapshot.From(setup)).ToArray());
-        Assert.Equal(2, emits);
+        Assert.Equal([(true, false), (false, true), (false, false)], observed);
     }
+
+    public void Dispose() => setupStore.Dispose();
 }

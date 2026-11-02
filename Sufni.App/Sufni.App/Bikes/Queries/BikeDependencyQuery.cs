@@ -3,28 +3,22 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using DynamicData;
 
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Bikes.Queries;
 
-public sealed class BikeDependencyQuery : IBikeDependencyQuery, IDisposable
+public sealed class BikeDependencyQuery : IBikeDependencyQuery
 {
     private readonly ISynchronizableRepository<Setup> setupRepository;
-    private readonly IObservableCache<SetupSnapshot, Guid> setupCache;
+    private readonly ISetupStore setupStore;
 
     public BikeDependencyQuery(ISynchronizableRepository<Setup> setupRepository, ISetupStore setupStore)
     {
         this.setupRepository = setupRepository;
-        // Materialize the stream for synchronous dependency checks.
-        setupCache = setupStore.Connect().AsObservableCache();
-        // Project the cache's change stream into a void signal that
-        // delete-aware view models subscribe to. Each subscriber gets
-        // an initial emit (the cache's initial change set) plus one
-        // emit per subsequent setup add/remove/update.
-        Changes = setupCache.Connect().Select(_ => Unit.Default);
+        this.setupStore = setupStore;
+        Changes = setupStore.Connect().Select(_ => Unit.Default);
     }
 
     public async Task<bool> IsBikeInUseAsync(Guid bikeId)
@@ -34,9 +28,8 @@ public sealed class BikeDependencyQuery : IBikeDependencyQuery, IDisposable
     }
 
     public bool IsBikeInUse(Guid bikeId) =>
-        setupCache.Items.Any(s => s.BikeId == bikeId);
+        setupStore.IsBikeReferenced(bikeId);
 
     public IObservable<Unit> Changes { get; }
 
-    public void Dispose() => setupCache.Dispose();
 }

@@ -24,4 +24,6 @@ public interface ISetupStore
     SetupSnapshot? Get(Guid id);
 
     IReadOnlyList<SetupSnapshot> GetAll();
+
+    bool IsBikeReferenced(Guid bikeId);
 }
