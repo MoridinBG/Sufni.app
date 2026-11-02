@@ -209,21 +209,17 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated)
+    public async Task<SessionSaveResult> SaveAsync(SessionDraft draft, SessionDraft draftBase)
     {
-        logger.Information("Starting session save for {SessionId}", session.Id);
-
-        // Optimistic concurrency is the in-memory store-snapshot compare, not a
-        // SQL WHERE updated=? guard: the store's last-seen Updated is the editor's
-        // baseline, so a newer store snapshot means an external edit landed first.
-        var current = sessionStore.Get(session.Id);
-        if (current is not null && current.Updated > baselineUpdated)
+        logger.Information("Starting session save for {SessionId}", draft.Id);
+        var current = sessionStore.Get(draft.Id);
+        if (current is null) return new SessionSaveResult.Missing();
+        if (SessionDraft.From(current) != draftBase)
         {
-            logger.Warning("Session save conflict for {SessionId}", session.Id);
+            logger.Warning("Session save conflict for {SessionId}", draft.Id);
             return new SessionSaveResult.Conflict(current);
         }
-
-        if (current is not null) session.VelocityFilterWindowMilliseconds = current.VelocityFilterWindowMilliseconds;
+        var session = draft.ApplyTo(current);
 
         try
         {
@@ -241,7 +237,7 @@ internal sealed class SessionCoordinator : ISessionCoordinator
             var saved = SessionSnapshot.From(fresh);
             await sessionStore.PublishSessionsChangedAsync([saved]);
             logger.Information("Session save completed for {SessionId}", session.Id);
-            return new SessionSaveResult.Saved(saved.Id, saved.Updated);
+            return new SessionSaveResult.Saved(saved);
         }
         catch (Exception e)
         {
@@ -289,7 +285,7 @@ public abstract record SessionSaveResult
 {
     private SessionSaveResult() { }
 
-    public sealed record Saved(Guid Id, long NewBaselineUpdated) : SessionSaveResult;
+    public sealed record Saved(SessionSnapshot Snapshot) : SessionSaveResult;
     public sealed record Conflict(SessionSnapshot CurrentSnapshot) : SessionSaveResult;
     public sealed record Missing : SessionSaveResult;
     public sealed record Failed(SessionSaveFailureReason Reason, string? Details = null) : SessionSaveResult;

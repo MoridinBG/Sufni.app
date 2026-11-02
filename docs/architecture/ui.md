@@ -348,7 +348,7 @@ Store writer APIs publish prepared facts and return no business results.
 Persistence errors propagate to workflow owners; stores neither catch exceptions
 nor return mutation-result unions.
 
-`SessionSaveResult` is `Saved(Id, NewBaselineUpdated) | Conflict(CurrentSnapshot) |
+`SessionSaveResult` is `Saved(Snapshot) | Conflict(CurrentSnapshot) |
 Missing | Failed(reason, details)`, with `SessionSaveFailureReason.Save`.
 `SessionEditResult` is `Applied(RecomputeFailure?) | Missing | Failed(reason, details)`;
 `SessionEditFailureReason` distinguishes `Edit` from `Rejected`. Missing sessions

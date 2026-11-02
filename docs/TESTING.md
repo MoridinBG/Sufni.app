@@ -244,12 +244,12 @@ Code that usually does not need direct tests includes:
 
 Editor and coordinator tests should make the optimistic-concurrency mechanism explicit.
 
-- Editors carry `BaselineUpdated`, initialized from the loaded snapshot's `Updated` value.
-- Coordinators compare that baseline against the current stored snapshot version on save.
+- Recorded session editors capture an immutable `SessionDraft` base. Their coordinator compares the fields saved by that draft against the current snapshot; alignment, processing options and derived updates must not conflict. Test a metadata conflict even when `Updated` is unchanged, and preservation of unrelated changes when `Updated` has advanced.
+- Bike/setup editors currently carry `BaselineUpdated`, initialized from the loaded snapshot's `Updated` value. Their coordinators compare that timestamp against the current snapshot on save.
 - If the values diverge, the save should be rejected with the appropriate conflict path instead of silently overwriting newer data.
 - Tests should cover both the matching-version case and the stale-version case.
 
-This mechanism is shared across editor save flows and should be treated as a standard contract, not an incidental implementation detail.
+Assert the applicable editor contract through save outcomes and captured draft inputs; do not assert private synchronization flags.
 
 ## Patterns To Avoid
 

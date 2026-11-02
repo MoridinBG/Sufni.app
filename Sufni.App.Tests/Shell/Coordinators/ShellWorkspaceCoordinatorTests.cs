@@ -110,7 +110,7 @@ public class ShellWorkspaceCoordinatorTests
         var restored = Assert.IsType<SessionDetailViewModel>(workspace.CurrentTab);
         Assert.NotSame(editor, restored);
         Assert.Equal("updated", restored.Name);
-        Assert.Equal(42, restored.BaselineUpdated);
+        Assert.False(restored.IsDirty);
         await restored.PrepareCloseAsync();
     }
 

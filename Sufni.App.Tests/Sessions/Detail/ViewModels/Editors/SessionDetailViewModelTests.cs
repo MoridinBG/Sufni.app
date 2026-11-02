@@ -160,7 +160,8 @@ public class SessionDetailViewModelTests
         await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         Assert.True(editor.IsDirty);
         Assert.Equal("dirty draft", editor.DescriptionText);
-        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+        await harness.SaveAsync(editor);
+        await harness.SessionCoordinator.Received(1).SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot));
         await harness.CloseAsync(editor);
     }
 
@@ -321,20 +322,40 @@ public class SessionDetailViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_CompletesEdit_AfterAcceptingSavedBaseline()
+    public async Task Save_CompletesEdit_AfterAcceptingSavedDraft()
     {
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(updated: 5);
         var editor = harness.CreateLoadedRecordedSession(snapshot);
         editor.Name = "renamed";
-        harness.SessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
-            .Returns(new SessionSaveResult.Saved(snapshot.Id, 11));
+        harness.SessionCoordinator.SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot))
+            .Returns(new SessionSaveResult.Saved(snapshot with { Name = "renamed", Updated = 11 }));
 
         await harness.SaveAsync(editor);
 
-        Assert.Equal(11, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
         harness.Shell.Received(1).CompleteEdit(new EditorKey.Session(snapshot.Id));
+    }
+
+    [AvaloniaFact]
+    public async Task Save_KeepsChangesMadeWhilePersistenceIsPendingDirty()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession(name: "original");
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        editor.Name = "submitted";
+        var pending = new TaskCompletionSource<SessionSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.SessionCoordinator.SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot)).Returns(pending.Task);
+
+        var save = harness.SaveAsync(editor);
+        editor.Name = "newer draft";
+        pending.SetResult(new SessionSaveResult.Saved(snapshot with { Name = "submitted" }));
+        await save.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("newer draft", editor.Name);
+        Assert.True(editor.IsDirty);
+        harness.Shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
+        await harness.CloseAsync(editor);
     }
 
     [AvaloniaFact]
@@ -346,14 +367,14 @@ public class SessionDetailViewModelTests
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Session(id: snapshot.Id, name: "remote-updated", updated: 12);
-        harness.SessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
+        harness.SessionCoordinator.SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot))
             .Returns(new SessionSaveResult.Conflict(fresh));
         harness.DialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await harness.SaveAsync(editor);
 
         Assert.Equal("remote-updated", editor.Name);
-        Assert.Equal(12, editor.BaselineUpdated);
+        Assert.False(editor.IsDirty);
         harness.Shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
     }
 
@@ -366,13 +387,13 @@ public class SessionDetailViewModelTests
         var snapshot = harness.CreateRecordedSession(updated: 5);
         var editor = harness.CreateLoadedRecordedSession(snapshot);
         editor.Name = "renamed";
-        harness.SessionCoordinator.SaveAsync(Arg.Any<Session>(), 5)
+        harness.SessionCoordinator.SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot))
             .Returns(missing ? new SessionSaveResult.Missing() : new SessionSaveResult.Failed(SessionSaveFailureReason.Save, "disk full"));
 
         await harness.SaveAsync(editor);
 
         Assert.True(editor.IsDirty);
-        Assert.Equal(5, editor.BaselineUpdated);
+        Assert.Equal("renamed", editor.Name);
         Assert.Equal(missing ? 0 : 1, editor.ErrorMessages.Count);
         Assert.Equal(missing ? 1 : 0, editor.Notifications.Count);
         harness.Shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
@@ -663,7 +684,8 @@ public class SessionDetailViewModelTests
 
         Assert.True(editor.IsDirty);
         Assert.Equal("dirty draft", editor.DescriptionText);
-        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+        await harness.SaveAsync(editor);
+        await harness.SessionCoordinator.Received(1).SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot));
         Assert.Same(oldTelemetry, editor.CurrentTelemetryData);
         await harness.SessionLoader.Received(1).LoadDetailAsync(
             snapshot.Id,
@@ -734,7 +756,8 @@ public class SessionDetailViewModelTests
         await harness.DialogService.Received(1).ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         Assert.True(editor.IsDirty);
         Assert.Equal("dirty draft", editor.DescriptionText);
-        Assert.Equal(snapshot.Updated, editor.BaselineUpdated);
+        await harness.SaveAsync(editor);
+        await harness.SessionCoordinator.Received(1).SaveAsync(Arg.Any<SessionDraft>(), SessionDraft.From(snapshot));
     }
 
     [AvaloniaFact]

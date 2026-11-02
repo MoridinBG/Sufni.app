@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Coordination;
 using System;
 using System.Collections.Generic;
 using System.Reactive;
@@ -143,20 +144,7 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
     }
 
     public static bool RequiresDraftReconciliation(SessionSnapshot previous, SessionSnapshot current) =>
-        previous.Name != current.Name ||
-        previous.Description != current.Description ||
-        previous.SetupId != current.SetupId ||
-        previous.Timestamp != current.Timestamp ||
-        previous.FrontSpringRate != current.FrontSpringRate ||
-        previous.FrontHighSpeedCompression != current.FrontHighSpeedCompression ||
-        previous.FrontLowSpeedCompression != current.FrontLowSpeedCompression ||
-        previous.FrontLowSpeedRebound != current.FrontLowSpeedRebound ||
-        previous.FrontHighSpeedRebound != current.FrontHighSpeedRebound ||
-        previous.RearSpringRate != current.RearSpringRate ||
-        previous.RearHighSpeedCompression != current.RearHighSpeedCompression ||
-        previous.RearLowSpeedCompression != current.RearLowSpeedCompression ||
-        previous.RearLowSpeedRebound != current.RearLowSpeedRebound ||
-        previous.RearHighSpeedRebound != current.RearHighSpeedRebound;
+        SessionDraft.From(previous) != SessionDraft.From(current);
 
     public static bool RequiresTelemetryReload(RecordedSessionDomainSnapshot previous, RecordedSessionDomainSnapshot current) =>
         previous.Session.HasProcessedData != current.Session.HasProcessedData ||

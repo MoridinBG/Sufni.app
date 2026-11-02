@@ -50,6 +50,11 @@ and source snapshots.
 Recorded editors call `ISessionLoader` directly for staged telemetry and track
 reads. Session lists and the staleness reconciler call `ISessionRecomputeEngine`
 directly; that owner retains cancellation, supersession and commit guards.
+`SessionCoordinator.SaveAsync(draft, draftBase)` compares only the metadata fields
+that the draft saves against the current session snapshot. Processing options and
+GPS alignment are separate commands and never conflict with that draft. A saved
+result carries the persisted snapshot for the next draft base.
+
 `SessionCoordinator` has no forwarding-only methods or command-service wrapper.
 
 Session readers and other workflow owners live beside the coordinator (all in `Sufni.App/Sufni.App/Sessions/Coordination/`, registered as

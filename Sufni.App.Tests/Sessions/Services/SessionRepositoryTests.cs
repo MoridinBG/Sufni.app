@@ -401,7 +401,7 @@ public class SessionRepositoryTests
     }
 
     [Fact]
-    public async Task PutSessionAsync_PreservesAlignmentAndTimestamp_OnMetadataUpdate()
+    public async Task PutSessionAsync_PreservesAlignmentTimestampAndProcessingOption_OnMetadataUpdate()
     {
         using var tempDatabase = new TempDatabase("session-gps-offset-metadata-save.db");
         var databasePath = tempDatabase.DatabasePath;
@@ -410,12 +410,12 @@ public class SessionRepositoryTests
 
         await database.PutSessionAsync(new Session(sessionId, "original", "desc", null, 100)
         {
-            GpsOffsetSeconds = 1.25
+            GpsOffsetSeconds = 1.25, VelocityFilterWindowMilliseconds = 100
         });
 
         await database.PutSessionAsync(new Session(sessionId, "renamed", "desc", null, 200)
         {
-            GpsOffsetSeconds = 3.75
+            GpsOffsetSeconds = 3.75, VelocityFilterWindowMilliseconds = 250
         });
 
         var loaded = await database.GetSessionAsync(sessionId);
@@ -423,6 +423,7 @@ public class SessionRepositoryTests
         Assert.NotNull(loaded);
         Assert.Equal(1.25, loaded!.GpsOffsetSeconds);
         Assert.Equal(100, loaded.Timestamp);
+        Assert.Equal(100, loaded.VelocityFilterWindowMilliseconds);
         Assert.Equal("renamed", loaded.Name);
     }
 

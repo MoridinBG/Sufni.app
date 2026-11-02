@@ -11,7 +11,6 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 internal sealed class TestSessionOperationGateway : ISessionOperationGateway
 {
     public Guid SessionId { get; set; } = Guid.NewGuid();
-    public long BaselineUpdated { get; set; }
     public bool IsDirty { get; set; }
     public bool IsViewLoaded { get; set; } = true;
     public bool DeferDomainHandling { get; set; }

@@ -145,7 +145,7 @@ internal sealed class InMemorySessionRepository
                     AscentMeters = current.AscentMeters,
                     DescentMeters = current.DescentMeters,
                     ProcessedTelemetryRevision = current.ProcessedTelemetryRevision,
-
+                    VelocityFilterWindowMilliseconds = current.VelocityFilterWindowMilliseconds,
                 };
             }
             snapshots[draft.Id] = saved;

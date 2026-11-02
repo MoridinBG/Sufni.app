@@ -144,9 +144,9 @@ There are five kinds of view model in the presentation layer:
   another view model and never stored in a list. The shell owns the factory;
   feature view models request `EditorKey` surfaces and deleted-editor closure
   through `IShellCoordinator`. Coordinators return domain results.
-  Persisted-entity editors keep the snapshot's `Updated` value as
-  `BaselineUpdated` for optimistic conflict detection at save time,
-  derive editable state from the snapshot in `ResetImplementation`,
+  Bike/setup editors currently keep `BaselineUpdated`; recorded sessions compare
+  a `SessionDraft` and its immutable draft base by the fields the editor saves.
+  Editors derive editable state from the snapshot in `ResetImplementation`,
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
   `SaveResult.Conflict` they prompt the user via
   `IDialogService.ShowConfirmationAsync` and rebuild from the
@@ -190,7 +190,11 @@ There are five kinds of view model in the presentation layer:
   all subscribers. Signal and analysis workspaces hold one state reference and
   derive their binding properties from it; notifications see the whole new state.
   `SessionDetailViewModel` keeps one current state
-  snapshot for legacy read properties and property notifications, while
+  snapshot for read properties and property notifications. Its binding fields
+  form the editable draft; one immutable `SessionDraft` base supports reset,
+  dirtiness and conflict checks without timestamp pinning. A `Created | Loaded |
+  ApplyingDraft | Closed` lifecycle replaces load/disposal/reset flags, and close
+  requests share their cleanup task.
   `RecordedSessionEditorEffects` drives named effects such as analysis
   invalidation, command refresh, map/media
   synchronization, preference persistence, and dirty/baseline tracking.

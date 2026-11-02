@@ -64,7 +64,6 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISessionOperationGateway
 {
     public Guid Id { get; private set; }
-    public long BaselineUpdated { get; private set; }
 
     public string Description => NotesPage.Description ?? "";
     public string? DescriptionText
@@ -127,7 +126,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly ISessionPreferences sessionPreferences;
     private Task pendingPreferenceOperations = Task.CompletedTask;
     private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
-    private Session session;
+    private SessionDraft draftBase;
     private RecordedSignalsPageViewModel SignalsPage { get; }
     private StrokesPageViewModel StrokesPage { get; }
     private SpringPageViewModel SpringPage { get; }
@@ -142,16 +141,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionAnalysisInputs analysisInputs;
     private readonly AnalysisRequestScheduler analysisRequestScheduler;
     private int telemetryGeneration;
-    private bool suppressDirtinessEvaluation;
     private bool suppressInsightsRecompute;
     private bool suppressAnalysisRecompute;
-    // Set when the user declines to reload after an external metadata edit landed
-    // on a dirty draft: BaselineUpdated is pinned below that edit so the next save
-    // still conflicts. A later derived-only emission must not advance the baseline
-    // past the unacknowledged edit, or the conflict would be silently lost.
-    private bool metadataConflictPending;
-    private bool viewLoaded;
-    private bool editorInputSubjectsDisposed;
+    private enum EditorLifecycle { Created, Loaded, ApplyingDraft, Closed }
+    private EditorLifecycle lifecycle;
+    private bool IsLoaded => lifecycle == EditorLifecycle.Loaded;
+    private Task? closeTask;
     private readonly SignalRowActionsController signalRowActions;
     private readonly SignalAutozoomController signalAutozoomController;
     private readonly IRelayCommand<TelemetryPlotContextMenuContext?> setAnalysisRangeStartCommand;
@@ -172,7 +167,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly DampingCutoffWorkflow dampingCutoffWorkflow;
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
-    private SessionSnapshot? sessionSnapshot;
     private TelemetryData? telemetryData;
     private List<TrackPoint>? trackPoints;
     private MapViewModel? mapViewModel;
@@ -667,7 +661,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private async Task RequestLoadAsync()
     {
-        if (!viewLoaded)
+        if (!IsLoaded)
         {
             return;
         }
@@ -779,7 +773,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionSnapshot? fallbackSnapshot,
         CancellationToken token)
     {
-        if (token.IsCancellationRequested || !viewLoaded)
+        if (token.IsCancellationRequested || !IsLoaded)
         {
             return;
         }
@@ -800,7 +794,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionSnapshot? fallbackSnapshot,
         CancellationToken token)
     {
-        if (token.IsCancellationRequested || !viewLoaded)
+        if (token.IsCancellationRequested || !IsLoaded)
         {
             return Task.CompletedTask;
         }
@@ -822,7 +816,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         CancellationToken token)
     {
         if (token.IsCancellationRequested ||
-            !viewLoaded ||
+            !IsLoaded ||
             currentEditorState.Load is RecordedSessionLoadPresentation.Loaded)
         {
             return;
@@ -831,7 +825,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PublishLoadPresentation(new RecordedSessionLoadPresentation.Loading(
             mapExpected,
             progress,
-            sessionStore.Get(Id) ?? sessionSnapshot ?? fallbackSnapshot));
+            currentEditorState.Session ?? fallbackSnapshot));
     }
 
     private sealed class SessionLoadProgressReporter : IProgress<SessionDetailLoadProgress>
@@ -906,10 +900,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private async Task ApplyPersistedSnapshotAsync(SessionSnapshot snapshot)
     {
-        session = snapshot.ToMetadataEntity();
-        sessionSnapshot = snapshot;
-        BaselineUpdated = snapshot.Updated;
-        metadataConflictPending = false;
+        draftBase = SessionDraft.From(snapshot);
         await ResetImplementation();
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
@@ -929,13 +920,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         catch (Exception exception)
         {
             logger.Error(exception, "Session editor reconciliation failed for {SessionId}", Id);
-            if (viewLoaded) ErrorMessages.Add(FailurePresentation.From(SessionEditorFailureReason.Reconcile, exception.Message));
+            if (IsLoaded) ErrorMessages.Add(FailurePresentation.From(SessionEditorFailureReason.Reconcile, exception.Message));
         }
     }
 
     private async Task OnDomainChangedCoreAsync(RecordedSessionDomainSnapshot domain)
     {
-        if (!viewLoaded)
+        if (!IsLoaded)
         {
             return;
         }
@@ -958,13 +949,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             await ApplyDomainReactionAsync(previous, domain);
         }
 
-        if (viewLoaded) await ReconcileStalenessAsync(domain);
+        if (IsLoaded) await ReconcileStalenessAsync(domain);
     }
 
     private async Task ReconcileStalenessAsync(RecordedSessionDomainSnapshot domain)
     {
         var result = await sessionCoordinator.ReconcileStalenessAsync(domain);
-        if (!viewLoaded) return;
+        if (!IsLoaded) return;
         switch (result)
         {
             case SessionStalenessReconciliation.Current:
@@ -989,7 +980,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 IsDirty ? "Recompute this session now? Your unsaved changes will be kept." : "Recompute this session now?",
                 [new DialogChoice("cancel", "Cancel"), new DialogChoice("recompute-all", "Recompute all"),
                     new DialogChoice("recompute-this", "Recompute", IsDefault: true)]);
-            if (!viewLoaded) return;
+            if (!IsLoaded) return;
             var current = currentEditorState.Domain ?? domain;
             if (choice == "recompute-all")
             {
@@ -1002,7 +993,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
             if (choice != "recompute-this") return;
             result = await sessionCoordinator.ReconcileStalenessAsync(current, SessionRecomputeChoice.ThisSession);
-            if (!viewLoaded) return;
+            if (!IsLoaded) return;
             switch (result)
             {
                 case SessionStalenessReconciliation.Unavailable unavailable:
@@ -1047,7 +1038,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             // Refresh derived telemetry even while the discard prompt is pending so
             // plots never show stale data; unsaved edits are preserved.
-            RefreshDerivedState(snapshot);
             if (reloadTelemetry)
             {
                 await RequestLoadAsync();
@@ -1056,18 +1046,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             var discard = await dialogService.ShowConfirmationAsync(
                 "Session changed elsewhere",
                 "This session has been updated from another source. Discard your changes and reload?");
-            if (!viewLoaded) return;
+            if (!IsLoaded) return;
             if (discard)
             {
                 await ApplyPersistedSnapshotAsync(snapshot);
-            }
-            else
-            {
-                // On no: keep editing and hold BaselineUpdated back so the next save's
-                // optimistic-concurrency check still observes the external metadata edit.
-                // The pin survives later derived-only emissions until the conflict is
-                // resolved (reload, save, or absorb).
-                metadataConflictPending = true;
             }
 
             return;
@@ -1086,32 +1068,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        // Pure derived change (recompute, GPS offset, sync blob swap): refresh the
-        // telemetry/track and advance the baseline without resetting editable fields.
-        // While an external metadata edit is unacknowledged, keep the baseline pinned
-        // so the next save still detects that conflict instead of overwriting it.
-        RefreshDerivedState(snapshot);
-        if (!metadataConflictPending)
-        {
-            BaselineUpdated = snapshot.Updated;
-        }
-
         if (reloadTelemetry)
         {
             await RequestLoadAsync();
         }
     }
 
-    private void RefreshDerivedState(SessionSnapshot snapshot)
-    {
-        session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
-        session.Updated = snapshot.Updated;
-        sessionSnapshot = snapshot;
-    }
-
     private Task HandleDeferredDomainAsync()
     {
-        if (!viewLoaded || deferredDomain is not { } domain)
+        if (!IsLoaded || deferredDomain is not { } domain)
         {
             return Task.CompletedTask;
         }
@@ -1122,21 +1087,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void PublishEditorInput<T>(Subject<T> input, T value)
     {
-        if (!editorInputSubjectsDisposed)
+        if (lifecycle != EditorLifecycle.Closed)
         {
             input.OnNext(value);
         }
-    }
-
-    private void DisposeEditorInputSubjects()
-    {
-        if (editorInputSubjectsDisposed)
-        {
-            return;
-        }
-
-        editorInputSubjectsDisposed = true;
-        editorInputSubjects.Dispose();
     }
 
     private void DisposeProcessedTelemetryRetention()
@@ -1370,7 +1324,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private bool CanUndoTrimFromPlotContext(TelemetryPlotContextMenuContext? context) =>
         !IsSessionEditRunning &&
         IsTelemetryPlotContext(context) &&
-        sessionSnapshot is { CanUndoTrim: true };
+        currentEditorState.Session is { CanUndoTrim: true };
 
     private Task TrimFromBeginningFromPlotContextAsync(TelemetryPlotContextMenuContext? context) =>
         CanTrimFromBeginningFromPlotContext(context)
@@ -1450,7 +1404,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     bool ISessionOperationGateway.IsDirty => IsDirty;
 
-    bool ISessionOperationGateway.IsViewLoaded => viewLoaded;
+    bool ISessionOperationGateway.IsViewLoaded => IsLoaded;
 
     bool ISessionOperationGateway.ShouldDeferDomainHandling() => ShouldDeferDomainHandling();
 
@@ -1607,10 +1561,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             undoTrimCommand,
             saveSelectionAsSegmentCommand);
         PublishEditorInput(signalPlotContextMenuActionsInput, SignalPlotContextMenuActionsBySignalRowId);
-        session = snapshot.ToMetadataEntity();
-        sessionSnapshot = snapshot;
+        draftBase = SessionDraft.From(snapshot);
         Id = snapshot.Id;
-        BaselineUpdated = snapshot.Updated;
         segmentPicker = segmentPickerFactory.Create(
             Id,
             editorStateController.State.Select(state => new SegmentPickerSessionState(
@@ -1732,7 +1684,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SetSignalPresentationState(CreateSignalPresentationState());
         if (!snapshot.HasProcessedData)
         {
-            PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty(sessionSnapshot));
+            PublishLoadPresentation(new RecordedSessionLoadPresentation.Empty(snapshot));
         }
 
         editorEffects = new RecordedSessionEditorEffects(
@@ -1767,10 +1719,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         if (previous.Session != state.Session)
         {
-            sessionSnapshot = state.Session;
             if (state.Session is { } snapshot)
             {
-                ApplyRuntimeSessionState(snapshot);
+                Timestamp = DateTimeOffset.FromUnixTimeSeconds(snapshot.Timestamp ?? 0).LocalDateTime;
                 if (previous.Session?.VelocityFilterWindowMilliseconds != snapshot.VelocityFilterWindowMilliseconds)
                     PreferencesPage.ApplyProcessingOptions(snapshot.ProcessingOptions);
             }
@@ -1865,12 +1816,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         }
     }
 
-    private void ApplyRuntimeSessionState(SessionSnapshot snapshot)
-    {
-        session.GpsOffsetSeconds = snapshot.GpsOffsetSeconds;
-        session.Updated = snapshot.Updated;
-    }
-
     private void OnPagesChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
         PublishEditorInput(pageCountInput, Pages.Count);
@@ -1943,7 +1888,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void EvaluateDirtinessFromPageChange()
     {
-        if (suppressDirtinessEvaluation)
+        if (lifecycle == EditorLifecycle.ApplyingDraft)
         {
             return;
         }
@@ -1961,7 +1906,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         cancellationToken.ThrowIfCancellationRequested();
         var result = await sessionCoordinator.LoadPreferencesAsync(Id);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!viewLoaded) return;
+        if (!IsLoaded) return;
         switch (result)
         {
             case SessionPreferenceLoadResult.Loaded loaded:
@@ -2132,7 +2077,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task PersistPreferenceChangeAsync(Func<SessionPreferences, SessionPreferences> update)
     {
         var result = await sessionCoordinator.SavePreferencesAsync(Id, update);
-        if (viewLoaded && result is SessionPreferenceSaveResult.Failed failed)
+        if (IsLoaded && result is SessionPreferenceSaveResult.Failed failed)
             ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
     }
 
@@ -2143,62 +2088,32 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     #region TabPageViewModelBase overrides
 
-    protected override void EvaluateDirtiness()
-    {
-        IsDirty =
-            Name != session.Name ||
-            NotesPage.IsDirty(session);
-    }
+    protected override void EvaluateDirtiness() => IsDirty = CaptureDraft() != draftBase;
+
+    private SessionDraft CaptureDraft() => new(
+        Id, Name ?? $"session #{Id}", NotesPage.Description ?? $"session #{Id}", draftBase.SetupId,
+        NotesPage.ForkSettings.SpringRate, NotesPage.ForkSettings.HighSpeedCompression,
+        NotesPage.ForkSettings.LowSpeedCompression, NotesPage.ForkSettings.LowSpeedRebound,
+        NotesPage.ForkSettings.HighSpeedRebound, NotesPage.ShockSettings.SpringRate,
+        NotesPage.ShockSettings.HighSpeedCompression, NotesPage.ShockSettings.LowSpeedCompression,
+        NotesPage.ShockSettings.LowSpeedRebound, NotesPage.ShockSettings.HighSpeedRebound);
 
     protected override async Task SaveImplementation()
     {
-        var newSession = new Session(
-            id: session.Id,
-            name: Name ?? $"session #{session.Id}",
-            description: NotesPage.Description ?? $"session #{session.Id}",
-            setup: session.Setup,
-            timestamp: session.Timestamp)
-        {
-            FrontSpringRate = NotesPage.ForkSettings.SpringRate,
-            FrontHighSpeedCompression = NotesPage.ForkSettings.HighSpeedCompression,
-            FrontLowSpeedCompression = NotesPage.ForkSettings.LowSpeedCompression,
-            FrontLowSpeedRebound = NotesPage.ForkSettings.LowSpeedRebound,
-            FrontHighSpeedRebound = NotesPage.ForkSettings.HighSpeedRebound,
-            RearSpringRate = NotesPage.ShockSettings.SpringRate,
-            RearHighSpeedCompression = NotesPage.ShockSettings.HighSpeedCompression,
-            RearLowSpeedCompression = NotesPage.ShockSettings.LowSpeedCompression,
-            RearLowSpeedRebound = NotesPage.ShockSettings.LowSpeedRebound,
-            RearHighSpeedRebound = NotesPage.ShockSettings.HighSpeedRebound,
-            GpsOffsetSeconds = session.GpsOffsetSeconds,
-        };
-
-        var result = await sessionCoordinator.SaveAsync(newSession, BaselineUpdated);
+        var result = await sessionCoordinator.SaveAsync(CaptureDraft(), draftBase);
         switch (result)
         {
             case SessionSaveResult.Saved saved:
-                session = newSession;
-                session.Updated = saved.NewBaselineUpdated;
-                BaselineUpdated = saved.NewBaselineUpdated;
-                metadataConflictPending = false;
-                IsDirty = false;
-                shell.CompleteEdit(new EditorKey.Session(saved.Id));
+                draftBase = SessionDraft.From(saved.Snapshot);
+                EvaluateDirtiness();
+                if (!IsDirty) shell.CompleteEdit(new EditorKey.Session(saved.Snapshot.Id));
                 break;
-
             case SessionSaveResult.Conflict conflict:
                 var reload = await dialogService.ShowConfirmationAsync(
                     "Session changed elsewhere",
                     "This session has been updated from another source. Discard your changes and reload?");
-                if (reload)
-                {
-                    session = conflict.CurrentSnapshot.ToMetadataEntity();
-                    sessionSnapshot = conflict.CurrentSnapshot;
-                    BaselineUpdated = conflict.CurrentSnapshot.Updated;
-                    metadataConflictPending = false;
-                    await ResetImplementation();
-                    EvaluateDirtiness();
-                }
+                if (reload) await ApplyPersistedSnapshotAsync(conflict.CurrentSnapshot);
                 break;
-
             case SessionSaveResult.Missing:
                 Notifications.Add("The session is no longer available.");
                 break;
@@ -2210,38 +2125,39 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     protected override Task ResetImplementation()
     {
-        suppressDirtinessEvaluation = true;
+        var previousLifecycle = lifecycle;
+        lifecycle = EditorLifecycle.ApplyingDraft;
         try
         {
-            Id = session.Id;
-            Name = session.Name;
+            Id = draftBase.Id;
+            Name = draftBase.Name;
 
-            NotesPage.Description = session.Description;
-            NotesPage.ForkSettings.SpringRate = session.FrontSpringRate;
-            NotesPage.ForkSettings.HighSpeedCompression = session.FrontHighSpeedCompression;
-            NotesPage.ForkSettings.LowSpeedCompression = session.FrontLowSpeedCompression;
-            NotesPage.ForkSettings.LowSpeedRebound = session.FrontLowSpeedRebound;
-            NotesPage.ForkSettings.HighSpeedRebound = session.FrontHighSpeedRebound;
+            NotesPage.Description = draftBase.Description;
+            NotesPage.ForkSettings.SpringRate = draftBase.FrontSpringRate;
+            NotesPage.ForkSettings.HighSpeedCompression = draftBase.FrontHighSpeedCompression;
+            NotesPage.ForkSettings.LowSpeedCompression = draftBase.FrontLowSpeedCompression;
+            NotesPage.ForkSettings.LowSpeedRebound = draftBase.FrontLowSpeedRebound;
+            NotesPage.ForkSettings.HighSpeedRebound = draftBase.FrontHighSpeedRebound;
 
-            NotesPage.ShockSettings.SpringRate = session.RearSpringRate;
-            NotesPage.ShockSettings.HighSpeedCompression = session.RearHighSpeedCompression;
-            NotesPage.ShockSettings.LowSpeedCompression = session.RearLowSpeedCompression;
-            NotesPage.ShockSettings.LowSpeedRebound = session.RearLowSpeedRebound;
-            NotesPage.ShockSettings.HighSpeedRebound = session.RearHighSpeedRebound;
+            NotesPage.ShockSettings.SpringRate = draftBase.RearSpringRate;
+            NotesPage.ShockSettings.HighSpeedCompression = draftBase.RearHighSpeedCompression;
+            NotesPage.ShockSettings.LowSpeedCompression = draftBase.RearLowSpeedCompression;
+            NotesPage.ShockSettings.LowSpeedRebound = draftBase.RearLowSpeedRebound;
+            NotesPage.ShockSettings.HighSpeedRebound = draftBase.RearHighSpeedRebound;
         }
         finally
         {
-            suppressDirtinessEvaluation = false;
+            lifecycle = previousLifecycle;
         }
 
         EvaluateDirtiness();
 
-        Timestamp = DateTimeOffset.FromUnixTimeSeconds(session.Timestamp ?? 0).LocalDateTime;
-
         return Task.CompletedTask;
     }
 
-    protected override async Task CloseImplementation()
+    protected override Task CloseImplementation() => closeTask ??= CloseCoreAsync();
+
+    private async Task CloseCoreAsync()
     {
         StopLoadedSession();
         await Task.WhenAll(pendingDomainReactions, pendingPreferenceOperations);
@@ -2262,7 +2178,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultSubscription.Dispose();
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
-        DisposeEditorInputSubjects();
+        editorInputSubjects.Dispose();
     }
 
     private static void DisposeWorkspace(object workspace)
@@ -2341,8 +2257,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     [RelayCommand]
     private async Task Loaded()
     {
-        var wasLoaded = viewLoaded;
-        viewLoaded = true;
+        if (lifecycle == EditorLifecycle.Closed) return;
+        var wasLoaded = IsLoaded;
+        lifecycle = EditorLifecycle.Loaded;
         var loadLifecycleToken = wasLoaded
             ? CancellationToken.None
             : viewLoadOperation.Start();
@@ -2375,7 +2292,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             await RestoreRecordedPreferencesAsync(loadLifecycleToken);
-            if (!viewLoaded || loadLifecycleToken.IsCancellationRequested)
+            if (!IsLoaded || loadLifecycleToken.IsCancellationRequested)
             {
                 return;
             }
@@ -2389,7 +2306,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     protected override void OnActivated()
     {
-        if (!viewLoaded)
+        if (!IsLoaded)
         {
             return;
         }
@@ -2403,12 +2320,12 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private void OnPreferencesArrived(SessionPreferences preferences)
     {
-        if (viewLoaded) ApplyRecordedPreferences(preferences);
+        if (IsLoaded) ApplyRecordedPreferences(preferences);
     }
 
     private void StopLoadedSession()
     {
-        viewLoaded = false;
+        lifecycle = EditorLifecycle.Closed;
         viewLoadOperation.Cancel();
         loadOperation.Cancel();
         handledDomain = null;

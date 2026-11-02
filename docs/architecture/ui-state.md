@@ -167,25 +167,20 @@ window is part of the session snapshot), evaluates processing staleness, and pub
   source), selected track metadata, and staleness result. It carries facts, with no emitted-change flags.
 
 The recorded detail editor compares each domain against its last handled domain,
-so deferred updates are compared with the state the editor actually consumed.
-Its presentation effects classify draft reconciliation and telemetry reloads from
-those facts, including the processed revision and window inputs. The single reaction
-treats two axes orthogonally. The *derived* axis
-(processed-data availability, fingerprint, or the session-window track)
-always refreshes the displayed telemetry/track and advances the
-editor's optimistic-concurrency baseline — even while a metadata prompt
-is pending, and without resetting unsaved edits. The *metadata* axis
-(name, description, setup, timestamp, tuning) is decided independently: an
-external metadata change with no local edits is absorbed, while a change
-against unsaved edits prompts to discard-and-reload and otherwise holds
-the baseline back so the next save still detects the conflict. That
-held-back state is pinned: once the user declines, a later derived-only
-emission (e.g. a recompute result) refreshes telemetry but does **not**
-advance the baseline past the unacknowledged metadata edit, so it cannot
-silently clear the pending conflict; the pin lifts only when the conflict
-resolves (reload, save, or absorb).
-Selected track metadata and `GpsOffsetSeconds` affect telemetry/track reloads rather than draft reconciliation, so a recompute or GPS-offset adjustment refreshes
-the track without a discard prompt.
+so deferred updates are compared with what the editor actually consumed. Runtime
+session values come from the editor state's domain/load snapshot; no mutable
+session entity or second snapshot is synchronized beside it.
+
+The two reaction axes remain independent. Processed-generation, selected-track,
+window, timestamp and GPS-offset changes refresh displayed telemetry/track without
+replacing a metadata draft. Changes to fields saved by the editor (name,
+description, setup and suspension tuning) are absorbed when clean, or prompt to
+reload when local edits exist. Declining leaves the immutable `SessionDraft`
+base unchanged. `SessionCoordinator.SaveAsync(draft, draftBase)` compares those
+fields against the current store snapshot; unrelated authored/derived changes do
+not conflict, and a declined metadata change still conflicts after later derived
+updates. Saving returns the persisted snapshot. The editor advances its draft
+base and remains dirty if the user made further edits while saving.
 
 Recompute and GPS-offset adjustment are one-way: they persist and upsert
 the session store, and the refresh reaches the editor through this same

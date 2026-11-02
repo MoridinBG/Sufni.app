@@ -241,9 +241,10 @@ public class SessionCoordinatorTests
         if (fail) repository.WriteFailure = new IOException("disk full");
         using var store = new SessionStore(publication);
         await store.ReplaceAllAsync([existing]);
-        var session = new Session(existing.Id, "renamed", "", null);
+        var draftBase = SessionDraft.From(existing);
+        var draft = draftBase with { Name = "renamed" };
 
-        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(session, 5);
+        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(draft, draftBase);
 
         var persisted = (await repository.Repository.GetSessionAsync(existing.Id))!;
         if (fail)
@@ -254,7 +255,7 @@ public class SessionCoordinatorTests
         }
         else
         {
-            Assert.Equal(7, Assert.IsType<SessionSaveResult.Saved>(result).NewBaselineUpdated);
+            Assert.Equal(7, Assert.IsType<SessionSaveResult.Saved>(result).Snapshot.Updated);
             Assert.Equal("renamed", persisted.Name);
             Assert.Equal(120, persisted.DurationSeconds);
             Assert.Equal(100, persisted.VelocityFilterWindowMilliseconds);
@@ -317,7 +318,34 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsConflictWithoutOverwritingNewerState()
+    public async Task SaveAsync_AcceptsUnchangedDraftFieldsAfterAlignmentProcessingAndDerivedChanges()
+    {
+        var original = TestSnapshots.Session(updated: 5, timestamp: 100);
+        var current = original with
+        {
+            Updated = 10, GpsOffsetSeconds = 2.5, VelocityFilterWindowMilliseconds = 250,
+            Timestamp = 200, DurationSeconds = 120, HasProcessedData = true,
+        };
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        repository.Seed(current);
+        using var store = new SessionStore(publication);
+        await store.ReplaceAllAsync([current]);
+        var draftBase = SessionDraft.From(original);
+
+        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(draftBase with { Name = "local edit" }, draftBase);
+
+        var saved = Assert.IsType<SessionSaveResult.Saved>(result).Snapshot;
+        Assert.Equal("local edit", saved.Name);
+        Assert.Equal(2.5, saved.GpsOffsetSeconds);
+        Assert.Equal(250, saved.VelocityFilterWindowMilliseconds);
+        Assert.Equal(200, saved.Timestamp);
+        Assert.Equal(120, saved.DurationSeconds);
+        Assert.True(saved.HasProcessedData);
+        Assert.Equal(saved, store.Get(original.Id));
+    }
+
+    [Fact]
+    public async Task SaveAsync_ReturnsConflictWithoutOverwritingChangedDraftFields()
     {
         var current = TestSnapshots.Session(updated: 10);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
@@ -325,7 +353,8 @@ public class SessionCoordinatorTests
         using var store = new SessionStore(publication);
         await store.ReplaceAllAsync([current]);
 
-        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(new Session(current.Id, "stale", "", null), 5);
+        var draftBase = SessionDraft.From(current with { Name = "before remote edit" });
+        var result = await CreateCoordinator(store, repository.Repository).SaveAsync(draftBase with { Name = "local edit" }, draftBase);
 
         Assert.Equal(current, Assert.IsType<SessionSaveResult.Conflict>(result).CurrentSnapshot);
         Assert.Equal(current, store.Get(current.Id));
@@ -340,7 +369,7 @@ public class SessionCoordinatorTests
         await store.ReplaceAllAsync([existing]);
         sessionRepository.GetSessionAsync(existing.Id).Returns((Session?)null);
 
-        var result = await CreateCoordinator(store).SaveAsync(existing.ToMetadataEntity(), 5);
+        var result = await CreateCoordinator(store).SaveAsync(SessionDraft.From(existing), SessionDraft.From(existing));
 
         Assert.IsType<SessionSaveResult.Missing>(result);
         Assert.Null(store.Get(existing.Id));

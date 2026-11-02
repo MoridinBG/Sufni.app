@@ -24,7 +24,7 @@ public interface ISessionCoordinator
 
     Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default);
 
-    Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated);
+    Task<SessionSaveResult> SaveAsync(SessionDraft draft, SessionDraft draftBase);
 
     Task<SessionDeleteResult> DeleteAsync(Guid sessionId);
 }
