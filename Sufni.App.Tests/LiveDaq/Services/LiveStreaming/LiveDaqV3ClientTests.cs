@@ -559,6 +559,8 @@ public class LiveDaqV3ClientTests
         await framesObserved.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         lock (observed)
         {
+            Assert.DoesNotContain(typeof(LiveV3CapabilitiesFrame), observed);
+            Assert.DoesNotContain(typeof(LiveV3StartResultFrame), observed);
             Assert.True(
                 observed.IndexOf(typeof(LiveStatusFrame)) <
                 observed.IndexOf(typeof(LiveTravelBatchFrame)));

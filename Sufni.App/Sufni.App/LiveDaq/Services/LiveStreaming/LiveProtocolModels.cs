@@ -298,6 +298,7 @@ public abstract record LiveDaqClientEvent
 {
     public sealed record FrameReceived(LiveProtocolFrame Frame) : LiveDaqClientEvent;
     public sealed record DropCountersChanged(LiveDaqClientDropCounters Counters) : LiveDaqClientEvent;
+    public sealed record PreviewRejected(LiveStartErrorCode Reason) : LiveDaqClientEvent;
     public sealed record Disconnected(string? ErrorMessage) : LiveDaqClientEvent;
     public sealed record Faulted(string ErrorMessage) : LiveDaqClientEvent;
 }

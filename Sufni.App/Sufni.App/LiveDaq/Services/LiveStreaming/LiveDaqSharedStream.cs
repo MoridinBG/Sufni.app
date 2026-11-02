@@ -935,13 +935,12 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             switch (clientEvent)
             {
                 case LiveDaqClientEvent.FrameReceived frameReceived:
-                    if (frameReceived.Frame is LiveErrorFrame errorFrame)
-                    {
-                        PublishDisconnectedStateLocked(errorFrame.Payload.ErrorCode.UserMessage);
-                    }
-
                     var subscriberDroppedFrameCount = frames.Publish(frameReceived.Frame);
                     NoteSubscriberFrameDropsLocked(subscriberDroppedFrameCount);
+                    break;
+
+                case LiveDaqClientEvent.PreviewRejected rejected:
+                    PublishDisconnectedStateLocked(rejected.Reason.UserMessage);
                     break;
 
                 case LiveDaqClientEvent.DropCountersChanged countersChanged:

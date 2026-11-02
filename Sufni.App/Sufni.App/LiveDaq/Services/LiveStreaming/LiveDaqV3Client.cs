@@ -854,7 +854,10 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             lifecycleGate.Release();
         }
 
-        EmitEvent(new LiveDaqClientEvent.FrameReceived(frame));
+        if (frame is LiveSessionHeaderFrame or LiveTravelBatchFrame or LiveImuBatchFrame
+            or LiveGpsBatchFrame or LiveTemperatureBatchFrame or LiveBatteryBatchFrame
+            or LiveMarkerBatchFrame or LiveStatusFrame or LiveSessionResultFrame)
+            EmitEvent(new LiveDaqClientEvent.FrameReceived(frame));
     }
 
     private void HandleStartResultFrame(LiveV3StartResultFrame frame)

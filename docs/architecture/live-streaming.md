@@ -224,6 +224,13 @@ Three background tasks run off the UI thread. The receive loop reads exact frame
 
 The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
 
+Clients consume start/stop acknowledgements, capabilities, pongs and error frames
+at the transport boundary. `FrameReceived` publishes accepted session headers and
+session data/status/results. Start and stop return domain outcomes; a v2 `ERROR`
+also emits typed `PreviewRejected(reason)` for the shared stream's recoverable
+disconnected state. Shared-stream and presentation code do not interpret wire
+control frames.
+
 ### Drop Counters
 
 `LiveDaqClientDropCounters` reports receive, parse, and subscriber-buffer pressure through `LiveDaqSharedStreamState`. `LiveSessionService` uses increasing pressure to defer analysis briefly; the counters are not copied into presentation state. Recording and display remain separate, so dropping a display update does not remove captured samples.

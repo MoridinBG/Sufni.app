@@ -711,7 +711,9 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
     private async Task HandleFrameAsync(LiveProtocolFrame frame)
     {
         var emittedFrame = frame;
-        var shouldEmitFrame = true;
+        var shouldEmitFrame = frame is LiveSessionHeaderFrame or LiveTravelBatchFrame
+            or LiveImuBatchFrame or LiveGpsBatchFrame or LiveSessionStatsFrame;
+        LiveStartErrorCode? rejection = null;
 
         await lifecycleGate.WaitAsync(CancellationToken.None);
         try
@@ -785,6 +787,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     break;
 
                 case LiveErrorFrame errorFrame:
+                    rejection = errorFrame.Payload.ErrorCode;
                     logger.Debug(
                         "Received live DAQ error frame with {ErrorCode}",
                         errorFrame.Payload.ErrorCode);
@@ -822,6 +825,8 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             lifecycleGate.Release();
         }
 
+        if (rejection is { } reason)
+            EmitEvent(new LiveDaqClientEvent.PreviewRejected(reason));
         if (shouldEmitFrame)
         {
             EmitEvent(new LiveDaqClientEvent.FrameReceived(emittedFrame));

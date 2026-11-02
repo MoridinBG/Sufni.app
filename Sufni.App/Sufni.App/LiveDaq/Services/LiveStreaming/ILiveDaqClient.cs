@@ -9,7 +9,7 @@ public interface ILiveDaqClient : IAsyncDisposable
 {
     bool IsConnected { get; }
 
-    // Emits parsed frames plus disconnect and fault notifications for this client.
+    // Emits session data plus typed lifecycle outcomes; wire acknowledgements stay inside the client.
     IObservable<LiveDaqClientEvent> Events { get; }
 
     // Attempt to connect to the remote DAQ
