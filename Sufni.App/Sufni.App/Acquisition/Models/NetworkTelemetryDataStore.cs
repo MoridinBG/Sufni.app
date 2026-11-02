@@ -23,6 +23,8 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     private ImportBatch? activeBatch;
 
+    public IObservable<DaqTransportHolder?> ObserveTransport() => registry.ObserveTransport(CatalogEntry.IdentityKey);
+
     public async Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -1,3 +1,5 @@
+using System.Reactive.Linq;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using NSubstitute;
 
 using Sufni.App.Acquisition.Models;
@@ -10,6 +12,7 @@ public static class TestTelemetrySources
         var dataStore = Substitute.For<ITelemetryDataStore>();
         dataStore.Name.Returns(name);
         dataStore.BoardId.Returns(boardId);
+        dataStore.ObserveTransport().Returns(Observable.Return<DaqTransportHolder?>(null));
         dataStore.OpenImportBatchAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(null)));
         return dataStore;

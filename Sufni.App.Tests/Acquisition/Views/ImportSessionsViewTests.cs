@@ -1,3 +1,5 @@
+using System.Reactive.Subjects;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -23,6 +25,38 @@ namespace Sufni.App.Tests.Acquisition.Views;
 [Collection("Ui")]
 public class ImportSessionsViewTests
 {
+    [AvaloniaFact]
+    public async Task SourceMessages_ShowEmptyAndBusyStatesAndGateImport()
+    {
+        var harness = new ImportWorkflowHarness();
+        var vm = harness.CreateViewModel();
+        await using var mounted = await MountAsync(vm);
+        var empty = Assert.Single(mounted.View.GetVisualDescendants().OfType<TextBlock>(), block => block.Name == "NoDaqMessage");
+        var busy = Assert.Single(mounted.View.GetVisualDescendants().OfType<TextBlock>(), block => block.Name == "DaqBusyMessage");
+        Assert.True(empty.IsVisible);
+        Assert.False(busy.IsVisible);
+        var source = CreateDataStore();
+        using var transport = new BehaviorSubject<DaqTransportHolder?>(null);
+        source.ObserveTransport().Returns(transport);
+
+        harness.DataStores.Add(source);
+        vm.SelectedSetup = Guid.NewGuid();
+        transport.OnNext(new DaqTransportHolder.Streaming());
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var importButton = Assert.Single(mounted.View.GetVisualDescendants().OfType<Button>(), button => ReferenceEquals(button.Command, vm.ImportSessionsCommand));
+        Assert.False(empty.IsVisible);
+        Assert.True(busy.IsVisible);
+        Assert.False(importButton.Command!.CanExecute(importButton.CommandParameter));
+        transport.OnNext(null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(busy.IsVisible);
+        Assert.True(importButton.Command!.CanExecute(importButton.CommandParameter));
+        harness.DataStores.Clear();
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(empty.IsVisible);
+    }
+
     [AvaloniaFact]
     public async Task ImportSessionsView_DisablesEditors_WhenAnotherTabStartedImport()
     {

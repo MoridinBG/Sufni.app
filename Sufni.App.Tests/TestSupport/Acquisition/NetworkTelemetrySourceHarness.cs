@@ -1,4 +1,5 @@
 using System.Reactive.Subjects;
+using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
@@ -28,6 +29,7 @@ internal sealed class NetworkTelemetrySourceHarness
         Catalog.Observe().Returns(Entries);
         Catalog.Get(Arg.Any<string>()).Returns(call => Entries.Value.FirstOrDefault(entry => entry.IdentityKey == call.Arg<string>()));
         Catalog.AcquireBrowse().Returns(BrowseLease);
+        Registry.ObserveTransport(Arg.Any<string>()).Returns(Observable.Return<DaqTransportHolder?>(null));
         Registry.AcquireImportAsync(Arg.Any<string>(), Arg.Any<Guid>())
             .Returns(_ => Task.FromResult<DaqTransportAcquisition>(new DaqTransportAcquisition.Acquired(Substitute.For<IDisposable>())));
         Registry.AcquireIdentifyAsync(Arg.Any<string>())

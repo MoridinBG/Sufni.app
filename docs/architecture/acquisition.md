@@ -157,7 +157,10 @@ its I/O completes. Cancellation releases the reservation.
 `OpenImportBatchAsync` acquires `Import(batchId)` before allowing file operations.
 The batch lazily opens one management session and keeps the port reserved until
 session disposal completes. Busy or missing sources end the request with a typed
-outcome. The import screen presents these as availability notifications.
+outcome. The import screen presents these as availability notifications and observes the
+selected source's current port holder. Busy status remains visible while held,
+and Import is disabled until the port is idle. An empty source collection shows
+"No DAQ found". Local sources observe an idle transport.
 `NetworkTelemetryFile` carries the listed record id and gets its operation session
 from the owning batch; the coordinator never casts files or attaches sessions.
 Downloads stream into memory, post-publication acknowledgement uses

@@ -1,3 +1,5 @@
+using System.Reactive.Linq;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +12,8 @@ namespace Sufni.App.Acquisition.Models;
 public sealed class MassStorageTelemetryDataStore : ITelemetryDataStore
 {
     private readonly IDaqDriveProbe driveProbe;
+
+    public IObservable<DaqTransportHolder?> ObserveTransport() => Observable.Return<DaqTransportHolder?>(null);
 
     public Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
         Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(null));

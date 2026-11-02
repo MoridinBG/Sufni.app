@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 
 namespace Sufni.App.Acquisition.Models;
 
@@ -27,6 +28,8 @@ public interface ITelemetryDataStore
 {
     public string Name { get; }
     public Guid? BoardId { get; }
+    // Local sources are always idle; network sources observe the shared DAQ port owner.
+    public IObservable<DaqTransportHolder?> ObserveTransport();
     public Task<TelemetryFileListing> GetFiles(CancellationToken cancellationToken = default);
     public Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
 }

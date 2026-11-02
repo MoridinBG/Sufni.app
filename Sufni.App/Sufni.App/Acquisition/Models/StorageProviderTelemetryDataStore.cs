@@ -1,3 +1,5 @@
+using System.Reactive.Linq;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using System.Threading;
 using System;
 using System.Collections.Generic;
@@ -13,6 +15,8 @@ namespace Sufni.App.Acquisition.Models;
 public class StorageProviderTelemetryDataStore : ITelemetryDataStore
 {
     private static readonly ILogger logger = Log.ForContext<StorageProviderTelemetryDataStore>();
+
+    public IObservable<DaqTransportHolder?> ObserveTransport() => Observable.Return<DaqTransportHolder?>(null);
 
     public Task<TelemetryImportBatchAcquisition> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
         Task.FromResult<TelemetryImportBatchAcquisition>(new TelemetryImportBatchAcquisition.Acquired(null));

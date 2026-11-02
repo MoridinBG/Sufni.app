@@ -1,3 +1,4 @@
+using System.Reactive.Subjects;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Acquisition.ViewModels;
@@ -18,6 +19,31 @@ namespace Sufni.App.Tests.Acquisition.ViewModels;
 
 public class ImportSessionsViewModelTests
 {
+    [Fact]
+    public void ImportAvailability_FollowsSelectedPortHolderAndStopsObservingOnUnload()
+    {
+        var harness = new ImportWorkflowHarness();
+        var source = CreateDataStore();
+        using var transport = new BehaviorSubject<DaqTransportHolder?>(null);
+        source.ObserveTransport().Returns(transport);
+        var vm = harness.CreateViewModel();
+        vm.SelectedDataStore = source;
+        vm.SelectedSetup = Guid.NewGuid();
+        Assert.True(vm.ImportSessionsCommand.CanExecute(null));
+
+        transport.OnNext(new DaqTransportHolder.Streaming());
+        Assert.True(vm.IsSourceBusy);
+        Assert.False(vm.ImportSessionsCommand.CanExecute(null));
+        transport.OnNext(null);
+        Assert.False(vm.IsSourceBusy);
+        Assert.True(vm.ImportSessionsCommand.CanExecute(null));
+        vm.UnloadedCommand.Execute(null);
+        transport.OnNext(new DaqTransportHolder.Import(Guid.NewGuid()));
+
+        Assert.False(vm.IsSourceBusy);
+        Assert.False(vm.ImportSessionsCommand.CanExecute(null));
+    }
+
     [Fact]
     public void RefreshForSameSource_CancelsEarlierListingAndRejectsItsLateRows()
     {
@@ -500,6 +526,7 @@ public class ImportSessionsViewModelTests
         harness.ImportState.OnNext(new SessionImportState.Running(2, 3, []));
 
         var reopened = harness.CreateViewModel();
+        reopened.SelectedDataStore = CreateDataStore();
         reopened.SelectedSetup = Guid.NewGuid();
 
         Assert.True(reopened.IsImporting);

@@ -106,7 +106,7 @@ mc:Ignorable="d">
     <Grid
     Margin="20,20,20,10"
     ColumnDefinitions="auto * auto"
-    RowDefinitions="44 * auto auto 39">
+    RowDefinitions="44 auto * auto auto 39">
 
         <!--  Datastore selector  -->
         <ComboBox
@@ -151,9 +151,26 @@ mc:Ignorable="d">
         IsVisible="{Binding NewDataStoresAvailable}"
         Source="{SvgImage /Assets/fa-circle-exclamation.svg}" />
 
+        <TextBlock
+        x:Name="NoDaqMessage"
+        Grid.Row="1"
+        Grid.ColumnSpan="3"
+        Margin="2,6"
+        IsVisible="{Binding !HasDataStores}"
+        Text="No DAQ found" />
+
+        <TextBlock
+        x:Name="DaqBusyMessage"
+        Grid.Row="1"
+        Grid.ColumnSpan="3"
+        Margin="2,6"
+        IsVisible="{Binding IsSourceBusy}"
+        Text="{Binding SourceBusyMessage}"
+        TextWrapping="Wrap" />
+
         <!--  List of SST files in selected datastore  -->
         <ScrollViewer
-        Grid.Row="1"
+        Grid.Row="2"
         Grid.Column="0"
         Grid.ColumnSpan="3"
         Margin="0,5,0,5">
@@ -318,7 +335,7 @@ mc:Ignorable="d">
 
         <!--  Notifications  -->
         <v:NotificationsBar
-        Grid.Row="2"
+        Grid.Row="3"
         Grid.Column="0"
         Grid.ColumnSpan="3"
         Margin="2,4"
@@ -326,14 +343,14 @@ mc:Ignorable="d">
 
         <!--  Error messages  -->
         <v:ErrorMessagesBar
-        Grid.Row="3"
+        Grid.Row="4"
         Grid.Column="0"
         Grid.ColumnSpan="3"
         Margin="2,4"
         ZIndex="10" />
 
         <ContentControl
-        Grid.Row="4"
+        Grid.Row="5"
         Grid.Column="0"
         Grid.ColumnSpan="3"
         Content="{Binding $parent[views:ImportSessionsContentView].BottomContent}" />
@@ -341,7 +358,7 @@ mc:Ignorable="d">
         <!--  Busy overlay  -->
         <overlays:BusyOverlay
         Grid.Row="0"
-        Grid.RowSpan="5"
+        Grid.RowSpan="6"
         Grid.Column="0"
         Grid.ColumnSpan="3"
         BusyMessageFontWeight="Bold"

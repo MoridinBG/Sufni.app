@@ -1,5 +1,6 @@
 using Sufni.App.Setups.Queries;
 using Sufni.App.LiveDaq.ViewModels;
+using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shared.Models;
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -30,9 +31,23 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     public ReadOnlyObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
     public ObservableCollection<ImportFileRowViewModel> TelemetryFiles { get; } = [];
 
-    [ObservableProperty] public partial ITelemetryDataStore? SelectedDataStore { get; set; }
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
+    public partial ITelemetryDataStore? SelectedDataStore { get; set; }
     [ObservableProperty] public partial bool NewDataStoresAvailable { get; set; }
-    [ObservableProperty] public partial bool IsLoadingFiles { get; set; }
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
+    public partial bool IsLoadingFiles { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
+    [NotifyPropertyChangedFor(nameof(IsSourceBusy))]
+    [NotifyPropertyChangedFor(nameof(SourceBusyMessage))]
+    public partial DaqTransportHolder? SourceHolder { get; private set; }
+
+    public bool HasDataStores => TelemetryDataStores.Count > 0;
+    public bool IsSourceBusy => SourceHolder is not null;
+    public string SourceBusyMessage => SourceHolder is { } holder ? LiveDaqMessages.Busy(holder) : string.Empty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ImportSessionsCommand))]
@@ -62,6 +77,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     private readonly IDisposable importSubscription;
     private int displayedEventCount;
     private IDisposable? sourceObservation;
+    private IDisposable? sourceTransportObservation;
     private readonly CancellableOperation listingOperation = new();
     private Task pendingListings = Task.CompletedTask;
     public bool CanPickFolder => importSessionsCoordinator.CanPickFolder;
@@ -103,6 +119,9 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     partial void OnSelectedDataStoreChanged(ITelemetryDataStore? value)
     {
+        sourceTransportObservation?.Dispose();
+        sourceTransportObservation = null;
+        SourceHolder = null;
         listingOperation.Cancel();
         loadedListing = null;
         TelemetryFiles.Clear();
@@ -112,6 +131,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
             SelectedSetup = null;
             return;
         }
+        sourceTransportObservation = value.ObserveTransport().ObserveOnUiThread(UiThreadDispatcher)
+            .Subscribe(holder => SourceHolder = holder);
         ClearNewDataStoresAvailable();
         ResolveSelectedSetup();
         RequestFileLoad(value);
@@ -250,6 +271,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     private void OnTelemetryDataStoresCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        OnPropertyChanged(nameof(HasDataStores));
         var comparer = new TelemetryDataStoreComparer();
         var removed = e.OldItems?.OfType<ITelemetryDataStore>().FirstOrDefault();
 
@@ -317,7 +339,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         await importSessionsCoordinator.ImportAsync(SelectedDataStore, TelemetryFiles.Select(row => row.ToImportItem()).ToArray(), setupId);
     }
 
-    private bool CanImportSessions() => SelectedSetup != null && !IsImporting;
+    private bool CanImportSessions() => SelectedDataStore is not null && SelectedSetup is not null
+        && !IsImporting && !IsLoadingFiles && !IsSourceBusy;
 
     [RelayCommand]
     private void ShowMalformedMessage(ImportFileRowViewModel? file)
