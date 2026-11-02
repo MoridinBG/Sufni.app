@@ -1,9 +1,22 @@
 
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.Telemetry.Tests;
 namespace Sufni.App.Tests.Sessions.Models;
 
 public class RecordedSessionSourcePayloadCodecTests
 {
+    [Fact]
+    public async Task LiveCapturePayload_PreservesFrozenJsonBytes()
+    {
+        var expected = await File.ReadAllBytesAsync(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "Codec", "live-capture-v1.json"),
+            TestContext.Current.CancellationToken);
+        var source = RecordedSessionSourceFactory.CreateLiveCapture(TelemetryCodecFixtureData.LiveCapture());
+
+        Assert.Equal(expected, source.Payload);
+    }
+
     [Fact]
     public void ImportedSstPayload_RoundTripsThroughZstdCompression()
     {

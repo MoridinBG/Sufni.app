@@ -28,6 +28,7 @@
     <Compile Include="..\Sufni.App\Sufni.App.macOS\RawTabShortcutHandler.cs" Link="Platform/macOS/RawTabShortcutHandler.cs" />
     <Compile Include="..\Sufni.App\Sufni.App.macOS\InertWindowAutomationPeer.cs" Link="Platform/macOS/InertWindowAutomationPeer.cs" />
     <Compile Include="..\Sufni.App\Sufni.App.Android\AndroidServiceDiscovery.cs" Link="Infrastructure\AndroidServiceDiscovery.cs" />
+    <Compile Include="..\Sufni.Telemetry.Tests\TelemetryCodecFixtureData.cs" Link="TestSupport\Fixtures\TelemetryCodecFixtureData.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\GoldenTelemetryCompatibilityFixtures.cs" Link="TestSupport\Fixtures\GoldenTelemetryCompatibilityFixtures.cs" />
   </ItemGroup>
 
@@ -38,4 +39,7 @@
     <Using Include="Sufni.App.Tests.TestSupport.Io" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures/Codec/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

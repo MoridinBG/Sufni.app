@@ -22,4 +22,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures/Codec/*.msgpack" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
