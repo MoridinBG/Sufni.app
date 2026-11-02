@@ -1,4 +1,13 @@
 using System.Linq;
+using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Queries;
+using Sufni.App.Bikes.ViewModels.Editors;
+using Sufni.App.Infrastructure;
+using Sufni.App.Shell.Coordinators;
+using Sufni.App.Tests.TestSupport.Doubles;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 
@@ -11,6 +20,39 @@ namespace Sufni.App.Tests.Bikes.Views.Editors;
 [Collection("Ui")]
 public class LeverageRatioEditorViewTests
 {
+    [AvaloniaFact]
+    public async Task ClearButton_UpdatesCurveImmediatelyAndDebouncesAnalysis()
+    {
+        var clock = new FakeTimeProvider();
+        var coordinator = TestCoordinatorSubstitutes.Bike();
+        var snapshot = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)));
+        var editor = new BikeEditorViewModel(snapshot, false, coordinator, Substitute.For<IBikeDependencyQuery>(),
+            Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(),
+            TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input, clock);
+        var view = new LeverageRatioEditorView { DataContext = editor.LeverageRatioEditor };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        coordinator.ClearReceivedCalls();
+        try
+        {
+            var button = view.FindControl<Button>("ClearButton")!;
+            Assert.Same(editor.LeverageRatioEditor.ClearCommand, button.Command);
+            button.Command!.Execute(null);
+            await ViewTestHelpers.FlushDispatcherAsync();
+
+            Assert.True(view.FindControl<TextBlock>("EmptyStateTextBlock")!.IsVisible);
+            await coordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
+            clock.Advance(TimeSpan.FromMilliseconds(200));
+            await editor.LoadedCommand.ExecuteAsync(null).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            await coordinator.Received(1).LoadAnalysisAsync(Arg.Is<RearSuspensionSpec>(spec => spec is RearSuspensionSpec.LeverageRatioDraft), Arg.Any<CancellationToken>());
+        }
+        finally
+        {
+            host.Close();
+            await editor.PrepareCloseAsync();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
     [AvaloniaFact]
     public async Task LeverageRatioEditorView_ShowsSummaryAndPoints_WhenValuePresent()
     {

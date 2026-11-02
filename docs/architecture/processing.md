@@ -253,6 +253,14 @@ keep their existing typed exceptions. Libraries do not log. Editor analysis
 classifies these expected input failures as `Unsolvable`, while unexpected
 exceptions become a typed analysis failure at the app boundary.
 
+The bike editor keys analysis requests by the immutable rear-suspension spec.
+Initial loads and resets request changed specs immediately; geometry edits and
+curve changes debounce for 200 ms using the injected clock. Repeated requests
+for the same spec share the current result/task, so metadata edits and saves do
+not recalculate plots. A replacement request cancels its predecessor and ignores
+late results; unload/close cancels pending work. Save validation remains on the
+coordinator and returns no analysis presentation data.
+
 ### Bike Characteristics
 
 `BikeCharacteristics` (`Sufni.Kinematics/BikeCharacteristics.cs`) derives datasets from the `KinematicSolution` returned by `KinematicSolver`:

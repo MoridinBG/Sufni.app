@@ -29,6 +29,7 @@ public class BikeEditorViewModelTests
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
+    private readonly FakeTimeProvider timeProvider = new();
 
     public BikeEditorViewModelTests()
     {
@@ -37,7 +38,7 @@ public class BikeEditorViewModelTests
 
     private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool hasPointer = true)
     {
-        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher, new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control), timeProvider: new FakeTimeProvider());
+        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher, new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control), timeProvider: timeProvider);
         return editor;
     }
 
@@ -629,29 +630,21 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
-    public async Task Save_OnForkOnlyBike_OnConflict_Accepted_QueuesFreshAnalysisRefresh()
+    public async Task Save_OnConflictReload_DoesNotRecomputeUnchangedSuspension()
     {
         var snapshot = TestSnapshots.Bike(name: "old", updated: 5);
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
         bikeCoordinator.ClearReceivedCalls();
-
-        var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
-        var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fresh = snapshot with { Name = "remote-updated", Updated = 12 };
         bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
             .Returns(new BikeSaveResult.Conflict(fresh));
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(pendingAnalysis.Task);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
-        Assert.True(editor.IsPlotBusy);
-
-        pendingAnalysis.SetResult(new BikeEditorAnalysisResult.NotApplicable());
-        await Task.Yield();
-
+        Assert.Equal(fresh.Name, editor.Name);
+        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
         Assert.False(editor.IsPlotBusy);
     }
 
@@ -1001,12 +994,67 @@ public class BikeEditorViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task Analysis_DebouncesGeometryEditsAndReusesUnchangedSpec()
+    {
+        var editor = CreateEditor(FullSuspensionSnapshot());
+        bikeCoordinator.ClearReceivedCalls();
+        editor.ShockStroke = 20;
+        timeProvider.Advance(TimeSpan.FromMilliseconds(150));
+        editor.ShockStroke = 25;
+        var point = editor.LinkageEditor.JointViewModels.First(joint => joint.Type == JointType.Floating);
+        point.X += 2;
+        timeProvider.Advance(TimeSpan.FromMilliseconds(150));
+        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
+
+        timeProvider.Advance(TimeSpan.FromMilliseconds(50));
+        await editor.LoadedCommand.ExecuteAsync(null).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(
+            Arg.Is<RearSuspensionSpec>(spec => spec is RearSuspensionSpec.Linkage && ((RearSuspensionSpec.Linkage)spec).Spec.ShockStroke == 25),
+            Arg.Any<CancellationToken>());
+        editor.Name = "Metadata only";
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await bikeCoordinator.Received(1).LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
+    }
+
+    [AvaloniaFact]
+    public async Task Analysis_DiscardsCompletionForSupersededSpec()
+    {
+        var editor = CreateEditor(FullSuspensionSnapshot(), isNew: true);
+        var pending = new TaskCompletionSource<BikeEditorAnalysisResult>();
+        CancellationToken previousToken = default;
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            previousToken = call.Arg<CancellationToken>();
+            return pending.Task;
+        });
+        var initialLoad = editor.LoadedCommand.ExecuteAsync(null);
+        var current = new CoordinateList([3, 4], [5, 6]);
+        var computed = new TaskCompletionSource();
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            computed.SetResult();
+            return new BikeEditorAnalysisResult.Computed(PresentationData(current));
+        });
+
+        editor.ShockStroke = 25;
+        Assert.True(previousToken.IsCancellationRequested);
+        timeProvider.Advance(TimeSpan.FromMilliseconds(200));
+        await computed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        pending.SetResult(new BikeEditorAnalysisResult.Computed(PresentationData(new CoordinateList([0, 1], [1, 2]))));
+        await initialLoad.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(current, editor.LeverageRatioData);
+        Assert.False(editor.IsPlotBusy);
+    }
+
+    [AvaloniaFact]
     public async Task Loaded_AppliesComputedAnalysisResult()
     {
         var snapshot = FullSuspensionSnapshot(
             frontWheelDiameter: 760,
             rearWheelDiameter: 750);
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, isNew: true);
         var data = new CoordinateList([1, 2], [3, 4]);
         var rearAxlePathData = new CoordinateList([2, 4], [0.25, 0.75]);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
@@ -1027,7 +1075,7 @@ public class BikeEditorViewModelTests
     public async Task Loaded_ClearsLeverageRatioData_WhenAnalysisUnavailable()
     {
         var snapshot = TestSnapshots.Bike();
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, isNew: true);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.NotApplicable()));
@@ -1042,7 +1090,7 @@ public class BikeEditorViewModelTests
     public async Task Loaded_ClearsLeverageRatioData_AndAppendsError_WhenAnalysisFails()
     {
         var snapshot = TestSnapshots.Bike();
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, isNew: true);
         editor.LeverageRatioData = new CoordinateList([1, 2], [3, 4]);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Failed(BikeAnalysisFailureReason.Analyze, "boom")));
@@ -1132,10 +1180,10 @@ public class BikeEditorViewModelTests
     [AvaloniaFact]
     public async Task Reset_ShowsPlotBusyWhileAnalysisRefreshRuns()
     {
-        var snapshot = TestSnapshots.Bike(name: "old bike");
+        var snapshot = FullSuspensionSnapshot();
         var editor = CreateEditor(snapshot);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        editor.Name = "renamed";
+        editor.ShockStroke = snapshot.ShockStroke + 1;
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
 
@@ -1178,7 +1226,7 @@ public class BikeEditorViewModelTests
     public async Task Unloaded_DropsPendingAnalysisResult()
     {
         var snapshot = TestSnapshots.Bike();
-        var editor = CreateEditor(snapshot);
+        var editor = CreateEditor(snapshot, isNew: true);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);

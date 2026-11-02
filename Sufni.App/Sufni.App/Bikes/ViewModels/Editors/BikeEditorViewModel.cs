@@ -47,6 +47,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeDraft draftBase;
     private readonly CancellableOperation analysisOperation = new();
+    private RearSuspensionSpec? analysisSpec;
+    private Task analysisTask = Task.CompletedTask;
     private readonly CancellableOperation imageOperation = new();
     private readonly CancellableOperation leverageRatioImportOperation = new();
     // Guard edit-time callbacks while a snapshot is being applied.
@@ -127,6 +129,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Property change handlers
 
+    partial void OnShockStrokeChanged(double? value)
+    {
+        if (!IsReplacingState) QueuePlotRefresh();
+    }
+
     partial void OnChainstayChanged(double? value)
     {
         if (IsReplacingState) return;
@@ -150,6 +157,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         WheelGeometry.RefreshDerived(GetFrontWheelCenter(), GetRearWheelCenter(), PixelsToMillimeters);
         RecalculateHeadAngle();
         ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
+        QueuePlotRefresh();
     }
 
     partial void OnRearSuspensionModeChanged(RearSuspensionKind oldValue, RearSuspensionKind newValue)
@@ -225,7 +233,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
         if (refreshAnalysis)
         {
-            QueuePlotRefresh(showPlotBusyOverlay);
+            _ = RefreshAnalysisAsync(showPlotBusyOverlay);
         }
     }
 
@@ -418,15 +426,27 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             PixelsToMillimeters.Value);
     }
 
-    private void QueuePlotRefresh(bool showPlotBusyOverlay = true) => _ = RefreshAnalysisAsync(showPlotBusyOverlay);
+    private void QueuePlotRefresh(bool showPlotBusyOverlay = true) =>
+        _ = RefreshAnalysisAsync(showPlotBusyOverlay, debounce: true);
 
-    private async Task RefreshAnalysisAsync(bool showPlotBusyOverlay = false)
+    private Task RefreshAnalysisAsync(bool showPlotBusyOverlay = false, bool debounce = false)
     {
+        var spec = BuildCurrentRearSuspensionSpec();
+        if (spec == analysisSpec) return analysisTask;
+
         var token = analysisOperation.Start();
+        analysisSpec = spec;
         IsPlotBusy = showPlotBusyOverlay;
+        analysisTask = ComputeAnalysisAsync(spec, debounce, token);
+        return analysisTask;
+    }
+
+    private async Task ComputeAnalysisAsync(RearSuspensionSpec spec, bool debounce, CancellationToken token)
+    {
         try
         {
-            var result = await bikeCoordinator.LoadAnalysisAsync(BuildCurrentRearSuspensionSpec(), token);
+            if (debounce) await Task.Delay(TimeSpan.FromMilliseconds(200), Clock, token);
+            var result = await bikeCoordinator.LoadAnalysisAsync(spec, token);
             if (token.IsCancellationRequested) return;
 
             ApplyAnalysisResult(result);
@@ -534,6 +554,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     private void OnLinkageEditorPreviewChanged(object? sender, LinkagePreviewChangedEventArgs e)
     {
         HandleLinkagePreviewChanged(e);
+        if (!IsReplacingState && IsLinkageMode) QueuePlotRefresh();
     }
 
     private void OnLinkageEditorStateChanged(object? sender, EventArgs e)
@@ -546,6 +567,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         RefreshLinkageState();
         EvaluateDirtiness();
         NotifyEditorCommandStatesChanged();
+        QueuePlotRefresh();
     }
 
     private void OnWheelGeometryPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -780,6 +802,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         }
     }
 
+    protected override Task CloseImplementation()
+    {
+        Unloaded();
+        return Task.CompletedTask;
+    }
+
     protected override bool CanDelete() =>
         !IsInDatabase || !dependencyQuery.IsBikeInUse(Id);
 
@@ -935,6 +963,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     {
         DisposeScopedSubscriptions();
         analysisOperation.Cancel();
+        analysisSpec = null;
+        IsPlotBusy = false;
         imageOperation.Cancel();
         leverageRatioImportOperation.Cancel();
     }
