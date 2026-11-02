@@ -72,7 +72,8 @@ internal sealed class ImportWorkflowHarness
     public ImportSessionsCoordinator CreateCoordinator(
         ISessionRepository? repository = null,
         ISessionStoreWriter? sessionStore = null,
-        IRecordedSessionSourceStoreWriter? sourceStore = null) => new(
+        IRecordedSessionSourceStoreWriter? sourceStore = null,
+        ITrackStoreWriter? trackStore = null) => new(
         repository ?? SessionRepository,
         TrackRepository,
         SetupRepository,
@@ -84,7 +85,7 @@ internal sealed class ImportWorkflowHarness
         Reprocessor,
         new InlineUiThreadDispatcher(),
         Publication,
-        TrackStore);
+        trackStore ?? TrackStore);
 
     public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
         TelemetryDataStoreService,
@@ -152,8 +153,8 @@ internal sealed class ImportWorkflowHarness
                 var session = callInfo.ArgAt<Session>(0);
                 var track = callInfo.ArgAt<Track?>(1);
                 session.Updated = 10;
-                return Task.FromResult(new SessionImportCommitResult(
-                    session, RecordedSessionSourceSnapshot.From(callInfo.Arg<RecordedSessionSource>()), false));
+                return Task.FromResult<SessionImportCommitResult>(new SessionImportCommitResult.Inserted(
+                    session, RecordedSessionSourceSnapshot.From(callInfo.Arg<RecordedSessionSource>())));
             });
     }
 }

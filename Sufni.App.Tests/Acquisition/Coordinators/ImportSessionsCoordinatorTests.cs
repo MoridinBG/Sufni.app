@@ -1,3 +1,4 @@
+using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Shared.Stores;
@@ -72,6 +73,75 @@ public class ImportSessionsCoordinatorTests
         Assert.Equal("notes", sessions.Get(original.Id)!.Description);
         Assert.Equal("first.SST", sources.Get(original.Id)!.SourceName);
         await renamed.Received(1).OnImported();
+    }
+
+    [Fact]
+    public async Task ImportAsync_PublicationRetryFromNewCoordinator_UsesPersistedCheckpointWithoutProcessingOrWritingAgain()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var sessions = new SessionStore(harness.Publication);
+        using var sources = new RecordedSessionSourceStore(harness.Publication);
+        using var tracks = new TrackStore(harness.Publication);
+        var failingSourceWriter = Substitute.For<IRecordedSessionSourceStoreWriter>();
+        failingSourceWriter.PublishSourcesChangedAsync(Arg.Any<IReadOnlyCollection<RecordedSessionSourceSnapshot>>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new IOException("publication diagnostic"));
+        var firstFile = CreateTelemetryFile(name: "first");
+        using (var first = harness.CreateCoordinator(repository.Repository, sessions, failingSourceWriter, tracks))
+        {
+            await first.ImportAsync([firstFile], setup.Id, TestContext.Current.CancellationToken);
+            Assert.Equal(SessionImportFailureOperation.Publish,
+                Assert.Single(Assert.IsType<SessionImportState.Completed>(first.State).Result.Failures).Operation);
+        }
+        await firstFile.DidNotReceive().OnImported();
+        var persisted = Assert.Single(await repository.Repository.GetSessionsAsync());
+        var track = new TrackSnapshot(Guid.NewGuid(), 100, 200, 1);
+        harness.TrackRepository.GetTrackSnapshotsAsync(null).Returns(Task.FromResult<IReadOnlyList<TrackSnapshot>>([track]));
+        repository.WriteFailure = new IOException("retry must not write again");
+        harness.Reprocessor.ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new IOException("retry must not reprocess"));
+        using var retry = harness.CreateCoordinator(repository.Repository, sessions, sources, tracks);
+        var renamed = CreateTelemetryFile(name: "renamed");
+
+        await retry.ImportAsync([renamed], setup.Id, TestContext.Current.CancellationToken);
+
+        var completed = Assert.IsType<SessionImportState.Completed>(retry.State);
+        Assert.Empty(completed.Result.Failures);
+        Assert.Empty(completed.Result.Imported);
+        Assert.Equal(persisted.Id, Assert.Single(completed.Events.OfType<SessionImportEvent.AlreadyImported>()).SessionId);
+        Assert.Single(await repository.Repository.GetSessionsAsync());
+        Assert.Equal("first", sessions.Get(persisted.Id)!.Name);
+        Assert.Equal("first.SST", sources.Get(persisted.Id)!.SourceName);
+        Assert.Equal(track, Assert.Single(tracks.GetAll()));
+        await renamed.Received(1).OnImported();
+    }
+
+    [Fact]
+    public async Task ImportAsync_AcknowledgementFailure_KeepsCommittedRecordingAndDoesNotCountAsImportFailure()
+    {
+        var harness = new ImportWorkflowHarness();
+        var (setup, _) = harness.SeedSetupAndBike();
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var sessions = new SessionStore(harness.Publication);
+        using var sources = new RecordedSessionSourceStore(harness.Publication);
+        using var coordinator = harness.CreateCoordinator(repository.Repository, sessions, sources);
+        var file = CreateTelemetryFile(name: "ride");
+        file.OnImported().ThrowsAsync(new IOException("acknowledgement diagnostic"));
+
+        await coordinator.ImportAsync([file], setup.Id, TestContext.Current.CancellationToken);
+
+        var completed = Assert.IsType<SessionImportState.Completed>(coordinator.State);
+        var imported = Assert.Single(completed.Result.Imported);
+        Assert.Empty(completed.Result.Failures);
+        Assert.Equal(imported.Id, Assert.Single(await repository.Repository.GetSessionsAsync()).Id);
+        Assert.NotNull(sessions.Get(imported.Id));
+        Assert.NotNull(sources.Get(imported.Id));
+        Assert.Single(completed.Events.OfType<SessionImportEvent.Imported>());
+        var acknowledgement = Assert.Single(completed.Events.OfType<SessionImportEvent.AcknowledgementFailed>());
+        Assert.Equal("ride", acknowledgement.FileName);
+        Assert.Contains("acknowledgement diagnostic", acknowledgement.Details);
+        Assert.Empty(completed.Events.OfType<SessionImportEvent.Failed>());
     }
 
     [Fact]

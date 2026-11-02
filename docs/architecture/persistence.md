@@ -312,6 +312,12 @@ These values are excluded from JSON/sync contracts and are not conflict versions
 Map and comparison readers now derive session windows from the selected full
 track's exact points revision plus the window inputs. The session-window payload and its revision are not persisted or synced.
 
+`ISessionRepository.GetImportCheckpointAsync(sourceHash)` reads source metadata
+and the corresponding session metadata without BLOBs. It lets a restarted import
+republish a committed recording without processing or writing it again.
+`ImportProcessedSessionAsync` still classifies atomically and returns `Inserted`
+or `Exists`, so a checkpoint miss never replaces the transactional duplicate guard.
+
 Repositories do not publish UI state. Workflow owners persist, prepare any
 fresh database-computed snapshot fields, then publish through store writer
 interfaces. Stores do not depend on repositories, perform writes, or classify

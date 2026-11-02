@@ -19,6 +19,31 @@ namespace Sufni.App.Tests.Sessions.Services;
 public class SessionRepositoryTests
 {
     [Fact]
+    public async Task GetImportCheckpointAsync_AfterReopening_FindsLegacyContentWithoutLoadingPayloads()
+    {
+        using var temp = new TempDatabase();
+        using var file = new TelemetryFileSource("original.SST", [1, 2, 3]);
+        var source = RecordedSessionSourceFactory.CreateImportedSst(file);
+        source.SessionId = Guid.NewGuid();
+        var session = new Session(source.SessionId, "original", "notes", null, 100)
+        {
+            ProcessedData = PersistenceTestData.CreateTelemetryBlob(65)
+        };
+        await using (var database = new TestPersistenceHarness(temp.DatabasePath))
+            await database.SessionRepository.ImportProcessedSessionAsync(session, null, source);
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+
+        var checkpoint = await reopened.SessionRepository.GetImportCheckpointAsync(source.SourceHash);
+
+        Assert.NotNull(checkpoint);
+        Assert.Equal(source.SessionId, checkpoint.Source.SessionId);
+        Assert.Equal("original.SST", checkpoint.Source.SourceName);
+        Assert.Equal("original", checkpoint.Session!.Name);
+        Assert.Null(checkpoint.Session.ProcessedData);
+        Assert.Null(await reopened.SessionRepository.GetImportCheckpointAsync("unseen"));
+    }
+
+    [Fact]
     public async Task ImportProcessedSessionAsync_AfterPayloadPurge_RestoresAboveLedgerAndSurvivesMerge()
     {
         using var temp = new TempDatabase();
@@ -47,7 +72,7 @@ public class SessionRepositoryTests
         await peer.MergeAllAsync(await reopened.GetSynchronizationDataAsync(0, long.MaxValue));
         await reopened.ApplyRemoteSynchronizationDataAsync(deletions);
 
-        Assert.False(result.AlreadyImported);
+        Assert.IsType<SessionImportCommitResult.Inserted>(result);
         Assert.Equal(ledger.Version + 1, result.Session!.Version);
         Assert.Equal(result.Session.Version, (await peer.GetSessionAsync(session.Id))!.Version);
         Assert.Equal(session.ProcessedData, await reopened.GetSessionRawPsstAsync(session.Id));
@@ -77,7 +102,7 @@ public class SessionRepositoryTests
         var result = await database.SessionRepository.ImportProcessedSessionAsync(
             session, new Track(PersistenceTestData.CreateFullTrack().Points), source);
 
-        Assert.False(result.AlreadyImported);
+        Assert.IsType<SessionImportCommitResult.Inserted>(result);
 
         var retained = Assert.Single(await database.GetAllAsync<Track>());
         Assert.Equal(track.Id, retained.Id);
@@ -105,7 +130,7 @@ public class SessionRepositoryTests
         var result = await database.SessionRepository.ImportProcessedSessionAsync(
             new Session(source.SessionId, "renamed", "replaced", null), candidateTrack, source);
 
-        Assert.True(result.AlreadyImported);
+        Assert.IsType<SessionImportCommitResult.Exists>(result);
         Assert.Equal(original.Id, result.Session!.Id);
         Assert.Equal("original", result.Session.Name);
         Assert.Equal("original.SST", result.Source.SourceName);
@@ -135,7 +160,7 @@ public class SessionRepositoryTests
 
         var result = await database.SessionRepository.ImportProcessedSessionAsync(local, candidateTrack, source);
 
-        Assert.False(result.AlreadyImported);
+        Assert.IsType<SessionImportCommitResult.Inserted>(result);
         Assert.Equal(before, SessionSnapshot.From(result.Session!));
         Assert.Equal(source.Payload, (await database.GetRecordedSessionSourceAsync(source.SessionId))!.Payload);
         Assert.Null(await database.GetSessionRawPsstAsync(source.SessionId));
@@ -180,7 +205,7 @@ public class SessionRepositoryTests
         {
             var result = await database.SessionRepository.ImportProcessedSessionAsync(imported, newTrack, source);
 
-            Assert.False(result.AlreadyImported);
+            Assert.IsType<SessionImportCommitResult.Inserted>(result);
             var restored = Assert.IsAssignableFrom<Session>(result.Session);
             Assert.Equal(original.Id, restored.Id);
             Assert.Equal("re-imported", restored.Name);
@@ -233,8 +258,8 @@ public class SessionRepositoryTests
         var results = await Task.WhenAll(candidates.Select(candidate =>
             database.SessionRepository.ImportProcessedSessionAsync(candidate.Session, candidate.Track, candidate.Source)));
 
-        var imported = Assert.Single(results.Where(result => !result.AlreadyImported));
-        Assert.Equal(3, results.Count(result => result.AlreadyImported));
+        var imported = Assert.Single(results.Where(result => result is SessionImportCommitResult.Inserted));
+        Assert.Equal(3, results.Count(result => result is SessionImportCommitResult.Exists));
         Assert.Single(await database.SessionRepository.GetSessionsAsync());
         Assert.Equal(candidates[0].Session.ProcessedData, await database.GetSessionRawPsstAsync(imported.Session!.Id));
         var persistedTracks = await Task.WhenAll(candidates.Select(candidate => database.GetAsync<Track>(candidate.Track.Id)));
@@ -592,7 +617,7 @@ public class SessionRepositoryTests
                     putCase.Session,
                     putCase.Track,
                     putCase.Source);
-                Assert.False(committed.AlreadyImported);
+                Assert.IsType<SessionImportCommitResult.Inserted>(committed);
 
                 return (putCase.Session.Id, putCase.Track.Id);
             }));

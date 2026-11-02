@@ -56,6 +56,8 @@ public interface ISessionRepository
     Task<Session?> SetProcessingOptionAsync(Guid id, int windowMilliseconds);
     Task<Session?> RestoreProcessingOptionAsync(Guid id, int expectedWindowMilliseconds, int? previousWindowMilliseconds);
 
+    Task<SessionImportCommitResult.Exists?> GetImportCheckpointAsync(string sourceHash);
+
     Task<SessionImportCommitResult> ImportProcessedSessionAsync(Session session, Track? newFullTrack, RecordedSessionSource source);
 
     /// <summary>
@@ -92,10 +94,11 @@ public sealed record SessionProcessedWriteGuard(string? Fingerprint, long Revisi
         new(session.ProcessingFingerprintJson, session.ProcessedTelemetryRevision, pendingSwapFingerprint);
 }
 
-public sealed record SessionImportCommitResult(
-    Session? Session,
-    RecordedSessionSourceSnapshot Source,
-    bool AlreadyImported);
+public abstract record SessionImportCommitResult(Session? Session, RecordedSessionSourceSnapshot Source)
+{
+    public sealed record Inserted(Session? Session, RecordedSessionSourceSnapshot Source) : SessionImportCommitResult(Session, Source);
+    public sealed record Exists(Session? Session, RecordedSessionSourceSnapshot Source) : SessionImportCommitResult(Session, Source);
+}
 
 public sealed record SessionPsstPayloadMetadata(
     Guid Id,
@@ -360,6 +363,19 @@ internal sealed class SessionRepository(
         });
     }
 
+    private const string ImportCheckpointSourceSql = """
+        SELECT session_id, source_kind, source_name, schema_version, source_hash
+        FROM session_recording_source WHERE source_hash = ? ORDER BY session_id LIMIT 1
+        """;
+
+    public async Task<SessionImportCommitResult.Exists?> GetImportCheckpointAsync(string sourceHash)
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        var source = (await connection.QueryAsync<RecordedSessionSource>(ImportCheckpointSourceSql, sourceHash)).FirstOrDefault();
+        return source is null ? null : new SessionImportCommitResult.Exists(
+            await GetSessionAsync(source.SessionId), RecordedSessionSourceSnapshot.From(source));
+    }
+
     public async Task<SessionImportCommitResult> ImportProcessedSessionAsync(
         Session session, Track? newFullTrack, RecordedSessionSource source)
     {
@@ -370,10 +386,7 @@ internal sealed class SessionRepository(
         var committed = await connectionContext.RunInTransactionAsync(connection =>
         {
             var existingSource = connection.FindWithQuery<RecordedSessionSource>(
-                """
-                SELECT session_id, source_kind, source_name, schema_version, source_hash
-                FROM session_recording_source WHERE source_hash = ? ORDER BY session_id LIMIT 1
-                """, source.SourceHash);
+                ImportCheckpointSourceSql, source.SourceHash);
             if (existingSource is not null)
                 return (Source: RecordedSessionSourceSnapshot.From(existingSource), AlreadyImported: true);
 
@@ -399,8 +412,10 @@ internal sealed class SessionRepository(
             RecordedSessionSourceRepository.PutRecordedSessionSourceInTransaction(connection, source);
             return (Source: RecordedSessionSourceSnapshot.From(source), AlreadyImported: false);
         });
-        return new SessionImportCommitResult(
-            await GetSessionAsync(committed.Source.SessionId), committed.Source, committed.AlreadyImported);
+        var persistedSession = await GetSessionAsync(committed.Source.SessionId);
+        return committed.AlreadyImported
+            ? new SessionImportCommitResult.Exists(persistedSession, committed.Source)
+            : new SessionImportCommitResult.Inserted(persistedSession, committed.Source);
     }
 
     public async Task<Session?> UpdateProcessedDerivedDataAsync(

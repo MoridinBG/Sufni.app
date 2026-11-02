@@ -37,7 +37,10 @@ publication and acknowledgement complete before the coordinator's `StopAsync`
 returns. The batch remains owned by the coordinator throughout this drain;
 closing its tab does not cancel it. There is no user-facing cancel action.
 
-The import transaction classifies by source hash before inserting. An existing
+Before processing, the coordinator reads the repository's source-hash checkpoint.
+An existing recording skips derivation and writes, republishes persisted session/
+source state and track metadata, then retries acknowledgement. A new recording
+still passes the atomic import transaction, which classifies by source hash before inserting. The repository returns `Inserted` or `Exists`; an existing
 hash, including a legacy recording with a random id, yields `AlreadyImported`
 and preserves its session/source. If a live content-id session arrived by sync but
 has no source, the transaction inserts only that source and reports `Imported`;
@@ -84,8 +87,10 @@ or run failure. New tabs replay this state, so closing a tab does not cancel a
 batch or allow another batch to start. The next run replaces the retained state.
 Per-file failures retain their filename, operation, closed reason and diagnostic
 details. Processing failures bypass persistence and acknowledgement, while other
-files continue. Publication and acknowledgement failures remain distinct from
-processing failure. The view renders fixed summaries with expandable details.
+files continue. Publication failures remain import failures; acknowledgement failure has its own
+`AcknowledgementFailed` event and does not increase the failed-import count.
+The committed recording remains published and the source can be acknowledged
+on a later import attempt. The view renders fixed summaries with expandable details.
 The busy overlay follows coordinator state even when its command did not start
 the run. The factory creates a fresh import view model for each new tab; closing
 it releases its run observation and datastore collection handler.

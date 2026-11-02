@@ -253,6 +253,22 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
+    public void AcknowledgementFailure_ReportsSourceCleanupWithSeparateDiagnostics()
+    {
+        var harness = new ImportWorkflowHarness();
+        var vm = harness.CreateViewModel();
+        const string details = "acknowledgement diagnostic";
+
+        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([], []),
+            [new SessionImportEvent.AcknowledgementFailed("ride.SST", details)]));
+
+        var error = Assert.Single(vm.ErrorMessages);
+        Assert.Contains("ride.SST", error.Summary);
+        Assert.DoesNotContain(details, error.Summary);
+        Assert.Equal(details, error.Details);
+    }
+
+    [Fact]
     public void ProcessingFailure_ReportsFileWithSeparateDiagnostics()
     {
         var harness = new ImportWorkflowHarness();

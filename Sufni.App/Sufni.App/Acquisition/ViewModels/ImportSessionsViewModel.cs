@@ -176,6 +176,10 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 case SessionImportEvent.AlreadyImported existing:
                     Notifications.Insert(0, $"{existing.FileName} was already imported.");
                     break;
+                case SessionImportEvent.AcknowledgementFailed acknowledgement:
+                    var warning = FailurePresentation.From(SessionImportFailureReason.Acknowledge, acknowledgement.Details);
+                    ErrorMessages.Add(new FailurePresentation($"{acknowledgement.FileName}: {warning.Summary}", warning.Details));
+                    break;
                 case SessionImportEvent.Failed failed:
                     var presentation = failed.Failure switch
                     {

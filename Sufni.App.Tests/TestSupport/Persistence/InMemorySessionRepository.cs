@@ -30,6 +30,12 @@ internal sealed class InMemorySessionRepository
             ToEntity(snapshots.GetValueOrDefault(call.Arg<Guid>())));
         Repository.GetSessionsAsync().Returns(_ => snapshots.Values.Select(snapshot => ToEntity(snapshot)!).ToList());
         Repository.GetSessionRawPsstAsync(Arg.Any<Guid>()).Returns(call => telemetry.GetValueOrDefault(call.Arg<Guid>()));
+        Repository.GetImportCheckpointAsync(Arg.Any<string>()).Returns(call =>
+        {
+            var existing = sources.Values.FirstOrDefault(source => source.SourceHash == call.Arg<string>());
+            return existing is null ? null : new SessionImportCommitResult.Exists(
+                ToEntity(snapshots.GetValueOrDefault(existing.SessionId)), existing);
+        });
         Repository.ImportProcessedSessionAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource>())
             .Returns(call =>
             {
@@ -37,12 +43,12 @@ internal sealed class InMemorySessionRepository
                 var source = call.Arg<RecordedSessionSource>();
                 var existing = sources.Values.FirstOrDefault(value => value.SourceHash == source.SourceHash);
                 if (existing is not null)
-                    return Task.FromResult(new SessionImportCommitResult(ToEntity(snapshots.GetValueOrDefault(existing.SessionId)), existing, true));
+                    return Task.FromResult<SessionImportCommitResult>(new SessionImportCommitResult.Exists(ToEntity(snapshots.GetValueOrDefault(existing.SessionId)), existing));
                 var session = call.Arg<Session>();
                 if (!snapshots.ContainsKey(session.Id)) PersistProcessed(session);
                 var sourceSnapshot = RecordedSessionSourceSnapshot.From(source);
                 sources[session.Id] = sourceSnapshot;
-                return Task.FromResult(new SessionImportCommitResult(ToEntity(snapshots[session.Id]), sourceSnapshot, false));
+                return Task.FromResult<SessionImportCommitResult>(new SessionImportCommitResult.Inserted(ToEntity(snapshots[session.Id]), sourceSnapshot));
             });
 
         Session PersistProcessed(Session session)

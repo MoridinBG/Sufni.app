@@ -310,6 +310,13 @@ public class ImportSessionsCoordinator(
                             }
 
                             var source = RecordedSessionSourceFactory.CreateImportedSst(telemetrySource);
+                            if (await sessionRepository.GetImportCheckpointAsync(source.SourceHash) is { } existing)
+                            {
+                                committedImports.Add((telemetryFile,
+                                    existing.Session is { } held ? SessionSnapshot.From(held) : null,
+                                    existing.Source, true, null));
+                                continue;
+                            }
                             var session = new Session(
                                 id: source.SessionId,
                                 name: telemetryFile.Name,
@@ -336,7 +343,7 @@ public class ImportSessionsCoordinator(
                             var committed = await sessionRepository.ImportProcessedSessionAsync(prepared, newTrack, source);
 
                             var snapshot = committed.Session is { } persisted ? SessionSnapshot.From(persisted) : null;
-                            committedImports.Add((telemetryFile, snapshot, committed.Source, committed.AlreadyImported, newTrack?.Id));
+                            committedImports.Add((telemetryFile, snapshot, committed.Source, committed is SessionImportCommitResult.Exists, newTrack?.Id));
                         }
                         catch (Exception e)
                         {
@@ -390,7 +397,9 @@ public class ImportSessionsCoordinator(
                     var sourceSnapshots = committedEntries.Select(entry => entry.Source).ToArray();
                     var trackIds = committedEntries.Where(entry => entry.TrackId.HasValue)
                         .Select(entry => entry.TrackId!.Value).Distinct().ToArray();
-                    var tracks = await trackRepository.GetTrackSnapshotsAsync(trackIds);
+                    // Track IDs are not stored on sessions; recovery republishes metadata without deriving it again.
+                    var tracks = await trackRepository.GetTrackSnapshotsAsync(
+                        committedEntries.Any(entry => entry.AlreadyImported) ? null : trackIds);
                     await dispatcher.InvokeAsync(async () =>
                     {
                         using var batch = publication.BeginBatch();
@@ -427,10 +436,7 @@ public class ImportSessionsCoordinator(
                     catch (Exception e)
                     {
                         logger.Warning(e, "Failed to finish post-import action for telemetry file {FileName}", entry.File.Name);
-                        var failure = new SessionImportFailure.OperationFailed(entry.File.Name,
-                            SessionImportFailureOperation.Import, SessionImportFailureReason.Acknowledge, e.Message);
-                        failures.Add(failure);
-                        Report(new SessionImportEvent.Failed(failure));
+                        Report(new SessionImportEvent.AcknowledgementFailed(entry.File.Name, e.ToString()));
                     }
                 }
             }
@@ -482,6 +488,7 @@ public abstract record SessionImportEvent
 
     public sealed record Imported(SessionSnapshot Snapshot) : SessionImportEvent;
     public sealed record AlreadyImported(string FileName, Guid SessionId) : SessionImportEvent;
+    public sealed record AcknowledgementFailed(string FileName, string? Details) : SessionImportEvent;
     public sealed record Failed(SessionImportFailure Failure) : SessionImportEvent;
     public sealed record Progress(int Current, int Total) : SessionImportEvent;
 }
