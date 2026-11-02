@@ -42,7 +42,7 @@ internal static class TestCoordinatorSubstitutes
             .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
         coordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
-        coordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
+        coordinator.ExportBikeAsync(Arg.Any<BikeDraft>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
 
         return coordinator;

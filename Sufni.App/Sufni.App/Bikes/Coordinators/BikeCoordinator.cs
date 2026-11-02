@@ -18,7 +18,7 @@ internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
     IBikeDependencyQuery dependencyQuery,
     IBikeEditorService bikeEditorService,
-    IBikeRearSuspensionValidator rearSuspensionValidator,
+    IBikeSaveValidator saveValidator,
     ISynchronizableRepository<Bike> bikeRepository,
     IBackgroundTaskRunner backgroundTaskRunner)
     : IBikeCoordinator
@@ -42,10 +42,14 @@ internal class BikeCoordinator(
         switch (result)
         {
             case BikeFileImportResult.Imported imported:
-                logger.Verbose("Preparing imported bike editor data");
-                var importedResult = await BuildImportedBikeResultAsync(imported.Bike, cancellationToken);
-                logger.Information("Bike import completed");
-                return importedResult;
+                var draft = await backgroundTaskRunner.RunAsync(() => BikeDraft.From(BikeSnapshot.From(imported.Bike)) with { Id = Guid.NewGuid() });
+                return await saveValidator.ValidateAsync(draft) switch
+                {
+                    BikeSaveValidation.Valid => new BikeImportResult.Imported(draft),
+                    BikeSaveValidation.Invalid invalid => new BikeImportResult.InvalidFile(invalid.Message),
+                    BikeSaveValidation.Failed failed => new BikeImportResult.Failed(BikeImportFailureReason.Import, failed.Details),
+                    _ => throw new ArgumentOutOfRangeException(),
+                };
 
             case BikeFileImportResult.Canceled:
                 logger.Information("Bike import canceled");
@@ -65,8 +69,10 @@ internal class BikeCoordinator(
     public Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default) =>
         bikeEditorService.ImportLeverageRatioAsync(cancellationToken);
 
-    public async Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default)
+    public async Task<BikeExportResult> ExportBikeAsync(BikeDraft draft, CancellationToken cancellationToken = default)
     {
+        var current = bikeStore.Get(draft.Id);
+        var bike = await backgroundTaskRunner.RunAsync(() => BuildRow(draft, current), cancellationToken);
         logger.Information("Starting bike export for {BikeId}", bike.Id);
 
         var result = await bikeEditorService.ExportBikeAsync(bike, cancellationToken);
@@ -91,57 +97,22 @@ internal class BikeCoordinator(
         return result;
     }
 
-    public async Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated)
+    public async Task<BikeSaveResult> SaveAsync(BikeDraft draft, BikeDraft? draftBase)
     {
-        logger.Information("Starting bike save for {BikeId}", bike.Id);
-
-        var validation = rearSuspensionValidator.ValidateForSave(BikeSnapshot.From(bike));
-        if (validation is BikeRearSuspensionValidationResult.Invalid invalid)
+        logger.Information("Starting bike save for {BikeId}", draft.Id);
+        switch (await saveValidator.ValidateAsync(draft))
         {
-            var rearSuspensionError = RearSuspensionValidationMessages.ForSave(invalid.Failure);
-            logger.Warning("Bike save blocked because the rear suspension was invalid for {BikeId}: {ErrorMessage}", bike.Id, rearSuspensionError);
-            return new BikeSaveResult.InvalidRearSuspension(rearSuspensionError);
+            case BikeSaveValidation.Invalid invalid:
+                return new BikeSaveResult.Invalid(invalid.Message);
+            case BikeSaveValidation.Failed failed:
+                return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, failed.Details);
         }
 
-        var validRearSuspension = (BikeRearSuspensionValidationResult.Valid)validation;
-        BikeEditorAnalysisResult analysisResult = new BikeEditorAnalysisResult.NotApplicable();
-        switch (validRearSuspension.RearSuspension)
+        var current = bikeStore.Get(draft.Id);
+        if (draftBase is not null && current is null) return new BikeSaveResult.Missing();
+        if (current is not null && (draftBase is null || BikeDraft.From(current) != draftBase))
         {
-            case RearSuspensionSpec.Hardtail:
-                break;
-
-            case RearSuspensionSpec.Linkage:
-                logger.Verbose("Analyzing linkage before bike save for {BikeId}", bike.Id);
-                analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
-                switch (analysisResult)
-                {
-                    case BikeEditorAnalysisResult.Unsolvable:
-                        return new BikeSaveResult.InvalidRearSuspension(RearSuspensionValidationMessages.ForSave(
-                            new BikeRearSuspensionValidationFailure(BikeRearSuspensionValidationFailureCode.LinkageInvalidOrUnsolvable)));
-                    case BikeEditorAnalysisResult.Failed failed:
-                        return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, failed.Details);
-                }
-                break;
-
-            case RearSuspensionSpec.LeverageRatio:
-                logger.Verbose("Analyzing leverage ratio before bike save for {BikeId}", bike.Id);
-                analysisResult = await bikeEditorService.LoadAnalysisAsync(validRearSuspension.RearSuspension);
-                if (analysisResult is BikeEditorAnalysisResult.Failed leverageRatioFailed)
-                {
-                    return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, leverageRatioFailed.Details);
-                }
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(
-                    nameof(validRearSuspension),
-                    validRearSuspension.RearSuspension.GetType().Name);
-        }
-
-        var current = bikeStore.Get(bike.Id);
-        if (current is not null && current.Updated > baselineUpdated)
-        {
-            logger.Warning("Bike save conflict for {BikeId}", bike.Id);
+            logger.Warning("Bike save conflict for {BikeId}", draft.Id);
             return new BikeSaveResult.Conflict(current);
         }
 
@@ -149,16 +120,17 @@ internal class BikeCoordinator(
         {
             var saved = await backgroundTaskRunner.RunAsync(async () =>
             {
-                await bikeRepository.PutAsync(bike);
-                return BikeSnapshot.From(bike);
+                var row = BuildRow(draft, current);
+                await bikeRepository.PutAsync(row);
+                return BikeSnapshot.From(row);
             });
             await bikeStore.PublishBikesChangedAsync([saved]);
-            logger.Information("Bike save completed for {BikeId}", bike.Id);
-            return new BikeSaveResult.Saved(saved.Id, saved.Updated, analysisResult);
+            logger.Information("Bike save completed for {BikeId}", draft.Id);
+            return new BikeSaveResult.Saved(saved);
         }
         catch (Exception e)
         {
-            logger.Error(e, "Bike save failed for {BikeId}", bike.Id);
+            logger.Error(e, "Bike save failed for {BikeId}", draft.Id);
             return new BikeSaveResult.Failed(BikeSaveFailureReason.Save, e.Message);
         }
     }
@@ -242,38 +214,24 @@ internal class BikeCoordinator(
         }
     }
 
-    private static Bike NormalizeImportedBike(Bike imported)
+    private static Bike BuildRow(BikeDraft draft, BikeSnapshot? current)
     {
-        var snapshot = BikeSnapshot.From(imported) with
-        {
-            Id = Guid.NewGuid(),
-            Updated = 0,
-        };
-        var normalized = Bike.FromSnapshot(snapshot);
-
-        normalized.Deleted = null;
-
-        return normalized;
+        var row = Bike.FromSnapshot(draft.ToSnapshot());
+        row.DampingSpeedCutoffs = current?.DampingSpeedCutoffs ?? draft.InitialDampingSpeedCutoffs;
+        return row;
     }
 
-    private async Task<BikeImportResult.Imported> BuildImportedBikeResultAsync(
-        Bike imported,
-        CancellationToken cancellationToken)
-    {
-        var normalizedBike = NormalizeImportedBike(imported);
-        var analysis = await bikeEditorService.LoadAnalysisAsync(normalizedBike.RearSuspension, cancellationToken);
 
-        return new BikeImportResult.Imported(new ImportedBikeEditorData(normalizedBike, analysis));
-    }
 }
 
 public abstract record BikeSaveResult
 {
     private BikeSaveResult() { }
 
-    public sealed record Saved(Guid Id, long NewBaselineUpdated, BikeEditorAnalysisResult AnalysisResult) : BikeSaveResult;
+    public sealed record Saved(BikeSnapshot Snapshot) : BikeSaveResult;
+    public sealed record Missing : BikeSaveResult;
     public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
-    public sealed record InvalidRearSuspension(string ErrorMessage) : BikeSaveResult;
+    public sealed record Invalid(string ErrorMessage) : BikeSaveResult;
     public sealed record Failed(BikeSaveFailureReason Reason, string? Details = null) : BikeSaveResult;
 }
 

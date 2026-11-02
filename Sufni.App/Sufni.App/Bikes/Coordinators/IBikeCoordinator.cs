@@ -19,9 +19,9 @@ public interface IBikeCoordinator
 
     Task<LeverageRatioImportResult> ImportLeverageRatioAsync(CancellationToken cancellationToken = default);
 
-    Task<BikeExportResult> ExportBikeAsync(Bike bike, CancellationToken cancellationToken = default);
+    Task<BikeExportResult> ExportBikeAsync(BikeDraft draft, CancellationToken cancellationToken = default);
 
-    Task<BikeSaveResult> SaveAsync(Bike bike, long baselineUpdated);
+    Task<BikeSaveResult> SaveAsync(BikeDraft draft, BikeDraft? draftBase);
 
     Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
         Guid bikeId,

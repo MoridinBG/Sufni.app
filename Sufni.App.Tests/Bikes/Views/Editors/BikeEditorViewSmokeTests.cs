@@ -212,7 +212,6 @@ public class BikeEditorViewSmokeTests
             HeadAngle = 64,
             ForkStroke = 170,
             ShockStroke = 0.5,
-            Chainstay = 440,
             PixelsToMillimeters = 1,
             RearSuspension = new RearSuspensionSpec.Linkage(
                 TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),

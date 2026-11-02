@@ -32,15 +32,12 @@ namespace Sufni.App.Bikes.ViewModels.Editors;
 public sealed record RimSizeOption(EtrtoRimSize Value, string DisplayName);
 
 /// <summary>
-/// Editor view model for a bike. Created by <c>IBikeCoordinator</c>
-/// from a <see cref="BikeSnapshot"/>; the snapshot's <c>Updated</c>
-/// value is kept as <see cref="BaselineUpdated"/> for optimistic
-/// conflict detection at save time.
+/// Bike editor created by the editor factory from a snapshot. One immutable
+/// draft base supports reset, dirty checks and authored-field conflicts.
 /// </summary>
 public partial class BikeEditorViewModel : TabPageViewModelBase
 {
     public Guid Id { get; private set; }
-    public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
 
     #region Private fields
@@ -48,7 +45,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
-    private BikeSnapshot acceptedSnapshot;
+    private BikeDraft draftBase;
     private readonly CancellableOperation analysisOperation = new();
     private readonly CancellableOperation imageOperation = new();
     private readonly CancellableOperation importOperation = new();
@@ -197,7 +194,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         this.bikeCoordinator = bikeCoordinator;
         this.dependencyQuery = dependencyQuery;
         IsInDatabase = !isNew;
-        acceptedSnapshot = snapshot;
+        draftBase = BikeDraft.From(snapshot);
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
         LeverageRatioEditor.ImportCommand = ImportLeverageRatioCommand;
         LinkageEditor.PreviewChanged += OnLinkageEditorPreviewChanged;
@@ -212,6 +209,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         {
             EnsureLinkageSeeded();
         }
+        EvaluateDirtiness();
     }
 
     #endregion Constructors
@@ -245,9 +243,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     // Accept a snapshot as both the reset target and the dirtiness baseline.
     private void AcceptBaseline(BikeSnapshot snapshot)
     {
-        acceptedSnapshot = snapshot;
+        draftBase = BikeDraft.From(snapshot);
         Id = snapshot.Id;
-        BaselineUpdated = snapshot.Updated;
     }
 
     // Suppress edit-time callbacks while raw state is loaded, then rebuild derived UI state once.
@@ -331,38 +328,18 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         ImageCanvas.RefreshRearAxlePath(PixelsToMillimeters);
     }
 
-    // Materialize the current editor state as a snapshot; the coordinator rebuilds the domain model if needed.
-    private BikeSnapshot ToSnapshot(long updated)
+    private BikeDraft CaptureDraft()
     {
-        Debug.Assert(HeadAngle is not null);
-        Debug.Assert(ForksStroke is not null);
-
         var rearSuspension = BuildCurrentRearSuspensionSpec();
-        var pixelsToMillimeters = RearSuspensionMode == RearSuspensionKind.Linkage
-            ? PixelsToMillimeters ?? acceptedSnapshot.PixelsToMillimeters
-            : 0;
-
-        return new BikeSnapshot(
-            Id,
-            Name ?? $"bike {Id}",
-            HeadAngle.Value,
-            ForksStroke,
-            ShockStroke,
-            rearSuspension,
-            acceptedSnapshot.DampingSpeedCutoffs,
-            RearSuspensionMode == RearSuspensionKind.Linkage ? Chainstay : null,
-            pixelsToMillimeters,
-            WheelSpec.FromValues(
-                WheelGeometry.FrontWheelDiameter,
-                WheelGeometry.FrontWheelRimSize,
-                WheelGeometry.FrontWheelTireWidth),
-            WheelSpec.FromValues(
-                WheelGeometry.RearWheelDiameter,
-                WheelGeometry.RearWheelRimSize,
-                WheelGeometry.RearWheelTireWidth),
-            RearSuspensionMode == RearSuspensionKind.Linkage ? ImageCanvas.ImageRotationDegrees : 0,
-            RearSuspensionMode == RearSuspensionKind.Linkage ? ImageCanvas.ImageBytes : [],
-            updated);
+        var pixelsToMillimeters = IsLinkageMode ? PixelsToMillimeters ?? draftBase.PixelsToMillimeters : 0;
+        return new BikeDraft(
+            Id, Name ?? $"bike {Id}", HeadAngle, ForksStroke, ShockStroke, rearSuspension, pixelsToMillimeters,
+            WheelSpec.FromValues(WheelGeometry.FrontWheelDiameter, WheelGeometry.FrontWheelRimSize, WheelGeometry.FrontWheelTireWidth),
+            WheelSpec.FromValues(WheelGeometry.RearWheelDiameter, WheelGeometry.RearWheelRimSize, WheelGeometry.RearWheelTireWidth),
+            IsLinkageMode ? ImageCanvas.ImageRotationDegrees : 0, IsLinkageMode ? ImageCanvas.ImageBytes : [])
+        {
+            InitialDampingSpeedCutoffs = draftBase.InitialDampingSpeedCutoffs,
+        };
     }
 
     private RearSuspensionSpec BuildCurrentRearSuspensionSpec() => RearSuspensionMode switch
@@ -505,13 +482,12 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         }
     }
 
-    private void ApplyImportedBike(ImportedBikeEditorData data)
+    private void ApplyImportedBike(BikeDraft draft)
     {
-        var importedSnapshot = BikeSnapshot.From(data.Bike);
+        var importedSnapshot = draft.ToSnapshot();
         IsInDatabase = false;
 
-        ReplaceState(importedSnapshot);
-        ApplyAnalysisResult(data.AnalysisResult);
+        ReplaceState(importedSnapshot, refreshAnalysis: true);
 
         NotifyDeleteCommandStateChanged();
     }
@@ -791,6 +767,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override void EvaluateDirtiness()
     {
+        var acceptedSnapshot = draftBase;
         var acceptedMode = acceptedSnapshot.RearSuspension.Kind;
         var acceptedLinkage = (acceptedSnapshot.RearSuspension as RearSuspensionSpec.Linkage)?.Spec;
         var acceptedLeverageRatio = (acceptedSnapshot.RearSuspension as RearSuspensionSpec.LeverageRatio)?.Spec;
@@ -801,7 +778,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                  ImageCanvas.Image?.Size.Height,
                  PixelsToMillimeters) ||
              (acceptedMode == RearSuspensionKind.Linkage
-                 ? ImageCanvas.HasChangesComparedTo(acceptedSnapshot)
+                 ? ImageCanvas.HasChangesComparedTo(acceptedSnapshot.ImageBytesMemory, acceptedSnapshot.ImageRotationDegrees)
                  : ImageCanvas.Image is not null || !MathUtils.AreEqual(ImageCanvas.ImageRotationDegrees, 0)));
         var leverageRatioDirty = IsLeverageRatioMode &&
             LeverageRatioEditor.BuildCurrent() !=
@@ -816,21 +793,15 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             RearSuspensionMode != acceptedMode ||
             linkageDirty ||
             leverageRatioDirty ||
-            WheelGeometry.HasChangesComparedTo(acceptedSnapshot);
+            WheelGeometry.HasChangesComparedTo(acceptedSnapshot.FrontWheel, acceptedSnapshot.RearWheel);
     }
 
     protected override bool CanSave()
     {
         EvaluateDirtiness();
 
-        var frontHasDiameter = WheelGeometry.FrontWheelDiameter.HasValue;
-        var rearHasDiameter = WheelGeometry.RearWheelDiameter.HasValue;
-        var wheelsValid = RearSuspensionMode == RearSuspensionKind.LeverageRatio || frontHasDiameter == rearHasDiameter;
-
-        return IsDirty &&
-               HeadAngle is not null &&
-               ForksStroke is not null &&
-               wheelsValid;
+        return IsDirty && BikeSaveValidator.HasRequiredInputs(HeadAngle, ForksStroke, RearSuspensionMode,
+            WheelGeometry.FrontWheelDiameter, WheelGeometry.RearWheelDiameter);
     }
 
     protected override async Task SaveImplementation()
@@ -840,22 +811,19 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             RecalculateGroundRotation();
         }
 
-        var snapshot = ToSnapshot(BaselineUpdated);
-        var bike = BikeModel.FromSnapshot(snapshot);
-        var result = await bikeCoordinator.SaveAsync(bike, BaselineUpdated);
+        var draft = CaptureDraft();
+        var result = await bikeCoordinator.SaveAsync(draft, IsInDatabase ? draftBase : null);
 
         switch (result)
         {
             case BikeSaveResult.Saved saved:
-                bike.Updated = saved.NewBaselineUpdated;
-                AcceptBaseline(BikeSnapshot.From(bike));
+                AcceptBaseline(saved.Snapshot);
                 IsInDatabase = true;
 
-                ApplyAnalysisResult(saved.AnalysisResult);
                 EvaluateDirtiness();
 
                 NotifyDeleteCommandStateChanged();
-                shell.CompleteEdit(new EditorKey.Bike(saved.Id));
+                if (!IsDirty) shell.CompleteEdit(new EditorKey.Bike(saved.Snapshot.Id));
                 break;
 
             case BikeSaveResult.Conflict conflict:
@@ -870,7 +838,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 }
                 break;
 
-            case BikeSaveResult.InvalidRearSuspension invalidRearSuspension:
+            case BikeSaveResult.Missing:
+                Notifications.Add("The bike is no longer available.");
+                break;
+
+            case BikeSaveResult.Invalid invalidRearSuspension:
                 ErrorMessages.Add(new FailurePresentation(invalidRearSuspension.ErrorMessage));
                 break;
 
@@ -908,13 +880,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override Task ResetImplementation()
     {
-        ReplaceState(acceptedSnapshot, acceptBaseline: false);
+        ReplaceState(draftBase.ToSnapshot(), acceptBaseline: false);
         return RefreshAnalysisAsync(showPlotBusyOverlay: true);
     }
 
     protected override async Task ExportImplementation()
     {
-        var result = await bikeCoordinator.ExportBikeAsync(BikeModel.FromSnapshot(ToSnapshot(BaselineUpdated)));
+        var result = await bikeCoordinator.ExportBikeAsync(CaptureDraft());
         if (result is BikeExportResult.Failed failed)
         {
             ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
@@ -1012,7 +984,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             switch (result)
             {
                 case BikeImportResult.Imported imported:
-                    ApplyImportedBike(imported.Data);
+                    ApplyImportedBike(imported.Draft);
                     break;
                 case BikeImportResult.InvalidFile invalid:
                     ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));

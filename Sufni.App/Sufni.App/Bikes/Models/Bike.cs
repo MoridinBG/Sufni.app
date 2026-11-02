@@ -16,7 +16,6 @@ namespace Sufni.App.Bikes.Models;
 public class Bike : Synchronizable
 {
 
-    private double? chainstay;
     private byte[] imageBytes = [];
 
     [JsonPropertyName("name")]
@@ -125,11 +124,7 @@ public class Bike : Synchronizable
 
     [JsonIgnore]
     [Ignore]
-    public double? Chainstay
-    {
-        get => RearSuspension is RearSuspensionSpec.Linkage ? chainstay ?? CalculateChainstay() : null;
-        init => chainstay = value;
-    }
+    public double? Chainstay => BikeGeometry.Chainstay(RearSuspension);
 
     // Just to satisfy sql-net-pcl's parameterless constructor requirement
     // Uninitialized non-nullable property warnings are suppressed with null! initializer.
@@ -148,7 +143,6 @@ public class Bike : Synchronizable
         ShockStroke = snapshot.ShockStroke,
         RearSuspension = snapshot.RearSuspension,
         DampingSpeedCutoffs = snapshot.DampingSpeedCutoffs,
-        Chainstay = snapshot.Chainstay,
         PixelsToMillimeters = snapshot.PixelsToMillimeters,
         FrontWheelDiameterMm = snapshot.FrontWheelDiameterMm,
         RearWheelDiameterMm = snapshot.RearWheelDiameterMm,
@@ -161,19 +155,4 @@ public class Bike : Synchronizable
         Updated = snapshot.Updated,
     };
 
-    private double? CalculateChainstay()
-    {
-        if (RearSuspension is not RearSuspensionSpec.Linkage linkage)
-        {
-            return null;
-        }
-
-        var bottomBracket = linkage.Spec.Joints.FirstOrDefault(j => j.Type == JointType.BottomBracket);
-        var rearWheel = linkage.Spec.Joints.FirstOrDefault(j => j.Type == JointType.RearWheel);
-        if (bottomBracket is null || rearWheel is null) return null;
-
-        var dx = rearWheel.X - bottomBracket.X;
-        var dy = rearWheel.Y - bottomBracket.Y;
-        return double.Hypot(dx, dy);
-    }
 }

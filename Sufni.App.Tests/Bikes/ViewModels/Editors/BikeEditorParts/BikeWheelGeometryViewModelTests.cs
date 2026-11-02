@@ -32,7 +32,7 @@ public class BikeWheelGeometryViewModelTests
         Assert.Equal(snapshot.RearWheelRimSize, viewModel.RearWheelRimSize);
         Assert.Equal(snapshot.RearWheelTireWidth, viewModel.RearWheelTireWidth);
         Assert.Equal(snapshot.RearWheelDiameterMm, viewModel.RearWheelDiameter);
-        Assert.False(viewModel.HasChangesComparedTo(snapshot));
+        Assert.False(viewModel.HasChangesComparedTo(snapshot.FrontWheel, snapshot.RearWheel));
     }
 
     [Fact]
@@ -153,6 +153,6 @@ public class BikeWheelGeometryViewModelTests
 
         viewModel.RearWheelDiameter = 712;
 
-        Assert.True(viewModel.HasChangesComparedTo(snapshot));
+        Assert.True(viewModel.HasChangesComparedTo(snapshot.FrontWheel, snapshot.RearWheel));
     }
 }

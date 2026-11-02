@@ -123,9 +123,9 @@ public partial class BikeImageCanvasViewModel : ObservableObject
             .ToList();
     }
 
-    public bool HasChangesComparedTo(BikeSnapshot snapshot) =>
-        !MathUtils.AreEqual(ImageRotationDegrees, snapshot.ImageRotationDegrees) ||
-        !snapshot.ImageBytesSpan.SequenceEqual(imageBytes);
+    public bool HasChangesComparedTo(ReadOnlyMemory<byte> baselineBytes, double baselineRotation) =>
+        !MathUtils.AreEqual(ImageRotationDegrees, baselineRotation) ||
+        !baselineBytes.Span.SequenceEqual(imageBytes);
 
     private void InvalidateRotatedImageCache()
     {

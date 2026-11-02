@@ -83,7 +83,6 @@ public class BikeRestorationTests
     {
         var source = new Bike(Guid.NewGuid(), "linkage bike")
         {
-            Chainstay = 440,
             RearSuspension = new RearSuspensionSpec.Linkage(LinkageWithChainstay(4)),
         };
 

@@ -138,6 +138,7 @@ public static class AppComposition
         services.AddSingleton<IBikeDependencyQuery, BikeDependencyQuery>();
         services.AddSingleton<ILiveDaqKnownBoardsQuery, LiveDaqKnownBoardsQuery>();
         services.AddSingleton<IEditorFactory, EditorFactory>();
+        services.AddSingleton<IBikeSaveValidator, BikeSaveValidator>();
         services.AddSingleton<BikeCoordinator>();
         services.AddSingleton<IBikeCoordinator>(sp => sp.GetRequiredService<BikeCoordinator>());
         services.AddSingleton<ISetupBoardQuery, SetupBoardQuery>();

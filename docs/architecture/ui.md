@@ -267,7 +267,7 @@ Hardtails are not applicable; incomplete drafts and typed invalid-geometry input
 are unsolvable. Unexpected failures carry `BikeAnalysisFailureReason.Analyze`
 with optional details and no longer disappear into the unavailable state.
 
-Bike save returns `BikeSaveResult.Saved | Conflict | InvalidRearSuspension | Failed`.
+Bike save returns `BikeSaveResult.Saved(Snapshot) | Conflict | Missing | Invalid | Failed`.
 Its failure carries `BikeSaveFailureReason.Save | Analysis` and optional details.
 Cutoff updates return `BikeDampingSpeedCutoffUpdateResult.Saved | Conflict | Missing | Failed`
 with `BikeDampingCutoffFailureReason.Save`; a missing bike disables cutoff editing.
@@ -362,15 +362,14 @@ Failed(reason, details)`. `ISetupFileService` logs parsing/read errors once and
 returns those outcomes; the coordinator forwards failures without logging them
 again, then owns the imported rows and publication.
 
-`BikeSaveResult.Saved` additionally carries
-a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
-to leverage-ratio recomputation without a second round-trip; the
-other `Saved` variants are payload-only. Editors pattern-match on
-the result and, on conflict, prompt the user via `IDialogService`
-before reloading the snapshot. The coordinator detects conflicts by
-comparing the baseline `Updated` value the editor opened on against
-the store's current snapshot — so a sync arrival or another tab's
-save during an edit cannot silently overwrite the user's changes.
+Bike and recorded-session saves return the persisted snapshot. Their editors
+retain one draft base and compare only the fields that their save writes;
+timestamp changes and separately owned cutoff/alignment/processing-option edits
+do not conflict. Bike saves preserve current damping cutoffs, while new imports
+seed their cutoffs from the file. Missing persisted bikes are not recreated by
+an existing editor. A saved baseline retains edits made during persistence as
+dirty. Setup editors still use timestamp baselines until their draft conversion.
+Plot analysis is requested independently and never carried by the bike save result.
 The live session path is deliberately separate:
 `SaveCaptureAsync(...)` is create-only and returns
 `Saved(SessionId, CaptureRevision, PublicationWarning?, CleanupFailure?, PreferenceWarning?)`, `Failed(reason, details)` or

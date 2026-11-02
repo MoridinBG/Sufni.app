@@ -180,13 +180,13 @@ public partial class BikeWheelGeometryViewModel : ObservableObject
         return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
-    public bool HasChangesComparedTo(BikeSnapshot snapshot) =>
-        FrontWheelRimSize != snapshot.FrontWheelRimSize ||
-        !MathUtils.AreEqual(FrontWheelTireWidth, snapshot.FrontWheelTireWidth) ||
-        !MathUtils.AreEqual(FrontWheelDiameter, snapshot.FrontWheelDiameterMm) ||
-        RearWheelRimSize != snapshot.RearWheelRimSize ||
-        !MathUtils.AreEqual(RearWheelTireWidth, snapshot.RearWheelTireWidth) ||
-        !MathUtils.AreEqual(RearWheelDiameter, snapshot.RearWheelDiameterMm);
+    public bool HasChangesComparedTo(WheelSpec? front, WheelSpec? rear) =>
+        FrontWheelRimSize != front?.RimSize ||
+        !MathUtils.AreEqual(FrontWheelTireWidth, front?.TireWidth) ||
+        !MathUtils.AreEqual(FrontWheelDiameter, front?.DiameterMm) ||
+        RearWheelRimSize != rear?.RimSize ||
+        !MathUtils.AreEqual(RearWheelTireWidth, rear?.TireWidth) ||
+        !MathUtils.AreEqual(RearWheelDiameter, rear?.DiameterMm);
 
     private bool CanRemoveFrontWheel() =>
         FrontWheelRimSize.HasValue ||

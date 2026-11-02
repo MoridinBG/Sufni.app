@@ -148,7 +148,7 @@ public class BikeEditorViewModelTests
             ? $"{link.A}->{link.B}"
             : $"{link.B}->{link.A}";
 
-    private static bool LinkageShockStrokeEquals(Bike bike, double expected) =>
+    private static bool LinkageShockStrokeEquals(BikeDraft bike, double expected) =>
         bike.RearSuspension is RearSuspensionSpec.Linkage linkage &&
         linkage.Spec.ShockStroke == expected;
 
@@ -198,7 +198,6 @@ public class BikeEditorViewModelTests
         Assert.Null(editor.ShockStroke);
         Assert.Null(editor.ImageCanvas.Image);
         Assert.True(editor.IsInDatabase);
-        Assert.Equal(7, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.Empty(editor.LinkageEditor.JointViewModels);
@@ -552,7 +551,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.Name = "Changed bike";
         Assert.True(editor.SaveCommand.CanExecute(null));
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5).Returns(
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot)).Returns(
             conflict
                 ? new BikeSaveResult.Conflict(snapshot with { Updated = 6 })
                 : new BikeSaveResult.Failed(BikeSaveFailureReason.Save, "disk full"));
@@ -565,7 +564,6 @@ public class BikeEditorViewModelTests
         shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
         Assert.True(editor.IsDirty);
         Assert.True(editor.SaveCommand.CanExecute(null));
-        Assert.Equal(5, editor.BaselineUpdated);
     }
 
     [AvaloniaFact]
@@ -578,21 +576,20 @@ public class BikeEditorViewModelTests
         editor.WheelGeometry.RearWheelDiameter = 750;
         editor.ImageCanvas.ImageRotationDegrees = 13.5;
 
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.NotApplicable()));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(b =>
+            Arg.Is<BikeDraft>(b =>
                 b.Id == snapshot.Id &&
                 b.Name == "renamed" &&
                 b.RearSuspension is RearSuspensionSpec.Hardtail &&
-                b.FrontWheelDiameterMm == 760 &&
-                b.RearWheelDiameterMm == 750 &&
+                b.FrontWheel != null && b.FrontWheel.DiameterMm == 760 &&
+                b.RearWheel != null && b.RearWheel.DiameterMm == 750 &&
                 b.ImageRotationDegrees == 0),
-            5);
-        Assert.Equal(11, editor.BaselineUpdated);
+            BikeDraft.From(snapshot));
         shell.Received(1).CompleteEdit(new EditorKey.Bike(snapshot.Id));
         Assert.Empty(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
@@ -605,8 +602,8 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot, isDesktop: false);
         editor.Name = "renamed";
 
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.NotApplicable()));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
@@ -621,14 +618,13 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
             .Returns(new BikeSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal("remote-updated", editor.Name);
-        Assert.Equal(12, editor.BaselineUpdated);
         Assert.False(editor.IsDirty);
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
@@ -643,7 +639,7 @@ public class BikeEditorViewModelTests
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
         var pendingAnalysis = new TaskCompletionSource<BikeEditorAnalysisResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
             .Returns(new BikeSaveResult.Conflict(fresh));
         bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
             .Returns(pendingAnalysis.Task);
@@ -668,14 +664,13 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
             .Returns(new BikeSaveResult.Conflict(fresh));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal("renamed", editor.Name);
-        Assert.Equal(5, editor.BaselineUpdated);
     }
 
     [AvaloniaFact]
@@ -684,16 +679,16 @@ public class BikeEditorViewModelTests
         var snapshot = FullSuspensionSnapshot(includeHeadTubeJoints: true, updated: 5);
         var editor = CreateEditor(snapshot);
         editor.ShockStroke = 12.5;
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(snapshot.Id, 11, new BikeEditorAnalysisResult.NotApplicable()));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(bike =>
+            Arg.Is<BikeDraft>(bike =>
                 bike.ShockStroke == 12.5 &&
                 LinkageShockStrokeEquals(bike, 12.5)),
-            5);
+            BikeDraft.From(snapshot));
     }
 
     [AvaloniaFact]
@@ -780,7 +775,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
 
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
             .Returns(new BikeSaveResult.Failed(BikeSaveFailureReason.Save, "disk full"));
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -797,16 +792,16 @@ public class BikeEditorViewModelTests
         };
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.InvalidRearSuspension("Linkage data is required for linkage bikes."));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(new BikeSaveResult.Invalid("Linkage data is required for linkage bikes."));
 
         Assert.True(editor.SaveCommand.CanExecute(null));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
-            5);
+            Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
+            BikeDraft.From(snapshot));
         Assert.NotEmpty(editor.ErrorMessages);
     }
 
@@ -815,8 +810,8 @@ public class BikeEditorViewModelTests
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.InvalidRearSuspension("Linkage data is required for linkage bikes."));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(new BikeSaveResult.Invalid("Linkage data is required for linkage bikes."));
 
         editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.Linkage);
         await Task.Yield();
@@ -826,8 +821,8 @@ public class BikeEditorViewModelTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
-            5);
+            Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
+            BikeDraft.From(snapshot));
     }
 
     [AvaloniaFact]
@@ -839,16 +834,16 @@ public class BikeEditorViewModelTests
         };
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.InvalidRearSuspension("Leverage ratio data is required for leverage ratio bikes."));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(new BikeSaveResult.Invalid("Leverage ratio data is required for leverage ratio bikes."));
 
         Assert.True(editor.SaveCommand.CanExecute(null));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
-            5);
+            Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
+            BikeDraft.From(snapshot));
         Assert.NotEmpty(editor.ErrorMessages);
     }
 
@@ -857,8 +852,8 @@ public class BikeEditorViewModelTests
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.InvalidRearSuspension("Leverage ratio data is required for leverage ratio bikes."));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+            .Returns(new BikeSaveResult.Invalid("Leverage ratio data is required for leverage ratio bikes."));
 
         editor.SetRearSuspensionModeCommand.Execute(RearSuspensionKind.LeverageRatio);
         await Task.Yield();
@@ -868,28 +863,35 @@ public class BikeEditorViewModelTests
         await editor.SaveCommand.ExecuteAsync(null);
 
         await bikeCoordinator.Received(1).SaveAsync(
-            Arg.Is<Bike>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
-            5);
+            Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
+            BikeDraft.From(snapshot));
     }
 
     [AvaloniaFact]
-    public async Task Save_OnDesktop_AppliesAnalysisFromSavedResult_WithoutReloadingAnalysis()
+    public async Task Save_KeepsEditsMadeDuringPersistenceDirty()
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
-        var data = new CoordinateList([1, 2], [3, 4]);
-        editor.Name = "renamed";
-        bikeCoordinator.ClearReceivedCalls();
+        editor.Name = "submitted";
+        var pending = new TaskCompletionSource<BikeSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        BikeDraft? submitted = null;
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot)).Returns(call =>
+        {
+            submitted = call.ArgAt<BikeDraft>(0);
+            return pending.Task;
+        });
+        var save = editor.SaveCommand.ExecuteAsync(null);
+        editor.Name = "later edit";
+        pending.SetResult(new BikeSaveResult.Saved(submitted!.ToSnapshot() with { Updated = 11 }));
 
-        bikeCoordinator.SaveAsync(Arg.Any<Bike>(), 5)
-            .Returns(new BikeSaveResult.Saved(
-                snapshot.Id, 11,
-                new BikeEditorAnalysisResult.Computed(PresentationData(data))));
+        await save.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        await editor.SaveCommand.ExecuteAsync(null);
-
-        Assert.Equal(data, editor.LeverageRatioData);
-        await bikeCoordinator.DidNotReceive().LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>());
+        Assert.Equal("later edit", editor.Name);
+        Assert.True(editor.IsDirty);
+        shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
+        await editor.ResetCommand.ExecuteAsync(null);
+        Assert.Equal("submitted", editor.Name);
+        Assert.False(editor.IsDirty);
     }
 
     // ----- CanDelete -----
@@ -1118,9 +1120,7 @@ public class BikeEditorViewModelTests
         };
         bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BikeImportResult>(
-                new BikeImportResult.Imported(new ImportedBikeEditorData(
-                    importedBike,
-                    new BikeEditorAnalysisResult.NotApplicable()))));
+                new BikeImportResult.Imported(BikeDraft.From(BikeSnapshot.From(importedBike)))));
 
         await editor.ImportCommand.ExecuteAsync(null);
 
@@ -1134,7 +1134,6 @@ public class BikeEditorViewModelTests
         Assert.Equal(2.5, editor.WheelGeometry.RearWheelTireWidth);
         Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), editor.WheelGeometry.RearWheelDiameter);
         Assert.Equal(0, editor.ImageCanvas.ImageRotationDegrees);
-        Assert.Equal(0, editor.BaselineUpdated);
         Assert.False(editor.IsInDatabase);
     }
 
@@ -1247,14 +1246,9 @@ public class BikeEditorViewModelTests
 
         pendingAnalysis.SetResult(new BikeEditorAnalysisResult.Computed(
             PresentationData(new CoordinateList([1, 2], [3, 4]))));
-        pendingImport.SetResult(new BikeImportResult.Imported(
-            new ImportedBikeEditorData(
-                new Bike(Guid.NewGuid(), "imported bike")
-                {
-                    HeadAngle = 63,
-                    ForkStroke = 170,
-                },
-                new BikeEditorAnalysisResult.Computed(PresentationData(importedData)))));
+        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
+            .Returns(new BikeEditorAnalysisResult.Computed(PresentationData(importedData)));
+        pendingImport.SetResult(new BikeImportResult.Imported(BikeDraft.From(TestSnapshots.Bike(name: "imported bike"))));
 
         await loadedTask;
         await importTask;

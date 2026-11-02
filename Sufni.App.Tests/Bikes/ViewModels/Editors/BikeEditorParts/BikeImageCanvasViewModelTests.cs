@@ -26,7 +26,7 @@ public class BikeImageCanvasViewModelTests
         Assert.NotNull(viewModel.Image);
         Assert.Equal(imageBytes, viewModel.ImageBytes);
         Assert.Equal(12.5, viewModel.ImageRotationDegrees);
-        Assert.False(viewModel.HasChangesComparedTo(snapshot));
+        Assert.False(viewModel.HasChangesComparedTo(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees));
     }
 
     [AvaloniaFact]
@@ -90,6 +90,6 @@ public class BikeImageCanvasViewModelTests
 
         viewModel.OverlayVisible = true;
 
-        Assert.False(viewModel.HasChangesComparedTo(snapshot));
+        Assert.False(viewModel.HasChangesComparedTo(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees));
     }
 }

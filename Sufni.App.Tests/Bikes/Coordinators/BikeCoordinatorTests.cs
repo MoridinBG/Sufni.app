@@ -21,12 +21,12 @@ public class BikeCoordinatorTests : IDisposable
     private readonly InMemorySynchronizableRepository<Bike> repository = new(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9)));
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
-    private readonly IBikeRearSuspensionValidator rearSuspensionValidator = new BikeRearSuspensionValidator();
+    private readonly TestSaveValidator validator = new();
 
     public void Dispose() => bikeStore.Dispose();
 
     private BikeCoordinator CreateCoordinator() =>
-        new(bikeStore, dependencyQuery, bikeEditorService, rearSuspensionValidator, repository, new InlineBackgroundTaskRunner());
+        new(bikeStore, dependencyQuery, bikeEditorService, validator, repository, new InlineBackgroundTaskRunner());
 
     private async Task SeedAsync(BikeSnapshot snapshot)
     {
@@ -60,41 +60,62 @@ public class BikeCoordinatorTests : IDisposable
         var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var imported = Assert.IsType<BikeImportResult.Imported>(result);
-        Assert.Equal("imported", imported.Data.Bike.Name);
-        Assert.NotEqual(Guid.Empty, imported.Data.Bike.Id);
-        Assert.NotEqual(importedBike.Id, imported.Data.Bike.Id);
-        Assert.Equal(0, imported.Data.Bike.Updated);
-        Assert.Null(imported.Data.Bike.Deleted);
-        Assert.Equal(EtrtoRimSize.Inch29, imported.Data.Bike.FrontWheelRimSize);
-        Assert.Equal(2.4, imported.Data.Bike.FrontWheelTireWidth);
-        Assert.Equal(743.9, imported.Data.Bike.FrontWheelDiameterMm);
-        Assert.Equal(EtrtoRimSize.Inch275, imported.Data.Bike.RearWheelRimSize);
-        Assert.Equal(2.5, imported.Data.Bike.RearWheelTireWidth);
-        Assert.Equal(711, imported.Data.Bike.RearWheelDiameterMm);
-        Assert.Equal(12.5, imported.Data.Bike.ImageRotationDegrees);
-        Assert.IsType<BikeEditorAnalysisResult.NotApplicable>(imported.Data.AnalysisResult);
+        Assert.Equal("imported", imported.Draft.Name);
+        Assert.NotEqual(Guid.Empty, imported.Draft.Id);
+        Assert.NotEqual(importedBike.Id, imported.Draft.Id);
+        Assert.Equal(EtrtoRimSize.Inch29, imported.Draft.FrontWheel!.RimSize);
+        Assert.Equal(2.4, imported.Draft.FrontWheel!.TireWidth);
+        Assert.Equal(743.9, imported.Draft.FrontWheel!.DiameterMm);
+        Assert.Equal(EtrtoRimSize.Inch275, imported.Draft.RearWheel!.RimSize);
+        Assert.Equal(2.5, imported.Draft.RearWheel!.TireWidth);
+        Assert.Equal(711, imported.Draft.RearWheel!.DiameterMm);
+        Assert.Equal(12.5, imported.Draft.ImageRotationDegrees);
     }
 
     [Fact]
-    public async Task ImportBikeAsync_LoadsUnsolvableAnalysis_ForDraftRearSuspension()
+    public async Task ImportBikeAsync_RejectsInvalidDraftWithoutPersisting()
     {
-        var importedBike = new Bike(Guid.NewGuid(), "mismatched import")
-        {
-            HeadAngle = 64,
-            ForkStroke = 150,
-            RearSuspension = new RearSuspensionSpec.LeverageRatioDraft(),
-        };
-        bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(new BikeFileImportResult.Imported(importedBike));
-        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.Unsolvable());
+        var importedBike = new Bike(Guid.NewGuid(), "invalid import");
+        bikeEditorService.ImportBikeAsync(Arg.Any<CancellationToken>()).Returns(new BikeFileImportResult.Imported(importedBike));
+        validator.Evaluate = _ => Task.FromResult<BikeSaveValidation>(new BikeSaveValidation.Invalid("invalid bike"));
 
-        var result = await CreateCoordinator().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator().ImportBikeAsync(TestContext.Current.CancellationToken);
 
-        var imported = Assert.IsType<BikeImportResult.Imported>(result);
-        Assert.IsType<BikeEditorAnalysisResult.Unsolvable>(imported.Data.AnalysisResult);
-        await bikeEditorService.Received(1)
-            .LoadAnalysisAsync(Arg.Is<RearSuspensionSpec.LeverageRatioDraft>(_ => true), Arg.Any<CancellationToken>());
+        Assert.IsType<BikeImportResult.InvalidFile>(result);
+        Assert.Empty(await repository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task SaveAsync_IgnoresTimestampAndCutoffChanges_AndPreservesCurrentCutoffs()
+    {
+        var baseline = TestSnapshots.Bike(updated: 5);
+        var cutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
+        var current = baseline with { Updated = 20, DampingSpeedCutoffs = cutoffs };
+        await SeedAsync(current);
+        var draft = BikeDraft.From(baseline) with { Name = "edited" };
+
+        var result = Assert.IsType<BikeSaveResult.Saved>(await CreateCoordinator().SaveAsync(draft, BikeDraft.From(baseline)));
+
+        Assert.Equal("edited", result.Snapshot.Name);
+        Assert.Equal(cutoffs, result.Snapshot.DampingSpeedCutoffs);
+        Assert.Equal(cutoffs, (await repository.GetAsync(baseline.Id))!.DampingSpeedCutoffs);
+    }
+
+    [Fact]
+    public async Task SaveAsync_NewDraftSeedsImportedCutoffs_ButRemovedExistingBikeIsNotRecreated()
+    {
+        var draft = BikeDraft.From(TestSnapshots.Bike()) with { InitialDampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400) };
+        var coordinator = CreateCoordinator();
+        var created = Assert.IsType<BikeSaveResult.Saved>(await coordinator.SaveAsync(draft, null));
+        Assert.Equal(draft.InitialDampingSpeedCutoffs, created.Snapshot.DampingSpeedCutoffs);
+        await repository.DeleteAsync(draft.Id);
+        await bikeStore.PublishBikesRemovedAsync([draft.Id]);
+
+        var result = await coordinator.SaveAsync(draft with { Name = "later" }, BikeDraft.From(created.Snapshot));
+
+        Assert.IsType<BikeSaveResult.Missing>(result);
+        Assert.Null(await repository.GetAsync(draft.Id));
+        Assert.Null(bikeStore.Get(draft.Id));
     }
 
     // ----- SaveAsync -----
@@ -116,7 +137,7 @@ public class BikeCoordinatorTests : IDisposable
             Updated = 7,
         };
 
-        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
+        var result = await coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(existing));
 
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
@@ -125,12 +146,11 @@ public class BikeCoordinatorTests : IDisposable
         Assert.Equal(760, persisted.FrontWheelDiameterMm);
         Assert.Equal(750, persisted.RearWheelDiameterMm);
         Assert.Equal(13.5, persisted.ImageRotationDegrees);
-        Assert.Equal(9, saved.NewBaselineUpdated);
-        Assert.IsType<BikeEditorAnalysisResult.NotApplicable>(saved.AnalysisResult);
+        Assert.Equal(9, saved.Snapshot.Updated);
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsConflict_WhenStoreIsNewer_AndDoesNotPersist()
+    public async Task SaveAsync_ReturnsConflict_WhenAuthoredFieldsChangedAtSameTimestamp_AndDoesNotPersist()
     {
         var current = TestSnapshots.Bike(updated: 10);
         await SeedAsync(current);
@@ -138,7 +158,7 @@ public class BikeCoordinatorTests : IDisposable
 
         var bike = new Bike(current.Id, "stale edit") { HeadAngle = 65, ForkStroke = 160 };
 
-        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
+        var result = await coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(current with { Name = "original name" }));
 
         var conflict = Assert.IsType<BikeSaveResult.Conflict>(result);
         Assert.Same(current, conflict.CurrentSnapshot);
@@ -155,7 +175,7 @@ public class BikeCoordinatorTests : IDisposable
 
         var bike = new Bike(existing.Id, "x") { HeadAngle = 65, ForkStroke = 160 };
 
-        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
+        var result = await coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(existing));
 
         Assert.Equal(BikeSaveFailureReason.Save, Assert.IsType<BikeSaveResult.Failed>(result).Reason);
         Assert.Equal(existing, bikeStore.Get(existing.Id));
@@ -259,31 +279,17 @@ public class BikeCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLinkageAnalysisIsUnsolvable()
+    public async Task SaveAsync_ValidationFailureLeavesPersistedAndPublishedBikeUnchanged()
     {
         var existing = TestSnapshots.Bike(updated: 5);
         await SeedAsync(existing);
-        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(new BikeEditorAnalysisResult.Unsolvable());
-        var coordinator = CreateCoordinator();
+        validator.Evaluate = _ => Task.FromResult<BikeSaveValidation>(new BikeSaveValidation.Invalid("unsolvable linkage"));
 
-        var bike = new Bike(existing.Id, "full sus")
-        {
-            HeadAngle = 65,
-            ForkStroke = 160,
-            ShockStroke = 50,
-            Chainstay = 440,
-            PixelsToMillimeters = 1,
-            ImageBytes = TestImages.SmallPngBytes(),
-            RearSuspension = new RearSuspensionSpec.Linkage(
-                TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
-        };
+        var result = await CreateCoordinator().SaveAsync(BikeDraft.From(existing) with { Name = "new name" }, BikeDraft.From(existing));
 
-        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
-
-        var invalid = Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
-        Assert.False(string.IsNullOrWhiteSpace(invalid.ErrorMessage));
-        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
+        Assert.IsType<BikeSaveResult.Invalid>(result);
+        Assert.Equal(existing, BikeSnapshot.From((await repository.GetAsync(existing.Id))!));
+        Assert.Equal(existing, bikeStore.Get(existing.Id));
     }
 
     [Theory]
@@ -293,10 +299,9 @@ public class BikeCoordinatorTests : IDisposable
     {
         var existing = TestSnapshots.Bike(updated: 5);
         await SeedAsync(existing);
-        var analysisCompletion = new TaskCompletionSource<BikeEditorAnalysisResult>(
+        var analysisCompletion = new TaskCompletionSource<BikeSaveValidation>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        bikeEditorService.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(_ => analysisCompletion.Task);
+        validator.Evaluate = _ => analysisCompletion.Task;
         var coordinator = CreateCoordinator();
         var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var bike = new Bike(existing.Id, "full sus")
@@ -304,28 +309,19 @@ public class BikeCoordinatorTests : IDisposable
             HeadAngle = 65,
             ForkStroke = 160,
             ShockStroke = 50,
-            Chainstay = 440,
             PixelsToMillimeters = 1,
             ImageBytes = TestImages.SmallPngBytes(),
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
 
-        var saveTask = coordinator.SaveAsync(bike, baselineUpdated: 5);
+        var saveTask = coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(existing));
 
-        _ = bikeEditorService.Received(1)
-            .LoadAnalysisAsync(
-                Arg.Is<RearSuspensionSpec.Linkage>(rearSuspension => rearSuspension.Spec == linkage),
-                Arg.Any<CancellationToken>());
         Assert.False(saveTask.IsCompleted);
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
 
-        var analysisResult = new BikeEditorAnalysisResult.Computed(
-            new BikeAnalysisPresentationData(
-                new CoordinateList([0], [0]),
-                null));
         var concurrent = existing with { Name = "concurrent edit", Updated = 10 };
         if (changedDuringAnalysis) await SeedAsync(concurrent);
-        analysisCompletion.SetResult(analysisResult);
+        analysisCompletion.SetResult(new BikeSaveValidation.Valid());
         var result = await saveTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         if (changedDuringAnalysis)
@@ -335,32 +331,10 @@ public class BikeCoordinatorTests : IDisposable
         }
         else
         {
-            Assert.Same(analysisResult, Assert.IsType<BikeSaveResult.Saved>(result).AnalysisResult);
+            Assert.IsType<BikeSaveResult.Saved>(result);
             Assert.Equal("full sus", (await repository.GetAsync(existing.Id))!.Name);
         }
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
-    }
-
-    [Fact]
-    public async Task SaveAsync_ReturnsInvalidRearSuspension_WhenLeverageRatioShockStrokeDoesNotMatchCurveMax()
-    {
-        var existing = TestSnapshots.Bike(updated: 5);
-        await SeedAsync(existing);
-        var coordinator = CreateCoordinator();
-
-        var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
-            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
-            shockStroke: 15,
-            id: existing.Id,
-            updated: 7));
-
-        var result = await coordinator.SaveAsync(bike, baselineUpdated: 5);
-
-        Assert.IsType<BikeSaveResult.InvalidRearSuspension>(result);
-        await bikeEditorService.DidNotReceiveWithAnyArgs().LoadAnalysisAsync(
-            default!,
-            Arg.Any<CancellationToken>());
-        Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
     }
 
     // ----- DeleteAsync -----
@@ -414,4 +388,10 @@ public class BikeCoordinatorTests : IDisposable
         Assert.Equal(initial, bikeStore.Get(id));
     }
 
+    private sealed class TestSaveValidator : IBikeSaveValidator
+    {
+        public Func<BikeDraft, Task<BikeSaveValidation>> Evaluate { get; set; } =
+            _ => Task.FromResult<BikeSaveValidation>(new BikeSaveValidation.Valid());
+        public Task<BikeSaveValidation> ValidateAsync(BikeDraft draft, CancellationToken cancellationToken = default) => Evaluate(draft);
+    }
 }

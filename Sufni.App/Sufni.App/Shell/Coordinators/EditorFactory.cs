@@ -92,7 +92,7 @@ internal sealed class EditorFactory(
             shell,
             dialogService,
             uiThreadDispatcher,
-            timeProvider: timeProvider) { IsDirty = isNew };
+            timeProvider: timeProvider);
 
     private SetupEditorViewModel CreateSetupEditor(SetupDetails details, bool isNew, IShellCoordinator shell) =>
         new(
