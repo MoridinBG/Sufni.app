@@ -19,6 +19,29 @@ public class LiveSignalPipelineTests
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(2);
 
     [Fact(Timeout = DeadlockProneTestTimeoutMs)]
+    public async Task SetAnalysis_PublishesWithDisplayDataAndResetClearsIt()
+    {
+        await using var pipeline = CreatePipeline();
+        pipeline.Start();
+        await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
+        var analysis = LiveSessionAnalysis.Compute(1,
+            LiveAnalysisOptions.Default(Sufni.App.Bikes.Models.DampingSpeedCutoffs.Default),
+            TestTelemetryData.CreateProcessed(), Sufni.App.Sessions.Models.SessionDampingPercentages.Empty, true, true);
+        var next = WaitForBatchAsync(pipeline, batch => batch.Analysis is not null);
+        pipeline.AppendTravelSamples([0, 0.01], [1, 2], [3, 4]);
+        pipeline.SetAnalysis(analysis);
+        time.Advance(FlushInterval);
+
+        var batch = await next;
+        Assert.Same(analysis, batch.Analysis);
+        Assert.Equal([1d, 2d], batch.FrontTravel);
+
+        var reset = WaitForBatchAsync(pipeline, value => value.Revision > batch.Revision);
+        pipeline.Reset();
+        Assert.Null((await reset).Analysis);
+    }
+
+    [Fact(Timeout = DeadlockProneTestTimeoutMs)]
     public async Task AppendTravelSamples_FlushesBatchAtIntervalWithVelocity()
     {
         await using var pipeline = CreatePipeline();

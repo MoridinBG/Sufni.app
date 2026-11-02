@@ -152,6 +152,14 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         }
     }
 
+    public void SetAnalysis(LiveSessionAnalysis analysis)
+    {
+        lock (gate)
+        {
+            if (!isDisposed) pendingSignalBatch.Analysis = analysis;
+        }
+    }
+
     public void Reset()
     {
         long resetRevision;
@@ -252,6 +260,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         double[]? velocityRearSnap = null;
         int batchCount;
         long batchRevision;
+        LiveSessionAnalysis? analysis;
 
         lock (gate)
         {
@@ -261,6 +270,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             }
 
             var batchToFlush = pendingSignalBatch;
+            analysis = batchToFlush.Analysis;
             pendingSignalBatch = new PendingSignalBatch();
 
             batchCount = batchToFlush.TravelTimes.Count;
@@ -320,7 +330,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             ImuVibrationRms: imuVibrationRmsDict,
             FramePitchRollTimes: framePitchRollTimesArr,
             FramePitchDegrees: framePitchArr,
-            FrameRollDegrees: frameRollArr);
+            FrameRollDegrees: frameRollArr) { Analysis = analysis };
 
         signalBatchesSubject.OnNext(batch);
     }
@@ -434,6 +444,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
     private sealed class PendingSignalBatch
     {
+        public LiveSessionAnalysis? Analysis { get; set; }
         public List<double> TravelTimes { get; } = new();
         public List<double> FrontTravel { get; } = new();
         public List<double> RearTravel { get; } = new();
@@ -447,7 +458,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         {
             get
             {
-                if (TravelTimes.Count > 0)
+                if (Analysis is not null || TravelTimes.Count > 0)
                 {
                     return true;
                 }
@@ -476,6 +487,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
         public void Clear()
         {
+            Analysis = null;
             TravelTimes.Clear();
             FrontTravel.Clear();
             RearTravel.Clear();

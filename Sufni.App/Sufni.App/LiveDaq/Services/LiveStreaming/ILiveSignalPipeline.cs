@@ -15,5 +15,7 @@ internal interface ILiveSignalPipeline : IAsyncDisposable
 
     void AppendFramePitchRollSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees);
 
+    void SetAnalysis(LiveSessionAnalysis analysis);
+
     void Reset();
 }

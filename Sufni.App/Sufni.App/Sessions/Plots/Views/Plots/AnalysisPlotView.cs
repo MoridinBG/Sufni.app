@@ -28,7 +28,7 @@ public enum AnalysisPlotKind
 
 public class AnalysisPlotView : SufniTelemetryPlotView
 {
-    private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
+    private ISessionAnalysisResultSource? subscribedAnalysisResultState;
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
     private bool hasDeferredAnalysisReload;
@@ -97,8 +97,8 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     public static readonly StyledProperty<TelemetryRangeSelection?> ActiveAnalysisSelectionProperty =
         AvaloniaProperty.Register<AnalysisPlotView, TelemetryRangeSelection?>(nameof(ActiveAnalysisSelection));
 
-    public static readonly StyledProperty<IRecordedSessionAnalysisResultState?> AnalysisResultStateProperty =
-        AvaloniaProperty.Register<AnalysisPlotView, IRecordedSessionAnalysisResultState?>(
+    public static readonly StyledProperty<ISessionAnalysisResultSource?> AnalysisResultStateProperty =
+        AvaloniaProperty.Register<AnalysisPlotView, ISessionAnalysisResultSource?>(
             nameof(AnalysisResultState));
 
     public static readonly StyledProperty<bool> IsAnalysisDemandActiveProperty =
@@ -203,7 +203,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         set => SetValue(ActiveAnalysisSelectionProperty, value);
     }
 
-    public IRecordedSessionAnalysisResultState? AnalysisResultState
+    public ISessionAnalysisResultSource? AnalysisResultState
     {
         get => GetValue(AnalysisResultStateProperty);
         set => SetValue(AnalysisResultStateProperty, value);
@@ -355,7 +355,8 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             return;
         }
 
-        _ = state.RequestAsync(key);
+        if (state is IRecordedSessionAnalysisResultState requested)
+            _ = requested.RequestAsync(key);
     }
 
     private static bool IsTitleProperty(string? propertyName) =>
@@ -373,7 +374,7 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             nameof(AnalysisPlotKind) or
             nameof(SuspensionType);
 
-    private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
+    private void SubscribeToAnalysisResultState(ISessionAnalysisResultSource? state)
     {
         // Once this plot has been given a result state it is a state-backed plot
         // for the rest of its life: results arrive asynchronously and it must not

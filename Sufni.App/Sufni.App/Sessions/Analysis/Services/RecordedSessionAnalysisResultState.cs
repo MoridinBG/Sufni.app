@@ -10,12 +10,16 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Sessions.Analysis.Services;
 
-public interface IRecordedSessionAnalysisResultState : IDisposable
+public interface ISessionAnalysisResultSource : IDisposable
 {
     RecordedSessionAnalysisInputs? CurrentInputs { get; }
-    IObservable<RecordedSessionAnalysisInputs> ConnectInputs();
+    IObservable<RecordedSessionAnalysisInputs?> ConnectInputs();
     IObservable<RecordedSessionAnalysisResultChanged> Connect();
     RecordedSessionAnalysisResult? Get(RecordedSessionAnalysisKey key);
+}
+
+public interface IRecordedSessionAnalysisResultState : ISessionAnalysisResultSource
+{
     Task RequestAsync(RecordedSessionAnalysisKey key, CancellationToken cancellationToken = default);
     void Invalidate(RecordedSessionAnalysisInputs inputs);
 }

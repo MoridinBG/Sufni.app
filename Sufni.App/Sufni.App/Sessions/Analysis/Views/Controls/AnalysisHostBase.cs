@@ -22,8 +22,8 @@ public class AnalysisHostBase : UserControl
     public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
         AvaloniaProperty.Register<AnalysisHostBase, TelemetryData?>(nameof(Telemetry));
 
-    public static readonly StyledProperty<IRecordedSessionAnalysisResultState?> AnalysisResultStateProperty =
-        AvaloniaProperty.Register<AnalysisHostBase, IRecordedSessionAnalysisResultState?>(
+    public static readonly StyledProperty<ISessionAnalysisResultSource?> AnalysisResultStateProperty =
+        AvaloniaProperty.Register<AnalysisHostBase, ISessionAnalysisResultSource?>(
             nameof(AnalysisResultState));
 
     public static readonly StyledProperty<bool> IsAnalysisDemandActiveProperty =
@@ -150,7 +150,7 @@ public class AnalysisHostBase : UserControl
         set => SetValue(TelemetryProperty, value);
     }
 
-    public IRecordedSessionAnalysisResultState? AnalysisResultState
+    public ISessionAnalysisResultSource? AnalysisResultState
     {
         get => GetValue(AnalysisResultStateProperty);
         set => SetValue(AnalysisResultStateProperty, value);

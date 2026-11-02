@@ -137,7 +137,7 @@ public interface ISessionAnalysisWorkspace
     DampingSpeedCutoffs DampingSpeedCutoffs { get; }
     DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; }
     bool CanEditDampingSpeedCutoffs { get; }
-    IRecordedSessionAnalysisResultState? AnalysisResultState => null;
+    ISessionAnalysisResultSource? AnalysisResultState => null;
     PositionVelocityPageViewModel? PositionVelocity => null;
     SessionInsightsResult SessionInsights { get; }
     void RequestSessionInsights() { }

@@ -704,6 +704,64 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task AnalysisOptionsChangedDuringComputation_RejectsOldModeAndPublishesNewResults()
+    {
+        var runner = new BlockingOnceBackgroundTaskRunner();
+        await using var service = CreateService(runner);
+        var options = LiveAnalysisOptions.Default(CreateSessionContext().DampingSpeedCutoffs) with
+        {
+            VelocityMode = VelocityAverageMode.StrokePeakAveraged
+        };
+        var ready = service.Snapshots.Where(snapshot => snapshot.Analysis?.Options == options)
+            .FirstAsync().ToTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        var publishedModes = new List<VelocityAverageMode>();
+        using var subscription = service.Snapshots.Subscribe(snapshot =>
+        {
+            if (snapshot.Analysis is { } analysis) publishedModes.Add(analysis.Options.VelocityMode);
+        });
+        try
+        {
+            await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+            frames.OnNext(CreateTravelBatchFrame());
+            await runner.Started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+            var captureRevision = service.Current.CaptureRevision;
+            service.UpdateAnalysisOptions(options);
+            runner.Release();
+            await time.WaitForTimerAsync(TestContext.Current.CancellationToken);
+            time.Advance(TimeSpan.FromMilliseconds(Sufni.App.Shared.Plots.PlotSettings.LiveAnalysisRefreshIntervalMs));
+            var snapshot = await ready;
+
+            Assert.Equal(captureRevision, snapshot.CaptureRevision);
+            Assert.All(publishedModes, mode => Assert.Equal(options.VelocityMode, mode));
+            var key = snapshot.Analysis!.Inputs.CreateKey(
+                Sufni.App.Sessions.Analysis.Services.RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+            Assert.IsType<Sufni.App.Sessions.Analysis.Services.VelocityDistributionAnalysisResult>(snapshot.Analysis.Results[key]);
+        }
+        finally { runner.Release(); }
+    }
+
+    [Fact]
+    public async Task AnalysisFailure_PublishesSafeReasonWithoutLosingCapturedSamples()
+    {
+        sessionPresentationService.CalculateDampingPercentages(Arg.Any<TelemetryData>(),
+            Arg.Any<TelemetryTimeRange?>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs?>())
+            .Returns(_ => throw new InvalidOperationException("private diagnostic"));
+        await using var service = CreateService();
+        var failure = service.Snapshots.Where(snapshot => snapshot.AnalysisFailure is not null)
+            .FirstAsync().ToTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        frames.OnNext(CreateTravelBatchFrame());
+
+        var snapshot = await failure;
+
+        Assert.Equal(LiveAnalysisFailureReason.Calculation, snapshot.AnalysisFailure!.Reason);
+        Assert.DoesNotContain("private diagnostic", snapshot.AnalysisFailure.Message);
+        Assert.Contains("private diagnostic", snapshot.AnalysisFailure.Details);
+        var capture = await service.PrepareCaptureForSaveAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(5, capture.TelemetryCapture.FrontMeasurements.Length);
+    }
+
+    [Fact]
     public async Task TravelFrames_ThrottleAnalysisUpdatesToConfiguredInterval()
     {
         var runner = new BlockingOnceBackgroundTaskRunner();
@@ -1102,6 +1160,8 @@ public class LiveSessionServiceTests
         public void AppendFramePitchRollSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
         {
         }
+
+        public void SetAnalysis(LiveSessionAnalysis analysis) { }
 
         public void Reset()
         {

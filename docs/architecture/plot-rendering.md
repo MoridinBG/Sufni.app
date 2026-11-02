@@ -18,6 +18,13 @@ Each concrete plot class is a thin adapter over a ScottPlot `Plot`: it owns draw
 
 For most recorded telemetry rows the host view passes a `TelemetryData` and calls `LoadTelemetryData(...)`. Recorded IMU and pitch/roll are demand-driven carve-outs: their views request the open editor's telemetry-generation-keyed `ImuDisplayProjectionAnalysisResult`, then pass its shared projection to `ImuPlot.LoadProjection(...)` or `FramePitchRollPlot.LoadProjection(...)`. GPS speed/elevation rows are the other carve-out: `TrackSignalPlotView` binds `TrackPoints` plus timeline context and calls `TrackSignalPlot.LoadTrackData(...)` for both recorded and live session surfaces. For live streaming, travel/velocity/IMU/pitch-roll plots own ScottPlot `DataStreamer` instances and are fed `LiveSignalBatch` deltas by `LiveSignalPlotViewBase`.
 
+Live analysis uses the same `ISessionAnalysisResultSource` read contract as
+recorded analysis. The capture loop supplies eager immutable results through
+`LiveSessionAnalysisResultSource`; the recorded source additionally handles
+on-demand requests. Once a plot has a result source, missing or invalidated input
+clears it until a matching result arrives, without synchronous calculation.
+Analysis-only signal batches leave the live time-series traces intact.
+
 ## Shared Hosting And Input
 
 Plot views are controls under `Sufni.App/Sufni.App/Shared/Views/Plots/` and the per-slice `Views/Plots/` folders. Compact and workspace session pages host the same plot controls inside different surrounding layouts: workspace pages provide side-by-side panels and richer chrome, while compact pages use stacked signal rows and touch-oriented controls. Gesture decisions read `IAppEnvironment.Input` through the shared `PointerGesture` helper rather than branching on platform or layout profile. Plot model classes (under `Sufni.App/Sufni.App/Shared/Plots/` and each slice's `Plots/` folder) stay platform-neutral.

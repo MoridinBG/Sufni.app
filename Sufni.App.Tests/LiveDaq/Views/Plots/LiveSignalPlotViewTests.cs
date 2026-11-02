@@ -29,6 +29,41 @@ namespace Sufni.App.Tests.LiveDaq.Views.Plots;
 public class LiveSignalPlotViewTests
 {
     [AvaloniaFact]
+    public async Task AnalysisOnlyBatch_DoesNotClearVisibleLiveSamples()
+    {
+        ViewTestHelpers.EnsurePlotViewStyle();
+        var batches = new Subject<LiveSignalBatch>();
+        var view = new LiveSessionSignalsDesktopView { DataContext = new StubLiveSessionSignalsWorkspace(batches) };
+        var host = new Window { Width = 1200, Height = 900, Content = view };
+        ViewTestHelpers.ShowWindow(host);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        try
+        {
+            var travel = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
+            batches.OnNext(CreateBatch(1));
+            await FlushSignalBatchesAsync(travel);
+            var plot = GetRenderedPlot(travel);
+            Assert.All(plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+
+            var analysis = LiveSessionAnalysis.Compute(1,
+                LiveAnalysisOptions.Default(Sufni.App.Bikes.Models.DampingSpeedCutoffs.Default),
+                TestTelemetryData.CreateProcessed(), Sufni.App.Sessions.Models.SessionDampingPercentages.Empty, true, true);
+            batches.OnNext(LiveSignalBatch.Empty with { Revision = 2, Analysis = analysis });
+            await FlushSignalBatchesAsync(travel);
+            Assert.All(plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+
+            batches.OnNext(LiveSignalBatch.Empty with { Revision = 3 });
+            await FlushSignalBatchesAsync(travel);
+            Assert.All(plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
+        }
+        finally
+        {
+            host.Close();
+            await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task LiveSessionSignalsDesktopView_WiresLivePlotViews_AndAppendsSignalBatches()
     {
         ViewTestHelpers.EnsurePlotViewStyle();

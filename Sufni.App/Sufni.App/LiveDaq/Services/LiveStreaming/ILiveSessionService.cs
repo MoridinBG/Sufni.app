@@ -11,6 +11,7 @@ public interface ILiveSessionService : IAsyncDisposable
     LiveSessionPresentationSnapshot Current { get; }
 
     Task<LivePreviewStartResult?> EnsureAttachedAsync(CancellationToken cancellationToken = default);
+    void UpdateAnalysisOptions(LiveAnalysisOptions options);
     Task ResetCaptureAsync(CancellationToken cancellationToken = default);
     Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default);
 }

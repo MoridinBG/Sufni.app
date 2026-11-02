@@ -24,7 +24,7 @@ public enum RecordedSessionAnalysisFamily
 }
 
 public sealed record RecordedSessionAnalysisInputs(
-    int TelemetryGeneration,
+    long TelemetryGeneration,
     TelemetryTimeRange? AnalysisRange,
     TravelDistributionMode TravelDistributionMode,
     VelocityAverageMode VelocityAverageMode,
@@ -221,7 +221,7 @@ public sealed record RecordedSessionAnalysisInputs(
 
 public sealed record RecordedSessionAnalysisKey(
     RecordedSessionAnalysisFamily Family,
-    int TelemetryGeneration,
+    long TelemetryGeneration,
     TelemetryTimeRange? AnalysisRange,
     SuspensionType? SuspensionType,
     BalanceType? BalanceType,

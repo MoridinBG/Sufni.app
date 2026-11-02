@@ -44,6 +44,8 @@ internal sealed class StubLiveSessionService : ILiveSessionService
 
     public Task<LivePreviewStartResult?> EnsureAttachedAsync(CancellationToken cancellationToken = default) => Task.FromResult<LivePreviewStartResult?>(null);
 
+    public void UpdateAnalysisOptions(LiveAnalysisOptions options) { }
+
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
     {
         PublishSnapshot(LiveSessionPresentationSnapshot.Empty);

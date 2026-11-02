@@ -516,7 +516,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
 
     private static bool IsResetBatch(LiveSignalBatch batch)
     {
-        return batch.TravelTimes.Count == 0
+        return batch.Analysis is null && batch.TravelTimes.Count == 0
             && batch.FrontTravel.Count == 0
             && batch.RearTravel.Count == 0
             && batch.VelocityTimes.Count == 0

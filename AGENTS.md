@@ -350,7 +350,10 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   per-identity shared stream that tabs attach to through tab-lifetime observer
   leases. Registry transport reservations are separate from observers and stay
   held until socket cleanup completes; capture locks reject disconnect. The shell
-  replaces closed diagnostics tabs on reselect and owns detached-tab cleanup. See
+  replaces closed diagnostics tabs on reselect and owns detached-tab cleanup.
+  The capture service computes mode-specific analysis off-thread and the signal
+  pipeline carries immutable results; live plots render through
+  `ISessionAnalysisResultSource`. Capture duration comes from device time. See
   [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with

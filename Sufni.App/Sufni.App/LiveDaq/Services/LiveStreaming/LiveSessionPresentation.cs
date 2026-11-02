@@ -20,6 +20,8 @@ public sealed record LiveSignalBatch(
     IReadOnlyList<double> FramePitchDegrees,
     IReadOnlyList<double> FrameRollDegrees)
 {
+    public LiveSessionAnalysis? Analysis { get; init; }
+
     public static readonly LiveSignalBatch Empty = new(
         Revision: 0,
         TravelTimes: [],
@@ -42,7 +44,9 @@ public sealed record LiveSessionPresentationSnapshot(
     LiveSessionControlState Controls,
     long CaptureRevision)
 {
+    public LiveAnalysisFailure? AnalysisFailure { get; init; }
     public long Revision { get; init; }
+    public LiveSessionAnalysis? Analysis { get; init; }
 
     public static readonly LiveSessionPresentationSnapshot Empty = new(
         AnalysisTelemetry: null,

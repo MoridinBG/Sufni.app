@@ -150,7 +150,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     public bool CanEditDampingSpeedCutoffs => canEditDampingSpeedCutoffs;
 
-    public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
+    public ISessionAnalysisResultSource AnalysisResultState { get; }
 
     public PositionVelocityPageViewModel PositionVelocity { get; }
 

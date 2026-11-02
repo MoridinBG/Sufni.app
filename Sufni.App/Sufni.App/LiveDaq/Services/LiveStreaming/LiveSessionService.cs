@@ -113,7 +113,10 @@ internal sealed class LiveSessionService : ILiveSessionService
     private LiveSessionPresentationSnapshot current = LiveSessionPresentationSnapshot.Empty;
     private LiveSessionHeader? sessionHeader;
     private TelemetryData? analysisTelemetry;
-    private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
+    private LiveSessionAnalysis? analysis;
+    private LiveAnalysisFailure? analysisFailure;
+    private LiveAnalysisOptions analysisOptions;
+    private long analysisRevision;
     private TrackPoint[] sessionTrackPoints = [];
     private TrackPointGeoCoordinate? previousAcceptedGpsCoordinate;
     private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
@@ -147,6 +150,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         TimeProvider timeProvider)
     {
         this.context = context;
+        analysisOptions = LiveAnalysisOptions.Default(context.DampingSpeedCutoffs);
         this.sharedStream = sharedStream;
         this.sessionPresentationService = sessionPresentationService;
         this.backgroundTaskRunner = backgroundTaskRunner;
@@ -271,6 +275,18 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
     }
 
+    public void UpdateAnalysisOptions(LiveAnalysisOptions options)
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            if (analysisOptions == options) return;
+            analysisOptions = options;
+            analysisRevision++;
+        }
+        QueueAnalysisRecompute();
+    }
+
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
     {
         LiveSessionPresentationSnapshot snapshot;
@@ -291,15 +307,17 @@ internal sealed class LiveSessionService : ILiveSessionService
             finalStatus = null;
             imuDisplaySignalProcessor.Reset();
             analysisTelemetry = null;
-            dampingPercentages = SessionDampingPercentages.Empty;
+            analysis = null;
+            analysisFailure = null;
             sessionTrackPoints = [];
             previousAcceptedGpsCoordinate = null;
             captureStartMonotonicUs = null;
             latestGpsMonotonicUs = null;
             captureStartUtc = null;
             captureRevision++;
+            analysisRevision++;
             displayEpoch++;
-            latestAnalysisRevision = captureRevision;
+            latestAnalysisRevision = analysisRevision;
             queuedAnalysisRevision = -1;
             nextAnalysisRunAt = DateTimeOffset.MinValue;
             lastClientPressureUtc = DateTimeOffset.MinValue;
@@ -645,6 +663,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         captureRevision++;
+        analysisRevision++;
         return new LiveDisplayUpdate.Travel(displayEpoch, travelTimes, frontTravel, rearTravel);
     }
 
@@ -686,6 +705,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         captureRevision++;
+        analysisRevision++;
         InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
 
         var tickCount = (int)frame.Batch.SampleCount;
@@ -857,6 +877,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         captureRevision++;
+        analysisRevision++;
     }
 
     private void ApplyTemperatureBatchLocked(LiveTemperatureBatchFrame frame)
@@ -872,6 +893,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             temperatureSamples.Append(record.Sample);
         }
         captureRevision++;
+        analysisRevision++;
     }
 
     private void ApplyMarkerBatchLocked(LiveMarkerBatchFrame frame)
@@ -887,6 +909,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         if (frame.Records.Count > 0)
         {
             captureRevision++;
+            analysisRevision++;
         }
     }
 
@@ -1060,7 +1083,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                 return;
             }
 
-            var nextRevision = captureRevision;
+            var nextRevision = analysisRevision;
             queuedAnalysisRevision = nextRevision;
             if (analysisLoopTask is null || analysisLoopTask.IsCompleted)
             {
@@ -1075,6 +1098,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         {
             TimeSpan delay;
             LiveCaptureSnapshot capture;
+            LiveAnalysisOptions options;
             long revision;
 
             lock (gate)
@@ -1109,6 +1133,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
                 revision = queuedAnalysisRevision;
                 capture = CreateCaptureSnapshotLocked();
+                options = analysisOptions;
                 nextAnalysisRunAt = timeProvider.GetUtcNow().AddMilliseconds(PlotSettings.LiveAnalysisRefreshIntervalMs);
             }
 
@@ -1118,8 +1143,10 @@ internal sealed class LiveSessionService : ILiveSessionService
                     () => TelemetryData.FromLiveCapture(BuildCapture(capture)),
                     cancellationToken);
                 var percentages = sessionPresentationService.CalculateDampingPercentages(
-                    telemetryData,
-                    dampingSpeedCutoffs: context.DampingSpeedCutoffs);
+                    telemetryData, velocityAverageMode: options.VelocityMode,
+                    dampingSpeedCutoffs: options.DampingCutoffs);
+                var computedAnalysis = LiveSessionAnalysis.Compute(revision, options, telemetryData, percentages,
+                    context.TravelCalibration.Front is not null, context.TravelCalibration.Rear is not null);
 
                 LiveSessionPresentationSnapshot snapshot;
                 bool shouldContinue;
@@ -1130,10 +1157,12 @@ internal sealed class LiveSessionService : ILiveSessionService
                         return;
                     }
 
-                    if (revision >= latestAnalysisRevision)
+                    if (revision >= latestAnalysisRevision && options == analysisOptions)
                     {
                         analysisTelemetry = telemetryData;
-                        dampingPercentages = percentages;
+                        analysis = computedAnalysis;
+                        analysisFailure = null;
+                        signalPipeline.SetAnalysis(computedAnalysis);
                         latestAnalysisRevision = revision;
                     }
 
@@ -1156,13 +1185,19 @@ internal sealed class LiveSessionService : ILiveSessionService
             {
                 logger.Warning(ex, "Live session analysis recompute failed for {IdentityKey}", context.IdentityKey);
 
+                LiveSessionPresentationSnapshot? failureSnapshot = null;
+                bool finished;
                 lock (gate)
                 {
-                    if (queuedAnalysisRevision <= revision)
+                    if (phase != CapturePhase.Disposed && revision >= latestAnalysisRevision && options == analysisOptions)
                     {
-                        return;
+                        analysisFailure = new LiveAnalysisFailure(LiveAnalysisFailureReason.Calculation, ex.ToString());
+                        failureSnapshot = BuildSnapshotLocked();
                     }
+                    finished = queuedAnalysisRevision <= revision;
                 }
+                if (failureSnapshot is not null) PublishSnapshot(failureSnapshot);
+                if (finished) return;
             }
         }
     }
@@ -1171,10 +1206,10 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         return new LiveSessionPresentationSnapshot(
             AnalysisTelemetry: analysisTelemetry,
-            DampingPercentages: dampingPercentages,
+            DampingPercentages: analysis?.Inputs.DampingPercentages ?? SessionDampingPercentages.Empty,
             SessionTrackPoints: sessionTrackPoints,
             Controls: BuildControlsLocked(),
-            CaptureRevision: captureRevision) { Revision = ++snapshotRevision };
+            CaptureRevision: captureRevision) { Revision = ++snapshotRevision, Analysis = analysis, AnalysisFailure = analysisFailure };
     }
 
     private LiveSessionControlState BuildControlsLocked()
@@ -1374,15 +1409,15 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private TimeSpan CalculateCaptureDurationLocked()
     {
-        if (captureStartMonotonicUs is null)
+        if (captureStartMonotonicUs is not { } captureOriginUs)
         {
             return TimeSpan.Zero;
         }
 
-        if (finalStatus is not null && captureStartMonotonicUs is not null && sessionHeader is not null)
+        if (finalStatus is not null && sessionHeader is not null)
         {
-            var captureStartDeltaUs = captureStartMonotonicUs.Value >= sessionHeader.SessionStartMonotonicUs
-                ? captureStartMonotonicUs.Value - sessionHeader.SessionStartMonotonicUs
+            var captureStartDeltaUs = captureOriginUs >= sessionHeader.SessionStartMonotonicUs
+                ? captureOriginUs - sessionHeader.SessionStartMonotonicUs
                 : 0;
             var durationUs = finalStatus.StoppedMonotonicDeltaUs >= captureStartDeltaUs
                 ? finalStatus.StoppedMonotonicDeltaUs - captureStartDeltaUs
@@ -1391,10 +1426,10 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         var travelEndDeltaUs = GetLatestTravelEndMonotonicDeltaUs();
-        if (travelEndDeltaUs is not null && captureStartMonotonicUs is not null && sessionHeader is not null)
+        if (travelEndDeltaUs is not null && sessionHeader is not null)
         {
-            var captureStartDeltaUs = captureStartMonotonicUs.Value >= sessionHeader.SessionStartMonotonicUs
-                ? captureStartMonotonicUs.Value - sessionHeader.SessionStartMonotonicUs
+            var captureStartDeltaUs = captureOriginUs >= sessionHeader.SessionStartMonotonicUs
+                ? captureOriginUs - sessionHeader.SessionStartMonotonicUs
                 : 0;
             var durationUs = travelEndDeltaUs.Value >= captureStartDeltaUs
                 ? travelEndDeltaUs.Value - captureStartDeltaUs
@@ -1404,8 +1439,8 @@ internal sealed class LiveSessionService : ILiveSessionService
 
         if (latestGpsMonotonicUs is { } gpsEndUs)
         {
-            var durationUs = gpsEndUs >= captureStartMonotonicUs.Value
-                ? gpsEndUs - captureStartMonotonicUs.Value : 0;
+            var durationUs = gpsEndUs >= captureOriginUs
+                ? gpsEndUs - captureOriginUs : 0;
             return TimeSpan.FromMilliseconds(durationUs / 1000.0);
         }
 

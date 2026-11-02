@@ -27,11 +27,11 @@ public class VibrationSummaryView : TemplatedControl
         set => SetValue(AnalysisRangeProperty, value);
     }
 
-    public static readonly StyledProperty<IRecordedSessionAnalysisResultState?> AnalysisResultStateProperty =
-        AvaloniaProperty.Register<VibrationSummaryView, IRecordedSessionAnalysisResultState?>(
+    public static readonly StyledProperty<ISessionAnalysisResultSource?> AnalysisResultStateProperty =
+        AvaloniaProperty.Register<VibrationSummaryView, ISessionAnalysisResultSource?>(
             nameof(AnalysisResultState));
 
-    public IRecordedSessionAnalysisResultState? AnalysisResultState
+    public ISessionAnalysisResultSource? AnalysisResultState
     {
         get => GetValue(AnalysisResultStateProperty);
         set => SetValue(AnalysisResultStateProperty, value);
@@ -79,7 +79,7 @@ public class VibrationSummaryView : TemplatedControl
         AvaloniaProperty.RegisterDirect<VibrationSummaryView, string>(nameof(Title), o => o.Title);
 
     private string title = string.Empty;
-    private IRecordedSessionAnalysisResultState? subscribedAnalysisResultState;
+    private ISessionAnalysisResultSource? subscribedAnalysisResultState;
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
     private bool hasDeferredRecompute;
@@ -129,7 +129,8 @@ public class VibrationSummaryView : TemplatedControl
             }
 
             Stats = null;
-            _ = state.RequestAsync(key);
+            if (state is IRecordedSessionAnalysisResultState requested)
+                _ = requested.RequestAsync(key);
             return;
         }
 
@@ -169,7 +170,7 @@ public class VibrationSummaryView : TemplatedControl
         Title = $"{SuspensionType} {ImuLocation} vibration";
     }
 
-    private void SubscribeToAnalysisResultState(IRecordedSessionAnalysisResultState? state)
+    private void SubscribeToAnalysisResultState(ISessionAnalysisResultSource? state)
     {
         if (ReferenceEquals(subscribedAnalysisResultState, state))
         {

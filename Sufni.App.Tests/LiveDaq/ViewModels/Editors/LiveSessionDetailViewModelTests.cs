@@ -19,6 +19,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Tests.TestSupport.Async;
@@ -197,6 +198,51 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         Assert.Equal(SurfaceStateKind.WaitingForData, editor.MediaWorkspace.MapState.Kind);
         Assert.True(editor.MediaWorkspace.HasMediaContent);
+    }
+
+    [Fact]
+    public async Task AnalysisModeChange_ForwardsOptionsAndRendersOnlyMatchingBackgroundResults()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var telemetry = TestTelemetryData.CreateProcessed();
+        PublishSnapshot(CreateSnapshot(true, telemetry));
+        var originalKey = editor.AnalysisResultState.CurrentInputs!.CreateKey(
+            RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+        Assert.NotNull(editor.AnalysisResultState.Get(originalKey));
+        sessionPresentationService.ClearReceivedCalls();
+
+        editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
+
+        liveSessionService.Received().UpdateAnalysisOptions(Arg.Is<LiveAnalysisOptions>(options =>
+            options.VelocityMode == VelocityAverageMode.StrokePeakAveraged));
+        Assert.Null(editor.AnalysisResultState.Get(originalKey));
+        var next = CreateSnapshot(true, telemetry, captureRevision: 2,
+            options: LiveAnalysisOptions.Default(DampingSpeedCutoffs.Default) with { VelocityMode = VelocityAverageMode.StrokePeakAveraged });
+        PublishSnapshot(next);
+
+        var key = editor.AnalysisResultState.CurrentInputs!.CreateKey(
+            RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+        Assert.Same(next.Analysis!.Results[key], editor.AnalysisResultState.Get(key));
+        Assert.Equal(next.DampingPercentages, editor.DampingPercentages);
+        sessionPresentationService.DidNotReceive().CalculateDampingPercentages(
+            Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs?>());
+        await editor.PrepareCloseAsync();
+    }
+
+    [Fact]
+    public async Task CaptureDuration_RemainsThePublishedDeviceDurationWhenWallClockAdvances()
+    {
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(null);
+        var snapshot = CreateSnapshot(true);
+        PublishSnapshot(snapshot);
+
+        time.Advance(TimeSpan.FromMinutes(5));
+        RefreshUi();
+
+        Assert.Equal(snapshot.Controls.CaptureDuration, editor.ControlState.CaptureDuration);
+        await editor.PrepareCloseAsync();
     }
 
     [Fact]
@@ -436,6 +482,31 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task Close_WaitsForCanceledBakeAndIgnoresItsLateImage()
+    {
+        var completion = new TaskCompletionSource<SessionCachePresentationData>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        backgroundTaskRunner.RunAsync(Arg.Any<Func<SessionCachePresentationData>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                token = call.Arg<CancellationToken>();
+                return completion.Task;
+            });
+        var editor = CreateEditor();
+        await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
+        PublishSnapshot(CreateSnapshot(true, TestTelemetryData.CreateProcessed()));
+
+        var close = editor.PrepareCloseAsync();
+        Assert.True(token.IsCancellationRequested);
+        Assert.False(close.IsCompleted);
+        completion.SetResult(new SessionCachePresentationData("late image", null, null, null, null, null,
+            SessionDampingPercentages.Empty, DampingSpeedCutoffs.Default, false));
+        await close.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Null(editor.SpringPage.FrontTravelDistribution);
+    }
+
+    [Fact]
     public async Task Bake_SecondSnapshot_CancelsInFlightTokenAndIgnoresStaleResult()
     {
         var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>(
@@ -551,7 +622,8 @@ public class LiveSessionDetailViewModelTests : IDisposable
         TelemetryData? telemetryData = null,
         IReadOnlyList<TrackPoint>? trackPoints = null,
         LiveSessionHeader? header = null,
-        long captureRevision = 1)
+        long captureRevision = 1,
+        LiveAnalysisOptions? options = null)
     {
         header ??= LiveProtocolTestFrames.CreateSessionHeaderModel();
         return new LiveSessionPresentationSnapshot(
@@ -565,7 +637,12 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 CaptureStartUtc: header.SessionStartUtc,
                 CaptureDuration: TimeSpan.FromSeconds(3),
                 CanSave: canSave),
-            CaptureRevision: canSave ? captureRevision : 0);
+            CaptureRevision: canSave ? captureRevision : 0)
+        {
+            Analysis = telemetryData is null ? null : LiveSessionAnalysis.Compute(captureRevision,
+                options ?? LiveAnalysisOptions.Default(DampingSpeedCutoffs.Default), telemetryData,
+                new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8), true, true)
+        };
     }
 
     private static LiveDaqSessionContext CreateSessionContext(

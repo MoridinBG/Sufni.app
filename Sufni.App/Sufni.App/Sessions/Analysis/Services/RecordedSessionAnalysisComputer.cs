@@ -21,6 +21,12 @@ internal sealed class RecordedSessionAnalysisComputer(
             RecordedSessionAnalysisFamily.DampingPercentages => new DampingPercentagesAnalysisResult(
                 CalculateDampingPercentages(key, telemetry)),
             RecordedSessionAnalysisFamily.SessionInsights => CalculateSessionInsights(key, telemetry),
+            _ => ComputePlot(key, telemetry),
+        };
+
+    internal static RecordedSessionAnalysisResult ComputePlot(RecordedSessionAnalysisKey key, TelemetryData telemetry) =>
+        key.Family switch
+        {
             RecordedSessionAnalysisFamily.TravelDistribution => CalculateTravelDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.TravelFrequencyDistribution => CalculateTravelFrequencyDistribution(key, telemetry),
             RecordedSessionAnalysisFamily.VelocityDistribution => CalculateVelocityDistribution(key, telemetry),

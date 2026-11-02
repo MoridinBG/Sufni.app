@@ -29,6 +29,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Base;
@@ -52,6 +53,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private readonly ILiveDaqCoordinator liveDaqCoordinator;
     private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionPresentationService sessionPresentationService;
+    private readonly LiveSessionAnalysisResultSource analysisResults = new();
+    public ISessionAnalysisResultSource AnalysisResultState => analysisResults;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private IDisposable? uiRefreshTimer;
     private readonly System.Threading.Lock presentationGate = new();
@@ -68,6 +71,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     private SessionPresentationDimensions? lastPresentationDimensions;
     private TelemetryData? lastBakedTelemetryData;
     private CancellationTokenSource? bakeCts;
+    private readonly List<Task> bakeTasks = [];
+    private LiveAnalysisFailure? shownAnalysisFailure;
     private DampingSpeedCutoffOwner? dampingSpeedCutoffOwner;
     private DampingSpeedCutoffs persistedDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
     private DampingSpeedCutoffs? dampingSpeedCutoffPreviewOrigin;
@@ -142,6 +147,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
+                UpdateAnalysisOptions();
             }
         }
     } = TravelDistributionMode.ActiveSuspension;
@@ -154,6 +160,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
+                UpdateAnalysisOptions();
             }
         }
     } = BalanceDisplacementMode.Zenith;
@@ -166,6 +173,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
+                UpdateAnalysisOptions();
             }
         }
     } = BalanceSpeedMode.Both;
@@ -178,7 +186,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(SessionAnalysisModesText));
-                RecomputeDampingPercentagesForSelectedVelocityAverageMode();
+                UpdateAnalysisOptions();
             }
         }
     } = VelocityAverageMode.SampleAveraged;
@@ -207,10 +215,10 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     public SessionOperationPresentationState SessionOperationState => SessionOperationPresentationState.Hidden;
 
-    public SurfacePresentationState FrontAnalysisState => AnalysisSurfaceState.ForSuspension(IsTravelAnalysisExpected(hasFrontTravelCalibration), TelemetryData, SuspensionType.Front);
-    public SurfacePresentationState RearAnalysisState => AnalysisSurfaceState.ForSuspension(IsTravelAnalysisExpected(hasRearTravelCalibration), TelemetryData, SuspensionType.Rear);
-    public SurfacePresentationState CompressionBalanceState => AnalysisSurfaceState.ForBalance(IsBalanceAnalysisExpected(), TelemetryData, BalanceType.Compression);
-    public SurfacePresentationState ReboundBalanceState => AnalysisSurfaceState.ForBalance(IsBalanceAnalysisExpected(), TelemetryData, BalanceType.Rebound);
+    public SurfacePresentationState FrontAnalysisState => analysisResults.Current?.FrontState ?? AnalysisSurfaceState.ForSuspension(IsTravelAnalysisExpected(hasFrontTravelCalibration), null, SuspensionType.Front);
+    public SurfacePresentationState RearAnalysisState => analysisResults.Current?.RearState ?? AnalysisSurfaceState.ForSuspension(IsTravelAnalysisExpected(hasRearTravelCalibration), null, SuspensionType.Rear);
+    public SurfacePresentationState CompressionBalanceState => analysisResults.Current?.CompressionState ?? AnalysisSurfaceState.ForBalance(IsBalanceAnalysisExpected(), null, BalanceType.Compression);
+    public SurfacePresentationState ReboundBalanceState => analysisResults.Current?.ReboundState ?? AnalysisSurfaceState.ForBalance(IsBalanceAnalysisExpected(), null, BalanceType.Rebound);
     public SurfacePresentationState FrontForkVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState FrontFrameVibrationState => SurfacePresentationState.Hidden;
     public SurfacePresentationState RearForkVibrationState => SurfacePresentationState.Hidden;
@@ -443,6 +451,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         isViewLoaded = false;
         StopForegroundUpdates();
         await liveSessionService.DisposeAsync();
+        await Task.WhenAll(bakeTasks);
+        analysisResults.Dispose();
         mediaWorkspace.Dispose();
     }
 
@@ -729,6 +739,12 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
     private void QueueSignalBatchRefresh(LiveSignalBatch batch)
     {
+        if (batch.Analysis is { } analysis)
+            UiThreadDispatcher.Post(() =>
+            {
+                if (isViewLoaded && IsTabActive && liveSessionService.Current.Analysis?.Revision == analysis.Revision)
+                    ApplyLiveAnalysis(analysis);
+            });
         var presence = SignalBatchPresence.FromBatch(batch);
         if (!presence.HasAnyData)
         {
@@ -791,7 +807,13 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         ApplySignalAvailability(snapshot.Controls.SessionHeader);
         mediaWorkspace.ApplySessionHeader(snapshot.Controls.SessionHeader);
         TelemetryData = snapshot.AnalysisTelemetry;
-        ApplyModeAwareDampingPercentages(snapshot.DampingPercentages);
+        ApplyLiveAnalysis(snapshot.Analysis);
+        if (!ReferenceEquals(shownAnalysisFailure, snapshot.AnalysisFailure))
+        {
+            shownAnalysisFailure = snapshot.AnalysisFailure;
+            if (shownAnalysisFailure is { } failure)
+                ErrorMessages.Add(new FailurePresentation(failure.Message, failure.Details));
+        }
         var trackTimelineContext = CreateLiveTrackTimelineContext(snapshot.Controls);
         signalsWorkspace.ApplyTrackPresentation(snapshot.SessionTrackPoints, trackTimelineContext);
         mediaWorkspace.SetTrackPoints(snapshot.SessionTrackPoints, trackTimelineContext);
@@ -801,7 +823,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
             Timestamp = header.SessionStartUtc.LocalDateTime;
         }
 
-        ControlState = ApplyControlFlags(snapshot.Controls);
+        ControlState = snapshot.Controls;
         EvaluateDirtiness();
         RefreshCommandState();
 
@@ -830,7 +852,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         var service = sessionPresentationService;
         var cutoffs = DampingSpeedCutoffs;
 
-        _ = BakeCachePresentationAsync(service, telemetryData, dimensions, cts, cutoffs);
+        bakeTasks.RemoveAll(task => task.IsCompleted);
+        bakeTasks.Add(BakeCachePresentationAsync(service, telemetryData, dimensions, cts, cutoffs));
     }
 
     private async Task BakeCachePresentationAsync(
@@ -853,7 +876,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
             UiThreadDispatcher.Post(() =>
             {
-                if (cts.IsCancellationRequested)
+                if (cts.IsCancellationRequested || !ReferenceEquals(bakeCts, cts) || !isViewLoaded || !IsTabActive)
                 {
                     return;
                 }
@@ -866,8 +889,15 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
         catch (Exception e)
         {
-            UiThreadDispatcher.Post(() => ErrorMessages.Add(new FailurePresentation($"Live analysis render failed: {e.Message}")));
+            Log.ForContext<LiveSessionDetailViewModel>().Warning(e, "Live analysis rendering failed for {IdentityKey}", IdentityKey);
+            var failure = new LiveAnalysisFailure(LiveAnalysisFailureReason.Rendering, e.ToString());
+            UiThreadDispatcher.Post(() =>
+            {
+                if (!cts.IsCancellationRequested && ReferenceEquals(bakeCts, cts) && isViewLoaded)
+                    ErrorMessages.Add(new FailurePresentation(failure.Message, failure.Details));
+            });
         }
+        finally { cts.Dispose(); }
     }
 
     private static TrackTimeRange? CreateLiveTrackTimelineContext(LiveSessionControlState controls)
@@ -897,7 +927,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         {
         }
 
-        cts.Dispose();
     }
 
     private void ApplyCachePresentation(SessionCachePresentationData data)
@@ -924,7 +953,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingPage.FrontDistributionState = ResolveSurfaceState(hasFrontVelocityDistribution, frontAnalysis);
         DampingPage.RearDistributionState = ResolveSurfaceState(hasRearVelocityDistribution, rearAnalysis);
 
-        ApplyModeAwareDampingPercentages(data.DampingPercentages);
+        ApplyDampingPercentages(analysisResults.Current?.Inputs.DampingPercentages ?? SessionDampingPercentages.Empty);
 
         BalancePage.CompressionBalance = data.CompressionBalance;
         BalancePage.ReboundBalance = data.ReboundBalance;
@@ -1042,45 +1071,42 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingSpeedCutoffs = persistedDampingSpeedCutoffs;
     }
 
-    private void ApplyModeAwareDampingPercentages(SessionDampingPercentages sampleAveragedPercentages)
+    private LiveAnalysisOptions CurrentAnalysisOptions => new(SelectedTravelDistributionMode,
+        SelectedVelocityAverageMode, SelectedBalanceDisplacementMode, SelectedBalanceSpeedMode,
+        DampingSpeedCutoffs, PlotDampingSpeedCutoffs);
+
+    private void UpdateAnalysisOptions()
     {
-        if (TelemetryData is null)
-        {
-            ApplyDampingPercentages(SessionDampingPercentages.Empty);
-            return;
-        }
-
-        if (SelectedVelocityAverageMode == VelocityAverageMode.SampleAveraged)
-        {
-            ApplyDampingPercentages(sampleAveragedPercentages);
-            return;
-        }
-
-        RecomputeDampingPercentagesForSelectedVelocityAverageMode();
+        analysisResults.Apply(null);
+        ApplyDampingPercentages(SessionDampingPercentages.Empty);
+        liveSessionService.UpdateAnalysisOptions(CurrentAnalysisOptions);
+        NotifyAnalysisStates();
     }
 
-    private void RecomputeDampingPercentagesForSelectedVelocityAverageMode()
+    private void ApplyLiveAnalysis(LiveSessionAnalysis? analysis)
     {
-        if (TelemetryData is null)
-        {
-            ApplyDampingPercentages(SessionDampingPercentages.Empty);
-            return;
-        }
+        if (analysis is not null && analysis.Options != CurrentAnalysisOptions) return;
+        analysisResults.Apply(analysis);
+        ApplyDampingPercentages(analysis?.Inputs.DampingPercentages ?? SessionDampingPercentages.Empty);
+        NotifyAnalysisStates();
+    }
 
-        ApplyDampingPercentages(sessionPresentationService.CalculateDampingPercentages(
-            TelemetryData,
-            AnalysisRange,
-            SelectedVelocityAverageMode,
-            DampingSpeedCutoffs));
+    private void NotifyAnalysisStates()
+    {
+        OnPropertyChanged(nameof(FrontAnalysisState));
+        OnPropertyChanged(nameof(RearAnalysisState));
+        OnPropertyChanged(nameof(CompressionBalanceState));
+        OnPropertyChanged(nameof(ReboundBalanceState));
     }
 
     partial void OnDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
     {
-        RecomputeDampingPercentagesForSelectedVelocityAverageMode();
+        UpdateAnalysisOptions();
     }
 
     partial void OnPlotDampingSpeedCutoffsChanged(DampingSpeedCutoffs value)
     {
+        UpdateAnalysisOptions();
         lastBakedTelemetryData = null;
         MaybeQueueBake(TelemetryData);
     }
@@ -1090,26 +1116,9 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         return blockedSavedCaptureRevision is not null;
     }
 
-    private LiveSessionControlState ApplyControlFlags(LiveSessionControlState controlState)
-    {
-        var captureDuration = RefreshCaptureDuration(controlState.CaptureStartUtc) ?? controlState.CaptureDuration;
-        return controlState with
-        {
-            CaptureDuration = captureDuration,
-        };
-    }
-
-    private LiveSessionControlState RefreshControlState()
-    {
-        ControlState = ApplyControlFlags(ControlState);
-        EvaluateDirtiness();
-        return ControlState;
-    }
-
     private void RefreshUi()
     {
         ApplyPendingPresentation();
-        RefreshControlState();
     }
 
     private void ApplyPendingPresentation()
@@ -1165,17 +1174,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         DampingPercentages = SessionDampingPercentages.Empty;
         EnsureBalancePage(balanceAvailable: false);
-    }
-
-    private TimeSpan? RefreshCaptureDuration(DateTimeOffset? captureStartUtc)
-    {
-        if (captureStartUtc is null)
-        {
-            return null;
-        }
-
-        var duration = Clock.GetUtcNow() - captureStartUtc.Value;
-        return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
     }
 
     private readonly record struct SignalBatchPresence(bool HasTravelData, bool HasImuData, bool HasPitchRollData)

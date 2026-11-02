@@ -77,10 +77,11 @@ Display loop (Task.Run)
 Statistics loop (Task.Run)
   -> snapshot segment builders and GPS buffer under lock
     -> TelemetryData.FromLiveCapture (background runner)
-      -> SessionPresentationService.CalculateDampingPercentages
-        -> LiveSessionPresentationSnapshot -> Subject<LiveSessionPresentationSnapshot>
-          -> LiveSessionDetailViewModel.QueuePresentationRefresh
-            -> ApplyPresentation -> spring/damping/balance pages + analysis state
+      -> selected-mode damping percentages + LiveSessionAnalysis.Compute
+        -> immutable keyed plot results and surface states
+          -> LiveSignalPipeline.SetAnalysis -> next display batch
+          -> LiveSessionPresentationSnapshot (also retained for tab reactivation)
+            -> UI-thread LiveSessionAnalysisResultSource -> plots render results
 
 User presses Save
   -> LiveSessionDetailViewModel.SaveImplementation
@@ -123,7 +124,7 @@ reopens `Closed`. Attachment is derived from the owned observer lease.
 
 `EnsureAttachedAsync` is idempotent and acquires resources in this order under the gate: observer lease, configuration-lock lease, `signalPipeline.Start()`, the display loop task, frame subscription, state subscription. Either lease acquisition can return `Closed(reason)`; any observer acquired before that closure is released and no connection is attempted. Acquiring resources is followed by a non-locked `sharedStream.EnsureStartedAsync(...)` so connect work runs outside the gate. The service returns that typed start outcome, including `Busy(holder)`, and the editor displays busy feedback. These outcomes preserve captured data. An unexpected exception tears down resources acquired during this attach. `DisposeAsync` mirrors this: it stops subscriptions, completes the display channel, awaits the statistics and display loops, releases both leases, and disposes the signal pipeline.
 
-`ResetCaptureAsync` clears the travel and IMU segment builders, temperature and GPS buffers, markers, gaps, final status, latest session statistics, analysis state, and track points, and bumps two monotonic counters: `captureRevision` (observed by the analysis loop to detect that older work is stale) and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published. After a recoverable DAQ session rollover, reset also adopts the shared stream's current session header, rebuilds the IMU builders, and reopens streaming only if that stream is still open and still has a header; otherwise the capture remains closed.
+`ResetCaptureAsync` clears the travel and IMU segment builders, temperature and GPS buffers, markers, gaps, final status, latest session statistics, analysis state, and track points, and advances `captureRevision` (save identity), the analysis input revision (capture or mode changes), and `displayEpoch` (observed by the display loop to discard older display updates that were already in flight). It then resets the signal pipeline so its sliding window and pending batch are cleared and a single empty `LiveSignalBatch` is published. After a recoverable DAQ session rollover, reset also adopts the shared stream's current session header, rebuilds the IMU builders, and reopens streaming only if that stream is still open and still has a header; otherwise the capture remains closed.
 
 ### Snapshot Publication
 
@@ -152,7 +153,28 @@ A change in `LiveDaqSharedStreamState.SessionHeader` to a different `SessionId` 
 
 ### Statistics Loop
 
-Once a travel batch has produced enough samples for `CanBuildAnalysis`, `QueueAnalysisRecompute` updates `queuedAnalysisRevision` and starts the analysis loop if it is not already running. The loop snapshots travel/IMU segments and GPS records under the gate, runs `TelemetryData.FromLiveCapture(BuildCapture(...))` on the background task runner, calls `ISessionPresentationService.CalculateDampingPercentages`, and republishes a fresh `LiveSessionPresentationSnapshot` carrying the new `TelemetryData` and damping percentages. Throttling has two parts: `nextAnalysisRunAt` enforces the `PlotSettings.LiveAnalysisRefreshIntervalMs` minimum gap between recomputes, and a 500-ms `AnalysisPressureQuietPeriod` skips queueing entirely while `lastClientPressureUtc` is recent (set whenever the client- or display-channel drop counters increase). Skipped queueing is counted in `analysisRecomputesSkipped`.
+Once a travel batch has produced enough samples for `CanBuildAnalysis`,
+`QueueAnalysisRecompute` advances the queued analysis input revision and starts
+the owned loop when needed. The loop snapshots capture data and immutable
+`LiveAnalysisOptions` under the gate, then computes telemetry, selected-mode
+damping percentages, keyed travel/frequency/velocity/stroke/balance results and
+surface states off the UI thread. `LiveSessionAnalysis` carries a frozen result
+map. Changed modes or cutoffs queue new analysis without changing the capture's
+save revision; results for superseded options or a reset capture are rejected.
+
+Accepted results are retained in the presentation snapshot and passed to
+`LiveSignalPipeline.SetAnalysis` for the next display batch. The UI applies those
+values through `LiveSessionAnalysisResultSource`, the eager implementation of
+`ISessionAnalysisResultSource`. Recorded result state additionally supports
+on-demand requests; shared plot views render either source's prepared results.
+No live plot or live mode setter calculates telemetry statistics on the UI thread.
+
+The existing cadence and pressure gates remain: `nextAnalysisRunAt` enforces
+`PlotSettings.LiveAnalysisRefreshIntervalMs`, and the 500-ms
+`AnalysisPressureQuietPeriod` skips queueing while client/display pressure is
+recent. Calculation failures are logged once and published with a fixed reason,
+safe text and separate details. Captured samples remain saveable, and later data
+can queue analysis again.
 
 ### Display Loop
 
@@ -193,6 +215,7 @@ This shape keeps event-like GPS capture cheap: each `LiveGpsBatchFrame` appends 
 **Batch shape.** `LiveSignalBatch` (defined in `LiveSessionPresentation.cs`) carries:
 
 - `Revision` — monotonically increasing across appends and resets, so consumers can filter stale batches.
+- `Analysis` — optional complete background analysis result, delivered even when no new signal samples are pending. An analysis-only batch does not reset live plots; reset emits an empty batch without analysis.
 - `TravelTimes`, `FrontTravel`, `RearTravel` — exactly the samples appended since the previous flush.
 - `VelocityTimes`, `FrontVelocity`, `RearVelocity` — velocity samples aligned with the same travel times for that batch only. Velocity is computed by running a Savitzky-Golay filter over the recent travel snapshot. The filter window targets 51 ms, is converted to an odd sample count from the observed sample period, and falls back to NaN if fewer than five samples are available or the snapshot contains a NaN. The pipeline computes a unit-spacing Savitzky-Golay derivative and scales each output by the local mean timestamp interval, clipped at the edges. This preserves velocity across batch gaps without a time-array filter overload in the telemetry library. The cached `SavitzkyGolay` instance is keyed on the chosen window size and lives entirely on the flush-loop thread.
 - `ImuTimes`, `ImuVibrationRms` — per-`LiveImuLocation` series of times and rolling vibration RMS values, again only for samples appended since the previous flush.
@@ -215,7 +238,7 @@ The shared stream stores one current `LiveDaqStreamConfiguration` and exposes it
 
 `LiveSessionPresentation.cs` defines the records the service publishes for the view model:
 
-- **`LiveSessionPresentationSnapshot`** — what the live-session tab projects. Carries the latest `TelemetryData` from the statistics loop, computed `SessionDampingPercentages`, the projected `TrackPoint[]` for the map, the full `LiveSessionControlState`, a `CaptureRevision` integer the view model uses as a save-already-applied marker, and a separate publication `Revision`.
+- **`LiveSessionPresentationSnapshot`** — what the live-session tab projects. Carries the latest `TelemetryData` from the statistics loop, computed `SessionDampingPercentages`, the projected `TrackPoint[]` for the map, the full `LiveSessionControlState`, a `CaptureRevision` integer the view model uses as a save-already-applied marker, a separate publication `Revision`, and the latest `LiveSessionAnalysis` or typed `AnalysisFailure`.
 - **`LiveSignalBatch`** — described under [Live Signal Pipeline](#live-signal-pipeline).
 - **`LiveSessionCapturePackage(Context, TelemetryCapture)` with `CaptureRevision`** — the immutable result of `PrepareCaptureForSaveAsync`, prepared inside `LiveDaqCoordinator.SaveCaptureAsync`; its revision is captured under the same lock as its buffers.
 
@@ -231,11 +254,11 @@ unchanged. Capture timestamps still come from the recording metadata.
 
 The view model wires together five things and owns no transport state:
 
-1. **Subscribes to `ILiveSessionService.Snapshots`** through `QueuePresentationRefresh`, which stashes the latest snapshot under a gate and lets its injected `IUiTimerScheduler` (`PlotSettings.LiveUiRefreshIntervalMs`) project it into bindings via `ApplyPresentation`. This applies the session header to signals and media workspaces, recomputes analysis surface state, drives the timestamp, refreshes the control state, and queues the spring/damping/balance bake.
+1. **Subscribes to `ILiveSessionService.Snapshots`** through `QueuePresentationRefresh`, which stashes the latest snapshot under a gate and lets its injected `IUiTimerScheduler` (`PlotSettings.LiveUiRefreshIntervalMs`) project it into bindings via `ApplyPresentation`. This applies the session header to signals and media workspaces, projects prepared analysis results and surface state, drives the timestamp, retains the device-derived control duration, and queues the spring/damping/balance bake.
 2. **Subscribes to `ILiveSessionService.SignalBatches`** through `QueueSignalBatchRefresh`, which collapses presence flags onto the UI thread and calls `LiveSessionSignalsWorkspaceViewModel.ApplySignalDataPresence` so each row's `SurfacePresentationState` reflects whether any travel, IMU vibration RMS, or frame pitch/roll data has arrived. Plot availability is recomputed from the latest accepted `LiveSessionHeader` (travel from `AcceptedTravelHz`, IMU from `AcceptedImuHz` plus active locations, pitch/roll from accepted frame IMU with valid scales) and forwarded into `PreferencesPage.ApplyPlotAvailability`.
 3. **Hosts a `PreferencesPageViewModel`** alongside the existing notes/spring/damping pages. `BalancePage` is constructed by the view model but inserted into `Pages` only while balance presentation is available or the layout needs to reserve the page. Travel/Velocity/IMU/Pitch-Roll/Speed/Elevation plot toggles fire `OnPlotPreferenceChanged`, which calls `LiveSessionSignalsWorkspaceViewModel.ApplyPlotPreferences(...)` so each row's `SurfacePresentationState` reflects the user's plot selection in real time.
-4. **Bakes analysis presentation** — when a fresh `TelemetryData` arrives in a snapshot, `MaybeQueueBake` runs `ISessionPresentationService.BuildCachePresentation(...)` on the background runner and posts the resulting SVGs back onto the spring/damping/balance pages, mirroring the recorded-session bake. Older bakes are cancelled on each new arrival.
-5. **Drives the capture lifecycle** — `Loaded` calls `liveSessionService.EnsureAttachedAsync()`, `Unloaded` cancels the bake, `CloseImplementation` disposes the service. `ResetImplementation` calls `ResetCaptureAsync` and clears the analysis pages. `SaveImplementation` is the recording-side save entry point (see [Save Flow](#save-flow)).
+4. **Bakes analysis presentation** — when a fresh `TelemetryData` arrives in a snapshot, `MaybeQueueBake` runs `ISessionPresentationService.BuildCachePresentation(...)` on the background runner and posts the resulting SVGs back onto the spring/damping/balance pages, mirroring the recorded-session bake. Older bakes are cancelled on each new arrival. The editor retains their tasks, rejects stale or inactive UI callbacks, and awaits them on close; rendering failures use safe text with separate details.
+5. **Drives the capture lifecycle** — `Loaded` calls `liveSessionService.EnsureAttachedAsync()`, `Unloaded` cancels the bake, `CloseImplementation` disposes the service and drains retained bakes. `ResetImplementation` calls `ResetCaptureAsync` and clears the analysis pages. `SaveImplementation` is the recording-side save entry point (see [Save Flow](#save-flow)).
 
 The view model never holds the configuration lock itself — that lives on the service's lease — and never subscribes to the shared stream directly.
 

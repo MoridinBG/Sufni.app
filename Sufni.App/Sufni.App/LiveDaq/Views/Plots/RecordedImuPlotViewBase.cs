@@ -109,9 +109,9 @@ public abstract class RecordedImuPlotViewBase : SufniTelemetryPlotView
         analysisResultSubscription = state.Connect().Subscribe(OnAnalysisResultChanged);
     }
 
-    private void OnAnalysisInputsChanged(RecordedSessionAnalysisInputs inputs)
+    private void OnAnalysisInputsChanged(RecordedSessionAnalysisInputs? inputs)
     {
-        var nextKey = inputs.ImuDisplayProjectionKey;
+        var nextKey = inputs?.ImuDisplayProjectionKey;
         if (nextKey == projectionKey)
         {
             return;
