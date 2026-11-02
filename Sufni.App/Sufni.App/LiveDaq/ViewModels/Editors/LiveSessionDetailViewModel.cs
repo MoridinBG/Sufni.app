@@ -310,7 +310,8 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         hasLoaded = true;
         await mediaWorkspace.InitializeAsync();
-        await liveSessionService.EnsureAttachedAsync();
+        var start = await liveSessionService.EnsureAttachedAsync();
+        if (start is LivePreviewStartResult.Busy busy) Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
 
         if (IsTabActive)
         {

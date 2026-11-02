@@ -4,14 +4,6 @@ using System.Collections.Generic;
 using Sufni.App.Shared.Formatting;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
-public enum LiveConnectionState
-{
-    Disconnected,
-    Connecting,
-    Connected,
-    Disconnecting,
-}
-
 public sealed record LiveSessionContractSnapshot(
     uint? SessionId,
     LiveSensorInstanceMask RequestedSensorMask,
@@ -113,8 +105,8 @@ public sealed record LiveDaqUiSnapshot(
     LiveGpsUiSnapshot Gps)
 {
     public static readonly LiveDaqUiSnapshot Empty = new(
-        ConnectionState: LiveConnectionState.Disconnected,
-        ConnectionStateText: ToConnectionStateText(LiveConnectionState.Disconnected),
+        ConnectionState: new LiveConnectionState.Disconnected(),
+        ConnectionStateText: ToConnectionStateText(new LiveConnectionState.Disconnected()),
         LastError: null,
         LastFrameReceivedUtc: null,
         Session: LiveSessionContractSnapshot.Empty,
@@ -137,6 +129,7 @@ public sealed record LiveDaqUiSnapshot(
         LiveConnectionState.Connecting => "Connecting",
         LiveConnectionState.Connected => "Connected",
         LiveConnectionState.Disconnecting => "Disconnecting",
-        _ => state.ToString(),
+        LiveConnectionState.Closed => "Closed",
+        _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
 }

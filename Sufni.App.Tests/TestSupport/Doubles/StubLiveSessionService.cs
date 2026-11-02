@@ -42,7 +42,7 @@ internal sealed class StubLiveSessionService : ILiveSessionService
         signalBatches.OnNext(batch);
     }
 
-    public Task EnsureAttachedAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task<LivePreviewStartResult?> EnsureAttachedAsync(CancellationToken cancellationToken = default) => Task.FromResult<LivePreviewStartResult?>(null);
 
     public Task ResetCaptureAsync(CancellationToken cancellationToken = default)
     {

@@ -10,7 +10,7 @@ public sealed record LiveSessionControlState(
     TimeSpan CaptureDuration,
     bool CanSave)
 {
-    public string ConnectionStateText => $"State: {ConnectionState}";
+    public string ConnectionStateText => $"State: {LiveDaqUiSnapshot.ToConnectionStateText(ConnectionState)}";
     public string CaptureDurationText => $"Capture: {CaptureDuration:g}";
     public bool HasLastError => !string.IsNullOrWhiteSpace(LastError);
     public bool HasSessionHeader => SessionHeader is not null;
@@ -20,7 +20,7 @@ public sealed record LiveSessionControlState(
     public string AcceptedGpsRateText => LiveProtocolHelpers.FormatRateText("GPS", SessionHeader?.AcceptedGpsRateMhz);
 
     public static readonly LiveSessionControlState Empty = new(
-        ConnectionState: LiveConnectionState.Disconnected,
+        ConnectionState: new LiveConnectionState.Disconnected(),
         LastError: null,
         SessionHeader: null,
         CaptureStartUtc: null,

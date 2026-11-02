@@ -76,7 +76,7 @@ public class LiveSessionDetailViewTests
             DampingPercentages: SessionDampingPercentages.Empty,
             SessionTrackPoints: [],
             Controls: new LiveSessionControlState(
-                ConnectionState: LiveConnectionState.Connected,
+                ConnectionState: new LiveConnectionState.Connected(),
                 LastError: null,
                 SessionHeader: header,
                 CaptureStartUtc: header.SessionStartUtc,

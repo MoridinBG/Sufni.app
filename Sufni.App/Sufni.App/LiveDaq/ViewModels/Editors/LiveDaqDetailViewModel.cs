@@ -96,12 +96,12 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     public bool CanManage => managementAvailability.CanManage && !IsManagementBusy;
     public bool CanUploadConfig => CanManage && HasPendingConfig;
     public string? ManagementDisabledTooltip => managementAvailability.Holder is { } holder
-        ? BusyMessage(holder)
+        ? LiveDaqMessages.Busy(holder)
         : managementAvailability.Device is null ? "DAQ is offline."
         : !managementAvailability.Device.SupportsManagement ? "Management is not supported by this DAQ." : null;
 
-    public string? ConnectDisabledTooltip => managementAvailability.Holder is { } holder ? BusyMessage(holder)
-        : sharedStream.CurrentState.ConnectionState == LiveConnectionState.Disconnected
+    public string? ConnectDisabledTooltip => managementAvailability.Holder is { } holder ? LiveDaqMessages.Busy(holder)
+        : sharedStream.CurrentState.ConnectionState is LiveConnectionState.Disconnected
         && !HasRequestedSensors
             ? "Set at least one live preview rate above 0 Hz."
             : null;
@@ -131,7 +131,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         this.coordinator = coordinator;
         this.knownBoardsQuery = knownBoardsQuery;
         this.liveDaqStore = liveDaqStore;
-        streamLease = sharedStream.AcquireLease();
+        streamLease = (sharedStream.AcquireLease() as LiveStreamLeaseResult.Acquired)?.Lease;
         ApplyRequestedRates(sharedStream.RequestedConfiguration);
         RefreshTravelCalibration();
         RefreshSharedStreamState();
@@ -170,7 +170,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             "Live DAQ detail unloaded for {IdentityKey} {Endpoint}; disconnect already in progress: {DisconnectInProgress}",
             IdentityKey,
             Endpoint,
-            sharedStream.CurrentState.ConnectionState == LiveConnectionState.Disconnecting);
+            sharedStream.CurrentState.ConnectionState is LiveConnectionState.Disconnecting);
 
         Deactivate();
         return Task.CompletedTask;
@@ -318,7 +318,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             case LiveDaqManagementResult.Rejected rejected:
                 return new DaqManagementResult.Error(rejected.ErrorCode, rejected.Message);
             case LiveDaqManagementResult.Busy busy:
-                return new DaqManagementResult.Error(DaqManagementErrorCode.Busy, BusyMessage(busy.Holder));
+                return new DaqManagementResult.Error(DaqManagementErrorCode.Busy, LiveDaqMessages.Busy(busy.Holder));
             case LiveDaqManagementResult.Unavailable unavailable:
                 return new DaqManagementResult.Error(DaqManagementErrorCode.UnsupportedTarget, UnavailableMessage(unavailable.Reason));
             case LiveDaqManagementResult.Failed failed:
@@ -340,7 +340,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 ErrorMessages.Add(new FailurePresentation(rejected.Message));
                 break;
             case LiveDaqManagementResult.Busy busy:
-                Notifications.Add(BusyMessage(busy.Holder));
+                Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
                 break;
             case LiveDaqManagementResult.Unavailable unavailable:
                 Notifications.Add(UnavailableMessage(unavailable.Reason));
@@ -389,7 +389,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             var updatedState = sharedStream.CurrentState;
             if (result is LivePreviewStartResult.Busy busy)
             {
-                Notifications.Add(BusyMessage(busy.Holder));
+                Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
                 return;
             }
             if (result is LivePreviewStartResult.Rejected rejected)
@@ -397,7 +397,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 ErrorMessages.Add(new FailurePresentation(rejected.UserMessage));
                 return;
             }
-            else if (result is LivePreviewStartResult.Started started && updatedState.ConnectionState == LiveConnectionState.Connected)
+            else if (result is LivePreviewStartResult.Started started && updatedState.ConnectionState is LiveConnectionState.Connected)
             {
                 AddMissingSensorNotification(started.Header.MissingSensorMask);
                 logger.Information(
@@ -418,15 +418,6 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
         RefreshSharedStreamState();
     }
-
-    private static string BusyMessage(DaqTransportHolder holder) => holder switch
-    {
-        DaqTransportHolder.Streaming => "DAQ is busy: streaming.",
-        DaqTransportHolder.Import => "DAQ is busy: importing.",
-        DaqTransportHolder.Identify => "DAQ is busy: identifying the device.",
-        DaqTransportHolder.Management => "DAQ is busy: device management.",
-        _ => throw new ArgumentOutOfRangeException(nameof(holder))
-    };
 
     private async Task DisconnectImplementationAsync()
     {
@@ -515,10 +506,10 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
         var state = sharedStream.CurrentState;
         sessionState.ApplySharedSessionState(state.SessionHeader);
         CanConnect = !state.IsClosed
-            && state.ConnectionState == LiveConnectionState.Disconnected
+            && state.ConnectionState is LiveConnectionState.Disconnected
             && HasRequestedSensors
             && managementAvailability.CanConnect;
-        CanDisconnect = !state.IsClosed && !state.IsConfigurationLocked && state.ConnectionState == LiveConnectionState.Connected;
+        CanDisconnect = !state.IsClosed && !state.IsConfigurationLocked && state.ConnectionState is LiveConnectionState.Connected;
         AreRequestedRatesEnabled = !state.IsClosed && !state.IsConfigurationLocked;
         RefreshSessionAvailability(state.ConnectionState);
         OnPropertyChanged(nameof(ConnectDisabledTooltip));
@@ -580,7 +571,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
 
     private void RefreshSessionAvailability(LiveConnectionState connectionState)
     {
-        CanStartSession = connectionState == LiveConnectionState.Connected
+        CanStartSession = connectionState is LiveConnectionState.Connected
             && knownBoardsQuery.GetSessionContext(IdentityKey) is not null;
     }
 
@@ -655,7 +646,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
     {
         var state = sharedStream.CurrentState;
         CanConnect = !state.IsClosed
-            && state.ConnectionState == LiveConnectionState.Disconnected
+            && state.ConnectionState is LiveConnectionState.Disconnected
             && HasRequestedSensors
             && managementAvailability.CanConnect;
         OnPropertyChanged(nameof(ConnectDisabledTooltip));

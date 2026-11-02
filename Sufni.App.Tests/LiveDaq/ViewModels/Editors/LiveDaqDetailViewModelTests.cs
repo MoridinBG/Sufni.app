@@ -103,7 +103,7 @@ public class LiveDaqDetailViewModelTests
                 && configuration.GpsFixHz == 0),
             Arg.Any<CancellationToken>());
         await harness.SharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
-        Assert.Equal(LiveConnectionState.Connected, editor.Snapshot.ConnectionState);
+        Assert.Equal(new LiveConnectionState.Connected(), editor.Snapshot.ConnectionState);
         Assert.Equal((uint)808, editor.Snapshot.Session.SessionId);
         Assert.Equal("Board 1", editor.Name);
         Assert.Equal("192.168.0.50:1557", editor.Endpoint);
@@ -119,7 +119,7 @@ public class LiveDaqDetailViewModelTests
         await editor.ConnectCommand.ExecuteAsync(null);
 
         Assert.NotEmpty(editor.ErrorMessages);
-        Assert.Equal(LiveConnectionState.Disconnected, editor.Snapshot.ConnectionState);
+        Assert.Equal(new LiveConnectionState.Disconnected(), editor.Snapshot.ConnectionState);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public class LiveDaqDetailViewModelTests
         await editor.LoadedCommand.ExecuteAsync(null);
         editor.SetTabActive(true);
         editor.SetTabActive(false);
-        harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+        harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline) });
         harness.Frames.Dispose();
         harness.StreamStates.Dispose();
 
@@ -249,7 +249,7 @@ public class LiveDaqDetailViewModelTests
 
         Assert.True(editor.CanManage);
 
-        harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+        harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline) });
         harness.LiveDaqStore.ReplaceAll([]);
         harness.ManagementAvailability.OnNext(new(null, null));
         await Task.Yield();

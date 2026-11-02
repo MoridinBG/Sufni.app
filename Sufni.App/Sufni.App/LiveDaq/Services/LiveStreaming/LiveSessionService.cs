@@ -116,7 +116,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private TrackPointGeoCoordinate? previousAcceptedGpsCoordinate;
     private LiveDaqClientDropCounters sharedClientDropCounters = LiveDaqClientDropCounters.Empty;
     private SstFinalStatus? finalStatus;
-    private LiveConnectionState connectionState = LiveConnectionState.Disconnected;
+    private LiveConnectionState connectionState = new LiveConnectionState.Disconnected();
     private string? lastError;
     private ulong? captureStartMonotonicUs;
     private DateTimeOffset? captureStartUtc;
@@ -165,10 +165,10 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     public LiveSessionPresentationSnapshot Current => current;
 
-    public async Task EnsureAttachedAsync(CancellationToken cancellationToken = default)
+    public async Task<LivePreviewStartResult?> EnsureAttachedAsync(CancellationToken cancellationToken = default)
     {
         bool shouldStart;
-        bool attachedNow = false;
+        LiveConnectionState.Closed? attachClosed = null;
         IDisposable? attachedFramesSubscription = null;
         IDisposable? attachedStatesSubscription = null;
         ILiveDaqSharedStreamLease? attachedObserverLease = null;
@@ -181,36 +181,52 @@ internal sealed class LiveSessionService : ILiveSessionService
                 ThrowIfDisposed();
                 if (!isAttached)
                 {
-                    attachedObserverLease = sharedStream.AcquireLease();
-                    attachedConfigurationLockLease = sharedStream.AcquireConfigurationLock();
-                    signalPipeline.Start();
-                    displayLoopTask ??= Task.Run(() => RunDisplayLoopAsync(disposalCts.Token));
-                    attachedFramesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
-                    attachedStatesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
-                    observerLease = attachedObserverLease;
-                    configurationLockLease = attachedConfigurationLockLease;
-                    framesSubscription = attachedFramesSubscription;
-                    statesSubscription = attachedStatesSubscription;
-                    isAttached = true;
-                    attachedNow = true;
+                    var observerResult = sharedStream.AcquireLease();
+                    if (observerResult is LiveStreamLeaseResult.Closed observerClosed) attachClosed = observerClosed.State;
+                    else
+                    {
+                        attachedObserverLease = ((LiveStreamLeaseResult.Acquired)observerResult).Lease;
+                        var lockResult = sharedStream.AcquireConfigurationLock();
+                        if (lockResult is LiveStreamLeaseResult.Closed lockClosed) attachClosed = lockClosed.State;
+                        else
+                        {
+                            attachedConfigurationLockLease = ((LiveStreamLeaseResult.Acquired)lockResult).Lease;
+                            signalPipeline.Start();
+                            displayLoopTask ??= Task.Run(() => RunDisplayLoopAsync(disposalCts.Token));
+                            attachedFramesSubscription = sharedStream.Frames.Subscribe(HandleFrame);
+                            attachedStatesSubscription = sharedStream.States.Subscribe(HandleSharedStreamState);
+                            observerLease = attachedObserverLease;
+                            configurationLockLease = attachedConfigurationLockLease;
+                            framesSubscription = attachedFramesSubscription;
+                            statesSubscription = attachedStatesSubscription;
+                            isAttached = true;
+                        }
+                    }
                 }
 
                 shouldStart = !isTerminalClosed;
             }
 
             HandleSharedStreamState(sharedStream.CurrentState);
+            if (attachClosed is not null)
+            {
+                if (attachedObserverLease is not null) await attachedObserverLease.DisposeAsync();
+                return new LivePreviewStartResult.Closed(attachClosed);
+            }
 
             if (!shouldStart)
             {
-                return;
+                return sharedStream.CurrentState.ConnectionState is LiveConnectionState.Closed closed
+                    ? new LivePreviewStartResult.Closed(closed) : null;
             }
 
-            await sharedStream.EnsureStartedAsync(cancellationToken);
+            var result = await sharedStream.EnsureStartedAsync(cancellationToken);
             HandleSharedStreamState(sharedStream.CurrentState);
+            return result;
         }
         catch
         {
-            if (attachedNow)
+            if (attachedObserverLease is not null || attachedConfigurationLockLease is not null)
             {
                 lock (gate)
                 {

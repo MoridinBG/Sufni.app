@@ -10,7 +10,7 @@ public interface ILiveSessionService : IAsyncDisposable
     IObservable<LiveSignalBatch> SignalBatches { get; }
     LiveSessionPresentationSnapshot Current { get; }
 
-    Task EnsureAttachedAsync(CancellationToken cancellationToken = default);
+    Task<LivePreviewStartResult?> EnsureAttachedAsync(CancellationToken cancellationToken = default);
     Task ResetCaptureAsync(CancellationToken cancellationToken = default);
     Task<LiveSessionCapturePackage> PrepareCaptureForSaveAsync(CancellationToken cancellationToken = default);
 }

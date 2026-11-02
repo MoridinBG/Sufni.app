@@ -58,7 +58,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         liveSessionService.Snapshots.Returns(snapshots);
         liveSessionService.SignalBatches.Returns(signalBatches);
         liveSessionService.Current.Returns(_ => currentSnapshot);
-        liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
+        liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult<LivePreviewStartResult?>(null));
         liveSessionService.PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>()).Returns(capturePackage);
         liveSessionService.ResetCaptureAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
@@ -105,6 +105,22 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.False(snapshots.HasObservers);
         Assert.False(signalBatches.HasObservers);
         await liveSessionService.DidNotReceive().DisposeAsync();
+    }
+
+    [Fact]
+    public async Task LoadedCommand_WhenDaqPortBusy_ShowsNotificationAndRetainsCapture()
+    {
+        liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult<LivePreviewStartResult?>(new LivePreviewStartResult.Busy(new DaqTransportHolder.Import(Guid.NewGuid()))));
+        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
+        var editor = CreateEditor();
+
+        await editor.LoadedCommand.ExecuteAsync(null);
+
+        Assert.Single(editor.Notifications);
+        Assert.Same(currentSnapshot.AnalysisTelemetry, editor.TelemetryData);
+        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
+        await editor.PrepareCloseAsync();
     }
 
     [Fact]
@@ -543,7 +559,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
             DampingPercentages: new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8),
             SessionTrackPoints: trackPoints ?? [],
             Controls: new LiveSessionControlState(
-                ConnectionState: LiveConnectionState.Connected,
+                ConnectionState: new LiveConnectionState.Connected(),
                 LastError: null,
                 SessionHeader: header,
                 CaptureStartUtc: header.SessionStartUtc,

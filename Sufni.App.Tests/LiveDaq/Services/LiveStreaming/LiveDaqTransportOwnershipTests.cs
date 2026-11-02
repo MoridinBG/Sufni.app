@@ -20,7 +20,7 @@ public partial class LiveDaqSharedStreamTests
         var snapshot = CreateSnapshot("board", "192.168.0.10", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
-        await using var observer = stream.AcquireLease();
+        await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
         DaqTransportHolder? holder = null;
         using var observation = registry.ObserveTransport(snapshot.IdentityKey).Subscribe(value => holder = value);
         IDisposable? heldLease = null;
@@ -65,7 +65,7 @@ public partial class LiveDaqSharedStreamTests
         var snapshot = CreateSnapshot("board", "192.168.0.10", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
-        await using var observer = stream.AcquireLease();
+        await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
         using (Assert.IsType<DaqTransportAcquisition.Acquired>(
                    await registry.AcquireManagementAsync(snapshot.IdentityKey, DaqManagementOperation.SetTime)).Lease) { }
         await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
@@ -90,7 +90,7 @@ public partial class LiveDaqSharedStreamTests
         var snapshot = CreateSnapshot("board", "192.168.0.10", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
-        await using var observer = stream.AcquireLease();
+        await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
         await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.PendingDisconnectCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -116,7 +116,7 @@ public partial class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(firstSnapshot), CreateCatalogEntry(secondSnapshot)]);
         var first = registry.GetOrCreate(firstSnapshot);
         var second = registry.GetOrCreate(secondSnapshot);
-        await using var observer = first.AcquireLease();
+        await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(first.AcquireLease()).Lease;
         await first.EnsureStartedAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.BlockDisposeAsync = true;
@@ -145,8 +145,8 @@ public partial class LiveDaqSharedStreamTests
         var snapshot = CreateSnapshot("board", "192.168.0.10", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
-        await using var observer = stream.AcquireLease();
-        var capture = stream.AcquireConfigurationLock();
+        await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
+        var capture = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireConfigurationLock()).Lease;
         await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(LiveDisconnectResult.Locked, await stream.StopAsync(TestContext.Current.CancellationToken));
@@ -166,7 +166,7 @@ public partial class LiveDaqSharedStreamTests
         var snapshot = CreateSnapshot("board", "192.168.0.10", 1557);
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var old = registry.GetOrCreate(snapshot);
-        var observer = old.AcquireLease();
+        var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(old.AcquireLease()).Lease;
         await old.EnsureStartedAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.BlockDisposeAsync = true;
@@ -174,7 +174,7 @@ public partial class LiveDaqSharedStreamTests
         var closing = observer.DisposeAsync().AsTask();
         await client.DisposeStarted.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         var replacement = registry.GetOrCreate(snapshot);
-        await using var nextObserver = replacement.AcquireLease();
+        await using var nextObserver = Assert.IsType<LiveStreamLeaseResult.Acquired>(replacement.AcquireLease()).Lease;
         Assert.IsType<LivePreviewStartResult.Busy>(await replacement.EnsureStartedAsync(TestContext.Current.CancellationToken));
         Assert.Single(clientFactory.CreatedClients);
         client.ReleaseDispose();

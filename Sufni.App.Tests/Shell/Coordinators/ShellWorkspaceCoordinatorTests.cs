@@ -42,7 +42,7 @@ public class ShellWorkspaceCoordinatorTests
         shell.OpenEditor(key);
         shell.OpenEditor(key);
         factory.Received(1).CreateEditor(key, shell);
-        oldHarness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+        oldHarness.PublishStreamState(LiveDaqSharedStreamState.Empty with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline) });
 
         shell.OpenEditor(key, background);
         shell.OpenEditor(key, background);
@@ -74,7 +74,7 @@ public class ShellWorkspaceCoordinatorTests
         await using var shell = new ShellWorkspaceCoordinator(workspace, CreateEnvironment(UiLayoutProfile.Workspace), factory,
             Substitute.For<IUiPreferences>(), TestDispatcher, feedback);
         shell.OpenEditor(key);
-        oldHarness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+        oldHarness.PublishStreamState(LiveDaqSharedStreamState.Empty with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline) });
 
         shell.OpenEditor(key);
 
@@ -176,7 +176,7 @@ public class ShellWorkspaceCoordinatorTests
 
         shell.OpenEditor(key);
         var first = Assert.IsType<LiveSessionDetailViewModel>(workspace.CurrentTab);
-        live.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
+        live.PublishStreamState(LiveDaqSharedStreamState.Empty with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline) });
         shell.OpenEditor(key);
 
         Assert.Same(first, Assert.Single(workspace.Tabs));

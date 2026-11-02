@@ -37,19 +37,18 @@ public class LiveSessionServiceTests
         sharedStream.States.Returns(states);
         sharedStream.Frames.Returns(frames);
         sharedStream.CurrentState.Returns(_ => currentState);
-        sharedStream.AcquireLease().Returns(observerLease);
-        sharedStream.AcquireConfigurationLock().Returns(configurationLockLease);
+        sharedStream.AcquireLease().Returns(new LiveStreamLeaseResult.Acquired(observerLease));
+        sharedStream.AcquireConfigurationLock().Returns(new LiveStreamLeaseResult.Acquired(configurationLockLease));
         observerLease.DisposeAsync().Returns(ValueTask.CompletedTask);
         configurationLockLease.DisposeAsync().Returns(ValueTask.CompletedTask);
         sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
             currentState = new LiveDaqSharedStreamState(
-                ConnectionState: LiveConnectionState.Connected,
-                LastError: null,
+                ConnectionState: new LiveConnectionState.Connected(),
+                Error: null,
                 SessionHeader: sessionHeader,
                 SelectedStreamMask: LiveStreamMask.Travel | LiveStreamMask.Imu | LiveStreamMask.Gps,
-                IsConfigurationLocked: true,
-                IsClosed: false);
+                IsConfigurationLocked: true);
             states.OnNext(currentState);
             return Task.FromResult<LivePreviewStartResult?>(
                 new LivePreviewStartResult.Started(sessionHeader));
@@ -73,7 +72,7 @@ public class LiveSessionServiceTests
         sharedStream.Received(1).AcquireConfigurationLock();
         await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
 
-        Assert.Equal(LiveConnectionState.Connected, service.Current.Controls.ConnectionState);
+        Assert.Equal(new LiveConnectionState.Connected(), service.Current.Controls.ConnectionState);
         Assert.Equal(sessionHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
 
         await service.DisposeAsync();
@@ -89,6 +88,44 @@ public class LiveSessionServiceTests
 
         sharedStream.DidNotReceive().AcquireLease();
         sharedStream.DidNotReceive().AcquireConfigurationLock();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EnsureAttachedAsync_WhenStreamClosed_ReturnsReasonAndReleasesPartialAttachment(bool closedDuringLockAcquisition)
+    {
+        var closure = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline);
+        currentState = currentState with { ConnectionState = closure };
+        if (closedDuringLockAcquisition)
+            sharedStream.AcquireConfigurationLock().Returns(new LiveStreamLeaseResult.Closed(closure));
+        else
+            sharedStream.AcquireLease().Returns(new LiveStreamLeaseResult.Closed(closure));
+        await using var service = CreateService();
+
+        var result = await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(closure, Assert.IsType<LivePreviewStartResult.Closed>(result).State);
+        Assert.Equal(closure, service.Current.Controls.ConnectionState);
+        await sharedStream.DidNotReceive().EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await observerLease.Received(closedDuringLockAcquisition ? 1 : 0).DisposeAsync();
+        await configurationLockLease.DidNotReceive().DisposeAsync();
+    }
+
+    [Fact]
+    public async Task EnsureAttachedAsync_WhenPortBusy_ReturnsHolderAndCanRetry()
+    {
+        var busy = new LivePreviewStartResult.Busy(new DaqTransportHolder.Management(DaqManagementOperation.ReadConfig));
+        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<LivePreviewStartResult?>(busy),
+                Task.FromResult<LivePreviewStartResult?>(new LivePreviewStartResult.Started(sessionHeader)));
+        await using var service = CreateService();
+
+        Assert.Equal(busy, await service.EnsureAttachedAsync(TestContext.Current.CancellationToken));
+        Assert.False(service.Current.Controls.CanSave);
+        Assert.IsType<LivePreviewStartResult.Started>(await service.EnsureAttachedAsync(TestContext.Current.CancellationToken));
+        sharedStream.Received(1).AcquireLease();
+        sharedStream.Received(1).AcquireConfigurationLock();
     }
 
     [Fact]
@@ -150,7 +187,7 @@ public class LiveSessionServiceTests
         Assert.Equal(5, capture.TelemetryCapture.FrontMeasurements.Length);
         Assert.Equal(2, capture.TelemetryCapture.GpsData!.Length);
 
-        currentState = currentState with { IsClosed = true, LastError = "link lost" };
+        currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost"), Error = null };
         states.OnNext(currentState);
 
         var partialCapture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -293,7 +330,7 @@ public class LiveSessionServiceTests
         var v3Header = PublishV3TravelSession();
 
         frames.OnNext(CreateV3TravelBatch(v3Header, LiveSensorInstanceMask.ForkTravel));
-        currentState = currentState with { IsClosed = true, LastError = "link lost" };
+        currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost"), Error = null };
         states.OnNext(currentState);
 
         var package = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -848,11 +885,10 @@ public class LiveSessionServiceTests
     {
         currentState = currentState with
         {
-            ConnectionState = LiveConnectionState.Connected,
-            LastError = null,
+            ConnectionState = isClosed ? new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost) : new LiveConnectionState.Connected(),
+            Error = null,
             SessionHeader = header,
             SelectedStreamMask = header.AcceptedStreamMask,
-            IsClosed = isClosed,
             ProtocolVersion = header.ProtocolVersion,
         };
         states.OnNext(currentState);

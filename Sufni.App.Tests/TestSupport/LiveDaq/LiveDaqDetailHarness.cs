@@ -47,7 +47,7 @@ internal sealed class LiveDaqDetailHarness
         SharedStream.CurrentState.Returns(_ => currentStreamState);
         SharedStream.CatalogSnapshot.Returns(_ => currentCatalogSnapshot);
         SharedStream.RequestedConfiguration.Returns(_ => currentConfiguration);
-        SharedStream.AcquireLease().Returns(StreamLease);
+        SharedStream.AcquireLease().Returns(new LiveStreamLeaseResult.Acquired(StreamLease));
         SharedStream.ApplyConfigurationAsync(Arg.Any<LiveDaqStreamConfiguration>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
@@ -108,7 +108,7 @@ internal sealed class LiveDaqDetailHarness
         currentStreamState = state;
         ManagementAvailability.OnNext(state.IsClosed ? new(null, null) : ManagementAvailability.Value with
         {
-            Holder = state.ConnectionState == LiveConnectionState.Disconnected ? null : new DaqTransportHolder.Streaming()
+            Holder = state.ConnectionState is LiveConnectionState.Disconnected ? null : new DaqTransportHolder.Streaming()
         });
         StreamStates.OnNext(state);
     }
@@ -142,8 +142,8 @@ internal sealed class LiveDaqDetailHarness
         {
             PublishStreamState(currentStreamState with
             {
-                ConnectionState = LiveConnectionState.Connected,
-                LastError = null,
+                ConnectionState = new LiveConnectionState.Connected(),
+                Error = null,
                 SessionHeader = started.Header,
                 SelectedStreamMask = started.Header.AcceptedStreamMask,
             });
@@ -154,8 +154,8 @@ internal sealed class LiveDaqDetailHarness
         {
             PublishStreamState(currentStreamState with
             {
-                ConnectionState = LiveConnectionState.Disconnected,
-                LastError = rejected.UserMessage,
+                ConnectionState = new LiveConnectionState.Disconnected(),
+                Error = rejected.UserMessage,
                 SessionHeader = null,
                 SelectedStreamMask = LiveStreamMask.None,
             });

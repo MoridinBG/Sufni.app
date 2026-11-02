@@ -35,9 +35,9 @@ public class LiveDaqSessionStateTests
             CreateHeader(LiveV2FrameType.SessionStats, 5),
             new LiveSessionStats(700, 5, 4, 1, 3, 2, 0)));
 
-        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
 
-        Assert.Equal(LiveConnectionState.Connected, snapshot.ConnectionState);
+        Assert.Equal(new LiveConnectionState.Connected(), snapshot.ConnectionState);
         Assert.Equal((uint)700, snapshot.Session.SessionId);
         Assert.Equal(sessionHeader.RequestedSensorMask, snapshot.Session.RequestedSensorMask);
         Assert.Equal(sessionHeader.AcceptedSensorMask, snapshot.Session.AcceptedSensorMask);
@@ -79,7 +79,7 @@ public class LiveDaqSessionStateTests
             new LiveBatchHeader(702, 0, 10, 123456789, 1),
             [new LiveTravelRecord(111, 0)]));
 
-        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
 
         Assert.True(snapshot.Travel.FrontIsActive);
         Assert.False(snapshot.Travel.RearIsActive);
@@ -96,7 +96,7 @@ public class LiveDaqSessionStateTests
         var sessionHeader = LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 800);
         state.ApplySharedSessionState(sessionHeader);
 
-        var snapshotInitial = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshotInitial = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
         Assert.Null(snapshotInitial.Travel.SampleDelay);
 
         state.ApplyFrame(new LiveImuBatchFrame(
@@ -110,7 +110,7 @@ public class LiveDaqSessionStateTests
             CreateHeader(LiveV2FrameType.SessionStats, 3),
             new LiveSessionStats(800, 5, 4, 1, 3, 2, 0)));
 
-        var snapshotWithoutTravel = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshotWithoutTravel = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
         Assert.Null(snapshotWithoutTravel.Travel.SampleDelay);
 
         state.ApplyFrame(new LiveTravelBatchFrame(
@@ -119,7 +119,7 @@ public class LiveDaqSessionStateTests
             [new LiveTravelRecord(100, 200)]));
 
         time.Advance(TimeSpan.FromMilliseconds(750));
-        var snapshotWithTravel = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshotWithTravel = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
         Assert.Equal(TimeSpan.FromMilliseconds(750), snapshotWithTravel.Travel.SampleDelay);
     }
 
@@ -136,7 +136,7 @@ public class LiveDaqSessionStateTests
             new LiveBatchHeader(801, 0, 10, 123456789, 1),
             [new LiveTravelRecord(100, 200)]));
 
-        var snapshotWithoutImu = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshotWithoutImu = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
         Assert.All(snapshotWithoutImu.Imus, imu => Assert.Null(imu.SampleDelay));
 
         state.ApplyFrame(new LiveImuBatchFrame(
@@ -148,7 +148,7 @@ public class LiveDaqSessionStateTests
             ]));
 
         time.Advance(TimeSpan.FromMilliseconds(250));
-        var snapshotWithImu = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshotWithImu = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
         Assert.All(snapshotWithImu.Imus, imu => Assert.Equal(TimeSpan.FromMilliseconds(250), imu.SampleDelay));
     }
 
@@ -165,7 +165,7 @@ public class LiveDaqSessionStateTests
             protocolVersion: LiveProtocolVersion.V3);
         state.ApplySharedSessionState(sessionHeader);
 
-        var snapshot = state.CreateSnapshot(LiveConnectionState.Connected, null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Connected(), null);
 
         Assert.Equal("Travel: 123.45 Hz", snapshot.Session.AcceptedTravelRateText);
         Assert.Equal("IMU: 100 Hz", snapshot.Session.AcceptedImuRateText);
@@ -186,7 +186,7 @@ public class LiveDaqSessionStateTests
 
         state.Reset();
 
-        var snapshot = state.CreateSnapshot(LiveConnectionState.Disconnected, null);
+        var snapshot = state.CreateSnapshot(new LiveConnectionState.Disconnected(), null);
 
         Assert.Null(snapshot.Session.SessionId);
         Assert.False(snapshot.Travel.HasData);

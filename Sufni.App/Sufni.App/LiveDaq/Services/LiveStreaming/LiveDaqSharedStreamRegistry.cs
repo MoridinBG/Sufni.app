@@ -166,7 +166,7 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
                     }
                     else
                     {
-                        await stream.CloseAsync("DAQ went offline.");
+                        await stream.CloseAsync(LiveStreamClosedReason.Offline);
                     }
                 }
                 catch (ObjectDisposedException) { }

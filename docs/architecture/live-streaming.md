@@ -197,6 +197,8 @@ public abstract record LivePreviewStartResult
     public sealed record Started(LiveSessionHeader Header) : LivePreviewStartResult;
     public sealed record Rejected(LiveStartErrorCode ErrorCode, string UserMessage) : LivePreviewStartResult;
     public sealed record Failed(string ErrorMessage) : LivePreviewStartResult;
+    public sealed record Busy(DaqTransportHolder Holder) : LivePreviewStartResult;
+    public sealed record Closed(LiveConnectionState.Closed State) : LivePreviewStartResult;
 }
 ```
 
@@ -223,6 +225,16 @@ The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ id
 ### Shared Stream
 
 `LiveDaqSharedStreamRegistry` owns one `LiveDaqSharedStream` per DAQ identity key. A shared stream keeps the current requested configuration, accepted session header, protocol version, connection state, and frame fan-out for that identity. Observers acquire a generic lease; live-session observers also hold a configuration-lock lease so the diagnostics tab cannot reconfigure rates while a live capture is attached. The lease mechanics on the recording side are described under [Configuration Lock](live-session.md#configuration-lock).
+
+`LiveConnectionState` distinguishes disconnected, connecting, connected,
+disconnecting and terminal `Closed(reason, details)` states. Closed reasons are
+offline discovery, protocol change, lost connection, transport failure and
+disposal. `IsClosed` is computed from that state; the closure supplies a safe
+message separately from diagnostic details. Both observer and configuration-lock
+acquisition return `LiveStreamLeaseResult.Acquired` or `Closed`, including after
+disposal. Pending starts and attempts to restart a terminal stream also return
+the typed closure. A disconnected stream can restart; a closed stream requires a
+fresh registry lookup and tab.
 
 Observer leases do not reserve the DAQ's single-client port. The registry owns a
 separate per-identity transport reservation, exposed through `ObserveTransport`:
