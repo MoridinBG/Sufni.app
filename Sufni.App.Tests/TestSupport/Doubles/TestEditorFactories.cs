@@ -70,14 +70,12 @@ internal static class TestEditorFactories
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultLayerState()),
             Substitute.For<ISessionPreferences>(),
             new TestSessionProcessedTelemetryReader(),
-            Substitute.For<IFilesService>(),
             knownBoards ?? Substitute.For<ILiveDaqKnownBoardsQuery>(),
             liveDaqStore ?? Substitute.For<ILiveDaqStore>(),
             Substitute.For<IDialogService>(),
             uiThreadDispatcher,
             backgroundTaskRunner,
             importCoordinator ?? TestCoordinatorSubstitutes.ImportSessions(),
-            CreateDataStoreService(),
             streamRegistry ?? Substitute.For<ILiveDaqSharedStreamRegistry>(),
             liveSessionFactory ?? Substitute.For<ILiveSessionServiceFactory>(),
             Substitute.For<IVideoPaneFactory>(),
@@ -90,10 +88,4 @@ internal static class TestEditorFactories
             Substitute.For<IRecordedSessionDomainQuery>());
     }
 
-    private static ITelemetryDataStoreService CreateDataStoreService()
-    {
-        var service = Substitute.For<ITelemetryDataStoreService>();
-        service.DataStores.Returns(new System.Collections.ObjectModel.ObservableCollection<Sufni.App.Acquisition.Models.ITelemetryDataStore>());
-        return service;
-    }
 }

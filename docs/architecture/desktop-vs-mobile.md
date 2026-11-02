@@ -58,7 +58,7 @@ The older folder names remain for continuity: `Views/` mostly contains common or
 Platform heads establish the layout profile, application capabilities, and input capabilities at composition time. Shared behavior uses:
 
 - `IAppEnvironment.LayoutProfile` for compact versus workspace presentation.
-- `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, video playback (`CanPlayVideo`, false on Android). Haptics follow service registration, and native windowing follows the Avalonia lifetime.
+- `AppCapabilities` for platform-only app actions such as sync server hosting, pairing client support, mass-storage import, storage-provider import, folder picking (`CanPickFolder`), video playback (`CanPlayVideo`, false on Android). Haptics follow service registration, and native windowing follows the Avalonia lifetime.
 - `InputCapabilities` for pointer, touch, keyboard, long-press context menus and the command-key modifier; touch capabilities also drive pinch gestures. Each head supplies Control or Meta explicitly.
 
 Tests configure these explicitly through service setup or test helpers rather than relying on platform inference.
@@ -88,7 +88,7 @@ Desktop heads register capabilities and services that mobile heads do not provid
 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
 - **Inbound sync coordinator**: endpoints await `IInboundSyncCoordinator` row push/pull operations. It awaits the shared `SynchronizationApplier` to merge incoming rows and publish authoritative snapshots for every affected row family in one batch before acknowledging the request. The same coordinator owns source uploads and awaits the session applier for BLOB uploads; it also owns PIN challenges, confirmation, refresh rotation and remote unpair. `PairingServerViewModel` projects its expiring challenge stream. The coordinator also publishes explicit peer-run phases, completion and interruption; `SyncCoordinator` projects those facts into desktop progress.
-- **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider import is separately gated by `SupportsStorageProviderImport`.
+- **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider file import is separately gated by `SupportsStorageProviderImport`; folder picking uses `CanPickFolder`.
 - **Native windowing**: the Avalonia desktop lifetime supplies the owner window and window-hosted dialogs and shortcuts.
 
 The workspace profile does not grant these capabilities by itself. For example, workspace profile on iOS must not expose the desktop sync server or mass-storage import.
@@ -166,6 +166,7 @@ The places where platform behavior still differs are deliberately small:
 - **Session detail load**. `SessionDetailViewModel` uses the same local-only staged coordinator path in both profiles: `LoadDetailAsync(...)` publishes decoded telemetry first, then `LoadTrackAsync(...)` settles optional map/track data under the same active load token. Missing processed telemetry or recorded-source payloads surface as an incomplete-local-data screen state; sync is responsible for downloading those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
 - **Sync side**. Desktop-capable platforms can host the server; mobile-capable platforms pair and sync as clients. There is no peer-to-peer mode and no path that runs both on one device unless a future platform registers both capabilities deliberately.
 - **Platform-only actions**. Sync server actions, pairing client actions, mass-storage import, storage-provider import, and video playback are capability-gated. Haptics require a registered service; native windowing follows the application lifetime.
+- **Import folder picking**. `ImportSessionsCoordinator` and the command both use `CanPickFolder`; the current heads enable it explicitly. File-picker support and layout do not imply folder-picker support.
 - **Lifecycle**. Desktop main-window close and OS quit share the shell's ordered
   shutdown and can be canceled by a dirty-editor/unsaved-capture prompt. Android
   pause and iOS background finalize pending deletes and flush logs; they retain

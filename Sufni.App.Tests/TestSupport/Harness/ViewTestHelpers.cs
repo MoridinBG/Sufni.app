@@ -158,6 +158,7 @@ public static class ViewTestHelpers
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             input: new InputCapabilities(
                 HasPointer: true,

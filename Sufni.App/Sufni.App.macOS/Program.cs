@@ -31,6 +31,7 @@ namespace Sufni.App.macOS
                     CanPairAsClient: false,
                     SupportsMassStorageImport: true,
                     SupportsStorageProviderImport: true,
+                    CanPickFolder: true,
                     CanPlayVideo: true),
                 new InputCapabilities(
                     HasPointer: true,

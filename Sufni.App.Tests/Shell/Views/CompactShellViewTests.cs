@@ -271,6 +271,7 @@ public class CompactShellViewTests
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,

@@ -32,7 +32,7 @@ public class AppCompositionTests
 
     private static PlatformRoot CreateRoot(bool desktop, bool video, bool registerPlayer) =>
         new(
-            new AppCapabilities(desktop, !desktop, desktop, true, video),
+            new AppCapabilities(desktop, !desktop, desktop, true, true, video),
             new InputCapabilities(desktop, !desktop, desktop, !desktop, CommandModifier.Control),
             new LaunchPreferences(desktop ? UiLayoutProfile.Workspace : UiLayoutProfile.Compact),
             services =>

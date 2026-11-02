@@ -14,6 +14,7 @@ using Sufni.Telemetry;
 using Serilog;
 
 using Sufni.App.Acquisition.Models;
+using Sufni.App.Acquisition.Services;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Models;
@@ -34,7 +35,7 @@ namespace Sufni.App.Acquisition.Coordinators;
 /// It reads the raw SST source, builds processed telemetry from it, and
 /// persists both the canonical raw source and the derived session data.
 /// </summary>
-public class ImportSessionsCoordinator(
+public partial class ImportSessionsCoordinator(
     ISessionRepository sessionRepository,
     ITrackRepository trackRepository,
     ISynchronizableRepository<Setup> setupRepository,
@@ -45,7 +46,10 @@ public class ImportSessionsCoordinator(
     IRecordedSessionReprocessor reprocessor,
     IUiThreadDispatcher dispatcher,
     StorePublication publication,
-    ITrackStoreWriter trackStore) : IImportSessionsCoordinator, IDisposable
+    ITrackStoreWriter trackStore,
+    ITelemetryDataStoreService dataStores,
+    IFilesService filesService,
+    IAppEnvironment appEnvironment) : IImportSessionsCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<ImportSessionsCoordinator>();
     private static readonly int ImportProcessDop = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
@@ -124,10 +128,13 @@ public class ImportSessionsCoordinator(
         await shutdown.CancelAsync();
         var run = await dispatcher.InvokeAsync<Task?>(() => activeRun);
         if (run is not null) await run;
+        await DrainSourceOperationsAsync();
+        await dispatcher.InvokeAsync(StopSourceObservations);
     }
 
     public void Dispose()
     {
+        StopSourceObservations();
         shutdown.Dispose();
         state.Dispose();
     }

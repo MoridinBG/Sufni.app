@@ -246,7 +246,10 @@ public static class AppComposition
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<StorePublication>(),
-                sp.GetRequiredService<ITrackStoreWriter>()));
+                sp.GetRequiredService<ITrackStoreWriter>(),
+                sp.GetRequiredService<ITelemetryDataStoreService>(),
+                sp.GetRequiredService<IFilesService>(),
+                sp.GetRequiredService<IAppEnvironment>()));
         services.AddSingleton<IImportSessionsCoordinator>(sp =>
             sp.GetRequiredService<ImportSessionsCoordinator>());
         services.AddSingleton<BikeListViewModel>();

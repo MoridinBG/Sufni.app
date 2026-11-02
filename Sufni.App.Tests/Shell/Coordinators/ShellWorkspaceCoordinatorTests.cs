@@ -445,6 +445,7 @@ public class ShellWorkspaceCoordinatorTests
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: true,

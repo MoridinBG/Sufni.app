@@ -32,6 +32,7 @@ namespace Sufni.App.iOS
                     CanPairAsClient: true,
                     SupportsMassStorageImport: false,
                     SupportsStorageProviderImport: true,
+                    CanPickFolder: true,
                     CanPlayVideo: true),
                 new InputCapabilities(
                     HasPointer: false,

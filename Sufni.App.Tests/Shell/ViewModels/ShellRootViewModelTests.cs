@@ -23,6 +23,7 @@ public class ShellRootViewModelTests
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: true,
@@ -137,6 +138,7 @@ public class ShellRootViewModelTests
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,

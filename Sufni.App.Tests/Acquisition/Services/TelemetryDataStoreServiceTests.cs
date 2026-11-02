@@ -38,6 +38,22 @@ public class TelemetryDataStoreServiceTests
     }
 
     [Fact]
+    public async Task StopBrowse_ClearsPresenceEvenWhenNativeBrowseCleanupFails()
+    {
+        var network = new NetworkTelemetrySourceHarness();
+        network.BrowseLease.When(lease => lease.Dispose()).Do(_ => throw new IOException("stop diagnostic"));
+        await using var service = CreateService(catalog: network.Catalog);
+        service.StartBrowse();
+        Assert.Single(service.DataStores);
+
+        Assert.Throws<IOException>(service.StopBrowse);
+
+        Assert.Empty(service.DataStores);
+        service.StopBrowse();
+        network.BrowseLease.Received(1).Dispose();
+    }
+
+    [Fact]
     public async Task LoadFilesAsync_UsesBackgroundRunnerToReadDataStoreFiles()
     {
         var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
@@ -66,6 +82,28 @@ public class TelemetryDataStoreServiceTests
         Assert.Same(added.DataStore, Assert.Single(service.DataStores));
         Assert.Equal("DAQ", added.DataStore.Name);
         Assert.Equal(expectedBoardId, added.DataStore.BoardId);
+    }
+
+    [Fact]
+    public async Task TryAddStorageProviderAsync_CanceledInitializationDoesNotPublishLateSource()
+    {
+        await using var service = CreateService();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var read = new TaskCompletionSource<Stream>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var folder = CreateStorageProviderFolder("/tmp/sufni-daq", "ABCDEF1234567890", () =>
+        {
+            started.SetResult();
+            return read.Task;
+        });
+        using var cancellation = new CancellationTokenSource();
+        var registration = service.TryAddStorageProviderAsync(folder, cancellation.Token);
+        await started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        await cancellation.CancelAsync();
+        read.SetResult(new MemoryStream(System.Text.Encoding.ASCII.GetBytes("ABCDEF1234567890")));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => registration.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+
+        Assert.Empty(service.DataStores);
     }
 
     [Fact]
@@ -276,6 +314,7 @@ public class TelemetryDataStoreServiceTests
                 CanPairAsClient: true,
                 SupportsMassStorageImport: supportsMassStorageImport,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,
@@ -291,7 +330,7 @@ public class TelemetryDataStoreServiceTests
         return dataStore;
     }
 
-    private static IStorageFolder CreateStorageProviderFolder(string localPath, string boardId)
+    private static IStorageFolder CreateStorageProviderFolder(string localPath, string boardId, Func<Task<Stream>>? openRead = null)
     {
         var uploaded = Substitute.For<IStorageFolder>();
         uploaded.Name.Returns("uploaded");
@@ -301,7 +340,7 @@ public class TelemetryDataStoreServiceTests
         boardIdFile.Name.Returns("BOARDID");
         boardIdFile.Path.Returns(new Uri($"file://{localPath}/BOARDID"));
         boardIdFile.OpenReadAsync().Returns(_ =>
-            Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.ASCII.GetBytes(boardId))));
+            openRead?.Invoke() ?? Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.ASCII.GetBytes(boardId))));
 
         var folder = Substitute.For<IStorageFolder>();
         folder.Name.Returns("DAQ");

@@ -17,9 +17,9 @@ graph LR
     Picker --> Files["IFilesService"]
     USB --> DSS["TelemetryDataStoreService"]
     WiFi --> DSS
-    Files --> Import["ImportSessionsViewModel"]
-    Import -->|"StartBrowse / StopBrowse"| DSS
-    Import -->|"LoadFilesAsync / TryAddStorageProviderAsync"| DSS
+    Files --> Coord
+    Import["ImportSessionsViewModel"] -->|"ObserveSources / LoadFilesAsync / OpenFolderAsync"| Coord
+    Coord -->|"browse / list / register"| DSS
     Import -->|"FindByBoardId"| SetupQuery["ISetupBoardQuery"]
     Import -->|"ImportAsync / Observe"| Coord["ImportSessionsCoordinator"]
     Coord --> Runner["IBackgroundTaskRunner"]
@@ -73,7 +73,7 @@ Key adapter members:
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header before import (source varies by implementation). Start times, including filesystem/network fallbacks, remain UTC through persistence; the import view alone formats them in local time.
 
-**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live `DataStores` collection plus the browse and registration surfaces the UI uses: `StartBrowse()`, `StopBrowse()`, `LoadFilesAsync(...)`, and `TryAddStorageProviderAsync(...)`. The import screen talks to this service directly; screens and coordinators do not construct concrete datastore implementations themselves.
+**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live source collection and infrastructure for browsing, file listing and picked-folder registration. `ImportSessionsCoordinator` owns the user workflows over it and exposes a read-only `Sources` collection. The view model has no datastore-service or file-service dependency.
 
 ### Import Screen Boundaries
 
@@ -81,9 +81,18 @@ The import-sessions feature is the canonical worked example of the current bound
 
 - `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors.
 - It resolves the current board's setup through `ISetupBoardQuery.FindByBoardId(Guid)` and never reads persistence repositories directly.
-- It starts and stops browse in `Loaded` / `Unloaded`, asks `ITelemetryDataStoreService` to load files or register a picked folder, and uses the coordinator's `SessionImportState.Running` as its busy-state source of truth.
+- It acquires/disposes an `ObserveSources` lease in `Loaded` / `Unloaded`, forwards listing and folder intents to the coordinator, and uses `SessionImportState.Running` for import progress. Superseded listings are canceled and late results rejected, including a second request for the same source. Closing drains pending UI listing work.
 - `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store publication (source metadata is prepared from the committed recording), background execution, and per-file progress reporting.
+
+Source observations share one browse lifetime: the first starts it and the last
+stops it. Scan issues reach only current observers. Listing and folder operations
+are retained by the coordinator, linked to caller and shutdown cancellation, and
+drained by `StopAsync`. The picker is a native UI operation; shutdown waits for
+it to settle and rejects any late selection before registration. Folder commands
+are gated by `AppCapabilities.CanPickFolder`. Cancellation is neutral; listing
+and folder failures carry `ImportSourceFailureReason.ListFiles | OpenFolder`
+with fixed user summaries and separate diagnostics.
 
 `ImportSessionsCoordinator` retains one active task and the latest
 `SessionImportState` for the application lifetime. A second start while that task
@@ -164,7 +173,7 @@ fixed user-facing summaries.
 
 `StorageProviderTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/StorageProviderTelemetryDataStore.cs`) wraps Avalonia's `IStorageFolder` for platform-agnostic file access via the system file picker. All I/O is deferred to an async `Init()` task.
 
-The view model may ask `IFilesService` for a folder, but it does not construct this datastore directly. Registration lives in `ITelemetryDataStoreService.TryAddStorageProviderAsync(...)`, which owns duplicate detection and returns a sealed `StorageProviderRegistrationResult` (`Added` or `AlreadyOpen`) together with the concrete datastore instance the caller should select. This keeps infrastructure creation out of the view model and makes duplicate handling deterministic.
+`ImportSessionsCoordinator.OpenFolderAsync` asks `IFilesService` for a folder and awaits `ITelemetryDataStoreService.TryAddStorageProviderAsync`, which owns initialization and duplicate detection. The result is `Added`, `AlreadyOpen`, `Canceled`, `Unavailable` or `Failed(reason, details)`. Added/already-open results identify the source to select. A canceled initialization cannot publish a late source into the collection.
 
 `StorageProviderTelemetryFile` uses the same `TelemetryFileInspectionMapper` as mass storage for local-file inspection, but keeps Avalonia storage-provider move semantics separate. Its uploaded/trash helper looks for existing `uploaded` and `trash` folders; missing destination folders remain import/trash errors rather than being created implicitly.
 

@@ -51,14 +51,12 @@ internal sealed class EditorFactory(
     IMapViewModelFactory mapViewModelFactory,
     ISessionPreferences sessionPreferences,
     ISessionProcessedTelemetryReader processedTelemetryReader,
-    IFilesService filesService,
     ILiveDaqKnownBoardsQuery liveDaqKnownBoardsQuery,
     ILiveDaqStore liveDaqStore,
     IDialogService dialogService,
     IUiThreadDispatcher uiThreadDispatcher,
     IBackgroundTaskRunner backgroundTaskRunner,
     IImportSessionsCoordinator importSessionsCoordinator,
-    ITelemetryDataStoreService telemetryDataStoreService,
     ILiveDaqSharedStreamRegistry sharedStreamRegistry,
     ILiveSessionServiceFactory liveSessionServiceFactory,
     IVideoPaneFactory videoPaneFactory,
@@ -78,7 +76,7 @@ internal sealed class EditorFactory(
         EditorKey.Setup setup => setupQuery.Get(setup.Id) is { } snapshot ? CreateSetupEditor(snapshot, false, shell) : null,
         EditorKey.Session session => sessionStore.Get(session.Id) is { } snapshot ? CreateSessionDetail(snapshot, shell) : null,
         EditorKey.ImportSessions => new ImportSessionsViewModel(
-            telemetryDataStoreService, filesService, shell, dialogService,
+            shell, dialogService,
             importSessionsCoordinator, setupQuery, uiThreadDispatcher, timeProvider),
         EditorKey.LiveDaq daq => liveDaqStore.Get(daq.IdentityKey) is { } snapshot
             ? CreateLiveDaqDetail(snapshot, sharedStreamRegistry.GetOrCreate(snapshot), shell) : null,

@@ -221,9 +221,10 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         catalogSubscription = null;
         massStorageScanCancellation?.Cancel();
         massStorageScanCancellation = null;
-        browseLease?.Dispose();
+        var lease = browseLease;
         browseLease = null;
-        DataStores.Clear();
+        try { lease?.Dispose(); }
+        finally { DataStores.Clear(); }
     }
 
     public Task<TelemetryFileListing> LoadFilesAsync(
@@ -249,7 +250,11 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
             return createdDataStore;
         }, cancellationToken);
 
-        await uiThreadDispatcher.InvokeAsync(() => DataStores.Add(dataStore));
+        await uiThreadDispatcher.InvokeAsync(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DataStores.Add(dataStore);
+        });
         return new StorageProviderRegistrationResult.Added(dataStore);
     }
 

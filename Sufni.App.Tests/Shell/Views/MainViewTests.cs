@@ -107,6 +107,7 @@ public class MainViewTests
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             Input: new InputCapabilities(
                 HasPointer: false,

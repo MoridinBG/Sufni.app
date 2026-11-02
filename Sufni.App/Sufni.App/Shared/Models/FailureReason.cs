@@ -48,7 +48,8 @@ public enum LeverageRatioImportFailureReason { Import }
 
 public enum PairingFailureReason { Request, Confirm, Unpair }
 
-public enum DataStoreDiscoveryFailureReason { Scan }
+public enum DataStoreDiscoveryFailureReason { Scan, Browse }
+public enum ImportSourceFailureReason { ListFiles, OpenFolder }
 
 public enum GpxImportFailureReason { InvalidFile, Import }
 

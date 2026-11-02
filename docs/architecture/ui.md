@@ -216,6 +216,11 @@ carry `LiveSessionSaveFailureReason.Save`; processing failures keep the capture
 available for retry and do not persist a session/source. `Saved` still carries
 its existing publication warning.
 
+`ImportSourceFailureReason.ListFiles | OpenFolder` identifies source-request
+failures; the import coordinator logs them and returns safe summaries with
+separate diagnostics. View models render these outcomes without catching or
+formatting infrastructure exceptions.
+
 `SessionImportResult` carries imported snapshots and typed per-file failures.
 `SessionImportFailure` is `OperationFailed | ProcessingFailed` with file identity
 and operation. `SessionImportFailureReason` covers import, invalid file,

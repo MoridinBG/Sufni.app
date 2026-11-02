@@ -14,6 +14,7 @@ public sealed record AppCapabilities(
     bool CanPairAsClient,
     bool SupportsMassStorageImport,
     bool SupportsStorageProviderImport,
+    bool CanPickFolder,
     bool CanPlayVideo);
 
 public enum CommandModifier

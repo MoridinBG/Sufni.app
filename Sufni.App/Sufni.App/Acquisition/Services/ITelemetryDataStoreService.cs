@@ -34,6 +34,9 @@ public abstract record StorageProviderRegistrationResult
     public sealed record Added(ITelemetryDataStore DataStore) : StorageProviderRegistrationResult;
 
     public sealed record AlreadyOpen(ITelemetryDataStore DataStore) : StorageProviderRegistrationResult;
+    public sealed record Canceled : StorageProviderRegistrationResult;
+    public sealed record Unavailable : StorageProviderRegistrationResult;
+    public sealed record Failed(ImportSourceFailureReason Reason, string? Details) : StorageProviderRegistrationResult;
 }
 
 public sealed record DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason Reason, string? Details = null);

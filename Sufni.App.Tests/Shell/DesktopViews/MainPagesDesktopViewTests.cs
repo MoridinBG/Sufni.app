@@ -79,6 +79,7 @@ public class MainPagesDesktopViewTests
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false));
         var viewModel = MainPagesViewModelTestFactory.Create(
             appEnvironment: environment,
@@ -227,6 +228,7 @@ public class MainPagesDesktopViewTests
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false));
         var view = new MainPagesDesktopView
         {
@@ -251,6 +253,7 @@ public class MainPagesDesktopViewTests
                 CanPairAsClient: true,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false));
 
     private static PairingClientViewModel CreatePairingClientPage(bool isPaired)

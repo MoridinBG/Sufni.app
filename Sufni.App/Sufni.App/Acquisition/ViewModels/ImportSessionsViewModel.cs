@@ -19,6 +19,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Shared.Base;
+using Sufni.App.Shared.Common;
 using Sufni.App.Shell.Coordinators;
 namespace Sufni.App.Acquisition.ViewModels;
 
@@ -26,7 +27,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 {
     #region Observable properties
 
-    public ObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
+    public ReadOnlyObservableCollection<ITelemetryDataStore> TelemetryDataStores { get; }
     public ObservableCollection<ImportFileRowViewModel> TelemetryFiles { get; } = [];
 
     [ObservableProperty] public partial ITelemetryDataStore? SelectedDataStore { get; set; }
@@ -56,12 +57,14 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     #region Private members
 
-    private readonly ITelemetryDataStoreService telemetryDataStoreService;
-    private readonly IFilesService filesService;
     private readonly IImportSessionsCoordinator importSessionsCoordinator;
     private readonly ISetupBoardQuery setupQuery;
     private readonly IDisposable importSubscription;
     private int displayedEventCount;
+    private IDisposable? sourceObservation;
+    private readonly CancellableOperation listingOperation = new();
+    private Task pendingListings = Task.CompletedTask;
+    public bool CanPickFolder => importSessionsCoordinator.CanPickFolder;
     private TelemetryFileListing.Listed? loadedListing;
     private Guid? SelectedBoardId => loadedListing?.BoardId ?? SelectedDataStore?.BoardId;
 
@@ -70,8 +73,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     #region Constructors
 
     public ImportSessionsViewModel(
-        ITelemetryDataStoreService telemetryDataStoreService,
-        IFilesService filesService,
         IShellCoordinator shell,
         IDialogService dialogService,
         IImportSessionsCoordinator importSessionsCoordinator,
@@ -81,8 +82,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         Name = "Import Sessions";
-        this.telemetryDataStoreService = telemetryDataStoreService;
-        this.filesService = filesService;
         this.importSessionsCoordinator = importSessionsCoordinator;
         this.setupQuery = setupQuery;
 
@@ -90,8 +89,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
             .ObserveOnUiThread(uiThreadDispatcher)
             .Subscribe(ApplyImportState);
 
-        TelemetryDataStores = telemetryDataStoreService.DataStores;
-        TelemetryDataStores.CollectionChanged += OnTelemetryDataStoresCollectionChanged;
+        TelemetryDataStores = importSessionsCoordinator.Sources;
+        ((INotifyCollectionChanged)TelemetryDataStores).CollectionChanged += OnTelemetryDataStoresCollectionChanged;
         if (TelemetryDataStores.Count > 0)
         {
             SelectedDataStore = TelemetryDataStores[0];
@@ -104,63 +103,60 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
 
     partial void OnSelectedDataStoreChanged(ITelemetryDataStore? value)
     {
-        _ = HandleSelectedDataStoreChangedAsync(value);
+        listingOperation.Cancel();
+        loadedListing = null;
+        TelemetryFiles.Clear();
+        IsLoadingFiles = false;
+        if (value is null)
+        {
+            SelectedSetup = null;
+            return;
+        }
+        ClearNewDataStoresAvailable();
+        ResolveSelectedSetup();
+        RequestFileLoad(value);
     }
 
     #endregion Property change handlers
 
     #region Private methods
 
-    private async Task HandleSelectedDataStoreChangedAsync(ITelemetryDataStore? value)
+    private void RequestFileLoad(ITelemetryDataStore source)
     {
-        loadedListing = null;
-        TelemetryFiles.Clear();
-        if (value is null)
-        {
-            TelemetryFiles.Clear();
-            SelectedSetup = null;
-            return;
-        }
-
-        ClearNewDataStoresAvailable();
-        ResolveSelectedSetup();
-
-        IsLoadingFiles = true;
-        try
-        {
-            await LoadTelemetryFilesAsync(value);
-        }
-        catch (Exception e)
-        {
-            if (IsCurrentTelemetryFilesLoad(value))
-            {
-                ErrorMessages.Add(new FailurePresentation($"Error while changing data store: {e.Message}"));
-            }
-        }
-        finally
-        {
-            if (IsCurrentTelemetryFilesLoad(value))
-                IsLoadingFiles = false;
-        }
+        var next = LoadTelemetryFilesAsync(source);
+        pendingListings = pendingListings.IsCompleted ? next : Task.WhenAll(pendingListings, next);
     }
 
     private async Task LoadTelemetryFilesAsync(ITelemetryDataStore dataStore)
     {
-        var listing = await telemetryDataStoreService.LoadFilesAsync(dataStore);
-        if (!IsCurrentTelemetryFilesLoad(dataStore)) return;
-        switch (listing)
+        var cancellationToken = listingOperation.Start();
+        IsLoadingFiles = true;
+        try
         {
-            case TelemetryFileListing.Listed listed:
-                loadedListing = listed;
-                ApplyTelemetryFiles(listed.Files);
-                if (SelectedSetup is null) ResolveSelectedSetup();
-                break;
-            case TelemetryFileListing.Busy busy:
-                Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
-                break;
-            case TelemetryFileListing.Unavailable:
-                Notifications.Add("The DAQ is unavailable. Try again when it is connected.");
-                break;
+            var listing = await importSessionsCoordinator.LoadFilesAsync(dataStore, cancellationToken);
+            if (cancellationToken.IsCancellationRequested || !IsCurrentTelemetryFilesLoad(dataStore)) return;
+            switch (listing)
+            {
+                case TelemetryFileListing.Listed listed:
+                    loadedListing = listed;
+                    ApplyTelemetryFiles(listed.Files);
+                    if (SelectedSetup is null) ResolveSelectedSetup();
+                    break;
+                case TelemetryFileListing.Busy busy:
+                    Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
+                    break;
+                case TelemetryFileListing.Unavailable:
+                    Notifications.Add("The DAQ is unavailable. Try again when it is connected.");
+                    break;
+                case TelemetryFileListing.Failed failed:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+            }
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (!cancellationToken.IsCancellationRequested && IsCurrentTelemetryFilesLoad(dataStore)) IsLoadingFiles = false;
         }
     }
 
@@ -213,7 +209,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         {
             case SessionImportState.Completed completed:
                 AddImportSummary(completed.Result);
-                if (SelectedDataStore is { } dataStore) _ = RefreshAfterImportAsync(dataStore);
+                if (SelectedDataStore is { } dataStore) RequestFileLoad(dataStore);
                 break;
             case SessionImportState.SourceBusy busy:
                 Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
@@ -224,18 +220,6 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
             case SessionImportState.Failed failed:
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
-        }
-    }
-
-    private async Task RefreshAfterImportAsync(ITelemetryDataStore dataStore)
-    {
-        try
-        {
-            await LoadTelemetryFilesAsync(dataStore);
-        }
-        catch (Exception e)
-        {
-            if (IsCurrentTelemetryFilesLoad(dataStore)) ErrorMessages.Add(new FailurePresentation($"Import failed: {e.Message}"));
         }
     }
 
@@ -291,21 +275,20 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                 if (ReferenceEquals(SelectedDataStore, removed)) SelectedDataStore = e.NewItems?.OfType<ITelemetryDataStore>().FirstOrDefault();
                 break;
             case NotifyCollectionChangedAction.Move:
+                break;
             case NotifyCollectionChangedAction.Reset:
+                if (SelectedDataStore is null || !TelemetryDataStores.Contains(SelectedDataStore))
+                    SelectedDataStore = TelemetryDataStores.FirstOrDefault();
                 break;
         }
     }
 
-    [RelayCommand]
-    private async Task OpenDataStore()
+    [RelayCommand(CanExecute = nameof(CanPickFolder))]
+    private async Task OpenDataStore(CancellationToken cancellationToken)
     {
-        var folder = await filesService.OpenDataStoreFolderAsync();
-        if (folder is null) return;
-
         try
         {
-            var result = await telemetryDataStoreService.TryAddStorageProviderAsync(folder);
-            switch (result)
+            switch (await importSessionsCoordinator.OpenFolderAsync(cancellationToken))
             {
                 case StorageProviderRegistrationResult.Added added:
                     SelectedDataStore = added.DataStore;
@@ -314,12 +297,15 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                     Notifications.Add("Folder is already opened.");
                     SelectedDataStore = alreadyOpen.DataStore;
                     break;
+                case StorageProviderRegistrationResult.Failed failed:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+                case StorageProviderRegistrationResult.Unavailable:
+                    Notifications.Add("Folder picking is unavailable.");
+                    break;
             }
         }
-        catch (Exception e)
-        {
-            ErrorMessages.Add(new FailurePresentation($"Could not open folder: {e.Message}"));
-        }
+        catch (OperationCanceledException) { }
     }
 
     [RelayCommand(CanExecute = nameof(CanImportSessions))]
@@ -366,8 +352,8 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
     [RelayCommand]
     private void Loaded()
     {
-        telemetryDataStoreService.DiscoveryIssueReported += OnDiscoveryIssueReported;
-        telemetryDataStoreService.StartBrowse();
+        sourceObservation ??= importSessionsCoordinator.ObserveSources(OnDiscoveryIssueReported);
+        SelectedDataStore ??= TelemetryDataStores.FirstOrDefault();
         ResolveSelectedSetup();
 
         EnsureScopedSubscription(s =>
@@ -385,19 +371,22 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         SelectedSetup = null;
         NewDataStoresAvailable = false;
         TelemetryFiles.Clear();
-        telemetryDataStoreService.DiscoveryIssueReported -= OnDiscoveryIssueReported;
-        telemetryDataStoreService.StopBrowse();
+        OpenDataStoreCommand.Cancel();
+        sourceObservation?.Dispose();
+        sourceObservation = null;
     }
 
-    protected override Task CloseImplementation()
+    protected override async Task CloseImplementation()
     {
         importSubscription.Dispose();
-        TelemetryDataStores.CollectionChanged -= OnTelemetryDataStoresCollectionChanged;
+        ((INotifyCollectionChanged)TelemetryDataStores).CollectionChanged -= OnTelemetryDataStoresCollectionChanged;
         Unloaded();
-        return Task.CompletedTask;
+        listingOperation.Dispose();
+        await pendingListings;
+        if (OpenDataStoreCommand.ExecutionTask is { } folder) await folder;
     }
 
-    private void OnDiscoveryIssueReported(object? sender, DataStoreDiscoveryIssue issue) =>
+    private void OnDiscoveryIssueReported(DataStoreDiscoveryIssue issue) =>
         ErrorMessages.Add(FailurePresentation.From(issue.Reason, issue.Details));
 
     #endregion Commands

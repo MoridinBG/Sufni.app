@@ -104,6 +104,13 @@ internal static class TestCoordinatorSubstitutes
     public static IImportSessionsCoordinator ImportSessions()
     {
         var coordinator = Substitute.For<IImportSessionsCoordinator>();
+        coordinator.Sources.Returns(new System.Collections.ObjectModel.ReadOnlyObservableCollection<Sufni.App.Acquisition.Models.ITelemetryDataStore>([]));
+        coordinator.CanPickFolder.Returns(true);
+        coordinator.ObserveSources(Arg.Any<Action<Sufni.App.Acquisition.Services.DataStoreDiscoveryIssue>>()).Returns(System.Reactive.Disposables.Disposable.Empty);
+        coordinator.LoadFilesAsync(Arg.Any<Sufni.App.Acquisition.Models.ITelemetryDataStore>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Sufni.App.Acquisition.Models.TelemetryFileListing>(new Sufni.App.Acquisition.Models.TelemetryFileListing.Listed([], null)));
+        coordinator.OpenFolderAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Sufni.App.Acquisition.Services.StorageProviderRegistrationResult>(new Sufni.App.Acquisition.Services.StorageProviderRegistrationResult.Canceled()));
 
         coordinator.State.Returns(new SessionImportState.Idle());
         coordinator.Observe().Returns(System.Reactive.Linq.Observable.Return<SessionImportState>(new SessionImportState.Idle()));

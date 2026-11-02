@@ -150,8 +150,16 @@ public sealed record FailurePresentation
         PairingFailureReason.Unpair => "The server could not be unpaired. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(ImportSourceFailureReason reason, string? details = null) => new(reason switch
+    {
+        ImportSourceFailureReason.ListFiles => "Files could not be loaded. Check the source and try again.",
+        ImportSourceFailureReason.OpenFolder => "The folder could not be opened. Check access and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
     public static FailurePresentation From(DataStoreDiscoveryFailureReason reason, string? details = null) => new(reason switch
     {
+        DataStoreDiscoveryFailureReason.Browse => "DAQ sources could not be observed. Reopen Import Sessions to try again.",
         DataStoreDiscoveryFailureReason.Scan => "DAQ drives could not be scanned. Check the connection and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);

@@ -19,12 +19,116 @@ namespace Sufni.App.Tests.Acquisition.ViewModels;
 public class ImportSessionsViewModelTests
 {
     [Fact]
+    public void RefreshForSameSource_CancelsEarlierListingAndRejectsItsLateRows()
+    {
+        var harness = new ImportWorkflowHarness();
+        var source = CreateDataStore();
+        var oldFile = CreateTelemetryFile("old");
+        var currentFile = CreateTelemetryFile("current");
+        var first = new TaskCompletionSource<TelemetryFileListing>();
+        CancellationToken firstToken = default;
+        var calls = 0;
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            if (++calls != 1) return Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([currentFile], null));
+            firstToken = call.Arg<CancellationToken>();
+            return first.Task;
+        });
+        var vm = harness.CreateViewModel();
+        vm.SelectedDataStore = source;
+
+        harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([], []), []));
+        Assert.True(firstToken.IsCancellationRequested);
+        first.SetResult(new TelemetryFileListing.Listed([oldFile], null));
+
+        Assert.Same(currentFile, Assert.Single(vm.TelemetryFiles).File);
+        Assert.False(vm.IsLoadingFiles);
+    }
+
+    [Fact]
+    public async Task ClearedSources_EndSelectionAndCancelPendingListing()
+    {
+        var harness = new ImportWorkflowHarness();
+        var source = CreateDataStore();
+        harness.DataStores.Add(source);
+        var listing = new TaskCompletionSource<TelemetryFileListing>();
+        CancellationToken token = default;
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            token = call.Arg<CancellationToken>();
+            return listing.Task;
+        });
+        var vm = harness.CreateViewModel();
+
+        harness.DataStores.Clear();
+        Assert.True(token.IsCancellationRequested);
+        Assert.Null(vm.SelectedDataStore);
+        Assert.False(vm.IsLoadingFiles);
+        listing.SetResult(new TelemetryFileListing.Listed([CreateTelemetryFile()], null));
+        await vm.PrepareCloseAsync();
+
+        Assert.Empty(vm.TelemetryFiles);
+    }
+
+    [Fact]
+    public async Task Close_CancelsAndDrainsListingWithoutPublishingItsLateResult()
+    {
+        var harness = new ImportWorkflowHarness();
+        var source = CreateDataStore();
+        var listing = new TaskCompletionSource<TelemetryFileListing>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            token = call.Arg<CancellationToken>();
+            return listing.Task;
+        });
+        var vm = harness.CreateViewModel();
+        vm.SelectedDataStore = source;
+
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = token.Register(() => canceled.TrySetResult());
+        var close = vm.PrepareCloseAsync();
+        await canceled.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(close.IsCompleted);
+        listing.SetResult(new TelemetryFileListing.Listed([CreateTelemetryFile()], null));
+        await close.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(vm.TelemetryFiles);
+        Assert.Empty(vm.ErrorMessages);
+    }
+
+    [Fact]
+    public void FolderCommand_IsDisabledWhenFolderPickingIsUnavailable()
+    {
+        var harness = new ImportWorkflowHarness();
+        harness.ImportSessionsCoordinatorSubstitute.CanPickFolder.Returns(false);
+        var vm = harness.CreateViewModel();
+
+        Assert.False(vm.OpenDataStoreCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task FolderCommand_DisplaysTypedFailureDetails()
+    {
+        var harness = new ImportWorkflowHarness();
+        var vm = harness.CreateViewModel();
+        harness.ImportSessionsCoordinatorSubstitute.OpenFolderAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<StorageProviderRegistrationResult>(new StorageProviderRegistrationResult.Failed(ImportSourceFailureReason.OpenFolder, "folder diagnostic")));
+
+        await vm.OpenDataStoreCommand.ExecuteAsync(null);
+
+        var failure = Assert.Single(vm.ErrorMessages);
+        Assert.Equal("folder diagnostic", failure.Details);
+        Assert.DoesNotContain("folder diagnostic", failure.Summary);
+    }
+
+    [Fact]
     public async Task ImportCommand_CapturesRowEditsBeforeBackgroundWorkStarts()
     {
         var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         var file = CreateTelemetryFile("recording");
-        harness.TelemetryDataStoreService.LoadFilesAsync(source, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
         var vm = harness.CreateViewModel();
         vm.SelectedDataStore = source;
@@ -68,9 +172,9 @@ public class ImportSessionsViewModelTests
         var firstFiles = new[] { CreateTelemetryFile("first") };
         var secondFiles = new[] { CreateTelemetryFile("second") };
         var firstLoad = new TaskCompletionSource<TelemetryFileListing>();
-        harness.TelemetryDataStoreService.LoadFilesAsync(firstStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(firstStore, Arg.Any<CancellationToken>())
             .Returns(firstLoad.Task);
-        harness.TelemetryDataStoreService.LoadFilesAsync(secondStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(secondStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. secondFiles], null)));
 
         var viewModel = harness.CreateViewModel();
@@ -98,7 +202,7 @@ public class ImportSessionsViewModelTests
         var dataStore = CreateDataStore(boardId: boardId);
         var initialFile = CreateTelemetryFile("lap");
         var refreshedFile = CreateTelemetryFile("after-import");
-        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(
                 Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { initialFile }], null)),
                 Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { refreshedFile }], null)));
@@ -144,7 +248,7 @@ public class ImportSessionsViewModelTests
         harness.SetupQuery.Add(setup, boardId);
         var dataStore = CreateDataStore(boardId: boardId);
         var file = CreateTelemetryFile("lap");
-        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(
                 Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)),
                 Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([], null)));
@@ -178,11 +282,8 @@ public class ImportSessionsViewModelTests
     public async Task OpenDataStoreCommand_SelectsReturnedStore(OpenStoreResult result)
     {
         var harness = new ImportWorkflowHarness();
-        var folder = Substitute.For<IStorageFolder>();
         var dataStore = CreateDataStore(name: "store");
-        harness.FilesService.OpenDataStoreFolderAsync()
-            .Returns(Task.FromResult<IStorageFolder?>(folder));
-        harness.TelemetryDataStoreService.TryAddStorageProviderAsync(folder, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.OpenFolderAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<StorageProviderRegistrationResult>(
                 result is OpenStoreResult.Added
                     ? new StorageProviderRegistrationResult.Added(dataStore)
@@ -206,6 +307,8 @@ public class ImportSessionsViewModelTests
     public void LoadedAndUnloaded_StartBrowseTrackSetupChangesAndClearState()
     {
         var harness = new ImportWorkflowHarness();
+        var browseLease = Substitute.For<IDisposable>();
+        harness.ImportSessionsCoordinatorSubstitute.ObserveSources(Arg.Any<Action<DataStoreDiscoveryIssue>>()).Returns(browseLease);
         var boardId = Guid.NewGuid();
         var dataStore = CreateDataStore(boardId: boardId);
         var viewModel = harness.CreateViewModel();
@@ -215,13 +318,13 @@ public class ImportSessionsViewModelTests
         viewModel.LoadedCommand.Execute(null);
         harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
 
-        harness.TelemetryDataStoreService.Received(1).StartBrowse();
+        harness.ImportSessionsCoordinatorSubstitute.Received(1).ObserveSources(Arg.Any<Action<DataStoreDiscoveryIssue>>());
         Assert.NotNull(viewModel.SelectedSetup);
 
         viewModel.UnloadedCommand.Execute(null);
         harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
 
-        harness.TelemetryDataStoreService.Received(1).StopBrowse();
+        browseLease.Received(1).Dispose();
         Assert.Empty(viewModel.TelemetryFiles);
         Assert.Null(viewModel.SelectedDataStore);
         Assert.Null(viewModel.SelectedSetup);
@@ -276,15 +379,13 @@ public class ImportSessionsViewModelTests
         var vm = harness.CreateViewModel();
         vm.LoadedCommand.Execute(null);
         const string details = "drive diagnostic";
-        harness.TelemetryDataStoreService.DiscoveryIssueReported += Raise.Event<EventHandler<DataStoreDiscoveryIssue>>(
-            harness.TelemetryDataStoreService, new DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason.Scan, details));
+        harness.SourceIssues.OnNext(new DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason.Scan, details));
         var error = Assert.Single(vm.ErrorMessages);
         Assert.Equal(details, error.Details);
         Assert.DoesNotContain(details, error.Summary);
 
         vm.UnloadedCommand.Execute(null);
-        harness.TelemetryDataStoreService.DiscoveryIssueReported += Raise.Event<EventHandler<DataStoreDiscoveryIssue>>(
-            harness.TelemetryDataStoreService, new DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason.Scan, details));
+        harness.SourceIssues.OnNext(new DataStoreDiscoveryIssue(DataStoreDiscoveryFailureReason.Scan, details));
         Assert.Single(vm.ErrorMessages);
     }
 
@@ -295,7 +396,7 @@ public class ImportSessionsViewModelTests
     {
         var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
-        harness.TelemetryDataStoreService.LoadFilesAsync(source, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(busy
                 ? new TelemetryFileListing.Busy(new DaqTransportHolder.Streaming())
                 : new TelemetryFileListing.Unavailable()));
@@ -330,7 +431,7 @@ public class ImportSessionsViewModelTests
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup();
         harness.SetupQuery.Add(setup, boardId);
-        harness.TelemetryDataStoreService.LoadFilesAsync(source, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([], boardId)));
         var vm = harness.CreateViewModel();
 
@@ -349,7 +450,7 @@ public class ImportSessionsViewModelTests
         var replacement = CreateDataStore("new");
         var file = CreateTelemetryFile("current");
         harness.DataStores.Add(original);
-        harness.TelemetryDataStoreService.LoadFilesAsync(replacement, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(replacement, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
         var vm = harness.CreateViewModel();
 

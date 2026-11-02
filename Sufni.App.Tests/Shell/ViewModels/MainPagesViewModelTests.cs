@@ -78,6 +78,7 @@ public class MainPagesViewModelTests
                 CanPairAsClient: false,
                 SupportsMassStorageImport: false,
                 SupportsStorageProviderImport: false,
+                CanPickFolder: false,
                 CanPlayVideo: false));
 
         var viewModel = MainPagesViewModelTestFactory.Create(appEnvironment: environment);

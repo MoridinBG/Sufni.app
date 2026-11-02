@@ -32,7 +32,7 @@ public class ImportSessionsViewTests
         var dataStore = CreateDataStore(boardId: boardId);
         var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);
-        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { file }], null)));
         var viewModel = harness.CreateViewModel();
 
@@ -75,7 +75,7 @@ public class ImportSessionsViewTests
         var dataStore = CreateDataStore();
         var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);
-        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
         var viewModel = harness.CreateViewModel();
         await using var mounted = await MountAsync(viewModel);
@@ -107,7 +107,7 @@ public class ImportSessionsViewTests
             malformedMessage: reason,
             canImport: true);
         harness.DataStores.Add(dataStore);
-        harness.TelemetryDataStoreService.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { file }], null)));
         var viewModel = harness.CreateViewModel();
 
@@ -127,7 +127,7 @@ public class ImportSessionsViewTests
         var startUtc = new DateTime(2025, 6, 1, 12, 34, 0, DateTimeKind.Utc);
         var file = CreateTelemetryFile("lap", startTime: startUtc);
         harness.DataStores.Add(store);
-        harness.TelemetryDataStoreService.LoadFilesAsync(store, Arg.Any<CancellationToken>())
+        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(store, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
 
         await using var mounted = await MountAsync(harness.CreateViewModel());

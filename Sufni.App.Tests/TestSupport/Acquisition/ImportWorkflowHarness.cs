@@ -1,5 +1,8 @@
 using Sufni.App.MapsAndTracks.Stores;
 using System.Reactive.Subjects;
+using System.Reactive.Linq;
+using Sufni.App.Tests.TestSupport.Harness;
+using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using DynamicData;
@@ -41,9 +44,15 @@ internal sealed class ImportWorkflowHarness
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([], null)));
         ImportSessionsCoordinatorSubstitute.State.Returns(_ => ImportState.Value);
         ImportSessionsCoordinatorSubstitute.Observe().Returns(ImportState);
+        ImportSessionsCoordinatorSubstitute.Sources.Returns(new ReadOnlyObservableCollection<ITelemetryDataStore>(DataStores));
+        ImportSessionsCoordinatorSubstitute.ObserveSources(Arg.Any<Action<DataStoreDiscoveryIssue>>())
+            .Returns(call => SourceIssues.Subscribe(call.Arg<Action<DataStoreDiscoveryIssue>>()));
+        FilesService.OpenDataStoreFolderAsync().Returns(Task.FromResult<IStorageFolder?>(null));
         ConfigureDefaultReprocessor();
         ConfigureDefaultWriter();
     }
+
+    public Subject<DataStoreDiscoveryIssue> SourceIssues { get; } = new();
 
     public ITrackStoreWriter TrackStore { get; } = Substitute.For<ITrackStoreWriter>();
 
@@ -72,7 +81,8 @@ internal sealed class ImportWorkflowHarness
         ISessionRepository? repository = null,
         ISessionStoreWriter? sessionStore = null,
         IRecordedSessionSourceStoreWriter? sourceStore = null,
-        ITrackStoreWriter? trackStore = null) => new(
+        ITrackStoreWriter? trackStore = null,
+        IAppEnvironment? environment = null) => new(
         repository ?? SessionRepository,
         TrackRepository,
         SetupRepository,
@@ -83,11 +93,12 @@ internal sealed class ImportWorkflowHarness
         Reprocessor,
         new InlineUiThreadDispatcher(),
         Publication,
-        trackStore ?? TrackStore);
-
-    public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
+        trackStore ?? TrackStore,
         TelemetryDataStoreService,
         FilesService,
+        environment ?? TestAppEnvironment.Create(UiLayoutProfile.Workspace));
+
+    public ImportSessionsViewModel CreateViewModel(IUiThreadDispatcher? dispatcher = null) => new(
         Shell,
         DialogService,
         ImportSessionsCoordinatorSubstitute,

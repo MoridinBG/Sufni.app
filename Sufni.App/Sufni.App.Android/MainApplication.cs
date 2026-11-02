@@ -23,6 +23,7 @@ public sealed class MainApplication(nint javaReference, JniHandleOwnership trans
                 CanPairAsClient: true,
                 SupportsMassStorageImport: false,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: false),
             new InputCapabilities(
                 HasPointer: false,

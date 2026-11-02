@@ -24,6 +24,7 @@ internal static class TestAppEnvironment
                 CanPairAsClient: false,
                 SupportsMassStorageImport: true,
                 SupportsStorageProviderImport: true,
+                CanPickFolder: true,
                 CanPlayVideo: true),
             Input: input ?? new InputCapabilities(
                 HasPointer: true,
