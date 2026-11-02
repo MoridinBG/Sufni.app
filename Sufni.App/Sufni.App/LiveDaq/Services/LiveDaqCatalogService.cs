@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Reactive.Subjects;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
@@ -50,8 +49,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     private void OnServiceAdded(object? sender, ServiceAnnouncementEventArgs e)
     {
-        var address = NormalizeAddress(e.Announcement.Address);
-        var host = FormatHost(address);
+        var host = e.Announcement.Endpoint.Host;
         var endpoint = $"{host}:{e.Announcement.Port}";
         var announcementKey = GetAnnouncementKey(e.Announcement, endpoint);
 
@@ -80,8 +78,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
                 identityKey,
                 displayName,
                 boardId,
-                host,
-                e.Announcement.Port,
+                e.Announcement.Endpoint,
                 protocolVersion);
             PublishSnapshotLocked();
         }
@@ -89,8 +86,7 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     private void OnServiceRemoved(object? sender, ServiceAnnouncementEventArgs e)
     {
-        var address = NormalizeAddress(e.Announcement.Address);
-        var host = FormatHost(address);
+        var host = e.Announcement.Endpoint.Host;
         var endpoint = $"{host}:{e.Announcement.Port}";
         var announcementKey = GetAnnouncementKey(e.Announcement, endpoint);
 
@@ -117,14 +113,6 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
         logger.Debug("Published live DAQ catalog snapshot with {EntryCount} entries", snapshot.Length);
         entriesSubject.OnNext(snapshot);
     }
-
-    private static IPAddress NormalizeAddress(IPAddress address) =>
-        address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
-
-    private static string FormatHost(IPAddress address) =>
-        address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-            ? $"[{address}]"
-            : address.ToString();
 
     private static string GetAnnouncementKey(ServiceAnnouncement announcement, string endpoint) =>
         string.IsNullOrWhiteSpace(announcement.InstanceName)

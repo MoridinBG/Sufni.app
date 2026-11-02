@@ -3,45 +3,40 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Acquisition.Services;
 
 public interface IDaqManagementService
 {
     Task<DaqListDirectoryResult> ListDirectoryAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default);
 
     Task<DaqConfigReadResult> ReadConfigAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default);
 
     Task<DaqManagementResult> MarkSstUploadedAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         int recordId,
         CancellationToken cancellationToken = default);
 
     Task<DaqManagementResult> TrashFileAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         int recordId,
         CancellationToken cancellationToken = default);
 
     Task<DaqSetTimeResult> SetTimeAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default);
 
     Task<DaqManagementResult> WriteConfigAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         byte[] configBytes,
         CancellationToken cancellationToken = default);
 
     Task<IDaqManagementSession> OpenSessionAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default);
 }

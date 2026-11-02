@@ -28,7 +28,7 @@ public partial class LiveDaqCoordinator
 
     public Task<LiveDaqManagementResult> SetTimeAsync(string identityKey, CancellationToken cancellationToken = default) =>
         RunManagementAsync(identityKey, DaqManagementOperation.SetTime, DaqManagementFailureReason.SetTime, async (device, token) =>
-            await managementService.SetTimeAsync(device.Host, device.Port, token) switch
+            await managementService.SetTimeAsync(device.NetworkEndpoint, token) switch
             {
                 DaqSetTimeResult.Ok ok => new LiveDaqManagementResult.TimeSet(ok.RoundTripTime),
                 DaqSetTimeResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),
@@ -37,7 +37,7 @@ public partial class LiveDaqCoordinator
 
     public Task<LiveDaqManagementResult> ReadConfigAsync(string identityKey, CancellationToken cancellationToken = default) =>
         RunManagementAsync(identityKey, DaqManagementOperation.ReadConfig, DaqManagementFailureReason.ReadConfig, async (device, token) =>
-            await managementService.ReadConfigAsync(device.Host, device.Port, token) switch
+            await managementService.ReadConfigAsync(device.NetworkEndpoint, token) switch
             {
                 DaqConfigReadResult.Read read => new LiveDaqManagementResult.ConfigRead(read.Document),
                 DaqConfigReadResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),
@@ -46,7 +46,7 @@ public partial class LiveDaqCoordinator
 
     public Task<LiveDaqManagementResult> WriteConfigAsync(string identityKey, ReadOnlyMemory<byte> config, CancellationToken cancellationToken = default) =>
         RunManagementAsync(identityKey, DaqManagementOperation.WriteConfig, DaqManagementFailureReason.WriteConfig, async (device, token) =>
-            await managementService.WriteConfigAsync(device.Host, device.Port, config.ToArray(), token) switch
+            await managementService.WriteConfigAsync(device.NetworkEndpoint, config.ToArray(), token) switch
             {
                 DaqManagementResult.Ok => new LiveDaqManagementResult.ConfigWritten(),
                 DaqManagementResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),

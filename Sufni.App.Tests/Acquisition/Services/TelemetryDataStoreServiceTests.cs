@@ -93,7 +93,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
+        boardIdInspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
         await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
         service.StartBrowse();
 
@@ -111,7 +111,7 @@ public class TelemetryDataStoreServiceTests
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         var boardId = Guid.NewGuid();
-        boardIdInspector.InspectAsync(IPAddress.Loopback, 5555, cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
+        boardIdInspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(boardId)));
         await using var service = CreateService(
             serviceDiscovery: serviceDiscovery,
             boardIdInspector: boardIdInspector,
@@ -145,9 +145,7 @@ public class TelemetryDataStoreServiceTests
     {
         var serviceDiscovery = Substitute.For<IServiceDiscovery>();
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        boardIdInspector.InspectAsync(
-                Arg.Any<IPAddress>(),
-                Arg.Any<int>(),
+        boardIdInspector.InspectAsync(Arg.Any<ServiceEndpoint>(),
                 cancellationToken: Arg.Any<CancellationToken>())
             .Returns<Task<BoardIdInspection>>(_ => throw new InvalidOperationException("discovery failed"));
         await using var service = CreateService(serviceDiscovery: serviceDiscovery, boardIdInspector: boardIdInspector);
@@ -169,7 +167,7 @@ public class TelemetryDataStoreServiceTests
     {
         var discovery = Substitute.For<IServiceDiscovery>();
         var inspector = Substitute.For<ILiveDaqBoardIdInspector>();
-        inspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+        inspector.InspectAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>())
             .Returns(timedOut ? new BoardIdInspection.TimedOut() : (BoardIdInspection)new BoardIdInspection.Unreachable());
         await using var service = CreateService(serviceDiscovery: discovery, boardIdInspector: inspector);
         var issues = new List<DataStoreDiscoveryIssue>();
@@ -231,9 +229,7 @@ public class TelemetryDataStoreServiceTests
             new ServiceAnnouncementEventArgs(CreateDaqAnnouncement(IPAddress.Loopback, 5555, liveProto)));
 
         Assert.Empty(service.DataStores);
-        await boardIdInspector.DidNotReceive().InspectAsync(
-            Arg.Any<IPAddress>(),
-            Arg.Any<int>(),
+        await boardIdInspector.DidNotReceive().InspectAsync(Arg.Any<ServiceEndpoint>(),
             cancellationToken: Arg.Any<CancellationToken>());
     }
 
@@ -343,7 +339,7 @@ public class TelemetryDataStoreServiceTests
         if (boardIdInspector is null)
         {
             boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
-            boardIdInspector.InspectAsync(Arg.Any<IPAddress>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            boardIdInspector.InspectAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>())
                 .Returns(new BoardIdInspection.Found(Guid.NewGuid()));
         }
 

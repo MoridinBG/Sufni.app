@@ -8,6 +8,8 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Serilog;
 
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 // Socket-backed live preview transport client. One instance per DAQ connection.
@@ -99,7 +101,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
 
     public IObservable<LiveDaqClientEvent> Events => events.AsObservable();
 
-    public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default)
     {
         await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -107,17 +109,17 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             ThrowIfDisposed();
             if (IsConnected) return;
             await DisconnectCoreAsync(cancellationToken).ConfigureAwait(false);
-            await ConnectCoreAsync(host, port, cancellationToken).ConfigureAwait(false);
+            await ConnectCoreAsync(endpoint, cancellationToken).ConfigureAwait(false);
         }
         finally { connectionGate.Release(); }
     }
 
-    private async Task ConnectCoreAsync(string host, int port, CancellationToken cancellationToken)
+    private async Task ConnectCoreAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken)
     {
         await lifecycleGate.WaitAsync(cancellationToken);
         try
         {
-            logger.Debug("Connecting live DAQ client to {Host} {Port}", host, port);
+            logger.Debug("Connecting live DAQ client to {Endpoint}", endpoint);
 
             intentionalDisconnect = false;
             lock (dropCountersGate)
@@ -130,7 +132,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
             var nextTcpClient = tcpClientFactory();
             try
             {
-                await nextTcpClient.ConnectAsync(host, port, cancellationToken);
+                await nextTcpClient.ConnectAsync(endpoint.GetAddresses(), endpoint.Port, cancellationToken);
             }
             catch
             {
@@ -176,7 +178,7 @@ internal sealed class LiveDaqV2Client : ILiveDaqClient
                     TaskCreationOptions.LongRunning,
                     TaskScheduler.Default)
                 .Unwrap();
-            logger.Debug("Live DAQ client socket connected to {Host} {Port}", host, port);
+            logger.Debug("Live DAQ client socket connected to {Endpoint}", endpoint);
         }
         finally
         {

@@ -1,3 +1,5 @@
+using System.Net;
+using Sufni.App.Infrastructure;
 using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Time.Testing;
@@ -35,15 +37,17 @@ public class DaqManagementServiceTests
             await ManagementTestServer.WriteFrameAsync(stream, ManagementProtocolTestFrames.CreateFileEndFrame(request.RequestId));
         });
 
-        var result = await CreateService().ReadConfigAsync(server.Host, server.Port, TestContext.Current.CancellationToken);
+        var result = await CreateService().ReadConfigAsync(new ServiceEndpoint(server.Host, server.Port), TestContext.Current.CancellationToken);
         await serving.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         if (rejected) Assert.Equal(DaqManagementErrorCode.Busy, Assert.IsType<DaqConfigReadResult.Error>(result).ErrorCode);
         else Assert.Equal("trail", Assert.IsType<DaqConfigReadResult.Read>(result).Document.GetValue("STA_SSID"));
     }
 
-    [Fact]
-    public async Task ListDirectoryAsync_ReturnsTypedDirectoryRecord_OnSuccess()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ListDirectoryAsync_ReturnsTypedDirectoryRecord_OnSuccess(bool unreachableFirstAddress)
     {
         await using var server = new ManagementTestServer();
         var serverTask = server.RunSessionAsync(async stream =>
@@ -79,7 +83,9 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateListDirectoryDoneFrame(request.RequestId, 2));
         });
 
-        var result = await CreateService().ListDirectoryAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().ListDirectoryAsync(new ServiceEndpoint(unreachableFirstAddress
+                    ? [IPAddress.IPv6Loopback, IPAddress.Loopback]
+                    : [IPAddress.Loopback], server.Port), cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         var listed = Assert.IsType<DaqListDirectoryResult.Listed>(result);
@@ -117,7 +123,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
         });
 
-        var result = await CreateService().ListDirectoryAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         var error = Assert.IsType<DaqListDirectoryResult.Error>(result);
@@ -148,7 +154,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateListDirectoryDoneFrame(request.RequestId, 1));
         });
 
-        var result = await CreateService().ListDirectoryAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         var listed = Assert.IsType<DaqListDirectoryResult.Listed>(result);
@@ -193,7 +199,7 @@ public class DaqManagementServiceTests
         });
 
         using var destination = new MemoryStream();
-        await using var session = await CreateService().OpenSessionAsync(server.Host, server.Port, TestContext.Current.CancellationToken);
+        await using var session = await CreateService().OpenSessionAsync(new ServiceEndpoint(server.Host, server.Port), TestContext.Current.CancellationToken);
         var result = await session.GetFileAsync(DaqFileClass.RootSst, 42, destination, cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
@@ -224,7 +230,7 @@ public class DaqManagementServiceTests
         });
 
         using var destination = new MemoryStream();
-        await using var session = await CreateService().OpenSessionAsync(server.Host, server.Port, TestContext.Current.CancellationToken);
+        await using var session = await CreateService().OpenSessionAsync(new ServiceEndpoint(server.Host, server.Port), TestContext.Current.CancellationToken);
         _ = await Assert.ThrowsAsync<DaqManagementException>(() =>
             session.GetFileAsync(DaqFileClass.RootSst, 12, destination, cancellationToken: TestContext.Current.CancellationToken));
         await serverTask;
@@ -246,7 +252,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateActionResultFrame(request.RequestId, 0));
         });
 
-        var result = await CreateService().MarkSstUploadedAsync(server.Host, server.Port, 42, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().MarkSstUploadedAsync(new ServiceEndpoint(server.Host, server.Port), 42, cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         Assert.IsType<DaqManagementResult.Ok>(result);
@@ -264,7 +270,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateActionResultFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
         });
 
-        var result = await CreateService().TrashFileAsync(server.Host, server.Port, 15, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().TrashFileAsync(new ServiceEndpoint(server.Host, server.Port), 15, cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         var error = Assert.IsType<DaqManagementResult.Error>(result);
@@ -297,7 +303,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateActionResultFrame(setTime.RequestId, 0));
         });
 
-        var result = await CreateService(timeProvider).SetTimeAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService(timeProvider).SetTimeAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         var ok = Assert.IsType<DaqSetTimeResult.Ok>(result);
@@ -334,7 +340,7 @@ public class DaqManagementServiceTests
                 ManagementProtocolTestFrames.CreateActionResultFrame(commit.RequestId, 0));
         });
 
-        var result = await CreateService().WriteConfigAsync(server.Host, server.Port, expectedBytes, cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().WriteConfigAsync(new ServiceEndpoint(server.Host, server.Port), expectedBytes, cancellationToken: TestContext.Current.CancellationToken);
         await serverTask;
 
         Assert.IsType<DaqManagementResult.Ok>(result);
@@ -353,7 +359,7 @@ public class DaqManagementServiceTests
         });
 
         await Assert.ThrowsAsync<DaqManagementException>(() =>
-            CreateService(ioTimeout: TimeSpan.FromMilliseconds(50)).ListDirectoryAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken));
+            CreateService(ioTimeout: TimeSpan.FromMilliseconds(50)).ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken));
 
         releaseServer.TrySetResult();
         await serverTask;

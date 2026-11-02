@@ -157,7 +157,7 @@ public class ImportSessionsCoordinator(
             {
                 var endpoint = networkFiles[0].EndPoint;
                 batchSession = await daqManagementService.OpenSessionAsync(
-                    endpoint.Address.ToString(), endpoint.Port, cancellationToken);
+                    endpoint, cancellationToken);
                 foreach (var networkFile in networkFiles)
                 {
                     networkFile.AttachSession(batchSession);

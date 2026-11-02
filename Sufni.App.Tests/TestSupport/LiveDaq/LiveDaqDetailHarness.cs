@@ -79,8 +79,7 @@ internal sealed class LiveDaqDetailHarness
     {
         currentCatalogSnapshot = DefaultSnapshot() with { ProtocolVersion = protocolVersion };
         ManagementAvailability.OnNext(new(new LiveDaqCatalogEntry(currentCatalogSnapshot.IdentityKey,
-            currentCatalogSnapshot.DisplayName, currentCatalogSnapshot.BoardId, currentCatalogSnapshot.Host!,
-            currentCatalogSnapshot.Port!.Value, currentCatalogSnapshot.ProtocolVersion), null));
+            currentCatalogSnapshot.DisplayName, currentCatalogSnapshot.BoardId, new ServiceEndpoint(currentCatalogSnapshot.Host!, currentCatalogSnapshot.Port!.Value), currentCatalogSnapshot.ProtocolVersion), null));
         var result = startResult ?? new LivePreviewStartResult.Started(
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808));
         SharedStream.ConnectLiveAsync(Arg.Any<CancellationToken>())

@@ -1,10 +1,11 @@
 using System;
 using System.IO;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
 using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Acquisition.Models;
 
 public class NetworkTelemetryFile : ITelemetryFile
@@ -20,11 +21,11 @@ public class NetworkTelemetryFile : ITelemetryFile
     public string? MalformedMessage { get; }
     public bool CanImport { get; }
 
-    private readonly IPEndPoint ipEndPoint;
+    private readonly ServiceEndpoint ipEndPoint;
     private readonly int recordId;
     private IDaqManagementSession activeSession = null!;
 
-    public IPEndPoint EndPoint => ipEndPoint;
+    public ServiceEndpoint EndPoint => ipEndPoint;
 
     public void AttachSession(IDaqManagementSession session)
     {
@@ -73,7 +74,7 @@ public class NetworkTelemetryFile : ITelemetryFile
     }
 
     public NetworkTelemetryFile(
-        IPEndPoint source,
+        ServiceEndpoint source,
         int recordId,
         string name,
         DateTimeOffset? timestampUtc,

@@ -11,6 +11,8 @@ using Sufni.App.Acquisition.Models;
 using Sufni.App.Acquisition.Services;
 using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Tests.Acquisition.Models;
 
 public class NetworkTelemetryDataStoreTests
@@ -22,10 +24,10 @@ public class NetworkTelemetryDataStoreTests
         var daqManagementService = Substitute.For<IDaqManagementService>();
         var expectedBoardId = Guid.NewGuid();
         boardIdInspector
-            .InspectAsync(IPAddress.Loopback, 5555, Arg.Any<CancellationToken>())
+            .InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(expectedBoardId)));
 
-        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
+        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
 
         await dataStore.Initialization;
 
@@ -38,7 +40,7 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = CreateBoardIdInspector();
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, Arg.Any<CancellationToken>())
+            .ListDirectoryAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Listed(
                     new DaqRootDirectoryRecord(
@@ -62,7 +64,7 @@ public class NetworkTelemetryDataStoreTests
                             4)
                     ]))));
 
-        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
+        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
         await dataStore.Initialization;
 
         var files = await dataStore.GetFiles();
@@ -91,11 +93,11 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = CreateBoardIdInspector();
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, Arg.Any<CancellationToken>())
+            .ListDirectoryAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
 
-        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
+        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
 
         var exception = await Assert.ThrowsAsync<DaqManagementException>(() => dataStore.GetFiles());
 
@@ -108,7 +110,7 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = CreateBoardIdInspector();
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, Arg.Any<CancellationToken>())
+            .ListDirectoryAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Listed(
                     new DaqRootDirectoryRecord(
@@ -132,7 +134,7 @@ public class NetworkTelemetryDataStoreTests
                             4)
                     ]))));
 
-        var dataStore = new NetworkTelemetryDataStore(IPAddress.Loopback, 5555, daqManagementService, boardIdInspector);
+        var dataStore = new NetworkTelemetryDataStore(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), daqManagementService, boardIdInspector);
         await dataStore.Initialization;
 
         var files = await dataStore.GetFiles();
@@ -244,7 +246,7 @@ public class NetworkTelemetryDataStoreTests
     {
         var boardIdInspector = Substitute.For<ILiveDaqBoardIdInspector>();
         boardIdInspector
-            .InspectAsync(IPAddress.Loopback, 5555, Arg.Any<CancellationToken>())
+            .InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<BoardIdInspection>(new BoardIdInspection.Found(Guid.NewGuid())));
         return boardIdInspector;
     }
@@ -252,7 +254,7 @@ public class NetworkTelemetryDataStoreTests
     private static NetworkTelemetryFile CreateNetworkFile(IDaqManagementSession session)
     {
         var file = new NetworkTelemetryFile(
-            new IPEndPoint(IPAddress.Loopback, 5555),
+            new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555),
             42,
             "NOT-A-NUMERIC-NAME.SST",
             DateTimeOffset.FromUnixTimeSeconds(111),

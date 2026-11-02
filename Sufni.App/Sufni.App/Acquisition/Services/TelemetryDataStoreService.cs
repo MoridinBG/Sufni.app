@@ -113,7 +113,7 @@ internal sealed class TelemetryDataStoreService : ITelemetryDataStoreService, IA
         NetworkTelemetryDataStore ds;
         try
         {
-            ds = new NetworkTelemetryDataStore(ipAddress, port, daqManagementService, liveDaqBoardIdInspector);
+            ds = new NetworkTelemetryDataStore(e.Announcement.Endpoint, daqManagementService, liveDaqBoardIdInspector);
             if (await ds.Initialization is not BoardIdInspection.Found)
             {
                 await uiThreadDispatcher.InvokeAsync(() =>

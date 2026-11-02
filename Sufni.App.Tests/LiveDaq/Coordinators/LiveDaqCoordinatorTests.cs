@@ -110,11 +110,9 @@ public partial class LiveDaqCoordinatorTests
             new LiveDaqCatalogEntry(
                 boardId.ToString(),
                 boardId.ToString(),
-                boardId.ToString(),
-                "192.168.0.20",
-                5555,
+                boardId.ToString(), new ServiceEndpoint("192.168.0.20", 5555),
                 LiveProtocolVersion.V3),
-            new LiveDaqCatalogEntry("192.168.0.21:6666", "192.168.0.21:6666", null, "192.168.0.21", 6666)
+            new LiveDaqCatalogEntry("192.168.0.21:6666", "192.168.0.21:6666", null, new ServiceEndpoint("192.168.0.21", 6666))
         ]);
 
         var knownSnapshot = liveDaqStore.Get(boardId.ToString());
@@ -173,8 +171,8 @@ public partial class LiveDaqCoordinatorTests
         coordinator.Activate();
         catalogEntries.OnNext(
         [
-            new LiveDaqCatalogEntry(boardId.ToString(), boardId.ToString(), boardId.ToString(), "192.168.0.20", 5555),
-            new LiveDaqCatalogEntry("192.168.0.21:6666", "192.168.0.21:6666", null, "192.168.0.21", 6666)
+            new LiveDaqCatalogEntry(boardId.ToString(), boardId.ToString(), boardId.ToString(), new ServiceEndpoint("192.168.0.20", 5555)),
+            new LiveDaqCatalogEntry("192.168.0.21:6666", "192.168.0.21:6666", null, new ServiceEndpoint("192.168.0.21", 6666))
         ]);
 
         coordinator.Deactivate();
@@ -196,8 +194,8 @@ public partial class LiveDaqCoordinatorTests
         var coordinator = CreateCoordinator();
         coordinator.Activate();
         catalogEntries.OnNext([
-            new LiveDaqCatalogEntry(knownId, "ride", knownId, "192.168.0.10", 1557),
-            new LiveDaqCatalogEntry("unknown", "new", null, "192.168.0.11", 1557)]);
+            new LiveDaqCatalogEntry(knownId, "ride", knownId, new ServiceEndpoint("192.168.0.10", 1557)),
+            new LiveDaqCatalogEntry("unknown", "new", null, new ServiceEndpoint("192.168.0.11", 1557))]);
         Assert.True(liveDaqStore.Get(knownId)!.IsOnline);
 
         catalogEntries.OnNext([]);
@@ -238,7 +236,7 @@ public partial class LiveDaqCoordinatorTests
 
         catalogEntries.OnNext(
         [
-            new LiveDaqCatalogEntry(firstBoard.ToString(), firstBoard.ToString(), firstBoard.ToString(), "192.168.0.20", 5555),
+            new LiveDaqCatalogEntry(firstBoard.ToString(), firstBoard.ToString(), firstBoard.ToString(), new ServiceEndpoint("192.168.0.20", 5555)),
         ]);
 
         // Every published state must include both known boards — no observer

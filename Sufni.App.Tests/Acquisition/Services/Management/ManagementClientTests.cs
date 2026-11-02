@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Tests.Acquisition.Services.Management;
 
@@ -62,10 +63,10 @@ public class ManagementClientTests
             ioTimeout: TimeSpan.FromSeconds(1),
             commitTimeout: TimeSpan.FromSeconds(1));
 
-        await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        await client.ConnectAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken));
+            client.ConnectAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken));
 
         releaseServer.SetResult();
         await serverTask;
@@ -82,7 +83,7 @@ public class ManagementClientTests
             await ManagementTestServer.WriteFrameAsync(stream, pong[..6]);
         });
         using var client = CreateClient();
-        await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        await client.ConnectAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync(cancellationToken: TestContext.Current.CancellationToken));
 
@@ -99,7 +100,7 @@ public class ManagementClientTests
             connectTimeout: TimeSpan.FromSeconds(1),
             ioTimeout: TimeSpan.FromMilliseconds(200),
             commitTimeout: TimeSpan.FromSeconds(1));
-        await client.ConnectAsync(server.Host, server.Port, cancellationToken: TestContext.Current.CancellationToken);
+        await client.ConnectAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
 
         await Assert.ThrowsAsync<DaqManagementException>(() => client.PingAsync(cancellationToken: TestContext.Current.CancellationToken));
 

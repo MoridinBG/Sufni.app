@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,7 +29,7 @@ internal sealed class LiveDaqBoardIdInspector : ILiveDaqBoardIdInspector
         this.timeProvider = timeProvider;
     }
 
-    public Task<BoardIdInspection> InspectAsync(IPAddress address, int port, CancellationToken cancellationToken = default) =>
+    public Task<BoardIdInspection> InspectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default) =>
         backgroundTaskRunner.RunAsync<BoardIdInspection>(async () =>
         {
             using var deadline = new CancellationTokenSource(DefaultInspectionTimeout, timeProvider);
@@ -40,7 +39,7 @@ internal sealed class LiveDaqBoardIdInspector : ILiveDaqBoardIdInspector
             try
             {
                 using var tcp = new TcpClient();
-                await tcp.ConnectAsync(address, port, token);
+                await tcp.ConnectAsync(endpoint.GetAddresses(), endpoint.Port, token);
                 await using var stream = tcp.GetStream();
 
                 var frame = LiveV2ProtocolReader.CreateIdentifyFrame(1);
@@ -69,7 +68,7 @@ internal sealed class LiveDaqBoardIdInspector : ILiveDaqBoardIdInspector
             }
             catch (Exception e) when (e is SocketException or IOException or FormatException)
             {
-                logger.Warning(e, "Board identity unavailable at {Address}:{Port}", address, port);
+                logger.Warning(e, "Board identity unavailable at {Endpoint}", endpoint);
                 return new BoardIdInspection.Unreachable();
             }
         }, cancellationToken);

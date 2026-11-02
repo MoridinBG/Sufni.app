@@ -6,31 +6,27 @@ namespace Sufni.App.Infrastructure;
 
 public class ServiceAnnouncement
 {
-    public ServiceAnnouncement()
-    {
-    }
-
     public ServiceAnnouncement(IPAddress address, ushort port)
-        : this(address, port, null, null)
-    {
-    }
+        : this(new ServiceEndpoint([address], port), null, null) { }
 
-    public ServiceAnnouncement(
-        IPAddress address,
-        ushort port,
-        string? instanceName,
+    public ServiceAnnouncement(IPAddress address, ushort port, string? instanceName,
+        IReadOnlyDictionary<string, string>? txtRecords)
+        : this(new ServiceEndpoint([address], port), instanceName, txtRecords) { }
+
+    public ServiceAnnouncement(ServiceEndpoint endpoint, string? instanceName,
         IReadOnlyDictionary<string, string>? txtRecords)
     {
-        Address = address;
-        Port = port;
+        Endpoint = endpoint;
         InstanceName = instanceName;
         TxtRecords = txtRecords ?? new Dictionary<string, string>();
     }
 
-    public ushort Port { get; internal set; }
-    public IPAddress Address { get; internal set; } = null!;
-    public string? InstanceName { get; internal set; }
-    public IReadOnlyDictionary<string, string> TxtRecords { get; internal set; } = new Dictionary<string, string>();
+    public ServiceEndpoint Endpoint { get; }
+    public ushort Port => (ushort)Endpoint.Port;
+    public IPAddress Address => IPAddress.Parse(Endpoint.Addresses[0]);
+    public string? InstanceName { get; }
+    public IReadOnlyDictionary<string, string> TxtRecords { get; }
+
 }
 
 public class ServiceAnnouncementEventArgs : EventArgs

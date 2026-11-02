@@ -5,6 +5,8 @@ using NSubstitute;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Stores;
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
 public partial class LiveDaqSharedStreamTests
@@ -44,13 +46,14 @@ public partial class LiveDaqSharedStreamTests
     {
         await using var registry = CreateRegistry();
         var snapshot = CreateSnapshot("board-1", "192.168.0.50", 1557);
-        catalogEntries.OnNext([CreateCatalogEntry(snapshot with { Host = "192.168.0.51", Port = 1666 })]);
+        var endpoint = new ServiceEndpoint([System.Net.IPAddress.Parse("192.168.0.51"), System.Net.IPAddress.IPv6Loopback], 1666);
+        catalogEntries.OnNext([CreateCatalogEntry(snapshot) with { NetworkEndpoint = endpoint }]);
         var stream = registry.GetOrCreate(snapshot);
         await using var lease = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
 
         Assert.IsType<LivePreviewStartResult.Started>(await stream.ConnectLiveAsync(TestContext.Current.CancellationToken));
 
-        Assert.Equal(("192.168.0.51", 1666), Assert.Single(clientFactory.CreatedClients).ConnectedEndpoint);
+        Assert.Equal(endpoint, Assert.Single(clientFactory.CreatedClients).ConnectedEndpoint);
     }
 
     [Fact]
@@ -822,8 +825,7 @@ public partial class LiveDaqSharedStreamTests
             snapshot.IdentityKey,
             snapshot.DisplayName,
             snapshot.BoardId,
-            snapshot.Host!,
-            snapshot.Port!.Value,
+            new ServiceEndpoint(snapshot.Host!, snapshot.Port!.Value),
             snapshot.ProtocolVersion);
 
     private static LivePreviewStartResult.Started CreateStartedResult(uint sessionId, LiveStreamMask acceptedStreamMask) =>
@@ -918,7 +920,7 @@ public partial class LiveDaqSharedStreamTests
 
         public int ConnectCalls { get; private set; }
 
-        public (string Host, int Port)? ConnectedEndpoint { get; private set; }
+        public ServiceEndpoint? ConnectedEndpoint { get; private set; }
 
         public int DisconnectCalls { get; private set; }
 
@@ -930,10 +932,10 @@ public partial class LiveDaqSharedStreamTests
 
         public Task DisposeStarted => disposeStarted.Task;
 
-        public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+        public async Task ConnectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default)
         {
             ConnectCalls++;
-            ConnectedEndpoint = (host, port);
+            ConnectedEndpoint = endpoint;
             ConnectEntered.TrySetResult();
             if (ThrowCanceledOnConnect)
             {

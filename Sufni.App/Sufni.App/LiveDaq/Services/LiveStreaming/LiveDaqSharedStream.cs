@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using Serilog;
 
 using Sufni.App.LiveDaq.Stores;
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
@@ -107,7 +109,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             desiredRunning = true;
             if (pendingLifecycleOperation is null)
             {
-                if (!TryGetEndpoint(out _, out _))
+                if (!TryGetEndpoint(out _))
                 {
                     var unavailable = new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.Offline);
                     PublishDisconnectedStateLocked(unavailable);
@@ -359,8 +361,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     {
         while (true)
         {
-            string host;
-            int port;
+            ServiceEndpoint endpoint;
             bool shouldRun;
             bool replaceAfterCleanup = false;
             LivePreviewStartResult? stoppedResult = null;
@@ -403,7 +404,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
                     operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
                     replaceAfterCleanup = true;
                 }
-                else if (!TryGetEndpoint(out host, out port))
+                else if (!TryGetEndpoint(out endpoint))
                 {
                     var unavailable = new LivePreviewStartResult.Unavailable(LiveStartUnavailableReason.Offline);
                     operation.DetachedClient = DetachCurrentClientLocked(operation.Client, operation.Generation);
@@ -491,7 +492,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
             {
                 if (!operation.Client.IsConnected)
                 {
-                    await operation.Client.ConnectAsync(host, port, CancellationToken.None).ConfigureAwait(false);
+                    await operation.Client.ConnectAsync(endpoint, CancellationToken.None).ConfigureAwait(false);
                 }
 
                 failureReason = LiveStartFailureReason.Request;
@@ -1130,11 +1131,9 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         }
     }
 
-    private bool TryGetEndpoint(out string host, out int port)
+    private bool TryGetEndpoint(out ServiceEndpoint endpoint)
     {
-        var endpoint = catalog.Get(IdentityKey);
-        host = endpoint?.Host ?? string.Empty;
-        port = endpoint?.Port ?? 0;
+        endpoint = catalog.Get(IdentityKey)?.NetworkEndpoint!;
         return endpoint is not null;
     }
 

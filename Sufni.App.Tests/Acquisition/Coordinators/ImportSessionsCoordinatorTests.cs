@@ -364,9 +364,9 @@ public class ImportSessionsCoordinatorTests
         var harness = new ImportWorkflowHarness();
         using var coordinator = harness.CreateCoordinator();
         var (setup, _) = harness.SeedSetupAndBike();
-        var endpoint = new IPEndPoint(IPAddress.Parse("10.0.0.1"), 1557);
+        var endpoint = new ServiceEndpoint("10.0.0.1", 1557);
         var session = Substitute.For<IDaqManagementSession>();
-        harness.DaqManagementService.OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>())
+        harness.DaqManagementService.OpenSessionAsync(endpoint, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(session));
         session.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
@@ -378,7 +378,7 @@ public class ImportSessionsCoordinatorTests
 
         Assert.Empty(result.Failures);
         await harness.DaqManagementService.Received(1)
-            .OpenSessionAsync("10.0.0.1", 1557, Arg.Any<CancellationToken>());
+            .OpenSessionAsync(endpoint, Arg.Any<CancellationToken>());
         await session.Received(1).TrashFileAsync(1, Arg.Any<CancellationToken>());
         await session.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
         await session.Received(1).DisposeAsync();
@@ -511,7 +511,7 @@ public class ImportSessionsCoordinatorTests
         await third.DidNotReceive().ReadSourceAsync(Arg.Any<CancellationToken>());
     }
 
-    private static NetworkTelemetryFile CreateNetworkFile(IPEndPoint endpoint, int id) =>
+    private static NetworkTelemetryFile CreateNetworkFile(ServiceEndpoint endpoint, int id) =>
         new(endpoint, id, $"{id:00000}.SST",
             DateTimeOffset.FromUnixTimeSeconds(111 + id), TimeSpan.FromSeconds(6))
         { Action = ImportFileAction.Trash };

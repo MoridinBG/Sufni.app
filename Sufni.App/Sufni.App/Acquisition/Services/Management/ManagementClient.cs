@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Acquisition.Services.Management;
 
 internal sealed class ManagementClient : IDisposable
@@ -34,7 +36,7 @@ internal sealed class ManagementClient : IDisposable
         this.commitTimeout = commitTimeout;
     }
 
-    public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default)
     {
         if (stream is not null)
         {
@@ -45,9 +47,9 @@ internal sealed class ManagementClient : IDisposable
         try
         {
             await ExecuteWithTimeoutAsync(
-                async token => await tcpClient.ConnectAsync(host, port, token),
+                async token => await tcpClient.ConnectAsync(endpoint.GetAddresses(), endpoint.Port, token),
                 connectTimeout,
-                $"Timed out connecting to the DAQ management endpoint at {host}:{port}.",
+                $"Timed out connecting to the DAQ management endpoint at {endpoint}.",
                 cancellationToken);
             stream = tcpClient.GetStream();
         }
@@ -55,7 +57,7 @@ internal sealed class ManagementClient : IDisposable
         {
             tcpClient.Dispose();
             tcpClient = null;
-            throw new DaqManagementException($"Failed to connect to the DAQ management endpoint at {host}:{port}.", ex);
+            throw new DaqManagementException($"Failed to connect to the DAQ management endpoint at {endpoint}.", ex);
         }
         catch
         {

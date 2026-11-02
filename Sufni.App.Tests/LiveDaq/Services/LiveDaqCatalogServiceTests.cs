@@ -123,6 +123,21 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
+    public void Observe_PreservesAllResolvedAddressesWithNormalizedIdentity()
+    {
+        using var service = CreateCatalogService();
+        var address = IPAddress.Parse("::ffff:192.168.1.10");
+        var endpoint = new ServiceEndpoint([address, IPAddress.Parse("192.168.1.10"), IPAddress.Parse("fe80::1%7")], 1557);
+        var announcement = new ServiceAnnouncement(endpoint, "daq", new Dictionary<string, string> { ["live_proto"] = "2" });
+        serviceDiscovery.ServiceAdded += Raise.EventWith(serviceDiscovery, new ServiceAnnouncementEventArgs(announcement));
+
+        var entry = service.Get("v2:192.168.1.10:1557");
+
+        Assert.NotNull(entry);
+        Assert.Equal(["192.168.1.10", "fe80::1%7"], entry.NetworkEndpoint.Addresses);
+    }
+
+    [Fact]
     public async Task Observe_FallsBackToProtocolQualifiedEndpointIdentity_WhenBidIsAbsent()
     {
         using var service = CreateCatalogService();
@@ -286,7 +301,7 @@ public class LiveDaqCatalogServiceTests
         var acceptTask = listener.AcceptTcpClientAsync(cancellationToken: TestContext.Current.CancellationToken);
         var time = new FakeTimeProvider();
         var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), time);
-        var inspection = inspector.InspectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
+        var inspection = inspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), port), TestContext.Current.CancellationToken);
         using var accepted = await acceptTask.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         time.Advance(TimeSpan.FromSeconds(5));
@@ -307,7 +322,7 @@ public class LiveDaqCatalogServiceTests
         var serverTask = ServeIdentifyAckAsync(listener, boardSerial);
         var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), new FakeTimeProvider());
 
-        var boardId = await inspector.InspectAsync(IPAddress.Loopback, port, cancellationToken: TestContext.Current.CancellationToken);
+        var boardId = await inspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), port), cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(expectedBoardId, Assert.IsType<BoardIdInspection.Found>(boardId).BoardId);
         await serverTask;
@@ -321,7 +336,7 @@ public class LiveDaqCatalogServiceTests
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var accepting = listener.AcceptTcpClientAsync(TestContext.Current.CancellationToken);
         var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), new FakeTimeProvider());
-        var inspection = inspector.InspectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
+        var inspection = inspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), port), TestContext.Current.CancellationToken);
         using var accepted = await accepting.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         accepted.Close();
@@ -338,7 +353,7 @@ public class LiveDaqCatalogServiceTests
         var accepting = listener.AcceptTcpClientAsync(TestContext.Current.CancellationToken);
         using var cancellation = new CancellationTokenSource();
         var inspector = new LiveDaqBoardIdInspector(new InlineBackgroundTaskRunner(), new FakeTimeProvider());
-        var inspection = inspector.InspectAsync(IPAddress.Loopback, port, cancellation.Token);
+        var inspection = inspector.InspectAsync(new ServiceEndpoint(IPAddress.Loopback.ToString(), port), cancellation.Token);
         using var accepted = await accepting.AsTask().AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         cancellation.Cancel();

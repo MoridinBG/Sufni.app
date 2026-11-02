@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 // Transport client for one framed live preview connection, typically owned by a shared stream.
@@ -13,7 +15,7 @@ public interface ILiveDaqClient : IAsyncDisposable
     IObservable<LiveDaqClientEvent> Events { get; }
 
     // Attempt to connect to the remote DAQ
-    Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default);
+    Task ConnectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default);
 
     // Completes as Started only after the session header arrives, not merely after the
     // initial ACK accepts the request.

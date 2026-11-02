@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Acquisition.Services.Management;
 
 internal sealed class DaqManagementService : IDaqManagementService
@@ -35,24 +37,20 @@ internal sealed class DaqManagementService : IDaqManagementService
     }
 
     public async Task<DaqListDirectoryResult> ListDirectoryAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default)
     {
-        ValidateEndpoint(host, port);
         using var client = CreateClient();
-        await client.ConnectAsync(host, port, cancellationToken);
+        await client.ConnectAsync(endpoint, cancellationToken);
         return await client.ListDirectoryAsync(DaqDirectoryId.Root, cancellationToken);
     }
 
     public async Task<DaqConfigReadResult> ReadConfigAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default)
     {
-        ValidateEndpoint(host, port);
         using var client = CreateClient();
-        await client.ConnectAsync(host, port, cancellationToken);
+        await client.ConnectAsync(endpoint, cancellationToken);
         using var destination = new MemoryStream();
         var result = await client.GetFileAsync(DaqFileClass.Config, 0, destination, cancellationToken);
         return result switch
@@ -64,37 +62,31 @@ internal sealed class DaqManagementService : IDaqManagementService
     }
 
     public async Task<DaqManagementResult> MarkSstUploadedAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         int recordId,
         CancellationToken cancellationToken = default)
     {
-        ValidateEndpoint(host, port);
         using var client = CreateClient();
-        await client.ConnectAsync(host, port, cancellationToken);
+        await client.ConnectAsync(endpoint, cancellationToken);
         return await client.MarkSstUploadedAsync(recordId, cancellationToken);
     }
 
     public async Task<DaqManagementResult> TrashFileAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         int recordId,
         CancellationToken cancellationToken = default)
     {
-        ValidateEndpoint(host, port);
         using var client = CreateClient();
-        await client.ConnectAsync(host, port, cancellationToken);
+        await client.ConnectAsync(endpoint, cancellationToken);
         return await client.TrashFileAsync(recordId, cancellationToken);
     }
 
     public async Task<DaqSetTimeResult> SetTimeAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default)
     {
-        ValidateEndpoint(host, port);
         using var client = CreateClient();
-        await client.ConnectAsync(host, port, cancellationToken);
+        await client.ConnectAsync(endpoint, cancellationToken);
 
         var samples = new TimeSyncSample[5];
         for (var i = 0; i < samples.Length; i++)
@@ -130,15 +122,13 @@ internal sealed class DaqManagementService : IDaqManagementService
     }
 
     public async Task<IDaqManagementSession> OpenSessionAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         CancellationToken cancellationToken = default)
     {
-        ValidateEndpoint(host, port);
         var client = CreateClient();
         try
         {
-            await client.ConnectAsync(host, port, cancellationToken);
+            await client.ConnectAsync(endpoint, cancellationToken);
         }
         catch
         {
@@ -150,34 +140,19 @@ internal sealed class DaqManagementService : IDaqManagementService
     }
 
     public async Task<DaqManagementResult> WriteConfigAsync(
-        string host,
-        int port,
+        ServiceEndpoint endpoint,
         byte[] configBytes,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configBytes);
-        ValidateEndpoint(host, port);
 
         using var client = CreateClient();
-        await client.ConnectAsync(host, port, cancellationToken);
+        await client.ConnectAsync(endpoint, cancellationToken);
         return await client.ReplaceConfigAsync(configBytes, cancellationToken);
     }
 
     private ManagementClient CreateClient() =>
         new(connectTimeout, ioTimeout, commitTimeout);
-
-    private static void ValidateEndpoint(string host, int port)
-    {
-        if (string.IsNullOrWhiteSpace(host))
-        {
-            throw new ArgumentException("A DAQ management host is required.", nameof(host));
-        }
-
-        if (port <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(port), "A positive DAQ management port is required.");
-        }
-    }
 
     private readonly record struct TimeSyncSample(DateTimeOffset Midpoint, TimeSpan RoundTripTime);
 }

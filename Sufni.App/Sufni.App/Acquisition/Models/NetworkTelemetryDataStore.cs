@@ -1,28 +1,27 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
 
 using Sufni.App.Acquisition.Services;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.Acquisition.Services.Management;
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.Acquisition.Models;
 
 public class NetworkTelemetryDataStore : ITelemetryDataStore
 {
     public string Name { get; }
     public Guid? BoardId { get; private set; }
-    private readonly IPEndPoint ipEndPoint;
+    private readonly ServiceEndpoint endpoint;
     private readonly IDaqManagementService daqManagementService;
     private readonly ILiveDaqBoardIdInspector liveDaqBoardIdInspector;
     public readonly Task<BoardIdInspection> Initialization;
 
     public async Task<List<ITelemetryFile>> GetFiles()
     {
-        var directoryResult = await daqManagementService.ListDirectoryAsync(
-            ipEndPoint.Address.ToString(),
-            ipEndPoint.Port);
+        var directoryResult = await daqManagementService.ListDirectoryAsync(endpoint);
 
         var directory = directoryResult switch
         {
@@ -41,7 +40,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                     continue;
                 case DaqMalformedSstFileRecord malformedRecord:
                     files.Add(new NetworkTelemetryFile(
-                        ipEndPoint,
+                        endpoint,
                         malformedRecord.RecordId,
                         malformedRecord.Name,
                         malformedRecord.TimestampUtc,
@@ -51,7 +50,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
                     break;
                 case DaqSstFileRecord sstRecord:
                     files.Add(new NetworkTelemetryFile(
-                        ipEndPoint,
+                        endpoint,
                         sstRecord.RecordId,
                         sstRecord.Name,
                         sstRecord.TimestampUtc,
@@ -65,21 +64,20 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
 
     private async Task<BoardIdInspection> InitializeAsync()
     {
-        var result = await liveDaqBoardIdInspector.InspectAsync(ipEndPoint.Address, ipEndPoint.Port);
+        var result = await liveDaqBoardIdInspector.InspectAsync(endpoint);
         if (result is BoardIdInspection.Found found) BoardId = found.BoardId;
         return result;
     }
 
     public NetworkTelemetryDataStore(
-        IPAddress address,
-        int port,
+        ServiceEndpoint endpoint,
         IDaqManagementService daqManagementService,
         ILiveDaqBoardIdInspector liveDaqBoardIdInspector)
     {
-        ipEndPoint = new IPEndPoint(address, port);
+        this.endpoint = endpoint;
         this.daqManagementService = daqManagementService;
         this.liveDaqBoardIdInspector = liveDaqBoardIdInspector;
-        Name = $"gosst://{ipEndPoint.Address}:{ipEndPoint.Port}";
+        Name = $"gosst://{endpoint}";
 
         Initialization = InitializeAsync();
     }

@@ -41,9 +41,9 @@ public partial class LiveDaqCoordinatorTests
         var released = false;
         streamRegistry.AcquireManagementAsync("board", operation).Returns(
             new DaqTransportAcquisition.Acquired(Disposable.Create(() => released = true)));
-        managementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
-        managementService.ReadConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
-        managementService.WriteConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
+        managementService.SetTimeAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
+        managementService.ReadConfigAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
+        managementService.WriteConfigAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
         await using var coordinator = CreateCoordinator();
 
         var result = Assert.IsType<LiveDaqManagementResult.Failed>(await RunManagementAsync(coordinator, operation));
@@ -64,10 +64,10 @@ public partial class LiveDaqCoordinatorTests
         Assert.Equal(DaqManagementUnavailability.Offline,
             Assert.IsType<LiveDaqManagementResult.Unavailable>(await coordinator.SetTimeAsync("board")).Reason);
         Assert.Empty(streamRegistry.ReceivedCalls());
-        catalogEntries.OnNext([ManagementDevice() with { Host = "192.168.0.20", Port = 2444 }]);
+        catalogEntries.OnNext([ManagementDevice() with { NetworkEndpoint = new ServiceEndpoint("192.168.0.20", 2444) }]);
         streamRegistry.AcquireManagementAsync("board", DaqManagementOperation.SetTime)
             .Returns(new DaqTransportAcquisition.Acquired(Disposable.Empty));
-        managementService.SetTimeAsync("192.168.0.20", 2444, Arg.Any<CancellationToken>())
+        managementService.SetTimeAsync(new ServiceEndpoint("192.168.0.20", 2444), Arg.Any<CancellationToken>())
             .Returns(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(12)));
 
         var result = Assert.IsType<LiveDaqManagementResult.TimeSet>(await coordinator.SetTimeAsync("board", TestContext.Current.CancellationToken));
@@ -84,7 +84,7 @@ public partial class LiveDaqCoordinatorTests
             new DaqTransportAcquisition.Acquired(Disposable.Create(() => released = true)));
         var cancellationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var cleanup = new TaskCompletionSource<DaqSetTimeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        managementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(call =>
+        managementService.SetTimeAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             call.Arg<CancellationToken>().Register(() => cancellationObserved.TrySetResult());
             return cleanup.Task;
@@ -141,7 +141,7 @@ public partial class LiveDaqCoordinatorTests
         Assert.Equal("picker diagnostic", result.Details);
     }
 
-    private static LiveDaqCatalogEntry ManagementDevice() => new("board", "DAQ", "board", "192.168.0.10", 1557);
+    private static LiveDaqCatalogEntry ManagementDevice() => new("board", "DAQ", "board", new ServiceEndpoint("192.168.0.10", 1557));
 
     private static Task<LiveDaqManagementResult> RunManagementAsync(ILiveDaqCoordinator coordinator, DaqManagementOperation operation) => operation switch
     {

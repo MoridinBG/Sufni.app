@@ -318,7 +318,10 @@ keeps the endpoint string as its announcement key and copies native TXT bytes
 before the browse result is released. `ServiceAnnouncementMetadataReader`
 accepts string records or copied key/value bytes; it keeps the first duplicate
 key and uses an empty value for invalid UTF-8. Discovery metadata uses no
-reflection.
+reflection. `ServiceEndpoint` retains normalized, immutable address candidates and
+a port. LIVE, IDENTIFY and management pass the complete candidate set to their
+TCP connection, so an unreachable first address can fall through to another
+resolved address. Host/port labels are projections of that endpoint.
 
 ### Browse Ownership
 

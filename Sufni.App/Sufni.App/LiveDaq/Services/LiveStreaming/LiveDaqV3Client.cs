@@ -13,6 +13,8 @@ using Serilog;
 using Sufni.App.Shared.Common;
 using Sufni.Telemetry;
 
+using Sufni.App.Infrastructure;
+
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
 internal sealed class LiveDaqV3Client : ILiveDaqClient
@@ -131,7 +133,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
 
     public IObservable<LiveDaqClientEvent> Events => events.AsObservable();
 
-    public async Task ConnectAsync(string host, int port, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default)
     {
         await connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -139,17 +141,17 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             ThrowIfDisposed();
             if (IsConnected) return;
             await DisconnectCoreAsync(cancellationToken).ConfigureAwait(false);
-            await ConnectCoreAsync(host, port, cancellationToken).ConfigureAwait(false);
+            await ConnectCoreAsync(endpoint, cancellationToken).ConfigureAwait(false);
         }
         finally { connectionGate.Release(); }
     }
 
-    private async Task ConnectCoreAsync(string host, int port, CancellationToken cancellationToken)
+    private async Task ConnectCoreAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken)
     {
         await lifecycleGate.WaitAsync(cancellationToken);
         try
         {
-            logger.Debug("Connecting LIVE v3 client to {Host} {Port}", host, port);
+            logger.Debug("Connecting LIVE v3 client to {Endpoint}", endpoint);
 
             intentionalDisconnect = false;
             lifecyclePhase = LifecyclePhase.AwaitingHello;
@@ -168,7 +170,7 @@ internal sealed class LiveDaqV3Client : ILiveDaqClient
             try
             {
                 nextTcpClient.NoDelay = true;
-                await nextTcpClient.ConnectAsync(host, port, cancellationToken);
+                await nextTcpClient.ConnectAsync(endpoint.GetAddresses(), endpoint.Port, cancellationToken);
                 var nextStream = nextTcpClient.GetStream();
                 await sendBytesAsync(nextStream, LiveV3ProtocolReader.CreateHandshake(), cancellationToken);
                 var helloBytes = new byte[LiveV3ProtocolConstants.ServerHelloSize];
