@@ -42,7 +42,7 @@ mc:Ignorable="d">
                 <Label.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                         <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
-                        <Binding Path="!IsPaired" />
+                        <Binding Path="!SyncState.IsPaired" />
                     </MultiBinding>
                 </Label.IsVisible>
             </Label>
@@ -59,7 +59,7 @@ mc:Ignorable="d">
                 <progRing:ProgressRing.IsActive>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                         <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />
-                        <Binding Path="!IsPaired" />
+                        <Binding Path="!SyncState.IsPaired" />
                     </MultiBinding>
                 </progRing:ProgressRing.IsActive>
             </progRing:ProgressRing>
@@ -71,8 +71,8 @@ mc:Ignorable="d">
             <TextBox Name="DisplayNameTextBox" Text="{Binding DisplayName}" PlaceholderText="Display name">
                 <TextBox.IsEnabled>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="!IsRequestSent" />
-                        <Binding Path="!IsPaired" />
+                        <Binding Path="!SyncState.IsRequestSent" />
+                        <Binding Path="!SyncState.IsPaired" />
                     </MultiBinding>
                 </TextBox.IsEnabled>
             </TextBox>
@@ -87,9 +87,9 @@ mc:Ignorable="d">
 
                 <Button.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
-                        <Binding Path="!IsPaired" />
+                        <Binding Path="!SyncState.IsPaired" />
                         <Binding Converter="{x:Static ObjectConverters.IsNotNull}" Path="ServerUrl" />
-                        <Binding Path="!IsRequestSent" />
+                        <Binding Path="!SyncState.IsRequestSent" />
                     </MultiBinding>
                 </Button.IsVisible>
 
@@ -103,7 +103,7 @@ mc:Ignorable="d">
             <!--  PIN code input  -->
             <controls:PinInput
             Name="PinInputControl"
-            IsVisible="{Binding IsRequestSent}"
+            IsVisible="{Binding SyncState.IsRequestSent}"
             Pin="{Binding Pin}"
             PinCompletedCommand="{Binding ConfirmPairingCommand}" />
 
@@ -115,7 +115,7 @@ mc:Ignorable="d">
             HorizontalContentAlignment="Center"
             Command="{Binding UnpairCommand}"
             Content="unpair"
-            IsVisible="{Binding IsPaired}" />
+            IsVisible="{Binding SyncState.IsPaired}" />
 
             <!--  Cancel button  -->
             <Button

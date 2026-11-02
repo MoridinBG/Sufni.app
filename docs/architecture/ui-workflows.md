@@ -27,8 +27,8 @@ and are registered as singletons.
 | `ISegmentCoordinator` (`SegmentCoordinator`)                              | shared       | Saved-segment create, rename, and delete with the segment name rule; segment matching and comparison pages; Strava connect, reset, and segment fetch. The per-editor segments picker, comparison, and Strava connect dialog call it. See [segments.md](segments.md#store-and-coordinator) |
 | `PairedDeviceCoordinator` | shared | Persists local unpair and publishes the removal. No server-event subscriptions or eager resolution. |
 | `ImportSessionsCoordinator`                                               | shared       | Owns one active import task and replayed `SessionImportState` across tab lifetimes, runs the full per-file import / trash workflow off thread, reads original SST bytes, persists raw source + processed session + optional generated track atomically, reports per-file progress, and publishes prepared session/source/track snapshots through store writer publish-only paths                                                                                                                                                                |
-| `SyncCoordinator`                                                         | shared       | `IsRunning` / `IsPaired` / `CanSync` state, owns client phases, cursor writes and source publication; row merges use the shared `SynchronizationApplier`                                                                                                                                                                                                                                                                                    |
-| `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, mirrors HTTP `PairedState` as `IsPaired`, mDNS browse lifecycle, captured peer resolution, request/confirm/unpair HTTP plumbing                                                                                                                                                                                                                                                                                                                     |
+| `SyncCoordinator`                                                         | shared       | replayed `SyncState`, explicit confirm-and-sync, client phases, cursor writes and source publication; row merges use the shared `SynchronizationApplier`                                                                                                                                                                                                                                                                                    |
+| `IPairingClientCoordinator` (`PairingClientCoordinator`)                  | mobile only  | `DeviceId` / `DisplayName` / `ServerUrl`, derived `PairingClientState`, explicit initialization, mDNS browse lifetime and captured peer resolution; request/confirm/unpair commands                                                                                                                                                                                                                                                                                                                     |
 | `IInboundSyncCoordinator` (`InboundSyncCoordinator`) | desktop only | Endpoints await pairing, row push/pull and BLOB/source upload operations. The coordinator owns PIN challenges and expiry, credential rotation, and paired-device publication. Push awaits the shared `SynchronizationApplier` for merge and publication of all seven synced row families before acknowledgement. Source uploads validate and publish committed captured content; BLOB uploads use the session applier. Owns the declared peer-run activity and silence deadline; no server-event subscriptions or direct eager resolution. |
 | `IMapLayerCoordinator` (`MapLayerCoordinator`) | shared | Persists custom-layer additions and selection off-thread; typed outcomes distinguish add/selection failure. `TileLayerService` derives its catalog from custom-layer store facts and selection from device-local preferences. |
 | `TrackCoordinator` | shared | Owns key-driven GPS metric recomputation, conditional persistence and cancellation/drainage. GPX import publishes track metadata; read-only session-track loading selects the greatest overlapping track from `TrackStore`, reads exact full-track points and derives the session window through `ISessionTrackReader`. GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync` and uses the same selection rule. |
@@ -293,17 +293,18 @@ honors the configured mode: save/discard/cancel and unsavable-page confirmation
 render as overlays on single-view hosts. Every overlay uses the explicitly
 configured host; there is no application-lifetime lookup fallback.
 
-`App`'s page-activation callback eagerly resolves `TrackCoordinator`,
-`SyncCoordinator`, and the mobile-only `IPairingClientCoordinator` for their
-store, inbound-activity, pairing and discovery subscriptions. Inbound sync is reached through its state consumer and server; paired-device
+`App`'s page-activation callback eagerly resolves `TrackCoordinator` and
+`SyncCoordinator` for their store and inbound-activity subscriptions. `AppStartup`
+awaits the mobile pairing coordinator’s explicit initialization before activating
+pages; construction no longer starts credential/identity I/O. Inbound sync is reached through its state consumer and server; paired-device
 commands and the session applier need no direct eager resolution.
 `AppStartup` calls `ISynchronizationServerService.StartAsync` directly.
 
 ## Navigation
 
-The pairing client coordinator returns confirmation outcomes without navigating.
-Its view model requests `GoBack` only after `Paired`, leaving rejected PINs and
-failures on the pairing surface.
+The sync coordinator reports the successful pairing milestone before awaiting
+the initial sync. Its caller requests `GoBack` at that milestone, leaving rejected
+PINs and failures on the pairing surface. Navigation stays in the view model.
 
 Navigation is owned exclusively by `IShellCoordinator`. Features use
 `OpenEditor(EditorKey, background)` and `CloseEditorAsync(EditorKey)`; the shell

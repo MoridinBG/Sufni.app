@@ -768,7 +768,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
         Assert.Equal(first.SourceHash, sourceStore.Get(first.SessionId)?.SourceHash);
         Assert.Null(sourceStore.Get(second));
         Assert.Equal(first.Payload, (await fixture.Database.GetRecordedSessionSourceAsync(first.SessionId))!.Payload);
-        Assert.False(coordinator.IsRunning);
+        Assert.False(coordinator.State.IsRunning);
     }
 
     public void Dispose() => harness.Dispose();

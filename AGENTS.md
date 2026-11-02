@@ -352,10 +352,10 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with
   constructor-time event subscriptions
-  (`TrackCoordinator`, `SyncCoordinator`, and the mobile-only
-  `IPairingClientCoordinator`) are eagerly resolved in
+  (`TrackCoordinator` and `SyncCoordinator`) are eagerly resolved in
   `App`'s startup page-activation callback so subscriptions wire up before
-  server startup or user-driven arrivals.
+  server startup or user-driven arrivals. `AppStartup` awaits mobile
+  `PairingClientCoordinator.InitializeAsync` before creating pages.
   `IInboundSyncCoordinator` owns awaited row merges and coherent publication
   across all synced row stores, validates/publishes source uploads, and owns
   pairing challenges, confirmation, refresh-token rotation and remote unpair.

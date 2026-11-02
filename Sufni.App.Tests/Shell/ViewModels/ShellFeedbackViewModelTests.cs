@@ -1,4 +1,6 @@
 using NSubstitute;
+using System.Reactive.Subjects;
+using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
@@ -50,25 +52,22 @@ public class ShellFeedbackViewModelTests
     [Fact]
     public void SyncProgress_TracksTheCurrentRunAndClearsWhenItEnds()
     {
-        var sync = TestCoordinatorSubstitutes.Sync();
+        using var states = new BehaviorSubject<SyncState>(new(PairingClientState.Unpaired, SyncActivity.Idle));
+        var sync = TestCoordinatorSubstitutes.Sync(states: states);
         using var feedback = TestShellFeedback.Create(sync);
         var observedProgress = new List<double>();
         feedback.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(feedback.SyncProgressValue)) observedProgress.Add(feedback.SyncProgressValue);
         };
-        sync.IsRunning.Returns(true);
-        sync.Progress.Returns(new SynchronizationProgressSnapshot(SynchronizationPhase.PushingLocalChanges,
-            "receiving", 3, 8, true));
-        sync.IsRunningChanged += Raise.Event();
+        states.OnNext(new(PairingClientState.Paired, SyncActivity.Outbound,
+            new SynchronizationProgressSnapshot(SynchronizationPhase.PushingLocalChanges, "receiving", 3, 8, true)));
 
         Assert.True(feedback.SyncInProgress);
         Assert.Equal(0.375, feedback.SyncProgressValue);
         Assert.False(feedback.SyncProgressIsIndeterminate);
 
-        sync.IsRunning.Returns(false);
-        sync.Progress.Returns((SynchronizationProgressSnapshot?)null);
-        sync.IsRunningChanged += Raise.Event();
+        states.OnNext(new(PairingClientState.Paired, SyncActivity.Idle));
 
         Assert.False(feedback.SyncInProgress);
         Assert.Equal(0, feedback.SyncProgressValue);
@@ -93,13 +92,13 @@ public class ShellFeedbackViewModelTests
     [Fact]
     public async Task SyncCommand_TracksAvailabilityAndRunsTheCoordinator()
     {
-        var sync = TestCoordinatorSubstitutes.Sync();
+        using var states = new BehaviorSubject<SyncState>(new(PairingClientState.Unpaired, SyncActivity.Idle));
+        var sync = TestCoordinatorSubstitutes.Sync(states: states);
         using var feedback = TestShellFeedback.Create(sync);
         Assert.False(feedback.SyncCommand.CanExecute(null));
         bool? observedAvailability = null;
         feedback.SyncCommand.CanExecuteChanged += (_, _) => observedAvailability = feedback.SyncCommand.CanExecute(null);
-        sync.CanSync.Returns(true);
-        sync.CanSyncChanged += Raise.Event();
+        states.OnNext(new(PairingClientState.Paired, SyncActivity.Idle));
         Assert.True(observedAvailability);
 
         await feedback.SyncCommand.ExecuteAsync(null);

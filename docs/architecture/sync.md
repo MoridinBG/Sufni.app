@@ -22,8 +22,20 @@ rejected or expired PINs (HTTP 401). Other request/confirmation/unpair failures
 carry a closed reason and optional diagnostics, logged once at the coordinator.
 Local credentials are still cleared before the remote unpair request; a network
 failure leaves the device locally unpaired and produces a fixed notification.
-`PairingClientViewModel` asks the shell to go back after successful confirmation;
-the coordinator has no navigation dependency.
+`PairingClientState` is `Unpaired | AwaitingPin | Paired`, derived from the pending
+request and the HTTP owner's paired peer. `PairingClientCoordinator.InitializeAsync`
+loads installation/display identity and stored credentials once; `AppStartup`
+awaits it before creating pages.
+
+`SyncCoordinator.ConfirmPairingAndSyncAsync` drains an earlier run and clears the
+cursor table before accepting new pairing credentials. The installation pairs
+with one hub, so every explicit re-pair starts a full baseline, including a
+return to the same certificate and incarnation. A cursor-reset failure prevents
+confirmation. After successful confirmation, typed progress lets the view model
+clear the PIN and ask the shell to go back immediately, while the coordinator
+retains and awaits the initial sync. Shutdown drains that entire operation. There
+is no pair-to-sync event subscription or discarded sync task. The coordinator has
+no navigation dependency.
 
 ```mermaid
 sequenceDiagram
@@ -174,8 +186,7 @@ baseline from zero. Run-start verifies the incarnation even while the access tok
 The client proposes the identity's cursor-dependent phase order. A mismatched
 incarnation returns the current value without starting hub activity. The client
 loads that identity's cursors and announces the corrected order before any row
-or payload transfer; a new identity starts with a pull-first baseline. Explicit
-re-pair cursor reset remains pending in Epic 6.
+or payload transfer; a new identity starts with a pull-first baseline. Explicit re-pairing clears prior cursors before credentials are accepted.
 
 The metadata snapshot's one `upper_bound` applies to every synced table, including
 custom map layers, and the deletion ledger. Core delta queries include updates and
@@ -257,14 +268,24 @@ message. The coordinator disposes the timer with its lifetime.
 
 "Incomplete," for the purpose of these phases, therefore means **missing _or_ awaiting a matching processed blob**.
 
-`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and owns the full client run. Row merges publish through the shared `SynchronizationApplier`; BLOB commits use `SessionSyncApplier`; the coordinator publishes committed source snapshots from the transfer drain, including on failure or cancellation. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as a seven-step determinate run: resolve server, then six transfer phases. There is no separate full-refresh phase. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop observes `IInboundSyncCoordinator.Activity`: `Idle`, `Running`,
+`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`)
+publishes one replayed `SyncState` composed from pairing and its current operation.
+`IsPaired`, `IsRequestSent`, `IsRunning` and `CanSync` are derived properties of
+that snapshot. Shell and pairing views observe it on their UI dispatcher; they
+hold no independent writable pairing flags. The stream stays connected for the
+coordinator lifetime, so a later observer receives current state immediately.
+The coordinator owns the full client run. Row merges use the shared
+`SynchronizationApplier`; BLOB commits use `SessionSyncApplier`; committed source
+snapshots publish from the transfer drain, including after failure or cancellation.
+Mobile outbound sync is reported as a seven-step determinate run: resolve server, then six transfer phases. There is no separate full-refresh phase. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop observes `IInboundSyncCoordinator.Activity`: `Idle`, `Running`,
 `Completed` or `Interrupted`. `SyncActivity` is the coordinator's mutually
-exclusive idle/outbound/inbound state. No server activity events or grace timers
+exclusive idle/pairing/outbound/inbound/stopped state. Pairing prevents a second
+run during confirmation; it does not show the global transfer spinner. No server activity events or grace timers
 remain. Inbound row and source writes are awaited coordinator operations; processed BLOB commits use the session applier — see [Coordinators](ui-workflows.md#coordinators).
 
 `HttpApiService` is registered by `MobileAppBootstrapper` alongside the outbound sync and pairing clients. Desktop composition does not register it.
 
-`HttpApiService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/HttpApiService.cs`) owns peer creation/retirement and the replayed `PairedState` stream: startup publishes whether a refresh token exists, confirm publishes paired, and local credential clearing publishes unpaired. `SynchronizationPeer` owns JWT auto-refresh. When the access token is within 30 seconds of expiry, it calls `/pair/refresh` (which rotates both the access and refresh tokens). If `/pair/refresh` itself returns 401, the stored pairing credentials are cleared and `PairedState` publishes `false`. The client enables TLS 1.2 and TLS 1.3 to match the desktop server.
+`HttpApiService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/HttpApiService.cs`) owns peer creation/retirement and the paired peer graph: explicit initialization publishes a stored peer, confirmation publishes the newly credentialed peer, and credential clearing publishes its absence. `SynchronizationPeer` owns JWT auto-refresh. When the access token is within 30 seconds of expiry, it calls `/pair/refresh` (which rotates both the access and refresh tokens). If `/pair/refresh` itself returns 401, the stored pairing credentials are cleared and the paired peer becomes absent. The client enables TLS 1.2 and TLS 1.3 to match the desktop server.
 
 TLS validation is performed by `SynchronizationCertificateValidator.TryValidate(...)` and is stricter than a generic CN check: it rejects expired certificates, requires an exact subject match against the constant `SynchronizationProtocol.CertificateSubjectName` (`cn=com.sghctoma.sst-api`), and pins the **certificate thumbprint** captured at pairing time against `SecureStorage`. The certificate chain itself is not validated — that's what makes LAN self-signed certs viable, but the thumbprint pin replaces the missing chain trust with TOFU.
 

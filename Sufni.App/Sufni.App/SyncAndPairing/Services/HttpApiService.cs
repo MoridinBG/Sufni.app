@@ -21,11 +21,13 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
     private readonly TimeProvider timeProvider;
     private readonly Func<Func<HttpRequestMessage, X509Certificate2?, X509Chain?, SslPolicyErrors, bool>, HttpClient> createClient;
     private readonly SemaphoreSlim lifecycle = new(1);
-    private readonly BehaviorSubject<bool> pairedState = new(false);
-    private readonly Task initialization;
+    private readonly BehaviorSubject<ISynchronizationPeer?> pairedPeer = new(null);
+    private readonly Lazy<Task> initialization;
     private SynchronizationPeer? peer;
 
-    public IObservable<bool> PairedState => pairedState.DistinctUntilChanged();
+    public ISynchronizationPeer? PairedPeer => pairedPeer.Value;
+    public IObservable<ISynchronizationPeer?> PeerChanges => pairedPeer.DistinctUntilChanged();
+    public Task InitializeAsync() => initialization.Value;
 
     public HttpApiService(ISecureStorage secureStorage, TimeProvider timeProvider)
         : this(secureStorage, validate => new HttpClient(SynchronizationPeer.CreateHandler(validate)), timeProvider) { }
@@ -37,15 +39,15 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
         this.secureStorage = secureStorage;
         this.timeProvider = timeProvider;
         this.createClient = createClient;
-        initialization = InitializeAsync();
+        initialization = new Lazy<Task>(LoadAsync);
     }
 
     private SynchronizationPeer CreatePeer(PeerEndpoint? endpoint, string? certificate = null,
         string? refreshToken = null, string? incarnation = null) =>
         new(secureStorage, timeProvider, endpoint, certificate, refreshToken, incarnation,
-            () => pairedState.OnNext(false), createClient);
+            () => pairedPeer.OnNext(null), createClient);
 
-    private async Task InitializeAsync()
+    private async Task LoadAsync()
     {
         var refreshToken = await secureStorage.GetStringAsync(RefreshTokenKey);
         var certificate = await secureStorage.GetStringAsync(CertificateKey);
@@ -54,23 +56,17 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
         if (refreshToken is not null && certificate is not null)
         {
             peer = CreatePeer(null, certificate, refreshToken, incarnation);
-            pairedState.OnNext(true);
+            pairedPeer.OnNext(peer);
         }
-    }
-
-    public async Task<bool> IsPairedAsync()
-    {
-        await initialization;
-        return pairedState.Value;
     }
 
     public async Task<ISynchronizationPeer> GetPeerAsync(PeerEndpoint endpoint)
     {
-        await initialization;
+        await InitializeAsync();
         await lifecycle.WaitAsync();
         try
         {
-            if (!pairedState.Value || peer is null)
+            if (pairedPeer.Value is null || peer is null)
                 throw new HttpRequestException("Synchronization pairing credentials are missing.", null, System.Net.HttpStatusCode.Unauthorized);
             peer.UpdateEndpoint(endpoint);
             return peer;
@@ -80,13 +76,13 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
 
     public async Task RequestPairingAsync(PeerEndpoint endpoint, string deviceId, string? displayName)
     {
-        await initialization;
+        await InitializeAsync();
         await lifecycle.WaitAsync();
         try
         {
             await RetirePeerAsync();
             await ClearCredentialsAsync(secureStorage);
-            pairedState.OnNext(false);
+            pairedPeer.OnNext(null);
             peer = CreatePeer(endpoint);
             await peer.RequestPairingAsync(deviceId, displayName);
         }
@@ -95,20 +91,20 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
 
     public async Task ConfirmPairingAsync(string deviceId, string? displayName, string pin)
     {
-        await initialization;
+        await InitializeAsync();
         await lifecycle.WaitAsync();
         try
         {
             if (peer is null) throw new InvalidOperationException("Pairing has not been requested.");
             await peer.ConfirmPairingAsync(deviceId, displayName, pin);
-            pairedState.OnNext(true);
+            pairedPeer.OnNext(peer);
         }
         finally { lifecycle.Release(); }
     }
 
     public async Task UnpairAsync(string deviceId)
     {
-        await initialization;
+        await InitializeAsync();
         await lifecycle.WaitAsync();
         try
         {
@@ -118,7 +114,7 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
             {
                 if (previous is not null) await previous.RetireAsync();
                 await ClearCredentialsAsync(secureStorage);
-                pairedState.OnNext(false);
+                pairedPeer.OnNext(null);
                 if (previous is not null) await previous.UnpairAsync(deviceId);
             }
             finally { previous?.Dispose(); }
@@ -143,11 +139,11 @@ internal sealed class HttpApiService : IHttpApiService, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await initialization;
+        if (initialization.IsValueCreated) await initialization.Value;
         await lifecycle.WaitAsync();
         try { await RetirePeerAsync(); }
         finally { lifecycle.Release(); }
         lifecycle.Dispose();
-        pairedState.Dispose();
+        pairedPeer.Dispose();
     }
 }

@@ -187,9 +187,7 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
-        var syncCoordinator = TestCoordinatorSubstitutes.Sync();
-        syncCoordinator.IsPaired.Returns(true);
-        syncCoordinator.CanSync.Returns(true);
+        var syncCoordinator = TestCoordinatorSubstitutes.Sync(new SyncState(PairingClientState.Paired, SyncActivity.Idle));
         var pairingClientPage = CreatePairingClientPage(isPaired: true);
         var viewModel = MainPagesViewModelTestFactory.Create(
             appEnvironment: CreateClientEnvironment(),
@@ -259,11 +257,11 @@ public class MainPagesDesktopViewTests
     {
         var pairingClientCoordinator = Substitute.For<IPairingClientCoordinator>();
         pairingClientCoordinator.DisplayName.Returns("Phone");
-        pairingClientCoordinator.IsPaired.Returns(isPaired);
-        pairingClientCoordinator.PairedState.Returns(Observable.Return(isPaired));
+        pairingClientCoordinator.State.Returns(isPaired ? PairingClientState.Paired : PairingClientState.Unpaired);
 
         return new PairingClientViewModel(
             pairingClientCoordinator,
+            TestCoordinatorSubstitutes.Sync(new SyncState(pairingClientCoordinator.State, SyncActivity.Idle)),
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
             new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());

@@ -1,5 +1,6 @@
 using System;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Collections.Generic;
@@ -24,31 +25,20 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
     private readonly IUiThreadDispatcher uiThreadDispatcher;
 
     private readonly CancellationTokenSource shutdown = new();
-    private readonly IDisposable? pairedStateSubscription;
     private readonly IDisposable? inboundActivitySubscription;
-    private SyncActivity activity;
+    private readonly BehaviorSubject<(SyncActivity Activity, SynchronizationProgressSnapshot? Progress)> operation = new((SyncActivity.Idle, null));
     private Task? activeRun;
-    private SynchronizationProgressSnapshot? progress;
 
-    public bool IsRunning => activity != SyncActivity.Idle;
-
-    public bool IsPaired => pairingClientCoordinator?.IsPaired ?? false;
-    public bool CanSync => !shutdown.IsCancellationRequested && !IsRunning && IsPaired;
-    public SynchronizationProgressSnapshot? Progress
+    public SyncState State => new(pairingClientCoordinator?.State ?? PairingClientState.Unpaired,
+        operation.Value.Activity, operation.Value.Progress);
+    public IObservable<SyncState> States { get; }
+    private readonly IDisposable stateConnection;
+    private SynchronizationProgressSnapshot? Progress
     {
-        get => progress;
-        private set
-        {
-            if (progress == value) return;
-            progress = value;
-            ProgressChanged?.Invoke(this, EventArgs.Empty);
-        }
+        get => operation.Value.Progress;
+        set => SetOperation(operation.Value.Activity, value);
     }
 
-    public event EventHandler? IsRunningChanged;
-    public event EventHandler? IsPairedChanged;
-    public event EventHandler? CanSyncChanged;
-    public event EventHandler? ProgressChanged;
     public event EventHandler<SyncCompletedEventArgs>? SyncCompleted;
     public event EventHandler<SyncFailedEventArgs>? SyncFailed;
     public event EventHandler? ServerUnavailable;
@@ -77,11 +67,11 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
 
-        if (pairingClientCoordinator is not null)
-        {
-            pairedStateSubscription = pairingClientCoordinator.PairedState.Subscribe(_ => PublishPairedStateChangeOnUiThread());
-            pairingClientCoordinator.PairingConfirmed += OnPairingConfirmed;
-        }
+        var states = (pairingClientCoordinator?.States ?? Observable.Return(PairingClientState.Unpaired))
+            .CombineLatest(operation, (pairing, current) => new SyncState(pairing, current.Activity, current.Progress))
+            .DistinctUntilChanged().Replay(1);
+        States = states;
+        stateConnection = states.Connect();
 
         if (inboundSyncCoordinator is not null)
             inboundActivitySubscription = inboundSyncCoordinator.Activity.Subscribe(value =>
@@ -92,27 +82,73 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
     {
         var run = await uiThreadDispatcher.InvokeAsync<Task>(() =>
         {
-            if (!CanSync) return Task.CompletedTask;
+            if (!State.CanSync) return Task.CompletedTask;
             activeRun = SyncCoreAsync(cancellationToken);
             return activeRun;
         });
         await run;
     }
 
-    private void OnPairingConfirmed(object? sender, EventArgs args) => _ = SyncAllAsync();
+    public async Task<ConfirmPairingResult> ConfirmPairingAndSyncAsync(string? displayName, string pin,
+        IProgress<PairingClientState>? progress = null)
+    {
+        var confirmation = await uiThreadDispatcher.InvokeAsync<Task<ConfirmPairingResult>>(() =>
+        {
+            var task = ConfirmAndSyncCoreAsync(activeRun, displayName, pin, progress);
+            activeRun = task;
+            return task;
+        });
+        return await confirmation;
+    }
+
+    private async Task<ConfirmPairingResult> ConfirmAndSyncCoreAsync(Task? previousRun, string? displayName,
+        string pin, IProgress<PairingClientState>? progress)
+    {
+        if (previousRun is not null) await previousRun;
+        await uiThreadDispatcher.InvokeAsync(() => SetOperation(SyncActivity.Pairing, null));
+        try
+        {
+            try
+            {
+                // This installation pairs with one hub. New pairing always starts a baseline.
+                await backgroundTaskRunner.RunAsync(syncDataStore.ResetCursorsAsync);
+            }
+            catch (Exception exception)
+            {
+                logger.Error(exception, "Failed to reset synchronization cursors before pairing");
+                return new ConfirmPairingResult.Failed(PairingFailureReason.Confirm, exception.Message);
+            }
+            var result = await pairingClientCoordinator!.ConfirmPairingAsync(displayName, pin);
+            if (result is ConfirmPairingResult.Paired && !shutdown.IsCancellationRequested)
+            {
+                progress?.Report(PairingClientState.Paired);
+                await SyncCoreAsync(shutdown.Token);
+            }
+            return result;
+        }
+        finally
+        {
+            await uiThreadDispatcher.InvokeAsync(() =>
+            {
+                if (operation.Value.Activity == SyncActivity.Pairing)
+                    SetOperation(shutdown.IsCancellationRequested ? SyncActivity.Stopped : SyncActivity.Idle, null);
+            });
+        }
+    }
 
     public async Task StopAsync()
     {
         await shutdown.CancelAsync();
         var work = await uiThreadDispatcher.InvokeAsync<Task?>(() => activeRun);
         if (work is not null) await work;
+        await uiThreadDispatcher.InvokeAsync(() => SetOperation(SyncActivity.Stopped, null));
     }
 
     public void Dispose()
     {
-        pairedStateSubscription?.Dispose();
-        if (pairingClientCoordinator is not null) pairingClientCoordinator.PairingConfirmed -= OnPairingConfirmed;
+        stateConnection.Dispose();
         inboundActivitySubscription?.Dispose();
+        operation.Dispose();
         shutdown.Dispose();
     }
 
@@ -121,25 +157,13 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token, cancellationToken);
         var token = runCancellation.Token;
         ISynchronizationPeer? peer = null;
-        if (!CanSync)
-        {
-            logger.Verbose("Sync request ignored because synchronization is unavailable");
-            return;
-        }
-
         logger.Information("Starting synchronization");
-        SetActivity(SyncActivity.Outbound);
+        await uiThreadDispatcher.InvokeAsync(() => SetOperation(SyncActivity.Outbound,
+            new SynchronizationProgressSnapshot(SynchronizationPhase.ResolvingServer, "Finding sync server", 1, 7, true)));
         try
         {
             if (pairingClientCoordinator is not null)
             {
-                Progress = new SynchronizationProgressSnapshot(
-                    SynchronizationPhase.ResolvingServer,
-                    "Finding sync server",
-                    CurrentStep: 1,
-                    TotalSteps: 7,
-                    IsDeterminate: true);
-
                 peer = await pairingClientCoordinator.ResolvePeerAsync(ServerDiscoveryTimeout, token);
                 if (peer is null)
                 {
@@ -171,35 +195,15 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         {
             await uiThreadDispatcher.InvokeAsync(() =>
             {
-                Progress = null;
-                SetActivity(SyncActivity.Idle);
+                SetOperation(shutdown.IsCancellationRequested ? SyncActivity.Stopped : SyncActivity.Idle, null);
             });
         }
     }
 
-    private void PublishPairedStateChangeOnUiThread()
+    private void SetOperation(SyncActivity activity, SynchronizationProgressSnapshot? progress)
     {
-        if (uiThreadDispatcher.CheckAccess())
-        {
-            PublishPairedStateChange();
-            return;
-        }
-
-        uiThreadDispatcher.Post(PublishPairedStateChange);
-    }
-
-    private void PublishPairedStateChange()
-    {
-        IsPairedChanged?.Invoke(this, EventArgs.Empty);
-        CanSyncChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void SetActivity(SyncActivity value)
-    {
-        if (activity == value) return;
-        activity = value;
-        IsRunningChanged?.Invoke(this, EventArgs.Empty);
-        CanSyncChanged?.Invoke(this, EventArgs.Empty);
+        if (operation.Value == (activity, progress)) return;
+        operation.OnNext((activity, progress));
     }
 
     private void ApplyInboundActivity(PeerSyncActivity value)
@@ -207,7 +211,6 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
         if (shutdown.IsCancellationRequested) return;
         if (value is PeerSyncActivity.Running running)
         {
-            SetActivity(SyncActivity.Inbound);
             var message = running.Phase switch
             {
                 SynchronizationPhase.PushingLocalChanges => "Receiving remote changes",
@@ -218,12 +221,11 @@ public partial class SyncCoordinator : ISyncCoordinator, IDisposable
                 SynchronizationPhase.PullingIncompleteSessionSources => "Serving recorded sources",
                 _ => "Syncing"
             };
-            Progress = new SynchronizationProgressSnapshot(running.Phase, message, running.Step, running.PhaseCount, true);
+            SetOperation(SyncActivity.Inbound, new SynchronizationProgressSnapshot(running.Phase, message, running.Step, running.PhaseCount, true));
         }
         else
         {
-            SetActivity(SyncActivity.Idle);
-            Progress = null;
+            SetOperation(SyncActivity.Idle, null);
             if (value is PeerSyncActivity.Interrupted)
                 SyncFailed?.Invoke(this, new SyncFailedEventArgs(SyncFailureReason.Interrupted));
         }

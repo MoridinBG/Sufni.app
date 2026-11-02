@@ -28,8 +28,8 @@ internal sealed class SyncTestServerHarness : IDisposable
     {
         SourceStore = new RecordedSessionSourceStore(publication);
         Inbound.Activity.Returns(InboundActivity);
-        Pairing.PairedState.Returns(PairedState);
-        Pairing.IsPaired.Returns(_ => PairedState.Value);
+        Pairing.States.Returns(PairingStates);
+        Pairing.State.Returns(_ => PairingStates.Value);
         Pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(_ => HttpApiService);
         SyncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>()).Returns(ApplyResult());
         SyncDataStore.GetSynchronizationDataAsync(Arg.Any<SynchronizationDirection>(), Arg.Any<long>(), Arg.Any<long>())
@@ -71,7 +71,7 @@ internal sealed class SyncTestServerHarness : IDisposable
         [SynchronizationPhase.PushingLocalChanges, SynchronizationPhase.PullingRemoteChanges,
          SynchronizationPhase.PushingIncompleteSessions, SynchronizationPhase.PullingIncompleteSessions,
          SynchronizationPhase.PushingIncompleteSessionSources, SynchronizationPhase.PullingIncompleteSessionSources];
-    public BehaviorSubject<bool> PairedState { get; } = new(true);
+    public BehaviorSubject<PairingClientState> PairingStates { get; } = new(PairingClientState.Paired);
     public IPairingClientCoordinator Pairing { get; } = Substitute.For<IPairingClientCoordinator>();
     public IRecordedSessionSourceSyncQuery RecordedSessionSourceSyncQuery { get; } = Substitute.For<IRecordedSessionSourceSyncQuery>();
     public ISynchronizationPeer HttpApiService { get; } = Substitute.For<ISynchronizationPeer>();
@@ -110,7 +110,7 @@ internal sealed class SyncTestServerHarness : IDisposable
         foreach (var coordinator in coordinators) coordinator.Dispose();
         SourceStore.Dispose();
         publication.Dispose();
-        PairedState.Dispose();
+        PairingStates.Dispose();
         InboundActivity.Dispose();
     }
 
@@ -177,19 +177,15 @@ internal static class SyncRunObservation
         SynchronizationRunResult? result = null;
         void Completed(object? _, SyncCompletedEventArgs args) => result = args.Result;
         void Failed(object? _, SyncFailedEventArgs args) => result = new SynchronizationRunResult.Failed(args.Reason, args.Details);
-        void Progress(object? _, EventArgs args)
-        {
-            if (coordinator.Progress is { } snapshot) progress?.Report(snapshot);
-        }
+        using var observation = coordinator.States.Select(value => value.Progress).DistinctUntilChanged()
+            .Subscribe(snapshot => { if (snapshot is not null) progress?.Report(snapshot); });
         coordinator.SyncCompleted += Completed;
         coordinator.SyncFailed += Failed;
-        coordinator.ProgressChanged += Progress;
         try { await coordinator.SyncAllAsync(cancellationToken); }
         finally
         {
             coordinator.SyncCompleted -= Completed;
             coordinator.SyncFailed -= Failed;
-            coordinator.ProgressChanged -= Progress;
         }
         return result;
     }

@@ -1,6 +1,10 @@
 using Microsoft.Extensions.Time.Testing;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
+using Sufni.App.SyncAndPairing.Models;
+using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.Tests.TestSupport.Doubles;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -27,7 +31,7 @@ public class PairingClientViewTests
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: false);
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = CreateViewModel(coordinator, shell);
+        using var viewModel = CreateViewModel(coordinator, shell);
 
         await using (var mounted = await MountAsync(viewModel))
         {
@@ -61,9 +65,14 @@ public class PairingClientViewTests
     public async Task PairingClientView_ShowsPinInputAndLocksDisplayName_AfterSuccessfulRequest()
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: "https://desktop", isPaired: false);
-        coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Sent());
+        using var states = new BehaviorSubject<SyncState>(new(PairingClientState.Unpaired, SyncActivity.Idle));
+        coordinator.RequestPairingAsync("Phone").Returns(_ =>
+        {
+            states.OnNext(new(PairingClientState.AwaitingPin, SyncActivity.Idle));
+            return new RequestPairingResult.Sent();
+        });
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = CreateViewModel(coordinator, shell);
+        using var viewModel = CreateViewModel(coordinator, shell, states);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -81,7 +90,7 @@ public class PairingClientViewTests
         requestButton.Command!.Execute(requestButton.CommandParameter);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        Assert.True(viewModel.IsRequestSent);
+        Assert.True(viewModel.SyncState.IsRequestSent);
         Assert.False(displayName.IsEnabled);
         Assert.False(requestButton.IsVisible);
         Assert.True(pinInput.IsVisible);
@@ -93,7 +102,7 @@ public class PairingClientViewTests
     {
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: true);
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = CreateViewModel(coordinator, shell);
+        using var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -121,7 +130,7 @@ public class PairingClientViewTests
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: "https://desktop", isPaired: false);
         coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Failed(PairingFailureReason.Request, "network"));
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = CreateViewModel(coordinator, shell);
+        using var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -142,7 +151,7 @@ public class PairingClientViewTests
         var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: true);
         coordinator.UnpairAsync().Returns(new UnpairResult.LocalOnly());
         var shell = Substitute.For<IShellCoordinator>();
-        var viewModel = CreateViewModel(coordinator, shell);
+        using var viewModel = CreateViewModel(coordinator, shell);
 
         await using var mounted = await MountAsync(viewModel);
 
@@ -162,8 +171,7 @@ public class PairingClientViewTests
         var coordinator = Substitute.For<IPairingClientCoordinator>();
         coordinator.DisplayName.Returns(displayName);
         coordinator.ServerUrl.Returns(serverUrl);
-        coordinator.IsPaired.Returns(isPaired);
-        coordinator.PairedState.Returns(Observable.Return(isPaired));
+        coordinator.State.Returns(isPaired ? PairingClientState.Paired : PairingClientState.Unpaired);
         coordinator.RequestPairingAsync(Arg.Any<string?>()).Returns(new RequestPairingResult.Sent());
         coordinator.UnpairAsync().Returns(new UnpairResult.Unpaired());
         return coordinator;
@@ -171,9 +179,10 @@ public class PairingClientViewTests
 
     private static PairingClientViewModel CreateViewModel(
         IPairingClientCoordinator coordinator,
-        IShellCoordinator shell) =>
+        IShellCoordinator shell, BehaviorSubject<SyncState>? states = null) =>
         new(
             coordinator,
+            TestCoordinatorSubstitutes.Sync(new SyncState(coordinator.State, SyncActivity.Idle), states),
             shell,
             Substitute.For<IDialogService>(),
             new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());

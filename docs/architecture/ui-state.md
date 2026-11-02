@@ -270,6 +270,17 @@ recompute engine. Coordinators use the
 query for current-state decisions; they do not subscribe to the projection
 stream.
 
+## Pairing and sync state
+
+`HttpApiService` owns the paired peer graph, including credential expiration and
+retirement. `PairingClientCoordinator` derives `Unpaired | AwaitingPin | Paired`
+from that peer and its pending request. `SyncCoordinator` combines this with its
+operation into one replayed `SyncState`; availability and busy flags are derived.
+The queries remain connected for their owners' lifetimes, so reopening a surface
+does not replay stale pairing state. Shell feedback and the pairing page observe
+immutable snapshots through the UI dispatcher and dispose their subscriptions
+with their singleton view-model lifetime.
+
 ## Queries
 
 Queries answer business questions across entity families without

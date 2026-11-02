@@ -37,6 +37,8 @@ public interface ISyncDataStore
 
     Task<string> GetDatabaseIncarnationAsync();
 
+    Task ResetCursorsAsync();
+
     Task<long> GetSequenceUpperBoundAsync(SynchronizationDirection direction);
 
     Task<SynchronizationData> GetSynchronizationDataAsync(
@@ -211,6 +213,12 @@ internal sealed class SynchronizationMergeEngine(
             INSERT INTO sync (hub_thumbprint, db_incarnation, {column}) VALUES (?, ?, ?)
             ON CONFLICT(hub_thumbprint, db_incarnation) DO UPDATE SET {column}=excluded.{column}
             """, peer.CertificateThumbprint, peer.DatabaseIncarnation, upperBound);
+    }
+
+    public async Task ResetCursorsAsync()
+    {
+        var connection = await connectionContext.GetInitializedConnectionAsync();
+        await connection.ExecuteAsync("DELETE FROM sync");
     }
 
     public async Task<string> GetDatabaseIncarnationAsync()

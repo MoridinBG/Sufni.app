@@ -259,6 +259,8 @@ migration discards timestamp cursors and recreates the cursor table for a full
 baseline exchange. Cursors are keyed by `(hub_thumbprint, db_incarnation)`.
 Each direction updates its column atomically without overwriting the other.
 An unseen hub or incarnation starts at zero, independent of its network address.
+Explicit pairing clears previous cursors before new credentials are accepted,
+so re-pairing to the same hub also starts a baseline.
 
 ## SQLite Persistence Repositories
 

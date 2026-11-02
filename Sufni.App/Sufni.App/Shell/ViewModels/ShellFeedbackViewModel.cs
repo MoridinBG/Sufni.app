@@ -1,4 +1,6 @@
 using System;
+using System.Reactive.Linq;
+using Sufni.App.SyncAndPairing.Models;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -21,18 +23,23 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
 {
     private readonly ISyncCoordinator sync;
     private readonly IAppEnvironment environment;
+    private readonly IDisposable stateSubscription;
+    private SyncState state;
 
     public ShellFeedbackViewModel(ISyncCoordinator sync, IAppEnvironment environment,
         IUiThreadDispatcher dispatcher, TimeProvider timeProvider) : base(dispatcher, timeProvider)
     {
         this.sync = sync;
         this.environment = environment;
+        state = sync.State;
         SyncCommand = new AsyncRelayCommand(() => sync.SyncAllAsync(),
-            () => (environment.Capabilities.CanHostSyncServer || environment.Capabilities.CanPairAsClient) && sync.CanSync);
-        sync.IsRunningChanged += OnSyncStateChanged;
-        sync.IsPairedChanged += OnSyncStateChanged;
-        sync.ProgressChanged += OnSyncStateChanged;
-        sync.CanSyncChanged += OnCanSyncChanged;
+            () => (environment.Capabilities.CanHostSyncServer || environment.Capabilities.CanPairAsClient) && state.CanSync);
+        stateSubscription = sync.States.ObserveOnUiThread(dispatcher).Subscribe(value =>
+        {
+            state = value;
+            OnSyncStateChanged();
+            SyncCommand.NotifyCanExecuteChanged();
+        });
         sync.SyncCompleted += OnSyncCompleted;
         sync.SyncFailed += OnSyncFailed;
         sync.ServerUnavailable += OnServerUnavailable;
@@ -41,23 +48,20 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
     public IAsyncRelayCommand SyncCommand { get; }
     public bool CanImportSessions => environment.Capabilities.SupportsMassStorageImport ||
                                      environment.Capabilities.SupportsStorageProviderImport;
-    public bool IsPaired => sync.IsPaired;
-    public bool SyncInProgress => sync.IsRunning;
-    public string SyncProgressText => sync.Progress?.Message ?? (SyncInProgress ? "Syncing" : string.Empty);
-    public double SyncProgressValue => sync.Progress?.Fraction ?? 0;
-    public bool SyncProgressIsIndeterminate => sync.Progress is null || !sync.Progress.IsDeterminate;
+    public bool IsPaired => state.IsPaired;
+    public bool SyncInProgress => state.IsRunning;
+    public string SyncProgressText => state.Progress?.Message ?? (SyncInProgress ? "Syncing" : string.Empty);
+    public double SyncProgressValue => state.Progress?.Fraction ?? 0;
+    public bool SyncProgressIsIndeterminate => state.Progress is null || !state.Progress.IsDeterminate;
 
-    private void OnSyncStateChanged(object? sender, EventArgs args) => UiThreadDispatcher.Post(() =>
+    private void OnSyncStateChanged()
     {
         OnPropertyChanged(nameof(IsPaired));
         OnPropertyChanged(nameof(SyncInProgress));
         OnPropertyChanged(nameof(SyncProgressText));
         OnPropertyChanged(nameof(SyncProgressValue));
         OnPropertyChanged(nameof(SyncProgressIsIndeterminate));
-    });
-
-    private void OnCanSyncChanged(object? sender, EventArgs args) =>
-        UiThreadDispatcher.Post(SyncCommand.NotifyCanExecuteChanged);
+    }
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs args) => UiThreadDispatcher.Post(() =>
     {
@@ -135,10 +139,7 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
 
     public void Dispose()
     {
-        sync.IsRunningChanged -= OnSyncStateChanged;
-        sync.IsPairedChanged -= OnSyncStateChanged;
-        sync.ProgressChanged -= OnSyncStateChanged;
-        sync.CanSyncChanged -= OnCanSyncChanged;
+        stateSubscription.Dispose();
         sync.SyncCompleted -= OnSyncCompleted;
         sync.SyncFailed -= OnSyncFailed;
         sync.ServerUnavailable -= OnServerUnavailable;

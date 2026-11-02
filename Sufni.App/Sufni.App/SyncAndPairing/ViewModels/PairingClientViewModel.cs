@@ -10,23 +10,25 @@ using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.SyncAndPairing.ViewModels;
 
-public partial class PairingClientViewModel : TabPageViewModelBase
+public partial class PairingClientViewModel : TabPageViewModelBase, IDisposable
 {
     #region Observable properties
 
     [ObservableProperty] public partial string? ServerUrl { get; set; }
     [ObservableProperty] public partial string? DisplayName { get; set; }
     [ObservableProperty] public partial string? Pin { get; set; }
-    [ObservableProperty] public partial bool IsRequestSent { get; set; }
-    [ObservableProperty] public partial bool IsPaired { get; set; }
+    [ObservableProperty] public partial SyncState SyncState { get; private set; }
 
     #endregion
 
     #region Private members
 
     private readonly IPairingClientCoordinator coordinator;
+    private readonly ISyncCoordinator sync;
+    private readonly IDisposable stateSubscription;
 
     #endregion Private members
 
@@ -34,6 +36,7 @@ public partial class PairingClientViewModel : TabPageViewModelBase
 
     public PairingClientViewModel(
         IPairingClientCoordinator coordinator,
+        ISyncCoordinator sync,
         IShellCoordinator shell,
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
@@ -41,15 +44,16 @@ public partial class PairingClientViewModel : TabPageViewModelBase
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.coordinator = coordinator;
+        this.sync = sync;
         Name = "Pair";
 
         DisplayName = coordinator.DisplayName;
         ServerUrl = coordinator.ServerUrl;
-        IsPaired = coordinator.IsPaired;
+        SyncState = sync.State;
 
         coordinator.DisplayNameChanged += OnDisplayNameChanged;
         coordinator.ServerUrlChanged += OnServerUrlChanged;
-        _ = coordinator.PairedState.Subscribe(OnPairedStateChanged);
+        stateSubscription = sync.States.ObserveOnUiThread(uiThreadDispatcher).Subscribe(value => SyncState = value);
     }
 
     #endregion
@@ -58,17 +62,19 @@ public partial class PairingClientViewModel : TabPageViewModelBase
 
     private void OnDisplayNameChanged(object? sender, EventArgs e)
     {
-        UiThreadDispatcher.InvokeAsync(() => DisplayName = coordinator.DisplayName);
+        UiThreadDispatcher.Post(() => DisplayName = coordinator.DisplayName);
     }
 
     private void OnServerUrlChanged(object? sender, EventArgs e)
     {
-        UiThreadDispatcher.InvokeAsync(() => ServerUrl = coordinator.ServerUrl);
+        UiThreadDispatcher.Post(() => ServerUrl = coordinator.ServerUrl);
     }
 
-    private void OnPairedStateChanged(bool isPaired)
+    public void Dispose()
     {
-        UiThreadDispatcher.InvokeAsync(() => IsPaired = isPaired);
+        coordinator.DisplayNameChanged -= OnDisplayNameChanged;
+        coordinator.ServerUrlChanged -= OnServerUrlChanged;
+        stateSubscription.Dispose();
     }
 
     #endregion Private methods
@@ -81,9 +87,6 @@ public partial class PairingClientViewModel : TabPageViewModelBase
         var result = await coordinator.RequestPairingAsync(DisplayName);
         switch (result)
         {
-            case RequestPairingResult.Sent:
-                IsRequestSent = true;
-                break;
             case RequestPairingResult.ServerUnavailable:
                 Notifications.Add("No server was found. Make sure the desktop app is running on the same network.");
                 break;
@@ -98,15 +101,15 @@ public partial class PairingClientViewModel : TabPageViewModelBase
     {
         Debug.Assert(Pin is not null);
 
-        var result = await coordinator.ConfirmPairingAsync(DisplayName, Pin);
+        var result = await sync.ConfirmPairingAndSyncAsync(DisplayName, Pin,
+            new UiThreadProgress<PairingClientState>(UiThreadDispatcher, _ =>
+            {
+                Pin = null;
+                ErrorMessages.Clear();
+                shell.GoBack();
+            }));
         switch (result)
         {
-            case ConfirmPairingResult.Paired:
-                Pin = null;
-                IsRequestSent = false;
-                ErrorMessages.Clear();
-                _ = shell.GoBack();
-                break;
             case ConfirmPairingResult.PinRejected:
                 Notifications.Add("The PIN was not accepted. Check the PIN or request a new one.");
                 break;

@@ -409,7 +409,7 @@ public class HttpApiServiceTests : IAsyncDisposable
         var service = await api.GetPeerAsync(Endpoint);
         var pairedStates = new List<bool>();
         var unpaired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var pairedStateSubscription = api.PairedState.Subscribe(value =>
+        using var pairedStateSubscription = api.PeerChanges.Select(peer => peer is not null).Subscribe(value =>
         {
             pairedStates.Add(value);
             if (!value)
@@ -482,7 +482,8 @@ public class HttpApiServiceTests : IAsyncDisposable
         var service = CreateApiService(secureStorage, (_, _) =>
             throw new InvalidOperationException("Pairing probes should not use the stored endpoint."));
 
-        Assert.Equal(hasRefreshToken, await service.IsPairedAsync());
+        await service.InitializeAsync();
+        Assert.Equal(hasRefreshToken, service.PairedPeer is not null);
         Assert.Equal(hasRefreshToken, await ReadNextPairedStateAsync(service));
     }
 
@@ -498,7 +499,7 @@ public class HttpApiServiceTests : IAsyncDisposable
                     SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10)),
                     "new-refresh", "new-database"))), certificate);
         var states = new List<bool>();
-        using var observation = api.PairedState.Subscribe(states.Add);
+        using var observation = api.PeerChanges.Select(peer => peer is not null).Subscribe(states.Add);
 
         await api.RequestPairingAsync(Endpoint, "device", "phone");
         await api.ConfirmPairingAsync("device", "phone", "123456");
@@ -529,7 +530,7 @@ public class HttpApiServiceTests : IAsyncDisposable
         await cancellation.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
-        Assert.True(await api.IsPairedAsync());
+        Assert.NotNull(api.PairedPeer);
     }
 
     [Fact]
@@ -682,7 +683,7 @@ public class HttpApiServiceTests : IAsyncDisposable
         await api.UnpairAsync("device").AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
-        Assert.False(await api.IsPairedAsync());
+        Assert.Null(api.PairedPeer);
         await Assert.ThrowsAsync<HttpRequestException>(() => api.GetPeerAsync(Endpoint));
     }
 
@@ -727,7 +728,7 @@ public class HttpApiServiceTests : IAsyncDisposable
     private static async Task<bool> ReadNextPairedStateAsync(HttpApiService service)
     {
         var pairedState = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = service.PairedState.Subscribe(value => pairedState.TrySetResult(value));
+        using var subscription = service.PeerChanges.Select(peer => peer is not null).Subscribe(value => pairedState.TrySetResult(value));
         return await pairedState.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +16,7 @@ using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
 /// <summary>Owns mobile pairing and peer discovery.</summary>
-public sealed class PairingClientCoordinator : IPairingClientCoordinator
+public sealed class PairingClientCoordinator : IPairingClientCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<PairingClientCoordinator>();
 
@@ -37,19 +38,21 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
     private bool isBrowseStarted;
     private TaskCompletionSource<string?>? pendingServerResolution;
 
-    private Task Initialization { get; }
+    private readonly Lazy<Task> initialization;
+    private readonly BehaviorSubject<PairingClientState> requestState = new(PairingClientState.Unpaired);
+
+    public Task InitializeAsync() => initialization.Value;
 
     public string? DeviceId => deviceId;
     public string? DisplayName => displayName;
     public string? ServerUrl => serverUrl;
-    public bool IsPaired { get; private set; }
-    public IObservable<bool> PairedState => httpApiService.PairedState;
+    public PairingClientState State => httpApiService.PairedPeer is null ? requestState.Value : PairingClientState.Paired;
+    public IObservable<PairingClientState> States { get; }
+    private readonly IDisposable stateConnection;
 
     public event EventHandler? DeviceIdChanged;
     public event EventHandler? DisplayNameChanged;
     public event EventHandler? ServerUrlChanged;
-    public event EventHandler? IsPairedChanged;
-    public event EventHandler? PairingConfirmed;
 
     public PairingClientCoordinator(
         ISecureStorage secureStorage,
@@ -66,11 +69,15 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         this.timeProvider = timeProvider;
         this.localDeviceIdentity = localDeviceIdentity;
 
-        _ = httpApiService.PairedState.Subscribe(OnPairedStateChanged);
+        var states = httpApiService.PeerChanges.CombineLatest(requestState,
+            (peer, request) => peer is null ? request : PairingClientState.Paired)
+            .DistinctUntilChanged().Replay(1);
+        States = states;
+        stateConnection = states.Connect();
         serviceDiscovery.ServiceAdded += OnServiceAdded;
         serviceDiscovery.ServiceRemoved += OnServiceRemoved;
 
-        Initialization = Init();
+        initialization = new Lazy<Task>(Init);
     }
 
     private async Task Init()
@@ -96,8 +103,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
             fallbackDisplayName is not null);
         DisplayNameChanged?.Invoke(this, EventArgs.Empty);
 
-        _ = await httpApiService.IsPairedAsync();
-        logger.Verbose("Pairing client startup probe reported paired state {IsPaired}", IsPaired);
+        await httpApiService.InitializeAsync();
     }
 
     private static string? BuildServerUrl(ServiceAnnouncement announcement)
@@ -220,9 +226,9 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<ISynchronizationPeer?> ResolvePeerAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        await Initialization.WaitAsync(cancellationToken);
+        await InitializeAsync().WaitAsync(cancellationToken);
 
-        if (!IsPaired)
+        if (State != PairingClientState.Paired)
         {
             return null;
         }
@@ -264,7 +270,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<RequestPairingResult> RequestPairingAsync(string? displayName)
     {
-        await Initialization;
+        await InitializeAsync();
 
         logger.Information("Starting pairing request");
 
@@ -280,6 +286,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         try
         {
             await httpApiService.RequestPairingAsync(new PeerEndpoint(serverUrl), deviceId!, normalized);
+            requestState.OnNext(PairingClientState.AwaitingPin);
             logger.Information("Pairing request sent");
             return new RequestPairingResult.Sent();
         }
@@ -292,7 +299,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<ConfirmPairingResult> ConfirmPairingAsync(string? displayName, string pin)
     {
-        await Initialization;
+        await InitializeAsync();
 
         logger.Information("Starting pairing confirmation");
 
@@ -303,6 +310,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         try
         {
             await httpApiService.ConfirmPairingAsync(deviceId!, normalized, pin);
+            requestState.OnNext(PairingClientState.Unpaired);
 
             await secureStorage.SetStringAsync(DisplayNameKey, normalized);
 
@@ -311,8 +319,6 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
                 this.displayName = normalized;
                 DisplayNameChanged?.Invoke(this, EventArgs.Empty);
             }
-
-            PairingConfirmed?.Invoke(this, EventArgs.Empty);
 
             logger.Information("Pairing confirmation completed");
             return new ConfirmPairingResult.Paired();
@@ -330,7 +336,7 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
 
     public async Task<UnpairResult> UnpairAsync()
     {
-        await Initialization;
+        await InitializeAsync();
 
         logger.Information("Starting client unpair");
 
@@ -359,14 +365,12 @@ public sealed class PairingClientCoordinator : IPairingClientCoordinator
         return result;
     }
 
-    private void OnPairedStateChanged(bool value)
+    public void Dispose()
     {
-        if (IsPaired == value)
-        {
-            return;
-        }
-
-        IsPaired = value;
-        IsPairedChanged?.Invoke(this, EventArgs.Empty);
+        stateConnection.Dispose();
+        serviceDiscovery.ServiceAdded -= OnServiceAdded;
+        serviceDiscovery.ServiceRemoved -= OnServiceRemoved;
+        if (isBrowseStarted) serviceDiscovery.StopBrowse();
+        requestState.Dispose();
     }
 }

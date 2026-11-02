@@ -102,7 +102,7 @@ startup failure/reset surface; reset requires relaunch.
 
 Mobile heads register capabilities and services that desktop heads generally do not provide:
 
-- **Sync client**: shared `SyncCoordinator` owns the run, cursors and publication. Mobile `IPairingClientCoordinator` owns device/display identity, mDNS browse and pairing commands; it resolves a captured `ISynchronizationPeer` through `IHttpApiService`. Pairing availability still mirrors the HTTP owner’s replayed state. See [Sync § Client](sync.md#client).
+- **Sync client**: shared `SyncCoordinator` owns the run, cursors and publication. Mobile `IPairingClientCoordinator` owns device/display identity, mDNS browse and pairing commands; it resolves a captured `ISynchronizationPeer` through `IHttpApiService`. The pairing enum derives from the credentialed peer and pending PIN request; shell and pairing views consume the combined `SyncState` stream. See [Sync § Client](sync.md#client).
 - **`PairingClientViewModel`**: the pairing client UI; it opens as a shared workspace tab/page surface.
 - **`IHapticFeedback`**: invoked from `HapticFeedbackBehavior` when the platform registers a haptics implementation.
 - **`IFriendlyNameProvider`**: queried by `PairingClientCoordinator` to seed a default display name for the pairing record.
@@ -127,7 +127,8 @@ a platform registration delegate. The mobile native hosts override
    `ValidateOnBuild = true`. `AppStartup` gates page creation on database
    initialization and the first store refresh, initializes tile layers, and
    starts the server on capable heads. The page-activation callback resolves
-   subscription owners before server startup, including the pairing client on mobile.
+   subscription owners before server startup. Mobile pairing initialization is
+   awaited by `AppStartup` before pages are created.
    Desktop pairing has no eager event subscriptions; startup calls the server directly.
 
 Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia

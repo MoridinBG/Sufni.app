@@ -110,10 +110,15 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static ISyncCoordinator Sync()
+    public static ISyncCoordinator Sync(Sufni.App.SyncAndPairing.Models.SyncState? state = null,
+        System.Reactive.Subjects.BehaviorSubject<Sufni.App.SyncAndPairing.Models.SyncState>? states = null)
     {
         var coordinator = Substitute.For<ISyncCoordinator>();
 
+        var initial = state ?? new Sufni.App.SyncAndPairing.Models.SyncState(
+            Sufni.App.SyncAndPairing.Models.PairingClientState.Unpaired, Sufni.App.SyncAndPairing.Services.SyncActivity.Idle);
+        coordinator.State.Returns(_ => states?.Value ?? initial);
+        coordinator.States.Returns(states ?? System.Reactive.Linq.Observable.Return(initial));
         coordinator.SyncAllAsync().Returns(Task.CompletedTask);
 
         return coordinator;

@@ -368,7 +368,7 @@ Topics in [architecture/persistence.md](architecture/persistence.md):
 
 ## Cross-Device Synchronization
 
-A desktop instance can host an embedded ASP.NET Core / Kestrel server over TLS with JWT auth, advertised via mDNS. Mobile clients pair with a 6-digit PIN, then push and pull entity changes, deletion ledger entries, processed telemetry blobs, and recorded-source payloads. `SyncCoordinator` is the client application-layer entry point; desktop row endpoints await `IInboundSyncCoordinator` for persistence and coherent publication across all synced stores. `SynchronizationPeer` owns JWT auto-refresh. Runs verify the hub incarnation and announce their phases; desktop progress follows the inbound coordinator’s run state and silence deadline.
+A desktop instance can host an embedded ASP.NET Core / Kestrel server over TLS with JWT auth, advertised via mDNS. Mobile clients pair with a 6-digit PIN, then push and pull entity changes, deletion ledger entries, processed telemetry blobs, and recorded-source payloads. `SyncCoordinator` owns explicit confirm-and-sync and publishes one replayed `SyncState` for shell and pairing surfaces; desktop row endpoints await `IInboundSyncCoordinator` for persistence and coherent publication across all synced stores. `SynchronizationPeer` owns JWT auto-refresh. Runs verify the hub incarnation and announce their phases; desktop progress follows the inbound coordinator’s run state and silence deadline.
 
 Topics in [architecture/sync.md](architecture/sync.md):
 

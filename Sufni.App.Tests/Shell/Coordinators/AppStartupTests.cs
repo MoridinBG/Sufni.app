@@ -197,11 +197,30 @@ public class AppStartupTests
         Assert.IsType<ShellStartupState.RelaunchRequired>(startup.State);
     }
 
+    [Fact]
+    public async Task Startup_AwaitsPairingInitializationBeforeCreatingPages()
+    {
+        var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pairing = Substitute.For<IPairingClientCoordinator>();
+        pairing.InitializeAsync().Returns(initialized.Task);
+        using var startup = Create(pairing: pairing);
+        var pages = false;
+        var run = startup.StartAsync(() => pages = true);
+        Assert.False(pages);
+        Assert.IsType<ShellStartupState.Starting>(startup.State);
+
+        initialized.SetResult();
+        await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(pages);
+        Assert.IsType<ShellStartupState.Ready>(startup.State);
+    }
+
     private static AppStartup Create(
         IStartupDatabase? database = null,
         IAppDataRefresher? refresher = null,
         ISynchronizationServerService? server = null,
-        IStartupJob[]? jobs = null, IAppPreferences? preferences = null)
+        IStartupJob[]? jobs = null, IAppPreferences? preferences = null, IPairingClientCoordinator? pairing = null)
     {
         if (database is null)
         {
@@ -211,7 +230,7 @@ public class AppStartupTests
 
         return new AppStartup(database, refresher ?? Substitute.For<IAppDataRefresher>(),
             Substitute.For<ITileLayerService>(), new InlineUiThreadDispatcher(), new InlineBackgroundTaskRunner(),
-            Substitute.For<IAppPaths>(), preferences ?? Substitute.For<IAppPreferences>(), jobs ?? [], server);
+            Substitute.For<IAppPaths>(), preferences ?? Substitute.For<IAppPreferences>(), jobs ?? [], server, pairing);
     }
 
     private sealed class CancellableJob : IStartupJob

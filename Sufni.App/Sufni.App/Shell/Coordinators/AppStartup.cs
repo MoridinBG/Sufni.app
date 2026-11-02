@@ -23,7 +23,8 @@ internal sealed class AppStartup(
     IAppPaths paths,
     IAppPreferences preferences,
     IEnumerable<IStartupJob> jobs,
-    ISynchronizationServerService? server = null) : IAppStartup, IDisposable
+    ISynchronizationServerService? server = null,
+    IPairingClientCoordinator? pairing = null) : IAppStartup, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<AppStartup>();
     private readonly BehaviorSubject<ShellStartupState> state = new(new ShellStartupState.Starting());
@@ -50,6 +51,7 @@ internal sealed class AppStartup(
             await refresher.RefreshAsync(cancellation.Token);
             reason = StartupFailureReason.Startup;
             await dispatcher.InvokeAsync(tileLayers.InitializeAsync);
+            if (pairing is not null) await backgroundTaskRunner.RunAsync(pairing.InitializeAsync, cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             await dispatcher.InvokeAsync(activatePages);
             if (server is not null)

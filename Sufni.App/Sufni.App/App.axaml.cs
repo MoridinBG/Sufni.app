@@ -151,7 +151,6 @@ public partial class App : Application
         {
             _ = Services.GetRequiredService<ITrackCoordinator>();
             _ = Services.GetRequiredService<ISyncCoordinator>();
-            ResolveCapabilityEagerServices(Services, root.Capabilities);
             return Services.GetRequiredService<MainPagesViewModel>();
         });
 
@@ -200,14 +199,4 @@ public partial class App : Application
                 and not ISingleViewApplicationLifetime;
     }
 
-    internal static void ResolveCapabilityEagerServices(
-        IServiceProvider services,
-        AppCapabilities capabilities)
-    {
-        if (capabilities.CanPairAsClient)
-        {
-            // Resolve so DeviceId / IsPaired probe runs before the pairing screen is opened.
-            _ = services.GetService<IPairingClientCoordinator>();
-        }
-    }
 }

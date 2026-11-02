@@ -29,7 +29,7 @@ public sealed record SynchronizationProgressSnapshot(
             : 0;
 }
 
-public enum SyncActivity { Idle, Outbound, Inbound }
+public enum SyncActivity { Idle, Pairing, Outbound, Inbound, Stopped }
 
 public abstract record SynchronizationRunResult
 {
