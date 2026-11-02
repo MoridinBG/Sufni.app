@@ -42,6 +42,8 @@ internal sealed class SessionCoordinator : ISessionCoordinator
     private readonly StorePublication publication;
     private readonly ITrackStoreWriter trackStore;
 
+    public event EventHandler<SessionRecomputeAllOutcome>? RecomputeAllFinished;
+
     public SessionCoordinator(
         ISessionStoreWriter sessionStore,
         ISessionRepository sessionRepository,
@@ -68,6 +70,35 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         this.sessionPreferences = sessionPreferences;
         this.recomputeEngine = recomputeEngine;
         this.sessionPersistenceTransactions = sessionPersistenceTransactions;
+    }
+
+    public async Task<SessionStalenessReconciliation> ReconcileStalenessAsync(
+        RecordedSessionDomainSnapshot domain, SessionRecomputeChoice choice = SessionRecomputeChoice.Inspect,
+        IProgress<SessionRecomputeAllProgress>? progress = null)
+    {
+        if (recomputeEngine.IsActive(domain.Session.Id)) return new SessionStalenessReconciliation.Active();
+        if (domain.Staleness is SessionStaleness.MissingRawSource)
+            return new SessionStalenessReconciliation.Unavailable(domain.Staleness);
+        if (!domain.Staleness.IsStale) return new SessionStalenessReconciliation.Current();
+        if (!domain.Staleness.CanRecompute) return new SessionStalenessReconciliation.Unavailable(domain.Staleness);
+        if (choice == SessionRecomputeChoice.Inspect)
+            return new SessionStalenessReconciliation.Required(domain.CurrentFingerprint, domain.Session.ProcessingFingerprintJson);
+        if (choice == SessionRecomputeChoice.ThisSession)
+            return new SessionStalenessReconciliation.Recomputed(await recomputeEngine.RequestRecomputeAsync(domain.Session.Id));
+
+        SessionRecomputeAllOutcome outcome;
+        try
+        {
+            outcome = new SessionRecomputeAllOutcome.Completed(await recomputeEngine.RequestRecomputeAllAsync(progress));
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Session bulk recompute failed");
+            outcome = new SessionRecomputeAllOutcome.Failed(SessionRecomputeFailureReason.RecomputeAll, exception.Message);
+        }
+        await dispatcher.InvokeAsync(() => RecomputeAllFinished?.Invoke(this, outcome));
+        return new SessionStalenessReconciliation.Bulk(outcome);
     }
 
     public async Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds)

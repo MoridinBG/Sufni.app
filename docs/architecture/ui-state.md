@@ -191,13 +191,17 @@ Recompute and GPS-offset adjustment are one-way: they persist and upsert
 the session store, and the refresh reaches the editor through this same
 watch reaction rather than a pushed result.
 `ISessionRecomputeEngine.RequestRecomputeAsync(sessionId)` is
-baseline-free — the `SessionRecomputeEngine` owns serialization and
-liveness — and the staleness prompter is forward-only: on a stale,
-recomputable session it confirms and requests a recompute (suppressed
-while a recompute the user just triggered is in flight), surfacing only
-the unrecomputable/failed outcomes. Missing raw sources are reported once even
-when the available processed data is otherwise current; missing setup/bike inputs
-have their own message. Neither condition blocks opening available telemetry.
+baseline-free — the `SessionRecomputeEngine` owns serialization and liveness.
+`SessionCoordinator.ReconcileStalenessAsync` returns `Current`, `Active`,
+`Required`, or `Unavailable` when inspecting a domain snapshot, and executes
+confirmed single-session or bulk choices. Missing raw sources are unavailable
+even when existing processed data remains current; missing setup/bike inputs
+have their own presentation. Neither condition blocks opening available telemetry.
+The editor owns prompt visibility and remembers the prompted fingerprint pair;
+unchanged inputs do not prompt again, while changed processing inputs do.
+Inactive tabs defer this presentation in both layouts. Domain reactions enter
+directly from the projection watch, stay retained while pending, and drain on
+final close. Bulk recompute completion is also delivered to shell feedback.
 
 Recorded-session analysis result state is scoped to an open
 `SessionDetailViewModel`. The editor creates one

@@ -9,6 +9,7 @@ using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Video.Coordinators;
+using Sufni.App.Sessions.Coordination;
 
 namespace Sufni.App.Shell.ViewModels;
 
@@ -22,14 +23,16 @@ public interface IShellActions
 public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisposable
 {
     private readonly ISyncCoordinator sync;
+    private readonly ISessionCoordinator sessions;
     private readonly IAppEnvironment environment;
     private readonly IDisposable stateSubscription;
     private SyncState state;
 
-    public ShellFeedbackViewModel(ISyncCoordinator sync, IAppEnvironment environment,
+    public ShellFeedbackViewModel(ISyncCoordinator sync, ISessionCoordinator sessions, IAppEnvironment environment,
         IUiThreadDispatcher dispatcher, TimeProvider timeProvider) : base(dispatcher, timeProvider)
     {
         this.sync = sync;
+        this.sessions = sessions;
         this.environment = environment;
         state = sync.State;
         SyncCommand = new AsyncRelayCommand(() => sync.SyncAllAsync(),
@@ -43,6 +46,7 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
         sync.SyncCompleted += OnSyncCompleted;
         sync.SyncFailed += OnSyncFailed;
         sync.ServerUnavailable += OnServerUnavailable;
+        sessions.RecomputeAllFinished += OnRecomputeAllFinished;
     }
 
     public IAsyncRelayCommand SyncCommand { get; }
@@ -137,12 +141,29 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
 
     public void ShowUnexpectedFailure() => ErrorMessages.Add(new FailurePresentation("The action could not be completed. See the log for details."));
 
+    private void OnRecomputeAllFinished(object? sender, SessionRecomputeAllOutcome outcome) => UiThreadDispatcher.Post(() =>
+    {
+        switch (outcome)
+        {
+            case SessionRecomputeAllOutcome.Completed completed when completed.Result.Failed > 0:
+                ErrorMessages.Add(new FailurePresentation($"{completed.Result.Failed} of {completed.Result.Total} sessions could not be recomputed."));
+                break;
+            case SessionRecomputeAllOutcome.Completed completed:
+                Notifications.Add($"Recomputed {completed.Result.Recomputed} session(s).");
+                break;
+            case SessionRecomputeAllOutcome.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                break;
+        }
+    });
+
     public void Dispose()
     {
         stateSubscription.Dispose();
         sync.SyncCompleted -= OnSyncCompleted;
         sync.SyncFailed -= OnSyncFailed;
         sync.ServerUnavailable -= OnServerUnavailable;
+        sessions.RecomputeAllFinished -= OnRecomputeAllFinished;
         ClearNotificationsCommand.Execute(null);
     }
 }

@@ -1,3 +1,4 @@
+using Serilog;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
@@ -95,7 +96,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly SegmentComparisonViewModel segmentComparison;
     private readonly TelemetrySourceVisibilityStore sourceVisibility = new();
     private readonly ISessionOperationRunner sessionOperationRunner;
-    private readonly SessionStalenessReconciler stalenessReconciler;
+    private static readonly ILogger logger = Log.ForContext<SessionDetailViewModel>();
+    private SessionStalenessReconciliation.Required? promptedRecompute;
+    private bool recomputePromptRunning;
+    private bool reportedUnavailableInputs;
+    private Task pendingDomainReactions = Task.CompletedTask;
     private readonly IRecordedSessionAnalysisResultState analysisResultState;
     private readonly IDisposable analysisResultSubscription;
     private readonly RecordedSessionEditorActions editorActions = new();
@@ -915,15 +920,15 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     // independently so unsaved edits are never silently discarded.
     private async Task OnDomainChangedAsync(RecordedSessionDomainSnapshot domain)
     {
-        // The domain-change effect is fire-and-forget; an unguarded throw would
-        // surface only as an unobserved task exception.
         try
         {
             await OnDomainChangedCoreAsync(domain);
         }
+        catch (OperationCanceledException) { }
         catch (Exception exception)
         {
-            ErrorMessages.Add(new FailurePresentation($"Failed to handle a session change: {exception.Message}"));
+            logger.Error(exception, "Session editor reconciliation failed for {SessionId}", Id);
+            if (viewLoaded) ErrorMessages.Add(FailurePresentation.From(SessionEditorFailureReason.Reconcile, exception.Message));
         }
     }
 
@@ -952,7 +957,83 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             await ApplyDomainReactionAsync(previous, domain);
         }
 
-        await stalenessReconciler.HandleStalenessAsync(domain);
+        if (viewLoaded) await ReconcileStalenessAsync(domain);
+    }
+
+    private async Task ReconcileStalenessAsync(RecordedSessionDomainSnapshot domain)
+    {
+        var result = await sessionCoordinator.ReconcileStalenessAsync(domain);
+        if (!viewLoaded) return;
+        switch (result)
+        {
+            case SessionStalenessReconciliation.Current:
+                promptedRecompute = null;
+                return;
+            case SessionStalenessReconciliation.Unavailable unavailable:
+                ReportUnavailableInputs(unavailable.Reason);
+                return;
+            case SessionStalenessReconciliation.Required required:
+                if (recomputePromptRunning || promptedRecompute == required) return;
+                promptedRecompute = required;
+                break;
+            default:
+                return;
+        }
+
+        recomputePromptRunning = true;
+        try
+        {
+            var choice = await dialogService.ShowChoiceAsync(
+                string.IsNullOrWhiteSpace(domain.Session.Name) ? "Session has to be recomputed" : $"Session {domain.Session.Name} has to be recomputed",
+                IsDirty ? "Recompute this session now? Your unsaved changes will be kept." : "Recompute this session now?",
+                [new DialogChoice("cancel", "Cancel"), new DialogChoice("recompute-all", "Recompute all"),
+                    new DialogChoice("recompute-this", "Recompute", IsDefault: true)]);
+            if (!viewLoaded) return;
+            var current = currentEditorState.Domain ?? domain;
+            if (choice == "recompute-all")
+            {
+                await dialogService.ShowProgressAsync("Recomputing all sessions", progress =>
+                    sessionCoordinator.ReconcileStalenessAsync(current, SessionRecomputeChoice.AllSessions,
+                        new UiThreadProgress<SessionRecomputeAllProgress>(UiThreadDispatcher, report =>
+                            progress.Report(new DialogProgress(report.Total == 0 ? 1 : (double)report.Completed / report.Total,
+                                $"{report.Completed} of {report.Total} sessions")))));
+                return;
+            }
+            if (choice != "recompute-this") return;
+            result = await sessionCoordinator.ReconcileStalenessAsync(current, SessionRecomputeChoice.ThisSession);
+            if (!viewLoaded) return;
+            switch (result)
+            {
+                case SessionStalenessReconciliation.Unavailable unavailable:
+                    ReportUnavailableInputs(unavailable.Reason);
+                    break;
+                case SessionStalenessReconciliation.Recomputed { Result: SessionRecomputeResult.NotRecomputable unavailable }:
+                    ReportUnavailableInputs(unavailable.Reason);
+                    break;
+                case SessionStalenessReconciliation.Recomputed { Result: SessionRecomputeResult.ProcessingFailed failed }:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+                case SessionStalenessReconciliation.Recomputed { Result: SessionRecomputeResult.Failed failed }:
+                    ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                    break;
+                case SessionStalenessReconciliation.Recomputed { Result: SessionRecomputeResult.Missing }:
+                    Notifications.Add("The session is no longer available.");
+                    break;
+            }
+        }
+        finally
+        {
+            recomputePromptRunning = false;
+        }
+    }
+
+    private void ReportUnavailableInputs(SessionStaleness reason)
+    {
+        if (reportedUnavailableInputs) return;
+        reportedUnavailableInputs = true;
+        ErrorMessages.Add(new FailurePresentation(reason is SessionStaleness.MissingDependencies
+            ? "Session cannot be recomputed until its missing setup or bike is restored."
+            : "The source recording is unavailable. Existing processed data can still be viewed."));
     }
 
     private async Task ApplyDomainReactionAsync(RecordedSessionDomainSnapshot previous, RecordedSessionDomainSnapshot current)
@@ -974,6 +1055,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             var discard = await dialogService.ShowConfirmationAsync(
                 "Session changed elsewhere",
                 "This session has been updated from another source. Discard your changes and reload?");
+            if (!viewLoaded) return;
             if (discard)
             {
                 await ApplyPersistedSnapshotAsync(snapshot);
@@ -1384,7 +1466,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         SessionSnapshot snapshot,
         ISessionCoordinator sessionCoordinator,
         ISessionLoader sessionLoader,
-        ISessionRecomputeEngine recomputeEngine,
         ISessionStore sessionStore,
         IRecordedSessionProjection recordedSessionProjection,
         IMapViewModelFactory mapViewModelFactory,
@@ -1602,10 +1683,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SetPlotDampingSpeedCutoffs,
             bikeCoordinator,
             ErrorMessages.Add);
-        stalenessReconciler = new SessionStalenessReconciler(
-            recomputeEngine,
-            dialogService,
-            this);
         processingPreferenceWorkflow = new ProcessingPreferenceWorkflow(
             sessionStore,
             PreferencesPage,
@@ -1669,8 +1746,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 RecordedSessionEditorEffects.ExplicitAnalysisRequests(editorActions.Intents),
                 RecordedSessionEditorEffects.MapMediaSync(editorStateController.State),
                 RecordedSessionEditorEffects.CommandRefresh(editorStateController.State),
-                RecordedSessionEditorEffects.RecomputeStaleness(
-                    editorStateController.State),
                 RecordedSessionEditorEffects.DirtyBaselineTracking(dirtyBaselineInput),
             ],
             ApplyRecordedSessionEditorEffect);
@@ -1983,12 +2058,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        if (effect is RecordedSessionEditorEffect.EvaluateRecomputeStaleness staleness)
-        {
-            _ = OnDomainChangedAsync(staleness.Domain);
-            return;
-        }
-
         if (effect is RecordedSessionEditorEffect.UpdateDirtyBaseline)
         {
             EvaluateDirtiness();
@@ -2216,9 +2285,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         return Task.CompletedTask;
     }
 
-    protected override Task CloseImplementation()
+    protected override async Task CloseImplementation()
     {
         StopLoadedSession();
+        await pendingDomainReactions;
         UnsubscribeVmEventHandlers();
         DisposeWorkspace(MobileWorkspace);
         DisposeWorkspace(SignalsWorkspace);
@@ -2237,7 +2307,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         analysisResultState.Dispose();
         MapViewModel?.Dispose();
         DisposeEditorInputSubjects();
-        return Task.CompletedTask;
     }
 
     private static void DisposeWorkspace(object workspace)
@@ -2335,7 +2404,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         EnsureScopedSubscription(s =>
         {
             s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
-            s.Add(watch.Subscribe(snapshot => PublishEditorInput(domainInput, snapshot)));
+            s.Add(watch.Subscribe(snapshot =>
+            {
+                PublishEditorInput(domainInput, snapshot);
+                pendingDomainReactions = Task.WhenAll(pendingDomainReactions, OnDomainChangedAsync(snapshot));
+            }));
             s.Add(operationWatch.Subscribe(state => PublishEditorInput(sessionOperationStateInput, state)));
         });
 
@@ -2366,7 +2439,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        _ = HandleDeferredDomainAsync();
+        pendingDomainReactions = Task.WhenAll(pendingDomainReactions, HandleDeferredDomainAsync());
     }
 
     private bool ShouldDeferDomainHandling() =>

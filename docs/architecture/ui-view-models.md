@@ -237,10 +237,12 @@ There are five kinds of view model in the presentation layer:
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   on its first `Loaded` and disposes that subscription on final tab close. View
   detach/reattach and layout changes keep the active load and telemetry retention.
-  Initial or runtime domain snapshots that are recomputable prompt the user to
-  recompute; inactive tabs in both layouts defer that prompt until selected. Unrecomputable stale snapshots report an
+  Initial or runtime domain snapshots pass to `SessionCoordinator.ReconcileStalenessAsync`;
+  the editor prompts only for its `Required` result. Unchanged fingerprint pairs
+  do not repeat a declined prompt; changed processing inputs may prompt again; inactive tabs in both layouts defer that prompt until selected. Unrecomputable stale snapshots report an
   error; processed data arriving for a current session reloads the
-  presentation data.
+  presentation data. Domain reactions are retained and drained on final close;
+  their failures use a fixed summary with separate diagnostics.
 
 ### Session Sub-Pages
 

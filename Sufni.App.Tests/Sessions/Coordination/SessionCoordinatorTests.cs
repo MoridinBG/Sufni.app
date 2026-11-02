@@ -60,6 +60,76 @@ public class SessionCoordinatorTests
             .Returns(new SessionDeleteCommit(true, null));
     }
 
+    [Fact]
+    public async Task ReconcileStaleness_DistinguishesCurrentActiveAndRequiredWithoutStartingWork()
+    {
+        var session = TestSnapshots.Session();
+        var coordinator = CreateCoordinator();
+        var current = new RecordedSessionDomainSnapshot(session, null, null, null, null, null, new SessionStaleness.Current());
+        Assert.IsType<SessionStalenessReconciliation.Current>(await coordinator.ReconcileStalenessAsync(current));
+
+        var stale = current with { Staleness = new SessionStaleness.Stale() };
+        var required = Assert.IsType<SessionStalenessReconciliation.Required>(await coordinator.ReconcileStalenessAsync(stale));
+        Assert.Equal(session.ProcessingFingerprintJson, required.StoredFingerprint);
+        recomputeEngine.IsActive(session.Id).Returns(true);
+        Assert.IsType<SessionStalenessReconciliation.Active>(await coordinator.ReconcileStalenessAsync(stale, SessionRecomputeChoice.ThisSession));
+        await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReconcileStaleness_ReportsUnavailableInputsWithoutStartingWork(bool missingSource)
+    {
+        SessionStaleness reason = missingSource ? new SessionStaleness.MissingRawSource()
+            : new SessionStaleness.MissingDependencies(true, false);
+        var domain = new RecordedSessionDomainSnapshot(TestSnapshots.Session(), null, null, null, null, null, reason);
+
+        var result = await CreateCoordinator().ReconcileStalenessAsync(domain, SessionRecomputeChoice.ThisSession);
+
+        Assert.Equal(reason, Assert.IsType<SessionStalenessReconciliation.Unavailable>(result).Reason);
+        await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ReconcileStaleness_ConfirmedSessionReturnsTheRecomputeOutcome()
+    {
+        var domain = new RecordedSessionDomainSnapshot(TestSnapshots.Session(), null, null, null, null, null, new SessionStaleness.Stale());
+        var outcome = new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.InvalidCalibration, "calibration details");
+        recomputeEngine.RequestRecomputeAsync(domain.Session.Id).Returns(outcome);
+
+        var result = await CreateCoordinator().ReconcileStalenessAsync(domain, SessionRecomputeChoice.ThisSession);
+
+        Assert.Equal(outcome, Assert.IsType<SessionStalenessReconciliation.Recomputed>(result).Result);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReconcileStaleness_BulkPublishesItsOutcomeForShellFeedback(bool fails)
+    {
+        var coordinator = CreateCoordinator();
+        var outcomes = new List<SessionRecomputeAllOutcome>();
+        coordinator.RecomputeAllFinished += (_, outcome) => outcomes.Add(outcome);
+        var domain = new RecordedSessionDomainSnapshot(TestSnapshots.Session(), null, null, null, null, null, new SessionStaleness.Stale());
+        var summary = new SessionRecomputeAllResult(4, 2, 0, 1, 1);
+        if (fails) recomputeEngine.RequestRecomputeAllAsync().ThrowsAsync(new IOException("database inaccessible"));
+        else recomputeEngine.RequestRecomputeAllAsync().Returns(summary);
+
+        var result = Assert.IsType<SessionStalenessReconciliation.Bulk>(
+            await coordinator.ReconcileStalenessAsync(domain, SessionRecomputeChoice.AllSessions));
+
+        Assert.Equal(result.Outcome, Assert.Single(outcomes));
+        if (fails)
+        {
+            var failure = Assert.IsType<SessionRecomputeAllOutcome.Failed>(result.Outcome);
+            Assert.Equal(SessionRecomputeFailureReason.RecomputeAll, failure.Reason);
+            Assert.Equal("database inaccessible", failure.Details);
+        }
+        else Assert.Equal(summary, Assert.IsType<SessionRecomputeAllOutcome.Completed>(result.Outcome).Result);
+        await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(65.0)]

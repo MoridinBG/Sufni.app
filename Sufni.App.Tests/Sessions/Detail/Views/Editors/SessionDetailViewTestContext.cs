@@ -35,7 +35,6 @@ internal sealed class SessionDetailViewTestContext
 {
     private readonly ISessionCoordinator sessionCoordinator = TestCoordinatorSubstitutes.Session();
     private readonly ISessionLoader sessionLoader = TestCoordinatorSubstitutes.SessionLoader();
-    private readonly ISessionRecomputeEngine recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionProjection recordedSessionProjection = Substitute.For<IRecordedSessionProjection>();
     private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
@@ -163,7 +162,6 @@ internal sealed class SessionDetailViewTestContext
             snapshot,
             sessionCoordinator,
             sessionLoader,
-            recomputeEngine,
             sessionStore,
             recordedSessionProjection,
             new TestMapViewModelFactory(tileLayerService),

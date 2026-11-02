@@ -21,7 +21,6 @@ internal abstract record RecordedSessionEditorEffect
 
     public sealed record RefreshCommands : RecordedSessionEditorEffect;
 
-    public sealed record EvaluateRecomputeStaleness(RecordedSessionDomainSnapshot Domain) : RecordedSessionEditorEffect;
 
     public sealed record UpdateDirtyBaseline : RecordedSessionEditorEffect;
 }
@@ -168,13 +167,6 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         previous.Session.GpsOffsetSeconds != current.Session.GpsOffsetSeconds ||
         previous.Session.Timestamp != current.Session.Timestamp ||
         previous.Session.DurationSeconds != current.Session.DurationSeconds;
-
-    public static IObservable<RecordedSessionEditorEffect> RecomputeStaleness(
-        IObservable<RecordedSessionEditorState> states) =>
-        states.Select(static state => state.Domain)
-            .Where(static domain => domain is not null)
-            .DistinctUntilChanged()
-            .Select(static domain => (RecordedSessionEditorEffect)new RecordedSessionEditorEffect.EvaluateRecomputeStaleness(domain!));
 
     public static IObservable<RecordedSessionEditorEffect> DirtyBaselineTracking(
         IObservable<Unit> changes)

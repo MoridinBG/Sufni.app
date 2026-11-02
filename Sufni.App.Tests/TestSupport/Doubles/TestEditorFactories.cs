@@ -62,7 +62,6 @@ internal static class TestEditorFactories
             TestCoordinatorSubstitutes.Session(),
             TestCoordinatorSubstitutes.LiveDaq(),
             TestCoordinatorSubstitutes.SessionLoader(),
-            TestCoordinatorSubstitutes.RecomputeEngine(),
             sessionStore ?? Substitute.For<ISessionStore>(),
             Substitute.For<IRecordedSessionProjection>(),
             sessionPresentationService,

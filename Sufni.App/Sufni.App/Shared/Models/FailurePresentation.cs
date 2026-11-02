@@ -184,10 +184,17 @@ public sealed record FailurePresentation
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 
+    public static FailurePresentation From(SessionEditorFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionEditorFailureReason.Reconcile => "The session changes could not be applied. Close the session and open it again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
+    }, details);
+
     public static FailurePresentation From(SessionRecomputeFailureReason reason, string? details = null) => new(reason switch
     {
         SessionRecomputeFailureReason.ProcessingOption => "The processing option could not be changed. Try again.",
         SessionRecomputeFailureReason.Recompute => "The session could not be recomputed. Try again.",
+        SessionRecomputeFailureReason.RecomputeAll => "The sessions could not be recomputed. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 

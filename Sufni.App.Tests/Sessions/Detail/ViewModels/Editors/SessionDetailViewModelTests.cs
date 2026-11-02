@@ -38,6 +38,66 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class SessionDetailViewModelTests
 {
     [AvaloniaFact]
+    public async Task Close_DrainsPendingReconciliationWithoutApplyingItsLateFeedback()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateLoadedRecordedSession(snapshot, projectionChanges: changes);
+        await harness.LoadAsync(editor);
+        var pending = new TaskCompletionSource<SessionStalenessReconciliation>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.SessionCoordinator.ReconcileStalenessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), SessionRecomputeChoice.Inspect)
+            .Returns(_ =>
+            {
+                started.TrySetResult();
+                return pending.Task;
+            });
+        changes.OnNext(DomainFromSnapshot(snapshot));
+        await started.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        var close = harness.CloseAsync(editor);
+        Assert.False(close.IsCompleted);
+        pending.SetResult(new SessionStalenessReconciliation.Unavailable(new SessionStaleness.MissingRawSource()));
+        await close.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task RecomputePrompt_DeduplicatesTheSameInputsAndReturnsForChangedProcessingInputs()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateLoadedRecordedSession(snapshot, projectionChanges: changes);
+        await harness.LoadAsync(editor);
+        var fingerprint = new ProcessingFingerprint(4, 1, Guid.NewGuid(), Guid.NewGuid(), 1, "dependency", "source", 25);
+        harness.SessionCoordinator.ReconcileStalenessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), SessionRecomputeChoice.Inspect)
+            .Returns(call => new SessionStalenessReconciliation.Required(call.Arg<RecordedSessionDomainSnapshot>().CurrentFingerprint, null));
+        var firstPrompt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondPrompt = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var prompts = 0;
+        harness.DialogService.ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>())
+            .Returns(_ =>
+            {
+                if (++prompts == 1) firstPrompt.TrySetResult();
+                else secondPrompt.TrySetResult();
+                return Task.FromResult<string?>("cancel");
+            });
+        var domain = DomainFromSnapshot(snapshot, staleness: new SessionStaleness.Stale()) with { CurrentFingerprint = fingerprint };
+        changes.OnNext(domain);
+        await firstPrompt.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        changes.OnNext(domain);
+        changes.OnNext(domain with { CurrentFingerprint = fingerprint with { VelocityFilterWindowMilliseconds = 100 } });
+        await secondPrompt.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await harness.CloseAsync(editor);
+
+        Assert.Equal(2, prompts);
+    }
+
+    [AvaloniaFact]
     public async Task SelectedTrackChange_ReloadsContentWithoutDiscardingDirtyMetadata()
     {
         var harness = new SessionDetailHarness();
@@ -99,6 +159,9 @@ public class SessionDetailViewModelTests
         var snapshot = harness.CreateRecordedSession();
         using var changes = new Subject<RecordedSessionDomainSnapshot>();
         var editor = harness.CreateLoadedRecordedSession(snapshot, projectionChanges: changes);
+        harness.SessionCoordinator.ReconcileStalenessAsync(
+            Arg.Is<RecordedSessionDomainSnapshot>(domain => domain.Staleness is SessionStaleness.Stale),
+            SessionRecomputeChoice.Inspect).Returns(new SessionStalenessReconciliation.Required(null, null));
         var prompted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         harness.DialogService.ShowChoiceAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<IReadOnlyList<DialogChoice>>())
             .Returns(_ =>

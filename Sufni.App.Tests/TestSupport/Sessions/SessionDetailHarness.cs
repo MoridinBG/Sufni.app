@@ -54,7 +54,6 @@ internal sealed class SessionDetailHarness
 
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
     public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
-    public ISessionRecomputeEngine RecomputeEngine { get; } = TestCoordinatorSubstitutes.RecomputeEngine();
     public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
     public IRecordedSessionProjection RecordedSessionProjection { get; } = Substitute.For<IRecordedSessionProjection>();
     public ISessionPresentationService SessionPresentationService { get; } = Substitute.For<ISessionPresentationService>();
@@ -168,7 +167,6 @@ internal sealed class SessionDetailHarness
             snapshot,
             SessionCoordinator,
             SessionLoader,
-            RecomputeEngine,
             SessionStore,
             RecordedSessionProjection,
             new TestMapViewModelFactory(tileLayerService),

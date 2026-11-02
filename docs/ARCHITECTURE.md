@@ -189,7 +189,7 @@ Topics in [architecture/processing.md](architecture/processing.md):
 ## UI Architecture
 
 `ShellFeedbackViewModel` owns global sync, GPX and video feedback independently
-of the selected page. Both layout profiles render the same feedback bar, and
+of the selected page, including bulk recompute outcomes from `SessionCoordinator`. Both layout profiles render the same feedback bar, and
 one shell dispatcher handler sends unexpected UI failures there. List view models
 own their menus and session import intent; feature views do not reach into a
 parent shell to invoke import.

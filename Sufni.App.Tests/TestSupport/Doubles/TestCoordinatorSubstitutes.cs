@@ -70,7 +70,13 @@ internal static class TestCoordinatorSubstitutes
         return coordinator;
     }
 
-    public static ISessionCoordinator Session() => Substitute.For<ISessionCoordinator>();
+    public static ISessionCoordinator Session()
+    {
+        var coordinator = Substitute.For<ISessionCoordinator>();
+        coordinator.ReconcileStalenessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<SessionRecomputeChoice>(),
+            Arg.Any<IProgress<SessionRecomputeAllProgress>>()).Returns(new SessionStalenessReconciliation.Current());
+        return coordinator;
+    }
 
     public static ISessionLoader SessionLoader()
     {

@@ -58,7 +58,8 @@ public enum MapLayerFailureReason { Add, Select }
 public enum RearCalibrationFailureReason { Configuration, Calculation }
 
 public enum SessionProcessingFailureReason { InvalidCalibration, Calibration, NoTravelData, InvalidRecording }
-public enum SessionRecomputeFailureReason { Recompute, ProcessingOption }
+public enum SessionRecomputeFailureReason { Recompute, ProcessingOption, RecomputeAll }
+public enum SessionEditorFailureReason { Reconcile }
 public enum LiveSessionSaveFailureReason { Save, Publish, Cleanup, Preferences }
 public enum SessionImportFailureReason { Import, InvalidFile, Publish, Trash, Acknowledge, Batch }
 

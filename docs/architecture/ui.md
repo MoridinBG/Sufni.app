@@ -154,7 +154,7 @@ Thread ownership is explicit:
 - ScottPlot draws on Avalonia's render thread while holding `Plot.Sync`.
   Time-series plot views rebuild their plottables under the same lock, so a
   frame never reads a half-cleared plot.
-- Recorded-session maps initialize lazily. `SessionDetailViewModel.SetMapState`
+- Recorded-session maps initialize lazily. `SessionDetailViewModel.ApplyEditorState`
   calls `MapViewModel.InitializeAsync()` only the first time the map state
   reserves layout (`SurfacePresentationState.ReservesLayout`); `Hidden` map
   state does not initialize the map.
