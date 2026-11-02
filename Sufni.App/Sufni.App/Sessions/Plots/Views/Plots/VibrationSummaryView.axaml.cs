@@ -9,24 +9,6 @@ namespace Sufni.App.Sessions.Plots.Views.Plots;
 
 public class VibrationSummaryView : TemplatedControl
 {
-    public static readonly StyledProperty<TelemetryData?> TelemetryProperty =
-        AvaloniaProperty.Register<VibrationSummaryView, TelemetryData?>(nameof(Telemetry));
-
-    public TelemetryData? Telemetry
-    {
-        get => GetValue(TelemetryProperty);
-        set => SetValue(TelemetryProperty, value);
-    }
-
-    public static readonly StyledProperty<TelemetryTimeRange?> AnalysisRangeProperty =
-        AvaloniaProperty.Register<VibrationSummaryView, TelemetryTimeRange?>(nameof(AnalysisRange));
-
-    public TelemetryTimeRange? AnalysisRange
-    {
-        get => GetValue(AnalysisRangeProperty);
-        set => SetValue(AnalysisRangeProperty, value);
-    }
-
     public static readonly StyledProperty<ISessionAnalysisResultSource?> AnalysisResultStateProperty =
         AvaloniaProperty.Register<VibrationSummaryView, ISessionAnalysisResultSource?>(
             nameof(AnalysisResultState));
@@ -92,8 +74,6 @@ public class VibrationSummaryView : TemplatedControl
 
     static VibrationSummaryView()
     {
-        TelemetryProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.RequestRecompute());
-        AnalysisRangeProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) => view.RequestRecompute());
         AnalysisResultStateProperty.Changed.AddClassHandler<VibrationSummaryView>((view, _) =>
         {
             view.SubscribeToAnalysisResultState(view.AnalysisResultState);
@@ -134,9 +114,7 @@ public class VibrationSummaryView : TemplatedControl
             return;
         }
 
-        Stats = Telemetry is null
-            ? null
-            : TelemetryStatistics.CalculateVibration(Telemetry, ImuLocation, SuspensionType, AnalysisRange);
+        Stats = null;
     }
 
     private void RequestRecompute()

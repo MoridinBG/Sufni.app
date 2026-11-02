@@ -25,12 +25,10 @@ mc:Ignorable="d">
                 </Grid.RowDefinitions>
 
                 <plots:VibrationSummaryView
-                AnalysisRange="{Binding #Root.AnalysisRange}"
                 AnalysisResultState="{Binding #Root.AnalysisResultState}"
                 ImuLocation="{Binding #Root.ImuLocation}"
                 IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
-                SuspensionType="{Binding #Root.SuspensionType}"
-                Telemetry="{Binding #Root.Telemetry}" />
+                SuspensionType="{Binding #Root.SuspensionType}" />
 
                 <zoom:PlotZoomContainer Grid.Row="1">
                     <plots:AnalysisPlotView

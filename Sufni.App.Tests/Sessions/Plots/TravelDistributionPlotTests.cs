@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using ScottPlot;
 using Sufni.Telemetry;
 
@@ -8,20 +9,21 @@ namespace Sufni.App.Tests.Sessions.Plots;
 public class TravelDistributionPlotTests
 {
     [Fact]
-    public void LoadTelemetryData_WithoutStrokeData_SkipsRendering()
+    public void LoadAnalysisData_WithoutStrokeData_SkipsRendering()
     {
         var telemetry = CreateTelemetryWithoutStrokes();
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), telemetry));
 
         Assert.Empty(plot.PlottableList);
         Assert.True(string.IsNullOrWhiteSpace(plot.Axes.Title.Label.Text));
     }
 
     [Fact]
-    public void LoadTelemetryData_WithDynamicSagMode_RendersWithoutStrokeData()
+    public void LoadAnalysisData_WithDynamicSagMode_RendersWithoutStrokeData()
     {
         var telemetry = CreateTelemetryWithoutStrokes();
         var plot = new Plot();
@@ -30,7 +32,8 @@ public class TravelDistributionPlotTests
             HistogramMode = TravelDistributionMode.DynamicSag,
         };
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), telemetry));
 
         Assert.NotEmpty(plot.PlottableList);
         Assert.Equal("Front travel distribution", plot.Axes.Title.Label.Text);
@@ -46,13 +49,15 @@ public class TravelDistributionPlotTests
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(original);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), original));
         Assert.Equal(2, plot.Axes.Rules.Count);
 
         sut.Clear();
         Assert.Empty(plot.Axes.Rules);
 
-        sut.LoadTelemetryData(recomputed);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), recomputed));
 
         Assert.Equal(2, plot.Axes.Rules.Count);
         Assert.True(plot.Axes.GetLimits().Bottom > 230);

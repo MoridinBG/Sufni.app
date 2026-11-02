@@ -31,7 +31,6 @@ mc:Ignorable="d">
                         <plots:AnalysisPlotView
                         AnalysisRange="{Binding #Root.AnalysisRange}"
                         AnalysisResultState="{Binding #Root.AnalysisResultState}"
-                        DampingSpeedCutoffs="{Binding #Root.PlotDampingSpeedCutoffs}"
                         AnalysisOverlays="{Binding #Root.AnalysisComparison.Overlays}"
                         IsAnalysisDemandActive="{Binding #Root.IsAnalysisDemandActive}"
                         AnalysisPlotKind="VelocityDistribution"

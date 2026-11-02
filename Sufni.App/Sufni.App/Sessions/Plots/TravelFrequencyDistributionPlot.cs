@@ -12,16 +12,6 @@ namespace Sufni.App.Sessions.Plots;
 
 public class TravelFrequencyDistributionPlot(Plot plot, SuspensionType type, SufniTheme? theme = null) : TelemetryPlot(plot, theme)
 {
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
-        LoadAnalysisData(new TravelFrequencyDistributionAnalysisResult(
-            hasStrokeData
-                ? TelemetryStatistics.CalculateTravelFrequencyHistogram(telemetryData, type, AnalysisRange)
-                : new HistogramData([], []),
-            hasStrokeData));
-    }
-
     public void LoadAnalysisData(TravelFrequencyDistributionAnalysisResult data)
     {
         if (!data.HasStrokeData)

@@ -1,3 +1,5 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Sessions.Analysis.Services;
 using ScottPlot;
 using Sufni.Telemetry;
 
@@ -77,7 +79,8 @@ public class SelectableAnalysisPlotTests
         var telemetry = CreateVelocityTelemetry();
         var plot = new Plot();
         var sut = new VelocityDistributionPlot(plot, SuspensionType.Front);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateVelocityDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.VelocityDistribution), telemetry));
         var y = telemetry.Front.VelocityBins[3];
 
         var selected = sut.TryGetRangeSelection(90, y, out var selection);
@@ -94,7 +97,8 @@ public class SelectableAnalysisPlotTests
     {
         var plot = new Plot();
         var sut = new VelocityDistributionPlot(plot, SuspensionType.Front);
-        sut.LoadTelemetryData(CreateVelocityTelemetry());
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateVelocityDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.VelocityDistribution), CreateVelocityTelemetry()));
 
         sut.SetActiveAnalysisSelection(
             new DampingRangeSelection(
@@ -122,7 +126,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new StrokeLengthDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeLengthDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeLengthDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(data.Bins[index], data.Values[index] / 2.0, out var selection);
         var strokeSelection = Assert.IsType<StrokeLengthRangeSelection>(selection);
@@ -144,7 +149,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new StrokeLengthDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeLengthDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeLengthDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(data.Bins[index], AboveBarY(data, index), out var selection);
         var strokeSelection = Assert.IsType<StrokeLengthRangeSelection>(selection);
@@ -165,7 +171,8 @@ public class SelectableAnalysisPlotTests
         var step = data.Bins[1] - data.Bins[0];
         var plot = new Plot();
         var sut = new StrokeLengthDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeLengthDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeLengthDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(
             data.Bins[index] + step * 0.45,
@@ -186,7 +193,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new StrokeSpeedDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeSpeedDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeSpeedDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(data.Bins[index], data.Values[index] / 2.0, out var selection);
         var strokeSelection = Assert.IsType<StrokeSpeedRangeSelection>(selection);
@@ -208,7 +216,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new StrokeSpeedDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeSpeedDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeSpeedDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(data.Bins[index], AboveBarY(data, index), out var selection);
         var strokeSelection = Assert.IsType<StrokeSpeedRangeSelection>(selection);
@@ -225,7 +234,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new DeepTravelDistributionPlot(plot, SuspensionType.Front);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((DeepTravelDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.DeepTravelDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(data.Bins[index], data.Values[index] / 2.0, out var selection);
         var deepTravelSelection = Assert.IsType<DeepTravelRangeSelection>(selection);
@@ -243,7 +253,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new DeepTravelDistributionPlot(plot, SuspensionType.Front);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((DeepTravelDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.DeepTravelDistribution), telemetry));
 
         var selected = sut.TryGetRangeSelection(data.Bins[index], AboveBarY(data, index), out var selection);
         var deepTravelSelection = Assert.IsType<DeepTravelRangeSelection>(selection);
@@ -263,7 +274,8 @@ public class SelectableAnalysisPlotTests
         var index = FindPositiveIndex(data);
         var plot = new Plot();
         var sut = new StrokeSpeedDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeSpeedDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeSpeedDistribution), telemetry));
         var selection = new StrokeSpeedRangeSelection(
             SuspensionType.Front,
             BalanceType.Compression,
@@ -293,7 +305,8 @@ public class SelectableAnalysisPlotTests
         };
         var plot = new Plot();
         var sut = new StrokeSpeedDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeSpeedDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeSpeedDistribution), telemetry));
 
         sut.SetActiveAnalysisSelection(
             new StrokeSpeedRangeSelection(SuspensionType.Front, BalanceType.Compression, staleBin));

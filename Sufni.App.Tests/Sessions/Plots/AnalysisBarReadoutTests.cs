@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Globalization;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -18,7 +19,8 @@ public class AnalysisBarReadoutTests
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), telemetry));
         sut.SetPointerPositionWithReadout(data.Values[index] / 2.0, data.Bins[index]);
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
@@ -36,7 +38,8 @@ public class AnalysisBarReadoutTests
         var plot = new Plot();
         var sut = new StrokeLengthDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeLengthDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeLengthDistribution), telemetry));
         sut.SetPointerPositionWithReadout(data.Bins[index], data.Values[index] / 2.0);
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
@@ -56,7 +59,8 @@ public class AnalysisBarReadoutTests
         var plot = new Plot();
         var sut = new VelocityDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateVelocityDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.VelocityDistribution), telemetry));
         sut.SetPointerPositionWithReadout(valueBase + value / 2.0, data.Bins[velocityIndex]);
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
@@ -75,7 +79,8 @@ public class AnalysisBarReadoutTests
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), telemetry));
         plot.GetSvgXml(500, 320);
         var dataRect = plot.LastRender.DataRect;
 
@@ -96,7 +101,8 @@ public class AnalysisBarReadoutTests
         var plot = new Plot();
         var sut = new TravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateTravelDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.TravelDistribution, travelMode: sut.HistogramMode), telemetry));
         plot.GetSvgXml(500, 320);
         var dataRect = plot.LastRender.DataRect;
         var pointer = new Coordinates(data.Values[index] / 2.0, data.Bins[index]);

@@ -43,12 +43,6 @@ public sealed class PositionVelocityPlot : TelemetryPlot
 
     public PositionVelocityDisplayMode DisplayMode { get; set; } = PositionVelocityDisplayMode.Traces;
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        LoadAnalysisData(new PositionVelocityAnalysisResult(
-            PositionVelocityTraceBuilder.Build(telemetryData, AnalysisRange)));
-    }
-
     public void LoadAnalysisData(PositionVelocityAnalysisResult data)
     {
         ResetTelemetryReadouts();

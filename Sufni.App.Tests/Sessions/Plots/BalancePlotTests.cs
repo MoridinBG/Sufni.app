@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -10,13 +11,14 @@ namespace Sufni.App.Tests.Sessions.Plots;
 public class BalancePlotTests
 {
     [Fact]
-    public void LoadTelemetryData_InsufficientBalanceSamples_SkipsRendering()
+    public void LoadAnalysisData_InsufficientBalanceSamples_SkipsRendering()
     {
         var telemetry = CreateTelemetryWithSingleBalanceSamplePerSide();
         var plot = new Plot();
         var sut = new BalancePlot(plot, BalanceType.Compression);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
 
         Assert.Empty(plot.PlottableList);
         Assert.True(string.IsNullOrWhiteSpace(plot.Axes.Title.Label.Text));
@@ -29,7 +31,8 @@ public class BalancePlotTests
         var plot = new Plot();
         var sut = new BalancePlot(plot, BalanceType.Compression);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
         plot.GetSvgXml(500, 320);
         sut.SetPointerPositionWithReadout(7.5, 150);
 
@@ -52,7 +55,8 @@ public class BalancePlotTests
             DisplacementMode = BalanceDisplacementMode.Travel,
         };
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
         plot.GetSvgXml(500, 320);
         sut.SetPointerPositionWithReadout(7.5, 125);
 
@@ -64,13 +68,14 @@ public class BalancePlotTests
     }
 
     [Fact]
-    public void LoadTelemetryData_KeepsSourceLegendCompactAndDrawsTrendStatisticsSeparately()
+    public void LoadAnalysisData_KeepsSourceLegendCompactAndDrawsTrendStatisticsSeparately()
     {
         var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
         var plot = new Plot();
         var sut = new BalancePlot(plot, BalanceType.Compression);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
 
         var legendLabels = plot.PlottableList
             .OfType<Scatter>()
@@ -104,7 +109,8 @@ public class BalancePlotTests
             DisplacementMode = BalanceDisplacementMode.Speed,
         };
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
         plot.GetSvgXml(500, 320);
         sut.SetPointerPositionWithReadout(10, 200);
 

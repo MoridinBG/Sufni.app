@@ -1,3 +1,5 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Sessions.Analysis.Services;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;
@@ -22,7 +24,8 @@ public class StrokeDistributionPlotTests
         var plot = new Plot();
         var sut = new StrokeSpeedDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeSpeedDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeSpeedDistribution), telemetry));
 
         Assert.Contains(data.Values, value => value == 0);
         var bars = GetRenderedBars(plot);
@@ -45,7 +48,8 @@ public class StrokeDistributionPlotTests
         var plot = new Plot();
         var sut = new StrokeLengthDistributionPlot(plot, SuspensionType.Front, BalanceType.Compression);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((StrokeLengthDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.StrokeLengthDistribution), telemetry));
 
         Assert.Contains(data.Values, value => value == 0);
         var bars = GetRenderedBars(plot);
@@ -65,7 +69,8 @@ public class StrokeDistributionPlotTests
         var plot = new Plot();
         var sut = new DeepTravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((DeepTravelDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.DeepTravelDistribution), telemetry));
 
         Assert.Contains(data.Values, value => value == 0);
         var bars = GetRenderedBars(plot);
@@ -84,7 +89,8 @@ public class StrokeDistributionPlotTests
         var plot = new Plot();
         var sut = new DeepTravelDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData((DeepTravelDistributionAnalysisResult)RecordedSessionAnalysisComputer.ComputePlot(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.DeepTravelDistribution), telemetry));
 
         Assert.All(data.Values, value => Assert.Equal(0, value));
         Assert.Empty(plot.PlottableList.OfType<BarPlot>());

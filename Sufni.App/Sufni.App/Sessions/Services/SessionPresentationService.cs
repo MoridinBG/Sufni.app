@@ -49,7 +49,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
             frontTravelDistribution = RenderTravelDistribution(frontTravel, SuspensionType.Front, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
 
-            frontVelocityDistribution = RenderVelocityDistribution(frontVelocity, SuspensionType.Front, dimensions, cutoffs);
+            frontVelocityDistribution = RenderVelocityDistribution(frontVelocity, SuspensionType.Front, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -60,7 +60,7 @@ public sealed class SessionPresentationService : ISessionPresentationService
             rearTravelDistribution = RenderTravelDistribution(rearTravel, SuspensionType.Rear, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
 
-            rearVelocityDistribution = RenderVelocityDistribution(rearVelocity, SuspensionType.Rear, dimensions, cutoffs);
+            rearVelocityDistribution = RenderVelocityDistribution(rearVelocity, SuspensionType.Rear, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -77,13 +77,13 @@ public sealed class SessionPresentationService : ISessionPresentationService
             HasRenderableBalanceData(reboundBalanceResult.Balance);
         if (compressionBalanceAvailable)
         {
-            compressionBalance = RenderBalance(compressionBalanceResult!, BalanceType.Compression, dimensions, cutoffs);
+            compressionBalance = RenderBalance(compressionBalanceResult!, BalanceType.Compression, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
         }
 
         if (reboundBalanceAvailable)
         {
-            reboundBalance = RenderBalance(reboundBalanceResult!, BalanceType.Rebound, dimensions, cutoffs);
+            reboundBalance = RenderBalance(reboundBalanceResult!, BalanceType.Rebound, dimensions);
             cancellationToken.ThrowIfCancellationRequested();
         }
 
@@ -117,13 +117,11 @@ public sealed class SessionPresentationService : ISessionPresentationService
     private static string RenderVelocityDistribution(
         VelocityDistributionAnalysisResult data,
         SuspensionType type,
-        SessionPresentationDimensions dimensions,
-        DampingSpeedCutoffs dampingSpeedCutoffs)
+        SessionPresentationDimensions dimensions)
     {
         var plot = new VelocityDistributionPlot(new Plot(), type)
         {
             AverageMode = VelocityAverageMode.SampleAveraged,
-            DampingSpeedCutoffs = dampingSpeedCutoffs,
         };
         plot.LoadAnalysisData(data);
         return plot.GetSvgXml(dimensions.VelocityDistributionWidth, dimensions.VelocityDistributionHeight);
@@ -132,13 +130,11 @@ public sealed class SessionPresentationService : ISessionPresentationService
     private static string RenderBalance(
         BalanceAnalysisResult data,
         BalanceType type,
-        SessionPresentationDimensions dimensions,
-        DampingSpeedCutoffs dampingSpeedCutoffs)
+        SessionPresentationDimensions dimensions)
     {
         var plot = new BalancePlot(new Plot(), type)
         {
             DisplacementMode = BalanceDisplacementMode.Zenith,
-            DampingSpeedCutoffs = dampingSpeedCutoffs,
         };
         plot.LoadAnalysisData(data);
         return plot.GetSvgXml(dimensions.TravelDistributionWidth, dimensions.TravelDistributionHeight);

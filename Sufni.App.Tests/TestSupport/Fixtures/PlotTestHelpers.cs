@@ -1,3 +1,7 @@
+using Sufni.Telemetry;
+using Sufni.App.Sessions.Analysis.Services;
+using Sufni.App.Sessions.Models;
+using Sufni.App.Bikes.Models;
 using Avalonia;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -6,6 +10,16 @@ namespace Sufni.App.Tests.TestSupport.Fixtures;
 
 public static class PlotTestHelpers
 {
+    public static RecordedSessionAnalysisKey CreateAnalysisKey(
+        RecordedSessionAnalysisFamily family,
+        SuspensionType side = SuspensionType.Front,
+        BalanceType balance = BalanceType.Compression,
+        TravelDistributionMode travelMode = TravelDistributionMode.ActiveSuspension,
+        BalanceDisplacementMode balanceMode = BalanceDisplacementMode.Zenith) =>
+        new RecordedSessionAnalysisInputs(1, null, travelMode, VelocityAverageMode.SampleAveraged,
+            balanceMode, BalanceSpeedMode.Both, DampingSpeedCutoffs.Default, DampingSpeedCutoffs.Default,
+            SessionInsightsTargetProfile.Trail).CreateKey(family, side, balance);
+
     public static IEnumerable<string> ReadTextLabels(Text text)
     {
         return text.GetType()

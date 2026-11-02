@@ -378,9 +378,14 @@ public class AnalysisPlotViewTests
     {
         var telemetry = CreateProcessed();
         var selection = CreateFrontDampingSelection(telemetry);
+        var inputs = CreateAnalysisInputs();
+        using var state = new TestAnalysisResultState(inputs);
+        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
+        state.Publish(key, RecordedSessionAnalysisComputer.CalculateVelocityDistribution(key, telemetry));
         var view = new TestableAnalysisPlotView
         {
             AnalysisPlotKind = AnalysisPlotKind.VelocityDistribution,
+            AnalysisResultState = state,
             SuspensionType = SuspensionType.Front,
             Telemetry = telemetry,
         };

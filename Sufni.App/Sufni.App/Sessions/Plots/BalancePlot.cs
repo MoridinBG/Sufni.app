@@ -3,7 +3,6 @@ using System.Linq;
 using ScottPlot;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
-using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure.Theming;
 
 using Sufni.App.Sessions.Analysis.Services;
@@ -15,7 +14,6 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
 {
     public BalanceDisplacementMode DisplacementMode { get; set; } = BalanceDisplacementMode.Zenith;
     public BalanceSpeedMode SpeedMode { get; set; } = BalanceSpeedMode.Both;
-    public DampingSpeedCutoffs DampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
 
     private bool UsesTrend => DisplacementMode != BalanceDisplacementMode.Speed;
 
@@ -30,11 +28,6 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         var msdString = $"MSD {FormatSignedPercent(msd)}";
 
         AddLabel($"{slopeString}   {msdString}", 100, 0, -10, -30, Alignment.LowerRight);
-    }
-
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        LoadAnalysisData(new BalanceAnalysisResult(TelemetryStatistics.CalculateBalance(telemetryData, type, CreateOptions())));
     }
 
     public void LoadAnalysisData(BalanceAnalysisResult data)
@@ -123,15 +116,6 @@ public class BalancePlot(Plot plot, BalanceType type, SufniTheme? theme = null) 
         Plot.Legend.SymbolHeight = 12;
         Plot.Legend.Padding = new PixelPadding(4, 4, 4, 4);
     }
-
-    private BalanceStatisticsOptions CreateOptions() => new(
-        AnalysisRange,
-        DisplacementMode,
-        SpeedMode,
-        DampingSpeedCutoffs.Front.CompressionMmPerSecond,
-        DampingSpeedCutoffs.Front.ReboundMmPerSecond,
-        DampingSpeedCutoffs.Rear.CompressionMmPerSecond,
-        DampingSpeedCutoffs.Rear.ReboundMmPerSecond);
 
     private static string FormatSignedPercent(double value) =>
         $"{(value >= 0 ? "+" : "")}{UnitsFormatter.FormatNumber(value, 1)}%";

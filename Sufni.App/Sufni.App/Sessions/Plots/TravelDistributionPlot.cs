@@ -34,28 +34,6 @@ public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? 
         AddLabelWithHorizontalLine(maxString, statistics.Max, LabelLinePosition.Below);
     }
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        var suspension = type == SuspensionType.Front ? telemetryData.Front : telemetryData.Rear;
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
-        if (HistogramMode == TravelDistributionMode.ActiveSuspension && !hasStrokeData)
-        {
-            LoadAnalysisData(new TravelDistributionAnalysisResult(
-                new HistogramData([], []),
-                new TravelStatistics(0, 0, 0),
-                suspension.MaxTravel,
-                HasStrokeData: false));
-            return;
-        }
-
-        var options = CreateOptions();
-        LoadAnalysisData(new TravelDistributionAnalysisResult(
-            TelemetryStatistics.CalculateTravelHistogram(telemetryData, type, options),
-            TelemetryStatistics.CalculateTravelStatistics(telemetryData, type, options),
-            suspension.MaxTravel,
-            hasStrokeData));
-    }
-
     public void LoadAnalysisData(TravelDistributionAnalysisResult data)
     {
         if (HistogramMode == TravelDistributionMode.ActiveSuspension && !data.HasStrokeData)
@@ -114,8 +92,6 @@ public class TravelDistributionPlot(Plot plot, SuspensionType type, SufniTheme? 
 
         AddStatistics(data);
     }
-
-    private TravelStatisticsOptions CreateOptions() => new(AnalysisRange, HistogramMode);
 
     private static string FormatCount(int count, string singular, string plural) =>
         count == 1 ? $"{count} {singular}" : $"{count} {plural}";

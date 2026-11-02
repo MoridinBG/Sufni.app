@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -11,14 +12,15 @@ namespace Sufni.App.Tests.Sessions.Plots;
 public class VelocityDistributionPlotTests
 {
     [Fact]
-    public void LoadTelemetryData_WithoutCompressionStrokes_SkipsCompressionPercentileLabel()
+    public void LoadAnalysisData_WithoutCompressionStrokes_SkipsCompressionPercentileLabel()
     {
         var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
         telemetry.Front.Strokes.Compressions = [];
         var plot = new Plot();
         var sut = new VelocityDistributionPlot(plot, SuspensionType.Front);
 
-        sut.LoadTelemetryData(telemetry);
+        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateVelocityDistribution(
+            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.VelocityDistribution), telemetry));
 
         var labels = plot.PlottableList.OfType<Text>().SelectMany(ReadTextLabels).ToArray();
         Assert.Contains(labels, label => label.Contains("95%") && label.Contains('-'));

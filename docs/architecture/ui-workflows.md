@@ -48,8 +48,8 @@ Import and live-save publication use the same batch boundary for their session
 and source snapshots.
 
 Recorded editors call `ISessionLoader` directly for staged telemetry and track
-reads. Session lists and the staleness reconciler call `ISessionRecomputeEngine`
-directly; that owner retains cancellation, supersession and commit guards.
+reads. Session lists call `ISessionRecomputeEngine` directly; editor staleness choices
+reach it through `SessionCoordinator.ReconcileStalenessAsync`; that owner retains cancellation, supersession and commit guards.
 `SessionCoordinator.SaveAsync(draft, draftBase)` compares only the metadata fields
 that the draft saves against the current session snapshot. Processing options and
 GPS alignment are separate commands and never conflict with that draft. A saved

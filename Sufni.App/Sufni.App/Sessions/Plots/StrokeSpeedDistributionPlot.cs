@@ -37,16 +37,6 @@ public class StrokeSpeedDistributionPlot(Plot plot, SuspensionType type, Balance
         ApplyActiveAnalysisSelection();
     }
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
-        LoadAnalysisData(new StrokeSpeedDistributionAnalysisResult(
-            hasStrokeData
-                ? TelemetryStatistics.CalculateStrokeSpeedHistogram(telemetryData, type, strokeKind, AnalysisRange)
-                : new HistogramData([], []),
-            hasStrokeData));
-    }
-
     public void LoadAnalysisData(StrokeSpeedDistributionAnalysisResult data)
     {
         hitTester.Clear();

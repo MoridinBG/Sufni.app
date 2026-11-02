@@ -68,11 +68,6 @@ public class AnalysisHostBase : UserControl
             nameof(DampingSpeedCutoffs),
             DampingSpeedCutoffs.Default);
 
-    public static readonly StyledProperty<DampingSpeedCutoffs> PlotDampingSpeedCutoffsProperty =
-        AvaloniaProperty.Register<AnalysisHostBase, DampingSpeedCutoffs>(
-            nameof(PlotDampingSpeedCutoffs),
-            DampingSpeedCutoffs.Default);
-
     public static readonly StyledProperty<object?> HeaderContentProperty =
         AvaloniaProperty.Register<AnalysisHostBase, object?>(nameof(HeaderContent));
 
@@ -118,12 +113,6 @@ public class AnalysisHostBase : UserControl
     {
         get => GetValue(DampingSpeedCutoffsProperty);
         set => SetValue(DampingSpeedCutoffsProperty, value);
-    }
-
-    public DampingSpeedCutoffs PlotDampingSpeedCutoffs
-    {
-        get => GetValue(PlotDampingSpeedCutoffsProperty);
-        set => SetValue(PlotDampingSpeedCutoffsProperty, value);
     }
 
     public object? HeaderContent

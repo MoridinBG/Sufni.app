@@ -7,7 +7,6 @@ using Avalonia.Input;
 using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.Telemetry;
-using Sufni.App.Bikes.Models;
 
 using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Views.Plots;
@@ -32,7 +31,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     private IDisposable? analysisInputSubscription;
     private IDisposable? analysisResultSubscription;
     private bool hasDeferredAnalysisReload;
-    private bool isStateBacked;
 
     public static readonly StyledProperty<AnalysisPlotKind> AnalysisPlotKindProperty =
         AvaloniaProperty.Register<AnalysisPlotView, AnalysisPlotKind>(nameof(AnalysisPlotKind));
@@ -65,11 +63,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         AvaloniaProperty.Register<AnalysisPlotView, VelocityAverageMode>(
             nameof(VelocityAverageMode),
             VelocityAverageMode.SampleAveraged);
-
-    public static readonly StyledProperty<DampingSpeedCutoffs> DampingSpeedCutoffsProperty =
-        AvaloniaProperty.Register<AnalysisPlotView, DampingSpeedCutoffs>(
-            nameof(DampingSpeedCutoffs),
-            DampingSpeedCutoffs.Default);
 
     public static readonly StyledProperty<PositionVelocitySideMode> PositionVelocitySideModeProperty =
         AvaloniaProperty.Register<AnalysisPlotView, PositionVelocitySideMode>(
@@ -150,12 +143,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
     {
         get => GetValue(VelocityAverageModeProperty);
         set => SetValue(VelocityAverageModeProperty, value);
-    }
-
-    public DampingSpeedCutoffs DampingSpeedCutoffs
-    {
-        get => GetValue(DampingSpeedCutoffsProperty);
-        set => SetValue(DampingSpeedCutoffsProperty, value);
     }
 
     public PositionVelocitySideMode PositionVelocitySideMode
@@ -245,7 +232,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             if (e.Property.Name is nameof(TravelDistributionMode) && AnalysisPlotKind == AnalysisPlotKind.TravelDistribution ||
                 e.Property.Name is nameof(BalanceDisplacementMode) && AnalysisPlotKind == AnalysisPlotKind.Balance ||
                 e.Property.Name is nameof(BalanceSpeedMode) && AnalysisPlotKind == AnalysisPlotKind.Balance ||
-                e.Property.Name is nameof(DampingSpeedCutoffs) && AnalysisPlotKind is AnalysisPlotKind.Balance or AnalysisPlotKind.VelocityDistribution ||
                 e.Property.Name is nameof(VelocityAverageMode) && AnalysisPlotKind == AnalysisPlotKind.VelocityDistribution ||
                 e.Property.Name is nameof(PositionVelocitySideMode) or nameof(PositionVelocityDisplayMode) && AnalysisPlotKind == AnalysisPlotKind.PositionVelocity)
             {
@@ -328,18 +314,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
         var key = CreateAnalysisKey();
         if (key is null || AnalysisResultState is not { } state)
         {
-            // A state-backed plot publishes results asynchronously through the
-            // result state. When no usable state/inputs are available — not yet
-            // initialized, or torn down while the tab is closing — leave the
-            // already-cleared plot and wait for the async result instead of
-            // recomputing the histogram/FFT synchronously on the UI thread. Only
-            // genuinely non-state-backed plots recompute directly here.
-            if (isStateBacked)
-            {
-                return;
-            }
-
-            base.LoadPlotData(plotModel);
             return;
         }
 
@@ -376,14 +350,6 @@ public class AnalysisPlotView : SufniTelemetryPlotView
 
     private void SubscribeToAnalysisResultState(ISessionAnalysisResultSource? state)
     {
-        // Once this plot has been given a result state it is a state-backed plot
-        // for the rest of its life: results arrive asynchronously and it must not
-        // fall back to synchronous recompute when the state is transiently absent.
-        if (state is not null)
-        {
-            isStateBacked = true;
-        }
-
         if (ReferenceEquals(subscribedAnalysisResultState, state))
         {
             return;
@@ -565,11 +531,9 @@ public class AnalysisPlotView : SufniTelemetryPlotView
             case BalancePlot balance:
                 balance.DisplacementMode = BalanceDisplacementMode;
                 balance.SpeedMode = BalanceSpeedMode;
-                balance.DampingSpeedCutoffs = DampingSpeedCutoffs;
                 break;
             case VelocityDistributionPlot velocityDistribution:
                 velocityDistribution.AverageMode = VelocityAverageMode;
-                velocityDistribution.DampingSpeedCutoffs = DampingSpeedCutoffs;
                 break;
             case PositionVelocityPlot positionVelocity:
                 positionVelocity.SideMode = PositionVelocitySideMode;

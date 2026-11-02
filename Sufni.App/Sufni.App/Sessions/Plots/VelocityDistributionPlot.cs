@@ -6,7 +6,6 @@ using ScottPlot;
 using ScottPlot.AxisRules;
 using ScottPlot.TickGenerators;
 using Sufni.Telemetry;
-using Sufni.App.Bikes.Models;
 
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Shared.Plots;
@@ -26,7 +25,6 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
     private TelemetryRangeSelection? activeAnalysisSelection;
 
     public VelocityAverageMode AverageMode { get; set; } = VelocityAverageMode.SampleAveraged;
-    public DampingSpeedCutoffs DampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
 
     public bool TryGetRangeSelection(
         double x,
@@ -105,29 +103,6 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
         // TODO: Restore original behaviour: label at bottom when not in range, but moves to its proper
         // place when it is scrolled into view.
         AddLabelWithHorizontalLine(maxCompVelString, statistics.MaxCompression, LabelLinePosition.Below);
-    }
-
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
-        if (!hasStrokeData)
-        {
-            LoadAnalysisData(new VelocityDistributionAnalysisResult(
-                new StackedHistogramData([], []),
-                new VelocityStatistics(0, 0, 0, 0),
-                new NormalDistributionData([], []),
-                HasStrokeData: false));
-            return;
-        }
-
-        var options = CreateOptions();
-        LoadAnalysisData(new VelocityDistributionAnalysisResult(
-            TelemetryStatistics.CalculateVelocityHistogram(telemetryData, type, options),
-            TelemetryStatistics.CalculateVelocityStatistics(telemetryData, type, options),
-            AverageMode == VelocityAverageMode.SampleAveraged
-                ? TelemetryStatistics.CalculateNormalDistribution(telemetryData, type, AnalysisRange)
-                : new NormalDistributionData([], []),
-            hasStrokeData));
     }
 
     public void LoadAnalysisData(VelocityDistributionAnalysisResult data)
@@ -290,16 +265,6 @@ public class VelocityDistributionPlot(Plot plot, SuspensionType type, SufniTheme
 
         bar.LineColor = Colors.Black;
         bar.LineWidth = 0.5f;
-    }
-
-    private VelocityStatisticsOptions CreateOptions()
-    {
-        var cutoffs = DampingSpeedCutoffs.ForSide(type);
-        return new VelocityStatisticsOptions(
-            AnalysisRange,
-            AverageMode,
-            cutoffs.CompressionMmPerSecond,
-            cutoffs.ReboundMmPerSecond);
     }
 
     private static string FormatVelocityLabel(double value) =>

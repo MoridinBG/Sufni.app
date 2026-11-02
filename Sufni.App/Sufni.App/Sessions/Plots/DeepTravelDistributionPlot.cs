@@ -37,16 +37,6 @@ public class DeepTravelDistributionPlot(Plot plot, SuspensionType type, SufniThe
         ApplyActiveAnalysisSelection();
     }
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        var hasStrokeData = TelemetryStatistics.HasStrokeData(telemetryData, type, AnalysisRange);
-        LoadAnalysisData(new DeepTravelDistributionAnalysisResult(
-            hasStrokeData
-                ? TelemetryStatistics.CalculateDeepTravelHistogram(telemetryData, type, AnalysisRange)
-                : new HistogramData([], []),
-            hasStrokeData));
-    }
-
     public void LoadAnalysisData(DeepTravelDistributionAnalysisResult data)
     {
         hitTester.Clear();

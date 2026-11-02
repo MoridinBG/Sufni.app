@@ -13,12 +13,6 @@ public class VibrationThirdsPlot(Plot plot, SuspensionType type, ImuLocation loc
     private static readonly Color middleColor = Color.FromHex(TravelZonePalette.HexColors[4]);
     private static readonly Color upperColor = Color.FromHex(TravelZonePalette.HexColors[8]);
 
-    public override void LoadTelemetryData(TelemetryData telemetryData)
-    {
-        LoadAnalysisData(new VibrationDistributionAnalysisResult(
-            TelemetryStatistics.CalculateVibration(telemetryData, location, type, AnalysisRange)));
-    }
-
     public void LoadAnalysisData(VibrationDistributionAnalysisResult data)
     {
         if (data.Stats is not { } stats)
