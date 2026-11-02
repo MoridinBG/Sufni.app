@@ -11,6 +11,9 @@ public sealed class MassStorageTelemetryDataStore : ITelemetryDataStore
 {
     private readonly IDaqDriveProbe driveProbe;
 
+    public Task<IAsyncDisposable?> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IAsyncDisposable?>(null);
+
     public string Name => Drive.DisplayName;
     public Guid? BoardId { get; }
     public DaqDrive Drive { get; }

@@ -56,7 +56,9 @@ rows and split references remain valid.
 
 ### Interfaces
 
-**`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`.
+**`ITelemetryDataStore`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryDataStore.cs`) exposes a `Name`, an optional `BoardId` (DAQ device GUID), and `GetFiles()` returning a list of `ITelemetryFile`. `OpenImportBatchAsync`
+opens the source-specific I/O lifetime before file operations; local sources
+need no resource, while network sources own a lazy shared management session.
 
 **`ITelemetryFile`** (`Sufni.App/Sufni.App/Acquisition/Models/ITelemetryFile.cs`) is the
 device adapter for a single SST file. It owns listing metadata and source I/O.
@@ -102,8 +104,10 @@ it releases its run observation and datastore collection handler.
 The import workflow is staged once the user starts a batch from the selected
 datastore. Its immutable job items carry the selected file adapters and captured
 row edits. One producer reads source bytes serially and feeds a bounded channel.
-A network batch shares one management session for downloads, trash and
-acknowledgements. A bounded set of consumer tasks
+The coordinator retains the selected datastore's batch scope through all file
+operations. A network batch shares one lazy management session for downloads,
+trash and acknowledgements. Opening that session can fail one file without
+preventing the next file from trying; session ownership stays in the datastore. A bounded set of consumer tasks
 (`ImportProcessDop = clamp(Environment.ProcessorCount / 2, 2, 4)`) performs SST
 source creation, processing, and persistence in parallel. After all consumers
 finish, the committed session/source IDs are published once to each store. Only

@@ -17,6 +17,41 @@ namespace Sufni.App.Tests.Acquisition.Models;
 
 public class NetworkTelemetryDataStoreTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OpenImportBatchAsync_SharesSessionAndRetriesAFileAfterFailedOpen(bool firstOpenFails)
+    {
+        var endpoint = new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555);
+        var management = Substitute.For<IDaqManagementService>();
+        var session = Substitute.For<IDaqManagementSession>();
+        session.TrashFileAsync(Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
+        var openCount = 0;
+        management.OpenSessionAsync(endpoint, Arg.Any<CancellationToken>()).Returns(_ =>
+            firstOpenFails && ++openCount == 1
+                ? Task.FromException<IDaqManagementSession>(new IOException("connection unavailable"))
+                : Task.FromResult(session));
+        management.ListDirectoryAsync(endpoint, Arg.Any<CancellationToken>()).Returns(
+            Task.FromResult<DaqListDirectoryResult>(new DaqListDirectoryResult.Listed(new DaqRootDirectoryRecord([
+                new DaqSstFileRecord(DaqFileClass.RootSst, "first.SST", 100, 1, DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(1), 4),
+                new DaqSstFileRecord(DaqFileClass.RootSst, "second.SST", 100, 2, DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(1), 4)]))));
+        var store = new NetworkTelemetryDataStore(endpoint, management, CreateBoardIdInspector());
+        var files = await store.GetFiles();
+
+        await using (await store.OpenImportBatchAsync(Guid.NewGuid(), TestContext.Current.CancellationToken))
+        {
+            await management.DidNotReceive().OpenSessionAsync(endpoint, Arg.Any<CancellationToken>());
+            if (firstOpenFails) await Assert.ThrowsAsync<IOException>(files[0].OnTrashed);
+            else await files[0].OnTrashed();
+            await files[1].OnTrashed();
+        }
+
+        await session.Received(1).TrashFileAsync(2, Arg.Any<CancellationToken>());
+        await management.Received(firstOpenFails ? 2 : 1).OpenSessionAsync(endpoint, Arg.Any<CancellationToken>());
+        await session.Received(1).DisposeAsync();
+    }
+
     [Fact]
     public async Task Initialization_SetsBoardIdFromInspector()
     {
@@ -254,12 +289,11 @@ public class NetworkTelemetryDataStoreTests
     private static NetworkTelemetryFile CreateNetworkFile(IDaqManagementSession session)
     {
         var file = new NetworkTelemetryFile(
-            new ServiceEndpoint(IPAddress.Loopback.ToString(), 5555),
+            _ => Task.FromResult(session),
             42,
             "NOT-A-NUMERIC-NAME.SST",
             DateTimeOffset.FromUnixTimeSeconds(111),
             TimeSpan.FromSeconds(6));
-        file.AttachSession(session);
         return file;
     }
 

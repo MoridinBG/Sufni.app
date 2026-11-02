@@ -33,7 +33,7 @@ public class ImportSessionsViewModelTests
         row.Action = ImportFileAction.Import;
         SessionImportItem? captured = null;
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(Arg.Any<IReadOnlyList<SessionImportItem>>(), vm.SelectedSetup.Value,
+        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(Arg.Any<ITelemetryDataStore>(), Arg.Any<IReadOnlyList<SessionImportItem>>(), vm.SelectedSetup.Value,
             Arg.Any<CancellationToken>()).Returns(call =>
         {
             captured = Assert.Single(call.Arg<IReadOnlyList<SessionImportItem>>());
@@ -104,7 +104,7 @@ public class ImportSessionsViewModelTests
         var capturedProgressText = new List<string>();
         var viewModel = harness.CreateViewModel();
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<IReadOnlyList<SessionImportItem>>(),
+                Arg.Any<ITelemetryDataStore>(), Arg.Any<IReadOnlyList<SessionImportItem>>(),
                 setup.Id)
             .Returns(callInfo =>
             {
@@ -121,7 +121,7 @@ public class ImportSessionsViewModelTests
         await viewModel.ImportSessionsCommand.ExecuteAsync(null);
 
         await harness.ImportSessionsCoordinatorSubstitute.Received(1).ImportAsync(
-            Arg.Is<IReadOnlyList<SessionImportItem>>(files => files.Count == 1 && ReferenceEquals(files[0].File, initialFile)),
+            dataStore, Arg.Is<IReadOnlyList<SessionImportItem>>(files => files.Count == 1 && ReferenceEquals(files[0].File, initialFile)),
             setup.Id);
         Assert.Equal(["File 1/2"], capturedProgressText);
         Assert.Equal(0, viewModel.CurrentFileIndex);
@@ -150,7 +150,7 @@ public class ImportSessionsViewModelTests
         var failure = new SessionImportFailure.OperationFailed(
             "lap", SessionImportFailureOperation.Publish, SessionImportFailureReason.Publish, "publish failed");
         harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<IReadOnlyList<SessionImportItem>>(),
+                Arg.Any<ITelemetryDataStore>(), Arg.Any<IReadOnlyList<SessionImportItem>>(),
                 setup.Id)
             .Returns(callInfo =>
             {

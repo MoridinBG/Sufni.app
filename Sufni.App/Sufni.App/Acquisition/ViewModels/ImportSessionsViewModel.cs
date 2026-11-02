@@ -304,7 +304,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
         if (SelectedDataStore is null || SelectedSetup is not { } setupId)
             return;
 
-        await importSessionsCoordinator.ImportAsync(TelemetryFiles.Select(row => row.ToImportItem()).ToArray(), setupId);
+        await importSessionsCoordinator.ImportAsync(SelectedDataStore, TelemetryFiles.Select(row => row.ToImportItem()).ToArray(), setupId);
     }
 
     private bool CanImportSessions() => SelectedSetup != null && !IsImporting;

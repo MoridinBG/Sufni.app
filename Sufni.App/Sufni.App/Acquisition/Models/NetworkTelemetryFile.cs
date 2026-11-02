@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Sufni.App.Acquisition.Services.Management;
-using Sufni.App.Infrastructure;
 
 namespace Sufni.App.Acquisition.Models;
 
@@ -18,19 +17,12 @@ public class NetworkTelemetryFile : ITelemetryFile
     public string? MalformedMessage { get; }
     public bool CanImport { get; }
 
-    private readonly ServiceEndpoint ipEndPoint;
+    private readonly Func<CancellationToken, Task<IDaqManagementSession>> getSession;
     private readonly int recordId;
-    private IDaqManagementSession activeSession = null!;
-
-    public ServiceEndpoint EndPoint => ipEndPoint;
-
-    public void AttachSession(IDaqManagementSession session)
-    {
-        activeSession = session;
-    }
 
     public async Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default)
     {
+        var activeSession = await getSession(cancellationToken);
         using var destination = new MemoryStream();
         var downloadedFile = await activeSession.GetFileAsync(
             DaqFileClass.RootSst,
@@ -51,6 +43,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task OnImported()
     {
+        var activeSession = await getSession(CancellationToken.None);
         var result = await activeSession.MarkSstUploadedAsync(recordId);
 
         if (result is DaqManagementResult.Error error)
@@ -62,6 +55,7 @@ public class NetworkTelemetryFile : ITelemetryFile
 
     public async Task OnTrashed()
     {
+        var activeSession = await getSession(CancellationToken.None);
         var result = await activeSession.TrashFileAsync(recordId);
 
         if (result is DaqManagementResult.Error error)
@@ -71,7 +65,7 @@ public class NetworkTelemetryFile : ITelemetryFile
     }
 
     public NetworkTelemetryFile(
-        ServiceEndpoint source,
+        Func<CancellationToken, Task<IDaqManagementSession>> getSession,
         int recordId,
         string name,
         DateTimeOffset? timestampUtc,
@@ -87,6 +81,6 @@ public class NetworkTelemetryFile : ITelemetryFile
         Duration = effectiveDuration?.ToString(@"hh\:mm\:ss") ?? "unknown";
         MalformedMessage = malformedMessage;
         FileName = name;
-        ipEndPoint = source;
+        this.getSession = getSession;
     }
 }

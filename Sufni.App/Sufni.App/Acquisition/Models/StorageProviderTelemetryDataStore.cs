@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,6 +13,9 @@ namespace Sufni.App.Acquisition.Models;
 public class StorageProviderTelemetryDataStore : ITelemetryDataStore
 {
     private static readonly ILogger logger = Log.ForContext<StorageProviderTelemetryDataStore>();
+
+    public Task<IAsyncDisposable?> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IAsyncDisposable?>(null);
 
     public Task Initialization { get; }
     public string Name { get; }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Sufni.App.Acquisition.Models;
 
@@ -27,4 +28,5 @@ public interface ITelemetryDataStore
     public string Name { get; }
     public Guid? BoardId { get; }
     public Task<List<ITelemetryFile>> GetFiles();
+    public Task<IAsyncDisposable?> OpenImportBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
 }

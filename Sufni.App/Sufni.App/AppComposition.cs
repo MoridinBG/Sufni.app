@@ -243,7 +243,6 @@ public static class AppComposition
                 sp.GetRequiredService<ISessionStoreWriter>(),
                 sp.GetRequiredService<IRecordedSessionSourceStoreWriter>(),
                 sp.GetRequiredService<IBackgroundTaskRunner>(),
-                sp.GetRequiredService<IDaqManagementService>(),
                 sp.GetRequiredService<IRecordedSessionReprocessor>(),
                 sp.GetRequiredService<IUiThreadDispatcher>(),
                 sp.GetRequiredService<StorePublication>(),

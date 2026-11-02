@@ -15,6 +15,7 @@ public interface ITelemetryFile
     public string? MalformedMessage { get; }
     public bool CanImport { get; }
 
+    // Open the owning datastore's import batch before invoking file operations.
     // Returns the immutable raw source bytes and metadata used for durable
     // recorded-session reprocessing.
     public Task<TelemetryFileSource> ReadSourceAsync(CancellationToken cancellationToken = default);

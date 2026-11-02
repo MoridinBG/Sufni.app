@@ -58,7 +58,6 @@ internal sealed class ImportWorkflowHarness
     public ISessionStoreWriter SessionStore { get; } = Substitute.For<ISessionStoreWriter>();
     public IRecordedSessionSourceStoreWriter SourceStore { get; } = Substitute.For<IRecordedSessionSourceStoreWriter>();
     public RecordingBackgroundTaskRunner BackgroundTaskRunner { get; } = new();
-    public IDaqManagementService DaqManagementService { get; } = Substitute.For<IDaqManagementService>();
     public IRecordedSessionReprocessor Reprocessor { get; } = Substitute.For<IRecordedSessionReprocessor>();
     public ITelemetryDataStoreService TelemetryDataStoreService { get; } = Substitute.For<ITelemetryDataStoreService>();
     public IFilesService FilesService { get; } = Substitute.For<IFilesService>();
@@ -81,7 +80,6 @@ internal sealed class ImportWorkflowHarness
         sessionStore ?? SessionStore,
         sourceStore ?? SourceStore,
         BackgroundTaskRunner,
-        DaqManagementService,
         Reprocessor,
         new InlineUiThreadDispatcher(),
         Publication,
