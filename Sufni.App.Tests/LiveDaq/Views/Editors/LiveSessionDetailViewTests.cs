@@ -86,7 +86,6 @@ public class LiveSessionDetailViewTests
 
         var liveSessionService = StubLiveSessionService.WithDefaultLiveStream(snapshot, signalBatches);
 
-        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
 
         return new LiveSessionDetailViewModel(
             CreateSessionContext(),

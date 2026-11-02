@@ -5,35 +5,28 @@ using System;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Reactive.Threading.Tasks;
-using System.Threading.Tasks;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 
 namespace Sufni.App.MapsAndTracks.Services;
 
 /// <summary>Derives the available map layers and selection from stored custom layers and device-local selection.</summary>
-public sealed class TileLayerService(IAppPreferences preferences, IUiThreadDispatcher dispatcher, ICustomTileLayerStore customLayers)
-    : ITileLayerService, IDisposable
+public sealed class TileLayerService : ITileLayerService, IDisposable
 {
     private static readonly Guid JawgDarkLayerId = new("0a3b9c1e-4d2f-4a91-bc7e-1b6e4a2c5f01");
     private static readonly Guid OpenCycleMapLayerId = new("7add6eb5-ee7c-4df5-af18-18ac1bfafc7f");
     private readonly ReplaySubject<TileLayerState> state = new(1);
     private readonly TileLayerConfig[] builtInLayers = CreateBuiltInLayers();
-    private IDisposable? subscription;
-    private Task? initialization;
+    private readonly IDisposable subscription;
 
     public IObservable<TileLayerState> Observe() => state.AsObservable();
 
-    public Task InitializeAsync() => initialization ??= InitializeCoreAsync();
-
-    private Task InitializeCoreAsync()
+    public TileLayerService(IAppPreferences preferences, IUiThreadDispatcher dispatcher, ICustomTileLayerStore customLayers)
     {
         subscription = customLayers.Connect().ToCollection().StartWith(customLayers.GetAll())
             .CombineLatest(preferences.Map.ObserveChanges(), (layers, selected) => Derive(layers, selected))
             .ObserveOnUiThread(dispatcher)
             .Subscribe(state);
-        return state.FirstAsync().ToTask();
     }
 
     private TileLayerState Derive(IReadOnlyCollection<CustomTileLayerSnapshot> custom, Guid? selectedId)
@@ -45,7 +38,7 @@ public sealed class TileLayerService(IAppPreferences preferences, IUiThreadDispa
 
     public void Dispose()
     {
-        subscription?.Dispose();
+        subscription.Dispose();
         state.Dispose();
     }
 

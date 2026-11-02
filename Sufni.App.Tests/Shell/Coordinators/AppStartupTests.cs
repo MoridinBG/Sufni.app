@@ -229,7 +229,7 @@ public class AppStartupTests
         }
 
         return new AppStartup(database, refresher ?? Substitute.For<IAppDataRefresher>(),
-            Substitute.For<ITileLayerService>(), new InlineUiThreadDispatcher(), new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), new InlineBackgroundTaskRunner(),
             Substitute.For<IAppPaths>(), preferences ?? Substitute.For<IAppPreferences>(), jobs ?? [], server, pairing);
     }
 

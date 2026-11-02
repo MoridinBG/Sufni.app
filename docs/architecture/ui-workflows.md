@@ -190,7 +190,7 @@ window, asks the policy for immutable patches, and applies the planned session c
 
 The transaction rejects the edit when the stored window differs from the
 snapshot the command started from, so concurrent edits of one session do not
-need a lock. After the commit the coordinator publishes the changed sessions,
+need a lock. After the commit the coordinator publishes removed and changed sessions in one UI-thread batch,
 requests their recompute before any
 other await (an open editor prompts for a recompute of a stale session unless
 one is already running), reports a `SessionEditProgress` with

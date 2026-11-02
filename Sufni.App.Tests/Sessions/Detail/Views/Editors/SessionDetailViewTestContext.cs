@@ -46,7 +46,6 @@ internal sealed class SessionDetailViewTestContext
 
     public SessionDetailViewTestContext()
     {
-        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(SessionPreferences.Default));
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);

@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using Sufni.App.Infrastructure;
-using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.SyncAndPairing.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 
@@ -17,7 +16,6 @@ namespace Sufni.App.Shell.Coordinators;
 internal sealed class AppStartup(
     IStartupDatabase database,
     IAppDataRefresher refresher,
-    ITileLayerService tileLayers,
     IUiThreadDispatcher dispatcher,
     IBackgroundTaskRunner backgroundTaskRunner,
     IAppPaths paths,
@@ -50,7 +48,6 @@ internal sealed class AppStartup(
             reason = StartupFailureReason.Database;
             await refresher.RefreshAsync(cancellation.Token);
             reason = StartupFailureReason.Startup;
-            await dispatcher.InvokeAsync(tileLayers.InitializeAsync);
             if (pairing is not null) await backgroundTaskRunner.RunAsync(pairing.InitializeAsync, cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             await dispatcher.InvokeAsync(activatePages);

@@ -34,6 +34,21 @@ public class SegmentPickerViewModelTests
     }
 
     [Fact]
+    public void SessionDisappearsAndReturns_SavedRowsRemainAndBecomeVisibleAgain()
+    {
+        var segment = AddSegment("Source segment", 2, 4);
+        using var picker = CreateLoadedPicker();
+        Assert.Single(picker.SavedSegments);
+
+        sessionState.OnNext(new SegmentPickerSessionState(null, null, null));
+        Assert.Empty(picker.SavedSegments);
+        Assert.Equal(segment, segments.Lookup(segment.Id).Value);
+        sessionState.OnNext(new SegmentPickerSessionState(SessionTimestamp, 10, null, "source-hash"));
+
+        Assert.Equal(segment.Id, Assert.Single(picker.SavedSegments).Id);
+    }
+
+    [Fact]
     public void SavedSegments_ProjectSourceAnchorsIntoRemoteSplitWindow_AndHideUntilIdentityArrives()
     {
         var kept = AddSegment("Climb", 12.25, 14.25);

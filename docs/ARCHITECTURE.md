@@ -195,7 +195,7 @@ own their menus and session import intent; feature views do not reach into a
 parent shell to invoke import.
 
 `AppStartup` gates page creation on schema initialization and the first store
-refresh, then initializes tile layers and starts the capable head's sync server.
+refresh, then starts the capable head's sync server. Tile layers derive their state from store and preference observations without startup initialization.
 Both shells render structural failures as a blocking screen with a log location
 and database reset. Reset archives the closed database and creates a new
 incarnation through normal migrations; continuing requires relaunch. Startup

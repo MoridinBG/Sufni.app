@@ -163,7 +163,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly bool deferDomainHandlingWhenInactive;
     private IDisposable? processedTelemetryRetention;
     private MapViewModel? mapViewModel;
-    private bool mapInitializeRequested;
 
     #endregion Private fields
 
@@ -1501,12 +1500,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         UpdateAnalysisRequests(previous);
         PreferencesPage.RefreshSignalDisplayPreferences(previous.Preferences.SignalDisplay, state.Preferences.SignalDisplay);
         signalRowActions.ApplyActionStates(state);
-        if (state.Presentation.MapState.ReservesLayout && !mapInitializeRequested)
-        {
-            mapInitializeRequested = true;
-            _ = mapViewModel?.InitializeAsync();
-        }
-
         if (previous.Session != state.Session)
         {
             if (state.Session is { } snapshot)

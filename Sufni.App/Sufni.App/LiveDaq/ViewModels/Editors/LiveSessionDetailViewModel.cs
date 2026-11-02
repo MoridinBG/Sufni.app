@@ -316,7 +316,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         }
 
         hasLoaded = true;
-        await mediaWorkspace.InitializeAsync();
         var start = await liveSessionService.EnsureAttachedAsync();
         if (start is LivePreviewStartResult.Busy busy) Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
         if (start is LivePreviewStartResult.Unavailable unavailable) Notifications.Add(unavailable.Message);

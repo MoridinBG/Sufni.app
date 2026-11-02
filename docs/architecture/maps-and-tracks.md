@@ -161,9 +161,7 @@ Metadata draft saves and processed-generation swaps preserve it.
 built-in providers, `CustomTileLayerStore`, and device-local selected layer ID.
 `Observe()` replays the catalog and selection together. Store arrivals update
 available layers without changing the device selection. A missing selected id falls back to the first built-in
-layer. Publication runs through the required UI dispatcher. The singleton owns
-and disposes its input subscription; `AppStartup` still awaits its initial
-snapshot through `InitializeAsync()`.
+layer. Publication runs through the required UI dispatcher. The singleton starts its derivation at construction and owns/disposes its input subscription. No startup or editor initialization call is needed.
 
 `IMapLayerCoordinator` / `MapLayerCoordinator` own `AddAndSelectAsync` and
 `SelectAsync`. They persist custom layers through `ISynchronizableRepository<CustomTileLayer>`,
@@ -193,7 +191,7 @@ the selector to the published value.
 map inputs. `MapViewModelFactory` supplies the tile service, coordinator, dialog,
 dispatcher and clock. Both recorded and live hosts use it and dispose the map
 view model with their lifetime; disposal releases the tile-state subscription.
-`InitializeAsync()` waits for the service's first derived snapshot.
+The replayed tile snapshot supplies initial state without a separate initialization method.
 
 ## Mapsui Integration
 

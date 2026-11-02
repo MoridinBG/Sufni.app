@@ -50,7 +50,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
     public LiveSessionDetailViewModelTests()
     {
         uiTimers = new ManualUiTimerScheduler();
-        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         capturePackage = CreateCapturePackage();
 
         currentSnapshot = LiveSessionPresentationSnapshot.Empty;

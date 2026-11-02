@@ -1,4 +1,6 @@
 using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
+using System.Reactive.Linq;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 using Sufni.App.Sessions.Coordination;
@@ -90,6 +92,29 @@ public class SessionEditingCoordinatorTests
         Assert.Equal(new SessionEditResult.Missing(), result);
     }
 
+    [Fact]
+    public async Task SplitAsync_PublishesRemovedAndChangedRowsInOneCommit()
+    {
+        var dispatcher = new InlineUiThreadDispatcher();
+        using var publication = new StorePublication(dispatcher);
+        using var store = new SessionStore(publication);
+        await store.PublishSessionsChangedAsync([session]);
+        var secondId = Guid.NewGuid();
+        transactions.SplitAsync(session, 3).Returns(new SessionEditCommit.Committed([session.Id, secondId], secondId));
+        sessionRepository.GetSessionAsync(session.Id).Returns((Session?)null);
+        sessionRepository.GetSessionAsync(secondId).Returns(new Session(secondId, "Second", "", null));
+        var observed = new List<IReadOnlyList<SessionSnapshot>>();
+        using var subscription = publication.Committed.Subscribe(_ => observed.Add(store.GetAll()));
+        var coordinator = new SessionEditingCoordinator(store, transactions, recomputeEngine, sessionRepository,
+            new InlineBackgroundTaskRunner(), dispatcher, publication);
+
+        var result = await coordinator.SplitAsync(session.Id, 3);
+
+        Assert.IsType<SessionEditResult.Applied>(result);
+        Assert.Equal(secondId, Assert.Single(Assert.Single(observed)).Id);
+    }
+
     private SessionEditingCoordinator CreateCoordinator() =>
-        new(sessionStore, transactions, recomputeEngine, sessionRepository, new InlineBackgroundTaskRunner());
+        new(sessionStore, transactions, recomputeEngine, sessionRepository, new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), new StorePublication(new InlineUiThreadDispatcher()));
 }

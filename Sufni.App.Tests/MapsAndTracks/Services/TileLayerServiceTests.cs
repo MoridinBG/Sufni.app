@@ -19,7 +19,6 @@ public class TileLayerServiceTests
         await fixture.SeedAsync(custom);
         map.Seed(custom.Id);
         using var service = fixture.CreateService();
-        await service.InitializeAsync();
 
         TileLayerState? observed = null;
         using var subscription = service.Observe().Subscribe(state => observed = state);
@@ -39,7 +38,6 @@ public class TileLayerServiceTests
         using var service = fixture.CreateService();
         var observed = new List<TileLayerState>();
         using var subscription = service.Observe().Subscribe(observed.Add);
-        await service.InitializeAsync();
         var builtIn = observed[^1].SelectedLayer;
         var local = new TileLayerConfig { Name = "Local" };
 
@@ -66,12 +64,9 @@ public class TileLayerServiceTests
         using var service = fixture.CreateService();
         var observed = new List<TileLayerState>();
         using var subscription = service.Observe().Subscribe(observed.Add);
-        var initialization = service.InitializeAsync();
         Assert.Empty(observed);
-        Assert.False(initialization.IsCompleted);
 
         await dispatcher.DrainAsync();
-        await initialization.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
         Assert.Single(observed);
 
         map.Seed(Guid.NewGuid());
@@ -81,7 +76,7 @@ public class TileLayerServiceTests
     }
 
     [Fact]
-    public async Task BuiltInLayers_HaveStableIds_AcrossServiceInstances()
+    public void BuiltInLayers_HaveStableIds_AcrossServiceInstances()
     {
         using var firstMap = new MapLayerFixture();
         using var secondMap = new MapLayerFixture();
@@ -91,8 +86,6 @@ public class TileLayerServiceTests
         TileLayerState? secondState = null;
         using var firstSubscription = first.Observe().Subscribe(state => firstState = state);
         using var secondSubscription = second.Observe().Subscribe(state => secondState = state);
-        await first.InitializeAsync();
-        await second.InitializeAsync();
 
         Assert.Equal(firstState!.AvailableLayers.Select(layer => layer.Id),
             secondState!.AvailableLayers.Select(layer => layer.Id));

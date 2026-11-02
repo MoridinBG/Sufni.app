@@ -15,7 +15,6 @@ namespace Sufni.App.MapsAndTracks.ViewModels;
 
 public partial class MapViewModel : ViewModelBase, IDisposable
 {
-    private readonly ITileLayerService tileLayerService;
     private readonly IDialogService dialogService;
     private readonly IMapLayerCoordinator coordinator;
     private TileLayerState? layerState;
@@ -45,7 +44,6 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         TimeProvider timeProvider)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
-        this.tileLayerService = tileLayerService;
         this.coordinator = coordinator;
         this.dialogService = dialogService;
 
@@ -55,11 +53,6 @@ public partial class MapViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(AvailableLayers));
             OnPropertyChanged(nameof(SelectedLayer));
         }));
-    }
-
-    public async Task InitializeAsync()
-    {
-        await tileLayerService.InitializeAsync();
     }
 
     public async Task SelectLayerAsync(TileLayerConfig? value)

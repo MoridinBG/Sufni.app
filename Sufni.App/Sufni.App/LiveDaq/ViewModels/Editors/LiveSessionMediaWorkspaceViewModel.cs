@@ -2,7 +2,6 @@ using Sufni.App.MapsAndTracks.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sufni.App.Shared.Common;
 
@@ -15,7 +14,6 @@ namespace Sufni.App.LiveDaq.ViewModels.Editors;
 
 public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISessionMediaWorkspace, IDisposable
 {
-    private bool isInitialized;
     private bool mapExpected;
 
     public bool HasMediaContent => MapState.ReservesLayout;
@@ -38,17 +36,6 @@ public sealed class LiveSessionMediaWorkspaceViewModel : ObservableObject, ISess
         mapViewModel.FullTrackPoints = [];
         mapViewModel.SessionTrackPoints = [];
         MapViewModel = mapViewModel;
-    }
-
-    public async Task InitializeAsync()
-    {
-        if (isInitialized)
-        {
-            return;
-        }
-
-        isInitialized = true;
-        await MapViewModel.InitializeAsync();
     }
 
     public void ApplySessionHeader(LiveSessionHeader? sessionHeader)

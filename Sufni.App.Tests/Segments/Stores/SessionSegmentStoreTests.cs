@@ -8,6 +8,19 @@ namespace Sufni.App.Tests.Segments.Stores;
 public class SessionSegmentStoreTests
 {
     [Fact]
+    public async Task Publication_RetainsEverySourceWithoutRequiringASession()
+    {
+        using var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var first = SessionSegmentSnapshot.From(new SessionSegment { OwnerKey = "source-a", Name = "A", StartSeconds = 0, EndSeconds = 1 });
+        var second = SessionSegmentSnapshot.From(new SessionSegment { OwnerKey = "source-b", Name = "B", StartSeconds = 2, EndSeconds = 3 });
+
+        await store.PublishSegmentsAsync([first, second], []);
+
+        Assert.Equal(first, Assert.Single(store.GetForOwner("source-a")));
+        Assert.Equal(second, Assert.Single(store.GetForOwner("source-b")));
+    }
+
+    [Fact]
     public async Task Publication_ChangesAndRemovesSegments_InOneObservedUpdate()
     {
         using var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));

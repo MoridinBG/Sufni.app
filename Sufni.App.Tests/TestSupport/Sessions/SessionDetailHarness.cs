@@ -38,7 +38,6 @@ internal sealed class SessionDetailHarness
 
     public SessionDetailHarness()
     {
-        tileLayerService.InitializeAsync().Returns(Task.CompletedTask);
         SessionPreferences.WithDefaultObserveRecorded();
         SessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(global::Sufni.App.Infrastructure.SessionPreferences.Default));
         SessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<global::Sufni.App.Infrastructure.SessionPreferences, global::Sufni.App.Infrastructure.SessionPreferences>>())

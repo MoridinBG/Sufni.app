@@ -5,6 +5,7 @@ using Serilog;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Shared.Models;
+using Sufni.App.Shared.Stores;
 
 using Sufni.App.Sessions.Store;
 namespace Sufni.App.Sessions.Coordination;
@@ -47,7 +48,9 @@ internal sealed class SessionEditingCoordinator(
     ISessionPersistenceTransactionRunner transactions,
     ISessionRecomputeEngine recomputeEngine,
     ISessionRepository sessionRepository,
-    IBackgroundTaskRunner backgroundTaskRunner) : ISessionEditingCoordinator
+    IBackgroundTaskRunner backgroundTaskRunner,
+    IUiThreadDispatcher dispatcher,
+    StorePublication publication) : ISessionEditingCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionEditingCoordinator>();
 
@@ -89,8 +92,12 @@ internal sealed class SessionEditingCoordinator(
                 return rows.OfType<Sufni.App.Sessions.Models.Session>().Select(SessionSnapshot.From).ToArray();
             });
             var removedIds = committed.SessionIds.Except(snapshots.Select(snapshot => snapshot.Id)).ToArray();
-            if (removedIds.Length > 0) await sessionStore.PublishSessionsRemovedAsync(removedIds);
-            await sessionStore.PublishSessionsChangedAsync(snapshots);
+            await dispatcher.InvokeAsync(async () =>
+            {
+                using var batch = publication.BeginBatch();
+                if (removedIds.Length > 0) await sessionStore.PublishSessionsRemovedAsync(removedIds);
+                await sessionStore.PublishSessionsChangedAsync(snapshots);
+            });
             // Requested before any other await: the publish queues a projection
             // update, and an open editor prompts for a recompute of a stale session
             // unless one is already running.
