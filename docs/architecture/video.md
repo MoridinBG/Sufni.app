@@ -38,15 +38,18 @@ The `track-materializations` migration converts old session offsets to the sourc
 
 ## Store And Coordinator
 
-Full clip refreshes are loaded and mapped by `VideoCoordinator.RefreshAsync`
-through its background runner, then published through the store's
-`ReplaceAllAsync`. Startup prepares the same snapshots in `AppDataRefresher`'s
-whole-app batch; the store itself has no repository dependency.
+`ISessionVideoRepository` prepares clip snapshots at load, link and alignment,
+reading file presence through `IVideoFilePresence` off the UI thread.
+`SessionVideoSnapshot.From` is a pure mapping with explicit presence. Startup
+publishes those prepared snapshots in `AppDataRefresher`'s whole-app batch.
 
-
-`SessionVideoStore` holds a `SessionVideoSnapshot` per clip and accepts prepared
-snapshots only. Import and alignment prepare clip snapshots
-off-thread, including the file-presence check, before publication. The snapshot records `FileExists` when it is created, and a refresh checks the file again. `AppDataRefresher` refreshes the store with the other core stores.
+`SessionVideoStore` retains every source-owned row, including missing files and
+owners with no current session. Session-window projections decide visibility.
+The application-lived `VideoCoordinator` observes the distinct linked paths
+through `IVideoFilePresence`; changed presence updates every matching clip in one
+publication. The provider checks on a five-second injected-clock cadence, stops
+when its observation is disposed, and emits only changes. The coordinator cancels
+queued publication on disposal. Editors have no clip-refresh command.
 
 `VideoCoordinator` owns the write workflows and timestamps imported links through its injected `TimeProvider`:
 

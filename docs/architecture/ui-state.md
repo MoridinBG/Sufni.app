@@ -69,7 +69,8 @@ Each persisted writer interface additionally exposes:
   constructs their snapshots off-thread, then publishes them inside one shared
   UI-thread batch. Concurrent full-refresh requests share the active run; a
   cancellation or load failure leaves the previously published state intact.
-  Video refresh loads its narrower snapshot set through its coordinator.
+  Video repository reads prepare snapshots with observed file presence; the video
+  coordinator observes linked paths independently of editors.
   Sync uses affected-ID publication, including for segments.
 - Publication methods accept prepared snapshots or ids to remove. Segment
   publication combines changes and removals in one cache update; segments are keyed

@@ -159,6 +159,7 @@ public static class AppComposition
         services.AddSingleton<RecordedSessionSourceStore>();
         services.AddSingleton<IRecordedSessionSourceStore>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
         services.AddSingleton<IRecordedSessionSourceStoreWriter>(sp => sp.GetRequiredService<RecordedSessionSourceStore>());
+        services.AddSingleton<IVideoFilePresence, VideoFilePresence>();
         services.AddSingleton<ISessionVideoRepository, SessionVideoRepository>();
         services.AddSingleton<IVideoMetadataReader, Mp4VideoMetadataReader>();
         services.AddSingleton<SessionVideoStore>();

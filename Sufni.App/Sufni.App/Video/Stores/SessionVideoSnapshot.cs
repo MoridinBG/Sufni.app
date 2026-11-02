@@ -4,8 +4,7 @@ using Sufni.App.Video.Models;
 namespace Sufni.App.Video.Stores;
 
 /// <summary>
-/// Immutable view of one linked clip. <see cref="FileExists"/> is observed
-/// when the snapshot is created; a refresh observes it again.
+/// Immutable view of one linked clip and its observed file presence.
 /// </summary>
 public sealed record SessionVideoSnapshot(
     Guid Id,
@@ -17,7 +16,7 @@ public sealed record SessionVideoSnapshot(
     long Added,
     bool FileExists)
 {
-    public static SessionVideoSnapshot From(SessionVideoClip clip) => new(
+    public static SessionVideoSnapshot From(SessionVideoClip clip, bool fileExists) => new(
         clip.Id,
         clip.OwnerKey,
         clip.Path,
@@ -25,5 +24,5 @@ public sealed record SessionVideoSnapshot(
         clip.DurationSeconds,
         clip.AlignmentOffsetSeconds,
         clip.Added,
-        System.IO.File.Exists(clip.Path));
+        fileExists);
 }

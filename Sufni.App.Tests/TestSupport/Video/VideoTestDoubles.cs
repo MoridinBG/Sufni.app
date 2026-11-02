@@ -82,18 +82,16 @@ internal sealed class FakeVideoPlayerFactory : IVideoPlayerFactory
 }
 
 /// <summary>
-/// Builds video clips backed by real files, so the store observes them as
-/// present, and video panes over a real store.
+/// Builds explicit clip snapshots and panes over a real store without file I/O.
 /// </summary>
 internal sealed class VideoFixture : IDisposable
 {
-    private readonly TempDirectory directory = new("sufni-video-test");
+    private readonly List<SessionVideoStore> stores = [];
 
-    public ISessionVideoRepository Repository { get; } = Substitute.For<ISessionVideoRepository>();
     public IVideoCoordinator Coordinator { get; } = Substitute.For<IVideoCoordinator>();
     public FakeVideoPlayerFactory PlayerFactory { get; } = new();
 
-    public SessionVideoClip CreateClip(
+    public SessionVideoSnapshot CreateClip(
         string ownerKey,
         long startTimestamp,
         double durationSeconds,
@@ -102,43 +100,32 @@ internal sealed class VideoFixture : IDisposable
         bool fileExists = true)
     {
         var id = Guid.NewGuid();
-        var path = Path.Combine(directory.Path, $"{id:N}.mp4");
-        if (fileExists)
-        {
-            File.WriteAllBytes(path, []);
-        }
-
-        return new SessionVideoClip
-        {
-            Id = id,
-            OwnerKey = ownerKey,
-            Path = path,
-            StartTimestamp = startTimestamp,
-            DurationSeconds = durationSeconds,
-            AlignmentOffsetSeconds = alignmentOffsetSeconds,
-            Added = added,
-        };
+        return new SessionVideoSnapshot(id, ownerKey, $"/videos/{id:N}.mp4", startTimestamp,
+            durationSeconds, alignmentOffsetSeconds, added, fileExists);
     }
 
     public static SessionVideoStore CreateEmptyStore() =>
         new(new StorePublication(new InlineUiThreadDispatcher()));
 
-    public async Task<SessionVideoStore> CreateStoreAsync(params SessionVideoClip[] clips)
+    public async Task<SessionVideoStore> CreateStoreAsync(params SessionVideoSnapshot[] clips)
     {
-        Repository.GetLiveAsync().Returns([.. clips]);
         var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
-        await store.ReplaceAllAsync(clips.Select(SessionVideoSnapshot.From).ToArray());
+        stores.Add(store);
+        await store.ReplaceAllAsync(clips);
         return store;
     }
 
     public async Task<VideoPaneViewModel> CreatePaneAsync(
         IRecordedSessionTimeline timeline,
         IObservable<VideoSessionTiming> sessionTiming,
-        params SessionVideoClip[] clips)
+        params SessionVideoSnapshot[] clips)
     {
         var store = await CreateStoreAsync(clips);
         return new VideoPaneViewModel(timeline, sessionTiming, store, Coordinator, PlayerFactory);
     }
 
-    public void Dispose() => directory.Dispose();
+    public void Dispose()
+    {
+        foreach (var store in stores) store.Dispose();
+    }
 }

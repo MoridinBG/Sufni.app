@@ -1962,11 +1962,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
         try
         {
-            if (videoPane is not null)
-            {
-                await videoPane.RefreshClipsAsync();
-            }
-
             await RestoreRecordedPreferencesAsync(loadLifecycleToken);
             if (!IsLoaded || loadLifecycleToken.IsCancellationRequested)
             {

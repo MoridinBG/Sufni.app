@@ -7,6 +7,21 @@ namespace Sufni.App.Tests.Video.Services;
 public class SessionVideoRepositoryTests
 {
     [Fact]
+    public async Task GetAllAsync_ReportsCurrentPresenceWithoutDroppingMissingClips()
+    {
+        using var tempDatabase = new TempDatabase();
+        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var repository = database.SessionVideoRepository;
+        const string path = "/videos/presence.mp4";
+        await repository.LinkAsync(path, 1_000, 60, 1, [new SessionVideoOwner("unreferenced-source", 1_000)]);
+        Assert.False(Assert.Single(await repository.GetAllAsync()).FileExists);
+
+        database.VideoPresence.SetPresent(path, true);
+
+        Assert.True(Assert.Single(await repository.GetAllAsync()).FileExists);
+    }
+
+    [Fact]
     public async Task LinkAsync_CreatesOneLinkPerSource_WithOwnerAbsoluteAlignment()
     {
         using var tempDatabase = new TempDatabase();
@@ -16,7 +31,7 @@ public class SessionVideoRepositoryTests
 
         await repository.LinkAsync("/videos/ride.mp4", 1_000, 60, added: 5, owners);
 
-        var clips = await repository.GetLiveAsync();
+        var clips = await repository.GetAllAsync();
         Assert.Equal(["first-source", "second-source"], clips.Select(clip => clip.OwnerKey).Order());
         Assert.Equal(10, clips.Single(clip => clip.OwnerKey == "first-source").AlignmentOffsetSeconds);
         Assert.Equal(-10, clips.Single(clip => clip.OwnerKey == "second-source").AlignmentOffsetSeconds);
@@ -40,11 +55,11 @@ public class SessionVideoRepositoryTests
         Assert.Equal(5, relinked.Added);
         Assert.Equal(2.5, relinked.AlignmentOffsetSeconds);
         Assert.Equal(1_001, relinked.StartTimestamp);
-        Assert.Single(await repository.GetLiveAsync());
+        Assert.Single(await repository.GetAllAsync());
     }
 
     [Fact]
-    public async Task GetLiveAsync_RetainsSourceClipsAfterSessionDeletion()
+    public async Task GetAllAsync_RetainsSourceClipsAfterSessionDeletion()
     {
         using var tempDatabase = new TempDatabase();
         var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
@@ -56,7 +71,7 @@ public class SessionVideoRepositoryTests
             "/videos/ride.mp4", 1_000, 60, added: 1, [new SessionVideoOwner("first-source", 1_000), new SessionVideoOwner("second-source", 1_000)]);
         await database.DeleteAsync(deletedSession);
 
-        var clips = await database.SessionVideoRepository.GetLiveAsync();
+        var clips = await database.SessionVideoRepository.GetAllAsync();
 
         Assert.Equal(2, clips.Count);
     }

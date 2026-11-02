@@ -162,7 +162,7 @@ public class AppDataRefresherTests
             sourceRepository.GetRecordedSessionSourceSnapshotsAsync().Returns(
                 [new RecordedSessionSourceSnapshot(Session.Id, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source hash")]);
             deviceRepository.GetPairedDevicesAsync().Returns([new PairedDevice("phone", "Phone", new DateTime(2030, 1, 1))]);
-            videoRepository.GetLiveAsync().Returns([Clip]);
+            videoRepository.GetAllAsync().Returns([SessionVideoSnapshot.From(Clip, false)]);
             SegmentRepository.GetLiveAsync().Returns([Segment]);
             var dispatcher = new InlineUiThreadDispatcher();
             Publication = new StorePublication(dispatcher);

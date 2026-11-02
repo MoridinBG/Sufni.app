@@ -82,7 +82,7 @@ internal sealed class AppDataRefresher(
             var sessions = await sessionRepository.GetSessionsAsync();
             var sources = await sourceRepository.GetRecordedSessionSourceSnapshotsAsync();
             var devices = await pairedDeviceRepository.GetPairedDevicesAsync();
-            var clips = await videoRepository.GetLiveAsync();
+            var clips = await videoRepository.GetAllAsync();
             var tracks = await trackRepository.GetTrackSnapshotsAsync();
             var segments = await segmentRepository.GetLiveAsync();
             cancellationToken.ThrowIfCancellationRequested();
@@ -92,7 +92,7 @@ internal sealed class AppDataRefresher(
                 sessions.Select(SessionSnapshot.From).ToArray(),
                 sources.ToArray(),
                 devices.Select(PairedDeviceSnapshot.From).ToArray(),
-                clips.Select(SessionVideoSnapshot.From).ToArray(),
+                clips.ToArray(),
                 segments.Select(SessionSegmentSnapshot.From).ToArray(),
                 tracks, boards.Select(BoardSnapshot.From).ToArray(), layers.Select(CustomTileLayerSnapshot.From).ToArray());
         }, cancellationToken);

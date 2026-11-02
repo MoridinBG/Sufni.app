@@ -63,7 +63,7 @@ public class VideoPaneViewModelTests : IDisposable
         var store = await fixture.CreateStoreAsync();
         using var pane = new VideoPaneViewModel(timeline, Observable.Return(new VideoSessionTiming("source-hash", 0, 60)), store, fixture.Coordinator, fixture.PlayerFactory);
 
-        await store.PublishClipsAsync([SessionVideoSnapshot.From(fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60))]);
+        await store.PublishClipsAsync([fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60)]);
 
         Assert.True(pane.HasVideo);
     }

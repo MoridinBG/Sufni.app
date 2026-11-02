@@ -121,8 +121,8 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
         using var videos = new VideoFixture();
-        cache.AddOrUpdate(cache.Lookup(snapshot.Id).Value with { LatestVideo = SessionVideoSnapshot.From(
-            videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: false)) });
+        cache.AddOrUpdate(cache.Lookup(snapshot.Id).Value with { LatestVideo =
+            videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: false) });
         var viewModel = new SessionListViewModel(
             projection,
             TestCoordinatorSubstitutes.RecomputeEngine(),
@@ -242,8 +242,8 @@ public class SessionListViewTests
         var projection = Substitute.For<IRecordedSessionProjection>();
         projection.ConnectSessions().Returns(cache.Connect());
         using var videos = new VideoFixture();
-        cache.AddOrUpdate(cache.Lookup(snapshot.Id).Value with { LatestVideo = SessionVideoSnapshot.From(
-            videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: true)) });
+        cache.AddOrUpdate(cache.Lookup(snapshot.Id).Value with { LatestVideo =
+            videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: true) });
         var viewModel = new SessionListViewModel(
             projection,
             TestCoordinatorSubstitutes.RecomputeEngine(),

@@ -64,6 +64,7 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        VideoPresence.Dispose();
         await context.DisposeAsync();
         PublishedSessions.Dispose();
         PublishedSources.Dispose();
@@ -78,7 +79,8 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public SessionStore PublishedSessions { get; }
     public RecordedSessionSourceStore PublishedSources { get; }
 
-    public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context);
+    public Sufni.App.Tests.TestSupport.Video.FakeVideoFilePresence VideoPresence { get; } = new();
+    public ISessionVideoRepository SessionVideoRepository => new SessionVideoRepository(context, VideoPresence);
 
     public ISessionSegmentRepository SessionSegmentRepository => new SessionSegmentRepository(context, timeProvider, localDeviceIdentity);
 

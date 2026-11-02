@@ -56,11 +56,6 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     public IVideoPlayerFactory PlayerFactory { get; }
 
     /// <summary>
-    /// Observes the presence of every linked file again.
-    /// </summary>
-    public Task RefreshClipsAsync() => videoCoordinator.RefreshAsync();
-
-    /// <summary>
     /// Adds <paramref name="deltaSeconds"/> to the clip's alignment offset.
     /// Returns the coordinator’s typed alignment outcome.
     /// </summary>

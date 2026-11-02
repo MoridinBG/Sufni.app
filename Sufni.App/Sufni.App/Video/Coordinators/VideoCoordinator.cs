@@ -1,5 +1,8 @@
 using Sufni.App.Sessions.Store;
 using System;
+using System.Collections.Immutable;
+using System.Reactive.Linq;
+using DynamicData;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -51,7 +54,6 @@ public interface IVideoCoordinator
     /// </summary>
     Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds);
 
-    Task RefreshAsync();
 }
 
 internal sealed class VideoCoordinator(
@@ -62,9 +64,31 @@ internal sealed class VideoCoordinator(
     ISessionVideoStoreWriter videoStore,
     IBackgroundTaskRunner backgroundTaskRunner,
     TimeProvider timeProvider,
-    IRecordedSessionSourceStore sourceStore) : IVideoCoordinator
+    IRecordedSessionSourceStore sourceStore,
+    IVideoFilePresence filePresence,
+    IUiThreadDispatcher dispatcher) : IVideoCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
+    private readonly IDisposable presenceSubscription = ObservePresence(videoStore, filePresence, dispatcher);
+
+    private static IDisposable ObservePresence(ISessionVideoStoreWriter store, IVideoFilePresence presence, IUiThreadDispatcher dispatcher) =>
+        store.Connect().ToCollection()
+            .Select(clips => clips.Select(clip => clip.Path).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToImmutableArray())
+            .DistinctUntilChanged(EqualityComparer<ImmutableArray<string>>.Create((left, right) => left.SequenceEqual(right)))
+            .Select(paths => presence.Observe(paths))
+            .Switch()
+            .Select(observed => Observable.FromAsync(token => dispatcher.InvokeAsync(() =>
+            {
+                if (token.IsCancellationRequested) return Task.CompletedTask;
+                var changed = store.GetAll()
+                    .Where(clip => observed.TryGetValue(clip.Path, out var exists) && exists != clip.FileExists)
+                    .Select(clip => clip with { FileExists = observed[clip.Path] }).ToArray();
+                return changed.Length == 0 ? Task.CompletedTask : store.PublishClipsAsync(changed);
+            })))
+            .Concat()
+            .Subscribe(_ => { }, exception => logger.Error(exception, "Video file presence observation failed"));
+
+    public void Dispose() => presenceSubscription.Dispose();
 
     public async Task<VideoImportResult> ImportAsync(CancellationToken cancellationToken = default)
     {
@@ -106,11 +130,8 @@ internal sealed class VideoCoordinator(
 
         try
         {
-            var updated = await backgroundTaskRunner.RunAsync(async () =>
-            {
-                var row = await videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds);
-                return row is null ? null : SessionVideoSnapshot.From(row);
-            });
+            var updated = await backgroundTaskRunner.RunAsync(() =>
+                videoRepository.UpdateAlignmentAsync(clipId, clip.AlignmentOffsetSeconds + deltaSeconds));
             if (updated is null)
             {
                 return new VideoAlignmentResult.ClipMissing();
@@ -124,13 +145,6 @@ internal sealed class VideoCoordinator(
             logger.Error(e, "Video alignment failed for {ClipId}", clipId);
             return new VideoAlignmentResult.Failed(VideoAlignmentFailureReason.Save, e.Message);
         }
-    }
-
-    public async Task RefreshAsync()
-    {
-        var snapshots = await backgroundTaskRunner.RunAsync(async () =>
-            (await videoRepository.GetLiveAsync()).Select(SessionVideoSnapshot.From).ToArray());
-        await videoStore.ReplaceAllAsync(snapshots);
     }
 
     private async Task<VideoImportResult> ImportCoreAsync(
@@ -172,7 +186,7 @@ internal sealed class VideoCoordinator(
             timeProvider.GetUtcNow().ToUnixTimeMilliseconds(),
             inputs.Select(input => new SessionVideoOwner(input.Source!.SourceHash,
                 SessionTrackTimeline.FromSessionWindow(input.Session.Timestamp!.Value, 0, input.Session.WindowStartSeconds).SourceTimestamp)).ToArray());
-        await videoStore.PublishClipsAsync(clips.Select(SessionVideoSnapshot.From).ToArray());
+        await videoStore.PublishClipsAsync(clips.ToArray());
         return new VideoImportResult.Linked(matchingSessions.Length);
     }
 

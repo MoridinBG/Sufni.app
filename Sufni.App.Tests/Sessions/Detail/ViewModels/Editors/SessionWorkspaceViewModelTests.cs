@@ -271,7 +271,7 @@ public class SessionWorkspaceViewModelTests
         var videoBeforeLink = workspace.Video;
         var changes = TrackPropertyChanges(workspace);
 
-        await store.PublishClipsAsync([SessionVideoSnapshot.From(videoFixture.CreateClip("source-hash", startTimestamp: 1_000, durationSeconds: 60))]);
+        await store.PublishClipsAsync([videoFixture.CreateClip("source-hash", startTimestamp: 1_000, durationSeconds: 60)]);
 
         Assert.Null(videoBeforeLink);
         Assert.Same(videoPane, workspace.Video);

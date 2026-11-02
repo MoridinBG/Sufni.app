@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using SQLite;
 using Sufni.App.Infrastructure;
 using Sufni.App.Video.Models;
+using Sufni.App.Video.Stores;
 namespace Sufni.App.Video.Services;
 
 public interface ISessionVideoRepository
@@ -13,14 +14,14 @@ public interface ISessionVideoRepository
     /// <summary>
     /// Returns every source-owned clip.
     /// </summary>
-    Task<List<SessionVideoClip>> GetLiveAsync();
+    Task<IReadOnlyList<SessionVideoSnapshot>> GetAllAsync();
 
     /// <summary>
     /// Links one file to each recording source in one transaction and returns
     /// the linked rows. A source that already links the same path keeps its
     /// clip id, added time, and alignment offset.
     /// </summary>
-    Task<IReadOnlyList<SessionVideoClip>> LinkAsync(
+    Task<IReadOnlyList<SessionVideoSnapshot>> LinkAsync(
         string path,
         long startTimestamp,
         double durationSeconds,
@@ -30,32 +31,33 @@ public interface ISessionVideoRepository
     /// <summary>
     /// Returns the updated row, or null when the clip no longer exists.
     /// </summary>
-    Task<SessionVideoClip?> UpdateAlignmentAsync(Guid clipId, double alignmentOffsetSeconds);
+    Task<SessionVideoSnapshot?> UpdateAlignmentAsync(Guid clipId, double alignmentOffsetSeconds);
 }
 
 /// <summary>Captured identity and clock origin for a video's recording owner.</summary>
 public sealed record SessionVideoOwner(string OwnerKey, double StartTimestamp);
 
-internal sealed class SessionVideoRepository(SqliteConnectionContext connectionContext) : ISessionVideoRepository
+internal sealed class SessionVideoRepository(SqliteConnectionContext connectionContext, IVideoFilePresence filePresence) : ISessionVideoRepository
 {
-    public async Task<List<SessionVideoClip>> GetLiveAsync()
+    public async Task<IReadOnlyList<SessionVideoSnapshot>> GetAllAsync()
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
-        return await connection.QueryAsync<SessionVideoClip>(
+        var rows = await connection.QueryAsync<SessionVideoClip>(
             """
             SELECT clip.*
             FROM session_video clip
             """);
+        return await PrepareSnapshotsAsync(rows);
     }
 
-    public Task<IReadOnlyList<SessionVideoClip>> LinkAsync(
+    public async Task<IReadOnlyList<SessionVideoSnapshot>> LinkAsync(
         string path,
         long startTimestamp,
         double durationSeconds,
         long added,
         IReadOnlyCollection<SessionVideoOwner> owners)
     {
-        return connectionContext.RunInTransactionAsync<IReadOnlyList<SessionVideoClip>>(connection =>
+        var rows = await connectionContext.RunInTransactionAsync<IReadOnlyList<SessionVideoClip>>(connection =>
         {
             var clips = new List<SessionVideoClip>(owners.Count);
             foreach (var owner in owners.DistinctBy(owner => owner.OwnerKey))
@@ -89,9 +91,10 @@ internal sealed class SessionVideoRepository(SqliteConnectionContext connectionC
 
             return clips;
         });
+        return await PrepareSnapshotsAsync(rows);
     }
 
-    public async Task<SessionVideoClip?> UpdateAlignmentAsync(Guid clipId, double alignmentOffsetSeconds)
+    public async Task<SessionVideoSnapshot?> UpdateAlignmentAsync(Guid clipId, double alignmentOffsetSeconds)
     {
         var connection = await connectionContext.GetInitializedConnectionAsync();
         var clip = await connection.FindAsync<SessionVideoClip>(clipId);
@@ -102,7 +105,13 @@ internal sealed class SessionVideoRepository(SqliteConnectionContext connectionC
 
         clip.AlignmentOffsetSeconds = alignmentOffsetSeconds;
         await connection.UpdateAsync(clip);
-        return clip;
+        return (await PrepareSnapshotsAsync([clip]))[0];
+    }
+
+    private async Task<IReadOnlyList<SessionVideoSnapshot>> PrepareSnapshotsAsync(IReadOnlyList<SessionVideoClip> rows)
+    {
+        var presence = await filePresence.ReadAsync(rows.Select(clip => clip.Path));
+        return rows.Select(clip => SessionVideoSnapshot.From(clip, presence[clip.Path])).ToArray();
     }
 
 }

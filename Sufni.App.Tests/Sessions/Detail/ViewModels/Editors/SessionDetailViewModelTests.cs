@@ -27,6 +27,7 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Sessions;
 using Sufni.App.Tests.TestSupport.Video;
 using Sufni.App.Video.Models;
+using Sufni.App.Video.Stores;
 using Sufni.App.Video.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.Telemetry;
@@ -993,7 +994,7 @@ public class SessionDetailViewModelTests
         return (harness, editor);
     }
 
-    private static async Task<(SessionDetailViewModel Editor, SessionVideoClip Clip)> CreateEditorWithVideoAsync(
+    private static async Task<(SessionDetailViewModel Editor, SessionVideoSnapshot Clip)> CreateEditorWithVideoAsync(
         VideoFixture videos)
     {
         var harness = new SessionDetailHarness();

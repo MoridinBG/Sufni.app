@@ -1,4 +1,9 @@
 using Avalonia.Platform.Storage;
+using System.Reactive.Linq;
+using DynamicData;
+using Sufni.App.Shared.Stores;
+using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Video;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 
@@ -13,7 +18,7 @@ using Sufni.App.Video.Services;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Tests.Video.Coordinators;
 
-public class VideoCoordinatorTests
+public class VideoCoordinatorTests : IDisposable
 {
     private static readonly DateTimeOffset VideoStart = new(2026, 6, 3, 14, 0, 0, TimeSpan.Zero);
 
@@ -24,10 +29,12 @@ public class VideoCoordinatorTests
     private readonly ISessionVideoStoreWriter videoStore = Substitute.For<ISessionVideoStoreWriter>();
     private readonly IRecordedSessionSourceStore sourceStore = Substitute.For<IRecordedSessionSourceStore>();
     private readonly VideoCoordinator coordinator;
+    private readonly FakeVideoFilePresence presence = new();
     private readonly FakeTimeProvider time = new(VideoStart.AddDays(1));
 
     public VideoCoordinatorTests()
     {
+        videoStore.Connect().Returns(Observable.Empty<IChangeSet<SessionVideoSnapshot, Guid>>());
         coordinator = new VideoCoordinator(
             filesService,
             metadataReader,
@@ -35,13 +42,52 @@ public class VideoCoordinatorTests
             videoRepository,
             videoStore,
             new InlineBackgroundTaskRunner(),
-            time, sourceStore);
+            time, sourceStore, presence, new InlineUiThreadDispatcher());
         videoRepository
             .LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(), Arg.Any<IReadOnlyCollection<SessionVideoOwner>>())
             .Returns(call => call.ArgAt<IReadOnlyCollection<SessionVideoOwner>>(4)
                 .DistinctBy(owner => owner.OwnerKey)
-                .Select(owner => new SessionVideoClip { Id = Guid.NewGuid(), OwnerKey = owner.OwnerKey })
+                .Select(owner => SessionVideoSnapshot.From(new SessionVideoClip { Id = Guid.NewGuid(), OwnerKey = owner.OwnerKey }, true))
                 .ToList());
+    }
+
+    [Fact]
+    public async Task PresenceChange_PublishesAllClipsForThePathTogether()
+    {
+        var dispatcher = new InlineUiThreadDispatcher();
+        var publication = new StorePublication(dispatcher);
+        using var store = new SessionVideoStore(publication);
+        var first = new SessionVideoSnapshot(Guid.NewGuid(), "first", "/videos/shared.mp4", 0, 60, 0, 1, false);
+        var second = first with { Id = Guid.NewGuid(), OwnerKey = "second" };
+        await store.ReplaceAllAsync([first, second]);
+        using var owner = new VideoCoordinator(filesService, metadataReader, sessionRepository, videoRepository,
+            store, new InlineBackgroundTaskRunner(), time, sourceStore, presence, dispatcher);
+        var published = new TaskCompletionSource<IReadOnlyList<SessionVideoSnapshot>>();
+        using var subscription = publication.Committed.Subscribe(_ => published.TrySetResult(store.GetAll()));
+
+        presence.SetPresent(first.Path, true);
+        var values = await published.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, values.Count);
+        Assert.All(values, clip => Assert.True(clip.FileExists));
+        Assert.Equal(first.OwnerKey, store.Get(first.Id)!.OwnerKey);
+    }
+
+    [Fact]
+    public async Task Dispose_RejectsQueuedPresencePublication()
+    {
+        var dispatcher = new ManualUiThreadDispatcher();
+        using var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var clip = new SessionVideoSnapshot(Guid.NewGuid(), "source", "/videos/queued.mp4", 0, 60, 0, 1, false);
+        await store.ReplaceAllAsync([clip]);
+        var owner = new VideoCoordinator(filesService, metadataReader, sessionRepository, videoRepository,
+            store, new InlineBackgroundTaskRunner(), time, sourceStore, presence, dispatcher);
+        presence.SetPresent(clip.Path, true);
+
+        owner.Dispose();
+        await dispatcher.DrainAsync();
+
+        Assert.False(store.Get(clip.Id)!.FileExists);
     }
 
     [Fact]
@@ -127,8 +173,8 @@ public class VideoCoordinatorTests
     public async Task ShiftAlignmentAsync_AddsDeltaToCurrentOffset_AndPublishesClip()
     {
         var clip = new SessionVideoClip { Id = Guid.NewGuid(), AlignmentOffsetSeconds = 3.5 };
-        videoStore.Get(clip.Id).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clip.Id, AlignmentOffsetSeconds = 2 }));
-        videoRepository.UpdateAlignmentAsync(clip.Id, 3.5).Returns(clip);
+        videoStore.Get(clip.Id).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clip.Id, AlignmentOffsetSeconds = 2 }, true));
+        videoRepository.UpdateAlignmentAsync(clip.Id, 3.5).Returns(SessionVideoSnapshot.From(clip, true));
 
         var shifted = await coordinator.ShiftAlignmentAsync(clip.Id, 1.5);
 
@@ -140,8 +186,8 @@ public class VideoCoordinatorTests
     public async Task ShiftAlignmentAsync_ReturnsClipMissing_WhenClipIsGone()
     {
         var clipId = Guid.NewGuid();
-        videoStore.Get(clipId).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clipId }));
-        videoRepository.UpdateAlignmentAsync(clipId, Arg.Any<double>()).Returns((SessionVideoClip?)null);
+        videoStore.Get(clipId).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clipId }, true));
+        videoRepository.UpdateAlignmentAsync(clipId, Arg.Any<double>()).Returns((SessionVideoSnapshot?)null);
 
         var shifted = await coordinator.ShiftAlignmentAsync(clipId, 1);
 
@@ -156,7 +202,7 @@ public class VideoCoordinatorTests
         var session = CreateSession(VideoStart, durationSeconds: 60);
         sessionRepository.GetSessionsAsync().Returns([session]);
         videoRepository.LinkAsync(Arg.Any<string>(), Arg.Any<long>(), Arg.Any<double>(), Arg.Any<long>(),
-            Arg.Any<IReadOnlyCollection<SessionVideoOwner>>()).Returns(Task.FromException<IReadOnlyList<SessionVideoClip>>(
+            Arg.Any<IReadOnlyCollection<SessionVideoOwner>>()).Returns(Task.FromException<IReadOnlyList<SessionVideoSnapshot>>(
                 new IOException("database unavailable")));
 
         var result = await coordinator.ImportAsync(TestContext.Current.CancellationToken);
@@ -169,14 +215,20 @@ public class VideoCoordinatorTests
     public async Task ShiftAlignmentAsync_ReturnsFailure_WhenPersistenceFails()
     {
         var clipId = Guid.NewGuid();
-        videoStore.Get(clipId).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clipId }));
+        videoStore.Get(clipId).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clipId }, true));
         videoRepository.UpdateAlignmentAsync(clipId, Arg.Any<double>())
-            .Returns(Task.FromException<SessionVideoClip?>(new IOException("database unavailable")));
+            .Returns(Task.FromException<SessionVideoSnapshot?>(new IOException("database unavailable")));
 
         var result = await coordinator.ShiftAlignmentAsync(clipId, 1);
 
         Assert.Equal(VideoAlignmentFailureReason.Save, Assert.IsType<VideoAlignmentResult.Failed>(result).Reason);
         await videoStore.DidNotReceive().PublishClipsAsync(Arg.Any<IReadOnlyCollection<SessionVideoSnapshot>>());
+    }
+
+    public void Dispose()
+    {
+        coordinator.Dispose();
+        presence.Dispose();
     }
 
     private void SelectVideo(double durationSeconds)

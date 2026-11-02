@@ -158,8 +158,8 @@ public class SessionListViewModelTests
         {
             var summary = CreateSummary(name: "session");
             sessionCache.AddOrUpdate(summary);
-            sessionCache.AddOrUpdate(summary with { LatestVideo = SessionVideoSnapshot.From(
-                videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: false)) });
+            sessionCache.AddOrUpdate(summary with { LatestVideo =
+                videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60, fileExists: false) });
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
@@ -180,8 +180,8 @@ public class SessionListViewModelTests
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
             var row = Assert.Single(viewModel.Items);
 
-            sessionCache.AddOrUpdate(summary with { LatestVideo = SessionVideoSnapshot.From(
-                videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60)) });
+            sessionCache.AddOrUpdate(summary with { LatestVideo =
+                videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60) });
 
             Assert.Same(row, Assert.Single(viewModel.Items));
             Assert.True(row.HasPresentVideo);
