@@ -187,6 +187,8 @@ public sealed record FailurePresentation
     public static FailurePresentation From(SessionEditorFailureReason reason, string? details = null) => new(reason switch
     {
         SessionEditorFailureReason.Reconcile => "The session changes could not be applied. Close the session and open it again.",
+        SessionEditorFailureReason.LoadPreferences => "The session preferences could not be loaded. Default preferences are shown.",
+        SessionEditorFailureReason.SavePreferences => "The session preferences could not be saved. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
     }, details);
 

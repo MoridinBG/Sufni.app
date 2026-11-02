@@ -50,31 +50,31 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     public TravelDistributionMode SelectedTravelDistributionMode
     {
-        get => currentState.Intent.SelectedTravelDistributionMode;
+        get => currentState.Preferences.Analysis.TravelDistributionMode;
         set => actions.SetTravelDistributionMode(value);
     }
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
-        get => currentState.Intent.SelectedBalanceDisplacementMode;
+        get => currentState.Preferences.Analysis.BalanceDisplacementMode;
         set => actions.SetBalanceDisplacementMode(value);
     }
 
     public BalanceSpeedMode SelectedBalanceSpeedMode
     {
-        get => currentState.Intent.SelectedBalanceSpeedMode;
+        get => currentState.Preferences.Analysis.BalanceSpeedMode;
         set => actions.SetBalanceSpeedMode(value);
     }
 
     public VelocityAverageMode SelectedVelocityAverageMode
     {
-        get => currentState.Intent.SelectedVelocityAverageMode;
+        get => currentState.Preferences.Analysis.VelocityAverageMode;
         set => actions.SetVelocityAverageMode(value);
     }
 
     public SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile
     {
-        get => currentState.Intent.SelectedSessionInsightsTargetProfile;
+        get => currentState.Preferences.Analysis.SessionInsightsTargetProfile;
         set => actions.SetSessionInsightsTargetProfile(value);
     }
 
@@ -180,16 +180,16 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         }
 
         var modesChanged =
-            NotifyChanged(previous.Intent.SelectedTravelDistributionMode, state.Intent.SelectedTravelDistributionMode, nameof(SelectedTravelDistributionMode)) |
-            NotifyChanged(previous.Intent.SelectedVelocityAverageMode, state.Intent.SelectedVelocityAverageMode, nameof(SelectedVelocityAverageMode)) |
-            NotifyChanged(previous.Intent.SelectedBalanceDisplacementMode, state.Intent.SelectedBalanceDisplacementMode, nameof(SelectedBalanceDisplacementMode)) |
-            NotifyChanged(previous.Intent.SelectedBalanceSpeedMode, state.Intent.SelectedBalanceSpeedMode, nameof(SelectedBalanceSpeedMode));
+            NotifyChanged(previous.Preferences.Analysis.TravelDistributionMode, state.Preferences.Analysis.TravelDistributionMode, nameof(SelectedTravelDistributionMode)) |
+            NotifyChanged(previous.Preferences.Analysis.VelocityAverageMode, state.Preferences.Analysis.VelocityAverageMode, nameof(SelectedVelocityAverageMode)) |
+            NotifyChanged(previous.Preferences.Analysis.BalanceDisplacementMode, state.Preferences.Analysis.BalanceDisplacementMode, nameof(SelectedBalanceDisplacementMode)) |
+            NotifyChanged(previous.Preferences.Analysis.BalanceSpeedMode, state.Preferences.Analysis.BalanceSpeedMode, nameof(SelectedBalanceSpeedMode));
         if (modesChanged)
         {
             OnPropertyChanged(nameof(SessionAnalysisModesText));
         }
 
-        NotifyChanged(previous.Intent.SelectedSessionInsightsTargetProfile, state.Intent.SelectedSessionInsightsTargetProfile, nameof(SelectedSessionInsightsTargetProfile));
+        NotifyChanged(previous.Preferences.Analysis.SessionInsightsTargetProfile, state.Preferences.Analysis.SessionInsightsTargetProfile, nameof(SelectedSessionInsightsTargetProfile));
         NotifyChanged(previous.Presentation.Analysis.FrontAnalysis, state.Presentation.Analysis.FrontAnalysis, nameof(FrontAnalysisState));
         NotifyChanged(previous.Presentation.Analysis.RearAnalysis, state.Presentation.Analysis.RearAnalysis, nameof(RearAnalysisState));
         NotifyChanged(previous.Presentation.Analysis.CompressionBalance, state.Presentation.Analysis.CompressionBalance, nameof(CompressionBalanceState));

@@ -63,11 +63,11 @@ internal sealed class RecordedSessionEditorEffects : IDisposable
         return states
             .Select(static state => new RecordedSessionAnalysisEffectState(
                 state.Intent.AnalysisRange,
-                state.Intent.SelectedTravelDistributionMode,
-                state.Intent.SelectedVelocityAverageMode,
-                state.Intent.SelectedBalanceDisplacementMode,
-                state.Intent.SelectedBalanceSpeedMode,
-                state.Intent.SelectedSessionInsightsTargetProfile,
+                state.Preferences.Analysis.TravelDistributionMode,
+                state.Preferences.Analysis.VelocityAverageMode,
+                state.Preferences.Analysis.BalanceDisplacementMode,
+                state.Preferences.Analysis.BalanceSpeedMode,
+                state.Preferences.Analysis.SessionInsightsTargetProfile,
                 state.Intent.DampingSpeedCutoffs))
             .Scan(
                 (Previous: (RecordedSessionAnalysisEffectState?)null, Current: (RecordedSessionAnalysisEffectState?)null),

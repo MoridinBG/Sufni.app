@@ -95,7 +95,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     public ILiveSessionSignalsWorkspace SignalsWorkspace => signalsWorkspace;
     public ISessionMediaWorkspace MediaWorkspace => mediaWorkspace;
     public NotesPageViewModel NotesPage { get; } = new();
-    public PreferencesPageViewModel PreferencesPage { get; } = new();
+    public PreferencesPageViewModel PreferencesPage { get; }
     public SpringPageViewModel SpringPage { get; }
     public DampingPageViewModel DampingPage { get; }
     public BalancePageViewModel BalancePage { get; }
@@ -268,6 +268,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
 
         var timeline = new SessionTimelineLinkViewModel();
         signalsWorkspace = new LiveSessionSignalsWorkspaceViewModel(timeline, CreatePlotRanges(context), liveSessionService.SignalBatches);
+        PreferencesPage = new PreferencesPageViewModel(() => signalsWorkspace.SignalDisplayPreferences, ApplyRuntimeSignalPreferences);
         mediaWorkspace = new LiveSessionMediaWorkspaceViewModel(mapViewModelFactory, timeline);
         Name = CreateDefaultName(Clock.GetLocalNow());
         LiveSignalsPage = new LiveSignalsPageViewModel(signalsWorkspace, mediaWorkspace);
@@ -277,7 +278,6 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         Pages = [LiveSignalsPage, SpringPage, DampingPage, NotesPage, PreferencesPage];
         Pages.CollectionChanged += OnPagesChanged;
         WireNotesPageForwarding();
-        WireRuntimePreferenceForwarding();
 
         ApplyPresentation(liveSessionService.Current);
 
@@ -625,24 +625,11 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         };
     }
 
-    private void WireRuntimePreferenceForwarding()
+    private void ApplyRuntimeSignalPreferences(SignalDisplayPreferences preferences)
     {
-        PreferencesPage.TravelSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.VelocitySignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.ImuSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.PitchRollSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.SpeedSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.ElevationSignal.PropertyChanged += OnSignalPreferenceChanged;
-    }
-
-    private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
-    {
-        if (args.PropertyName is not nameof(SignalPreferenceItemViewModel.SelectedSmoothing))
-        {
-            return;
-        }
-
-        signalsWorkspace.ApplySignalDisplayPreferences(PreferencesPage.CreateSignalDisplayPreferences());
+        var previous = signalsWorkspace.SignalDisplayPreferences;
+        signalsWorkspace.ApplySignalDisplayPreferences(preferences);
+        PreferencesPage.RefreshSignalDisplayPreferences(previous, preferences);
     }
 
     private void ApplySignalAvailability(LiveSessionHeader? sessionHeader)

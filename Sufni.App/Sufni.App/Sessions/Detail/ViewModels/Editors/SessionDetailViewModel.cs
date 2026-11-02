@@ -124,7 +124,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private RecordedSessionDomainSnapshot? handledDomain;
     private RecordedSessionDomainSnapshot? deferredDomain;
     private readonly RecordedPagePresentationApplier presentationApplier;
-    private readonly RecordedPreferenceStore recordedPreferenceStore;
+    private readonly ISessionPreferences sessionPreferences;
+    private Task pendingPreferenceOperations = Task.CompletedTask;
     private readonly ProcessingPreferenceWorkflow processingPreferenceWorkflow;
     private Session session;
     private RecordedSignalsPageViewModel SignalsPage { get; }
@@ -185,29 +186,29 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     public NotesPageViewModel NotesPage { get; } = new();
     public SignalDisplayPreferences SignalDisplayPreferences
     {
-        get => currentEditorState.Intent.SignalDisplayPreferences;
+        get => currentEditorState.Preferences.SignalDisplay;
     }
 
     public SignalLayoutPreferences SignalLayoutPreferences
     {
-        get => currentEditorState.Intent.SignalLayoutPreferences;
+        get => currentEditorState.Preferences.SignalLayout;
         set => editorActions.SetSignalLayoutPreferences(value);
     }
 
     public SessionLayoutPreferences LayoutPreferences
     {
-        get => currentEditorState.Intent.LayoutPreferences;
+        get => currentEditorState.Preferences.Layout;
         set => editorActions.SetLayoutPreferences(value);
     }
 
     public SessionPaneGroupPreferences? MediaLayoutPreferences
     {
-        get => currentEditorState.Intent.LayoutPreferences.DesktopMediaRows;
+        get => currentEditorState.Preferences.Layout.DesktopMediaRows;
         set => LayoutPreferences = LayoutPreferences with { DesktopMediaRows = value };
     }
 
     public TelemetrySourceVisibilityStore SourceVisibility => sourceVisibility;
-    public PreferencesPageViewModel PreferencesPage { get; } = new();
+    public PreferencesPageViewModel PreferencesPage { get; }
     public MapViewModel? MapViewModel => mapViewModel;
     public IReadOnlyList<SignalRowAction> TravelHeaderActions => signalRowActions.TravelHeaderActions;
     public IReadOnlyList<SignalRowAction> VelocityHeaderActions => signalRowActions.VelocityHeaderActions;
@@ -233,10 +234,10 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ? $"Selected range {FormatSeconds(range.StartSeconds)}-{FormatSeconds(range.EndSeconds)}s"
         : "Full session";
     public string SessionAnalysisModesText => SessionInsightsPresentation.DescribeModes(
-        currentEditorState.Intent.SelectedTravelDistributionMode,
-        currentEditorState.Intent.SelectedVelocityAverageMode,
-        currentEditorState.Intent.SelectedBalanceDisplacementMode,
-        currentEditorState.Intent.SelectedBalanceSpeedMode);
+        currentEditorState.Preferences.Analysis.TravelDistributionMode,
+        currentEditorState.Preferences.Analysis.VelocityAverageMode,
+        currentEditorState.Preferences.Analysis.BalanceDisplacementMode,
+        currentEditorState.Preferences.Analysis.BalanceSpeedMode);
     public ObservableCollection<PageViewModelBase> Pages => pages;
     public SessionScreenPresentationState ScreenState => currentEditorState.Presentation.ScreenState;
     public SessionOperationPresentationState SessionOperationState => currentEditorState.Presentation.OperationState;
@@ -281,13 +282,13 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         new(
             telemetryGeneration,
             currentEditorState.Intent.AnalysisRange,
-            currentEditorState.Intent.SelectedTravelDistributionMode,
-            currentEditorState.Intent.SelectedVelocityAverageMode,
-            currentEditorState.Intent.SelectedBalanceDisplacementMode,
-            currentEditorState.Intent.SelectedBalanceSpeedMode,
+            currentEditorState.Preferences.Analysis.TravelDistributionMode,
+            currentEditorState.Preferences.Analysis.VelocityAverageMode,
+            currentEditorState.Preferences.Analysis.BalanceDisplacementMode,
+            currentEditorState.Preferences.Analysis.BalanceSpeedMode,
             currentEditorState.Intent.DampingSpeedCutoffs,
             currentEditorState.Presentation.DampingPercentages,
-            currentEditorState.Intent.SelectedSessionInsightsTargetProfile);
+            currentEditorState.Preferences.Analysis.SessionInsightsTargetProfile);
 
     private void InvalidateAnalysisInputs()
     {
@@ -1490,6 +1491,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         this.deferDomainHandlingWhenInactive = deferDomainHandlingWhenInactive;
 
         this.sessionCoordinator = sessionCoordinator;
+        this.sessionPreferences = sessionPreferences;
+        PreferencesPage = new PreferencesPageViewModel(() => currentEditorState.Preferences.SignalDisplay, editorActions.SetSignalDisplayPreferences);
         this.sessionLoader = sessionLoader;
         this.sessionOperationRunner = sessionOperationRunner;
         this.bikeCoordinator = bikeCoordinator;
@@ -1536,18 +1539,14 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 state.Intent.AnalysisRange,
                 state.TelemetryData,
                 state.TrackTimelineContext,
-                state.Intent.SelectedTravelDistributionMode,
-                state.Intent.SelectedVelocityAverageMode,
+                state.Preferences.Analysis.TravelDistributionMode,
+                state.Preferences.Analysis.VelocityAverageMode,
                 state.Intent.DampingSpeedCutoffs,
                 state.Presentation.DampingPercentages)),
             (start, end) => Timeline.SetVisibleRange(start, end, this),
             message => ErrorMessages.Add(new FailurePresentation(message)),
             Notifications.Add);
         this.sessionEditingCoordinator = sessionEditingCoordinator;
-        recordedPreferenceStore = new RecordedPreferenceStore(
-            sessionPreferences,
-            () => Id,
-            message => ErrorMessages.Add(new FailurePresentation(message)));
         signalAutozoomController = new SignalAutozoomController(Timeline);
         setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             SetAnalysisRangeStartFromPlotContext,
@@ -1727,7 +1726,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         NotesPage.ForkSettings.PropertyChanged += OnNotesPageDirtinessPropertyChanged;
         NotesPage.ShockSettings.PropertyChanged += OnNotesPageDirtinessPropertyChanged;
         NotesPage.PropertyChanged += OnNotesPageDirtinessPropertyChanged;
-        SubscribeSignalPreferenceChanges();
         PreferencesPage.ProcessingPreferenceChangeCommitted += OnProcessingPreferenceChangeCommitted;
 
         ResetImplementation();
@@ -1759,6 +1757,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var previous = currentEditorState;
         currentEditorState = state;
+        PreferencesPage.RefreshSignalDisplayPreferences(previous.Preferences.SignalDisplay, state.Preferences.SignalDisplay);
         signalRowActions.ApplyActionStates(state);
         if (state.Presentation.MapState.ReservesLayout && !mapInitializeRequested)
         {
@@ -1832,30 +1831,30 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             OnPropertyChanged(nameof(CanEditDampingSpeedCutoffs));
         }
 
-        if (previous.Intent.SignalDisplayPreferences != state.Intent.SignalDisplayPreferences)
+        if (previous.Preferences.SignalDisplay != state.Preferences.SignalDisplay)
         {
             OnPropertyChanged(nameof(SignalDisplayPreferences));
         }
 
-        if (previous.Intent.SignalLayoutPreferences != state.Intent.SignalLayoutPreferences)
+        if (previous.Preferences.SignalLayout != state.Preferences.SignalLayout)
         {
             OnPropertyChanged(nameof(SignalLayoutPreferences));
         }
 
-        if (previous.Intent.LayoutPreferences != state.Intent.LayoutPreferences)
+        if (previous.Preferences.Layout != state.Preferences.Layout)
         {
             OnPropertyChanged(nameof(LayoutPreferences));
             OnPropertyChanged(nameof(MediaLayoutPreferences));
         }
 
         var travelDistributionChanged =
-            previous.Intent.SelectedTravelDistributionMode != state.Intent.SelectedTravelDistributionMode;
+            previous.Preferences.Analysis.TravelDistributionMode != state.Preferences.Analysis.TravelDistributionMode;
         var velocityAverageChanged =
-            previous.Intent.SelectedVelocityAverageMode != state.Intent.SelectedVelocityAverageMode;
+            previous.Preferences.Analysis.VelocityAverageMode != state.Preferences.Analysis.VelocityAverageMode;
         var balanceDisplacementChanged =
-            previous.Intent.SelectedBalanceDisplacementMode != state.Intent.SelectedBalanceDisplacementMode;
+            previous.Preferences.Analysis.BalanceDisplacementMode != state.Preferences.Analysis.BalanceDisplacementMode;
         var balanceSpeedChanged =
-            previous.Intent.SelectedBalanceSpeedMode != state.Intent.SelectedBalanceSpeedMode;
+            previous.Preferences.Analysis.BalanceSpeedMode != state.Preferences.Analysis.BalanceSpeedMode;
 
         if (travelDistributionChanged ||
             velocityAverageChanged ||
@@ -1960,16 +1959,19 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private async Task RestoreRecordedPreferencesAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await recordedPreferenceStore.RestoreAsync(preferences =>
-        {
-            if (!viewLoaded || cancellationToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            ApplyRecordedPreferences(preferences);
-        });
+        var result = await sessionCoordinator.LoadPreferencesAsync(Id);
         cancellationToken.ThrowIfCancellationRequested();
+        if (!viewLoaded) return;
+        switch (result)
+        {
+            case SessionPreferenceLoadResult.Loaded loaded:
+                ApplyRecordedPreferences(loaded.Preferences);
+                break;
+            case SessionPreferenceLoadResult.Failed failed:
+                ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                ApplyRecordedPreferences(SessionPreferences.Default);
+                break;
+        }
     }
 
     private void ApplyRecordedPreferences(SessionPreferences preferences)
@@ -1978,7 +1980,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         suppressInsightsRecompute = true;
         try
         {
-            ApplyPreferencesPageSignalDisplayPreferences(preferences.SignalDisplay);
             PublishEditorInput(preferenceReplayInput, preferences);
         }
         finally
@@ -1986,50 +1987,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             suppressInsightsRecompute = false;
             analysisRequestScheduler.EndBatch();
         }
-    }
-
-    private void ApplyPreferencesPageSignalDisplayPreferences(SignalDisplayPreferences preferences)
-    {
-        UnsubscribeSignalPreferenceChanges();
-        try
-        {
-            PreferencesPage.ApplySignalDisplayPreferences(preferences);
-        }
-        finally
-        {
-            SubscribeSignalPreferenceChanges();
-        }
-    }
-
-    private void SubscribeSignalPreferenceChanges()
-    {
-        PreferencesPage.TravelSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.VelocitySignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.ImuSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.PitchRollSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.SpeedSignal.PropertyChanged += OnSignalPreferenceChanged;
-        PreferencesPage.ElevationSignal.PropertyChanged += OnSignalPreferenceChanged;
-    }
-
-    private void UnsubscribeSignalPreferenceChanges()
-    {
-        PreferencesPage.TravelSignal.PropertyChanged -= OnSignalPreferenceChanged;
-        PreferencesPage.VelocitySignal.PropertyChanged -= OnSignalPreferenceChanged;
-        PreferencesPage.ImuSignal.PropertyChanged -= OnSignalPreferenceChanged;
-        PreferencesPage.PitchRollSignal.PropertyChanged -= OnSignalPreferenceChanged;
-        PreferencesPage.SpeedSignal.PropertyChanged -= OnSignalPreferenceChanged;
-        PreferencesPage.ElevationSignal.PropertyChanged -= OnSignalPreferenceChanged;
-    }
-
-    private void OnSignalPreferenceChanged(object? sender, PropertyChangedEventArgs args)
-    {
-        if (args.PropertyName is not nameof(SignalPreferenceItemViewModel.SelectedSmoothing))
-        {
-            return;
-        }
-
-        var signalDisplay = PreferencesPage.CreateSignalDisplayPreferences();
-        editorActions.SetSignalDisplayPreferences(signalDisplay);
     }
 
     private void ApplyRecordedSessionEditorEffect(RecordedSessionEditorEffect effect)
@@ -2169,19 +2126,18 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        var current = recordedPreferenceStore.Current;
-        var next = update(current);
-        if (next == current)
-        {
-            return;
-        }
+        pendingPreferenceOperations = Task.WhenAll(pendingPreferenceOperations, PersistPreferenceChangeAsync(update));
+    }
 
-        recordedPreferenceStore.UpdateCurrent(_ => next);
-        _ = recordedPreferenceStore.PersistChangeAsync(update);
+    private async Task PersistPreferenceChangeAsync(Func<SessionPreferences, SessionPreferences> update)
+    {
+        var result = await sessionCoordinator.SavePreferencesAsync(Id, update);
+        if (viewLoaded && result is SessionPreferenceSaveResult.Failed failed)
+            ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
     }
 
     private void OnProcessingPreferenceChangeCommitted(object? sender, EventArgs args) =>
-        _ = processingPreferenceWorkflow.HandleProcessingPreferenceChangeCommittedAsync();
+        pendingPreferenceOperations = Task.WhenAll(pendingPreferenceOperations, processingPreferenceWorkflow.HandleProcessingPreferenceChangeCommittedAsync());
 
     #endregion Private methods
 
@@ -2288,7 +2244,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     protected override async Task CloseImplementation()
     {
         StopLoadedSession();
-        await pendingDomainReactions;
+        await Task.WhenAll(pendingDomainReactions, pendingPreferenceOperations);
         UnsubscribeVmEventHandlers();
         DisposeWorkspace(MobileWorkspace);
         DisposeWorkspace(SignalsWorkspace);
@@ -2321,7 +2277,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         Pages.CollectionChanged -= OnPagesChanged;
         PreferencesPage.ProcessingPreferenceChangeCommitted -= OnProcessingPreferenceChangeCommitted;
-        UnsubscribeSignalPreferenceChanges();
         NotesPage.ForkSettings.PropertyChanged -= OnNotesPageDirtinessPropertyChanged;
         NotesPage.ShockSettings.PropertyChanged -= OnNotesPageDirtinessPropertyChanged;
         NotesPage.PropertyChanged -= OnNotesPageDirtinessPropertyChanged;
@@ -2403,7 +2358,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         var operationWatch = sessionOperationRunner.Watch(Id).ObserveOnUiThread(UiThreadDispatcher);
         EnsureScopedSubscription(s =>
         {
-            s.Add(recordedPreferenceStore.Observe().Subscribe(OnSyncedPreferencesArrived));
+            s.Add(sessionPreferences.ObserveRecorded(Id).ObserveOnUiThread(UiThreadDispatcher).Subscribe(OnPreferencesArrived));
             s.Add(watch.Subscribe(snapshot =>
             {
                 PublishEditorInput(domainInput, snapshot);
@@ -2446,17 +2401,9 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         deferDomainHandlingWhenInactive &&
         !IsTabActive;
 
-    private void OnSyncedPreferencesArrived(SessionPreferences prefs)
+    private void OnPreferencesArrived(SessionPreferences preferences)
     {
-        if (!UiThreadDispatcher.CheckAccess())
-        {
-            _ = UiThreadDispatcher.InvokeAsync(() => OnSyncedPreferencesArrived(prefs));
-            return;
-        }
-
-        if (!viewLoaded) return;
-
-        recordedPreferenceStore.ApplyWithoutPersisting(prefs, ApplyRecordedPreferences);
+        if (viewLoaded) ApplyRecordedPreferences(preferences);
     }
 
     private void StopLoadedSession()

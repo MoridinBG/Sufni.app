@@ -66,11 +66,11 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
 
     public SurfacePresentationState ElevationSignalState => currentState.Presentation.Signals.Elevation;
 
-    public SignalDisplayPreferences SignalDisplayPreferences => currentState.Intent.SignalDisplayPreferences;
+    public SignalDisplayPreferences SignalDisplayPreferences => currentState.Preferences.SignalDisplay;
 
     public SignalLayoutPreferences SignalLayoutPreferences
     {
-        get => currentState.Intent.SignalLayoutPreferences;
+        get => currentState.Preferences.SignalLayout;
         set => actions.SetSignalLayoutPreferences(value);
     }
 
@@ -162,8 +162,8 @@ internal sealed class RecordedSessionSignalsWorkspaceViewModel : ObservableObjec
         NotifyChanged(previous.Presentation.Signals.PitchRoll, state.Presentation.Signals.PitchRoll, nameof(PitchRollSignalState));
         NotifyChanged(previous.Presentation.Signals.Speed, state.Presentation.Signals.Speed, nameof(SpeedSignalState));
         NotifyChanged(previous.Presentation.Signals.Elevation, state.Presentation.Signals.Elevation, nameof(ElevationSignalState));
-        NotifyChanged(previous.Intent.SignalDisplayPreferences, state.Intent.SignalDisplayPreferences, nameof(SignalDisplayPreferences));
-        NotifyChanged(previous.Intent.SignalLayoutPreferences, state.Intent.SignalLayoutPreferences, nameof(SignalLayoutPreferences));
+        NotifyChanged(previous.Preferences.SignalDisplay, state.Preferences.SignalDisplay, nameof(SignalDisplayPreferences));
+        NotifyChanged(previous.Preferences.SignalLayout, state.Preferences.SignalLayout, nameof(SignalLayoutPreferences));
         NotifyChanged(previous.Presentation.SignalPlotContextMenuActionsBySignalRowId, state.Presentation.SignalPlotContextMenuActionsBySignalRowId, nameof(SignalPlotContextMenuActionsBySignalRowId));
         NotifyChanged(previous.Presentation.Signals.ShowAirtime, state.Presentation.Signals.ShowAirtime, nameof(ShowAirtime));
         NotifyChanged(previous.Presentation.Signals.ShowVelocityAirtime, state.Presentation.Signals.ShowVelocityAirtime, nameof(ShowVelocityAirtime));

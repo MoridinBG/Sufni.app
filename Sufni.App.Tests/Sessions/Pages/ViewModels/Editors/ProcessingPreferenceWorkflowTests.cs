@@ -19,7 +19,8 @@ public class ProcessingPreferenceWorkflowTests
         using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
         var snapshot = TestSnapshots.Session(id: gateway.SessionId) with { VelocityFilterWindowMilliseconds = 50 };
         await store.PublishSessionsChangedAsync([snapshot]);
-        var page = new PreferencesPageViewModel { VelocityFilterWindowMilliseconds = 100 };
+        var page = TestPreferencesPages.Create();
+        page.VelocityFilterWindowMilliseconds = 100;
         var coordinator = Substitute.For<ISessionCoordinator>();
         coordinator.SetProcessingOptionAsync(gateway.SessionId, 100)
             .Returns(new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.NoTravelData, "diagnostic"));

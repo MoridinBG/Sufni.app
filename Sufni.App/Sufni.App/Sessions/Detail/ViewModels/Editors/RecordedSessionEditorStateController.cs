@@ -206,21 +206,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
     private static RecordedSessionEditorState ApplyPreferences(RecordedSessionEditorState state, SessionPreferences preferences)
     {
-        var updated = state with
-        {
-            Preferences = preferences,
-            Intent = state.Intent with
-            {
-                SelectedTravelDistributionMode = preferences.Analysis.TravelDistributionMode,
-                SelectedBalanceDisplacementMode = preferences.Analysis.BalanceDisplacementMode,
-                SelectedBalanceSpeedMode = preferences.Analysis.BalanceSpeedMode,
-                SelectedVelocityAverageMode = preferences.Analysis.VelocityAverageMode,
-                SelectedSessionInsightsTargetProfile = preferences.Analysis.SessionInsightsTargetProfile,
-                SignalDisplayPreferences = preferences.SignalDisplay,
-                SignalLayoutPreferences = preferences.SignalLayout,
-                LayoutPreferences = preferences.Layout,
-            },
-        };
+        var updated = state with { Preferences = preferences };
         return state.Preferences.Analysis.VelocityAverageMode == preferences.Analysis.VelocityAverageMode
             ? updated
             : ApplySelection(updated, ClearDampingRangeSelections(state.AnalysisSelection, state.TelemetryData, state.Intent.AnalysisRange));

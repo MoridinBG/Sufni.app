@@ -211,9 +211,10 @@ There are five kinds of view model in the presentation layer:
   built-in signal-row header actions (airtime and analysis-selection toggles)
   by reading the current signal state and emitting an editor intent.
   `ApplyActionStates(state)` projects all twelve toggles from each accepted state;
-  `ProcessingPreferenceWorkflow` owns the confirm-recompute-persist flow that
-  runs when a processing preference change is committed. The editor constructs
-  these collaborators and delegates; it no longer owns those flows. Session
+  `ProcessingPreferenceWorkflow` forwards committed processing-option edits to
+  `SessionCoordinator` and renders its typed result; persistence and conditional
+  rollback stay in that coordinator. The editor retains pending preference
+  operations and drains them on close. Session
   detail loading uses one local-only `ISessionLoader.LoadDetailAsync` path;
   inactive-tab deferral is supplied
   by `EditorFactory` for both profiles and evaluated against current tab activity. Collaborators reach the
@@ -362,7 +363,9 @@ Two pages diverge from that pattern:
   their saved hierarchy position and reappear there when re-enabled.
 - **`PreferencesPageViewModel`** exposes each signal's availability and smoothing,
   plus the velocity-filter slider and its commit event. Signal display preferences
-  use `CreateSignalDisplayPreferences`, `ApplySignalDisplayPreferences` and
+  read the owning editor/workspace through getters and send immutable edits back
+  through callbacks. `RefreshSignalDisplayPreferences` raises binding notifications
+  after the owner changes; the page keeps no smoothing copy. Availability uses
   `ApplySignalAvailability`. The recorded editor projects the filter from the
   session row; `ProcessingPreferenceWorkflow` sends commits to
   `ISessionCoordinator.SetProcessingOptionAsync` and displays the returned outcome.
@@ -370,7 +373,10 @@ Two pages diverge from that pattern:
   puts the selected option on the new session.
 
   Signal display, analysis modes, signal layout and pane ratios remain in
-  `SessionPreferences`, observed through `ISessionPreferences`. Desktop splitters
+  one `SessionPreferences` value in the recorded editor state, observed through
+  `ISessionPreferences`. There is no separate preference-store or intent-state
+  copy. `SessionCoordinator.LoadPreferencesAsync` / `SavePreferencesAsync` own
+  reads/writes and return safe typed failures; load failure shows defaults. Desktop splitters
   write normalized pane ratios; absent ratios use the layout defaults. Live save
   seeds those preferences for the new session after persistence.
 

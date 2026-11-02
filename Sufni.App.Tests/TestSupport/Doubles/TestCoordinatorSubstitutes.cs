@@ -1,6 +1,7 @@
 global using Sufni.App.Tests.TestSupport;
 using System.Reactive.Linq;
 using Sufni.App.Setups.Queries;
+using Sufni.App.Infrastructure;
 
 using Sufni.App.Tests.TestSupport.Fixtures;
 
@@ -73,6 +74,8 @@ internal static class TestCoordinatorSubstitutes
     public static ISessionCoordinator Session()
     {
         var coordinator = Substitute.For<ISessionCoordinator>();
+        coordinator.LoadPreferencesAsync(Arg.Any<Guid>()).Returns(new SessionPreferenceLoadResult.Loaded(SessionPreferences.Default));
+        coordinator.SavePreferencesAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>()).Returns(new SessionPreferenceSaveResult.Saved());
         coordinator.ReconcileStalenessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<SessionRecomputeChoice>(),
             Arg.Any<IProgress<SessionRecomputeAllProgress>>()).Returns(new SessionStalenessReconciliation.Current());
         return coordinator;

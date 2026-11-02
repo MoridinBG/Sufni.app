@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -26,7 +27,6 @@ public class SessionSidebarDesktopViewTests
             Name = "Recorded Session 01",
             DescriptionText = "Suspension notes",
         };
-        workspace.PreferencesPage.ApplySignalDisplayPreferences(new SignalDisplayPreferences(Travel: false, Velocity: true, Imu: true));
         workspace.PreferencesPage.ApplySignalAvailability(
             travelAvailable: true,
             velocityAvailable: false,
@@ -195,7 +195,7 @@ public class SessionSidebarDesktopViewTests
         public SuspensionSettings ForkSettings { get; } = new();
         public SuspensionSettings ShockSettings { get; } = new();
         public NotesPageViewModel NotesPage { get; } = new();
-        public PreferencesPageViewModel PreferencesPage { get; } = new();
+        public PreferencesPageViewModel PreferencesPage { get; } = TestPreferencesPages.Create();
         public IAsyncRelayCommand SaveCommand { get; }
         public IAsyncRelayCommand ResetCommand { get; }
         public bool SaveInvoked { get; private set; }

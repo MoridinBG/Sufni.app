@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
@@ -9,9 +10,7 @@ public class PreferencesPageViewModelTests
     [Fact]
     public void CreateSignalDisplayPreferences_KeepsSignalsShownAndRoundTripsSmoothing()
     {
-        var viewModel = new PreferencesPageViewModel();
-
-        viewModel.ApplySignalDisplayPreferences(new SignalDisplayPreferences(
+        var viewModel = TestPreferencesPages.Create(new SignalDisplayPreferences(
             Travel: true,
             Velocity: true,
             Imu: true,
@@ -36,7 +35,7 @@ public class PreferencesPageViewModelTests
     [Fact]
     public void ApplyProcessingPreferences_ClampsSliderValueAndUpdatesDisplay()
     {
-        var viewModel = new PreferencesPageViewModel();
+        var viewModel = TestPreferencesPages.Create();
 
         viewModel.ApplyProcessingOptions(new Sufni.Telemetry.TelemetryProcessingOptions(1_500));
 
@@ -47,10 +46,8 @@ public class PreferencesPageViewModelTests
     [Fact]
     public void VelocityFilterWindowDisplay_ShowsSampleCount_WhenSampleRateKnown()
     {
-        var viewModel = new PreferencesPageViewModel
-        {
-            SampleRate = 1000,
-        };
+        var viewModel = TestPreferencesPages.Create();
+        viewModel.SampleRate = 1000;
 
         viewModel.VelocityFilterWindowMilliseconds = 25;
 
@@ -60,7 +57,7 @@ public class PreferencesPageViewModelTests
     [Fact]
     public void CommitProcessingPreferenceChange_RaisesOnlyWhenValueChangedSinceLastCommit()
     {
-        var viewModel = new PreferencesPageViewModel();
+        var viewModel = TestPreferencesPages.Create();
         var commitCount = 0;
         viewModel.ProcessingPreferenceChangeCommitted += (_, _) => commitCount++;
 

@@ -18,6 +18,10 @@ public interface ISessionCoordinator
 
     Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds);
 
+    Task<SessionPreferenceLoadResult> LoadPreferencesAsync(Guid sessionId);
+
+    Task<SessionPreferenceSaveResult> SavePreferencesAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update);
+
     Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default);
 
     Task<SessionSaveResult> SaveAsync(Session session, long baselineUpdated);

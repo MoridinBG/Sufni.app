@@ -139,6 +139,35 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
+    public async Task<SessionPreferenceLoadResult> LoadPreferencesAsync(Guid sessionId)
+    {
+        try
+        {
+            return new SessionPreferenceLoadResult.Loaded(await sessionPreferences.GetRecordedAsync(sessionId));
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Session preferences load failed for {SessionId}", sessionId);
+            return new SessionPreferenceLoadResult.Failed(SessionEditorFailureReason.LoadPreferences, exception.Message);
+        }
+    }
+
+    public async Task<SessionPreferenceSaveResult> SavePreferencesAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update)
+    {
+        try
+        {
+            await sessionPreferences.UpdateRecordedAsync(sessionId, update);
+            return new SessionPreferenceSaveResult.Saved();
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Session preferences save failed for {SessionId}", sessionId);
+            return new SessionPreferenceSaveResult.Failed(SessionEditorFailureReason.SavePreferences, exception.Message);
+        }
+    }
+
     public async Task<GpsOffsetResult> ShiftGpsOffsetAsync(
         Guid sessionId,
         double deltaSeconds,

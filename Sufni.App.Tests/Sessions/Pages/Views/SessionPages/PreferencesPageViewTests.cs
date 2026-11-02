@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 
@@ -13,8 +14,7 @@ public class PreferencesPageViewTests
     [AvaloniaFact]
     public async Task PreferencesPageView_BindsSmoothingAndAvailability()
     {
-        var viewModel = new PreferencesPageViewModel();
-        viewModel.ApplySignalDisplayPreferences(new SignalDisplayPreferences(
+        var viewModel = TestPreferencesPages.Create(new SignalDisplayPreferences(
             Travel: false,
             Velocity: true,
             Imu: false,

@@ -44,15 +44,7 @@ internal sealed record RecordedSessionEditorState(
                 SelectedPageIndex: 0,
                 AnalysisRange: null,
                 PendingAnalysisRangeBoundary: null,
-                SelectedTravelDistributionMode: preferences.Analysis.TravelDistributionMode,
-                SelectedBalanceDisplacementMode: preferences.Analysis.BalanceDisplacementMode,
-                SelectedBalanceSpeedMode: preferences.Analysis.BalanceSpeedMode,
-                SelectedVelocityAverageMode: preferences.Analysis.VelocityAverageMode,
-                SelectedSessionInsightsTargetProfile: preferences.Analysis.SessionInsightsTargetProfile,
-                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                SignalDisplayPreferences: preferences.SignalDisplay,
-                SignalLayoutPreferences: preferences.SignalLayout,
-                LayoutPreferences: preferences.Layout),
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: SurfacePresentationState.Hidden,
                 SignalAvailability: RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState(),
@@ -107,15 +99,7 @@ internal sealed record RecordedSessionEditorIntentState(
     int SelectedPageIndex,
     TelemetryTimeRange? AnalysisRange,
     double? PendingAnalysisRangeBoundary,
-    TravelDistributionMode SelectedTravelDistributionMode,
-    BalanceDisplacementMode SelectedBalanceDisplacementMode,
-    BalanceSpeedMode SelectedBalanceSpeedMode,
-    VelocityAverageMode SelectedVelocityAverageMode,
-    SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile,
-    DampingSpeedCutoffs DampingSpeedCutoffs,
-    SignalDisplayPreferences SignalDisplayPreferences,
-    SignalLayoutPreferences SignalLayoutPreferences,
-    SessionLayoutPreferences LayoutPreferences);
+    DampingSpeedCutoffs DampingSpeedCutoffs);
 
 internal sealed record RecordedSessionEditorPresentationState(
     SurfacePresentationState MapState,

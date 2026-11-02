@@ -8,24 +8,30 @@ namespace Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 
 public sealed record SignalSmoothingOption(PlotSmoothingLevel Value, string DisplayName, string Description);
 
-public sealed partial class SignalPreferenceItemViewModel(string displayName) : ObservableObject
+public sealed partial class SignalPreferenceItemViewModel(string displayName, Func<PlotSmoothingLevel> read, Action<PlotSmoothingLevel> write) : ObservableObject
 {
     public string DisplayName { get; } = displayName;
 
     [ObservableProperty] public partial bool Available { get; set; }
-    [ObservableProperty] public partial PlotSmoothingLevel SelectedSmoothing { get; set; } = PlotSmoothingLevel.Off;
+    public PlotSmoothingLevel SelectedSmoothing
+    {
+        get => read();
+        set { if (value != read()) write(value); }
+    }
+
+    internal void RefreshSmoothing() => OnPropertyChanged(nameof(SelectedSmoothing));
 }
 
 public sealed class PreferencesPageViewModel : PageViewModelBase
 {
     private int committedVelocityFilterWindowMilliseconds = TelemetryProcessingOptions.DefaultVelocityFilterWindowMilliseconds;
 
-    public SignalPreferenceItemViewModel TravelSignal { get; } = new("Travel");
-    public SignalPreferenceItemViewModel VelocitySignal { get; } = new("Velocity");
-    public SignalPreferenceItemViewModel ImuSignal { get; } = new("Vibration RMS");
-    public SignalPreferenceItemViewModel PitchRollSignal { get; } = new("Frame pitch/roll");
-    public SignalPreferenceItemViewModel SpeedSignal { get; } = new("GPS speed");
-    public SignalPreferenceItemViewModel ElevationSignal { get; } = new("Elevation");
+    public SignalPreferenceItemViewModel TravelSignal { get; }
+    public SignalPreferenceItemViewModel VelocitySignal { get; }
+    public SignalPreferenceItemViewModel ImuSignal { get; }
+    public SignalPreferenceItemViewModel PitchRollSignal { get; }
+    public SignalPreferenceItemViewModel SpeedSignal { get; }
+    public SignalPreferenceItemViewModel ElevationSignal { get; }
     public IReadOnlyList<SignalSmoothingOption> SmoothingOptions { get; } =
     [
         new(PlotSmoothingLevel.Off, "Off", "Shows the raw signal with no smoothing."),
@@ -88,29 +94,24 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         }
     }
 
-    public PreferencesPageViewModel()
+    private readonly Func<SignalDisplayPreferences> readSignalDisplay;
+
+    public PreferencesPageViewModel(Func<SignalDisplayPreferences> read, Action<SignalDisplayPreferences> write)
         : base("Preferences")
     {
+        readSignalDisplay = read;
+        TravelSignal = new("Travel", () => read().TravelSmoothing, value => write(CreateSignalDisplayPreferences() with { TravelSmoothing = value }));
+        VelocitySignal = new("Velocity", () => read().VelocitySmoothing, value => write(CreateSignalDisplayPreferences() with { VelocitySmoothing = value }));
+        ImuSignal = new("Vibration RMS", () => read().ImuSmoothing, value => write(CreateSignalDisplayPreferences() with { ImuSmoothing = value }));
+        PitchRollSignal = new("Frame pitch/roll", () => read().PitchRollSmoothing, value => write(CreateSignalDisplayPreferences() with { PitchRollSmoothing = value }));
+        SpeedSignal = new("GPS speed", () => read().SpeedSmoothing, value => write(CreateSignalDisplayPreferences() with { SpeedSmoothing = value }));
+        ElevationSignal = new("Elevation", () => read().ElevationSmoothing, value => write(CreateSignalDisplayPreferences() with { ElevationSmoothing = value }));
     }
 
-    public SignalDisplayPreferences CreateSignalDisplayPreferences()
+    public SignalDisplayPreferences CreateSignalDisplayPreferences() => readSignalDisplay() with
     {
-        // Signals are always shown; hiding is done by collapsing rows in the
-        // signals view, so the per-signal visibility flags stay true here.
-        return new SignalDisplayPreferences(
-            Travel: true,
-            Velocity: true,
-            Imu: true,
-            PitchRoll: true,
-            TravelSmoothing: TravelSignal.SelectedSmoothing,
-            VelocitySmoothing: VelocitySignal.SelectedSmoothing,
-            ImuSmoothing: ImuSignal.SelectedSmoothing,
-            PitchRollSmoothing: PitchRollSignal.SelectedSmoothing,
-            Speed: true,
-            Elevation: true,
-            SpeedSmoothing: SpeedSignal.SelectedSmoothing,
-            ElevationSmoothing: ElevationSignal.SelectedSmoothing);
-    }
+        Travel = true, Velocity = true, Imu = true, PitchRoll = true, Speed = true, Elevation = true,
+    };
 
     public TelemetryProcessingOptions CreateProcessingOptions()
     {
@@ -136,14 +137,14 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         ProcessingPreferenceChangeCommitted?.Invoke(this, EventArgs.Empty);
     }
 
-    public void ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
+    public void RefreshSignalDisplayPreferences(SignalDisplayPreferences previous, SignalDisplayPreferences current)
     {
-        TravelSignal.SelectedSmoothing = preferences.TravelSmoothing;
-        VelocitySignal.SelectedSmoothing = preferences.VelocitySmoothing;
-        ImuSignal.SelectedSmoothing = preferences.ImuSmoothing;
-        PitchRollSignal.SelectedSmoothing = preferences.PitchRollSmoothing;
-        SpeedSignal.SelectedSmoothing = preferences.SpeedSmoothing;
-        ElevationSignal.SelectedSmoothing = preferences.ElevationSmoothing;
+        if (previous.TravelSmoothing != current.TravelSmoothing) TravelSignal.RefreshSmoothing();
+        if (previous.VelocitySmoothing != current.VelocitySmoothing) VelocitySignal.RefreshSmoothing();
+        if (previous.ImuSmoothing != current.ImuSmoothing) ImuSignal.RefreshSmoothing();
+        if (previous.PitchRollSmoothing != current.PitchRollSmoothing) PitchRollSignal.RefreshSmoothing();
+        if (previous.SpeedSmoothing != current.SpeedSmoothing) SpeedSignal.RefreshSmoothing();
+        if (previous.ElevationSmoothing != current.ElevationSmoothing) ElevationSignal.RefreshSmoothing();
     }
 
     public void ApplySignalAvailability(

@@ -38,6 +38,44 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class SessionDetailViewModelTests
 {
     [AvaloniaFact]
+    public async Task PreferenceReadFailure_ShowsDefaultsAndSeparateDiagnostics()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        harness.SessionCoordinator.LoadPreferencesAsync(snapshot.Id)
+            .Returns(new SessionPreferenceLoadResult.Failed(SessionEditorFailureReason.LoadPreferences, "file inaccessible"));
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+
+        await harness.LoadAsync(editor);
+
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal("file inaccessible", failure.Details);
+        Assert.DoesNotContain(failure.Details!, failure.Summary);
+        Assert.Equal(SessionPreferences.Default.SignalDisplay.VelocitySmoothing, editor.PreferencesPage.VelocitySignal.SelectedSmoothing);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task Close_DrainsPendingPreferenceWriteWithoutApplyingLateFailure()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        await harness.LoadAsync(editor);
+        var pending = new TaskCompletionSource<SessionPreferenceSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.SessionCoordinator.SavePreferencesAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .Returns(pending.Task);
+        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
+
+        var close = harness.CloseAsync(editor);
+        Assert.False(close.IsCompleted);
+        pending.SetResult(new SessionPreferenceSaveResult.Failed(SessionEditorFailureReason.SavePreferences, "disk full"));
+        await close.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
     public async Task Close_DrainsPendingReconciliationWithoutApplyingItsLateFeedback()
     {
         var harness = new SessionDetailHarness();
@@ -552,21 +590,21 @@ public class SessionDetailViewModelTests
         var harness = new SessionDetailHarness();
         var snapshot = harness.CreateRecordedSession(hasProcessedData: true);
         Func<SessionPreferences, SessionPreferences>? update = null;
-        harness.SessionPreferences.UpdateRecordedAsync(
+        harness.SessionCoordinator.SavePreferencesAsync(
                 snapshot.Id,
                 Arg.Do<Func<SessionPreferences, SessionPreferences>>(value => update = value))
-            .Returns(Task.CompletedTask);
+            .Returns(new SessionPreferenceSaveResult.Saved());
         var editor = harness.CreateLoadedRecordedSession(
             snapshot,
             harness.CreateLoadedResult(CreateVibrationTelemetry()));
 
         await harness.LoadAsync(editor);
-        harness.SessionPreferences.ClearReceivedCalls();
+        harness.SessionCoordinator.ClearReceivedCalls();
 
         editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
 
         Assert.False(editor.IsDirty);
-        await harness.SessionPreferences.Received(1).UpdateRecordedAsync(
+        await harness.SessionCoordinator.Received(1).SavePreferencesAsync(
             snapshot.Id,
             Arg.Any<Func<SessionPreferences, SessionPreferences>>());
         Assert.NotNull(update);

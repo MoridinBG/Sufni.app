@@ -22,6 +22,7 @@ internal sealed class ProcessingPreferenceWorkflow(
 
         var result = await sessionCoordinator.SetProcessingOptionAsync(
             gateway.SessionId, options.ClampedVelocityFilterWindowMilliseconds);
+        if (!gateway.IsViewLoaded) return;
         if (result is not SessionRecomputeResult.Superseded)
             preferencesPage.ApplyProcessingOptions((sessionStore.Get(gateway.SessionId) ?? previous).ProcessingOptions);
         switch (result)

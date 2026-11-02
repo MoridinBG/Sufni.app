@@ -61,6 +61,32 @@ public class SessionCoordinatorTests
     }
 
     [Fact]
+    public async Task PreferenceReadFailure_ReturnsTypedReasonAndDiagnostics()
+    {
+        var id = Guid.NewGuid();
+        sessionPreferences.GetRecordedAsync(id).ThrowsAsync(new IOException("file inaccessible"));
+
+        var result = Assert.IsType<SessionPreferenceLoadResult.Failed>(await CreateCoordinator().LoadPreferencesAsync(id));
+
+        Assert.Equal(SessionEditorFailureReason.LoadPreferences, result.Reason);
+        Assert.Equal("file inaccessible", result.Details);
+    }
+
+    [Fact]
+    public async Task PreferenceWriteFailure_ReturnsTypedReasonAndDiagnostics()
+    {
+        var id = Guid.NewGuid();
+        sessionPreferences.UpdateRecordedAsync(id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .ThrowsAsync(new IOException("disk full"));
+
+        var result = Assert.IsType<SessionPreferenceSaveResult.Failed>(await CreateCoordinator().SavePreferencesAsync(id,
+            current => current with { SignalDisplay = current.SignalDisplay with { VelocitySmoothing = PlotSmoothingLevel.Strong } }));
+
+        Assert.Equal(SessionEditorFailureReason.SavePreferences, result.Reason);
+        Assert.Equal("disk full", result.Details);
+    }
+
+    [Fact]
     public async Task ReconcileStaleness_DistinguishesCurrentActiveAndRequiredWithoutStartingWork()
     {
         var session = TestSnapshots.Session();

@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Video.Stores;
 using Sufni.App.Video.Models;
 using System.Reactive.Linq;
@@ -326,7 +327,7 @@ public class SessionWorkspaceViewModelTests
         var owner = new TestOwner();
         var name = "Original";
         var notesPage = new NotesPageViewModel();
-        var preferencesPage = new PreferencesPageViewModel();
+        var preferencesPage = TestPreferencesPages.Create();
         var saveCommand = new AsyncRelayCommand(() => Task.CompletedTask);
         var resetCommand = new AsyncRelayCommand(() => Task.CompletedTask);
         var workspace = new SessionSidebarWorkspaceViewModel(
@@ -407,7 +408,10 @@ public class SessionWorkspaceViewModelTests
         SessionScreenPresentationState? screenState = null,
         SessionOperationPresentationState? operationState = null)
     {
-        var preferences = SessionPreferences.Default;
+        var preferences = SessionPreferences.Default with
+        {
+            Analysis = SessionPreferences.Default.Analysis with { BalanceSpeedMode = selectedBalanceSpeedMode },
+        };
         return new RecordedSessionEditorState(
             Domain: null,
             Load: new RecordedSessionLoadPresentation.Empty(),
@@ -421,15 +425,7 @@ public class SessionWorkspaceViewModelTests
                 SelectedPageIndex: selectedPageIndex,
                 AnalysisRange: analysisRange,
                 PendingAnalysisRangeBoundary: null,
-                SelectedTravelDistributionMode: TravelDistributionMode.ActiveSuspension,
-                SelectedBalanceDisplacementMode: BalanceDisplacementMode.Zenith,
-                SelectedBalanceSpeedMode: selectedBalanceSpeedMode,
-                SelectedVelocityAverageMode: VelocityAverageMode.SampleAveraged,
-                SelectedSessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail,
-                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                SignalDisplayPreferences: preferences.SignalDisplay,
-                SignalLayoutPreferences: preferences.SignalLayout,
-                LayoutPreferences: preferences.Layout),
+                DampingSpeedCutoffs: DampingSpeedCutoffs.Default),
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: mapState ?? SurfacePresentationState.Hidden,
                 SignalAvailability: new RecordedSignalAvailabilityState(
