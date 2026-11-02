@@ -76,7 +76,6 @@ internal sealed class RecordedSessionAnalysisComputer(
             key.VelocityAverageMode ?? VelocityAverageMode.SampleAveraged,
             key.BalanceDisplacementMode ?? BalanceDisplacementMode.Zenith,
             key.BalanceSpeedMode ?? BalanceSpeedMode.Both,
-            key.DampingPercentages ?? SessionDampingPercentages.Empty,
             key.SessionInsightsTargetProfile ?? SessionInsightsTargetProfile.Trail)
         {
             DampingSpeedCutoffs = key.DampingSpeedCutoffs,

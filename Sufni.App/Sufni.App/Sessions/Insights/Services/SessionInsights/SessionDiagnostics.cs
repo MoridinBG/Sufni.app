@@ -629,7 +629,7 @@ internal static class SessionDiagnostics
 
         if (includeDampingBands)
         {
-            AddDampingBandEvidence(evidence, side, context.Request.DampingPercentages);
+            AddDampingBandEvidence(evidence, side, context.DampingPercentages);
         }
 
         return evidence;
@@ -675,8 +675,8 @@ internal static class SessionDiagnostics
 
     private static AdjustmentComponent SelectCompressionOpenComponent(SideSnapshot side, AnalysisContext context)
     {
-        var hsc = context.Request.DampingPercentages.Get(side.Type, DampingBand.Hsc) ?? 0;
-        var lsc = context.Request.DampingPercentages.Get(side.Type, DampingBand.Lsc) ?? 0;
+        var hsc = context.DampingPercentages.Get(side.Type, DampingBand.Hsc) ?? 0;
+        var lsc = context.DampingPercentages.Get(side.Type, DampingBand.Lsc) ?? 0;
         return hsc > lsc
             ? AdjustmentComponent.HighSpeedCompression
             : AdjustmentComponent.LowSpeedCompression;
@@ -704,8 +704,8 @@ internal static class SessionDiagnostics
 
     private static AdjustmentComponent SelectDominantReboundComponent(SideSnapshot side, AnalysisContext context)
     {
-        var hsr = context.Request.DampingPercentages.Get(side.Type, DampingBand.Hsr) ?? 0;
-        var lsr = context.Request.DampingPercentages.Get(side.Type, DampingBand.Lsr) ?? 0;
+        var hsr = context.DampingPercentages.Get(side.Type, DampingBand.Hsr) ?? 0;
+        var lsr = context.DampingPercentages.Get(side.Type, DampingBand.Lsr) ?? 0;
         return hsr > lsr
             ? AdjustmentComponent.HighSpeedRebound
             : AdjustmentComponent.LowSpeedRebound;
@@ -713,8 +713,8 @@ internal static class SessionDiagnostics
 
     private static AdjustmentComponent SelectDominantCompressionComponent(SideSnapshot side, AnalysisContext context)
     {
-        var hsc = context.Request.DampingPercentages.Get(side.Type, DampingBand.Hsc) ?? 0;
-        var lsc = context.Request.DampingPercentages.Get(side.Type, DampingBand.Lsc) ?? 0;
+        var hsc = context.DampingPercentages.Get(side.Type, DampingBand.Hsc) ?? 0;
+        var lsc = context.DampingPercentages.Get(side.Type, DampingBand.Lsc) ?? 0;
         return hsc > lsc
             ? AdjustmentComponent.HighSpeedCompression
             : AdjustmentComponent.LowSpeedCompression;

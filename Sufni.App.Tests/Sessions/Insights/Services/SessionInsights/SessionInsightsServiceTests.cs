@@ -1,3 +1,4 @@
+using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 using Sufni.App.Shared.Common;
 using static Sufni.App.Tests.TestSupport.Fixtures.AnalysisTelemetryFixture;
@@ -93,7 +94,7 @@ public class SessionInsightsServiceTests
     [Theory]
     [InlineData(900, 1900, 36, 5, SessionInsightsFindingId.ReboundSlowForProfileContext, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open)]
     [InlineData(3500, 1900, 36, 22, SessionInsightsFindingId.ReboundFastForProfileContext, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Close)]
-    [InlineData(1900, 1000, 5, 22, SessionInsightsFindingId.CompressionSpeedsSubdued, AdjustmentComponent.LowSpeedCompression, AdjustmentDirection.Open)]
+    [InlineData(1900, 1000, 5, 22, SessionInsightsFindingId.CompressionSpeedsSubdued, AdjustmentComponent.HighSpeedCompression, AdjustmentDirection.Open)]
     [InlineData(1900, 6500, 36, 22, SessionInsightsFindingId.CompressionSpeedsHigh, AdjustmentComponent.HighSpeedCompression, AdjustmentDirection.Close)]
     public void Analyze_AttachesSideDampingAdjustments(
         double reboundBaseSpeed,
@@ -120,12 +121,11 @@ public class SessionInsightsServiceTests
     }
 
     [Fact]
-    public void Analyze_UsesSelectedModesProfileAndRequestDampingPercentages_AsEvidence()
+    public void Analyze_UsesSelectedModesProfileAndComputedDampingPercentages_AsEvidence()
     {
         var telemetry = CreateTelemetry(
             front: BuildSide(maxTravelPercent: 80, averageTravelPercent: 35, compressionBaseSpeed: 3000, reboundBaseSpeed: 1000),
             rear: BuildSide());
-        var dampingPercentages = new SessionDampingPercentages(11, 22, 33, 44, 55, 66, 77, 88);
 
         var result = service.Analyze(CreateRequest(
             telemetry,
@@ -133,13 +133,12 @@ public class SessionInsightsServiceTests
             TravelDistributionMode.DynamicSag,
             VelocityAverageMode.StrokePeakAveraged,
             BalanceDisplacementMode.Travel,
-            profile: SessionInsightsTargetProfile.DH,
-            dampingPercentages: dampingPercentages));
+            profile: SessionInsightsTargetProfile.DH));
 
         Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Dynamic sag travel stats");
         Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Stroke-peak average velocity");
         Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "DH profile");
-        Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Current damping band percentages" && evidence.Value == "11.0");
+        Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Current damping band percentages" && evidence.Value == "46.7");
     }
 
     [Fact]
@@ -167,21 +166,10 @@ public class SessionInsightsServiceTests
         var telemetry = CreateTelemetry(
             front: BuildSide(compressionSlope: 55, reboundSlope: 32),
             rear: BuildSide(compressionSlope: 28, reboundSlope: 15));
-        var dampingPercentages = new SessionDampingPercentages(
-            FrontHscPercentage: 10,
-            RearHscPercentage: 20,
-            FrontLscPercentage: 40,
-            RearLscPercentage: 70,
-            FrontLsrPercentage: 15,
-            RearLsrPercentage: 75,
-            FrontHsrPercentage: 50,
-            RearHsrPercentage: 25);
-
-        var result = service.Analyze(CreateRequest(
-            telemetry,
-            SelectedRange,
-            balanceSpeedMode: BalanceSpeedMode.Both,
-            dampingPercentages: dampingPercentages));
+        var result = service.Analyze(CreateRequest(telemetry, SelectedRange) with
+        {
+            DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(2000, 2000, 2000, 2000),
+        });
 
         Assert.Contains(
             Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance)

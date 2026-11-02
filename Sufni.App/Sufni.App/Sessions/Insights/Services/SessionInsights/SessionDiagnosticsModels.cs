@@ -13,7 +13,8 @@ internal sealed record AnalysisContext(
     TravelStatisticsOptions TravelOptions,
     VelocityStatisticsOptions VelocityOptions,
     BalanceStatisticsOptions BalanceOptions,
-    ProfileReferences Profile);
+    ProfileReferences Profile,
+    SessionDampingPercentages DampingPercentages);
 
 internal sealed record SideSnapshot(
     SuspensionType Type,

@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Analysis.Services;
 using System.Linq;
 using Sufni.Telemetry;
 
@@ -34,7 +35,9 @@ public sealed class SessionInsightsService : ISessionInsightsService
             travelOptions,
             velocityOptions,
             balanceOptions,
-            SessionDiagnostics.GetProfileReferences(request.TargetProfile));
+            SessionDiagnostics.GetProfileReferences(request.TargetProfile),
+            RecordedSessionAnalysisComputer.CalculateDampingPercentages(request.TelemetryData,
+                request.AnalysisRange, request.VelocityAverageMode, request.DampingSpeedCutoffs));
 
         var report = SessionDiagnostics.Run(request.TelemetryData, context);
         var orderedFindings = report.Findings

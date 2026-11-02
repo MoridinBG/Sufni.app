@@ -423,6 +423,10 @@ pages, sensor-configuration rows, and linkage parts use
 notification/error surface. `ViewLocator` still maps those known
 projection view models through its explicit view-factory table.
 
+Session Insights receives telemetry, range, selected modes, cutoffs and target
+profile. Its service derives damping percentages inside the analysis context;
+callers cannot supply percentages from a different range or previous result.
+
 ## Device-local preferences
 
 Session analysis options, signal visibility/smoothing, signal layout, pane ratios,

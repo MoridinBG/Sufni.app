@@ -271,7 +271,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             currentEditorState.Preferences.Analysis.BalanceDisplacementMode,
             currentEditorState.Preferences.Analysis.BalanceSpeedMode,
             currentEditorState.Intent.DampingSpeedCutoffs,
-            currentEditorState.Presentation.DampingPercentages,
             currentEditorState.Preferences.Analysis.SessionInsightsTargetProfile);
 
     private void InvalidateAnalysisInputs()

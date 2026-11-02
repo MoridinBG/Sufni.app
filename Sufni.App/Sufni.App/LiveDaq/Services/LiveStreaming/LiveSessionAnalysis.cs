@@ -26,6 +26,7 @@ public sealed record LiveSessionAnalysis(
     long Revision,
     LiveAnalysisOptions Options,
     RecordedSessionAnalysisInputs Inputs,
+    SessionDampingPercentages DampingPercentages,
     FrozenDictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> Results,
     SurfacePresentationState FrontState,
     SurfacePresentationState RearState,
@@ -37,7 +38,7 @@ public sealed record LiveSessionAnalysis(
     {
         var inputs = new RecordedSessionAnalysisInputs(revision, null, options.TravelMode, options.VelocityMode,
             options.BalanceDisplacementMode, options.BalanceSpeedMode, options.PlotDampingCutoffs,
-            percentages, SessionInsightsTargetProfile.Trail);
+            SessionInsightsTargetProfile.Trail);
         var results = new Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult>();
         foreach (var side in new[] { SuspensionType.Front, SuspensionType.Rear })
         {
@@ -53,7 +54,7 @@ public sealed record LiveSessionAnalysis(
         }
         Add(inputs.CreateKey(RecordedSessionAnalysisFamily.Balance, balanceType: BalanceType.Compression));
         Add(inputs.CreateKey(RecordedSessionAnalysisFamily.Balance, balanceType: BalanceType.Rebound));
-        return new LiveSessionAnalysis(revision, options, inputs, results.ToFrozenDictionary(),
+        return new LiveSessionAnalysis(revision, options, inputs, percentages, results.ToFrozenDictionary(),
             AnalysisSurfaceState.ForSuspension(frontExpected, telemetry, SuspensionType.Front),
             AnalysisSurfaceState.ForSuspension(rearExpected, telemetry, SuspensionType.Rear),
             AnalysisSurfaceState.ForBalance(frontExpected && rearExpected, telemetry, BalanceType.Compression),

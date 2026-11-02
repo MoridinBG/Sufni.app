@@ -414,7 +414,6 @@ public class RecordedSessionAnalysisResultStateTests
             BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
             BalanceSpeedMode: BalanceSpeedMode.Both,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            DampingPercentages: SessionDampingPercentages.Empty,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
     private static string Fingerprint<T>(T value)

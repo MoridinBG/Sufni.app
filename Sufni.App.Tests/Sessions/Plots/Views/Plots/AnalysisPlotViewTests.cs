@@ -562,7 +562,6 @@ public class AnalysisPlotViewTests
             BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
             BalanceSpeedMode: BalanceSpeedMode.Both,
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            DampingPercentages: SessionDampingPercentages.Empty,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
     private sealed class TestAnalysisResultState(RecordedSessionAnalysisInputs inputs) : IRecordedSessionAnalysisResultState

@@ -154,7 +154,6 @@ public class RecordedImuPlotViewTests
         BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
         BalanceSpeedMode: BalanceSpeedMode.Both,
         DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-        DampingPercentages: SessionDampingPercentages.Empty,
         SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
 
     private static AvaPlot GetPlot(Control view) => view.GetVisualDescendants().OfType<AvaPlot>().Single();

@@ -122,7 +122,6 @@ public sealed record SessionInsightsRequest(
     VelocityAverageMode VelocityAverageMode,
     BalanceDisplacementMode BalanceDisplacementMode,
     BalanceSpeedMode BalanceSpeedMode,
-    SessionDampingPercentages DampingPercentages,
     SessionInsightsTargetProfile TargetProfile)
 {
     public DampingSpeedCutoffs DampingSpeedCutoffs { get; init; } = DampingSpeedCutoffs.Default;

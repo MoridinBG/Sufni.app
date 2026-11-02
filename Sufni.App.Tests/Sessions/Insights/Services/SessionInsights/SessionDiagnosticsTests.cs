@@ -115,7 +115,7 @@ public class SessionDiagnosticsTests
             FrontHsrPercentage: null,
             RearHsrPercentage: null);
 
-        var report = Run(telemetry, CreateRequest(telemetry, SelectedRange, dampingPercentages: dampingPercentages));
+        var report = Run(telemetry, CreateRequest(telemetry, SelectedRange), dampingPercentages: dampingPercentages);
 
         var finding = Assert.Single(report.Findings, finding => finding.Id == SessionInsightsFindingId.ShallowTravelUse);
         Assert.Contains(
@@ -362,7 +362,8 @@ public class SessionDiagnosticsTests
     private static SessionDiagnosticsReport Run(
         TelemetryData telemetry,
         SessionInsightsRequest request,
-        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?>? calculateVibration = null)
+        Func<TelemetryData, ImuLocation, SuspensionType, TelemetryTimeRange?, VibrationStats?>? calculateVibration = null,
+        SessionDampingPercentages? dampingPercentages = null)
     {
         var travelOptions = new TravelStatisticsOptions(request.AnalysisRange, request.TravelDistributionMode);
         var velocityOptions = new VelocityStatisticsOptions(request.AnalysisRange, request.VelocityAverageMode);
@@ -379,7 +380,8 @@ public class SessionDiagnosticsTests
             travelOptions,
             velocityOptions,
             balanceOptions,
-            SessionDiagnostics.GetProfileReferences(request.TargetProfile));
+            SessionDiagnostics.GetProfileReferences(request.TargetProfile),
+            dampingPercentages ?? SessionDampingPercentages.Empty);
 
         return calculateVibration is null
             ? SessionDiagnostics.Run(telemetry, context)

@@ -31,7 +31,6 @@ public sealed record RecordedSessionAnalysisInputs(
     BalanceDisplacementMode BalanceDisplacementMode,
     BalanceSpeedMode BalanceSpeedMode,
     DampingSpeedCutoffs DampingSpeedCutoffs,
-    SessionDampingPercentages DampingPercentages,
     SessionInsightsTargetProfile SessionInsightsTargetProfile)
 {
     public RecordedSessionAnalysisKey DampingPercentagesKey => CreateKey(RecordedSessionAnalysisFamily.DampingPercentages);
@@ -59,7 +58,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffs,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.SessionInsights => new RecordedSessionAnalysisKey(
                 family,
@@ -73,7 +71,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: BalanceDisplacementMode,
                 BalanceSpeedMode: BalanceSpeedMode,
                 DampingSpeedCutoffs: DampingSpeedCutoffs,
-                DampingPercentages: DampingPercentages,
                 SessionInsightsTargetProfile: SessionInsightsTargetProfile),
             RecordedSessionAnalysisFamily.TravelDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -87,7 +84,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.TravelFrequencyDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -101,7 +97,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.VelocityDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -115,7 +110,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffs,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.Balance => new RecordedSessionAnalysisKey(
                 family,
@@ -129,7 +123,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: BalanceDisplacementMode,
                 BalanceSpeedMode: BalanceSpeedMode,
                 DampingSpeedCutoffs: DampingSpeedCutoffs,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.StrokeLengthDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -143,7 +136,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.StrokeSpeedDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -157,7 +149,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.DeepTravelDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -171,7 +162,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.VibrationDistribution => new RecordedSessionAnalysisKey(
                 family,
@@ -185,7 +175,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.ImuDisplayProjection => new RecordedSessionAnalysisKey(
                 family,
@@ -199,7 +188,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             RecordedSessionAnalysisFamily.PositionVelocity => new RecordedSessionAnalysisKey(
                 family,
@@ -213,7 +201,6 @@ public sealed record RecordedSessionAnalysisInputs(
                 BalanceDisplacementMode: null,
                 BalanceSpeedMode: null,
                 DampingSpeedCutoffs: DampingSpeedCutoffSet.Default,
-                DampingPercentages: null,
                 SessionInsightsTargetProfile: null),
             _ => throw new ArgumentOutOfRangeException(nameof(family), family, null),
         };
@@ -231,7 +218,6 @@ public sealed record RecordedSessionAnalysisKey(
     BalanceDisplacementMode? BalanceDisplacementMode,
     BalanceSpeedMode? BalanceSpeedMode,
     DampingSpeedCutoffs DampingSpeedCutoffs,
-    SessionDampingPercentages? DampingPercentages,
     SessionInsightsTargetProfile? SessionInsightsTargetProfile)
 {
     public bool Matches(RecordedSessionAnalysisInputs inputs) =>

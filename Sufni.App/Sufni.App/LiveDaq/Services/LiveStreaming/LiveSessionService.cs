@@ -1206,7 +1206,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     {
         return new LiveSessionPresentationSnapshot(
             AnalysisTelemetry: analysisTelemetry,
-            DampingPercentages: analysis?.Inputs.DampingPercentages ?? SessionDampingPercentages.Empty,
+            DampingPercentages: analysis?.DampingPercentages ?? SessionDampingPercentages.Empty,
             SessionTrackPoints: sessionTrackPoints,
             Controls: BuildControlsLocked(),
             CaptureRevision: captureRevision) { Revision = ++snapshotRevision, Analysis = analysis, AnalysisFailure = analysisFailure };

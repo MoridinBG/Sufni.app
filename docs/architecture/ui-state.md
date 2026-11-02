@@ -204,7 +204,8 @@ Recorded-session analysis result state is scoped to an open
 through `SessionAnalysisWorkspaceViewModel`; the heavy work is delegated to the
 singleton `IRecordedSessionAnalysisComputer`. The state is invalidated when the
 telemetry generation, selected analysis range, analysis modes, damping cutoffs,
-damping percentages, or insights target changes. Visible analysis surfaces then
+or insights target changes. Session Insights computes its damping percentages
+from those inputs internally; percentages are a result, never an analysis key input. Visible analysis surfaces then
 request keyed results on demand: the editor eagerly requests the shared damping
 percentages and optional insights records, while selected/visible analysis tabs
 and plot controls request only the result records they render. Cached records are

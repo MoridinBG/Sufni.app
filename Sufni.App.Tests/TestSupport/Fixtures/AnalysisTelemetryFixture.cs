@@ -31,8 +31,7 @@ public static class AnalysisTelemetryFixture
         VelocityAverageMode velocityMode = VelocityAverageMode.SampleAveraged,
         BalanceDisplacementMode balanceMode = BalanceDisplacementMode.Zenith,
         BalanceSpeedMode balanceSpeedMode = BalanceSpeedMode.Both,
-        SessionInsightsTargetProfile profile = SessionInsightsTargetProfile.Trail,
-        SessionDampingPercentages? dampingPercentages = null)
+        SessionInsightsTargetProfile profile = SessionInsightsTargetProfile.Trail)
     {
         return new SessionInsightsRequest(
             telemetryData,
@@ -41,7 +40,6 @@ public static class AnalysisTelemetryFixture
             velocityMode,
             balanceMode,
             balanceSpeedMode,
-            dampingPercentages ?? SessionDampingPercentages.Empty,
             profile);
     }
 

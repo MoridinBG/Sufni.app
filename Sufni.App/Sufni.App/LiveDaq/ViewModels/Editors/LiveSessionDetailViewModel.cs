@@ -948,7 +948,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
         DampingPage.FrontDistributionState = ResolveSurfaceState(hasFrontVelocityDistribution, frontAnalysis);
         DampingPage.RearDistributionState = ResolveSurfaceState(hasRearVelocityDistribution, rearAnalysis);
 
-        ApplyDampingPercentages(analysisResults.Current?.Inputs.DampingPercentages ?? SessionDampingPercentages.Empty);
+        ApplyDampingPercentages(analysisResults.Current?.DampingPercentages ?? SessionDampingPercentages.Empty);
 
         BalancePage.CompressionBalance = data.CompressionBalance;
         BalancePage.ReboundBalance = data.ReboundBalance;
@@ -1082,7 +1082,7 @@ public sealed partial class LiveSessionDetailViewModel : TabPageViewModelBase,
     {
         if (analysis is not null && analysis.Options != CurrentAnalysisOptions) return;
         analysisResults.Apply(analysis);
-        ApplyDampingPercentages(analysis?.Inputs.DampingPercentages ?? SessionDampingPercentages.Empty);
+        ApplyDampingPercentages(analysis?.DampingPercentages ?? SessionDampingPercentages.Empty);
         NotifyAnalysisStates();
     }
 

@@ -186,7 +186,6 @@ public sealed class SessionPresentationService : ISessionPresentationService
             BalanceDisplacementMode: BalanceDisplacementMode.Zenith,
             BalanceSpeedMode: BalanceSpeedMode.Both,
             DampingSpeedCutoffs: cutoffs,
-            DampingPercentages: SessionDampingPercentages.Empty,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
         return inputs.CreateKey(family, suspensionType, balanceType);
     }
