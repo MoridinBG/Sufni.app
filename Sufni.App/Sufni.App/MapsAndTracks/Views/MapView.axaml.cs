@@ -2,10 +2,15 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Serilog;
+using Sufni.App.Shared.Common;
+using Sufni.App.Shared.Models;
+using Sufni.App.MapsAndTracks.Services;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -14,15 +19,11 @@ using BruTile.Predefined;
 using BruTile.Web;
 using Mapsui;
 using Mapsui.Layers;
-using Mapsui.Nts;
-using Mapsui.Nts.Extensions;
 using Mapsui.Styles;
 using Mapsui.Tiling.Layers;
 using Mapsui.UI.Avalonia;
 using Mapsui.Utilities;
 using Mapsui.Widgets;
-using Mapsui.Widgets.InfoWidgets;
-using NetTopologySuite.Geometries;
 
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.ViewModels;
@@ -37,17 +38,17 @@ public partial class MapView : UserControl
     private MapControl? mapControl;
     private readonly MapInteractionController interaction = new(
         action => Dispatcher.UIThread.Post(action, DispatcherPriority.Background));
-    private readonly RenderedTrackGeometryCache renderedTrackGeometryCache = new();
+    private static readonly ILogger logger = Log.ForContext<MapView>();
+    private readonly CancellableOperation geometryOperation = new();
+    private MapGeometrySnapshot? geometry;
+    private MapGeometryInput? requestedGeometry;
+    private SessionTimelineLinkViewModel? subscribedTimeline;
     private MapViewModel? subscribedViewModel;
     private RenderedTrackGeometry? appliedFullTrackGeometry;
     private RenderedTrackGeometry? appliedSessionTrackGeometry;
     private RenderedTrackGeometry? appliedMarkerTrackGeometry;
 
-    private readonly WritableLayer positionMarkerLayer = new()
-    {
-        Name = "Position Marker",
-        Style = new SymbolStyle { SymbolScale = 0.5 }
-    };
+    private WritableLayer? positionMarkerLayer;
 
     public static readonly StyledProperty<SessionTimelineLinkViewModel?> TimelineProperty =
         AvaloniaProperty.Register<MapView, SessionTimelineLinkViewModel?>(nameof(Timeline));
@@ -71,8 +72,6 @@ public partial class MapView : UserControl
 
     public MapView()
     {
-        LoggingWidget.ShowLoggingInMap = ActiveMode.No;
-
         InitializeComponent();
 
         PropertyChanged += (_, e) =>
@@ -80,28 +79,25 @@ public partial class MapView : UserControl
             switch (e.Property.Name)
             {
                 case nameof(Timeline):
-                    if (e.OldValue is SessionTimelineLinkViewModel oldTimeline)
+                    if (VisualRoot is not null)
                     {
-                        oldTimeline.PropertyChanged -= OnTimelinePropertyChanged;
-                        oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
-                    }
-
-                    if (e.NewValue is SessionTimelineLinkViewModel newTimeline)
-                    {
-                        newTimeline.PropertyChanged += OnTimelinePropertyChanged;
-                        newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
-                        ApplyTimeline(newTimeline);
+                        SubscribeTimeline(Timeline);
+                        if (Timeline is not null) ApplyTimeline(Timeline);
                     }
 
                     break;
                 case nameof(MatchedTrack):
-                    UpdateMatchedTrackLayer();
+                    UpdateTracks();
                     break;
             }
         };
 
-        mapControl = this.FindControl<MapControl>("MapControl");
+        interaction.ViewportNotificationDue += NotifyViewportChanged;
+    }
 
+    private void CreateMap()
+    {
+        mapControl = new MapControl();
         // Mapsui's MapControl constructor stores a process-lifetime static delegate
         // (Mapsui.Utilities.PlatformUtilities.OpenInBrowserMethod) bound to the control
         // instance, and never clears it on dispose. That static pins the most recently
@@ -116,7 +112,6 @@ public partial class MapView : UserControl
         // Setup initial layers
         if (mapControl != null)
         {
-            mapControl.Map = new Mapsui.Map();
             RemoveInfoWidgets();
             var trackLayer = CreateFullTrackLayer(); // Initially empty until ViewModel updates
             mapControl.Map.Layers.Add(trackLayer);
@@ -125,10 +120,10 @@ public partial class MapView : UserControl
             mapControl.Map.Layers.Add(sessionTrackLayer);
             mapControl.Map.Layers.Add(CreateStartEndPointsLayer());
             mapControl.Map.Layers.Add(new MemoryLayer { Name = MatchedTrackLayerName });
+            positionMarkerLayer = new WritableLayer { Name = "Position Marker", Style = new SymbolStyle { SymbolScale = 0.5 } };
             mapControl.Map.Layers.Add(positionMarkerLayer);
 
-            interaction.ViewportNotificationDue += NotifyViewportChanged;
-            mapControl.Map.Navigator.ViewportChanged += (_, _) => interaction.NavigatorViewportChanged();
+            mapControl.Map.Navigator.ViewportChanged += OnNavigatorViewportChanged;
             mapControl.PointerPressed += OnMapPointerPressed;
             mapControl.PointerMoved += OnMapPointerMoved;
             mapControl.PointerReleased += (_, _) => interaction.PointerReleasedOrCaptureLost();
@@ -136,28 +131,80 @@ public partial class MapView : UserControl
             mapControl.PointerWheelChanged += (_, _) => interaction.WheelChanged();
         }
 
-        SetNormalizedCursorPosition(1);
+        MapHost.Content = mapControl;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        CreateMap();
+        SubscribeTimeline(Timeline);
         SubscribeToViewModel(ViewModel);
         ApplyViewModelState();
-        UpdateMatchedTrackLayer();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         SubscribeToViewModel(null);
+        SubscribeTimeline(null);
+        geometryOperation.Cancel();
+        requestedGeometry = null;
+        geometry = null;
+        appliedFullTrackGeometry = appliedSessionTrackGeometry = appliedMarkerTrackGeometry = null;
+        var oldMap = mapControl;
+        mapControl = null;
+        positionMarkerLayer = null;
+        MapHost.Content = null;
+        if (oldMap is not null)
+        {
+            oldMap.Map.Navigator.ViewportChanged -= OnNavigatorViewportChanged;
+            foreach (var layer in oldMap.Map.Layers.ToArray())
+            {
+                oldMap.Map.Layers.Remove(layer);
+                layer.Dispose();
+            }
+            oldMap.Dispose();
+        }
         base.OnDetachedFromVisualTree(e);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        if (VisualRoot is null) return;
+        geometryOperation.Cancel();
+        requestedGeometry = null;
+        geometry = null;
+        appliedFullTrackGeometry = appliedSessionTrackGeometry = appliedMarkerTrackGeometry = null;
+        if (mapControl is not null)
+        {
+            foreach (var layer in mapControl.Map.Layers.OfType<MemoryLayer>())
+            {
+                layer.Features = [];
+                layer.DataHasChanged();
+            }
+            ClearNormalizedCursorPosition();
+            mapControl.Refresh();
+        }
         SubscribeToViewModel(ViewModel);
         ApplyViewModelState();
+    }
+
+    private void OnNavigatorViewportChanged(object? sender, EventArgs args) => interaction.NavigatorViewportChanged();
+
+    private void SubscribeTimeline(SessionTimelineLinkViewModel? value)
+    {
+        if (subscribedTimeline is not null)
+        {
+            subscribedTimeline.PropertyChanged -= OnTimelinePropertyChanged;
+            subscribedTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
+        }
+        subscribedTimeline = value;
+        if (value is not null)
+        {
+            value.PropertyChanged += OnTimelinePropertyChanged;
+            value.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
+        }
     }
 
     private void SubscribeToViewModel(MapViewModel? viewModel)
@@ -237,13 +284,45 @@ public partial class MapView : UserControl
 
     private void UpdateTracks()
     {
-        if (mapControl == null || ViewModel == null) return;
+        if (mapControl is null || ViewModel is not { } viewModel) return;
+        var input = new MapGeometryInput(viewModel.FullTrackPoints is { } full ? full : Array.Empty<TrackPoint>(),
+            viewModel.SessionTrackPoints is { } session ? session : Array.Empty<TrackPoint>(), MatchedTrack);
+        if (input == requestedGeometry)
+        {
+            if (geometry?.Input == input) ApplyGeometry(geometry);
+            return;
+        }
+        requestedGeometry = input;
+        var token = geometryOperation.Start();
+        _ = PrepareGeometryAsync(viewModel.GeometryFactory, input, token);
+    }
 
+    private async Task PrepareGeometryAsync(IMapGeometryFactory factory, MapGeometryInput input, CancellationToken token)
+    {
+        try
+        {
+            var prepared = await factory.BuildAsync(input, geometry, token);
+            if (token.IsCancellationRequested || mapControl is null) return;
+            geometry = prepared;
+            ApplyGeometry(prepared);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (token.IsCancellationRequested) return;
+            logger.Error(exception, "Map geometry preparation failed");
+            ViewModel?.ReportRenderingFailure(FailurePresentation.From(MapRenderingFailureReason.Geometry, exception.Message));
+        }
+    }
+
+    private void ApplyGeometry(MapGeometrySnapshot prepared)
+    {
+        if (mapControl is null) return;
         // Update Full Track
         var fullTrackLayer = mapControl.Map.Layers.FindLayer("Full Track").FirstOrDefault() as MemoryLayer;
-        if (fullTrackLayer != null && ViewModel.FullTrackPoints != null)
+        if (fullTrackLayer != null)
         {
-            var fullTrackGeometry = renderedTrackGeometryCache.GetOrBuildFull(ViewModel.FullTrackPoints);
+            var fullTrackGeometry = prepared.FullTrack;
             ApplyTrackLayer(fullTrackLayer, fullTrackGeometry, ref appliedFullTrackGeometry);
         }
 
@@ -251,9 +330,9 @@ public partial class MapView : UserControl
 
         // Update Session Track
         var sessionTrackLayer = mapControl.Map.Layers.FindLayer("Session Track").FirstOrDefault() as MemoryLayer;
-        if (sessionTrackLayer != null && ViewModel.SessionTrackPoints != null)
+        if (sessionTrackLayer != null)
         {
-            sessionTrackGeometry = renderedTrackGeometryCache.GetOrBuildSession(ViewModel.SessionTrackPoints);
+            sessionTrackGeometry = prepared.SessionTrack;
             ApplyTrackLayer(sessionTrackLayer, sessionTrackGeometry, ref appliedSessionTrackGeometry);
 
             // Keep late track updates aligned with the shared timeline range.
@@ -282,6 +361,12 @@ public partial class MapView : UserControl
             ApplyMarkerLayer(markerLayer, sessionTrackGeometry, ref appliedMarkerTrackGeometry);
         }
 
+        if (mapControl.Map.Layers.FindLayer(MatchedTrackLayerName).FirstOrDefault() is MemoryLayer matchedLayer)
+        {
+            matchedLayer.Features = prepared.MatchedFeatures;
+            matchedLayer.DataHasChanged();
+        }
+        if (Timeline?.NormalizedCursorPosition is { } cursor) SetNormalizedCursorPosition(cursor);
         mapControl.Refresh();
     }
 
@@ -313,25 +398,6 @@ public partial class MapView : UserControl
         layer.Features = geometry.MarkerFeatures;
         layer.DataHasChanged();
         appliedGeometry = geometry;
-    }
-
-    private void UpdateMatchedTrackLayer()
-    {
-        if (mapControl?.Map.Layers.FindLayer(MatchedTrackLayerName).FirstOrDefault() is not MemoryLayer layer)
-        {
-            return;
-        }
-
-        var features = new List<IFeature>();
-        if (MatchedTrack is { } matchedTrack)
-        {
-            AddMatchedTrackLine(features, matchedTrack.SessionTrack, width: 3, opacity: 0.25);
-            AddMatchedTrackLine(features, matchedTrack.SegmentTrack, width: 4, opacity: 0.7);
-        }
-
-        layer.Features = features;
-        layer.DataHasChanged();
-        mapControl.Refresh();
     }
 
     private void RemoveInfoWidgets()
@@ -378,29 +444,6 @@ public partial class MapView : UserControl
     private static bool IsInfoWidget(IWidget widget) =>
         widget.GetType().Namespace == MapsuiInfoWidgetNamespace;
 
-    private static void AddMatchedTrackLine(
-        List<IFeature> features,
-        IReadOnlyList<TrackPoint> trackPoints,
-        double width,
-        double opacity)
-    {
-        var coordinates = trackPoints
-            .Where(point => double.IsFinite(point.X) && double.IsFinite(point.Y))
-            .Select(point => new Coordinate(point.X, point.Y))
-            .ToArray();
-        if (coordinates.Length < 2)
-        {
-            return;
-        }
-
-        var feature = new GeometryFeature { Geometry = new LineString(coordinates) };
-        feature.Styles.Add(new VectorStyle
-        {
-            Line = new Pen(new Color(115, 199, 240, (int)Math.Round(255 * opacity)), width),
-        });
-        features.Add(feature);
-    }
-
     private void OnMapPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         e.PreventGestureRecognition();
@@ -421,6 +464,7 @@ public partial class MapView : UserControl
         foreach (var layer in tileLayers)
         {
             mapControl.Map.Layers.Remove(layer);
+            layer.Dispose();
         }
 
         var layerToAdd = CreateTileLayer(config);
@@ -453,7 +497,7 @@ public partial class MapView : UserControl
 
     public void SetNormalizedCursorPosition(double pos)
     {
-        if (pos < 0 || pos > 1)
+        if (positionMarkerLayer is null || pos < 0 || pos > 1)
         {
             return;
         }
@@ -503,6 +547,7 @@ public partial class MapView : UserControl
 
     private void ClearNormalizedCursorPosition()
     {
+        if (positionMarkerLayer is null) return;
         positionMarkerLayer.Clear();
         positionMarkerLayer.DataHasChanged();
         mapControl?.Refresh();
@@ -627,118 +672,13 @@ public partial class MapView : UserControl
 
     private RenderedTrackGeometry? GetSessionTrackGeometry()
     {
-        var sessionTrackPoints = ViewModel?.SessionTrackPoints;
-        return sessionTrackPoints is null
-            ? null
-            : renderedTrackGeometryCache.GetOrBuildSession(sessionTrackPoints);
+        return ReferenceEquals(geometry?.Input.SessionTrack, ViewModel?.SessionTrackPoints) ? geometry?.SessionTrack : null;
     }
 
     private TrackTimeRange? GetTimelineContext(RenderedTrackGeometry sessionTrackGeometry)
     {
         return ViewModel?.TimelineContext
                ?? sessionTrackGeometry.TimeIndex?.TimelineContext;
-    }
-
-    private sealed class RenderedTrackGeometryCache
-    {
-        private IReadOnlyList<TrackPoint>? fullPoints;
-        private RenderedTrackGeometry? fullGeometry;
-        private IReadOnlyList<TrackPoint>? sessionPoints;
-        private RenderedTrackGeometry? sessionGeometry;
-
-        public RenderedTrackGeometry GetOrBuildFull(IReadOnlyList<TrackPoint> points)
-        {
-            return GetOrBuild(points, ref fullPoints, ref fullGeometry, buildTimeIndex: false);
-        }
-
-        public RenderedTrackGeometry GetOrBuildSession(IReadOnlyList<TrackPoint> points)
-        {
-            return GetOrBuild(points, ref sessionPoints, ref sessionGeometry, buildTimeIndex: true);
-        }
-
-        private static RenderedTrackGeometry GetOrBuild(
-            IReadOnlyList<TrackPoint> points,
-            ref IReadOnlyList<TrackPoint>? cachedPoints,
-            ref RenderedTrackGeometry? cachedGeometry,
-            bool buildTimeIndex)
-        {
-            if (ReferenceEquals(cachedPoints, points) && cachedGeometry is not null)
-            {
-                return cachedGeometry;
-            }
-
-            cachedPoints = points;
-            cachedGeometry = RenderedTrackGeometry.Create(points, buildTimeIndex);
-            return cachedGeometry;
-        }
-    }
-
-    private sealed class RenderedTrackGeometry
-    {
-        private RenderedTrackGeometry(
-            IReadOnlyList<TrackPoint> points,
-            IFeature[] lineFeatures,
-            IFeature[] markerFeatures,
-            TrackPointTimeIndex? timeIndex)
-        {
-            Points = points;
-            LineFeatures = lineFeatures;
-            MarkerFeatures = markerFeatures;
-            TimeIndex = timeIndex;
-        }
-
-        public IReadOnlyList<TrackPoint> Points { get; }
-
-        public IFeature[] LineFeatures { get; }
-
-        public IFeature[] MarkerFeatures { get; }
-
-        public TrackPointTimeIndex? TimeIndex { get; }
-
-        public static RenderedTrackGeometry Create(
-            IReadOnlyList<TrackPoint> points,
-            bool buildTimeIndex)
-        {
-            var coordinates = points.Select(point => (point.X, point.Y).ToCoordinate()).ToArray();
-            var lineString = coordinates.Length >= 2
-                ? new LineString(coordinates)
-                : new LineString([]);
-            var lineFeatures = coordinates.Length >= 2
-                ? [new GeometryFeature { Geometry = lineString }]
-                : Array.Empty<IFeature>();
-            return new RenderedTrackGeometry(
-                points,
-                lineFeatures,
-                CreateMarkerFeatures(points),
-                buildTimeIndex ? new TrackPointTimeIndex(points) : null);
-        }
-
-        private static IFeature[] CreateMarkerFeatures(IReadOnlyList<TrackPoint> points)
-        {
-            if (points.Count == 0)
-            {
-                return [];
-            }
-
-            return
-            [
-                CreateMarkerFeature(points[0], "#229954"),
-                CreateMarkerFeature(points[^1], "#E74C3C"),
-            ];
-        }
-
-        private static PointFeature CreateMarkerFeature(TrackPoint point, string fillColor)
-        {
-            var feature = new PointFeature(point.X, point.Y);
-            feature.Styles.Add(new SymbolStyle
-            {
-                SymbolType = SymbolType.Ellipse,
-                Line = new Pen(Color.Black),
-                Fill = new Brush(Color.FromString(fillColor)),
-                SymbolScale = 0.5,
-            });
-            return feature;
-        }
     }
 
     private MemoryLayer CreateSessionTrackLayer()

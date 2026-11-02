@@ -84,7 +84,7 @@ public class LiveSignalsPageViewTests
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        var mapViewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             FullTrackPoints = [],
             SessionTrackPoints = trackPoints.ToList(),

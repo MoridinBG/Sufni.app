@@ -272,7 +272,7 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
         var dialogService = Substitute.For<IDialogService>();
-        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), dialogService, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints = trackPoints.ToList(),
             FullTrackPoints = [],

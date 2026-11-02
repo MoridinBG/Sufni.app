@@ -61,6 +61,8 @@ public enum ImportSourceFailureReason { ListFiles, OpenFolder }
 
 public enum GpxImportFailureReason { InvalidFile, Import }
 
+public enum MapRenderingFailureReason { Geometry }
+
 public enum MapLayerFailureReason { Add, Select }
 
 public enum RearCalibrationFailureReason { Configuration, Calculation }

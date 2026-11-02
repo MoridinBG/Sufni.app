@@ -189,17 +189,34 @@ the selector to the published value.
 
 `FullTrackPoints`, `SessionTrackPoints` and `TimelineContext` remain host-supplied
 map inputs. `MapViewModelFactory` supplies the tile service, coordinator, dialog,
-dispatcher and clock. Both recorded and live hosts use it and dispose the map
+dispatcher, clock and background geometry factory. The view uses that factory for its
+rendered resources; the view model does not build native geometry. Both recorded and live hosts use it and dispose the map
 view model with their lifetime; disposal releases the tile-state subscription.
 The replayed tile snapshot supplies initial state without a separate initialization method.
 
 ## Mapsui Integration
 
-`MapView` (`Sufni.App/Sufni.App/MapsAndTracks/Views/MapView.axaml` and `MapView.axaml.cs`) is the only place that touches Mapsui directly. The XAML is a `Mapsui.UI.Avalonia.MapControl` with a small overlay holding a tile-provider `ComboBox` and an "add custom layer" button.
+`MapView` (`Sufni.App/Sufni.App/MapsAndTracks/Views/MapView.axaml` and `MapView.axaml.cs`) is the only place that touches Mapsui directly. The XAML hosts a view-lifetime `Mapsui.UI.Avalonia.MapControl` with a small overlay holding a tile-provider `ComboBox` and an "add custom layer" button.
 
-After `MapControl` construction, `MapView` replaces Mapsui's static browser-opening callback with a control-independent handler. The constructor otherwise leaves a static reference to the control and its session view; this workaround remains in place.
+`App.Initialize` sets Mapsui logging-widget policy once during composition.
+After each `MapControl` construction, `MapView` replaces Mapsui's static
+browser-opening callback with a control-independent handler. Inspection of the
+installed Mapsui.UI.Avalonia 5.1.0 assembly confirms `SharedConstructor` still
+assigns the instance-bound callback, so the post-construction workaround remains.
+The view creates a fresh control/map on attach, and on detach cancels geometry work,
+unsubscribes its timeline and disposes the map/control and every layer. Mapsui 5.1
+map disposal unsubscribes layers and aborts fetches but does not dispose layers;
+`MapView` explicitly removes and disposes them. Tile replacement also disposes the
+removed tile layer.
 
-The code-behind builds a fixed layer stack on construction: a tile layer (replaced when `SelectedLayer` changes), a "Full Track" `MemoryLayer` (light green polyline), a "Session Track" `MemoryLayer` (red polyline, drawn thicker), a "Start/End Marker" layer (filled circles), and a writable position-marker layer that the timeline cursor moves along the session track. When `MapViewModel.FullTrackPoints` / `SessionTrackPoints` change the view routes each point list through a rendered geometry cache keyed by list reference. The cached value contains the points, Mapsui line and marker features, and a `TrackPointTimeIndex`; unchanged point-list instances reuse the same feature arrays instead of rebuilding Mapsui geometry.
+The code-behind builds a fixed layer stack on each attach: a tile layer (replaced when `SelectedLayer` changes), a "Full Track" `MemoryLayer` (light green polyline), a "Session Track" `MemoryLayer` (red polyline, drawn thicker), a "Start/End Marker" layer (filled circles), and a writable position-marker layer that the timeline cursor moves along the session track. When `MapViewModel.FullTrackPoints` / `SessionTrackPoints` or the comparison changes,
+the view captures a `MapGeometryInput` and requests `IMapGeometryFactory` on the
+background runner. The returned snapshot contains line/marker features and a
+`TrackPointTimeIndex`; unchanged point-list references reuse prior geometry.
+Only the current attached request applies its result on the UI thread. Cursor and
+viewport changes consume the prepared index without building geometry. A failed
+preparation logs once at the view boundary and shows fixed feedback with separate
+diagnostics. Data-context changes clear the prior source's geometry.
 
 `MapView` also exposes a `Timeline` styled property (`SessionTimelineLinkViewModel`) that the recorded and live session shells bind to. The two-way coupling lets timeline cursor and visible-range changes in one place (the signal rows, the media pane, or the map viewport) drive the others without view models depending on each other. Pointer interaction with the map computes a normalized session range from the visible viewport and pushes it back through `Timeline.SetVisibleRange`. External timeline range changes zoom the map to the matching track-point time window; if a track refresh arrives after the range was already changed, `MapView` applies the current timeline range instead of re-fitting the whole session. Cursor lookup and timeline-window extraction use `TrackPointTimeIndex`, which sorts finite point times once and performs binary-search closest-point/range queries while preserving boundary neighbors. Viewport-to-range scanning still walks visible geometry because it depends on screen-space intersection. Straight-line or point-like selected track windows are expanded to a non-zero map extent before calling Mapsui's viewport fit so they still zoom visibly. The view's own pointer-tracking flag (`mapPointerInteractionActive`) is the gate that keeps Mapsui's own viewport-changed events from echoing back as user-driven. Desktop media XAML binds this through the shared `ISessionMediaWorkspace` contract so recorded and live desktop media surfaces use the same compiled-binding view.
 

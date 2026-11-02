@@ -24,7 +24,7 @@ public class MapViewModelTests
         const string details = "disk diagnostic";
         coordinator.SelectAsync(other.Id).Returns(new MapLayerWriteResult.Failed(MapLayerFailureReason.Select, details));
         using var vm = new MapViewModel(service, coordinator, Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(), new FakeTimeProvider());
+            new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), new FakeTimeProvider());
 
         await vm.SelectLayerAsync(other);
 
@@ -46,7 +46,7 @@ public class MapViewModelTests
         coordinator.AddAndSelectAsync(added).Returns(new MapLayerWriteResult.Saved());
         var dialog = Substitute.For<IDialogService>();
         dialog.ShowAddTileLayerDialogAsync().Returns(added);
-        using var vm = new MapViewModel(service, coordinator, dialog, new InlineUiThreadDispatcher(), new FakeTimeProvider());
+        using var vm = new MapViewModel(service, coordinator, dialog, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), new FakeTimeProvider());
 
         await vm.AddCustomLayerCommand.ExecuteAsync(null);
         Assert.Equal([original], vm.AvailableLayers);

@@ -128,6 +128,7 @@ public static class AppComposition
         services.AddSingleton<ITileLayerService, TileLayerService>();
         services.AddSingleton<IMapLayerCoordinator, MapLayerCoordinator>();
         services.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
+        services.AddSingleton<IMapGeometryFactory, MapGeometryFactory>();
         services.AddSingleton<FilesService>();
         services.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
         services.AddSingleton<DialogService>();

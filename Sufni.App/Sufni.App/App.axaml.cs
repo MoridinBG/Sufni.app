@@ -43,6 +43,7 @@ public partial class App : Application
 
     public override void Initialize()
     {
+        Mapsui.Widgets.InfoWidgets.LoggingWidget.ShowLoggingInMap = Mapsui.Widgets.ActiveMode.No;
         // Apply before XAML resolution to avoid a default-theme first frame.
         RequestedThemeVariant = SufniThemes.ToVariant(root.LaunchPreferences.ThemeMode);
         AvaloniaXamlLoader.Load(this);

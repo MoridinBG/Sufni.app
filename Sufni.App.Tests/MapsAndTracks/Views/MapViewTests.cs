@@ -7,6 +7,10 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using CommunityToolkit.Mvvm.Input;
 using Mapsui.Layers;
+using Sufni.App.Tests.TestSupport.Async;
+using Mapsui.Tiling.Layers;
+using BruTile.Predefined;
+using BruTile.Web;
 using Mapsui.UI.Avalonia;
 using Mapsui.Widgets.InfoWidgets;
 using NSubstitute;
@@ -40,7 +44,7 @@ public class MapViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
         tileLayerService.Observe().Returns(Observable.Return(new TileLayerState(layers, layerB)));
 
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
         var view = new MapView
         {
             DataContext = viewModel
@@ -87,7 +91,7 @@ public class MapViewTests
         var dialogService = Substitute.For<IDialogService>();
         dialogService.ShowAddTileLayerDialogAsync().Returns(Task.FromResult<TileLayerConfig?>(customLayer));
 
-        var viewModel = new MapViewModel(tileLayerService, coordinator, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
+        var viewModel = new MapViewModel(tileLayerService, coordinator, dialogService, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
         var view = new MapView
         {
             DataContext = viewModel
@@ -131,7 +135,7 @@ public class MapViewTests
         coordinator.AddAndSelectAsync(added).Returns(new MapLayerWriteResult.Failed(MapLayerFailureReason.Add, "disk diagnostic"));
         var dialog = Substitute.For<IDialogService>();
         dialog.ShowAddTileLayerDialogAsync().Returns(added);
-        using var vm = new MapViewModel(service, coordinator, dialog, new InlineUiThreadDispatcher(), new FakeTimeProvider());
+        using var vm = new MapViewModel(service, coordinator, dialog, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), new FakeTimeProvider());
         var view = new MapView { DataContext = vm };
         var host = await ViewTestHelpers.ShowViewAsync(view);
         try
@@ -159,7 +163,7 @@ public class MapViewTests
 
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints = []
         };
@@ -206,7 +210,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             var before = mapControl!.Map.Navigator.Viewport;
@@ -230,7 +234,7 @@ public class MapViewTests
         ViewTestHelpers.EnsureViewTestResources();
 
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
-        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        var viewModel = new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             FullTrackPoints = [],
         };
@@ -245,7 +249,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             timeline.SetVisibleRange(0.25, 0.5, new object());
@@ -291,7 +295,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             view.DataContext = newViewModel;
@@ -340,7 +344,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             var before = mapControl!.Map.Navigator.Viewport;
@@ -375,7 +379,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             var before = mapControl!.Map.Navigator.Viewport;
@@ -411,7 +415,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             var sessionLayer = Assert.Single(
@@ -451,7 +455,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
 
             var sessionLayer = Assert.Single(
@@ -482,7 +486,7 @@ public class MapViewTests
 
         try
         {
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
             var matchedTrackLayer = Assert.Single(
                 mapControl!.Map.Layers.FindLayer("Matched Track").OfType<MemoryLayer>());
@@ -523,7 +527,7 @@ public class MapViewTests
         {
             await ViewTestHelpers.FlushDispatcherAsync();
 
-            var mapControl = view.FindControl<MapControl>("MapControl");
+            var mapControl = view.FindControl<ContentControl>("MapHost")!.Content as MapControl;
             Assert.NotNull(mapControl);
             Assert.Empty(mapControl!.Map.Widgets.OfType<LoggingWidget>());
         }
@@ -531,6 +535,123 @@ public class MapViewTests
         {
             host.Close();
             await ViewTestHelpers.FlushDispatcherAsync();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Detach_DisposesLayersAndReattachCreatesFreshMap()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        using var viewModel = CreateViewModelWithTrack();
+        var view = new MapView { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        var original = Assert.IsType<MapControl>(view.FindControl<ContentControl>("MapHost")!.Content);
+        var layer = new TrackingTileLayer();
+        original.Map.Layers.Add(layer);
+
+        host.Content = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(layer.IsDisposed);
+        Assert.Null(view.FindControl<ContentControl>("MapHost")!.Content);
+        host.Content = view;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var replacement = Assert.IsType<MapControl>(view.FindControl<ContentControl>("MapHost")!.Content);
+        Assert.NotSame(original, replacement);
+        Assert.Single(Assert.Single(replacement.Map.Layers.FindLayer("Session Track").OfType<MemoryLayer>()).Features);
+        host.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task TileSelection_DisposesPreviousTileLayer()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var first = CreateLayer("First");
+        using var state = new BehaviorSubject<TileLayerState>(new([first], first));
+        var tiles = Substitute.For<ITileLayerService>();
+        tiles.Observe().Returns(state);
+        using var viewModel = new MapViewModel(tiles, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(),
+            new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), new FakeTimeProvider());
+        var view = new MapView { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        var map = Assert.IsType<MapControl>(view.FindControl<ContentControl>("MapHost")!.Content).Map;
+        var previous = new TrackingTileLayer();
+        map.Layers.Add(previous);
+        var next = CreateLayer("Next");
+
+        state.OnNext(new([first, next], next));
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.True(previous.IsDisposed);
+        Assert.Equal(next.Name, Assert.Single(map.Layers.OfType<TileLayer>()).Name);
+        host.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task GeometryPreparation_RejectsSupersededAndDetachedResults()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var pending = new List<(MapGeometryInput Input, CancellationToken Token, TaskCompletionSource<MapGeometrySnapshot> Completion)>();
+        var factory = Substitute.For<IMapGeometryFactory>();
+        factory.BuildAsync(Arg.Any<MapGeometryInput>(), Arg.Any<MapGeometrySnapshot?>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                var completion = new TaskCompletionSource<MapGeometrySnapshot>();
+                pending.Add((call.Arg<MapGeometryInput>(), call.Arg<CancellationToken>(), completion));
+                return completion.Task;
+            });
+        using var viewModel = CreateViewModelWithTrack(factory);
+        var view = new MapView { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+        var map = Assert.IsType<MapControl>(view.FindControl<ContentControl>("MapHost")!.Content).Map;
+        var layer = Assert.Single(map.Layers.FindLayer("Session Track").OfType<MemoryLayer>());
+        Assert.Empty(layer.Features);
+        viewModel.SessionTrackPoints = [new(0, 500, 500, null), new(1, 600, 600, null)];
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var builder = new MapGeometryFactory(new InlineBackgroundTaskRunner());
+        var current = await builder.BuildAsync(pending[1].Input, null, TestContext.Current.CancellationToken);
+        pending[1].Completion.SetResult(current);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Same(current.SessionTrack.LineFeatures[0], Assert.Single(layer.Features));
+
+        pending[0].Completion.SetResult(await builder.BuildAsync(pending[0].Input, null, TestContext.Current.CancellationToken));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(pending[0].Token.IsCancellationRequested);
+        Assert.Same(current.SessionTrack.LineFeatures[0], Assert.Single(layer.Features));
+        viewModel.SessionTrackPoints = [];
+        await ViewTestHelpers.FlushDispatcherAsync();
+        host.Close();
+        Assert.True(pending[2].Token.IsCancellationRequested);
+        pending[2].Completion.SetResult(await builder.BuildAsync(pending[2].Input, null, TestContext.Current.CancellationToken));
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Null(view.FindControl<ContentControl>("MapHost")!.Content);
+    }
+
+    [AvaloniaFact]
+    public async Task GeometryFailure_ShowsFixedFeedbackWithSeparateDiagnostics()
+    {
+        ViewTestHelpers.EnsureViewTestResources();
+        var factory = Substitute.For<IMapGeometryFactory>();
+        factory.BuildAsync(Arg.Any<MapGeometryInput>(), Arg.Any<MapGeometrySnapshot?>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<MapGeometrySnapshot>(new InvalidOperationException("geometry diagnostic")));
+        using var viewModel = CreateViewModelWithTrack(factory);
+        var view = new MapView { DataContext = viewModel };
+        var host = await ViewTestHelpers.ShowViewAsync(view);
+
+        Assert.True(view.FindControl<ErrorMessagesBar>("MapErrorMessagesBar")!.IsVisible);
+        var failure = Assert.Single(viewModel.ErrorMessages);
+        Assert.Equal("geometry diagnostic", failure.Details);
+        Assert.DoesNotContain(failure.Details, failure.Summary);
+        host.Close();
+    }
+
+    private sealed class TrackingTileLayer() : TileLayer(new HttpTileSource(new GlobalSphericalMercator(), "https://example.com/{z}/{x}/{y}.png"))
+    {
+        public bool IsDisposed { get; private set; }
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
         }
     }
 
@@ -543,11 +664,11 @@ public class MapViewTests
         MaxZoom = 18,
     };
 
-    private static MapViewModel CreateViewModelWithTrack()
+    private static MapViewModel CreateViewModelWithTrack(IMapGeometryFactory? geometryFactory = null)
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), geometryFactory ?? new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints =
             [
@@ -565,7 +686,7 @@ public class MapViewTests
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
-        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
+        return new MapViewModel(tileLayerService, Substitute.For<IMapLayerCoordinator>(), Substitute.For<IDialogService>(), new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider())
         {
             SessionTrackPoints =
             [

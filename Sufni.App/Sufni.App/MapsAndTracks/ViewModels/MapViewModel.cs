@@ -20,6 +20,8 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     private TileLayerState? layerState;
     private readonly CompositeDisposable subscriptions = new();
 
+    public IMapGeometryFactory GeometryFactory { get; }
+
     public TileLayerConfig? SelectedLayer => layerState?.SelectedLayer;
 
     [ObservableProperty]
@@ -40,10 +42,12 @@ public partial class MapViewModel : ViewModelBase, IDisposable
         ITileLayerService tileLayerService,
         IMapLayerCoordinator coordinator,
         IDialogService dialogService,
+        IMapGeometryFactory geometryFactory,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider)
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
+        GeometryFactory = geometryFactory;
         this.coordinator = coordinator;
         this.dialogService = dialogService;
 
@@ -65,6 +69,8 @@ public partial class MapViewModel : ViewModelBase, IDisposable
             OnPropertyChanged(nameof(SelectedLayer));
         }
     }
+
+    public void ReportRenderingFailure(FailurePresentation failure) => ErrorMessages.Add(failure);
 
     public void Dispose() => subscriptions.Dispose();
 

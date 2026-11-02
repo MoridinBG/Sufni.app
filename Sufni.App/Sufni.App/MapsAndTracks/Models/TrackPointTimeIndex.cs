@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Sufni.App.MapsAndTracks.Models;
 
-internal sealed class TrackPointTimeIndex
+public sealed class TrackPointTimeIndex
 {
     private readonly double[] times;
     private readonly TrackPoint[] points;

@@ -93,8 +93,8 @@ singletons):
 
 ### Startup and database recovery
 
-`AppStartup` owns the initial database gate, the single-flight store refresh,
-tile-layer initialization, and server startup. `App` builds one provider and a
+`AppStartup` owns the initial database gate, the single-flight store refresh
+and server startup. Tile state derives from store/preference observations. `App` builds one provider and a
 shell root before asking startup to activate the primary pages. Schema work runs
 off-thread; initialization or refresh failure prevents page creation. After the
 refresh, the composition callback resolves subscription owners and pages before

@@ -203,6 +203,12 @@ public sealed record FailurePresentation
         GpxImportFailureReason.Import => "GPX import could not be completed. Check the selected files and try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(MapRenderingFailureReason reason, string? details = null) => new(reason switch
+    {
+        MapRenderingFailureReason.Geometry => "The map track could not be displayed. Reopen the session to retry.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null)
+    }, details);
+
     public static FailurePresentation From(MapLayerFailureReason reason, string? details = null) => new(reason switch
     {
         MapLayerFailureReason.Add => "The custom map layer could not be saved. Try again.",

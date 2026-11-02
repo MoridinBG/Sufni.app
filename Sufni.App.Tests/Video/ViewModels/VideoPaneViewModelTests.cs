@@ -15,6 +15,24 @@ public class VideoPaneViewModelTests : IDisposable
     private readonly TestRecordedSessionTimeline timeline = new();
 
     [Fact]
+    public async Task SessionDisappearsAndReturns_SharedClipSurvivesAndBecomesVisibleAgain()
+    {
+        var clip = fixture.CreateClip("source-hash", SessionTimestamp, 60);
+        var store = await fixture.CreateStoreAsync(clip);
+        using var timing = new BehaviorSubject<VideoSessionTiming>(new("source-hash", 0, 30));
+        using var pane = new VideoPaneViewModel(timeline, timing, store, fixture.Coordinator, fixture.PlayerFactory);
+        Assert.True(pane.HasVideo);
+
+        timing.OnNext(new(null, 0, null));
+        Assert.False(pane.HasVideo);
+        Assert.Equal(clip, store.Get(clip.Id));
+        timing.OnNext(new("source-hash", 10, 20));
+
+        Assert.True(pane.HasVideo);
+        Assert.Equal(clip, store.Get(clip.Id));
+    }
+
+    [Fact]
     public async Task SourceArrival_ExposesSharedClipAtSplitWindowTime_WithoutRewritingAlignment()
     {
         var clip = fixture.CreateClip("source-hash", 995, 60, alignmentOffsetSeconds: 5);

@@ -18,5 +18,6 @@ public sealed class TestMapViewModelFactory(ITileLayerService tileLayerService) 
         tileLayerService,
         Substitute.For<IMapLayerCoordinator>(),
         Substitute.For<IDialogService>(),
+        new MapGeometryFactory(new InlineBackgroundTaskRunner()),
         new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 }
