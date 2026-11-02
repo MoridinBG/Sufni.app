@@ -1,116 +1,55 @@
 using System;
-using Sufni.App.Shared.Models;
 using System.Threading.Tasks;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
+using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Sessions.Processing.SessionDetails;
+using Sufni.App.Shared.Models;
 using Sufni.Telemetry;
 
-using Sufni.App.Bikes.Coordinators;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Processing.SessionDetails;
 namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
 
-/// <summary>
-/// Owns the damping-cutoff preview/commit state machine for a recorded
-/// session: preview stages rounded values through owner-supplied setters,
-/// cancel restores the preview origin, commit persists through the bike
-/// coordinator, and reconciles the Saved/Conflict/Failed outcome back
-/// through the owner.
-/// </summary>
+/// <summary>Edits a cutoff preview against the current projected bike.</summary>
 internal sealed class DampingCutoffWorkflow(
+    Func<RecordedSessionDomainSnapshot?> currentDomain,
     Func<DampingSpeedCutoffs> currentCutoffs,
-    Action<bool> setCanEdit,
-    Action<DampingSpeedCutoffs> setDampingSpeedCutoffs,
-    Action<DampingSpeedCutoffs> setPlotDampingSpeedCutoffs,
-    IBikeCoordinator? bikeCoordinator,
+    Action<DampingSpeedCutoffs, bool> setCutoffs,
+    IBikeCoordinator bikeCoordinator,
     Action<FailurePresentation> reportError)
 {
-    private DampingSpeedCutoffOwner? owner;
-    private DampingSpeedCutoffs persistedCutoffs = DampingSpeedCutoffs.Default;
-    private DampingSpeedCutoffs? previewOrigin;
-
-    public bool CanEdit => owner is not null;
-
-    public void ApplyContext(DampingSpeedCutoffs cutoffs, DampingSpeedCutoffOwner? cutoffOwner)
-    {
-        persistedCutoffs = cutoffs.ClampValues();
-        previewOrigin = null;
-        owner = cutoffOwner;
-        setCanEdit(owner is not null);
-        setPlotDampingSpeedCutoffs(persistedCutoffs);
-        setDampingSpeedCutoffs(persistedCutoffs);
-    }
-
     public void Preview(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
     {
-        if (owner is null)
-        {
-            return;
-        }
-
-        previewOrigin ??= currentCutoffs();
-        setDampingSpeedCutoffs(currentCutoffs().With(
-            side,
-            circuit,
-            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond)));
+        if (currentDomain()?.Bike is null) return;
+        setCutoffs(currentCutoffs().With(side, circuit, DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond)), false);
     }
 
-    public void CancelPreview()
-    {
-        if (previewOrigin is not { } origin)
-        {
-            return;
-        }
-
-        previewOrigin = null;
-        setDampingSpeedCutoffs(origin);
-    }
+    public void CancelPreview() => RestoreCutoffs(updatePlots: false);
 
     public async Task CommitAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
     {
-        if (owner is not { } cutoffOwner || bikeCoordinator is null)
-        {
-            return;
-        }
-
-        previewOrigin = null;
-        var committedCutoffs = currentCutoffs().With(
-            side,
-            circuit,
-            DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
-        setDampingSpeedCutoffs(committedCutoffs);
-        setPlotDampingSpeedCutoffs(committedCutoffs);
-
-        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(
-            cutoffOwner.BikeId,
-            cutoffOwner.BaselineUpdated,
-            side,
-            circuit,
-            committedCutoffs.Get(side, circuit));
-
+        if (currentDomain()?.Bike is not { } bike) return;
+        var committed = currentCutoffs().With(side, circuit, DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
+        setCutoffs(committed, true);
+        var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.Updated, side, circuit, committed.Get(side, circuit));
+        if (currentDomain()?.Bike?.Id != bike.Id) return;
         switch (result)
         {
-            case BikeDampingSpeedCutoffUpdateResult.Saved saved:
-                ApplyContext(
-                    saved.Snapshot.DampingSpeedCutoffs,
-                    new DampingSpeedCutoffOwner(saved.Snapshot.Id, saved.Snapshot.Updated));
+            case BikeDampingSpeedCutoffUpdateResult.Saved:
                 break;
-
-            case BikeDampingSpeedCutoffUpdateResult.Conflict conflict:
-                ApplyContext(
-                    conflict.CurrentSnapshot.DampingSpeedCutoffs,
-                    new DampingSpeedCutoffOwner(conflict.CurrentSnapshot.Id, conflict.CurrentSnapshot.Updated));
-                reportError(new FailurePresentation("Bike damping cutoff changed elsewhere. Reloaded the latest cutoff."));
+            case BikeDampingSpeedCutoffUpdateResult.Conflict:
+                RestoreCutoffs(updatePlots: true);
+                reportError(new FailurePresentation("Bike damping cutoff changed elsewhere. Try again with the latest values."));
                 break;
-
             case BikeDampingSpeedCutoffUpdateResult.Missing:
-                ApplyContext(persistedCutoffs, null);
+                RestoreCutoffs(updatePlots: true);
                 break;
-
             case BikeDampingSpeedCutoffUpdateResult.Failed failed:
-                setDampingSpeedCutoffs(persistedCutoffs);
-                setPlotDampingSpeedCutoffs(persistedCutoffs);
+                RestoreCutoffs(updatePlots: true);
                 reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
+
+    private void RestoreCutoffs(bool updatePlots) =>
+        setCutoffs(currentDomain()?.Bike?.DampingSpeedCutoffs ?? DampingSpeedCutoffs.Default, updatePlots);
 }

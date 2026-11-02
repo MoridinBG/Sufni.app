@@ -64,8 +64,6 @@ public class SessionLoaderTests
         Assert.Null(loaded.Data.TelemetryPresentation.FullTrackId);
         Assert.Null(loaded.Data.TelemetryPresentation.FullTrackPoints);
         Assert.Null(loaded.Data.TelemetryPresentation.TrackPoints);
-        Assert.Equal(DampingSpeedCutoffs.Default, loaded.Data.TelemetryPresentation.DampingSpeedCutoffs);
-        Assert.Null(loaded.Data.TelemetryPresentation.DampingSpeedCutoffOwner);
         await trackCoordinator.DidNotReceive().LoadSessionTrackAsync(
             Arg.Any<Guid>(),
             Arg.Any<TelemetryData>(),

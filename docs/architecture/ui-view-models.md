@@ -215,6 +215,11 @@ There are five kinds of view model in the presentation layer:
   built-in signal-row header actions (airtime and analysis-selection toggles)
   by reading the current signal state and emitting an editor intent.
   `ApplyActionStates(state)` projects all twelve toggles from each accepted state;
+  Damping-cutoff editing reads its bike owner and persisted values from the
+  current domain snapshot. Preview/commit intents update the editor state;
+  cancellation and failed writes restore current projected values. Saved responses
+  do not overwrite a newer projection. Load results no longer carry a second
+  cutoff context.
   `ProcessingPreferenceWorkflow` forwards committed processing-option edits to
   `SessionCoordinator` and renders its typed result; persistence and conditional
   rollback stay in that coordinator. The editor retains pending preference

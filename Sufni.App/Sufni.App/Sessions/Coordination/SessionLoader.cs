@@ -63,7 +63,6 @@ public sealed class SessionLoader : ISessionLoader
         try
         {
             var domain = recordedSessionDomainQuery.Get(sessionId);
-            var dampingSpeedCutoffContext = ResolveDampingSpeedCutoffContext(domain);
 
             logger.Verbose("Loading local telemetry data for session {SessionId}", sessionId);
             progress.Report(SessionDetailLoadProgress.LoadingTelemetryData);
@@ -93,9 +92,7 @@ public sealed class SessionLoader : ISessionLoader
                         telemetryData,
                         selectedTrack?.Id,
                         FullTrackPoints: null,
-                        TrackPoints: null,
-                        dampingSpeedCutoffContext.Cutoffs,
-                        dampingSpeedCutoffContext.Owner)));
+                        TrackPoints: null)));
         }
         catch (OperationCanceledException)
         {
@@ -140,12 +137,4 @@ public sealed class SessionLoader : ISessionLoader
         }
     }
 
-    private static (DampingSpeedCutoffs Cutoffs, DampingSpeedCutoffOwner? Owner) ResolveDampingSpeedCutoffContext(
-        RecordedSessionDomainSnapshot? domain)
-    {
-        var bike = domain?.Bike;
-        return bike is null
-            ? (DampingSpeedCutoffs.Default, null)
-            : (bike.DampingSpeedCutoffs, new DampingSpeedCutoffOwner(bike.Id, bike.Updated));
-    }
 }

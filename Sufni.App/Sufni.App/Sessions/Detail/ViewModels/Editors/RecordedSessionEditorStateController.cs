@@ -24,8 +24,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<RecordedSessionLoadPresentation> LoadPresentations,
     IObservable<SessionOperationPresentationState> OperationStates,
     IObservable<SessionDampingPercentages> DampingPercentages,
-    IObservable<DampingSpeedCutoffs> PlotDampingSpeedCutoffs,
-    IObservable<bool> CanEditDampingSpeedCutoffs,
     IObservable<SessionInsightsResult> SessionInsights,
     IObservable<AnalysisSelectionState> AnalysisSelections,
     IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions,
@@ -45,8 +43,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.LoadPresentations);
         ArgumentNullException.ThrowIfNull(inputs.OperationStates);
         ArgumentNullException.ThrowIfNull(inputs.DampingPercentages);
-        ArgumentNullException.ThrowIfNull(inputs.PlotDampingSpeedCutoffs);
-        ArgumentNullException.ThrowIfNull(inputs.CanEditDampingSpeedCutoffs);
         ArgumentNullException.ThrowIfNull(inputs.SessionInsights);
         ArgumentNullException.ThrowIfNull(inputs.AnalysisSelections);
         ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
@@ -76,14 +72,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 Presentation = state.Presentation with { DampingPercentages = percentages },
             }),
-            EditorUpdates(inputs.PlotDampingSpeedCutoffs, static (state, cutoffs) => state with
-            {
-                Presentation = state.Presentation with { PlotDampingSpeedCutoffs = cutoffs },
-            }),
-            EditorUpdates(inputs.CanEditDampingSpeedCutoffs, static (state, canEdit) => state with
-            {
-                Presentation = state.Presentation with { CanEditDampingSpeedCutoffs = canEdit },
-            }),
             EditorUpdates(inputs.SessionInsights, static (state, insights) => state with
             {
                 Presentation = state.Presentation with { SessionInsights = insights },
@@ -93,11 +81,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             {
                 Presentation = state.Presentation with { SignalPlotContextMenuActionsBySignalRowId = actions },
             }),
-            EditorUpdates(inputs.DomainStates, static (state, domain) => state with
-            {
-                Domain = domain,
-                Session = domain.Session,
-            }));
+            EditorUpdates(inputs.DomainStates, ApplyDomain));
         var replayingState = updates
             // Effects may emit another intent while observing a state. Finish this publication first.
             .ObserveOn(CurrentThreadScheduler.Instance)
@@ -163,6 +147,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 RecordedSessionEditorIntent.SetDampingSpeedCutoffs set => state with
                 {
                     Intent = state.Intent with { DampingSpeedCutoffs = set.Cutoffs },
+                    Presentation = state.Presentation with
+                    {
+                        PlotDampingSpeedCutoffs = set.UpdatePlots ? set.Cutoffs : state.Presentation.PlotDampingSpeedCutoffs,
+                    },
                 },
                 RecordedSessionEditorIntent.SetSignalPresentation set => state with
                 {
@@ -172,6 +160,24 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                     },
                 },
                 _ => state,
+            },
+        };
+    }
+
+    private static RecordedSessionEditorState ApplyDomain(RecordedSessionEditorState state, RecordedSessionDomainSnapshot domain)
+    {
+        var previousBike = state.Domain?.Bike;
+        var cutoffsChanged = previousBike?.Id != domain.Bike?.Id || previousBike?.DampingSpeedCutoffs != domain.Bike?.DampingSpeedCutoffs;
+        var cutoffs = domain.Bike?.DampingSpeedCutoffs ?? DampingSpeedCutoffs.Default;
+        return state with
+        {
+            Domain = domain,
+            Session = domain.Session,
+            Intent = state.Intent with { DampingSpeedCutoffs = cutoffsChanged ? cutoffs : state.Intent.DampingSpeedCutoffs },
+            Presentation = state.Presentation with
+            {
+                CanEditDampingSpeedCutoffs = domain.Bike is not null,
+                PlotDampingSpeedCutoffs = cutoffsChanged ? cutoffs : state.Presentation.PlotDampingSpeedCutoffs,
             },
         };
     }

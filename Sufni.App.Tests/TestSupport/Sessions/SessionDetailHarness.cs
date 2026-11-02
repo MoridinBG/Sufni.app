@@ -150,9 +150,7 @@ internal sealed class SessionDetailHarness
                 data,
                 FullTrackId: null,
                 FullTrackPoints: null,
-                TrackPoints: trackPoints?.ToList(),
-                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                DampingSpeedCutoffOwner: null)));
+                TrackPoints: trackPoints?.ToList())));
     }
 
     private SessionDetailViewModel CreateEditor(
@@ -182,7 +180,7 @@ internal sealed class SessionDetailHarness
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
             videoPaneFactory: VideoPaneFactory,
-            timeProvider: new FakeTimeProvider());
+            timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike());
         editor.SetTabActive(true);
         return editor;
     }

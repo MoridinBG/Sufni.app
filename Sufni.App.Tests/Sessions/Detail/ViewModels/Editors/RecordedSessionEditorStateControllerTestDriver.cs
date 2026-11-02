@@ -26,8 +26,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
                 LoadPresentations,
                 OperationStates,
                 DampingPercentages,
-                PlotDampingSpeedCutoffs,
-                CanEditDampingSpeedCutoffs,
                 SessionInsights,
                 AnalysisSelections,
                 SignalPlotContextMenuActions,
@@ -40,8 +38,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
     public Subject<RecordedSessionLoadPresentation> LoadPresentations { get; } = new();
     public Subject<SessionOperationPresentationState> OperationStates { get; } = new();
     public Subject<SessionDampingPercentages> DampingPercentages { get; } = new();
-    public Subject<DampingSpeedCutoffs> PlotDampingSpeedCutoffs { get; } = new();
-    public Subject<bool> CanEditDampingSpeedCutoffs { get; } = new();
     public Subject<SessionInsightsResult> SessionInsights { get; } = new();
     public Subject<AnalysisSelectionState> AnalysisSelections { get; } = new();
     public Subject<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions { get; } = new();
@@ -84,8 +80,6 @@ internal sealed class RecordedSessionEditorStateControllerTestDriver : IDisposab
         LoadPresentations.Dispose();
         OperationStates.Dispose();
         DampingPercentages.Dispose();
-        PlotDampingSpeedCutoffs.Dispose();
-        CanEditDampingSpeedCutoffs.Dispose();
         SessionInsights.Dispose();
         AnalysisSelections.Dispose();
         SignalPlotContextMenuActions.Dispose();

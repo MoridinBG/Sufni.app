@@ -231,9 +231,13 @@ used to be open. Initial preference replay and subscription registration share
 the document gate, so a committed preference update cannot fall between them.
 
 A source change also queues every session whose `source_session_id` points
-at that source. Setup or bike changes first update
-`IProcessingDependencyHashIndex`; only setup hashes whose processing-relevant
-inputs actually changed queue affected sessions for staleness recomputation.
+at that source. `IProcessingDependencyHashIndex` queues setup dependency changes.
+Bike-store changes also queue their sessions so the projected bike, including
+cutoffs and its command revision, stays current even when processing inputs have
+not changed. The shared pending-id set coalesces these signals into one evaluation.
+A metadata-only bike change leaves the fingerprint current. The editor reducer
+accepts the projected bike and staleness together and resets cutoff preview/plot
+values when the bike identity or persisted cutoffs change.
 
 `ProcessingFingerprintService` is the pure derivation service behind
 the projection. It parses the persisted fingerprint JSON from

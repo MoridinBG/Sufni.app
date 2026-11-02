@@ -96,9 +96,7 @@ internal sealed class SessionDetailViewTestContext
                 telemetry,
                 FullTrackId: null,
                 FullTrackPoints: null,
-                TrackPoints: null,
-                DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-                DampingSpeedCutoffOwner: null)));
+                TrackPoints: null)));
     }
 
     public async Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(
@@ -175,7 +173,7 @@ internal sealed class SessionDetailViewTestContext
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(dialogService: dialogService),
             TestSegmentComparisons.CreateFactory(),
-            new SessionOperationRunner(), timeProvider: new FakeTimeProvider());
+            new SessionOperationRunner(), timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike());
         editor.SetTabActive(true);
         return editor;
     }

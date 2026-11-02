@@ -82,6 +82,11 @@ public sealed class RecordedSessionProjection : IRecordedSessionProjection, IDis
             QueueForSetups(changes.Where(change => change.Reason is ChangeReason.Add or ChangeReason.Remove).Select(change => change.Key))));
         subscriptions.Add(sourceStore.Connect().Subscribe(ApplySourceChanges));
         subscriptions.Add(dependencyHashIndex.Connect().Subscribe(change => QueueForSetups([change.SetupId])));
+        subscriptions.Add(bikeStore.Connect().Subscribe(changes =>
+        {
+            var bikeIds = changes.Select(change => change.Key).ToHashSet();
+            QueueForSetups(setupStore.GetAll().Where(setup => bikeIds.Contains(setup.BikeId)).Select(setup => setup.Id));
+        }));
         subscriptions.Add(trackStore.Connect().Subscribe(_ =>
         {
             lock (stateGate)

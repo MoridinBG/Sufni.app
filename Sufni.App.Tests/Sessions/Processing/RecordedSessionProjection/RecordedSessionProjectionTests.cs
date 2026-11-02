@@ -1,3 +1,5 @@
+using Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Video.Stores;
 using Sufni.App.Video.Models;
 using Sufni.App.MapsAndTracks.Stores;
@@ -396,7 +398,38 @@ public class RecordedSessionProjectionTests
     }
 
     [Fact]
-    public async Task WatchSession_DoesNotEmit_WhenBikeNonProcessingFieldsChange()
+    public async Task BikeEdit_ReachesEditorAsOneStateWithNewCutoffsAndStaleness()
+    {
+        var scheduler = new ManualUiThreadDispatcher();
+        using var stores = new StoreFixtures();
+        var fingerprints = new ProcessingFingerprintService();
+        using var projection = stores.CreateProjection(fingerprints, scheduler);
+        var context = CreateCurrentContext(fingerprints);
+        using var editor = new RecordedSessionEditorStateControllerTestDriver();
+        using var watch = projection.WatchSession(context.Session.Id).Subscribe(editor.DomainStates);
+        await stores.AddAsync(context);
+        await scheduler.DrainAsync();
+        var observed = new List<RecordedSessionEditorState>();
+        using var subscription = editor.Controller.State.Skip(1).Subscribe(observed.Add);
+        var changed = context.Bike with
+        {
+            HeadAngle = context.Bike.HeadAngle + 0.5,
+            FrontCompressionDampingCutoffMmPerSecond = 350,
+        };
+
+        await stores.Bikes.PublishBikesChangedAsync([changed]);
+        await scheduler.DrainAsync();
+
+        var state = Assert.Single(observed);
+        Assert.Equal(changed, state.Domain!.Bike);
+        Assert.IsType<SessionStaleness.Stale>(state.Domain.Staleness);
+        Assert.Equal(changed.DampingSpeedCutoffs, state.Intent.DampingSpeedCutoffs);
+        Assert.Equal(changed.DampingSpeedCutoffs, state.Presentation.PlotDampingSpeedCutoffs);
+        Assert.True(state.Presentation.CanEditDampingSpeedCutoffs);
+    }
+
+    [Fact]
+    public async Task WatchSession_RefreshesBikeContextWithoutMakingProcessingStale()
     {
         var scheduler = new ManualUiThreadDispatcher();
         using var stores = new StoreFixtures();
@@ -418,7 +451,11 @@ public class RecordedSessionProjectionTests
         }]);
         await scheduler.DrainAsync();
 
-        Assert.Empty(emissions);
+        var changed = Assert.Single(emissions);
+        Assert.Equal("renamed bike", changed.Bike!.Name);
+        Assert.Equal(context.Bike.Updated + 1, changed.Bike.Updated);
+        Assert.Equal(context.Session.ProcessingFingerprintJson, changed.Session.ProcessingFingerprintJson);
+        Assert.IsType<SessionStaleness.Current>(changed.Staleness);
     }
 
     [Fact]

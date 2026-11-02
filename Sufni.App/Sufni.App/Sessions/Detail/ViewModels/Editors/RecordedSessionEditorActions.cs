@@ -42,7 +42,7 @@ internal abstract record RecordedSessionEditorIntent
 
     public sealed record SetSessionInsightsTargetProfile(SessionInsightsTargetProfile Profile) : RecordedSessionEditorIntent;
 
-    public sealed record SetDampingSpeedCutoffs(DampingSpeedCutoffs Cutoffs) : RecordedSessionEditorIntent;
+    public sealed record SetDampingSpeedCutoffs(DampingSpeedCutoffs Cutoffs, bool UpdatePlots) : RecordedSessionEditorIntent;
 
     public sealed record SetSignalDisplayPreferences(SignalDisplayPreferences Preferences) : RecordedSessionEditorIntent;
 
@@ -127,10 +127,10 @@ internal sealed class RecordedSessionEditorActions : IDisposable
     public void SetSessionInsightsTargetProfile(SessionInsightsTargetProfile profile) =>
         Emit(new RecordedSessionEditorIntent.SetSessionInsightsTargetProfile(profile));
 
-    public void SetDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
+    public void SetDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs, bool updatePlots = false)
     {
         ArgumentNullException.ThrowIfNull(cutoffs);
-        Emit(new RecordedSessionEditorIntent.SetDampingSpeedCutoffs(cutoffs.ClampValues()));
+        Emit(new RecordedSessionEditorIntent.SetDampingSpeedCutoffs(cutoffs.ClampValues(), updatePlots));
     }
 
     public void SetSignalDisplayPreferences(SignalDisplayPreferences preferences)

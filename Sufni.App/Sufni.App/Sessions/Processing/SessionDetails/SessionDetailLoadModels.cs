@@ -50,25 +50,7 @@ public sealed record SessionTelemetryPresentationData(
     TelemetryData TelemetryData,
     Guid? FullTrackId,
     List<TrackPoint>? FullTrackPoints,
-    List<TrackPoint>? TrackPoints,
-    DampingSpeedCutoffs DampingSpeedCutoffs,
-    DampingSpeedCutoffOwner? DampingSpeedCutoffOwner)
-{
-    public SessionTelemetryPresentationData(
-        TelemetryData TelemetryData,
-        Guid? FullTrackId,
-        List<TrackPoint>? FullTrackPoints,
-        List<TrackPoint>? TrackPoints)
-        : this(
-            TelemetryData,
-            FullTrackId,
-            FullTrackPoints,
-            TrackPoints,
-            DampingSpeedCutoffs.Default,
-            null)
-    {
-    }
-}
+    List<TrackPoint>? TrackPoints);
 
 public sealed record SessionTrackPresentationData(
     Guid? FullTrackId,

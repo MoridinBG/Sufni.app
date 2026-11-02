@@ -84,7 +84,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
 
     private readonly ISessionCoordinator sessionCoordinator;
     private readonly ISessionLoader sessionLoader;
-    private readonly IBikeCoordinator? bikeCoordinator;
     private readonly ISessionStore sessionStore;
     private readonly IRecordedSessionProjection recordedSessionProjection;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
@@ -110,8 +109,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private readonly Subject<RecordedSessionLoadPresentation> loadPresentationInput = new();
     private readonly Subject<SessionOperationPresentationState> sessionOperationStateInput = new();
     private readonly Subject<SessionDampingPercentages> dampingPercentagesInput = new();
-    private readonly Subject<DampingSpeedCutoffs> plotDampingSpeedCutoffsInput = new();
-    private readonly Subject<bool> canEditDampingSpeedCutoffsInput = new();
     private readonly Subject<SessionInsightsResult> sessionInsightsInput = new();
     private readonly Subject<AnalysisSelectionState> analysisSelectionInput = new();
     private readonly Subject<RecordedSessionDomainSnapshot> domainInput = new();
@@ -244,13 +241,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         DampingPage.ApplyDampingPercentages(percentages);
         PublishEditorInput(dampingPercentagesInput, percentages);
-    }
-
-    internal void ApplyDampingSpeedCutoffContext(
-        DampingSpeedCutoffs cutoffs,
-        DampingSpeedCutoffOwner? owner)
-    {
-        dampingCutoffWorkflow.ApplyContext(cutoffs, owner);
     }
 
     public void PreviewDampingSpeedCutoff(
@@ -891,10 +881,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             return;
         }
 
-        var telemetryPresentation = loaded.Data.TelemetryPresentation;
-        ApplyDampingSpeedCutoffContext(
-            telemetryPresentation.DampingSpeedCutoffs,
-            telemetryPresentation.DampingSpeedCutoffOwner);
         RequestCurrentDampingPercentages();
     }
 
@@ -1436,7 +1422,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         ISegmentComparisonFactory segmentComparisonFactory,
         ISessionOperationRunner sessionOperationRunner,
         TimeProvider timeProvider,
-        IBikeCoordinator? bikeCoordinator = null,
+        IBikeCoordinator bikeCoordinator,
         IVideoPaneFactory? videoPaneFactory = null,
         TrackSnapshot? initialTrack = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
@@ -1449,7 +1435,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         PreferencesPage = new PreferencesPageViewModel(() => currentEditorState.Preferences.SignalDisplay, editorActions.SetSignalDisplayPreferences);
         this.sessionLoader = sessionLoader;
         this.sessionOperationRunner = sessionOperationRunner;
-        this.bikeCoordinator = bikeCoordinator;
         this.sessionStore = sessionStore;
         this.recordedSessionProjection = recordedSessionProjection;
         this.processedTelemetryReader = processedTelemetryReader;
@@ -1464,8 +1449,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             loadPresentationInput,
             sessionOperationStateInput,
             dampingPercentagesInput,
-            plotDampingSpeedCutoffsInput,
-            canEditDampingSpeedCutoffsInput,
             sessionInsightsInput,
             analysisSelectionInput,
             signalPlotContextMenuActionsInput,
@@ -1479,8 +1462,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 loadPresentationInput,
                 sessionOperationStateInput,
                 dampingPercentagesInput,
-                plotDampingSpeedCutoffsInput,
-                canEditDampingSpeedCutoffsInput,
                 sessionInsightsInput,
                 analysisSelectionInput,
                 signalPlotContextMenuActionsInput,
@@ -1628,12 +1609,11 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             SaveCommand,
             ResetCommand);
         dampingCutoffWorkflow = new DampingCutoffWorkflow(
+            () => currentEditorState.Domain,
             () => currentEditorState.Intent.DampingSpeedCutoffs,
-            SetCanEditDampingSpeedCutoffs,
             editorActions.SetDampingSpeedCutoffs,
-            SetPlotDampingSpeedCutoffs,
             bikeCoordinator,
-            ErrorMessages.Add);
+            failure => { if (lifecycle != EditorLifecycle.Closed) ErrorMessages.Add(failure); });
         processingPreferenceWorkflow = new ProcessingPreferenceWorkflow(
             sessionStore,
             PreferencesPage,
@@ -1869,16 +1849,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     private void SetSignalPresentationState(RecordedSignalPresentationState state)
     {
         editorActions.SetSignalPresentation(state);
-    }
-
-    private void SetCanEditDampingSpeedCutoffs(bool value)
-    {
-        PublishEditorInput(canEditDampingSpeedCutoffsInput, value);
-    }
-
-    private void SetPlotDampingSpeedCutoffs(DampingSpeedCutoffs cutoffs)
-    {
-        PublishEditorInput(plotDampingSpeedCutoffsInput, cutoffs);
     }
 
     internal void SetSessionInsights(SessionInsightsResult insights)
