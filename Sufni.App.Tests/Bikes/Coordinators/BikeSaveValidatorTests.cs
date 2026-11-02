@@ -52,8 +52,8 @@ public class BikeSaveValidatorTests
         var draft = BikeDraft.From(TestSnapshots.Bike() with
         {
             RearSuspension = new RearSuspensionSpec.Linkage(linkage), ShockStroke = linkage.ShockStroke,
-            PixelsToMillimeters = 1, ImageBytes = TestImages.SmallPngBytes(),
-        });
+            PixelsToMillimeters = 1, HasImage = true,
+        }, TestImages.SmallPngBytes());
         var failure = unexpected ? (Exception)new IOException("solver diagnostic")
             : new KinematicCalculationException(KinematicCalculationFailureReason.DegenerateGeometry, "geometry diagnostic");
         var runner = new Sufni.App.Tests.TestSupport.Async.DeferredBackgroundTaskRunner();

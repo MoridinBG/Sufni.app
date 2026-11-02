@@ -402,7 +402,7 @@ public class ProcessingFingerprintServiceTests
         var changedBike = context.Bike with
         {
             Name = "renamed bike",
-            ImageBytes = [9, 8, 7],
+            HasImage = true,
             FrontCompressionDampingCutoffMmPerSecond = 120,
             FrontReboundDampingCutoffMmPerSecond = 130,
             RearCompressionDampingCutoffMmPerSecond = 240,

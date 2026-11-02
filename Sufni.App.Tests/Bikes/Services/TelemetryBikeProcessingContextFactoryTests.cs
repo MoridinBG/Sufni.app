@@ -55,7 +55,7 @@ public class TelemetryBikeProcessingContextFactoryTests
         var setup = CreateSetup(bike.Id);
         var changedBikeMetadata = bike with
         {
-            ImageBytes = [1, 2, 3],
+            HasImage = true,
             Updated = 999,
         };
 
@@ -64,16 +64,15 @@ public class TelemetryBikeProcessingContextFactoryTests
 
         Assert.Same(first, second);
         Assert.Equal(1, rearCalibrationBuilder.Calls);
-        Assert.Empty(rearCalibrationBuilder.LastBike?.ImageBytes ?? []);
     }
 
     [Fact]
-    public void Create_SharesCacheKey_WhenOnlyBikeImageBytesDiffer()
+    public void Create_SharesCacheKey_WhenOnlyBikeImagePresenceDiffers()
     {
         var factory = CreateFactory(out var rearCalibrationBuilder);
-        var bike = CreateBike() with { ImageBytes = [1, 2, 3] };
+        var bike = CreateBike() with { HasImage = true };
         var setup = CreateSetup(bike.Id);
-        var changedImage = bike with { ImageBytes = [4, 5, 6] };
+        var changedImage = bike with { HasImage = false };
 
         var first = factory.Create(setup, bike);
         var second = factory.Create(setup, changedImage);

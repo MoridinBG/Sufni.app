@@ -60,9 +60,9 @@ or feature wording evolve:
 Persisted stores backed by `SourceCacheStoreBase` refresh full snapshots with
 DynamicData `EditDiff`, using each snapshot's value equality to add/update/remove
 only changed keys instead of clearing and repopulating the cache. Snapshot
-equality is therefore a UI contract. `BikeSnapshot` implements handwritten
-equality so two snapshots with fresh-but-equal `ImageBytes` arrays do not emit a
-spurious update.
+equality is therefore a UI contract. `BikeSnapshot` uses record equality over
+metadata and image presence. Image bytes live in the per-editor `BikeDraft`, whose
+structural equality includes their content for authored-field conflict checks.
 
 ## Layered Architecture
 
@@ -267,7 +267,7 @@ Hardtails are not applicable; incomplete drafts and typed invalid-geometry input
 are unsolvable. Unexpected failures carry `BikeAnalysisFailureReason.Analyze`
 with optional details and no longer disappear into the unavailable state.
 
-Bike save returns `BikeSaveResult.Saved(Snapshot) | Conflict | Missing | Invalid | Failed`.
+Bike save returns `BikeSaveResult.Saved(Snapshot) | Conflict(CurrentDraft) | Missing | Invalid | Failed`.
 Its failure carries `BikeSaveFailureReason.Save | Analysis` and optional details.
 Cutoff updates return `BikeDampingSpeedCutoffUpdateResult.Saved | Conflict | Missing | Failed`
 with `BikeDampingCutoffFailureReason.Save`; a missing bike disables cutoff editing.
@@ -282,6 +282,9 @@ Bike file workflows also use closed reasons: `BikeFileImportResult` and
 `Loaded | Canceled | Failed`, and `LeverageRatioImportResult` is `Imported |
 Canceled | Invalid | Failed`. Picker and I/O failures carry their flow's reason
 and optional details. Image decode failure has its own presentation reason.
+`BikeDraftLoadResult` is `Loaded(Draft) | Missing | Failed(reason, details)`; it
+reads the complete persisted row for image-bearing editor initialization. Save
+checks include image contents even if metadata and timestamps are unchanged.
 CSV validation stays beside the curve; workflow failures use the editor error
 bar so diagnostics can expand without replacing the curve or leaking into text.
 

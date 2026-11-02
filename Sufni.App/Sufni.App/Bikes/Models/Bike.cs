@@ -136,7 +136,7 @@ public class Bike : Synchronizable
         Name = name;
     }
 
-    public static Bike FromSnapshot(BikeSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
+    public static Bike FromSnapshot(BikeSnapshot snapshot, byte[] imageBytes) => new(snapshot.Id, snapshot.Name)
     {
         HeadAngle = snapshot.HeadAngle,
         ForkStroke = snapshot.ForkStroke,
@@ -151,7 +151,7 @@ public class Bike : Synchronizable
         RearWheelRimSize = snapshot.RearWheelRimSize,
         RearWheelTireWidth = snapshot.RearWheelTireWidth,
         ImageRotationDegrees = snapshot.ImageRotationDegrees,
-        ImageBytes = snapshot.CopyImageBytes(),
+        ImageBytes = [.. imageBytes],
         Updated = snapshot.Updated,
     };
 

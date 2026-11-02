@@ -11,29 +11,29 @@ namespace Sufni.App.Tests.Bikes.ViewModels.Editors.BikeEditorParts;
 public class BikeImageCanvasViewModelTests
 {
     [AvaloniaFact]
-    public void ApplySnapshot_CopiesImageState_AndMatchesSnapshot()
+    public void ApplyImage_UsesDecodedImageAndMatchesDraft()
     {
         var imageBytes = TestImages.SmallPngBytes();
         var snapshot = TestSnapshots.Bike() with
         {
-            ImageBytes = imageBytes,
+            HasImage = true,
             ImageRotationDegrees = 12.5,
         };
-        var viewModel = new BikeImageCanvasViewModel();
+        using var viewModel = new BikeImageCanvasViewModel();
 
-        viewModel.ApplySnapshot(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees);
+        viewModel.ApplyImage(imageBytes, BikeImageData.Decode(imageBytes), snapshot.ImageRotationDegrees);
 
         Assert.NotNull(viewModel.Image);
         Assert.Equal(imageBytes, viewModel.ImageBytes);
         Assert.Equal(12.5, viewModel.ImageRotationDegrees);
-        Assert.False(viewModel.HasChangesComparedTo(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees));
+        Assert.False(viewModel.HasChangesComparedTo(imageBytes, snapshot.ImageRotationDegrees));
     }
 
     [AvaloniaFact]
     public void RotatedImage_ReusesCacheUntilRotationChanges()
     {
-        var viewModel = new BikeImageCanvasViewModel();
-        viewModel.ApplySnapshot(TestImages.SmallPngBytes(), 15);
+        using var viewModel = new BikeImageCanvasViewModel();
+        viewModel.ApplyImage(TestImages.SmallPngBytes(), BikeImageData.Decode(TestImages.SmallPngBytes()), 15);
 
         var first = viewModel.RotatedImage;
         var second = viewModel.RotatedImage;
@@ -47,8 +47,8 @@ public class BikeImageCanvasViewModelTests
     [AvaloniaFact]
     public void RefreshLayout_ComputesCanvasBounds_FromImageJointAndWheelBounds()
     {
-        var viewModel = new BikeImageCanvasViewModel();
-        viewModel.ApplySnapshot(TestImages.SmallPngBytes(), 0);
+        using var viewModel = new BikeImageCanvasViewModel();
+        viewModel.ApplyImage(TestImages.SmallPngBytes(), BikeImageData.Decode(TestImages.SmallPngBytes()), 0);
 
         viewModel.RefreshLayout(
             new Rect(-5, 2, 10, 3),
@@ -63,8 +63,8 @@ public class BikeImageCanvasViewModelTests
     [AvaloniaFact]
     public void RefreshRearAxlePath_ProjectsRawCoordinates_UsingImageHeightAndScale()
     {
-        var viewModel = new BikeImageCanvasViewModel();
-        viewModel.ApplySnapshot(TestImages.SmallPngBytes(), 0);
+        using var viewModel = new BikeImageCanvasViewModel();
+        viewModel.ApplyImage(TestImages.SmallPngBytes(), BikeImageData.Decode(TestImages.SmallPngBytes()), 0);
         viewModel.SetRearAxlePathData(new CoordinateList([2, 4], [0.25, 0.75]));
 
         viewModel.RefreshRearAxlePath(1);
@@ -82,14 +82,14 @@ public class BikeImageCanvasViewModelTests
         var imageBytes = TestImages.SmallPngBytes();
         var snapshot = TestSnapshots.Bike() with
         {
-            ImageBytes = imageBytes,
+            HasImage = true,
             ImageRotationDegrees = 0,
         };
-        var viewModel = new BikeImageCanvasViewModel();
-        viewModel.ApplySnapshot(snapshot.ImageBytes, snapshot.ImageRotationDegrees);
+        using var viewModel = new BikeImageCanvasViewModel();
+        viewModel.ApplyImage(imageBytes, BikeImageData.Decode(imageBytes), snapshot.ImageRotationDegrees);
 
         viewModel.OverlayVisible = true;
 
-        Assert.False(viewModel.HasChangesComparedTo(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees));
+        Assert.False(viewModel.HasChangesComparedTo(imageBytes, snapshot.ImageRotationDegrees));
     }
 }

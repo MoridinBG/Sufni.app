@@ -13,3 +13,11 @@ public abstract record BikeImportResult
     public sealed record InvalidFile(string ErrorMessage) : BikeImportResult;
     public sealed record Failed(BikeImportFailureReason Reason, string? Details = null) : BikeImportResult;
 }
+
+public abstract record BikeDraftLoadResult
+{
+    private BikeDraftLoadResult() { }
+    public sealed record Loaded(BikeDraft Draft) : BikeDraftLoadResult;
+    public sealed record Missing : BikeDraftLoadResult;
+    public sealed record Failed(BikeLoadFailureReason Reason, string? Details = null) : BikeDraftLoadResult;
+}

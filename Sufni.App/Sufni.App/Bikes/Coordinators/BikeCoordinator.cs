@@ -25,6 +25,24 @@ internal class BikeCoordinator(
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
 
+    public async Task<BikeDraftLoadResult> LoadDraftAsync(Guid bikeId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await backgroundTaskRunner.RunAsync<BikeDraftLoadResult>(async () =>
+            {
+                var bike = await bikeRepository.GetAsync(bikeId);
+                return bike is null ? new BikeDraftLoadResult.Missing() : new BikeDraftLoadResult.Loaded(BikeDraft.From(bike));
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Bike draft could not be loaded for {BikeId}", bikeId);
+            return new BikeDraftLoadResult.Failed(BikeLoadFailureReason.Read, exception.Message);
+        }
+    }
+
     public Task<BikeEditorAnalysisResult> LoadAnalysisAsync(
         RearSuspensionSpec rearSuspension,
         CancellationToken cancellationToken = default) =>
@@ -42,7 +60,7 @@ internal class BikeCoordinator(
         switch (result)
         {
             case BikeFileImportResult.Imported imported:
-                var draft = await backgroundTaskRunner.RunAsync(() => BikeDraft.From(BikeSnapshot.From(imported.Bike)) with { Id = Guid.NewGuid() });
+                var draft = await backgroundTaskRunner.RunAsync(() => BikeDraft.From(imported.Bike) with { Id = Guid.NewGuid() });
                 return await saveValidator.ValidateAsync(draft) switch
                 {
                     BikeSaveValidation.Valid => new BikeImportResult.Imported(draft),
@@ -72,7 +90,7 @@ internal class BikeCoordinator(
     public async Task<BikeExportResult> ExportBikeAsync(BikeDraft draft, CancellationToken cancellationToken = default)
     {
         var current = bikeStore.Get(draft.Id);
-        var bike = await backgroundTaskRunner.RunAsync(() => BuildRow(draft, current), cancellationToken);
+        var bike = await backgroundTaskRunner.RunAsync(() => BuildRow(draft, current?.DampingSpeedCutoffs), cancellationToken);
         logger.Information("Starting bike export for {BikeId}", bike.Id);
 
         var result = await bikeEditorService.ExportBikeAsync(bike, cancellationToken);
@@ -108,25 +126,28 @@ internal class BikeCoordinator(
                 return new BikeSaveResult.Failed(BikeSaveFailureReason.Analysis, failed.Details);
         }
 
-        var current = bikeStore.Get(draft.Id);
-        if (draftBase is not null && current is null) return new BikeSaveResult.Missing();
-        if (current is not null && (draftBase is null || BikeDraft.From(current) != draftBase))
-        {
-            logger.Warning("Bike save conflict for {BikeId}", draft.Id);
-            return new BikeSaveResult.Conflict(current);
-        }
-
         try
         {
-            var saved = await backgroundTaskRunner.RunAsync(async () =>
+            var result = await backgroundTaskRunner.RunAsync<BikeSaveResult>(async () =>
             {
-                var row = BuildRow(draft, current);
+                var current = await bikeRepository.GetAsync(draft.Id);
+                if (draftBase is not null && current is null) return new BikeSaveResult.Missing();
+                if (current is not null && (draftBase is null || BikeDraft.From(current) != draftBase))
+                {
+                    logger.Warning("Bike save conflict for {BikeId}", draft.Id);
+                    return new BikeSaveResult.Conflict(BikeDraft.From(current));
+                }
+
+                var row = BuildRow(draft, current?.DampingSpeedCutoffs);
                 await bikeRepository.PutAsync(row);
-                return BikeSnapshot.From(row);
+                return new BikeSaveResult.Saved(BikeSnapshot.From(row));
             });
-            await bikeStore.PublishBikesChangedAsync([saved]);
-            logger.Information("Bike save completed for {BikeId}", draft.Id);
-            return new BikeSaveResult.Saved(saved);
+            if (result is BikeSaveResult.Saved saved)
+            {
+                await bikeStore.PublishBikesChangedAsync([saved.Snapshot]);
+                logger.Information("Bike save completed for {BikeId}", draft.Id);
+            }
+            return result;
         }
         catch (Exception e)
         {
@@ -148,40 +169,27 @@ internal class BikeCoordinator(
             side,
             circuit);
 
-        var current = bikeStore.Get(bikeId);
-        if (current is null)
-        {
-            logger.Warning("Bike damping speed cutoff update failed because bike {BikeId} was not found", bikeId);
-            return new BikeDampingSpeedCutoffUpdateResult.Missing();
-        }
-
-        if (current.DampingSpeedCutoffs.Get(side, circuit) != expectedCutoffMmPerSecond)
-        {
-            logger.Warning("Bike damping speed cutoff update conflict for {BikeId}", bikeId);
-            return new BikeDampingSpeedCutoffUpdateResult.Conflict(current);
-        }
-
-        var roundedCutoff = DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond);
-        var updatedCutoffs = current.DampingSpeedCutoffs.With(side, circuit, roundedCutoff);
-        var updatedSnapshot = current with
-        {
-            FrontCompressionDampingCutoffMmPerSecond = updatedCutoffs.Front.CompressionMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = updatedCutoffs.Front.ReboundMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = updatedCutoffs.Rear.CompressionMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = updatedCutoffs.Rear.ReboundMmPerSecond,
-        };
-        var bike = Bike.FromSnapshot(updatedSnapshot);
-
         try
         {
-            var saved = await backgroundTaskRunner.RunAsync(async () =>
+            var result = await backgroundTaskRunner.RunAsync<BikeDampingSpeedCutoffUpdateResult>(async () =>
             {
+                var current = await bikeRepository.GetAsync(bikeId);
+                if (current is null) return new BikeDampingSpeedCutoffUpdateResult.Missing();
+                if (current.DampingSpeedCutoffs.Get(side, circuit) != expectedCutoffMmPerSecond)
+                    return new BikeDampingSpeedCutoffUpdateResult.Conflict(BikeSnapshot.From(current));
+
+                var bike = Bike.FromSnapshot(BikeSnapshot.From(current), current.ImageBytes);
+                bike.DampingSpeedCutoffs = bike.DampingSpeedCutoffs.With(side, circuit,
+                    DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
                 await bikeRepository.PutAsync(bike);
-                return BikeSnapshot.From(bike);
+                return new BikeDampingSpeedCutoffUpdateResult.Saved(BikeSnapshot.From(bike));
             });
-            await bikeStore.PublishBikesChangedAsync([saved]);
-            logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
-            return new BikeDampingSpeedCutoffUpdateResult.Saved(saved);
+            if (result is BikeDampingSpeedCutoffUpdateResult.Saved saved)
+            {
+                await bikeStore.PublishBikesChangedAsync([saved.Snapshot]);
+                logger.Information("Bike damping speed cutoff update completed for {BikeId}", bikeId);
+            }
+            return result;
         }
         catch (Exception e)
         {
@@ -214,10 +222,10 @@ internal class BikeCoordinator(
         }
     }
 
-    private static Bike BuildRow(BikeDraft draft, BikeSnapshot? current)
+    private static Bike BuildRow(BikeDraft draft, DampingSpeedCutoffs? currentCutoffs)
     {
-        var row = Bike.FromSnapshot(draft.ToSnapshot());
-        row.DampingSpeedCutoffs = current?.DampingSpeedCutoffs ?? draft.InitialDampingSpeedCutoffs;
+        var row = Bike.FromSnapshot(draft.ToSnapshot(), draft.ImageBytes);
+        row.DampingSpeedCutoffs = currentCutoffs ?? draft.InitialDampingSpeedCutoffs;
         return row;
     }
 
@@ -230,7 +238,7 @@ public abstract record BikeSaveResult
 
     public sealed record Saved(BikeSnapshot Snapshot) : BikeSaveResult;
     public sealed record Missing : BikeSaveResult;
-    public sealed record Conflict(BikeSnapshot CurrentSnapshot) : BikeSaveResult;
+    public sealed record Conflict(BikeDraft CurrentDraft) : BikeSaveResult;
     public sealed record Invalid(string ErrorMessage) : BikeSaveResult;
     public sealed record Failed(BikeSaveFailureReason Reason, string? Details = null) : BikeSaveResult;
 }

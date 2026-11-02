@@ -13,6 +13,7 @@ using NSubstitute;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Infrastructure;
 using Sufni.App.Bikes.DesktopViews.Editors;
@@ -216,14 +217,17 @@ public class BikeEditorViewSmokeTests
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
         dependencyQuery.IsBikeInUse(Arg.Any<Guid>()).Returns(false);
 
+        snapshot ??= CreateSnapshot();
+        bikeCoordinator.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(
+            new BikeDraftLoadResult.Loaded(BikeDraft.From(snapshot, snapshot.HasImage ? TestImages.SmallPngBytes() : [])));
         var editor = new BikeEditorViewModel(
-            snapshot ?? CreateSnapshot(),
+            snapshot,
             isNew: false,
             bikeCoordinator,
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>(),
-            new InlineUiThreadDispatcher(), TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input with { HasPointer = hasPointer }, timeProvider: new FakeTimeProvider());
+            new InlineUiThreadDispatcher(), TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input with { HasPointer = hasPointer }, new InlineBackgroundTaskRunner(), timeProvider: new FakeTimeProvider());
         return editor;
     }
 

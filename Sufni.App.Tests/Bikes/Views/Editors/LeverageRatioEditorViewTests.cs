@@ -28,7 +28,7 @@ public class LeverageRatioEditorViewTests
         var snapshot = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25)));
         var editor = new BikeEditorViewModel(snapshot, false, coordinator, Substitute.For<IBikeDependencyQuery>(),
             Substitute.For<IShellCoordinator>(), Substitute.For<IDialogService>(), new InlineUiThreadDispatcher(),
-            TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input, clock);
+            TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input, new InlineBackgroundTaskRunner(), clock);
         var view = new LeverageRatioEditorView { DataContext = editor.LeverageRatioEditor };
         var host = await ViewTestHelpers.ShowViewAsync(view);
         coordinator.ClearReceivedCalls();

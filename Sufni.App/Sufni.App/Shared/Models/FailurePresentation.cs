@@ -144,6 +144,12 @@ public sealed record FailurePresentation
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 
+    public static FailurePresentation From(BikeLoadFailureReason reason, string? details = null) => new(reason switch
+    {
+        BikeLoadFailureReason.Read => "The bike could not be loaded. Close this tab and try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
     public static FailurePresentation From(BikeImageFailureReason reason, string? details = null) => new(reason switch
     {
         BikeImageFailureReason.Read => "The bike image could not be read. Choose the file again.",

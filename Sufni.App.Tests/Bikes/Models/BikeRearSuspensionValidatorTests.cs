@@ -53,7 +53,7 @@ public class BikeRearSuspensionValidatorTests
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
             Chainstay = 440,
             PixelsToMillimeters = 1,
-            ImageBytes = TestImages.SmallPngBytes(),
+            HasImage = true,
         };
 
         var result = CreateValidator().ValidateForSave(snapshot);
@@ -77,7 +77,7 @@ public class BikeRearSuspensionValidatorTests
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
             Chainstay = 440,
             PixelsToMillimeters = 1,
-            ImageBytes = TestImages.SmallPngBytes(),
+            HasImage = true,
         };
 
         var result = CreateValidator().ValidateForSave(snapshot);
@@ -96,7 +96,7 @@ public class BikeRearSuspensionValidatorTests
             RearSuspension = new RearSuspensionSpec.Linkage(null!),
             Chainstay = 440,
             PixelsToMillimeters = 1,
-            ImageBytes = TestImages.SmallPngBytes(),
+            HasImage = true,
         };
 
         var result = CreateValidator().ValidateForSave(snapshot);

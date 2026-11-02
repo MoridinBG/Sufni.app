@@ -31,8 +31,50 @@ public class BikeCoordinatorTests : IDisposable
 
     private async Task SeedAsync(BikeSnapshot snapshot)
     {
-        repository.Seed(Bike.FromSnapshot(snapshot));
+        repository.Seed(Bike.FromSnapshot(snapshot, snapshot.HasImage ? TestImages.SmallPngBytes() : []));
         await bikeStore.PublishBikesChangedAsync([snapshot]);
+    }
+
+    [Fact]
+    public async Task LoadedDraft_PreservesImageThroughMetadataAndCutoffSaves()
+    {
+        var bike = new Bike(Guid.NewGuid(), "pictured") { ImageBytes = [1, 2, 3], HeadAngle = 65, ForkStroke = 160 };
+        repository.Seed(bike);
+        await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
+        var coordinator = CreateCoordinator();
+        var loaded = Assert.IsType<BikeDraftLoadResult.Loaded>(await coordinator.LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken));
+
+        Assert.Equal([1, 2, 3], loaded.Draft.ImageBytes);
+        Assert.IsType<BikeSaveResult.Saved>(await coordinator.SaveAsync(loaded.Draft with { Name = "renamed" }, loaded.Draft));
+        Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(await coordinator.UpdateDampingSpeedCutoffAsync(
+            bike.Id, 200, SuspensionType.Front, DampingSpeedCircuit.Compression, 300));
+
+        Assert.Equal([1, 2, 3], (await repository.GetAsync(bike.Id))!.ImageBytes);
+        Assert.True(bikeStore.Get(bike.Id)!.HasImage);
+    }
+
+    [Fact]
+    public async Task SaveAsync_DetectsChangedImageEvenWhenMetadataAndTimestampMatch()
+    {
+        var bike = new Bike(Guid.NewGuid(), "pictured") { ImageBytes = [1, 2, 3], HeadAngle = 65, ForkStroke = 160 };
+        repository.Seed(bike);
+        await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
+        var coordinator = CreateCoordinator();
+        var baseline = Assert.IsType<BikeDraftLoadResult.Loaded>(await coordinator.LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken)).Draft;
+        bike.ImageBytes = [4, 5, 6];
+
+        var result = Assert.IsType<BikeSaveResult.Conflict>(await coordinator.SaveAsync(baseline with { Name = "edited" }, baseline));
+
+        Assert.Equal([4, 5, 6], result.CurrentDraft.ImageBytes);
+        Assert.Equal("pictured", (await repository.GetAsync(bike.Id))!.Name);
+    }
+
+    [Fact]
+    public async Task LoadDraftAsync_ReturnsMissingForDeletedBike()
+    {
+        var bike = new Bike(Guid.NewGuid(), "deleted") { Deleted = 1, ImageBytes = [1] };
+        repository.Seed(bike);
+        Assert.IsType<BikeDraftLoadResult.Missing>(await CreateCoordinator().LoadDraftAsync(bike.Id, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -138,7 +180,7 @@ public class BikeCoordinatorTests : IDisposable
             Updated = 7,
         };
 
-        var result = await coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(existing));
+        var result = await coordinator.SaveAsync(BikeDraft.From(bike), BikeDraft.From(existing));
 
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), bikeStore.Get(existing.Id));
         var saved = Assert.IsType<BikeSaveResult.Saved>(result);
@@ -159,10 +201,10 @@ public class BikeCoordinatorTests : IDisposable
 
         var bike = new Bike(current.Id, "stale edit") { HeadAngle = 65, ForkStroke = 160 };
 
-        var result = await coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(current with { Name = "original name" }));
+        var result = await coordinator.SaveAsync(BikeDraft.From(bike), BikeDraft.From(current with { Name = "original name" }));
 
         var conflict = Assert.IsType<BikeSaveResult.Conflict>(result);
-        Assert.Same(current, conflict.CurrentSnapshot);
+        Assert.Equal(BikeDraft.From(current), conflict.CurrentDraft);
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(current.Id))!), current);
     }
 
@@ -176,7 +218,7 @@ public class BikeCoordinatorTests : IDisposable
 
         var bike = new Bike(existing.Id, "x") { HeadAngle = 65, ForkStroke = 160 };
 
-        var result = await coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(existing));
+        var result = await coordinator.SaveAsync(BikeDraft.From(bike), BikeDraft.From(existing));
 
         Assert.Equal(BikeSaveFailureReason.Save, Assert.IsType<BikeSaveResult.Failed>(result).Reason);
         Assert.Equal(existing, bikeStore.Get(existing.Id));
@@ -256,7 +298,7 @@ public class BikeCoordinatorTests : IDisposable
             300);
 
         var conflict = Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Conflict>(result);
-        Assert.Same(current, conflict.CurrentSnapshot);
+        Assert.Equal(current, conflict.CurrentSnapshot);
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(current.Id))!), current);
     }
 
@@ -333,7 +375,7 @@ public class BikeCoordinatorTests : IDisposable
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
 
-        var saveTask = coordinator.SaveAsync(BikeDraft.From(BikeSnapshot.From(bike)), BikeDraft.From(existing));
+        var saveTask = coordinator.SaveAsync(BikeDraft.From(bike), BikeDraft.From(existing));
 
         Assert.False(saveTask.IsCompleted);
         Assert.Equal(BikeSnapshot.From((await repository.GetAsync(existing.Id))!), existing);
@@ -345,7 +387,7 @@ public class BikeCoordinatorTests : IDisposable
 
         if (changedDuringAnalysis)
         {
-            Assert.Equal(concurrent, Assert.IsType<BikeSaveResult.Conflict>(result).CurrentSnapshot);
+            Assert.Equal(BikeDraft.From(concurrent), Assert.IsType<BikeSaveResult.Conflict>(result).CurrentDraft);
             Assert.Equal(concurrent, BikeSnapshot.From((await repository.GetAsync(existing.Id))!));
         }
         else

@@ -46,93 +46,14 @@ public class BikeSnapshotTests
         Assert.Equal(250, snapshot.RearReboundDampingCutoffMmPerSecond);
     }
 
-    [Fact]
-    public void From_CopiesImageBytes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void From_ReportsImagePresence(bool present)
     {
-        var bike = new Bike(Guid.NewGuid(), "image")
-        {
-            ImageBytes = [1, 2, 3],
-        };
-
+        var bike = new Bike(Guid.NewGuid(), "image") { ImageBytes = present ? [1, 2, 3] : [] };
         var snapshot = BikeSnapshot.From(bike);
-
-        bike.ImageBytes[0] = 9;
-
-        Assert.Equal([1, 2, 3], snapshot.ImageBytes);
-    }
-
-    [Fact]
-    public void ImageBytes_AreCopiedOnInitAndRead()
-    {
-        byte[] imageBytes = [1, 2, 3];
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ImageBytes = imageBytes,
-        };
-
-        imageBytes[0] = 9;
-        var exposed = snapshot.ImageBytes;
-        exposed[1] = 8;
-
-        Assert.Equal([1, 2, 3], snapshot.ImageBytes);
-    }
-
-    [Fact]
-    public void ImageByteCount_DoesNotRequireImageBytesGetter()
-    {
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ImageBytes = [1, 2, 3],
-        };
-
-        Assert.Equal(3, snapshot.ImageByteCount);
-    }
-
-    [Fact]
-    public void ImageBytesSpan_ExposesReadOnlySnapshotBytesWithoutMutatingSnapshot()
-    {
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ImageBytes = [1, 2, 3],
-        };
-
-        Assert.True(snapshot.ImageBytesSpan.SequenceEqual(new byte[] { 1, 2, 3 }));
-
-        var exposed = snapshot.ImageBytes;
-        exposed[0] = 9;
-
-        Assert.True(snapshot.ImageBytesSpan.SequenceEqual(new byte[] { 1, 2, 3 }));
-    }
-
-    [Fact]
-    public void Equality_UsesImageByteContents()
-    {
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ImageBytes = [1, 2, 3],
-        };
-        var equivalent = snapshot with
-        {
-            ImageBytes = [1, 2, 3],
-        };
-
-        Assert.Equal(snapshot, equivalent);
-        Assert.Equal(snapshot.GetHashCode(), equivalent.GetHashCode());
-    }
-
-    [Fact]
-    public void Equality_DetectsImageByteContentChanges()
-    {
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ImageBytes = [1, 2, 3],
-        };
-        var changed = snapshot with
-        {
-            ImageBytes = [1, 9, 3],
-        };
-
-        Assert.NotEqual(snapshot, changed);
+        Assert.Equal(present, snapshot.HasImage);
     }
 
     [Fact]

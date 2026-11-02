@@ -184,9 +184,13 @@ There are five kinds of view model in the presentation layer:
   The bike editor likewise keeps presentation concerns at this edge:
   `IBikeCoordinator` exposes neutral bike-editor result contracts, and
   `LoadImageAsync` returns encoded bytes rather than an Avalonia bitmap.
-  `BikeImageCanvasViewModel`, owned by `BikeEditorViewModel`, decodes those
-  bytes when applying a loaded image or persisted snapshot; the editor maps a
-  selected-image decode failure into its error-message surface.
+  The editor decodes bytes through `IBackgroundTaskRunner`, then gives the prepared
+  bitmap to `BikeImageCanvasViewModel`. Shared bike snapshots contain only image
+  presence; an image-bearing editor loads a full draft before enabling save/export.
+  Initial draft loading belongs to the tab and survives view detachment. Closing
+  cancels and awaits that load and any selected-image decode, then disposes the
+  canvas bitmap and rotated cache. Replacing an image or rotation also disposes
+  the previous bitmap/cache. Decode failures preserve the previous editable image.
 
   `SessionDetailViewModel` and `LiveSessionDetailViewModel` both
   compose session sub-pages from `ViewModels/SessionPages/` and expose

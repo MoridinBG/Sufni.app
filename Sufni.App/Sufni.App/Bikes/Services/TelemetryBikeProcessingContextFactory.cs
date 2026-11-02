@@ -36,7 +36,7 @@ internal sealed class TelemetryBikeProcessingContextFactory(
         ArgumentNullException.ThrowIfNull(bike);
 
         var key = ProcessingDependencyInputs.Create(setup, bike);
-        return cache.GetOrAdd(new CacheRequest(key, setup, bike with { ImageBytes = [] }));
+        return cache.GetOrAdd(new CacheRequest(key, setup, bike));
     }
 
     private static TelemetryBikeProcessingContext CreateUncached(

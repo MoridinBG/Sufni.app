@@ -89,6 +89,12 @@ Each persisted writer interface additionally exposes:
   this publication. Source
   publication contains only metadata; payload reads use the source repository.
 
+`BikeSnapshot` retains `HasImage` rather than encoded image bytes. Startup/full
+refresh uses `IBikeMetadataReader` to select metadata and image presence without
+materializing the image payload. A bike editor requests a complete `BikeDraft`
+through its coordinator only when the snapshot has an image; new imported drafts
+already carry their bytes. Setup export reads the complete embedded bike on demand.
+
 Snapshots are immutable records, not view models. Persisted entities carry
 an authored `Updated` timestamp. Editors compare authored draft fields with an
 immutable draft base; the timestamp is not an editor conflict baseline. Runtime-only or metadata-only snapshots such

@@ -26,17 +26,19 @@ public sealed record BikeDraft(
     public byte[] ImageBytes { get => [.. imageBytes]; init => imageBytes = [.. value]; }
     public ReadOnlyMemory<byte> ImageBytesMemory => imageBytes;
 
-    public static BikeDraft From(BikeSnapshot snapshot) => new(
+    public static BikeDraft From(BikeSnapshot snapshot, byte[]? imageBytes = null) => new(
         snapshot.Id, snapshot.Name, snapshot.HeadAngle, snapshot.ForkStroke, snapshot.ShockStroke,
         snapshot.RearSuspension, snapshot.PixelsToMillimeters, snapshot.FrontWheel, snapshot.RearWheel,
-        snapshot.ImageRotationDegrees, snapshot.ImageBytes)
+        snapshot.ImageRotationDegrees, imageBytes ?? [])
     {
         InitialDampingSpeedCutoffs = snapshot.DampingSpeedCutoffs,
     };
 
+    public static BikeDraft From(Bike bike) => From(BikeSnapshot.From(bike), bike.ImageBytes);
+
     internal BikeSnapshot ToSnapshot() => new(
         Id, Name, HeadAngle ?? 0, ForkStroke, ShockStroke, RearSuspension, InitialDampingSpeedCutoffs,
-        Chainstay, PixelsToMillimeters, FrontWheel, RearWheel, ImageRotationDegrees, imageBytes, 0);
+        Chainstay, PixelsToMillimeters, FrontWheel, RearWheel, ImageRotationDegrees, imageBytes.Length > 0, 0);
 
     public bool Equals(BikeDraft? other) => ReferenceEquals(this, other) || other is not null &&
         Id == other.Id && Name == other.Name && HeadAngle == other.HeadAngle && ForkStroke == other.ForkStroke &&

@@ -29,7 +29,7 @@ public static class TestSnapshots
         FrontWheel: null,
         RearWheel: null,
         ImageRotationDegrees: 0,
-        ImageBytes: [],
+        HasImage: false,
         Updated: updated);
 
     public static LeverageRatioSpec LeverageRatioCurve(params (double ShockTravelMm, double WheelTravelMm)[] points) =>

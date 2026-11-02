@@ -10,7 +10,7 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Shared.Common;
 namespace Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 
-public partial class BikeImageCanvasViewModel : ObservableObject
+public partial class BikeImageCanvasViewModel : ObservableObject, IDisposable
 {
     private const double CanvasPadding = 20;
 
@@ -58,8 +58,9 @@ public partial class BikeImageCanvasViewModel : ObservableObject
 
     public double ContentOffsetY => -(GetContentBounds()?.Y ?? 0) + CanvasPadding;
 
-    partial void OnImageChanged(Bitmap? value)
+    partial void OnImageChanged(Bitmap? oldValue, Bitmap? value)
     {
+        oldValue?.Dispose();
         InvalidateRotatedImageCache();
         NotifyImagePropertiesChanged();
         NotifyLayoutPropertiesChanged();
@@ -72,25 +73,18 @@ public partial class BikeImageCanvasViewModel : ObservableObject
         NotifyLayoutPropertiesChanged();
     }
 
-    public void ApplySnapshot(byte[]? imageBytes, double imageRotationDegrees)
+    public void ApplyImage(byte[] imageBytes, Bitmap? image, double imageRotationDegrees)
     {
-        ApplySnapshot(
-            imageBytes is null ? ReadOnlyMemory<byte>.Empty : imageBytes,
-            imageRotationDegrees);
-    }
-
-    public void ApplySnapshot(ReadOnlyMemory<byte> imageBytes, double imageRotationDegrees)
-    {
-        this.imageBytes = imageBytes.ToArray();
-        Image = BikeImageData.Decode(this.imageBytes);
+        this.imageBytes = imageBytes;
+        Image = image;
         ImageRotationDegrees = imageRotationDegrees;
     }
 
-    public void ApplyLoadedImage(byte[] imageBytes)
+    public void Dispose()
     {
-        var image = BikeImageData.Decode(imageBytes) ?? throw new InvalidOperationException("Bike image could not be decoded.");
-        this.imageBytes = imageBytes;
-        Image = image;
+        Image = null;
+        imageBytes = [];
+        InvalidateRotatedImageCache();
     }
 
     public void RefreshLayout(Rect? jointBounds, Rect? wheelBounds)
@@ -129,6 +123,7 @@ public partial class BikeImageCanvasViewModel : ObservableObject
 
     private void InvalidateRotatedImageCache()
     {
+        rotatedImageCache?.Dispose();
         rotatedImageCache = null;
         rotatedImageCacheAngle = double.NaN;
     }

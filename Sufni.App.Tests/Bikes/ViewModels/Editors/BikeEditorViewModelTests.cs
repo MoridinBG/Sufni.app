@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 using System.Reactive;
 using System.Reactive.Linq;
 using Avalonia.Headless.XUnit;
+using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Sufni.Kinematics;
@@ -36,11 +37,15 @@ public class BikeEditorViewModelTests
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
     }
 
-    private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool hasPointer = true)
+    private BikeEditorViewModel CreateEditor(BikeSnapshot snapshot, bool isNew = false, bool hasPointer = true, IBackgroundTaskRunner? background = null, byte[]? storedImage = null)
     {
-        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher, new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control), timeProvider: timeProvider);
+        bikeCoordinator.LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>()).Returns(new BikeDraftLoadResult.Loaded(storedImage is null ? DraftFrom(snapshot) : BikeDraft.From(snapshot, storedImage)));
+        var editor = new BikeEditorViewModel(snapshot, isNew, bikeCoordinator, dependencyQuery, shell, dialogService, uiThreadDispatcher, new InputCapabilities(hasPointer, !hasPointer, hasPointer, !hasPointer, CommandModifier.Control), background ?? new InlineBackgroundTaskRunner(), timeProvider: timeProvider);
         return editor;
     }
+
+    private static BikeDraft DraftFrom(BikeSnapshot snapshot) =>
+        BikeDraft.From(snapshot, snapshot.HasImage ? TestImages.SmallPngBytes() : []);
 
     private static BikeAnalysisPresentationData PresentationData(CoordinateList leverageRatioData) =>
         new(leverageRatioData, new CoordinateList([], []));
@@ -175,7 +180,7 @@ public class BikeEditorViewModelTests
         }
 
         Assert.Equal(snapshot.ImageRotationDegrees, editor.ImageCanvas.ImageRotationDegrees);
-        Assert.Equal(snapshot.ImageByteCount > 0, editor.ImageCanvas.Image is not null);
+        Assert.Equal(snapshot.HasImage, editor.ImageCanvas.Image is not null);
 
         Assert.Equal(snapshot.Linkage.Joints.Count, editor.LinkageEditor.JointViewModels.Count);
         Assert.Equal(snapshot.Linkage.Links.Count + 1, editor.LinkageEditor.LinkViewModels.Count);
@@ -184,6 +189,93 @@ public class BikeEditorViewModelTests
     }
 
     // ----- Construction -----
+
+    [AvaloniaFact]
+    public async Task ImageDraft_WaitsForBackgroundDecodeBeforeEnablingSave()
+    {
+        var background = new DeferredBackgroundTaskRunner();
+        var snapshot = FullSuspensionSnapshot();
+        var editor = CreateEditor(snapshot, background: background);
+        Assert.True(editor.IsLoadingDraft);
+        Assert.Null(editor.ImageCanvas.Image);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.False(editor.ExportCommand.CanExecute(null));
+
+        await background.RunNextAsync();
+        await editor.LoadedCommand.ExecuteAsync(null).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(editor.ImageCanvas.Image);
+        Assert.False(editor.IsLoadingDraft);
+        Assert.False(editor.IsDirty);
+        editor.Name = "edited";
+        Assert.True(editor.SaveCommand.CanExecute(null));
+        await bikeCoordinator.Received(1).LoadDraftAsync(snapshot.Id, Arg.Any<CancellationToken>());
+        await editor.PrepareCloseAsync();
+        Assert.Null(editor.ImageCanvas.Image);
+    }
+
+    [AvaloniaFact]
+    public async Task ImageDraft_LoadBelongsToEditorAcrossViewDetach()
+    {
+        var background = new DeferredBackgroundTaskRunner();
+        var editor = CreateEditor(FullSuspensionSnapshot(), background: background);
+        editor.UnloadedCommand.Execute(null);
+
+        await background.RunNextAsync();
+        await editor.LoadedCommand.ExecuteAsync(null).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.NotNull(editor.ImageCanvas.Image);
+        Assert.False(editor.IsDirty);
+        await editor.PrepareCloseAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ImageFreeSnapshot_DoesNotReadTheFullBike()
+    {
+        var editor = CreateEditor(TestSnapshots.Bike());
+        await editor.LoadedCommand.ExecuteAsync(null);
+        await bikeCoordinator.DidNotReceive().LoadDraftAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        Assert.False(editor.IsLoadingDraft);
+    }
+
+    [AvaloniaFact]
+    public async Task InvalidStoredImage_CanBeReplacedWithoutLosingTheConflictBase()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        byte[] invalidImage = [1, 2, 3];
+        // Headless bitmaps accept arbitrary bytes; fail the decode job explicitly.
+        var background = new RecordingBackgroundTaskRunner { Failure = new IOException("invalid image") };
+        var editor = CreateEditor(snapshot, background: background, storedImage: invalidImage);
+        Assert.NotEmpty(editor.ErrorMessages);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        Assert.True(editor.OpenImageCommand.CanExecute(null));
+        background.Failure = null;
+        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
+            .Returns(new BikeImageLoadResult.Loaded(TestImages.SmallPngBytes(), "replacement.png"));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), Arg.Any<BikeDraft>())
+            .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot()));
+
+        await editor.OpenImageCommand.ExecuteAsync(null);
+        Assert.NotNull(editor.ImageCanvas.Image);
+        Assert.True(editor.IsDirty);
+        await editor.SaveCommand.ExecuteAsync(null);
+
+        await bikeCoordinator.Received(1).SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot, invalidImage));
+    }
+
+    [AvaloniaFact]
+    public async Task Close_CancelsPendingImageDecodeAndDoesNotPublishIt()
+    {
+        var background = new DeferredBackgroundTaskRunner();
+        var editor = CreateEditor(FullSuspensionSnapshot(), background: background);
+
+        var close = editor.PrepareCloseAsync();
+        await background.RunNextAsync();
+        await close.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Null(editor.ImageCanvas.Image);
+        Assert.Empty(editor.ImageCanvas.ImageBytes);
+    }
 
     [AvaloniaFact]
     public void Construction_FromExistingForkOnlySnapshot_CopiesFields_AndIsNotDirty()
@@ -551,9 +643,9 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.Name = "Changed bike";
         Assert.True(editor.SaveCommand.CanExecute(null));
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot)).Returns(
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot)).Returns(
             conflict
-                ? new BikeSaveResult.Conflict(snapshot with { Updated = 6 })
+                ? new BikeSaveResult.Conflict(DraftFrom(snapshot with { Updated = 6 }))
                 : new BikeSaveResult.Failed(BikeSaveFailureReason.Save, "disk full"));
         dialogService.ShowCloseConfirmationAsync(true).Returns(PromptResult.Yes);
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
@@ -576,7 +668,7 @@ public class BikeEditorViewModelTests
         editor.WheelGeometry.RearWheelDiameter = 750;
         editor.ImageCanvas.ImageRotationDegrees = 13.5;
 
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -589,7 +681,7 @@ public class BikeEditorViewModelTests
                 b.FrontWheel != null && b.FrontWheel.DiameterMm == 760 &&
                 b.RearWheel != null && b.RearWheel.DiameterMm == 750 &&
                 b.ImageRotationDegrees == 0),
-            BikeDraft.From(snapshot));
+            DraftFrom(snapshot));
         shell.Received(1).CompleteEdit(new EditorKey.Bike(snapshot.Id));
         Assert.Empty(editor.ErrorMessages);
         shell.DidNotReceive().GoBack();
@@ -602,7 +694,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot, hasPointer: false);
         editor.Name = "renamed";
 
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -618,8 +710,8 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
-            .Returns(new BikeSaveResult.Conflict(fresh));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
+            .Returns(new BikeSaveResult.Conflict(DraftFrom(fresh)));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -637,8 +729,8 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
         bikeCoordinator.ClearReceivedCalls();
         var fresh = snapshot with { Name = "remote-updated", Updated = 12 };
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
-            .Returns(new BikeSaveResult.Conflict(fresh));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
+            .Returns(new BikeSaveResult.Conflict(DraftFrom(fresh)));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -656,8 +748,8 @@ public class BikeEditorViewModelTests
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Bike(id: snapshot.Id, name: "remote-updated", updated: 12);
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
-            .Returns(new BikeSaveResult.Conflict(fresh));
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
+            .Returns(new BikeSaveResult.Conflict(DraftFrom(fresh)));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -671,7 +763,7 @@ public class BikeEditorViewModelTests
         var snapshot = FullSuspensionSnapshot(includeHeadTubeJoints: true, updated: 5);
         var editor = CreateEditor(snapshot);
         editor.ShockStroke = 12.5;
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(call => new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -680,7 +772,7 @@ public class BikeEditorViewModelTests
             Arg.Is<BikeDraft>(bike =>
                 bike.ShockStroke == 12.5 &&
                 LinkageShockStrokeEquals(bike, 12.5)),
-            BikeDraft.From(snapshot));
+            DraftFrom(snapshot));
     }
 
     [AvaloniaFact]
@@ -798,7 +890,7 @@ public class BikeEditorViewModelTests
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
 
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(new BikeSaveResult.Failed(BikeSaveFailureReason.Save, "disk full"));
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -815,7 +907,7 @@ public class BikeEditorViewModelTests
         };
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(new BikeSaveResult.Invalid("Linkage data is required for linkage bikes."));
 
         Assert.True(editor.SaveCommand.CanExecute(null));
@@ -824,7 +916,7 @@ public class BikeEditorViewModelTests
 
         await bikeCoordinator.Received(1).SaveAsync(
             Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
-            BikeDraft.From(snapshot));
+            DraftFrom(snapshot));
         Assert.NotEmpty(editor.ErrorMessages);
     }
 
@@ -833,7 +925,7 @@ public class BikeEditorViewModelTests
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(new BikeSaveResult.Invalid("Linkage data is required for linkage bikes."));
 
         await editor.SetRearSuspensionModeCommand.ExecuteAsync(RearSuspensionKind.Linkage);
@@ -844,7 +936,7 @@ public class BikeEditorViewModelTests
 
         await bikeCoordinator.Received(1).SaveAsync(
             Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LinkageDraft),
-            BikeDraft.From(snapshot));
+            DraftFrom(snapshot));
     }
 
     [AvaloniaFact]
@@ -856,7 +948,7 @@ public class BikeEditorViewModelTests
         };
         var editor = CreateEditor(snapshot);
         editor.Name = "renamed";
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(new BikeSaveResult.Invalid("Leverage ratio data is required for leverage ratio bikes."));
 
         Assert.True(editor.SaveCommand.CanExecute(null));
@@ -865,7 +957,7 @@ public class BikeEditorViewModelTests
 
         await bikeCoordinator.Received(1).SaveAsync(
             Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
-            BikeDraft.From(snapshot));
+            DraftFrom(snapshot));
         Assert.NotEmpty(editor.ErrorMessages);
     }
 
@@ -874,7 +966,7 @@ public class BikeEditorViewModelTests
     {
         var snapshot = TestSnapshots.Bike(updated: 5);
         var editor = CreateEditor(snapshot);
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot))
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot))
             .Returns(new BikeSaveResult.Invalid("Leverage ratio data is required for leverage ratio bikes."));
 
         await editor.SetRearSuspensionModeCommand.ExecuteAsync(RearSuspensionKind.LeverageRatio);
@@ -885,7 +977,7 @@ public class BikeEditorViewModelTests
 
         await bikeCoordinator.Received(1).SaveAsync(
             Arg.Is<BikeDraft>(bike => bike.RearSuspension is RearSuspensionSpec.LeverageRatioDraft),
-            BikeDraft.From(snapshot));
+            DraftFrom(snapshot));
     }
 
     [AvaloniaFact]
@@ -896,7 +988,7 @@ public class BikeEditorViewModelTests
         editor.Name = "submitted";
         var pending = new TaskCompletionSource<BikeSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         BikeDraft? submitted = null;
-        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), BikeDraft.From(snapshot)).Returns(call =>
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot)).Returns(call =>
         {
             submitted = call.ArgAt<BikeDraft>(0);
             return pending.Task;

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;
@@ -38,7 +38,7 @@ internal sealed class AppDataRefresher(
     IPairedDeviceStoreWriter pairedDeviceStore,
     ISessionVideoStoreWriter sessionVideoStore,
     ISessionSegmentStoreWriter sessionSegmentStore,
-    ISynchronizableRepository<Bike> bikeRepository,
+    IBikeMetadataReader bikeReader,
     ISynchronizableRepository<Setup> setupRepository,
     ISynchronizableRepository<Board> boardRepository,
     ISessionRepository sessionRepository,
@@ -75,7 +75,7 @@ internal sealed class AppDataRefresher(
         var snapshot = await backgroundTaskRunner.RunAsync(async () =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var bikes = await bikeRepository.GetAllAsync();
+            var bikes = await bikeReader.GetAllAsync();
             var setups = await setupRepository.GetAllAsync();
             var boards = await boardRepository.GetAllAsync();
             var layers = await customLayerRepository.GetAllAsync();
@@ -87,7 +87,7 @@ internal sealed class AppDataRefresher(
             var segments = await segmentRepository.GetLiveAsync();
             cancellationToken.ThrowIfCancellationRequested();
             return new AppDataSnapshot(
-                bikes.Select(BikeSnapshot.From).ToArray(),
+                bikes.ToArray(),
                 setups.Select(SetupSnapshot.From).ToArray(),
                 sessions.Select(SessionSnapshot.From).ToArray(),
                 sources.ToArray(),

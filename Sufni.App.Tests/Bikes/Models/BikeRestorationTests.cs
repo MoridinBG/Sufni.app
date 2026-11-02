@@ -31,7 +31,7 @@ public class BikeRestorationTests
         source.ShockStroke = linkage.ShockStroke;
 
         var snapshot = BikeSnapshot.From(source);
-        var restored = Bike.FromSnapshot(snapshot);
+        var restored = Bike.FromSnapshot(snapshot, TestImages.SmallPngBytes());
 
         Assert.Equal(snapshot.ShockStroke, restored.ShockStroke);
         Assert.Equal(snapshot.FrontCompressionDampingCutoffMmPerSecond, restored.FrontCompressionDampingCutoffMmPerSecond);
@@ -47,20 +47,13 @@ public class BikeRestorationTests
     }
 
     [Fact]
-    public void FromSnapshot_CopiesImageBytes()
+    public void FromSnapshot_CopiesExplicitImageBytes()
     {
-        var snapshot = TestSnapshots.Bike() with
-        {
-            ImageBytes = [1, 2, 3],
-        };
-
-        var restored = Bike.FromSnapshot(snapshot);
-
+        var snapshot = TestSnapshots.Bike() with { HasImage = true };
+        byte[] imageBytes = [1, 2, 3];
+        var restored = Bike.FromSnapshot(snapshot, imageBytes);
+        imageBytes[0] = 9;
         Assert.Equal([1, 2, 3], restored.ImageBytes);
-
-        restored.ImageBytes[0] = 9;
-
-        Assert.Equal([1, 2, 3], snapshot.ImageBytes);
     }
 
     [Fact]

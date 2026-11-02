@@ -8,6 +8,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Media.Imaging;
+using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.Kinematics;
@@ -44,6 +46,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeDependencyQuery dependencyQuery;
+    private readonly IBackgroundTaskRunner backgroundTaskRunner;
+    private readonly CancellableOperation stateOperation = new();
+    private Task stateLoadTask = Task.CompletedTask;
+    private bool draftReady;
+    [ObservableProperty] public partial bool IsLoadingDraft { get; private set; }
     // Immutable editor baseline used for dirty checks and reset/conflict reload.
     private BikeDraft draftBase;
     private readonly CancellableOperation analysisOperation = new();
@@ -184,14 +191,20 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         IDialogService dialogService,
         IUiThreadDispatcher uiThreadDispatcher,
         InputCapabilities inputCapabilities,
-        TimeProvider timeProvider)
+        IBackgroundTaskRunner backgroundTaskRunner,
+        TimeProvider timeProvider,
+        BikeDraft? initialDraft = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.bikeCoordinator = bikeCoordinator;
+        this.backgroundTaskRunner = backgroundTaskRunner;
+        Id = snapshot.Id;
+        Name = snapshot.Name;
+        var needsStoredDraft = snapshot.HasImage && initialDraft is null;
         this.dependencyQuery = dependencyQuery;
         CanChangeRearSuspensionMode = inputCapabilities.HasPointer;
         IsInDatabase = !isNew;
-        draftBase = BikeDraft.From(snapshot);
+        draftBase = initialDraft ?? BikeDraft.From(snapshot);
         LeverageRatioEditor = new LeverageRatioBikeEditorViewModel(canEdit: CanChangeRearSuspensionMode);
         LeverageRatioEditor.ImportLeverageRatioCommand = ImportLeverageRatioCommand;
         LinkageEditor.PreviewChanged += OnLinkageEditorPreviewChanged;
@@ -200,13 +213,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         WheelGeometry.PropertyChanged += OnWheelGeometryPropertyChanged;
         ImageCanvas.PropertyChanged += OnImageCanvasPropertyChanged;
 
-        ReplaceState(snapshot, refreshAnalysis: !isNew);
-
-        if (isNew && IsLinkageMode)
-        {
-            EnsureLinkageSeeded();
-        }
-        EvaluateDirtiness();
+        stateLoadTask = ReplaceStateAsync(draftBase, readStoredDraft: needsStoredDraft, refreshAnalysis: !isNew);
     }
 
     #endregion Constructors
@@ -215,33 +222,76 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     private bool IsReplacingState => isReplacingState;
 
-    // Route every state swap through the same raw-apply -> derive -> accept sequence.
-    private void ReplaceState(
-        BikeSnapshot snapshot,
+    private async Task ReplaceStateAsync(
+        BikeDraft draft,
+        bool readStoredDraft = false,
         bool acceptBaseline = true,
         bool refreshAnalysis = false,
         bool showPlotBusyOverlay = false)
     {
-        RunStateReplacement(() => ApplyRawBikeState(snapshot));
-
-        if (acceptBaseline)
+        var token = stateOperation.Start();
+        IsLoadingDraft = true;
+        try
         {
-            AcceptBaseline(snapshot);
+            if (readStoredDraft)
+            {
+                var result = await bikeCoordinator.LoadDraftAsync(draft.Id, token);
+                if (token.IsCancellationRequested) return;
+                switch (result)
+                {
+                    case BikeDraftLoadResult.Loaded loaded:
+                        draft = loaded.Draft;
+                        break;
+                    case BikeDraftLoadResult.Missing:
+                        Notifications.Add("The bike is no longer available.");
+                        return;
+                    case BikeDraftLoadResult.Failed failed:
+                        ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
+                        return;
+                }
+            }
+
+            if (!draftReady && acceptBaseline) AcceptBaseline(draft);
+            var decoded = draft.RearSuspension.Kind == RearSuspensionKind.Linkage && !draft.ImageBytesMemory.IsEmpty
+                ? await backgroundTaskRunner.RunAsync(() =>
+                {
+                    var bytes = draft.ImageBytes;
+                    return (Bytes: bytes, Image: BikeImageData.Decode(bytes));
+                }, token)
+                : (Bytes: Array.Empty<byte>(), Image: (Bitmap?)null);
+            if (token.IsCancellationRequested)
+            {
+                decoded.Image?.Dispose();
+                return;
+            }
+            RunStateReplacement(() => ApplyRawBikeState(draft, decoded.Bytes, decoded.Image));
+            draftReady = true;
+            if (acceptBaseline) AcceptBaseline(draft);
+            if (!IsInDatabase && IsLinkageMode) EnsureLinkageSeeded();
+            EvaluateDirtiness();
+            if (refreshAnalysis) _ = RefreshAnalysisAsync(showPlotBusyOverlay);
         }
-
-        EvaluateDirtiness();
-
-        if (refreshAnalysis)
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception)
         {
-            _ = RefreshAnalysisAsync(showPlotBusyOverlay);
+            if (token.IsCancellationRequested) return;
+            Log.ForContext<BikeEditorViewModel>().Warning(exception, "Bike image could not be decoded for {BikeId}", Id);
+            ErrorMessages.Add(FailurePresentation.From(BikeImageFailureReason.Decode));
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                IsLoadingDraft = false;
+                NotifyEditorCommandStatesChanged();
+            }
         }
     }
 
-    // Accept a snapshot as both the reset target and the dirtiness baseline.
-    private void AcceptBaseline(BikeSnapshot snapshot)
+    private void AcceptBaseline(BikeDraft draft)
     {
-        draftBase = BikeDraft.From(snapshot);
-        Id = snapshot.Id;
+        draftBase = draft;
+        Id = draft.Id;
     }
 
     // Suppress edit-time callbacks while raw state is loaded, then rebuild derived UI state once.
@@ -268,7 +318,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     }
 
     // Copy persisted inputs verbatim; derived display values are rebuilt afterwards.
-    private void ApplyRawBikeState(BikeSnapshot snapshot)
+    private void ApplyRawBikeState(BikeDraft snapshot, byte[] imageBytes, Bitmap? image)
     {
         Id = snapshot.Id;
         Name = snapshot.Name;
@@ -277,18 +327,18 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         ShockStroke = snapshot.ShockStroke;
 
         RearSuspensionMode = snapshot.RearSuspension.Kind;
-        ApplyRearSuspension(snapshot.RearSuspension, snapshot);
-        WheelGeometry.ApplySnapshot(snapshot);
+        ApplyRearSuspension(snapshot.RearSuspension, snapshot, imageBytes, image);
+        WheelGeometry.ApplySnapshot(snapshot.ToSnapshot());
     }
 
-    private void ApplyRearSuspension(RearSuspensionSpec rearSuspension, BikeSnapshot snapshot)
+    private void ApplyRearSuspension(RearSuspensionSpec rearSuspension, BikeDraft snapshot, byte[] imageBytes, Bitmap? image)
     {
         switch (rearSuspension)
         {
             case RearSuspensionSpec.Linkage linkage:
                 Chainstay = snapshot.Chainstay;
                 PixelsToMillimeters = snapshot.PixelsToMillimeters;
-                ImageCanvas.ApplySnapshot(snapshot.ImageBytesMemory, snapshot.ImageRotationDegrees);
+                ImageCanvas.ApplyImage(imageBytes, image, snapshot.ImageRotationDegrees);
                 LinkageEditor.Load(linkage.Spec, ImageCanvas.Image?.Size.Height, snapshot.PixelsToMillimeters);
                 LeverageRatioEditor.ReplaceState(null);
                 break;
@@ -296,7 +346,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             case RearSuspensionSpec.LeverageRatio leverageRatio:
                 Chainstay = null;
                 PixelsToMillimeters = null;
-                ImageCanvas.ApplySnapshot(null, 0);
+                ImageCanvas.ApplyImage([], null, 0);
                 LinkageEditor.Load(null, null, null);
                 LeverageRatioEditor.ReplaceState(leverageRatio.Spec);
                 break;
@@ -306,7 +356,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             case RearSuspensionSpec.LeverageRatioDraft:
                 Chainstay = null;
                 PixelsToMillimeters = null;
-                ImageCanvas.ApplySnapshot(null, 0);
+                ImageCanvas.ApplyImage([], null, 0);
                 LinkageEditor.Load(null, null, null);
                 LeverageRatioEditor.ReplaceState(null);
                 break;
@@ -497,6 +547,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         ResetCommand.NotifyCanExecuteChanged();
         ExportCommand.NotifyCanExecuteChanged();
         ImportLeverageRatioCommand.NotifyCanExecuteChanged();
+        OpenImageCommand.NotifyCanExecuteChanged();
+        SetRearSuspensionModeCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshLinkagePreview()
@@ -665,7 +717,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 Chainstay = null;
                 PixelsToMillimeters = null;
                 WheelGeometry.ClearAll();
-                ImageCanvas.ApplySnapshot(null, 0);
+                ImageCanvas.ApplyImage([], null, 0);
                 ImageCanvas.SetRearAxlePathData(null);
                 LinkageEditor.Load(null, null, null);
                 break;
@@ -717,6 +769,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override void EvaluateDirtiness()
     {
+        if (!draftReady)
+        {
+            IsDirty = !IsInDatabase;
+            return;
+        }
         var acceptedSnapshot = draftBase;
         var acceptedMode = acceptedSnapshot.RearSuspension.Kind;
         var acceptedLinkage = (acceptedSnapshot.RearSuspension as RearSuspensionSpec.Linkage)?.Spec;
@@ -746,11 +803,17 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             WheelGeometry.HasChangesComparedTo(acceptedSnapshot.FrontWheel, acceptedSnapshot.RearWheel);
     }
 
+    protected override bool CanExport() => draftReady && !IsLoadingDraft && base.CanExport();
+
+    protected override bool CanReset() => draftReady && !IsLoadingDraft && base.CanReset();
+
+    partial void OnIsLoadingDraftChanged(bool value) => NotifyEditorCommandStatesChanged();
+
     protected override bool CanSave()
     {
         EvaluateDirtiness();
 
-        return IsDirty && BikeSaveValidator.HasRequiredInputs(HeadAngle, ForksStroke, RearSuspensionMode,
+        return draftReady && !IsLoadingDraft && IsDirty && BikeSaveValidator.HasRequiredInputs(HeadAngle, ForksStroke, RearSuspensionMode,
             WheelGeometry.FrontWheelDiameter, WheelGeometry.RearWheelDiameter);
     }
 
@@ -767,7 +830,7 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         switch (result)
         {
             case BikeSaveResult.Saved saved:
-                AcceptBaseline(saved.Snapshot);
+                AcceptBaseline(BikeDraft.From(saved.Snapshot, draft.ImageBytes));
                 IsInDatabase = true;
 
                 EvaluateDirtiness();
@@ -783,7 +846,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 if (reload)
                 {
                     IsInDatabase = true;
-                    ReplaceState(conflict.CurrentSnapshot, refreshAnalysis: true, showPlotBusyOverlay: true);
+                    stateLoadTask = ReplaceStateAsync(conflict.CurrentDraft, refreshAnalysis: true, showPlotBusyOverlay: true);
+                    await stateLoadTask;
                     NotifyDeleteCommandStateChanged();
                 }
                 break;
@@ -802,10 +866,15 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         }
     }
 
-    protected override Task CloseImplementation()
+    protected override async Task CloseImplementation()
     {
+        stateOperation.Cancel();
         Unloaded();
-        return Task.CompletedTask;
+        await stateLoadTask;
+        if (OpenImageCommand.ExecutionTask is { } imageTask) await imageTask;
+        draftReady = false;
+        IsLoadingDraft = false;
+        ImageCanvas.Dispose();
     }
 
     protected override bool CanDelete() =>
@@ -834,10 +903,11 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         }
     }
 
-    protected override Task ResetImplementation()
+    protected override async Task ResetImplementation()
     {
-        ReplaceState(draftBase.ToSnapshot(), acceptBaseline: false);
-        return RefreshAnalysisAsync(showPlotBusyOverlay: true);
+        stateLoadTask = ReplaceStateAsync(draftBase, acceptBaseline: false);
+        await stateLoadTask;
+        if (draftReady) await RefreshAnalysisAsync(showPlotBusyOverlay: true);
     }
 
     protected override async Task ExportImplementation()
@@ -853,11 +923,13 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
 
     #region Commands
 
-    [RelayCommand(CanExecute = nameof(CanChangeRearSuspensionMode))]
+    private bool CanSetRearSuspensionMode() => CanChangeRearSuspensionMode && draftReady && !IsLoadingDraft;
+
+    [RelayCommand(CanExecute = nameof(CanSetRearSuspensionMode))]
     private async Task SetRearSuspensionMode(RearSuspensionKind newValue)
     {
         var oldValue = RearSuspensionMode;
-        if (!CanChangeRearSuspensionMode || oldValue == newValue)
+        if (!CanSetRearSuspensionMode() || oldValue == newValue)
         {
             return;
         }
@@ -891,7 +963,9 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         QueuePlotRefresh(showPlotBusyOverlay: false);
     }
 
-    [RelayCommand]
+    private bool CanOpenImage() => !IsLoadingDraft && (draftReady || !draftBase.ImageBytesMemory.IsEmpty);
+
+    [RelayCommand(CanExecute = nameof(CanOpenImage))]
     private async Task OpenImage()
     {
         var token = imageOperation.Start();
@@ -905,8 +979,25 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
                 case BikeImageLoadResult.Loaded loaded:
                     try
                     {
-                        ImageCanvas.ApplyLoadedImage(loaded.ImageBytes);
+                        var image = await backgroundTaskRunner.RunAsync(() => BikeImageData.Decode(loaded.ImageBytes)
+                            ?? throw new InvalidOperationException("Bike image could not be decoded."), token);
+                        if (token.IsCancellationRequested)
+                        {
+                            image.Dispose();
+                            return;
+                        }
+                        if (draftReady)
+                            ImageCanvas.ApplyImage(loaded.ImageBytes, image, ImageCanvas.ImageRotationDegrees);
+                        else
+                        {
+                            RunStateReplacement(() => ApplyRawBikeState(draftBase, loaded.ImageBytes, image));
+                            draftReady = true;
+                            EvaluateDirtiness();
+                            NotifyEditorCommandStatesChanged();
+                            QueuePlotRefresh();
+                        }
                     }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested) { }
                     catch (Exception e)
                     {
                         Log.ForContext<BikeEditorViewModel>().Warning(e, "Selected bike image could not be decoded for {BikeId}", Id);
@@ -955,7 +1046,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
             NotifyDeleteCommandStateChanged();
         })));
 
-        await RefreshAnalysisAsync();
+        await stateLoadTask;
+        if (draftReady) await RefreshAnalysisAsync();
     }
 
     [RelayCommand]

@@ -88,7 +88,7 @@ public class ProcessingDependencyHashIndexTests
         stores.Bikes.Add(bike with
         {
             Name = "renamed bike",
-            ImageBytes = [9, 8, 7],
+            HasImage = true,
             Updated = bike.Updated + 1
         });
 
@@ -139,7 +139,7 @@ public class ProcessingDependencyHashIndexTests
             bike with
             {
                 Name = "renamed bike",
-                ImageBytes = [9, 8, 7],
+                HasImage = true,
                 Updated = bike.Updated + 1
             }
         ]);

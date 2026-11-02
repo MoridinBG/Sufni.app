@@ -1527,7 +1527,7 @@ public class DatabaseMigrationRunnerTests
         BikeSnapshot? bikeSnapshot = null,
         bool storeLegacyRearSuspensionKind = false)
     {
-        var bike = Bike.FromSnapshot(bikeSnapshot ?? TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20));
+        var bike = Bike.FromSnapshot(bikeSnapshot ?? TestSnapshots.Bike(id: Guid.NewGuid(), updated: 20), []);
         var setup = new Setup(Guid.NewGuid(), "seed setup")
         {
             BikeId = bike.Id,

@@ -89,6 +89,7 @@ public static class AppComposition
         services.AddSingleton<IBikeRearSuspensionValidator, BikeRearSuspensionValidator>();
         services.AddSingleton<ITelemetryBikeProcessingContextFactory, TelemetryBikeProcessingContextFactory>();
         services.AddSingleton<IBikeEditorService, BikeEditorService>();
+        services.AddSingleton<IBikeMetadataReader, BikeMetadataReader>();
         services.AddSingleton<ISessionPresentationService, SessionPresentationService>();
         services.AddSingleton<ISessionInsightsService, SessionInsightsService>();
         services.AddSingleton<IRecordedSessionAnalysisComputer, RecordedSessionAnalysisComputer>();

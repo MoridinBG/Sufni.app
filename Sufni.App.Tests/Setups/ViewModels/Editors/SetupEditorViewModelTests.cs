@@ -241,7 +241,7 @@ public class SetupEditorViewModelTests : IDisposable
         {
             ShockStroke = linkage.ShockStroke,
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
-            ImageBytes = [],
+            HasImage = false,
         };
         bikeStore.Add(linkageBike);
 

@@ -71,7 +71,7 @@ internal sealed class EditorFactory(
     public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
         EditorKey.NewBike bike => CreateBikeEditor(
-            bike.Draft?.ToSnapshot() ?? BikeSnapshot.From(new Bike(Guid.NewGuid(), "new bike")), true, shell),
+            bike.Draft?.ToSnapshot() ?? BikeSnapshot.From(new Bike(Guid.NewGuid(), "new bike")), true, shell, bike.Draft),
         EditorKey.Bike bike => bikeStore.Get(bike.Id) is { } snapshot ? CreateBikeEditor(snapshot, false, shell) : null,
         EditorKey.NewSetup setup => CreateSetupEditor(setupCoordinator.CreateDraft(setup.SuggestedBoardId), true, shell),
         EditorKey.Setup setup => setupQuery.Get(setup.Id) is { } snapshot ? CreateSetupEditor(snapshot, false, shell) : null,
@@ -85,7 +85,7 @@ internal sealed class EditorFactory(
         _ => throw new ArgumentOutOfRangeException(nameof(key))
     };
 
-    private BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew, IShellCoordinator shell) =>
+    private BikeEditorViewModel CreateBikeEditor(BikeSnapshot snapshot, bool isNew, IShellCoordinator shell, BikeDraft? initialDraft = null) =>
         new(
             snapshot,
             isNew,
@@ -95,7 +95,8 @@ internal sealed class EditorFactory(
             dialogService,
             uiThreadDispatcher,
             appEnvironment.Input,
-            timeProvider: timeProvider);
+            backgroundTaskRunner,
+            timeProvider: timeProvider, initialDraft: initialDraft);
 
     private SetupEditorViewModel CreateSetupEditor(SetupDetails details, bool isNew, IShellCoordinator shell) =>
         new(

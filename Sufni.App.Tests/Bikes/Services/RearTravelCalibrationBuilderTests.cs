@@ -17,7 +17,7 @@ public class RearTravelCalibrationBuilderTests
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
-            shockStroke: 20));
+            shockStroke: 20), []);
         var setup = new Setup(Guid.NewGuid(), "curve setup")
         {
             BikeId = bike.Id,
@@ -44,7 +44,7 @@ public class RearTravelCalibrationBuilderTests
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
-            shockStroke: 15));
+            shockStroke: 15), []);
         var setup = new Setup(Guid.NewGuid(), "curve setup")
         {
             BikeId = bike.Id,
@@ -66,7 +66,7 @@ public class RearTravelCalibrationBuilderTests
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)),
-            shockStroke: null));
+            shockStroke: null), []);
         var setup = new Setup(Guid.NewGuid(), "curve setup")
         {
             BikeId = bike.Id,
@@ -88,7 +88,7 @@ public class RearTravelCalibrationBuilderTests
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (9.99999935, 25), (19.9999987, 50)),
-            shockStroke: 20));
+            shockStroke: 20), []);
         var setup = new Setup(Guid.NewGuid(), "curve setup")
         {
             BikeId = bike.Id,
@@ -189,7 +189,7 @@ public class RearTravelCalibrationBuilderTests
     public void TryBuild_ReturnsNotApplicable_WhenRearSensorConfigurationIsMissing()
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
-            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))));
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))), []);
         var setup = new Setup(Guid.NewGuid(), "missing rear config")
         {
             BikeId = bike.Id,
@@ -239,7 +239,7 @@ public class RearTravelCalibrationBuilderTests
     public void TryBuild_ReturnsConfigurationFailure_ForIncompatibleSensorAndBikePair()
     {
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
-            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))));
+            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))), []);
         var setup = new Setup(Guid.NewGuid(), "incompatible setup")
         {
             BikeId = bike.Id,
@@ -270,7 +270,7 @@ public class RearTravelCalibrationBuilderTests
             .ToArray();
         var bike = Bike.FromSnapshot(TestSnapshots.LeverageRatioBike(
             LeverageRatioSpec.FromPoints(points),
-            shockStroke: 60));
+            shockStroke: 60), []);
         var setup = new Setup(Guid.NewGuid(), "curve admission setup")
         {
             BikeId = bike.Id,

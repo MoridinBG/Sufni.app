@@ -446,7 +446,7 @@ public class RecordedSessionProjectionTests
         await stores.Bikes.PublishBikesChangedAsync([context.Bike with
         {
             Name = "renamed bike",
-            ImageBytes = [9, 8, 7],
+            HasImage = true,
             Updated = context.Bike.Updated + 1
         }]);
         await scheduler.DrainAsync();

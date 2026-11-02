@@ -33,7 +33,8 @@ internal class SetupCoordinator(
     IBoardStoreWriter boardStore,
     IUiThreadDispatcher dispatcher,
     StorePublication publication,
-    ISetupBoardQuery setupQuery)
+    ISetupBoardQuery setupQuery,
+    ISynchronizableRepository<Bike> bikeRepository)
     : ISetupCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SetupCoordinator>();
@@ -152,7 +153,7 @@ internal class SetupCoordinator(
             {
                 var setup = SetupDraft.From(SetupSnapshot.From(payload.Setup), payload.BoardId);
                 var bike = BikeSnapshot.From(payload.Bike);
-                return (Setup: setup, Bike: BikeDraft.From(bike), Invalid: SetupSaveRules.Validate(setup, bike));
+                return (Setup: setup, Bike: BikeDraft.From(payload.Bike), Invalid: SetupSaveRules.Validate(setup, bike));
             });
             if (imported.Invalid is { } invalid)
             {
@@ -213,7 +214,9 @@ internal class SetupCoordinator(
         if (bike is null) return new SetupExportResult.Failed(SetupExportFailureReason.BikeUnavailable);
         try
         {
-            var payload = await backgroundTaskRunner.RunAsync(() => (Setup: BuildRow(draft), Bike: Bike.FromSnapshot(bike)), cancellationToken);
+            var payload = await backgroundTaskRunner.RunAsync(async () =>
+                (Setup: BuildRow(draft), Bike: await bikeRepository.GetAsync(draft.BikeId)), cancellationToken);
+            if (payload.Bike is null) return new SetupExportResult.Failed(SetupExportFailureReason.BikeUnavailable);
             return await filesService.ExportAsync(payload.Setup, payload.Bike, draft.BoardId, cancellationToken);
         }
         catch (OperationCanceledException) { throw; }

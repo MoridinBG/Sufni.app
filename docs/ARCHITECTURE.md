@@ -212,6 +212,13 @@ persistence and processing-option writes. Metadata saves compare authored draft
 fields to their saved base. Readiness, highlight ranges and plot statistics run
 as keyed background analysis; the UI only renders accepted results.
 
+Bike and setup editors also retain one authored draft base; their coordinators
+validate, build rows and enforce board/delete rules transactionally. File imports
+are list actions that open new tabs. Bike plot analysis is keyed by the suspension
+spec and debounced, while shared bike snapshots retain only image presence.
+Editors load image-bearing drafts on demand, decode in background work and dispose
+bitmaps on close. Pointer capability gates the awaited suspension-mode command.
+
 Presentation-layer topics:
 
 - [Architectural Invariants](architecture/ui.md#architectural-invariants) — what each role owns

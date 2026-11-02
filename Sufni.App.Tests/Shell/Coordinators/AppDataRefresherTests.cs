@@ -5,6 +5,7 @@ using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Segments.Models;
@@ -145,7 +146,7 @@ public class AppDataRefresherTests
             Segment = new SessionSegment { Id = Guid.NewGuid(), OwnerKey = "source-hash", Name = "segment" };
             var trackRepository = Substitute.For<ITrackRepository>();
             trackRepository.GetTrackSnapshotsAsync().Returns([Track]);
-            var bikeRepository = Substitute.For<ISynchronizableRepository<Bike>>();
+            var bikeRepository = Substitute.For<IBikeMetadataReader>();
             var setupRepository = Substitute.For<ISynchronizableRepository<Setup>>();
             var boardRepository = Substitute.For<ISynchronizableRepository<Board>>();
             var customLayerRepository = Substitute.For<ISynchronizableRepository<CustomTileLayer>>();
@@ -154,7 +155,7 @@ public class AppDataRefresherTests
             var sourceRepository = Substitute.For<IRecordedSessionSourceRepository>();
             var deviceRepository = Substitute.For<IPairedDeviceRepository>();
             var videoRepository = Substitute.For<ISessionVideoRepository>();
-            bikeRepository.GetAllAsync().Returns([Bike]);
+            bikeRepository.GetAllAsync().Returns([BikeSnapshot.From(Bike)]);
             setupRepository.GetAllAsync().Returns([Setup]);
             boardRepository.GetAllAsync().Returns([Board]);
             sessionRepository.GetSessionsAsync().Returns([Session]);

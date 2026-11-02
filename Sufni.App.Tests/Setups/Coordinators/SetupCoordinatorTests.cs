@@ -8,6 +8,7 @@ using System.Reactive.Linq;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
@@ -29,6 +30,7 @@ public class SetupCoordinatorTests : IDisposable
     private readonly BikeStore bikeStore;
     private readonly BoardStore boardStore;
     private readonly InMemorySynchronizableRepository<Setup> setups;
+    private readonly InMemorySynchronizableRepository<Bike> bikes;
     private readonly InMemorySynchronizableRepository<Board> boards;
     private readonly InMemorySynchronizableRepository<Session> sessions;
     private readonly InMemorySetupTransactions transactions;
@@ -46,8 +48,9 @@ public class SetupCoordinatorTests : IDisposable
         setups = new(clock);
         boards = new(clock);
         sessions = new(clock);
-        transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards, sessions);
-        coordinator = new(setupStore, bikeStore, files, new TestBikeSaveValidator(), new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication, query);
+        bikes = new InMemorySynchronizableRepository<Bike>(clock);
+        transactions = new(setups, bikes, boards, sessions);
+        coordinator = new(setupStore, bikeStore, files, new TestBikeSaveValidator(), new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication, query, bikes);
     }
 
     public void Dispose()
@@ -75,6 +78,22 @@ public class SetupCoordinatorTests : IDisposable
             await boardStore.PublishBoardsChangedAsync([BoardSnapshot.From(board)]);
         }
         await setupStore.PublishSetupsChangedAsync([snapshot]);
+    }
+
+    [Fact]
+    public async Task ExportSetupAsync_ReadsEmbeddedBikeImageOnDemand()
+    {
+        var bike = new Bike(Guid.NewGuid(), "pictured") { ImageBytes = [1, 2, 3] };
+        bikes.Seed(bike);
+        await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
+        var draft = SetupDraft.From(TestSnapshots.Setup(bikeId: bike.Id), Guid.NewGuid());
+        files.ExportAsync(Arg.Any<Setup>(), Arg.Any<Bike>(), draft.BoardId, Arg.Any<CancellationToken>())
+            .Returns(new SetupExportResult.Exported());
+
+        Assert.IsType<SetupExportResult.Exported>(await coordinator.ExportSetupAsync(draft, TestContext.Current.CancellationToken));
+
+        await files.Received(1).ExportAsync(Arg.Any<Setup>(), Arg.Is<Bike>(value => value.ImageBytes.SequenceEqual(new byte[] { 1, 2, 3 })),
+            draft.BoardId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
