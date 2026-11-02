@@ -34,6 +34,14 @@ and are registered as singletons.
 | `TrackCoordinator` | shared | Owns key-driven GPS metric recomputation, conditional persistence and cancellation/drainage. GPX import publishes track metadata; read-only session-track loading selects the greatest overlapping track from `TrackStore`, reads exact full-track points and derives the session window through `ISessionTrackReader`. GPS alignment belongs to `SessionCoordinator.ShiftGpsOffsetAsync` and uses the same selection rule. |
 | `LiveDaqCoordinator`                                                      | shared       | Owns `LiveDaqStore` writes, browse lease lifecycle (activate/deactivate), discovery-to-known-board reconciliation. The shell routes diagnostics and live-session editor keys; `EditorFactory` creates their shared-stream and capture dependencies only for a new tab. Activates lazily when the Live primary page is selected — no constructor event subscriptions, so no eager resolution needed. See [Live DAQ Streaming](live-streaming.md); capture preparation, reprocessing, persistence, coherent publication and post-save reset through `SaveCaptureAsync`; reserved management operations and CONFIG selection, with retained tasks canceled/drained on async disposal. |
 
+Bike and setup export schemas live in `BikeFileFormat` and `SetupFileFormat`,
+not on the persistence models. Bike parsing normalizes shock stroke from the
+rear-suspension payload for standalone and embedded setup imports. The existing
+`BikeEditorService` owns bike file I/O; `ISetupFileService` owns setup pickers,
+background read/parse/write and typed file outcomes. `SetupCoordinator` consumes
+that result and owns persistence/publication. Its view token covers reading only;
+once a setup has been read, the import completes independently of that token.
+
 The coordinator's metadata save checks the store snapshot for conflicts before
 persisting and publishing; it never writes the session timestamp or GPS offset.
 `ShiftGpsOffsetAsync` owns alignment, deriving a track window from persisted

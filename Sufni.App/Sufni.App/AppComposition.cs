@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.DependencyInjection;
@@ -143,6 +144,7 @@ public static class AppComposition
         services.AddSingleton<SetupStore>();
         services.AddSingleton<ISetupStore>(sp => sp.GetRequiredService<SetupStore>());
         services.AddSingleton<ISetupStoreWriter>(sp => sp.GetRequiredService<SetupStore>());
+        services.AddSingleton<ISetupFileService, SetupFileService>();
         services.AddSingleton<ISetupPersistenceTransactionRunner, SetupPersistenceTransactionRunner>();
         services.AddSingleton<SetupCoordinator>();
         services.AddSingleton<ISetupCoordinator>(sp => sp.GetRequiredService<SetupCoordinator>());

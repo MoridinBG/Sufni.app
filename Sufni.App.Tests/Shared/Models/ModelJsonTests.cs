@@ -1,3 +1,4 @@
+using Sufni.App.Bikes.Services;
 using System;
 using System.Text.Json;
 using Sufni.Kinematics;
@@ -21,7 +22,7 @@ public class ModelJsonTests
             PixelsToMillimeters = 2.5,
         };
 
-        var json = bike.ToJson();
+        var json = BikeFileFormat.Serialize(bike);
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
@@ -46,7 +47,7 @@ public class ModelJsonTests
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
 
-        var imported = Bike.FromJson(bike.ToJson());
+        var imported = BikeFileFormat.Parse(BikeFileFormat.Serialize(bike));
 
         Assert.NotNull(imported);
         var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);

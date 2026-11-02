@@ -1,12 +1,40 @@
+using Sufni.App.Bikes.Services;
 using System.Text.Json.Nodes;
 using Sufni.Kinematics;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
-namespace Sufni.App.Tests.Bikes.Models;
+namespace Sufni.App.Tests.Bikes.Services;
 
-public class BikeSerializationTests
+public class BikeFileFormatTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Parse_NormalizesShockStrokeFromRearSuspension(int mode)
+    {
+        RearSuspensionSpec rear = mode switch
+        {
+            0 => new RearSuspensionSpec.Hardtail(),
+            1 => new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
+            _ => new RearSuspensionSpec.LeverageRatio(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))),
+        };
+        var bike = new Bike(Guid.NewGuid(), "import") { RearSuspension = rear, ShockStroke = 999 };
+
+        var imported = BikeFileFormat.Parse(BikeFileFormat.Serialize(bike));
+
+        var expected = rear switch
+        {
+            RearSuspensionSpec.Linkage linkage => (double?)linkage.Spec.ShockStroke,
+            RearSuspensionSpec.LeverageRatio curve => curve.Spec.MaxShockStroke,
+            _ => null,
+        };
+        Assert.NotNull(imported);
+        Assert.Equal(expected, imported.ShockStroke);
+        Assert.Equal(rear, imported.RearSuspension);
+    }
+
     [Fact]
     public void BikeToJson_RoundTripsHardtailBike()
     {
@@ -21,14 +49,14 @@ public class BikeSerializationTests
             ImageRotationDegrees = 4,
         };
 
-        var json = bike.ToJson();
+        var json = BikeFileFormat.Serialize(bike);
         var root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(2, root["schema_version"]!.GetValue<int>());
         Assert.False(root.ContainsKey("front_wheel_diameter"));
         Assert.Equal(bike.FrontWheelDiameterMm, root["front_wheel"]!["diameter_mm"]!.GetValue<double>());
 
-        var imported = Bike.FromJson(json);
+        var imported = BikeFileFormat.Parse(json);
 
         Assert.NotNull(imported);
         Assert.IsType<RearSuspensionSpec.Hardtail>(imported!.RearSuspension);
@@ -50,7 +78,7 @@ public class BikeSerializationTests
             ShockStroke = linkage.ShockStroke,
         };
 
-        var json = bike.ToJson();
+        var json = BikeFileFormat.Serialize(bike);
         var root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(2, root["schema_version"]!.GetValue<int>());
@@ -59,7 +87,7 @@ public class BikeSerializationTests
         Assert.False(root.ContainsKey("leverage_ratio"));
         Assert.Equal("linkage", root["rear_suspension"]!["kind"]!.GetValue<string>());
 
-        var imported = Bike.FromJson(json);
+        var imported = BikeFileFormat.Parse(json);
 
         Assert.NotNull(imported);
         var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
@@ -82,12 +110,12 @@ public class BikeSerializationTests
             RearReboundDampingCutoffMmPerSecond = 240,
         };
 
-        var json = bike.ToJson();
+        var json = BikeFileFormat.Serialize(bike);
         var root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(2, root["schema_version"]!.GetValue<int>());
 
-        var imported = Bike.FromJson(json);
+        var imported = BikeFileFormat.Parse(json);
 
         Assert.NotNull(imported);
         var importedLeverageRatio = Assert.IsType<RearSuspensionSpec.LeverageRatio>(imported!.RearSuspension);
@@ -109,7 +137,7 @@ public class BikeSerializationTests
                             }
                             """;
 
-        Assert.Throws<System.Text.Json.JsonException>(() => Bike.FromJson(json));
+        Assert.Throws<System.Text.Json.JsonException>(() => BikeFileFormat.Parse(json));
     }
 
     [Fact]
@@ -121,10 +149,10 @@ public class BikeSerializationTests
             ForkStroke = 150,
             RearSuspension = new RearSuspensionSpec.Hardtail(),
         };
-        var root = JsonNode.Parse(bike.ToJson())!.AsObject();
+        var root = JsonNode.Parse(BikeFileFormat.Serialize(bike))!.AsObject();
         root["schema_version"] = 1;
 
-        var imported = Bike.FromJson(root.ToJsonString());
+        var imported = BikeFileFormat.Parse(root.ToJsonString());
 
         Assert.Null(imported);
     }
@@ -138,9 +166,9 @@ public class BikeSerializationTests
             ForkStroke = 150,
             RearSuspension = new RearSuspensionSpec.Hardtail(),
         };
-        var root = JsonNode.Parse(bike.ToJson())!.AsObject();
+        var root = JsonNode.Parse(BikeFileFormat.Serialize(bike))!.AsObject();
         root.Remove("rear_suspension");
 
-        Assert.Throws<System.Text.Json.JsonException>(() => Bike.FromJson(root.ToJsonString()));
+        Assert.Throws<System.Text.Json.JsonException>(() => BikeFileFormat.Parse(root.ToJsonString()));
     }
 }

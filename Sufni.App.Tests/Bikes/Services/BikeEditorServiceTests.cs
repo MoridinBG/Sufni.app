@@ -61,7 +61,7 @@ public class BikeEditorServiceTests
     public async Task ImportBikeAsync_ReturnsImportedBike_WhenJsonIsValid()
     {
         var file = Substitute.For<IStorageFile>();
-        var bikeJson = new Bike(Guid.NewGuid(), "imported bike")
+        var bikeJson = BikeFileFormat.Serialize(new Bike(Guid.NewGuid(), "imported bike")
         {
             HeadAngle = 64,
             ForkStroke = 150,
@@ -72,7 +72,7 @@ public class BikeEditorServiceTests
             RearWheelTireWidth = 2.5,
             RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees = 12.5,
-        }.ToJson();
+        });
         file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(bikeJson))));
         filesService.OpenBikeFileAsync().Returns(file);
 

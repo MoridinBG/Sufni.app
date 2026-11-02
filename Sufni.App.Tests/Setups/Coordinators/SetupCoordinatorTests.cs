@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using Sufni.App.SyncAndPairing.Stores;
 using System.Reactive.Linq;
@@ -29,7 +30,7 @@ public class SetupCoordinatorTests : IDisposable
     private readonly InMemorySetupTransactions transactions;
     private readonly SetupCoordinator coordinator;
     private readonly SetupBoardQuery query;
-    private readonly IFilesService files = Substitute.For<IFilesService>();
+    private readonly ISetupFileService files = Substitute.For<ISetupFileService>();
 
     public SetupCoordinatorTests()
     {
@@ -66,15 +67,36 @@ public class SetupCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task ImportSetupAsync_ReturnsInvalidFile_WhenSelectedJsonIsMalformed()
+    public async Task ImportSetupAsync_ReturnsFileRejectionWithoutPersisting()
     {
-        var file = TestStorageItems.TextFile("setup.json", "not json");
-        files.OpenSetupFileAsync().Returns(file);
+        files.ReadAsync(Arg.Any<CancellationToken>()).Returns(new SetupFileReadResult.InvalidFile("invalid setup"));
 
         var result = await coordinator.ImportSetupAsync(TestContext.Current.CancellationToken);
 
         Assert.IsType<SetupImportResult.InvalidFile>(result);
         Assert.Empty(await setups.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task ImportSetupAsync_CompletesPublicationAfterReadEvenIfViewTokenIsCanceled()
+    {
+        var bike = new Bike(Guid.NewGuid(), "imported bike") { HeadAngle = 65, ForkStroke = 160 };
+        var setup = new Setup(Guid.NewGuid(), "imported setup") { BikeId = bike.Id };
+        var boardId = Guid.NewGuid();
+        using var cancellation = new CancellationTokenSource();
+        files.ReadAsync(cancellation.Token).Returns(_ =>
+        {
+            cancellation.Cancel();
+            return new SetupFileReadResult.Read(new(setup, bike, boardId));
+        });
+
+        var result = Assert.IsType<SetupImportResult.Imported>(await coordinator.ImportSetupAsync(cancellation.Token));
+
+        Assert.Equal(setup.Id, result.Data.Setup.Id);
+        Assert.Equal(setup.Name, (await setups.GetAsync(setup.Id))!.Name);
+        Assert.Equal(setup.Id, (await boards.GetAsync(boardId))!.SetupId);
+        Assert.Equal(boardId, query.Get(setup.Id)!.BoardId);
+        Assert.NotNull(bikeStore.Get(bike.Id));
     }
 
     [Theory]

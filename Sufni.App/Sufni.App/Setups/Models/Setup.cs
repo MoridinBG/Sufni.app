@@ -1,13 +1,8 @@
 using System;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using SQLite;
-using Sufni.Kinematics;
 
-using Sufni.App.Bikes.Models;
-using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.SyncAndPairing.Models;
-using Sufni.App.Infrastructure;
 namespace Sufni.App.Setups.Models;
 
 [Table("setup")]
@@ -42,56 +37,4 @@ public class Setup : Synchronizable
     [Column("rear_sensor_configuration")]
     public string? RearSensorConfigurationJson { get; set; }
 
-    public string ToJson(Bike bike, Guid? boardId)
-    {
-        return AppJson.SerializeIndented(SetupExportModel.FromSetup(this, bike, boardId));
-    }
-
-    public static SetupImportPayload? FromJson(string json) =>
-        AppJson.Deserialize<SetupExportModel>(json)?.ToPayload();
-}
-
-public sealed record SetupImportPayload(Setup Setup, Bike Bike, Guid? BoardId);
-
-internal sealed class SetupExportModel
-{
-    [JsonPropertyName("name")]
-    public string Name { get; init; } = null!;
-
-    [JsonPropertyName("board_id")]
-    public Guid? BoardId { get; init; }
-
-    [JsonPropertyName("front_sensor_configuration")]
-    public string? FrontSensorConfigurationJson { get; init; }
-
-    [JsonPropertyName("rear_sensor_configuration")]
-    public string? RearSensorConfigurationJson { get; init; }
-
-    [JsonPropertyName("bike")]
-    public BikeExportDocument Bike { get; init; } = null!;
-
-    public static SetupExportModel FromSetup(Setup setup, Bike bike, Guid? boardId)
-    {
-        return new SetupExportModel
-        {
-            Name = setup.Name,
-            BoardId = boardId,
-            FrontSensorConfigurationJson = setup.FrontSensorConfigurationJson,
-            RearSensorConfigurationJson = setup.RearSensorConfigurationJson,
-            Bike = BikeExportDocument.FromBike(bike)
-        };
-    }
-
-    public SetupImportPayload ToPayload()
-    {
-        var bike = BikeImportDocumentParser.Parse(Bike)
-                   ?? throw new JsonException("Unsupported bike export document schema version.");
-        var setup = new Setup(Guid.NewGuid(), Name)
-        {
-            BikeId = bike.Id,
-            FrontSensorConfigurationJson = FrontSensorConfigurationJson,
-            RearSensorConfigurationJson = RearSensorConfigurationJson
-        };
-        return new SetupImportPayload(setup, bike, BoardId);
-    }
 }

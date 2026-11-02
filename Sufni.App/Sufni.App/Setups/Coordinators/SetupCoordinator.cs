@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,8 +6,6 @@ using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Shared.Stores;
 using System;
-using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -17,14 +16,13 @@ using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Stores;
-using Sufni.App.Setups.ViewModels.Editors;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Setups.Coordinators;
 
 public class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
-    IFilesService filesService,
+    ISetupFileService filesService,
     IBackgroundTaskRunner backgroundTaskRunner,
     ISetupPersistenceTransactionRunner setupPersistenceTransactions,
     ISynchronizableRepository<Board> boardRepository,
@@ -123,61 +121,33 @@ public class SetupCoordinator(
     {
         logger.Information("Starting setup import");
 
-        var file = await filesService.OpenSetupFileAsync();
-        if (file is null)
-        {
-            logger.Information("Setup import canceled");
-            return new SetupImportResult.Canceled();
-        }
-
-        SetupImportPayload? payload;
-        try
-        {
-            payload = await backgroundTaskRunner.RunAsync(async () =>
+        var read = await filesService.ReadAsync(cancellationToken);
+        if (read is not SetupFileReadResult.Read loaded)
+            return read switch
             {
-                await using var stream = await file.OpenReadAsync();
-                using var reader = new StreamReader(stream);
-                var json = await reader.ReadToEndAsync(cancellationToken);
-                return Setup.FromJson(json);
-            }, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e) when (e is System.Text.Json.JsonException or NotSupportedException or Sufni.Kinematics.LeverageRatioValidationException)
-        {
-            logger.Warning(e, "Setup import rejected because the selected file was invalid");
-            return new SetupImportResult.InvalidFile("JSON file was not a valid setup file.");
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Setup import failed while reading file");
-            return new SetupImportResult.Failed(SetupImportFailureReason.Import, e.Message);
-        }
-
-        if (payload is null)
-        {
-            logger.Warning("Setup import rejected because the selected file was not a valid setup file");
-            return new SetupImportResult.InvalidFile("JSON file was not a valid setup file.");
-        }
+                SetupFileReadResult.Canceled => new SetupImportResult.Canceled(),
+                SetupFileReadResult.InvalidFile invalid => new SetupImportResult.InvalidFile(invalid.ErrorMessage),
+                SetupFileReadResult.Failed failed => new SetupImportResult.Failed(failed.Reason, failed.Details),
+                _ => throw new ArgumentOutOfRangeException(nameof(read)),
+            };
+        var payload = loaded.Payload;
 
         try
         {
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
-            var boards = await backgroundTaskRunner.RunAsync(async () =>
-                await LoadBoardsAsync(await setupPersistenceTransactions.ImportSetupAsync(
-                    payload.Bike, payload.Setup, resolvedBoardId, cancellationToken)), cancellationToken);
-
-            var bikeSnapshot = BikeSnapshot.From(payload.Bike);
-            var setupSnapshot = SetupSnapshot.From(payload.Setup);
+            var prepared = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var boards = await LoadBoardsAsync(await setupPersistenceTransactions.ImportSetupAsync(
+                    payload.Bike, payload.Setup, resolvedBoardId));
+                return (Boards: boards, Bike: BikeSnapshot.From(payload.Bike), Setup: SetupSnapshot.From(payload.Setup));
+            });
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
-                await bikeStore.PublishBikesChangedAsync([bikeSnapshot]);
-                await setupStore.PublishSetupsChangedAsync([setupSnapshot]);
-                await PublishBoardsAsync(boards);
+                await bikeStore.PublishBikesChangedAsync([prepared.Bike]);
+                await setupStore.PublishSetupsChangedAsync([prepared.Setup]);
+                await PublishBoardsAsync(prepared.Boards);
             });
 
             logger.Information(
@@ -187,7 +157,7 @@ public class SetupCoordinator(
                 resolvedBoardId);
 
             return new SetupImportResult.Imported(
-                new ImportedSetupEditorData(setupSnapshot, bikeSnapshot, boardWarning, resolvedBoardId));
+                new ImportedSetupEditorData(prepared.Setup, prepared.Bike, boardWarning, resolvedBoardId));
         }
         catch (Exception e)
         {
@@ -196,44 +166,9 @@ public class SetupCoordinator(
         }
     }
 
-    public async Task<SetupExportResult> ExportSetupAsync(
-        Setup setup,
-        Bike bike,
-        Guid? boardId,
-        CancellationToken cancellationToken = default)
-    {
-        logger.Information("Starting setup export for {SetupId}", setup.Id);
-
-        var file = await filesService.SaveSetupFileAsync(setup.Name);
-        if (file is null)
-        {
-            logger.Information("Setup export canceled for {SetupId}", setup.Id);
-            return new SetupExportResult.Canceled();
-        }
-
-        try
-        {
-            return await backgroundTaskRunner.RunAsync(async () =>
-            {
-                var json = setup.ToJson(bike, boardId);
-                await using var stream = await file.OpenWriteAsync();
-                await using var writer = new StreamWriter(stream, Encoding.UTF8);
-                await writer.WriteAsync(json.AsMemory(), cancellationToken);
-
-                logger.Information("Setup export completed for {SetupId}", setup.Id);
-                return (SetupExportResult)new SetupExportResult.Exported();
-            }, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
-        {
-            logger.Error(e, "Setup export failed for {SetupId}", setup.Id);
-            return new SetupExportResult.Failed(SetupExportFailureReason.Export, e.Message);
-        }
-    }
+    public Task<SetupExportResult> ExportSetupAsync(
+        Setup setup, Bike bike, Guid? boardId, CancellationToken cancellationToken = default) =>
+        filesService.ExportAsync(setup, bike, boardId, cancellationToken);
 
     private async Task<(BoardSnapshot[] Changed, Guid[] Removed)> LoadBoardsAsync(IReadOnlyList<Guid> ids)
     {

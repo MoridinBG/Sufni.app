@@ -1,10 +1,12 @@
+using Sufni.App.Bikes.Services;
+using Sufni.App.Setups.Services;
 using System.Text.Json.Nodes;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Setups.Models;
-namespace Sufni.App.Tests.Setups.Models;
+namespace Sufni.App.Tests.Setups.Services;
 
-public class SetupSerializationTests
+public class SetupFileFormatTests
 {
     [Fact]
     public void SetupToJson_EmbedsBikeExportDocumentV2()
@@ -20,7 +22,7 @@ public class SetupSerializationTests
             BikeId = bike.Id,
         };
 
-        var json = setup.ToJson(bike, boardId: null);
+        var json = SetupFileFormat.Serialize(setup, bike, boardId: null);
         var root = JsonNode.Parse(json)!.AsObject();
         var bikeNode = root["bike"]!.AsObject();
 
@@ -42,9 +44,9 @@ public class SetupSerializationTests
         {
             BikeId = bike.Id,
         };
-        var root = JsonNode.Parse(setup.ToJson(bike, boardId: null))!.AsObject();
+        var root = JsonNode.Parse(SetupFileFormat.Serialize(setup, bike, boardId: null))!.AsObject();
         root["bike"]!.AsObject()["schema_version"] = 1;
 
-        Assert.Throws<System.Text.Json.JsonException>(() => Setup.FromJson(root.ToJsonString()));
+        Assert.Throws<System.Text.Json.JsonException>(() => SetupFileFormat.Parse(root.ToJsonString()));
     }
 }

@@ -3,7 +3,7 @@ using Sufni.App.Shared.Models;
 
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Stores;
-namespace Sufni.App.Setups.ViewModels.Editors;
+namespace Sufni.App.Setups.Coordinators;
 
 public sealed record ImportedSetupEditorData(
     SetupSnapshot Setup,
@@ -21,11 +21,3 @@ public abstract record SetupImportResult
     public sealed record Failed(SetupImportFailureReason Reason, string? Details = null) : SetupImportResult;
 }
 
-public abstract record SetupExportResult
-{
-    private SetupExportResult() { }
-
-    public sealed record Exported : SetupExportResult;
-    public sealed record Canceled : SetupExportResult;
-    public sealed record Failed(SetupExportFailureReason Reason, string? Details = null) : SetupExportResult;
-}

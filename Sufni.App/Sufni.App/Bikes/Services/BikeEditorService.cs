@@ -158,7 +158,7 @@ internal sealed class BikeEditorService(
                     await using var stream = await file.OpenReadAsync();
                     using var reader = new StreamReader(stream);
                     var json = await reader.ReadToEndAsync(cancellationToken);
-                    var bike = Bike.FromJson(json);
+                    var bike = BikeFileFormat.Parse(json);
 
                     if (bike is null)
                     {
@@ -201,7 +201,7 @@ internal sealed class BikeEditorService(
 
             return await backgroundTaskRunner.RunAsync(async () =>
             {
-                var bikeJson = bike.ToJson();
+                var bikeJson = BikeFileFormat.Serialize(bike);
                 await using var stream = await file.OpenWriteAsync();
                 await using var writer = new StreamWriter(stream, Encoding.UTF8);
                 await writer.WriteAsync(bikeJson.AsMemory(), cancellationToken);

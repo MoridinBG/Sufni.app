@@ -357,6 +357,11 @@ SessionMissing | Failed(reason, details)` with `GpsOffsetFailureReason.Save`. Un
 shown as a cause-specific notification; missing telemetry asks the user to sync or
 recompute, while persistence failures retain technical details.
 
+`SetupFileReadResult` is `Read(Payload) | Canceled | InvalidFile(ErrorMessage) |
+Failed(reason, details)`. `ISetupFileService` logs parsing/read errors once and
+returns those outcomes; the coordinator forwards failures without logging them
+again, then owns the imported rows and publication.
+
 `BikeSaveResult.Saved` additionally carries
 a `BikeEditorAnalysisResult AnalysisResult` so the editor can react
 to leverage-ratio recomputation without a second round-trip; the
