@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
@@ -210,6 +211,11 @@ public sealed partial class InboundSyncCoordinator(
         {
             await rowApplier.ApplyAsync(data, SynchronizationDirection.Push);
             return InboundSyncWriteResult.Applied;
+        }
+        catch (InvalidDataException exception)
+        {
+            logger.Warning(exception, "Invalid inbound synchronization rows");
+            return InboundSyncWriteResult.InvalidPayload;
         }
         catch (Exception exception)
         {

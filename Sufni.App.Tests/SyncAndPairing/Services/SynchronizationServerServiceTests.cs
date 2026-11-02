@@ -88,6 +88,7 @@ public class SynchronizationServerServiceTests
 
     [Theory]
     [InlineData(InboundSyncWriteResult.Applied, StatusCodes.Status204NoContent)]
+    [InlineData(InboundSyncWriteResult.InvalidPayload, StatusCodes.Status400BadRequest)]
     [InlineData(InboundSyncWriteResult.Failed, StatusCodes.Status500InternalServerError)]
     public async Task ApplySynchronizationPushAsync_AwaitsCoordinatorOutcomeBeforeAcknowledging(
         InboundSyncWriteResult outcome, int status)

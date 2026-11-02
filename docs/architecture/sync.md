@@ -231,7 +231,8 @@ The coordinator loads authoritative snapshots off-thread and publishes bikes,
 setups, boards, sessions, tracks, custom layers and saved segments in one dispatcher
 batch, including ledger-only removals. A rejected remote delete therefore cannot
 hide retained local content. HTTP acknowledges only after publication; an apply
-failure returns 500. There is no metadata-arrival event or eager subscription.
+failure returns 500; a malformed deletion entry rejects and rolls back the whole
+push with 400 and a warning diagnostic. There is no metadata-arrival event or eager subscription.
 `SessionSyncApplier` owns generation publication; the inbound coordinator owns
 source publication. Both client pulls and hub pushes await `SynchronizationApplier`, which merges
 through `ISyncDataStore`, prepares snapshots for the affected IDs and publishes
@@ -310,8 +311,8 @@ or contain a malformed union are rejected during deserialization on both the
 client pull path and the desktop inbound push path; legacy rear-suspension data
 is accepted only by the local SQLite startup migration.
 
-Saved segments use the core paths unchanged: the client applies remote rows
-verbatim and the hub applies the shared authored-history merge rule, after sessions in
+Saved segments use the core paths: client and hub apply the same
+authored-history merge rule, after sessions in
 the same transaction. Segments carry source-hash ownership and source-relative anchors. They survive
 session deletion; each session window derives visibility, including split windows
 received from a peer. Client and hub row application publish affected segments in the same batch as

@@ -511,8 +511,12 @@ public class SynchronizationServerService : ISynchronizationServerService
 
     internal static async Task<IResult> ApplySynchronizationPushAsync(
         SynchronizationData data, IInboundSyncCoordinator inboundSyncCoordinator) =>
-        await inboundSyncCoordinator.ApplyPushAsync(data) == InboundSyncWriteResult.Applied
-            ? Results.NoContent() : Results.StatusCode(StatusCodes.Status500InternalServerError);
+        await inboundSyncCoordinator.ApplyPushAsync(data) switch
+        {
+            InboundSyncWriteResult.Applied => Results.NoContent(),
+            InboundSyncWriteResult.InvalidPayload => Results.BadRequest(),
+            _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+        };
 
     internal static async Task<IResult> ApplySessionDataPatchAsync(
         Guid id, SessionBlobPayload payload, IInboundSyncCoordinator coordinator)

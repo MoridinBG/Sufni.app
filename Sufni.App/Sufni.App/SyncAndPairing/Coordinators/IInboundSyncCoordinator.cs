@@ -7,7 +7,7 @@ using Sufni.App.SyncAndPairing.Services;
 
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-public enum InboundSyncWriteResult { Applied, Failed }
+public enum InboundSyncWriteResult { Applied, InvalidPayload, Failed }
 public enum InboundSourceApplyResult { Applied, InvalidPayload, Failed }
 
 /// <summary>Owns desktop inbound persistence and publication before the peer is acknowledged.</summary>

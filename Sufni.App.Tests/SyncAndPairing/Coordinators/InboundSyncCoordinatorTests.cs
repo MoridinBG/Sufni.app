@@ -18,6 +18,31 @@ namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
 public class InboundSyncCoordinatorTests
 {
+    [Theory]
+    [InlineData("unknown_table", 6L)]
+    [InlineData("board", null)]
+    public async Task ApplyPushAsync_InvalidDeletionRejectsWholePushWithoutPublication(string table, long? deleted)
+    {
+        await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
+        var coordinator = fixture.CreateCoordinator();
+        var board = new Board(Guid.NewGuid(), null) { Version = 1 };
+        await coordinator.ApplyPushAsync(new SynchronizationData { Boards = [board] });
+
+        var result = await coordinator.ApplyPushAsync(new SynchronizationData
+        {
+            Deletions =
+            [
+                new SynchronizationDeletion { EntityTable = "board", Id = board.Id, Version = 2, Updated = 6, Deleted = 6 },
+                new SynchronizationDeletion { EntityTable = table, Id = Guid.NewGuid(), Version = 2, Updated = 6, Deleted = deleted }
+            ]
+        });
+
+        Assert.Equal(InboundSyncWriteResult.InvalidPayload, result);
+        Assert.NotNull(fixture.Boards.Get(board.Id));
+        Assert.NotNull(await fixture.Database.GetAsync<Board>(board.Id));
+        Assert.Empty((await fixture.Database.GetSynchronizationDataAsync(0, long.MaxValue)).Deletions);
+    }
+
     [Fact]
     public async Task ApplySourceAsync_AwaitsPublication_AndPreservesExistingCapturedContent()
     {

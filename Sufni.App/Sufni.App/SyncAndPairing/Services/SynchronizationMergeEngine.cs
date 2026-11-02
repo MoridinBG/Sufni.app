@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -234,7 +235,7 @@ internal sealed class SynchronizationMergeEngine(
     {
         foreach (var deletion in data.Deletions)
         {
-            if (deletion.Deleted is null) throw new InvalidOperationException("A deletion must carry its authored deletion time.");
+            if (deletion.Deleted is null) throw new InvalidDataException("A deletion must carry its authored deletion time.");
             switch (deletion.EntityTable)
             {
                 case "bike": MergeDeletion<Bike>(connection, deletion, asHub); break;
@@ -244,7 +245,7 @@ internal sealed class SynchronizationMergeEngine(
                 case "session": MergeDeletion<Session>(connection, deletion, asHub); break;
                 case "custom_tile_layer": MergeDeletion<CustomTileLayer>(connection, deletion, asHub); break;
                 case "session_segment": MergeDeletion<SessionSegment>(connection, deletion, asHub); break;
-                default: throw new InvalidOperationException("Unknown synchronized deletion table.");
+                default: throw new InvalidDataException("Unknown synchronized deletion table.");
             }
         }
         foreach (var row in data.Bikes) Merge(connection, row, asHub);
