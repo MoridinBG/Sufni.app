@@ -110,7 +110,8 @@ Tab closes
 
 Management action on a v2 endpoint while disconnected
   -> LiveDaqDetailViewModel.SetTime / EditConfig / SelectConfigFile / UploadConfig
-    -> IFilesService (CONFIG picker/load), IDaqManagementService (MGMT TCP workflow), IDialogService (CONFIG editor)
+    -> LiveDaqCoordinator (picker validation + reserved MGMT workflow)
+      -> IDaqManagementService (domain operations), IDialogService (CONFIG editor)
       -> ViewModelBase.Notifications / ErrorMessages
 ```
 
@@ -235,9 +236,9 @@ A second LIVE start joins the existing lifecycle/socket. A replacement tab canno
 connect while the former stream's client is still closing. Start failure disposes
 its client before releasing the port; retry creates a fresh client.
 `AcquireManagementAsync`, `AcquireImportAsync` and `AcquireIdentifyAsync` expose
-the same arbitration for their callers. Current diagnostics management and network
-import still call their services directly; routing those workflows through the
-reservation APIs is not yet complete.
+the same arbitration for their callers. Diagnostics management acquires its reservation through `LiveDaqCoordinator`.
+Network import and IDENTIFY still call their services directly; their routing
+through the reservation APIs is not yet complete.
 
 Catalog callbacks enqueue immutable entries plus the stream instances that existed
 when the event arrived. One owned worker applies them in order and awaits closes;
@@ -333,14 +334,33 @@ Missing snapshots or session contexts produce no tab.
 
 **`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream` during construction and releases it only when the tab closes. View unload stops foreground observation and timers while retaining the lease. It projects the shared stream frames through `LiveDaqSessionState`, and uses an injected `IUiTimerScheduler` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the editable surface for connect, disconnect, and requested-rate reconfiguration. Disconnect is disabled while a capture holds the configuration lock; the shared stream also returns `LiveDisconnectResult.Locked` to a direct stop request. A busy start reports the current port holder as a notification. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
 
-Management actions stay in the detail view model rather than the transport layer or coordinator:
+`LiveDaqCoordinator` owns management workflows and retains their active tasks.
+`SetTimeAsync`, `ReadConfigAsync` and `WriteConfigAsync` resolve the current catalog
+entry, reject offline or unsupported devices, reserve the port for the named
+operation, and run the management service off-thread. The reservation ends only
+after the service has disposed its socket. The coordinator's asynchronous disposal
+cancels and drains management calls before the registry is disposed.
 
-- `SetTimeCommand` calls `IDaqManagementService.SetTimeAsync(...)` and reports success/failure through `Notifications` and `ErrorMessages`.
-- `EditConfigCommand` downloads the current CONFIG via `IDaqManagementService.GetFileAsync(...)`, parses it into a `DaqConfigDocument`, and shows the `LiveDaqConfigEditorViewModel` dialog; saving from the dialog re-uploads through `IDaqManagementService`.
-- `SelectConfigFileCommand` calls `IFilesService.OpenDeviceConfigFileAsync(...)`, validates an exact `CONFIG` filename, and stages the selected bytes.
-- `UploadConfigCommand` calls `IDaqManagementService.ReplaceConfigAsync(...)`, then clears the staged CONFIG regardless of success, typed failure, or exception.
+- `SetTimeCommand` forwards the identity and displays the returned round-trip time.
+- `EditConfigCommand` receives a parsed `DaqConfigDocument` and opens the unchanged
+  CONFIG editor. Its save callback requests `WriteConfigAsync`, resolving the
+  endpoint again rather than retaining an address from the earlier read.
+- `SelectConfigFileCommand` asks the coordinator to pick and validate an exact
+  `CONFIG` filename. The view model holds one staged file; its name and presence
+  bindings derive from that value.
+- `UploadConfigCommand` forwards the staged bytes and clears the stage after an
+  attempted upload, retaining the existing interaction behavior.
 
-The management endpoint and protocol are resolved from the latest `ILiveDaqStore` snapshot on every evaluation of `CanManage` and at command execution time, falling back to the shared stream's current catalog snapshot while the stream is still alive. The management affordances are enabled only when the DAQ endpoint is known, the endpoint protocol is v2, and the live connection state is `Disconnected`. This avoids overlapping LIVE and MGMT connections on the shared single-client port, keeps the existing v2 management path unchanged, and disables v3 diagnostics management until MGMT v3 wire bytes are specified.
+`ObserveManagementAvailability` combines catalog presence and `SupportsManagement`
+(currently v2) with the registry's transport holder. The view model projects that
+immutable value on its UI dispatcher. There are no copied management host/port/
+protocol fields or fallback to a stale store endpoint. Busy holders disable
+management and Connect and appear in tooltips; an acquisition that becomes busy
+between display and intent returns a typed `Busy` outcome. Unsupported/offline
+outcomes are notifications. Device rejections retain their known protocol messages;
+transport and picker exceptions are logged once by the coordinator and become
+fixed summaries with separate diagnostic details. The CONFIG callback maps those
+outcomes to its existing `DaqManagementResult` contract, with safe summary text.
 
 The live-session tab view model (`LiveSessionDetailViewModel`) is described in [Live Session Recording § Live Session Detail View Model](live-session.md#live-session-detail-view-model).
 
@@ -364,5 +384,5 @@ Both desktop and mobile heads add the Live tab and bind to the same view models.
 6. **Lease-based browse** — browse ownership uses reference counting so import and live can browse concurrently without interfering.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Protocol-specific clients behind a canonical frame model** — v2 and v3 wire parsing stays inside protocol-specific readers/clients. Everything above `ILiveDaqClientFactory` receives canonical live frames and does not branch on wire layout.
-9. **Disconnected v2-only management** — the detail tab disables management actions while its live client is connected instead of trying to arbitrate concurrent LIVE and MGMT workflows on the DAQ's single-client port. It also disables management for v3 snapshots because the v3 management protocol is not specified.
+9. **Reserved v2-only management** — availability derives from catalog capability and port ownership. The coordinator arbitrates management against LIVE through the registry; v3 remains unsupported because MGMT v3 wire bytes are not specified.
 10. **Capture service and save workflow** — `ILiveSessionService` owns capture buffers, analysis and signal batches; `LiveDaqCoordinator.SaveCaptureAsync` owns recording persistence and post-save reset. See [Live Session Recording](live-session.md).

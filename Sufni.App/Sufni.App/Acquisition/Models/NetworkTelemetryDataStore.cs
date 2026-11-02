@@ -22,8 +22,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
     {
         var directoryResult = await daqManagementService.ListDirectoryAsync(
             ipEndPoint.Address.ToString(),
-            ipEndPoint.Port,
-            DaqDirectoryId.Root);
+            ipEndPoint.Port);
 
         var directory = directoryResult switch
         {

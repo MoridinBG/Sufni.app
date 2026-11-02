@@ -184,6 +184,16 @@ public sealed record FailurePresentation
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
 
+    public static FailurePresentation From(DaqManagementFailureReason reason, string? details = null) => new(reason switch
+    {
+        DaqManagementFailureReason.SetTime => "Device time could not be updated. Check the DAQ connection and retry.",
+        DaqManagementFailureReason.ReadConfig => "CONFIG could not be read. Check the DAQ connection and retry.",
+        DaqManagementFailureReason.WriteConfig => "CONFIG could not be uploaded. Check the DAQ connection and retry.",
+        DaqManagementFailureReason.SelectConfigFile => "The CONFIG file could not be opened. Select it again.",
+        DaqManagementFailureReason.InvalidConfigName => "Selected file must be named CONFIG.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
+
     public static FailurePresentation From(LiveSessionSaveFailureReason reason, string? details = null) => new(reason switch
     {
         LiveSessionSaveFailureReason.Publish => "The session was saved, but app state could not be refreshed. Reopen Sessions to find it.",

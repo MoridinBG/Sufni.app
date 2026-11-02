@@ -1,3 +1,4 @@
+using Sufni.App.Acquisition.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,10 +22,13 @@ using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.LiveDaq.Coordinators;
 
 // Owns live DAQ presence reconciliation and capture-save workflows.
-public partial class LiveDaqCoordinator : ILiveDaqCoordinator
+public partial class LiveDaqCoordinator : ILiveDaqCoordinator, IAsyncDisposable
 {
     private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
 
+    private readonly IDaqManagementService managementService;
+    private readonly IFilesService filesService;
+    private readonly ILiveDaqSharedStreamRegistry streamRegistry;
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
     private readonly ILiveDaqCatalogService liveDaqCatalogService;
@@ -62,7 +66,10 @@ public partial class LiveDaqCoordinator : ILiveDaqCoordinator
         ISessionPreferences sessionPreferences,
         IUiThreadDispatcher dispatcher,
         StorePublication publication,
-        ITrackStoreWriter trackStore)
+        ITrackStoreWriter trackStore,
+        IDaqManagementService managementService,
+        IFilesService filesService,
+        ILiveDaqSharedStreamRegistry streamRegistry)
     {
         this.liveDaqStore = liveDaqStore;
         this.knownBoardsQuery = knownBoardsQuery;
@@ -79,6 +86,9 @@ public partial class LiveDaqCoordinator : ILiveDaqCoordinator
         this.dispatcher = dispatcher;
         this.publication = publication;
         this.trackStore = trackStore;
+        this.managementService = managementService;
+        this.filesService = filesService;
+        this.streamRegistry = streamRegistry;
     }
 
     public void Activate()

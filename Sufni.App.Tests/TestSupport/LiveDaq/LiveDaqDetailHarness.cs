@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Services;
 using System.Reactive.Subjects;
 using Sufni.App.Tests.TestSupport.Async;
 using Microsoft.Extensions.Time.Testing;
@@ -33,25 +34,14 @@ internal sealed class LiveDaqDetailHarness
             .Returns(Task.FromResult(PromptResult.Ok));
         KnownBoardsQuery.Changes.Returns(KnownBoardsChanges);
         KnownBoardsQuery.GetSessionContext("board-1").Returns(CreateSessionContext("board-1"));
-        FilesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<SelectedDeviceConfigFile?>(null));
-        DaqManagementService.SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqSetTimeResult>(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(30))));
-        DaqManagementService.ReplaceConfigAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok()));
-        DaqManagementService.GetFileAsync(
-                Arg.Any<string>(),
-                Arg.Any<int>(),
-                Arg.Any<DaqFileClass>(),
-                Arg.Any<int>(),
-                Arg.Any<Stream>(),
-                Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-            {
-                var bytes = Encoding.UTF8.GetBytes("STA_SSID=trail\n");
-                callInfo.ArgAt<Stream>(4).Write(bytes);
-                return Task.FromResult<DaqGetFileResult>(new DaqGetFileResult.Downloaded("CONFIG", (ulong)bytes.Length));
-            });
+        LiveDaqCoordinator.ObserveManagementAvailability(Arg.Any<string>()).Returns(ManagementAvailability);
+        LiveDaqCoordinator.SelectConfigFileAsync(Arg.Any<CancellationToken>()).Returns(new LiveDaqManagementResult.Canceled());
+        LiveDaqCoordinator.SetTimeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveDaqManagementResult.TimeSet(TimeSpan.FromMilliseconds(30)));
+        LiveDaqCoordinator.WriteConfigAsync(Arg.Any<string>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveDaqManagementResult.ConfigWritten());
+        LiveDaqCoordinator.ReadConfigAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveDaqManagementResult.ConfigRead(DaqConfigDocument.Parse(Encoding.UTF8.GetBytes("STA_SSID=trail\n"))));
         SharedStream.Frames.Returns(Frames);
         SharedStream.States.Returns(StreamStates);
         SharedStream.CurrentState.Returns(_ => currentStreamState);
@@ -73,12 +63,11 @@ internal sealed class LiveDaqDetailHarness
 
     public ILiveDaqSharedStream SharedStream { get; } = Substitute.For<ILiveDaqSharedStream>();
     public ILiveDaqCoordinator LiveDaqCoordinator { get; } = TestCoordinatorSubstitutes.LiveDaq();
-    public IDaqManagementService DaqManagementService { get; } = Substitute.For<IDaqManagementService>();
-    public IFilesService FilesService { get; } = Substitute.For<IFilesService>();
     public IShellCoordinator Shell { get; } = Substitute.For<IShellCoordinator>();
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
     public ILiveDaqKnownBoardsQuery KnownBoardsQuery { get; } = Substitute.For<ILiveDaqKnownBoardsQuery>();
     public LiveDaqStore LiveDaqStore { get; } = new(new InlineUiThreadDispatcher());
+    public BehaviorSubject<LiveDaqManagementAvailability> ManagementAvailability { get; } = new(new(null, null));
     public Subject<LiveProtocolFrame> Frames { get; } = new();
     public BehaviorSubject<LiveDaqSharedStreamState> StreamStates { get; } = new(LiveDaqSharedStreamState.Empty);
     public BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> KnownBoardsChanges { get; } = new([]);
@@ -89,6 +78,9 @@ internal sealed class LiveDaqDetailHarness
         LiveProtocolVersion protocolVersion = LiveProtocolVersion.V2)
     {
         currentCatalogSnapshot = DefaultSnapshot() with { ProtocolVersion = protocolVersion };
+        ManagementAvailability.OnNext(new(new LiveDaqCatalogEntry(currentCatalogSnapshot.IdentityKey,
+            currentCatalogSnapshot.DisplayName, currentCatalogSnapshot.BoardId, currentCatalogSnapshot.Host!,
+            currentCatalogSnapshot.Port!.Value, currentCatalogSnapshot.ProtocolVersion), null));
         var result = startResult ?? new LivePreviewStartResult.Started(
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808));
         SharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
@@ -101,8 +93,7 @@ internal sealed class LiveDaqDetailHarness
         return new LiveDaqDetailViewModel(
             currentCatalogSnapshot,
             SharedStream,
-            DaqManagementService,
-            FilesService,
+            LiveDaqCoordinator,
             Shell,
             DialogService,
             KnownBoardsQuery,
@@ -115,6 +106,10 @@ internal sealed class LiveDaqDetailHarness
     public void PublishStreamState(LiveDaqSharedStreamState state)
     {
         currentStreamState = state;
+        ManagementAvailability.OnNext(state.IsClosed ? new(null, null) : ManagementAvailability.Value with
+        {
+            Holder = state.ConnectionState == LiveConnectionState.Disconnected ? null : new DaqTransportHolder.Streaming()
+        });
         StreamStates.OnNext(state);
     }
 

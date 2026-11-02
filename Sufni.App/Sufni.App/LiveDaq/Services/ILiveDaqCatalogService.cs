@@ -13,12 +13,14 @@ public sealed record LiveDaqCatalogEntry(
     LiveProtocolVersion ProtocolVersion = LiveProtocolVersion.V2)
 {
     public string Endpoint => $"{Host}:{Port}";
+    public bool SupportsManagement => ProtocolVersion == LiveProtocolVersion.V2;
 }
 
 // Publishes the current set of discovered live DAQ endpoints independently of the
 // import-oriented telemetry datastore surface.
 public interface ILiveDaqCatalogService
 {
+    LiveDaqCatalogEntry? Get(string identityKey);
     // Returns a browse lease for one consumer. Dispose it to release this
     // caller's browse interest.
     IDisposable AcquireBrowse();

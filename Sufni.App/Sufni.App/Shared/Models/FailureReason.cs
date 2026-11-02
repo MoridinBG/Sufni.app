@@ -69,3 +69,5 @@ public enum StravaConnectFailureReason { Connect }
 public enum StravaSegmentFetchFailureReason { Load }
 
 public enum SegmentWriteFailureReason { Create, Rename, Delete }
+
+public enum DaqManagementFailureReason { SetTime, ReadConfig, WriteConfig, SelectConfigFile, InvalidConfigName }

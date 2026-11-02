@@ -37,28 +37,30 @@ internal sealed class DaqManagementService : IDaqManagementService
     public async Task<DaqListDirectoryResult> ListDirectoryAsync(
         string host,
         int port,
-        DaqDirectoryId directoryId,
         CancellationToken cancellationToken = default)
     {
         ValidateEndpoint(host, port);
         using var client = CreateClient();
         await client.ConnectAsync(host, port, cancellationToken);
-        return await client.ListDirectoryAsync(directoryId, cancellationToken);
+        return await client.ListDirectoryAsync(DaqDirectoryId.Root, cancellationToken);
     }
 
-    public async Task<DaqGetFileResult> GetFileAsync(
+    public async Task<DaqConfigReadResult> ReadConfigAsync(
         string host,
         int port,
-        DaqFileClass fileClass,
-        int recordId,
-        Stream destination,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(destination);
         ValidateEndpoint(host, port);
         using var client = CreateClient();
         await client.ConnectAsync(host, port, cancellationToken);
-        return await client.GetFileAsync(fileClass, recordId, destination, cancellationToken);
+        using var destination = new MemoryStream();
+        var result = await client.GetFileAsync(DaqFileClass.Config, 0, destination, cancellationToken);
+        return result switch
+        {
+            DaqGetFileResult.Downloaded => new DaqConfigReadResult.Read(DaqConfigDocument.Parse(destination.ToArray())),
+            DaqGetFileResult.Error error => new DaqConfigReadResult.Error(error.ErrorCode, error.Message),
+            _ => throw new DaqManagementException("CONFIG download returned an unsupported result shape.")
+        };
     }
 
     public async Task<DaqManagementResult> MarkSstUploadedAsync(
@@ -147,7 +149,7 @@ internal sealed class DaqManagementService : IDaqManagementService
         return new DaqManagementSession(client);
     }
 
-    public async Task<DaqManagementResult> ReplaceConfigAsync(
+    public async Task<DaqManagementResult> WriteConfigAsync(
         string host,
         int port,
         byte[] configBytes,

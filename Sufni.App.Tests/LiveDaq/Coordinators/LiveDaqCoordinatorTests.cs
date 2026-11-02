@@ -33,6 +33,9 @@ public partial class LiveDaqCoordinatorTests
     private readonly ILiveDaqCatalogService catalogService = Substitute.For<ILiveDaqCatalogService>();
     private readonly BehaviorSubject<IReadOnlyList<KnownLiveDaqRecord>> knownBoardsChanges = new([]);
     private readonly BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>> catalogEntries = new([]);
+    private readonly IDaqManagementService managementService = Substitute.For<IDaqManagementService>();
+    private readonly IFilesService filesService = Substitute.For<IFilesService>();
+    private readonly ILiveDaqSharedStreamRegistry streamRegistry = Substitute.For<ILiveDaqSharedStreamRegistry>();
     private readonly IDisposable browseLease = Substitute.For<IDisposable>();
 
     public LiveDaqCoordinatorTests()
@@ -40,6 +43,8 @@ public partial class LiveDaqCoordinatorTests
         liveDaqStore.Connect().Subscribe(RecordObservedState);
         knownBoardsQuery.Changes.Returns(knownBoardsChanges);
         catalogService.Observe().Returns(catalogEntries);
+        catalogService.Get(Arg.Any<string>()).Returns(call => catalogEntries.Value.FirstOrDefault(entry => entry.IdentityKey == call.Arg<string>()));
+        streamRegistry.ObserveTransport(Arg.Any<string>()).Returns(Observable.Return<DaqTransportHolder?>(null));
         catalogService.AcquireBrowse().Returns(browseLease);
 
     }
@@ -51,7 +56,7 @@ public partial class LiveDaqCoordinatorTests
             knownBoardsQuery,
             catalogService, store ?? sessionStore, repository ?? sessionRepository,
             trackQueries, setupRepository, bikeRepository, sources ?? sourceStore, reprocessor,
-            backgroundTaskRunner, sessionPreferences, new InlineUiThreadDispatcher(), publication, tracks ?? trackStore);
+            backgroundTaskRunner, sessionPreferences, new InlineUiThreadDispatcher(), publication, tracks ?? trackStore, managementService, filesService, streamRegistry);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()

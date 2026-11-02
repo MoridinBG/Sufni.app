@@ -38,6 +38,9 @@ public sealed class LiveDaqCatalogService : ILiveDaqCatalogService, IDisposable
 
     public IObservable<IReadOnlyList<LiveDaqCatalogEntry>> Observe() => entriesSubject;
 
+    public LiveDaqCatalogEntry? Get(string identityKey) => entriesSubject.Value.FirstOrDefault(
+        entry => string.Equals(entry.IdentityKey, identityKey, StringComparison.OrdinalIgnoreCase));
+
     public void Dispose()
     {
         serviceDiscovery.ServiceAdded -= OnServiceAdded;

@@ -51,7 +51,6 @@ internal sealed class EditorFactory(
     IMapViewModelFactory mapViewModelFactory,
     ISessionPreferences sessionPreferences,
     ISessionProcessedTelemetryReader processedTelemetryReader,
-    IDaqManagementService daqManagementService,
     IFilesService filesService,
     ILiveDaqKnownBoardsQuery liveDaqKnownBoardsQuery,
     ILiveDaqStore liveDaqStore,
@@ -141,8 +140,7 @@ internal sealed class EditorFactory(
         new(
             snapshot,
             sharedStream,
-            daqManagementService,
-            filesService,
+            liveDaqCoordinator,
             shell,
             dialogService,
             liveDaqKnownBoardsQuery,

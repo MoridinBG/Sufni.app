@@ -1,4 +1,5 @@
 global using Sufni.App.Tests.TestSupport;
+using System.Reactive.Linq;
 using Sufni.App.Setups.Queries;
 
 using Sufni.App.Tests.TestSupport.Fixtures;
@@ -95,8 +96,8 @@ internal static class TestCoordinatorSubstitutes
     public static ILiveDaqCoordinator LiveDaq()
     {
         var coordinator = Substitute.For<ILiveDaqCoordinator>();
-
-
+        coordinator.ObserveManagementAvailability(Arg.Any<string>())
+            .Returns(Observable.Return(new LiveDaqManagementAvailability(null, null)));
         return coordinator;
     }
 

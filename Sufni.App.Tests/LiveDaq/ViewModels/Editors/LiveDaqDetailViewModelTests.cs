@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators;
 using System.Text;
 using NSubstitute;
 using Sufni.App.Acquisition.Services;
@@ -13,6 +14,45 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 
 public class LiveDaqDetailViewModelTests
 {
+    [Fact]
+    public async Task ManagementFailure_RendersSafeSummaryAndSeparateDiagnostics()
+    {
+        var harness = new LiveDaqDetailHarness();
+        harness.LiveDaqCoordinator.SetTimeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveDaqManagementResult.Failed(Sufni.App.Shared.Models.DaqManagementFailureReason.SetTime, "socket diagnostic"));
+        var editor = harness.CreateEditor();
+
+        await editor.SetTimeCommand.ExecuteAsync(null);
+
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal("socket diagnostic", failure.Details);
+        Assert.DoesNotContain("socket diagnostic", failure.Summary);
+        Assert.False(editor.IsManagementBusy);
+        await editor.PrepareCloseAsync();
+    }
+
+    [Fact]
+    public async Task PortOwnership_DisablesManagementAndConnect_WithoutChangingDiscovery()
+    {
+        var harness = new LiveDaqDetailHarness();
+        var editor = harness.CreateEditor();
+        Assert.True(editor.CanManage);
+        Assert.True(editor.CanConnect);
+
+        harness.ManagementAvailability.OnNext(harness.ManagementAvailability.Value with
+        {
+            Holder = new DaqTransportHolder.Import(Guid.NewGuid())
+        });
+
+        Assert.False(editor.CanManage);
+        Assert.False(editor.CanConnect);
+        Assert.NotNull(editor.ManagementDisabledTooltip);
+        harness.ManagementAvailability.OnNext(harness.ManagementAvailability.Value with { Holder = null });
+        Assert.True(editor.CanManage);
+        Assert.True(editor.CanConnect);
+        await editor.PrepareCloseAsync();
+    }
+
     [Fact]
     public async Task UnloadedCommand_RetainsObserverLease_UntilTabCloses()
     {
@@ -90,8 +130,8 @@ public class LiveDaqDetailViewModelTests
 
         await editor.SetTimeCommand.ExecuteAsync(null);
 
-        await harness.DaqManagementService.Received(1)
-            .SetTimeAsync("192.168.0.50", 1557, Arg.Any<CancellationToken>());
+        await harness.LiveDaqCoordinator.Received(1)
+            .SetTimeAsync("board-1", Arg.Any<CancellationToken>());
         Assert.Single(editor.Notifications);
         Assert.Empty(editor.ErrorMessages);
         Assert.False(editor.IsManagementBusy);
@@ -106,10 +146,9 @@ public class LiveDaqDetailViewModelTests
 
         await editor.UploadConfigCommand.ExecuteAsync(null);
 
-        await harness.DaqManagementService.Received(1).ReplaceConfigAsync(
-            "192.168.0.50",
-            1557,
-            Arg.Is<byte[]>(bytes => bytes.SequenceEqual(new byte[] { 1, 2, 3 })),
+        await harness.LiveDaqCoordinator.Received(1).WriteConfigAsync(
+            "board-1",
+            Arg.Is<ReadOnlyMemory<byte>>(bytes => bytes.ToArray().SequenceEqual(new byte[] { 1, 2, 3 })),
             Arg.Any<CancellationToken>());
         Assert.False(editor.HasPendingConfig);
         Assert.Null(editor.PendingConfigFileName);
@@ -129,13 +168,7 @@ public class LiveDaqDetailViewModelTests
 
         await editor.EditConfigCommand.ExecuteAsync(null);
 
-        await harness.DaqManagementService.Received(1).GetFileAsync(
-            "192.168.0.50",
-            1557,
-            DaqFileClass.Config,
-            0,
-            Arg.Any<Stream>(),
-            Arg.Any<CancellationToken>());
+        await harness.LiveDaqCoordinator.Received(1).ReadConfigAsync("board-1", Arg.Any<CancellationToken>());
         await harness.DialogService.Received(1).ShowContentDialogAsync(
             Arg.Is<object>(content => content is LiveDaqConfigEditorViewModel),
             Arg.Any<DialogOptions>());
@@ -144,10 +177,9 @@ public class LiveDaqDetailViewModelTests
 
         await configEditor.SaveCommand.ExecuteAsync(null);
 
-        await harness.DaqManagementService.Received(1).ReplaceConfigAsync(
-            "192.168.0.50",
-            1557,
-            Arg.Is<byte[]>(bytes => Encoding.UTF8.GetString(bytes).Contains("STA_SSID=edited", StringComparison.Ordinal)),
+        await harness.LiveDaqCoordinator.Received(1).WriteConfigAsync(
+            "board-1",
+            Arg.Is<ReadOnlyMemory<byte>>(bytes => Encoding.UTF8.GetString(bytes.ToArray()).Contains("STA_SSID=edited", StringComparison.Ordinal)),
             Arg.Any<CancellationToken>());
         Assert.Single(editor.Notifications);
         Assert.False(editor.IsManagementBusy);
@@ -205,7 +237,7 @@ public class LiveDaqDetailViewModelTests
     }
 
     [Fact]
-    public async Task ManagementCommands_DoNotRun_AfterStoreRemovesRow()
+    public async Task ManagementCommands_DoNotRun_WhenCatalogAvailabilityBecomesOffline()
     {
         var harness = new LiveDaqDetailHarness();
         var editor = harness.CreateEditor();
@@ -219,14 +251,15 @@ public class LiveDaqDetailViewModelTests
 
         harness.PublishStreamState(LiveDaqSharedStreamState.Empty with { IsClosed = true });
         harness.LiveDaqStore.ReplaceAll([]);
+        harness.ManagementAvailability.OnNext(new(null, null));
         await Task.Yield();
 
         Assert.False(editor.CanManage);
 
         await editor.SetTimeCommand.ExecuteAsync(null);
 
-        await harness.DaqManagementService.DidNotReceive()
-            .SetTimeAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>());
+        await harness.LiveDaqCoordinator.DidNotReceive()
+            .SetTimeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
         Assert.Empty(editor.Notifications);
         Assert.Empty(editor.ErrorMessages);
     }
@@ -236,8 +269,8 @@ public class LiveDaqDetailViewModelTests
         LiveDaqDetailViewModel editor,
         SelectedDeviceConfigFile file)
     {
-        harness.FilesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<SelectedDeviceConfigFile?>(file));
+        harness.LiveDaqCoordinator.SelectConfigFileAsync(Arg.Any<CancellationToken>())
+            .Returns(new LiveDaqManagementResult.ConfigSelected(file));
 
         await editor.SelectConfigFileCommand.ExecuteAsync(null);
     }

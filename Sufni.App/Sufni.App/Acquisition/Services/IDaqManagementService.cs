@@ -10,15 +10,11 @@ public interface IDaqManagementService
     Task<DaqListDirectoryResult> ListDirectoryAsync(
         string host,
         int port,
-        DaqDirectoryId directoryId,
         CancellationToken cancellationToken = default);
 
-    Task<DaqGetFileResult> GetFileAsync(
+    Task<DaqConfigReadResult> ReadConfigAsync(
         string host,
         int port,
-        DaqFileClass fileClass,
-        int recordId,
-        Stream destination,
         CancellationToken cancellationToken = default);
 
     Task<DaqManagementResult> MarkSstUploadedAsync(
@@ -38,7 +34,7 @@ public interface IDaqManagementService
         int port,
         CancellationToken cancellationToken = default);
 
-    Task<DaqManagementResult> ReplaceConfigAsync(
+    Task<DaqManagementResult> WriteConfigAsync(
         string host,
         int port,
         byte[] configBytes,

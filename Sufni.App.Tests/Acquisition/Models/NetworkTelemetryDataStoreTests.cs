@@ -38,7 +38,7 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = CreateBoardIdInspector();
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, DaqDirectoryId.Root, Arg.Any<CancellationToken>())
+            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Listed(
                     new DaqRootDirectoryRecord(
@@ -91,7 +91,7 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = CreateBoardIdInspector();
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, DaqDirectoryId.Root, Arg.Any<CancellationToken>())
+            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Error(DaqManagementErrorCode.Busy, "Device busy")));
 
@@ -108,7 +108,7 @@ public class NetworkTelemetryDataStoreTests
         var boardIdInspector = CreateBoardIdInspector();
         var daqManagementService = Substitute.For<IDaqManagementService>();
         daqManagementService
-            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, DaqDirectoryId.Root, Arg.Any<CancellationToken>())
+            .ListDirectoryAsync(IPAddress.Loopback.ToString(), 5555, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<DaqListDirectoryResult>(
                 new DaqListDirectoryResult.Listed(
                     new DaqRootDirectoryRecord(

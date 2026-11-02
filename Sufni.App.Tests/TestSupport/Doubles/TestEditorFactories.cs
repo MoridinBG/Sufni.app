@@ -70,7 +70,6 @@ internal static class TestEditorFactories
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultLayerState()),
             Substitute.For<ISessionPreferences>(),
             new TestSessionProcessedTelemetryReader(),
-            Substitute.For<IDaqManagementService>(),
             Substitute.For<IFilesService>(),
             knownBoards ?? Substitute.For<ILiveDaqKnownBoardsQuery>(),
             liveDaqStore ?? Substitute.For<ILiveDaqStore>(),

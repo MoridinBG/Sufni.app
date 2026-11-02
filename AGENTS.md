@@ -367,7 +367,7 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   initialization and the first store refresh; `AppShutdown` owns close prompts,
   work drainage, pending deletes, server stop and provider disposal.
   `SessionCoordinator` owns metadata save, processing-option changes, GPS alignment
-  and deletion. `LiveDaqCoordinator` owns live-capture save and reset. Recorded editors use `ISessionLoader` for staged reads;
+  and deletion. `LiveDaqCoordinator` owns live-capture save/reset and reserved DAQ management workflows. Recorded editors use `ISessionLoader` for staged reads;
   lists and staleness prompts call `ISessionRecomputeEngine` directly. The engine
   owns recompute liveness and commit guards; `SessionSyncApplier` owns incoming
   generation writes and inbound publication — see [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
