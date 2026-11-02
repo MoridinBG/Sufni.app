@@ -25,7 +25,7 @@ public partial class LiveDaqSharedStreamTests
         using var observation = registry.ObserveTransport(snapshot.IdentityKey).Subscribe(value => holder = value);
         IDisposable? heldLease = null;
         if (holderKind == AcquisitionKind.Streaming)
-            Assert.IsType<LivePreviewStartResult.Started>(await stream.EnsureStartedAsync(TestContext.Current.CancellationToken));
+            Assert.IsType<LivePreviewStartResult.Started>(await stream.ConnectLiveAsync(TestContext.Current.CancellationToken));
         else
             heldLease = Assert.IsType<DaqTransportAcquisition.Acquired>(await AcquireOtherAsync(registry, snapshot.IdentityKey, holderKind)).Lease;
         using var held = heldLease;
@@ -33,7 +33,7 @@ public partial class LiveDaqSharedStreamTests
 
         if (requester == AcquisitionKind.Streaming)
         {
-            var result = await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
+            var result = await stream.ConnectLiveAsync(TestContext.Current.CancellationToken);
             if (holderKind == AcquisitionKind.Streaming)
             {
                 Assert.Null(result);
@@ -68,7 +68,7 @@ public partial class LiveDaqSharedStreamTests
         await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
         using (Assert.IsType<DaqTransportAcquisition.Acquired>(
                    await registry.AcquireManagementAsync(snapshot.IdentityKey, DaqManagementOperation.SetTime)).Lease) { }
-        await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
+        await stream.ConnectLiveAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.PendingDisconnectCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -91,7 +91,7 @@ public partial class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var stream = registry.GetOrCreate(snapshot);
         await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
-        await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
+        await stream.ConnectLiveAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.PendingDisconnectCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -117,7 +117,7 @@ public partial class LiveDaqSharedStreamTests
         var first = registry.GetOrCreate(firstSnapshot);
         var second = registry.GetOrCreate(secondSnapshot);
         await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(first.AcquireLease()).Lease;
-        await first.EnsureStartedAsync(TestContext.Current.CancellationToken);
+        await first.ConnectLiveAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.BlockDisposeAsync = true;
         var secondClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -147,7 +147,7 @@ public partial class LiveDaqSharedStreamTests
         var stream = registry.GetOrCreate(snapshot);
         await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireLease()).Lease;
         var capture = Assert.IsType<LiveStreamLeaseResult.Acquired>(stream.AcquireConfigurationLock()).Lease;
-        await stream.EnsureStartedAsync(TestContext.Current.CancellationToken);
+        await stream.ConnectLiveAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(LiveDisconnectResult.Locked, await stream.StopAsync(TestContext.Current.CancellationToken));
         Assert.Empty(Assert.Single(clientFactory.CreatedClients).StopLifecycleCalls);
@@ -167,7 +167,7 @@ public partial class LiveDaqSharedStreamTests
         catalogEntries.OnNext([CreateCatalogEntry(snapshot)]);
         var old = registry.GetOrCreate(snapshot);
         var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(old.AcquireLease()).Lease;
-        await old.EnsureStartedAsync(TestContext.Current.CancellationToken);
+        await old.ConnectLiveAsync(TestContext.Current.CancellationToken);
         var client = Assert.Single(clientFactory.CreatedClients);
         client.BlockDisposeAsync = true;
 
@@ -175,12 +175,12 @@ public partial class LiveDaqSharedStreamTests
         await client.DisposeStarted.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         var replacement = registry.GetOrCreate(snapshot);
         await using var nextObserver = Assert.IsType<LiveStreamLeaseResult.Acquired>(replacement.AcquireLease()).Lease;
-        Assert.IsType<LivePreviewStartResult.Busy>(await replacement.EnsureStartedAsync(TestContext.Current.CancellationToken));
+        Assert.IsType<LivePreviewStartResult.Busy>(await replacement.ConnectLiveAsync(TestContext.Current.CancellationToken));
         Assert.Single(clientFactory.CreatedClients);
         client.ReleaseDispose();
         await closing.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
-        Assert.IsType<LivePreviewStartResult.Started>(await replacement.EnsureStartedAsync(TestContext.Current.CancellationToken));
+        Assert.IsType<LivePreviewStartResult.Started>(await replacement.ConnectLiveAsync(TestContext.Current.CancellationToken));
     }
 
     private static Task<DaqTransportAcquisition> AcquireOtherAsync(

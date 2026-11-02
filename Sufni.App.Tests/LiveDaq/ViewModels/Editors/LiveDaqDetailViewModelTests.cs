@@ -168,7 +168,7 @@ public class LiveDaqDetailViewModelTests
                 && configuration.ImuHz == 200
                 && configuration.GpsFixHz == 0),
             Arg.Any<CancellationToken>());
-        await harness.SharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await harness.SharedStream.Received(1).ConnectLiveAsync(Arg.Any<CancellationToken>());
         Assert.Equal(new LiveConnectionState.Connected(), editor.Snapshot.ConnectionState);
         Assert.Equal((uint)808, editor.Snapshot.Session.SessionId);
         Assert.Equal("Board 1", editor.Name);

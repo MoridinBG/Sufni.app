@@ -61,7 +61,7 @@ internal sealed class LiveDaqSharedStreamRegistry : ILiveDaqSharedStreamRegistry
             }
 
             EnsureBrowseLeaseLocked();
-            var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, EvictAsync,
+            var stream = new LiveDaqSharedStream(snapshot, liveDaqClientFactory, liveDaqCatalogService, EvictAsync,
                 () => AcquireTransport(snapshot.IdentityKey, new DaqTransportHolder.Streaming()));
             streams.TryAdd(snapshot.IdentityKey, stream);
             return stream;

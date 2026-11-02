@@ -88,7 +88,7 @@ Diagnostics tab is created after shell deduplication
   -> LiveDaqSharedStream.AcquireLease() (retained until tab close)
 
 User connects
-    -> LiveDaqSharedStream.EnsureStartedAsync
+    -> LiveDaqSharedStream.ConnectLiveAsync
       -> ILiveDaqClientFactory.Create(snapshot.ProtocolVersion)
       -> LiveDaqV2Client or LiveDaqV3Client ConnectAsync (TCP)
         -> StartPreviewAsync (protocol-specific start handshake)
@@ -114,6 +114,10 @@ Management action on a v2 endpoint while disconnected
       -> IDaqManagementService (domain operations), IDialogService (CONFIG editor)
       -> ViewModelBase.Notifications / ErrorMessages
 ```
+
+Each LIVE connection resolves its endpoint from the current catalog by identity.
+The tab snapshot supplies presentation only; a stale online snapshot cannot
+connect after its catalog entry disappears.
 
 The capture, analysis, save, and live-session view-model side of this flow continues in [Live Session Recording](live-session.md#data-flow).
 

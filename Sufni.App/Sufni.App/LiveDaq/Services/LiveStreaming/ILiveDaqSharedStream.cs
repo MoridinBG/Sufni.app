@@ -35,7 +35,7 @@ public interface ILiveDaqSharedStream : IAsyncDisposable
     LiveStreamLeaseResult AcquireLease();
     LiveStreamLeaseResult AcquireConfigurationLock();
 
-    Task<LivePreviewStartResult?> EnsureStartedAsync(CancellationToken cancellationToken = default);
+    Task<LivePreviewStartResult?> ConnectLiveAsync(CancellationToken cancellationToken = default);
     Task<LiveDisconnectResult> StopAsync(CancellationToken cancellationToken = default);
     Task<LivePreviewStartResult?> ApplyConfigurationAsync(LiveDaqStreamConfiguration configuration, CancellationToken cancellationToken = default);
 }

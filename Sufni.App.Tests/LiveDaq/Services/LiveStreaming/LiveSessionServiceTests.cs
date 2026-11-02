@@ -41,7 +41,7 @@ public class LiveSessionServiceTests
         sharedStream.AcquireConfigurationLock().Returns(new LiveStreamLeaseResult.Acquired(configurationLockLease));
         observerLease.DisposeAsync().Returns(ValueTask.CompletedTask);
         configurationLockLease.DisposeAsync().Returns(ValueTask.CompletedTask);
-        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        sharedStream.ConnectLiveAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
             currentState = new LiveDaqSharedStreamState(
                 ConnectionState: new LiveConnectionState.Connected(),
@@ -69,7 +69,7 @@ public class LiveSessionServiceTests
 
         sharedStream.Received(1).AcquireLease();
         sharedStream.Received(1).AcquireConfigurationLock();
-        await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).ConnectLiveAsync(Arg.Any<CancellationToken>());
 
         Assert.Equal(new LiveConnectionState.Connected(), service.Current.Controls.ConnectionState);
         Assert.Equal(sessionHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
@@ -106,7 +106,7 @@ public class LiveSessionServiceTests
 
         Assert.Equal(closure, Assert.IsType<LivePreviewStartResult.Closed>(result).State);
         Assert.Equal(closure, service.Current.Controls.ConnectionState);
-        await sharedStream.DidNotReceive().EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await sharedStream.DidNotReceive().ConnectLiveAsync(Arg.Any<CancellationToken>());
         await observerLease.Received(closedDuringLockAcquisition ? 1 : 0).DisposeAsync();
         await configurationLockLease.DidNotReceive().DisposeAsync();
     }
@@ -115,7 +115,7 @@ public class LiveSessionServiceTests
     public async Task EnsureAttachedAsync_WhenPortBusy_ReturnsHolderAndCanRetry()
     {
         var busy = new LivePreviewStartResult.Busy(new DaqTransportHolder.Management(DaqManagementOperation.ReadConfig));
-        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
+        sharedStream.ConnectLiveAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<LivePreviewStartResult?>(busy),
                 Task.FromResult<LivePreviewStartResult?>(new LivePreviewStartResult.Started(sessionHeader)));
         await using var service = CreateService();
@@ -130,7 +130,7 @@ public class LiveSessionServiceTests
     [Fact]
     public async Task EnsureAttachedAsync_DisposesFreshLeases_WhenStartThrows()
     {
-        sharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
+        sharedStream.ConnectLiveAsync(Arg.Any<CancellationToken>())
             .Returns<Task<LivePreviewStartResult?>>(_ => throw new InvalidOperationException("boom"));
         await using var service = CreateService();
 
@@ -606,7 +606,7 @@ public class LiveSessionServiceTests
 
         Assert.IsType<LivePreviewStartResult.Closed>(result);
         Assert.False(service.Current.Controls.CanSave);
-        await sharedStream.Received(1).EnsureStartedAsync(Arg.Any<CancellationToken>());
+        await sharedStream.Received(1).ConnectLiveAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

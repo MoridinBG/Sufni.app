@@ -18,6 +18,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     private static readonly ILogger logger = Log.ForContext<LiveDaqSharedStream>();
 
     private readonly ILiveDaqClientFactory liveDaqClientFactory;
+    private readonly ILiveDaqCatalogService catalog;
     private readonly Func<LiveDaqSharedStream, Task> evictAsync;
     private readonly Func<DaqTransportAcquisition> acquireTransport;
     private IDisposable? transportLease;
@@ -49,11 +50,13 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
     public LiveDaqSharedStream(
         LiveDaqSnapshot snapshot,
         ILiveDaqClientFactory liveDaqClientFactory,
+        ILiveDaqCatalogService catalog,
         Func<LiveDaqSharedStream, Task> evictAsync,
         Func<DaqTransportAcquisition> acquireTransport)
     {
         this.snapshot = snapshot;
         this.liveDaqClientFactory = liveDaqClientFactory;
+        this.catalog = catalog;
         this.evictAsync = evictAsync;
         this.acquireTransport = acquireTransport;
         currentState = LiveDaqSharedStreamState.Empty with
@@ -86,7 +89,7 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
         return AcquireLease(releaseConfigurationLock: true);
     }
 
-    public async Task<LivePreviewStartResult?> EnsureStartedAsync(CancellationToken cancellationToken = default)
+    public async Task<LivePreviewStartResult?> ConnectLiveAsync(CancellationToken cancellationToken = default)
     {
         Task<LivePreviewStartResult?> waitTask;
         LifecycleOperation? operationToStart = null;
@@ -1129,9 +1132,10 @@ internal sealed class LiveDaqSharedStream : ILiveDaqSharedStream
 
     private bool TryGetEndpoint(out string host, out int port)
     {
-        host = snapshot.Host ?? string.Empty;
-        port = snapshot.Port ?? 0;
-        return snapshot.IsOnline && !string.IsNullOrWhiteSpace(host) && snapshot.Port is not null;
+        var endpoint = catalog.Get(IdentityKey);
+        host = endpoint?.Host ?? string.Empty;
+        port = endpoint?.Port ?? 0;
+        return endpoint is not null;
     }
 
     private async Task EvictAsync()

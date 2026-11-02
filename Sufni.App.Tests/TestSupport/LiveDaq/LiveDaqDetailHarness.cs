@@ -83,7 +83,7 @@ internal sealed class LiveDaqDetailHarness
             currentCatalogSnapshot.Port!.Value, currentCatalogSnapshot.ProtocolVersion), null));
         var result = startResult ?? new LivePreviewStartResult.Started(
             LiveProtocolTestFrames.CreateSessionHeaderModel(sessionId: 808));
-        SharedStream.EnsureStartedAsync(Arg.Any<CancellationToken>())
+        SharedStream.ConnectLiveAsync(Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
                 PublishStartResult(result);

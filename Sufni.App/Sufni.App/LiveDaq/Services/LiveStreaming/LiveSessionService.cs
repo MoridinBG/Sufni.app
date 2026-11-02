@@ -226,7 +226,7 @@ internal sealed class LiveSessionService : ILiveSessionService
                     ? new LivePreviewStartResult.Closed(closed) : null;
             }
 
-            var result = await sharedStream.EnsureStartedAsync(cancellationToken);
+            var result = await sharedStream.ConnectLiveAsync(cancellationToken);
             HandleSharedStreamState(sharedStream.CurrentState);
             return result;
         }

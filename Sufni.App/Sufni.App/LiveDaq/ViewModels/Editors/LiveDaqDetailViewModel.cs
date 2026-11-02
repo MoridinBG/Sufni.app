@@ -391,7 +391,7 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 return;
             }
 
-            var result = await sharedStream.EnsureStartedAsync(cancellationToken);
+            var result = await sharedStream.ConnectLiveAsync(cancellationToken);
             if (cancellationToken.IsCancellationRequested)
             {
                 return;
