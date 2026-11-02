@@ -142,6 +142,12 @@ already included in an earlier snapshot.
 
 The travel handler is also where `CanSave` flips from `false` to `true` (>= 5 samples on either travel channel) and where the first saveable-capture snapshot is published so the tab's save command becomes enabled.
 
+Capture duration uses device-monotonic time: final status supplies the stop time
+when present, otherwise the latest valid travel end is used. Before travel data,
+GPS batches advance duration from their device timestamps; GPS wall-clock fix
+times never drive it. Closing the stream stops frame acceptance and freezes the
+duration. Reset clears its origin and latest GPS timestamp.
+
 A change in `LiveDaqSharedStreamState.SessionHeader` to a different `SessionId` while the capture stores already hold any data moves the capture to `AwaitingReset` with a "DAQ started a new live session." error. The old header and captured data remain available for save until the user resets, and no more frames are accepted while terminal. After a recoverable reset, identity-bearing travel, IMU, temperature, GPS, battery, marker, statistics, and session-result frames are accepted only for the newly adopted session ID, so late frames from the previous firmware session cannot enter the next capture.
 
 ### Statistics Loop

@@ -121,6 +121,7 @@ internal sealed class LiveSessionService : ILiveSessionService
     private LiveConnectionState connectionState = new LiveConnectionState.Disconnected();
     private string? lastError;
     private ulong? captureStartMonotonicUs;
+    private ulong? latestGpsMonotonicUs;
     private DateTimeOffset? captureStartUtc;
     private long captureRevision;
     private long snapshotRevision;
@@ -294,6 +295,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             sessionTrackPoints = [];
             previousAcceptedGpsCoordinate = null;
             captureStartMonotonicUs = null;
+            latestGpsMonotonicUs = null;
             captureStartUtc = null;
             captureRevision++;
             displayEpoch++;
@@ -782,6 +784,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         }
 
         InitializeCaptureOriginLocked(frame.Batch.FirstMonotonicUs);
+        latestGpsMonotonicUs = Math.Max(latestGpsMonotonicUs ?? 0, frame.Batch.FirstMonotonicUs);
 
         var appendedTrackPoints = new List<TrackPoint>(frame.Records.Count);
         var fallbackToFullProjection = false;
@@ -1371,7 +1374,7 @@ internal sealed class LiveSessionService : ILiveSessionService
 
     private TimeSpan CalculateCaptureDurationLocked()
     {
-        if (captureStartUtc is null)
+        if (captureStartMonotonicUs is null)
         {
             return TimeSpan.Zero;
         }
@@ -1399,11 +1402,11 @@ internal sealed class LiveSessionService : ILiveSessionService
             return TimeSpan.FromMilliseconds(durationUs / 1000.0);
         }
 
-        if (sessionTrackPoints.Length > 0)
+        if (latestGpsMonotonicUs is { } gpsEndUs)
         {
-            var duration = TimeSpan.FromSeconds(
-                sessionTrackPoints[^1].Time - captureStartUtc.Value.ToUnixTimeSeconds());
-            return duration < TimeSpan.Zero ? TimeSpan.Zero : duration;
+            var durationUs = gpsEndUs >= captureStartMonotonicUs.Value
+                ? gpsEndUs - captureStartMonotonicUs.Value : 0;
+            return TimeSpan.FromMilliseconds(durationUs / 1000.0);
         }
 
         return TimeSpan.Zero;

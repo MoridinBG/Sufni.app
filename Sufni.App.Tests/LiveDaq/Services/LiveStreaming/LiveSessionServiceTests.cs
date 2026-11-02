@@ -826,6 +826,26 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
+    public async Task GpsOnlyDuration_UsesDeviceTimeAndStopsAfterStreamClosure()
+    {
+        await using var service = CreateService();
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        frames.OnNext(CreateGpsBatchFrame());
+        var later = CreateGpsBatchFrame(timestamp: sessionHeader.SessionStartUtc.UtcDateTime.AddDays(1));
+        later = later with { Batch = later.Batch with { FirstMonotonicUs = sessionHeader.SessionStartMonotonicUs + 2_000_000 } };
+        frames.OnNext(later);
+        Assert.Equal(TimeSpan.FromSeconds(2), service.Current.Controls.CaptureDuration);
+
+        PublishSharedState(sessionHeader, isClosed: true);
+        time.Advance(TimeSpan.FromMinutes(1));
+        frames.OnNext(later with { Batch = later.Batch with { FirstMonotonicUs = sessionHeader.SessionStartMonotonicUs + 60_000_000 } });
+        Assert.Equal(TimeSpan.FromSeconds(2), service.Current.Controls.CaptureDuration);
+
+        await service.ResetCaptureAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(TimeSpan.Zero, service.Current.Controls.CaptureDuration);
+    }
+
+    [Fact]
     public async Task TravelFrames_PublishDurationThroughLatestValidTravelEnd()
     {
         await using var service = CreateService();
