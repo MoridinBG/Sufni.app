@@ -309,6 +309,40 @@ public class SegmentPickerViewModelTests
         Assert.Empty(picker.StravaSegments);
     }
 
+    [Fact]
+    public async Task ClosingConnectDialog_CancelsConnectionBeforeFetchingSegments()
+    {
+        segmentCoordinator.GetStravaConnectionAsync()
+            .Returns(new StravaConnectionSnapshot("client", "secret", false));
+        var connection = new TaskCompletionSource<StravaConnectResult>();
+        CancellationToken connectionToken = default;
+        Task? connecting = null;
+        segmentCoordinator.ConnectStravaAsync(Arg.Any<StravaConnectRequest>(), Arg.Any<CancellationToken>())
+            .Returns(call => { connectionToken = call.Arg<CancellationToken>(); return connection.Task; });
+        dialogService.ShowContentDialogAsync(Arg.Any<StravaConnectDialogViewModel>(), Arg.Any<DialogOptions>())
+            .Returns(call =>
+            {
+                var dialog = call.ArgAt<StravaConnectDialogViewModel>(0);
+                dialog.RedirectUrl = "http://localhost/exchange_token?code=abc";
+                dialog.MarkAuthorizationUrlOpened();
+                connecting = dialog.ConnectCommand.ExecuteAsync(null);
+                return PromptResult.Cancel;
+            });
+        segmentCoordinator.FindStravaSegmentsAsync(Arg.Any<long?>(), Arg.Any<double?>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                Assert.True(connectionToken.IsCancellationRequested);
+                return new StravaSegmentFetchResult.NotConnected();
+            });
+        using var picker = CreateLoadedPicker();
+
+        await picker.ConnectWithStravaCommand.ExecuteAsync(null);
+        connection.SetCanceled(connectionToken);
+        await connecting!.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(picker.IsStravaSegmentsLoading);
+    }
+
     private SegmentPickerViewModel CreateLoadedPicker(double durationSeconds = 10, TelemetryTimeRange? analysisRange = null)
     {
         var picker = new SegmentPickerViewModel(

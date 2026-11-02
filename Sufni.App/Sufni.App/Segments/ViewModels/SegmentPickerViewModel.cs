@@ -202,16 +202,18 @@ public sealed partial class SegmentPickerViewModel : ObservableObject, IDisposab
     [RelayCommand]
     private async Task ConnectWithStrava()
     {
-        using var dialog = new StravaConnectDialogViewModel(segmentCoordinator, await segmentCoordinator.GetStravaConnectionAsync());
-        await dialogService.ShowContentDialogAsync(
-            dialog,
-            new DialogOptions(
-                Title: "Connect with Strava",
-                Width: 520,
-                Height: 520,
-                MinWidth: 420,
-                MinHeight: 360,
-                CanResize: false));
+        using (var dialog = new StravaConnectDialogViewModel(segmentCoordinator, await segmentCoordinator.GetStravaConnectionAsync()))
+        {
+            await dialogService.ShowContentDialogAsync(
+                dialog,
+                new DialogOptions(
+                    Title: "Connect with Strava",
+                    Width: 520,
+                    Height: 520,
+                    MinWidth: 420,
+                    MinHeight: 360,
+                    CanResize: false));
+        }
         await LoadStravaSegmentsAsync();
     }
 
