@@ -32,27 +32,21 @@ using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 namespace Sufni.App.Setups.ViewModels.Editors;
 
 /// <summary>
-/// Editor view model for a setup. Created by <c>ISetupCoordinator</c>
-/// from a <see cref="SetupSnapshot"/>; the snapshot's <c>Updated</c>
-/// value is kept as <see cref="BaselineUpdated"/> for optimistic
-/// conflict detection at save time. The bike combobox is populated
-/// from <see cref="IBikeStore"/>.
+/// Setup editor with one immutable draft base. Sensor sub-editors expose draft
+/// inputs; the coordinator owns validation, serialization and persistence.
 /// </summary>
 public partial class SetupEditorViewModel : TabPageViewModelBase
 {
     public Guid Id { get; private set; }
-    public long BaselineUpdated { get; private set; }
     public bool IsInDatabase { get; private set; }
 
     #region Private fields
 
     private readonly ISetupCoordinator setupCoordinator;
-    private readonly IBikeCoordinator bikeCoordinator;
     private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
     private readonly CancellableOperation importOperation = new();
-    private Setup setup;
-    private Guid? originalBoardId;
+    private SetupDraft draftBase;
 
     #endregion Private fields
 
@@ -147,7 +141,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         SetupSnapshot snapshot,
         bool isNew,
         IBikeStore bikeStore,
-        IBikeCoordinator bikeCoordinator,
         ISetupCoordinator setupCoordinator,
         IShellCoordinator shell,
         IDialogService dialogService,
@@ -157,34 +150,20 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.setupCoordinator = setupCoordinator;
-        this.bikeCoordinator = bikeCoordinator;
         this.bikeStore = bikeStore;
         Bikes = new ReadOnlyObservableCollection<BikeSnapshot>(bikesSource);
 
         IsInDatabase = !isNew;
         Id = snapshot.Id;
-        BaselineUpdated = snapshot.Updated;
-        setup = SetupFromSnapshot(snapshot);
-        originalBoardId = boardId;
+        draftBase = SetupDraft.From(snapshot, boardId);
 
-        // Populate name / sensor / board fields immediately so the
-        // editor renders correctly even before Loaded fires. SelectedBike
-        // is resolved a second time from Loaded, after the bike-store
-        // bind subscription publishes its initial snapshot.
         ResetImplementation();
+        EvaluateDirtiness();
     }
 
     #endregion
 
     #region Private methods
-
-    private static Setup SetupFromSnapshot(SetupSnapshot snapshot) => new(snapshot.Id, snapshot.Name)
-    {
-        BikeId = snapshot.BikeId,
-        FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
-        RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
-        Updated = snapshot.Updated
-    };
 
     private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
     {
@@ -240,74 +219,38 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     private void OnSensorConfigurationPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(SensorConfigurationViewModel.IsDirty))
-        {
-            EvaluateDirtiness();
-        }
-
-        SaveCommand.NotifyCanExecuteChanged();
+        EvaluateDirtiness();
+        NotifyEditorCommandStateChanged();
     }
 
     #endregion Private methods
 
     #region TabPageViewModelBase overrides
 
-    protected override void EvaluateDirtiness()
-    {
-        ForkSensorConfiguration?.EvaluateDirtiness();
-        ShockSensorConfiguration?.EvaluateDirtiness();
+    private SetupDraft CaptureDraft() => new(Id, Name, SelectedBike?.Id ?? Guid.Empty, BoardId,
+        ForkSensorConfiguration?.CaptureDraft(), ShockSensorConfiguration?.CaptureDraft());
 
-        IsDirty =
-            !IsInDatabase ||
-            Name != setup.Name ||
-            BoardId != originalBoardId ||
-            (SelectedBike is null && setup.BikeId != Guid.Empty) ||
-            (SelectedBike is not null && SelectedBike.Id != setup.BikeId) ||
-            (ForkSensorConfiguration is null && setup.FrontSensorConfigurationJson is not null) ||
-            (ShockSensorConfiguration is null && setup.RearSensorConfigurationJson is not null) ||
-            (ForkSensorConfiguration is not null && ForkSensorConfiguration.IsDirty) ||
-            (ShockSensorConfiguration is not null && ShockSensorConfiguration.IsDirty);
-    }
+    protected override void EvaluateDirtiness() => IsDirty = !IsInDatabase || CaptureDraft() != draftBase;
 
     protected override bool CanSave()
     {
         EvaluateDirtiness();
-        return IsDirty &&
-               !string.IsNullOrEmpty(Name) &&
-               BoardId.HasValue &&
-               SelectedBike is not null &&
-               (ForkSensorConfiguration is not null || ShockSensorConfiguration is not null) &&
-               (ForkSensorConfiguration is null || ForkSensorConfiguration.CanSave()) &&
-               (ShockSensorConfiguration is null || ShockSensorConfiguration.CanSave());
+        return IsDirty && SetupSaveRules.Validate(CaptureDraft(), SelectedBike) is null;
     }
 
     protected override async Task SaveImplementation()
     {
-        var newSetup = new Setup(Id, Name ?? $"setup #{Id}")
-        {
-            BikeId = SelectedBike?.Id ?? Guid.Empty,
-            FrontSensorConfigurationJson = ForkSensorConfiguration?.ToJson(),
-            RearSensorConfigurationJson = ShockSensorConfiguration?.ToJson()
-        };
-
-        var result = await setupCoordinator.SaveAsync(newSetup, BoardId, BaselineUpdated);
+        var submitted = CaptureDraft();
+        var result = await setupCoordinator.SaveAsync(submitted, IsInDatabase ? draftBase : null);
 
         switch (result)
         {
             case SetupSaveResult.Saved saved:
-                ForkSensorConfiguration?.Save();
-                ShockSensorConfiguration?.Save();
-                setup = newSetup;
-                setup.Updated = saved.NewBaselineUpdated;
-                originalBoardId = BoardId;
-                BaselineUpdated = saved.NewBaselineUpdated;
-
-                SaveCommand.NotifyCanExecuteChanged();
-                ResetCommand.NotifyCanExecuteChanged();
-
+                draftBase = SetupDraft.From(saved.Snapshot, saved.BoardId);
                 IsInDatabase = true;
                 EvaluateDirtiness();
-                shell.CompleteEdit(new EditorKey.Setup(saved.Id));
+                NotifyEditorCommandStateChanged();
+                if (!IsDirty) shell.CompleteEdit(new EditorKey.Setup(saved.Snapshot.Id));
                 break;
 
             case SetupSaveResult.Conflict conflict:
@@ -316,14 +259,18 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                     "This setup has been updated from another source. Discard your changes and reload?");
                 if (reload)
                 {
-                    setup = SetupFromSnapshot(conflict.CurrentSnapshot);
-                    originalBoardId = conflict.BoardId;
-                    BaselineUpdated = conflict.CurrentSnapshot.Updated;
+                    draftBase = SetupDraft.From(conflict.CurrentSnapshot, conflict.BoardId);
                     await ResetImplementation();
                     EvaluateDirtiness();
                 }
                 break;
 
+            case SetupSaveResult.Missing:
+                Notifications.Add("The setup is no longer available.");
+                break;
+            case SetupSaveResult.Invalid invalid:
+                ErrorMessages.Add(FailurePresentation.From(invalid.Reason));
+                break;
             case SetupSaveResult.Failed failed:
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
@@ -332,12 +279,11 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     protected override Task ResetImplementation()
     {
-        Name = setup.Name;
-        BoardId = originalBoardId;
-        SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId);
-
-        ForkSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.FrontSensorConfigurationJson);
-        ShockSensorConfiguration = SensorConfigurationViewModel.FromJson(setup.RearSensorConfigurationJson, JointsFromSnapshot(SelectedBike));
+        Name = draftBase.Name;
+        BoardId = draftBase.BoardId;
+        SelectedBike = bikeStore.Get(draftBase.BikeId);
+        ForkSensorConfiguration = SensorConfigurationViewModel.FromDraft(draftBase.FrontSensor);
+        ShockSensorConfiguration = SensorConfigurationViewModel.FromDraft(draftBase.RearSensor, JointsFromSnapshot(SelectedBike));
         ForkSensorType = ForkSensorConfiguration?.Type;
         ShockSensorType = ShockSensorConfiguration?.Type;
 
@@ -346,15 +292,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     protected override async Task ExportImplementation()
     {
-        var bikeSnapshot = bikeStore.Get(setup.BikeId);
-        if (bikeSnapshot is null)
-        {
-            ErrorMessages.Add(new FailurePresentation("Setup could not be exported: associated bike not found."));
-            return;
-        }
-
-        var bike = BikeModel.FromSnapshot(bikeSnapshot);
-        var result = await setupCoordinator.ExportSetupAsync(setup, bike, originalBoardId);
+        var result = await setupCoordinator.ExportSetupAsync(draftBase);
         if (result is SetupExportResult.Failed failed)
         {
             ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
@@ -431,11 +369,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private async Task ApplyImportedSetupAsync(ImportedSetupEditorData data)
     {
         Id = data.Setup.Id;
-        BaselineUpdated = data.Setup.Updated;
         IsInDatabase = true;
-
-        setup = SetupFromSnapshot(data.Setup);
-        originalBoardId = data.BoardId;
+        draftBase = SetupDraft.From(data.Setup, data.BoardId);
 
         await ResetImplementation();
         EvaluateDirtiness();
@@ -456,7 +391,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 .Subscribe()));
 
         // Re-resolve SelectedBike now the bikesSource is populated.
-        SelectedBike = Bikes.FirstOrDefault(b => b.Id == setup.BikeId);
+        SelectedBike = Bikes.FirstOrDefault(b => b.Id == draftBase.BikeId);
     }
 
     [RelayCommand]

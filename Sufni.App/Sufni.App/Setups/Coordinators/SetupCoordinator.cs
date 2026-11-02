@@ -1,3 +1,5 @@
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using System.Collections.Generic;
@@ -6,6 +8,7 @@ using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Stores;
 using Sufni.App.Shared.Stores;
 using System;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -19,10 +22,11 @@ using Sufni.App.Setups.Stores;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Setups.Coordinators;
 
-public class SetupCoordinator(
+internal class SetupCoordinator(
     ISetupStoreWriter setupStore,
     IBikeStoreWriter bikeStore,
     ISetupFileService filesService,
+    IBikeSaveValidator bikeValidator,
     IBackgroundTaskRunner backgroundTaskRunner,
     ISetupPersistenceTransactionRunner setupPersistenceTransactions,
     ISynchronizableRepository<Board> boardRepository,
@@ -48,45 +52,46 @@ public class SetupCoordinator(
         return snapshot;
     }
 
-    public async Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated)
+    public async Task<SetupSaveResult> SaveAsync(SetupDraft draft, SetupDraft? draftBase)
     {
-        logger.Information("Starting setup save for {SetupId}", setup.Id);
-
-        var current = setupQuery.Get(setup.Id);
-        if (current is not null && current.Setup.Updated > baselineUpdated)
+        logger.Information("Starting setup save for {SetupId}", draft.Id);
+        if (SetupSaveRules.Validate(draft, bikeStore.Get(draft.BikeId)) is { } invalid)
         {
-            logger.Warning("Setup save conflict for {SetupId}", setup.Id);
-            return new SetupSaveResult.Conflict(current.Setup, current.BoardId);
+            logger.Warning("Setup save rejected for {SetupId}: {Reason}", draft.Id, invalid);
+            return new SetupSaveResult.Invalid(invalid);
         }
 
         try
         {
-            if (current?.BoardId != boardId)
+            SetupDetails? current;
+            SetupDraft? currentDraft;
+            do
             {
-                logger.Verbose(
-                    "Reassigning setup board association for {SetupId} from {OriginalBoardId} to {NewBoardId}",
-                    setup.Id,
-                    current?.BoardId,
-                    boardId);
-            }
+                current = setupQuery.Get(draft.Id);
+                currentDraft = await backgroundTaskRunner.RunAsync(() => current is null ? null : SetupDraft.From(current.Setup, current.BoardId));
+            } while (current != setupQuery.Get(draft.Id));
+            if (draftBase is not null && current is null) return new SetupSaveResult.Missing();
+            if (current is not null && (draftBase is null || currentDraft != draftBase))
+                return new SetupSaveResult.Conflict(current.Setup, current.BoardId);
 
-            var boards = await backgroundTaskRunner.RunAsync(async () =>
-                await LoadBoardsAsync(await setupPersistenceTransactions.SaveSetupAsync(setup, current?.BoardId, boardId)));
-
-            var saved = SetupSnapshot.From(setup);
+            var prepared = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var row = BuildRow(draft);
+                var boards = await LoadBoardsAsync(await setupPersistenceTransactions.SaveSetupAsync(row, current?.BoardId, draft.BoardId));
+                return (Snapshot: SetupSnapshot.From(row), Boards: boards);
+            });
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
-                await setupStore.PublishSetupsChangedAsync([saved]);
-                await PublishBoardsAsync(boards);
+                await setupStore.PublishSetupsChangedAsync([prepared.Snapshot]);
+                await PublishBoardsAsync(prepared.Boards);
             });
-            logger.Information("Setup save completed for {SetupId}", setup.Id);
-            return new SetupSaveResult.Saved(saved.Id, saved.Updated);
+            return new SetupSaveResult.Saved(prepared.Snapshot, draft.BoardId);
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            logger.Error(e, "Setup save failed for {SetupId}", setup.Id);
-            return new SetupSaveResult.Failed(SetupSaveFailureReason.Save, e.Message);
+            logger.Error(exception, "Setup save failed for {SetupId}", draft.Id);
+            return new SetupSaveResult.Failed(SetupSaveFailureReason.Save, exception.Message);
         }
     }
 
@@ -131,9 +136,27 @@ public class SetupCoordinator(
                 _ => throw new ArgumentOutOfRangeException(nameof(read)),
             };
         var payload = loaded.Payload;
-
         try
         {
+            var imported = await backgroundTaskRunner.RunAsync(() =>
+            {
+                var setup = SetupDraft.From(SetupSnapshot.From(payload.Setup), payload.BoardId);
+                var bike = BikeSnapshot.From(payload.Bike);
+                return (Setup: setup, Bike: BikeDraft.From(bike), Invalid: SetupSaveRules.Validate(setup, bike));
+            });
+            if (imported.Invalid is { } invalid)
+            {
+                logger.Warning("Setup import rejected for {SetupId}: {Reason}", imported.Setup.Id, invalid);
+                return new SetupImportResult.InvalidFile(FailurePresentation.From(invalid).Summary);
+            }
+            switch (await bikeValidator.ValidateAsync(imported.Bike))
+            {
+                case BikeSaveValidation.Invalid invalidBike:
+                    return new SetupImportResult.InvalidFile(invalidBike.Message);
+                case BikeSaveValidation.Failed failed:
+                    return new SetupImportResult.Failed(SetupImportFailureReason.Import, failed.Details);
+            }
+
             var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
 
             var prepared = await backgroundTaskRunner.RunAsync(async () =>
@@ -159,6 +182,11 @@ public class SetupCoordinator(
             return new SetupImportResult.Imported(
                 new ImportedSetupEditorData(prepared.Setup, prepared.Bike, boardWarning, resolvedBoardId));
         }
+        catch (JsonException exception)
+        {
+            logger.Warning(exception, "Setup import rejected because sensor calibration was invalid");
+            return new SetupImportResult.InvalidFile("The setup file contains an invalid sensor configuration.");
+        }
         catch (Exception e)
         {
             logger.Error(e, "Setup import failed during persistence");
@@ -166,9 +194,41 @@ public class SetupCoordinator(
         }
     }
 
-    public Task<SetupExportResult> ExportSetupAsync(
-        Setup setup, Bike bike, Guid? boardId, CancellationToken cancellationToken = default) =>
-        filesService.ExportAsync(setup, bike, boardId, cancellationToken);
+    public async Task<SetupExportResult> ExportSetupAsync(SetupDraft draft, CancellationToken cancellationToken = default)
+    {
+        var bike = bikeStore.Get(draft.BikeId);
+        if (bike is null) return new SetupExportResult.Failed(SetupExportFailureReason.BikeUnavailable);
+        try
+        {
+            var payload = await backgroundTaskRunner.RunAsync(() => (Setup: BuildRow(draft), Bike: Bike.FromSnapshot(bike)), cancellationToken);
+            return await filesService.ExportAsync(payload.Setup, payload.Bike, draft.BoardId, cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            logger.Error(exception, "Setup export preparation failed for {SetupId}", draft.Id);
+            return new SetupExportResult.Failed(SetupExportFailureReason.Export, exception.Message);
+        }
+    }
+
+    private static Setup BuildRow(SetupDraft draft) => new(draft.Id, draft.Name!)
+    {
+        BikeId = draft.BikeId,
+        FrontSensorConfigurationJson = SensorJson(draft.FrontSensor),
+        RearSensorConfigurationJson = SensorJson(draft.RearSensor),
+    };
+
+    private static string? SensorJson(SensorDraft? draft) => draft is null ? null : SensorConfiguration.ToJson(draft switch
+    {
+        SensorDraft.LinearFork value => new LinearForkSensorConfiguration { Length = value.Length!.Value, Resolution = value.Resolution!.Value },
+        SensorDraft.LinearShock value => new LinearShockSensorConfiguration { Length = value.Length!.Value, Resolution = value.Resolution!.Value, Type = value.Type },
+        SensorDraft.RotationalFork value => new RotationalForkSensorConfiguration { MaxLength = value.MaxLength!.Value, ArmLength = value.ArmLength!.Value },
+        SensorDraft.RotationalShock value => new RotationalShockSensorConfiguration
+        {
+            CentralJoint = value.CentralJoint!, AdjacentJoint1 = value.AdjacentJoint1!, AdjacentJoint2 = value.AdjacentJoint2!,
+        },
+        _ => throw new ArgumentOutOfRangeException(nameof(draft)),
+    });
 
     private async Task<(BoardSnapshot[] Changed, Guid[] Removed)> LoadBoardsAsync(IReadOnlyList<Guid> ids)
     {
@@ -204,7 +264,9 @@ public abstract record SetupSaveResult
 {
     private SetupSaveResult() { }
 
-    public sealed record Saved(Guid Id, long NewBaselineUpdated) : SetupSaveResult;
+    public sealed record Saved(SetupSnapshot Snapshot, Guid? BoardId) : SetupSaveResult;
+    public sealed record Missing : SetupSaveResult;
+    public sealed record Invalid(SetupValidationFailureReason Reason) : SetupSaveResult;
     public sealed record Conflict(SetupSnapshot CurrentSnapshot, Guid? BoardId = null) : SetupSaveResult;
     public sealed record Failed(SetupSaveFailureReason Reason, string? Details = null) : SetupSaveResult;
 }

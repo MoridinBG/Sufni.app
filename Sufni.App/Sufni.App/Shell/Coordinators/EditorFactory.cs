@@ -99,12 +99,11 @@ internal sealed class EditorFactory(
             details.Setup,
             isNew,
             bikeStore,
-            bikeCoordinator,
             setupCoordinator,
             shell,
             dialogService,
             uiThreadDispatcher,
-            timeProvider: timeProvider, boardId: details.BoardId) { IsDirty = isNew };
+            timeProvider: timeProvider, boardId: details.BoardId);
 
     private SessionDetailViewModel CreateSessionDetail(SessionSnapshot snapshot, IShellCoordinator shell) =>
         new(

@@ -40,6 +40,14 @@ import and logs a rejection or failure once. The coordinator builds persistence
 rows from `BikeDraft` and publishes the saved snapshot. `Bike.Chainstay` is computed
 from the linkage geometry rather than retained as an override.
 
+`SetupCoordinator.SaveAsync` accepts a `SetupDraft` and its optional persisted
+base. It compares authored values, including board association and typed sensor
+inputs, then builds the row and sensor JSON off-thread. `SetupSaveRules` checks
+required fields and sensor/bike compatibility for both save and import; embedded
+bikes also pass `BikeSaveValidator`. Malformed sensor JSON is rejected as invalid
+input. The editor receives the saved snapshot and board association for reset;
+sub-editor baseline synchronization is no longer part of save.
+
 Bike and setup export schemas live in `BikeFileFormat` and `SetupFileFormat`,
 not on the persistence models. Bike parsing normalizes shock stroke from the
 rear-suspension payload for standalone and embedded setup imports. The existing

@@ -1,6 +1,6 @@
+using Sufni.App.Setups.Coordinators;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -10,7 +10,7 @@ namespace Sufni.App.Setups.ViewModels.SensorConfigurations;
 
 public partial class RotationalShockSensorConfigurationViewModel : SensorConfigurationViewModel
 {
-    private RotationalShockSensorConfiguration sensorConfiguration;
+    private SensorDraft.RotationalShock? initialDraft;
 
     #region Observable properties
 
@@ -19,7 +19,6 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
     [ObservableProperty] public partial JointViewModel? AdjacentJoint2 { get; set; }
 
     private IReadOnlyList<JointViewModel> jointViewModels = [];
-    private bool initialResolutionDone;
     public IReadOnlyList<JointViewModel> JointViewModels
     {
         get => jointViewModels;
@@ -27,15 +26,15 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
         {
             jointViewModels = value;
 
-            if (!initialResolutionDone && value.Count > 0)
+            if (initialDraft is { } draft && value.Count > 0)
             {
                 // First non-empty joint list - initial load.
-                SensorJoint = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.CentralJoint);
-                AdjacentJoint1 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint1);
-                AdjacentJoint2 = value.FirstOrDefault(jvm => jvm.Name == sensorConfiguration.AdjacentJoint2);
-                initialResolutionDone = true;
+                SensorJoint = value.FirstOrDefault(jvm => jvm.Name == draft.CentralJoint);
+                AdjacentJoint1 = value.FirstOrDefault(jvm => jvm.Name == draft.AdjacentJoint1);
+                AdjacentJoint2 = value.FirstOrDefault(jvm => jvm.Name == draft.AdjacentJoint2);
+                initialDraft = null;
             }
-            else if (initialResolutionDone)
+            else if (initialDraft is null)
             {
                 // User picked a different bike
                 SensorJoint = null;
@@ -63,70 +62,15 @@ public partial class RotationalShockSensorConfigurationViewModel : SensorConfigu
 
     #endregion Property change handlers
 
-    #region SensorConfigurationViewModel overrides
+    public override SensorDraft CaptureDraft() => initialDraft ??
+        new SensorDraft.RotationalShock(SensorJoint?.Name, AdjacentJoint1?.Name, AdjacentJoint2?.Name);
 
-    public override void EvaluateDirtiness()
+    public RotationalShockSensorConfigurationViewModel(SensorDraft.RotationalShock draft, IReadOnlyList<JointViewModel>? joints)
     {
-        IsDirty = SensorJoint?.Name != sensorConfiguration.CentralJoint ||
-                  AdjacentJoint1?.Name != sensorConfiguration.AdjacentJoint1 ||
-                  AdjacentJoint2?.Name != sensorConfiguration.AdjacentJoint2;
+        Type = draft.Type;
+        initialDraft = draft;
+        if (joints is not null) JointViewModels = joints;
     }
-
-    public override bool CanSave()
-    {
-        return SensorJoint is not null && AdjacentJoint1 is not null && AdjacentJoint2 is not null;
-    }
-
-    public override void Save()
-    {
-        Debug.Assert(SensorJoint is not null);
-        Debug.Assert(AdjacentJoint1 is not null);
-        Debug.Assert(AdjacentJoint2 is not null);
-
-        sensorConfiguration = new RotationalShockSensorConfiguration
-        {
-            CentralJoint = SensorJoint.Name,
-            AdjacentJoint1 = AdjacentJoint1.Name,
-            AdjacentJoint2 = AdjacentJoint2.Name
-        };
-
-        EvaluateDirtiness();
-    }
-
-    public override string ToJson()
-    {
-        Debug.Assert(SensorJoint is not null);
-        Debug.Assert(AdjacentJoint1 is not null);
-        Debug.Assert(AdjacentJoint2 is not null);
-
-        var sc = new RotationalShockSensorConfiguration
-        {
-            CentralJoint = SensorJoint.Name,
-            AdjacentJoint1 = AdjacentJoint1.Name,
-            AdjacentJoint2 = AdjacentJoint2.Name
-        };
-
-        return SensorConfiguration.ToJson(sc);
-    }
-
-    #endregion SensorConfigurationViewModel overrides
-
-    #region Constructors
-
-    public RotationalShockSensorConfigurationViewModel(IReadOnlyList<JointViewModel>? joints) : this(new RotationalShockSensorConfiguration(), joints) { }
-
-    public RotationalShockSensorConfigurationViewModel(RotationalShockSensorConfiguration configuration, IReadOnlyList<JointViewModel>? joints)
-    {
-        Type = SensorType.RotationalShock;
-        sensorConfiguration = configuration;
-
-        if (joints is null) return;
-        // The JointViewModels setter performs the initial resolution
-        // from configuration.CentralJoint / AdjacentJoint1 / AdjacentJoint2.
-        JointViewModels = joints;
-    }
-
-    #endregion Constructors
 
     #region Private methods
 

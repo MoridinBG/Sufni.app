@@ -285,12 +285,14 @@ and optional details. Image decode failure has its own presentation reason.
 CSV validation stays beside the curve; workflow failures use the editor error
 bar so diagnostics can expand without replacing the curve or leaking into text.
 
-Setup save returns `SetupSaveResult.Saved | Conflict | Failed`, deletion returns
+Setup save returns `SetupSaveResult.Saved(Snapshot, BoardId) | Conflict | Missing | Invalid | Failed`, deletion returns
 `SetupDeleteResult.Deleted | Failed`, import returns `SetupImportResult.Imported |
 Canceled | InvalidFile | Failed`, and export returns `SetupExportResult.Exported |
 Canceled | Failed`. Failures carry the corresponding `SetupSaveFailureReason.Save`,
 `SetupDeleteFailureReason.Delete`, `SetupImportFailureReason.Import` or
-`SetupExportFailureReason.Export` plus optional details. Import publication failure
+`SetupExportFailureReason.Export | BikeUnavailable` plus optional details. Save validation
+uses `SetupValidationFailureReason` for missing name/board/bike/sensor, incomplete
+calibration, and incompatible rear sensors. Import publication failure
 still reports failure after the transaction has committed.
 
 `SynchronizationRunResult` is `Completed | IncompleteData | Failed(reason, details)`.
@@ -362,13 +364,13 @@ Failed(reason, details)`. `ISetupFileService` logs parsing/read errors once and
 returns those outcomes; the coordinator forwards failures without logging them
 again, then owns the imported rows and publication.
 
-Bike and recorded-session saves return the persisted snapshot. Their editors
+Bike, setup and recorded-session saves return the persisted snapshot. Their editors
 retain one draft base and compare only the fields that their save writes;
 timestamp changes and separately owned cutoff/alignment/processing-option edits
 do not conflict. Bike saves preserve current damping cutoffs, while new imports
 seed their cutoffs from the file. Missing persisted bikes are not recreated by
 an existing editor. A saved baseline retains edits made during persistence as
-dirty. Setup editors still use timestamp baselines until their draft conversion.
+dirty. Setup conflicts compare sensor values rather than serialized JSON formatting.
 Plot analysis is requested independently and never carried by the bike save result.
 The live session path is deliberately separate:
 `SaveCaptureAsync(...)` is create-only and returns

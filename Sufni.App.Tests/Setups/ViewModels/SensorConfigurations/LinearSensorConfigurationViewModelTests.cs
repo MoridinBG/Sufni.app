@@ -1,65 +1,36 @@
-using Xunit;
-
+using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
+
 namespace Sufni.App.Tests.Setups.ViewModels.SensorConfigurations;
 
 public class LinearSensorConfigurationViewModelTests
 {
     [Fact]
-    public void LinearForkSensorConfigurationViewModel_Save_UpdatesBaselineAndJson()
+    public void CaptureDraft_PreservesIncompleteInputWithoutMutatingEarlierCapture()
     {
-        var viewModel = new LinearForkSensorConfigurationViewModel(new LinearForkSensorConfiguration
-        {
-            Length = 170,
-            Resolution = 12
-        });
-
-        Assert.False(viewModel.IsDirty);
-        Assert.True(viewModel.CanSave());
-
+        var viewModel = new LinearForkSensorConfigurationViewModel(new SensorDraft.LinearFork(170, 12));
+        var captured = viewModel.CaptureDraft();
         viewModel.Length = 175;
         viewModel.Resolution = null;
 
-        Assert.True(viewModel.IsDirty);
-        Assert.False(viewModel.CanSave());
-
+        Assert.Equal(new SensorDraft.LinearFork(170, 12), captured);
+        Assert.Equal(new SensorDraft.LinearFork(175, null), viewModel.CaptureDraft());
+        Assert.False(SetupSaveRules.IsComplete(viewModel.CaptureDraft()));
         viewModel.Resolution = 14;
-        viewModel.Save();
-
-        Assert.False(viewModel.IsDirty);
-
-        var configuration = Assert.IsType<LinearForkSensorConfiguration>(
-            SensorConfiguration.FromJson(viewModel.ToJson()));
-        Assert.Equal(SensorType.LinearFork, configuration.Type);
-        Assert.Equal(175, configuration.Length);
-        Assert.Equal(14, configuration.Resolution);
+        Assert.True(SetupSaveRules.IsComplete(viewModel.CaptureDraft()));
     }
 
     [Fact]
-    public void LinearShockSensorConfigurationViewModel_Save_PreservesShockStrokeTypeAndUpdatesBaseline()
+    public void CaptureDraft_PreservesShockStrokeCalibrationType()
     {
-        var viewModel = new LinearShockSensorConfigurationViewModel(new LinearShockSensorConfiguration
-        {
-            Type = SensorType.LinearShockStroke,
-            Length = 190,
-            Resolution = 16
-        });
-
-        Assert.Equal(SensorType.LinearShockStroke, viewModel.Type);
-        Assert.False(viewModel.IsDirty);
-        Assert.True(viewModel.CanSave());
-
+        var viewModel = new LinearShockSensorConfigurationViewModel(new SensorDraft.LinearShock(190, 16, true));
         viewModel.Length = 195;
         viewModel.Resolution = 18;
-        viewModel.Save();
 
-        Assert.False(viewModel.IsDirty);
-
-        var configuration = Assert.IsType<LinearShockSensorConfiguration>(
-            SensorConfiguration.FromJson(viewModel.ToJson()));
-        Assert.Equal(SensorType.LinearShockStroke, configuration.Type);
-        Assert.Equal(195, configuration.Length);
-        Assert.Equal(18, configuration.Resolution);
+        var draft = Assert.IsType<SensorDraft.LinearShock>(viewModel.CaptureDraft());
+        Assert.Equal(SensorType.LinearShockStroke, draft.Type);
+        Assert.Equal(195, draft.Length);
+        Assert.Equal(18, draft.Resolution);
     }
 }

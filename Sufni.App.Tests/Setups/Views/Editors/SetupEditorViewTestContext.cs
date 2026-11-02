@@ -22,18 +22,10 @@ namespace Sufni.App.Tests.Setups.Views.Editors;
 
 internal sealed class SetupEditorViewTestContext : IDisposable
 {
-    private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
-    private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+    private readonly BikeStoreStub bikeStore = new();
     private readonly ISetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
-    private readonly SourceCache<BikeSnapshot, Guid> bikesCache = new(snapshot => snapshot.Id);
-
-    public SetupEditorViewTestContext()
-    {
-        bikeStore.Connect().Returns(bikesCache.Connect());
-    }
-
     public IShellCoordinator Shell => shell;
 
     public BikeSnapshot AddBike(string name = "test bike")
@@ -44,13 +36,13 @@ internal sealed class SetupEditorViewTestContext : IDisposable
             RearSuspension = new RearSuspensionSpec.Linkage(
                 TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         return bike;
     }
 
     public SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false)
     {
-        return new SetupEditorViewModel(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), boardId: Guid.NewGuid());
+        return new SetupEditorViewModel(snapshot, isNew, bikeStore, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), boardId: Guid.NewGuid());
     }
 
     public async Task<MountedSetupEditorView<SetupEditorView>> MountMobileAsync(SetupSnapshot snapshot, bool isNew = false)
@@ -104,7 +96,7 @@ internal sealed class SetupEditorViewTestContext : IDisposable
 
     public void Dispose()
     {
-        bikesCache.Dispose();
+        bikeStore.Dispose();
     }
 }
 

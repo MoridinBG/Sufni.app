@@ -54,7 +54,7 @@ internal static class TestCoordinatorSubstitutes
 
         coordinator.ImportSetupAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SetupImportResult>(new SetupImportResult.Canceled()));
-        coordinator.ExportSetupAsync(Arg.Any<Setup>(), Arg.Any<Bike>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
+        coordinator.ExportSetupAsync(Arg.Any<SetupDraft>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<SetupExportResult>(new SetupExportResult.Canceled()));
 
         coordinator.CreateDraft(Arg.Any<Guid?>()).Returns(call =>

@@ -145,9 +145,11 @@ There are five kinds of view model in the presentation layer:
   another view model and never stored in a list. The shell owns the factory;
   feature view models request `EditorKey` surfaces and deleted-editor closure
   through `IShellCoordinator`. Coordinators return domain results.
-  Bike and recorded-session editors hold an immutable draft base for authored-field
-  comparisons; setup editors currently keep `BaselineUpdated`. Bike dirtiness is
-  established in the constructor, and successful saves keep any later edits dirty.
+  Persisted editors hold one immutable draft base for authored-field comparisons.
+  Bike/setup dirtiness is established in the constructor, and successful saves
+  keep any later edits dirty. Setup sensor sub-editors expose immutable `SensorDraft`
+  inputs without their own saved baselines or JSON serialization. `SetupCoordinator`
+  builds the persisted row and sensor JSON after applying shared `SetupSaveRules`.
   Bike imports carry a validated `BikeDraft` and request analysis after applying it.
   Editors derive editable state from the snapshot in `ResetImplementation`,
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On

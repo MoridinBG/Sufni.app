@@ -90,9 +90,8 @@ Each persisted writer interface additionally exposes:
   publication contains only metadata; payload reads use the source repository.
 
 Snapshots are immutable records, not view models. Persisted entities carry
-an authored `Updated` timestamp. Setup editors currently retain that value
-as `BaselineUpdated`; bike and recorded-session editors compare authored draft
-fields with an immutable draft base instead. Runtime-only or metadata-only snapshots such
+an authored `Updated` timestamp. Editors compare authored draft fields with an
+immutable draft base; the timestamp is not an editor conflict baseline. Runtime-only or metadata-only snapshots such
 as `LiveDaqSnapshot`, `PairedDeviceSnapshot`, and `RecordedSessionSourceSnapshot`
 do not expose an editor baseline.
 

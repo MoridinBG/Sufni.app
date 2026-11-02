@@ -1,3 +1,5 @@
+using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using Sufni.App.SyncAndPairing.Stores;
@@ -42,7 +44,7 @@ public class SetupCoordinatorTests : IDisposable
         setups = new(clock);
         boards = new(clock);
         transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards);
-        coordinator = new(setupStore, bikeStore, files, new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication, query);
+        coordinator = new(setupStore, bikeStore, files, new TestBikeSaveValidator(), new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication, query);
     }
 
     public void Dispose()
@@ -56,7 +58,13 @@ public class SetupCoordinatorTests : IDisposable
 
     private async Task SeedAsync(SetupSnapshot snapshot, Guid? boardId = null)
     {
-        setups.Seed(new Setup(snapshot.Id, snapshot.Name) { BikeId = snapshot.BikeId, Updated = snapshot.Updated });
+        setups.Seed(new Setup(snapshot.Id, snapshot.Name)
+        {
+            BikeId = snapshot.BikeId, Updated = snapshot.Updated,
+            FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
+            RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
+        });
+        await bikeStore.PublishBikesChangedAsync([TestSnapshots.Bike(id: snapshot.BikeId)]);
         if (boardId is { } id)
         {
             var board = new Board(id, snapshot.Id);
@@ -81,7 +89,7 @@ public class SetupCoordinatorTests : IDisposable
     public async Task ImportSetupAsync_CompletesPublicationAfterReadEvenIfViewTokenIsCanceled()
     {
         var bike = new Bike(Guid.NewGuid(), "imported bike") { HeadAngle = 65, ForkStroke = 160 };
-        var setup = new Setup(Guid.NewGuid(), "imported setup") { BikeId = bike.Id };
+        var setup = new Setup(Guid.NewGuid(), "imported setup") { BikeId = bike.Id, FrontSensorConfigurationJson = "{\"type\":\"linear_fork\",\"length\":150,\"resolution\":12}" };
         var boardId = Guid.NewGuid();
         using var cancellation = new CancellationTokenSource();
         files.ReadAsync(cancellation.Token).Returns(_ =>
@@ -124,16 +132,23 @@ public class SetupCoordinatorTests : IDisposable
         Guid? newBoard = hasBoard ? sameBoard ? oldBoard : Guid.NewGuid() : null;
         var existing = TestSnapshots.Setup(updated: 5);
         await SeedAsync(existing, oldBoard);
-        var draft = new Setup(existing.Id, "renamed") { BikeId = existing.BikeId };
+        var draft = new SetupDraft(existing.Id, "renamed", existing.BikeId, newBoard, new SensorDraft.LinearFork(150, 12), null);
 
         var observed = new List<(string?, Guid?, Guid?)>();
         using var watch = publication.Committed.Subscribe(_ => observed.Add((setupStore.Get(existing.Id)?.Name,
             oldBoard is { } oldId ? boardStore.Get(oldId)?.SetupId : null,
             newBoard is { } newId ? boardStore.Get(newId)?.SetupId : null)));
-        var result = await coordinator.SaveAsync(draft, newBoard, 5);
+        var result = await coordinator.SaveAsync(draft, SetupDraft.From(existing, oldBoard));
+        if (!hasBoard)
+        {
+            Assert.Equal(SetupValidationFailureReason.Board, Assert.IsType<SetupSaveResult.Invalid>(result).Reason);
+            Assert.Empty(observed);
+            Assert.Equal(existing, setupStore.Get(existing.Id));
+            return;
+        }
 
         Assert.Equal(("renamed", sameBoard ? existing.Id : (Guid?)null, hasBoard ? existing.Id : (Guid?)null), Assert.Single(observed));
-        Assert.Equal(9, Assert.IsType<SetupSaveResult.Saved>(result).NewBaselineUpdated);
+        Assert.Equal(9, Assert.IsType<SetupSaveResult.Saved>(result).Snapshot.Updated);
         Assert.Equal("renamed", (await setups.GetAsync(existing.Id))!.Name);
         var published = setupStore.Get(existing.Id)!;
         Assert.Equal("renamed", published.Name);
@@ -149,7 +164,8 @@ public class SetupCoordinatorTests : IDisposable
         var current = TestSnapshots.Setup(updated: 10);
         await SeedAsync(current);
 
-        var result = await coordinator.SaveAsync(new Setup(current.Id, "stale"), null, 5);
+        var draft = new SetupDraft(current.Id, "stale", current.BikeId, Guid.NewGuid(), new SensorDraft.LinearFork(150, 12), null);
+        var result = await coordinator.SaveAsync(draft, SetupDraft.From(current with { Name = "original" }, null));
 
         Assert.Equal(current, Assert.IsType<SetupSaveResult.Conflict>(result).CurrentSnapshot);
         Assert.Equal(current.Name, (await setups.GetAsync(current.Id))!.Name);
@@ -163,11 +179,43 @@ public class SetupCoordinatorTests : IDisposable
         await SeedAsync(existing);
         transactions.Failure = new IOException("disk full");
 
-        var result = await coordinator.SaveAsync(new Setup(existing.Id, "edited"), null, 5);
+        var draft = new SetupDraft(existing.Id, "edited", existing.BikeId, Guid.NewGuid(), new SensorDraft.LinearFork(150, 12), null);
+        var result = await coordinator.SaveAsync(draft, SetupDraft.From(existing, null));
 
         Assert.Equal(SetupSaveFailureReason.Save, Assert.IsType<SetupSaveResult.Failed>(result).Reason);
         Assert.Equal(existing.Name, (await setups.GetAsync(existing.Id))!.Name);
         Assert.Equal(existing, setupStore.Get(existing.Id));
+    }
+
+    [Fact]
+    public async Task SaveAsync_IgnoresTimestampAndSensorJsonFormatting_AndSerializesTheDraft()
+    {
+        var board = Guid.NewGuid();
+        var original = TestSnapshots.Setup() with { FrontSensorConfigurationJson = "{\"type\":\"linear_fork\",\"length\":150,\"resolution\":12}" };
+        var current = original with { Updated = 20, FrontSensorConfigurationJson = "{ \"type\": \"linear_fork\", \"length\": 150, \"resolution\": 12 }" };
+        await SeedAsync(current, board);
+        var baseline = SetupDraft.From(original, board);
+        var draft = baseline with { FrontSensor = new SensorDraft.LinearFork(175, 14) };
+
+        var result = Assert.IsType<SetupSaveResult.Saved>(await coordinator.SaveAsync(draft, baseline));
+
+        Assert.Equal(draft, SetupDraft.From(result.Snapshot, result.BoardId));
+        var savedSensor = Assert.IsType<LinearForkSensorConfiguration>(SensorConfiguration.FromJson((await setups.GetAsync(original.Id))!.FrontSensorConfigurationJson!));
+        Assert.Equal(175, savedSensor.Length);
+        Assert.Equal(14, savedSensor.Resolution);
+    }
+
+    [Fact]
+    public async Task ImportSetupAsync_RejectsMalformedSensorPayloadWithoutPersisting()
+    {
+        var bike = new Bike(Guid.NewGuid(), "bike") { HeadAngle = 65, ForkStroke = 150 };
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = bike.Id, FrontSensorConfigurationJson = "not json" };
+        files.ReadAsync(Arg.Any<CancellationToken>()).Returns(new SetupFileReadResult.Read(new(setup, bike, Guid.NewGuid())));
+
+        Assert.IsType<SetupImportResult.InvalidFile>(await coordinator.ImportSetupAsync(TestContext.Current.CancellationToken));
+
+        Assert.Empty(await setups.GetAllAsync());
+        Assert.Empty(await boards.GetAllAsync());
     }
 
     [Theory]

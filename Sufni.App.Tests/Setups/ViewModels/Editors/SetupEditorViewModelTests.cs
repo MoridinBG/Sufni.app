@@ -22,27 +22,18 @@ namespace Sufni.App.Tests.Setups.ViewModels.Editors;
 
 // Setup linkage previews currently construct JointViewModel's shared Avalonia brushes.
 [Collection("Ui")]
-public class SetupEditorViewModelTests
+public class SetupEditorViewModelTests : IDisposable
 {
     private readonly ISetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
-    private readonly IBikeCoordinator bikeCoordinator = TestCoordinatorSubstitutes.Bike();
-    private readonly IBikeStore bikeStore = Substitute.For<IBikeStore>();
+    private readonly BikeStoreStub bikeStore = new();
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private readonly IDialogService dialogService = Substitute.For<IDialogService>();
     private readonly IUiThreadDispatcher uiThreadDispatcher = new InlineUiThreadDispatcher();
 
-    private readonly SourceCache<BikeSnapshot, Guid> bikesCache = new(b => b.Id);
-
-    public SetupEditorViewModelTests()
-    {
-        // The SetupEditorViewModel binds to bikeStore.Connect() in
-        // Loaded; back the substitute with a real DynamicData source
-        // cache so the binding actually publishes snapshots.
-        bikeStore.Connect().Returns(bikesCache.Connect());
-    }
+    public void Dispose() => bikeStore.Dispose();
 
     private SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false, Guid? boardId = null) =>
-        new(snapshot, isNew, bikeStore, bikeCoordinator, setupCoordinator, shell, dialogService, uiThreadDispatcher, timeProvider: new FakeTimeProvider(), boardId: boardId);
+        new(snapshot, isNew, bikeStore, setupCoordinator, shell, dialogService, uiThreadDispatcher, timeProvider: new FakeTimeProvider(), boardId: boardId);
 
     private const string LinearForkConfigurationJson =
         "{\"type\":\"linear_fork\",\"length\":100,\"resolution\":12}";
@@ -65,14 +56,13 @@ public class SetupEditorViewModelTests
         Assert.Equal(SensorType.LinearFork, editor.ForkSensorConfiguration?.Type);
         Assert.Null(editor.ShockSensorConfiguration);
         Assert.True(editor.IsInDatabase);
-        Assert.Equal(9, editor.BaselineUpdated);
     }
 
     [AvaloniaFact]
     public void Loaded_PopulatesSelectedBike_FromBikeStore()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id);
 
         var editor = CreateEditor(snapshot);
@@ -106,7 +96,7 @@ public class SetupEditorViewModelTests
         var editor = CreateEditor(snapshot);
         var staleConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
         var activeConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(
-            SensorConfigurationViewModel.FromJson(LinearForkConfigurationJson));
+            SensorConfigurationViewModel.FromDraft(new SensorDraft.LinearFork(100, 12)));
 
         editor.ForkSensorConfiguration = activeConfiguration;
 
@@ -128,7 +118,7 @@ public class SetupEditorViewModelTests
             RearSuspension = new RearSuspensionSpec.Linkage(
                 TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true)),
         };
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id) with
         {
             RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
@@ -155,8 +145,8 @@ public class SetupEditorViewModelTests
         };
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
-        bikesCache.AddOrUpdate(linkageBike);
-        bikesCache.AddOrUpdate(leverageRatioBike);
+        bikeStore.Add(linkageBike);
+        bikeStore.Add(leverageRatioBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: linkageBike.Id));
         editor.LoadedCommand.Execute(null);
@@ -175,7 +165,7 @@ public class SetupEditorViewModelTests
         {
             RearSuspension = new RearSuspensionSpec.LinkageDraft(),
         };
-        bikesCache.AddOrUpdate(draftBike);
+        bikeStore.Add(draftBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: draftBike.Id));
         editor.LoadedCommand.Execute(null);
@@ -187,7 +177,7 @@ public class SetupEditorViewModelTests
     public void SelectedBike_HardtailResolution_ReportsHardtailDescription()
     {
         var hardtailBike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(hardtailBike);
+        bikeStore.Add(hardtailBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: hardtailBike.Id));
         editor.LoadedCommand.Execute(null);
@@ -206,8 +196,8 @@ public class SetupEditorViewModelTests
         };
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
-        bikesCache.AddOrUpdate(linkageBike);
-        bikesCache.AddOrUpdate(leverageRatioBike);
+        bikeStore.Add(linkageBike);
+        bikeStore.Add(leverageRatioBike);
         var snapshot = TestSnapshots.Setup(bikeId: linkageBike.Id) with
         {
             RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
@@ -232,7 +222,7 @@ public class SetupEditorViewModelTests
     {
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
             TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
-        bikesCache.AddOrUpdate(leverageRatioBike);
+        bikeStore.Add(leverageRatioBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: leverageRatioBike.Id));
         editor.LoadedCommand.Execute(null);
@@ -253,7 +243,7 @@ public class SetupEditorViewModelTests
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
             ImageBytes = [],
         };
-        bikesCache.AddOrUpdate(linkageBike);
+        bikeStore.Add(linkageBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: linkageBike.Id));
         editor.LoadedCommand.Execute(null);
@@ -272,7 +262,7 @@ public class SetupEditorViewModelTests
     public void SaveCommand_Disabled_WhenNoSensorConfiguration()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id);
 
@@ -287,7 +277,7 @@ public class SetupEditorViewModelTests
     public void SaveCommand_Enabled_WhenForkConfigurationValid_AndDirty()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id)
             with
@@ -306,7 +296,7 @@ public class SetupEditorViewModelTests
     public async Task Save_HappyPath_RoutesThroughCoordinator_AndUpdatesBaseline()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, updated: 5)
             with
@@ -316,29 +306,55 @@ public class SetupEditorViewModelTests
         editor.Name = "renamed";
         var sensor = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
         sensor.Length = 150;
-        Assert.True(sensor.IsDirty);
+        Assert.True(editor.IsDirty);
 
-        setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
-            .Returns(new SetupSaveResult.Saved(snapshot.Id, 11));
+        setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId))
+            .Returns(new SetupSaveResult.Saved(snapshot with { Name = "renamed", FrontSensorConfigurationJson = "{\"type\":\"linear_fork\",\"length\":150,\"resolution\":12}", Updated = 11 }, boardId));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         await setupCoordinator.Received(1).SaveAsync(
-            Arg.Is<Setup>(s => s.Id == snapshot.Id && s.Name == "renamed" && s.BikeId == bike.Id),
-            boardId,
-            5);
-        Assert.Equal(11, editor.BaselineUpdated);
+            Arg.Is<SetupDraft>(s => s.Id == snapshot.Id && s.Name == "renamed" && s.BikeId == bike.Id),
+            SetupDraft.From(snapshot, boardId));
         shell.Received(1).CompleteEdit(new EditorKey.Setup(snapshot.Id));
-        Assert.False(sensor.IsDirty);
         Assert.False(editor.IsDirty);
         shell.DidNotReceive().GoBack();
+    }
+
+    [AvaloniaFact]
+    public async Task Save_PreservesSensorEditsMadeWhilePersistenceIsPending()
+    {
+        var bike = TestSnapshots.Bike();
+        bikeStore.Add(bike);
+        var board = Guid.NewGuid();
+        var snapshot = TestSnapshots.Setup(bikeId: bike.Id) with { FrontSensorConfigurationJson = LinearForkConfigurationJson };
+        var editor = CreateEditor(snapshot, boardId: board);
+        var sensor = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
+        sensor.Length = 150;
+        var pending = new TaskCompletionSource<SetupSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, board)).Returns(pending.Task);
+        var save = editor.SaveCommand.ExecuteAsync(null);
+        sensor.Length = 175;
+        pending.SetResult(new SetupSaveResult.Saved(snapshot with
+        {
+            FrontSensorConfigurationJson = "{\"type\":\"linear_fork\",\"length\":150,\"resolution\":12}", Updated = 2,
+        }, board));
+
+        await save.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(175, sensor.Length);
+        Assert.True(editor.IsDirty);
+        shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
+        await editor.ResetCommand.ExecuteAsync(null);
+        Assert.Equal(150, Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration).Length);
+        Assert.False(editor.IsDirty);
     }
 
     [AvaloniaFact]
     public async Task Save_OnConflict_PromptsUser_AndReloadsWhenAccepted()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(name: "old", bikeId: bike.Id, updated: 5)
             with
@@ -350,21 +366,20 @@ public class SetupEditorViewModelTests
         var fresh = TestSnapshots.Setup(id: snapshot.Id, name: "remote-updated", bikeId: bike.Id, updated: 12)
             with
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
-        setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
+        setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId))
             .Returns(new SetupSaveResult.Conflict(fresh, boardId));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal("remote-updated", editor.Name);
-        Assert.Equal(12, editor.BaselineUpdated);
     }
 
     [AvaloniaFact]
     public async Task Save_OnConflict_DoesNothing_WhenUserDeclinesReload()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(name: "old", bikeId: bike.Id, updated: 5)
             with
@@ -376,21 +391,20 @@ public class SetupEditorViewModelTests
         var fresh = TestSnapshots.Setup(id: snapshot.Id, name: "remote-updated", bikeId: bike.Id, updated: 12)
             with
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
-        setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
+        setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId))
             .Returns(new SetupSaveResult.Conflict(fresh, boardId));
         dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(false);
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal("renamed", editor.Name);
-        Assert.Equal(5, editor.BaselineUpdated);
     }
 
     [AvaloniaFact]
     public async Task Save_OnFailed_AppendsErrorMessage()
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, updated: 5)
             with
@@ -399,7 +413,7 @@ public class SetupEditorViewModelTests
         editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
-        setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5)
+        setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId))
             .Returns(new SetupSaveResult.Failed(SetupSaveFailureReason.Save, "disk full"));
 
         await editor.SaveCommand.ExecuteAsync(null);
@@ -417,7 +431,7 @@ public class SetupEditorViewModelTests
         bool conflict)
     {
         var bike = TestSnapshots.Bike();
-        bikesCache.AddOrUpdate(bike);
+        bikeStore.Add(bike);
         var boardId = Guid.NewGuid();
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id, updated: 5) with
         {
@@ -429,7 +443,7 @@ public class SetupEditorViewModelTests
         if (sensorOnly) sensor.Length = 150;
         else editor.Name = "Changed setup";
         Assert.True(editor.SaveCommand.CanExecute(null));
-        setupCoordinator.SaveAsync(Arg.Any<Setup>(), boardId, 5).Returns(
+        setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId)).Returns(
             conflict
                 ? new SetupSaveResult.Conflict(snapshot with { Updated = 6 })
                 : new SetupSaveResult.Failed(SetupSaveFailureReason.Save, "disk full"));
@@ -440,8 +454,6 @@ public class SetupEditorViewModelTests
 
         Assert.True(editor.IsDirty);
         Assert.True(editor.SaveCommand.CanExecute(null));
-        Assert.Equal(5, editor.BaselineUpdated);
-        if (sensorOnly) Assert.True(sensor.IsDirty);
     }
 
     // ----- Delete -----

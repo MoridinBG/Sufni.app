@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Coordinators;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -74,12 +75,7 @@ public class RotationalShockSensorConfigurationViewTests
         return new RotationalShockSensorConfigurationView
         {
             DataContext = new RotationalShockSensorConfigurationViewModel(
-                new RotationalShockSensorConfiguration
-                {
-                    CentralJoint = "Shock eye 1",
-                    AdjacentJoint1 = "Main pivot",
-                    AdjacentJoint2 = "Shock eye 2"
-                },
+                new SensorDraft.RotationalShock("Shock eye 1", "Main pivot", "Shock eye 2"),
                 [
                     new JointViewModel("Main pivot", JointType.Fixed, 0, 0),
                     new JointViewModel("Shock eye 1", JointType.Floating, 10, 5),

@@ -1,75 +1,19 @@
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sufni.App.Setups.Coordinators;
 
-using Sufni.App.Setups.Models.SensorConfigurations;
-using Sufni.App.Shared.Common;
 namespace Sufni.App.Setups.ViewModels.SensorConfigurations;
 
 public partial class RotationalForkSensorConfigurationViewModel : SensorConfigurationViewModel
 {
-    private RotationalForkSensorConfiguration sensorConfiguration;
-
-    #region Observable properties
-
     [ObservableProperty] public partial double? MaxLength { get; set; }
     [ObservableProperty] public partial double? ArmLength { get; set; }
 
-    #endregion Observable properties
-
-    #region SensorConfigurationViewModel overrides
-
-    public override void EvaluateDirtiness()
+    public RotationalForkSensorConfigurationViewModel(SensorDraft.RotationalFork draft)
     {
-        IsDirty = !MathUtils.AreEqual(MaxLength, sensorConfiguration.MaxLength) ||
-                  !MathUtils.AreEqual(ArmLength, sensorConfiguration.ArmLength);
+        Type = draft.Type;
+        MaxLength = draft.MaxLength;
+        ArmLength = draft.ArmLength;
     }
 
-    public override bool CanSave()
-    {
-        return MaxLength is not null && ArmLength is not null;
-    }
-
-    public override void Save()
-    {
-        Debug.Assert(MaxLength.HasValue);
-        Debug.Assert(ArmLength.HasValue);
-
-        sensorConfiguration = new RotationalForkSensorConfiguration
-        {
-            MaxLength = MaxLength.Value,
-            ArmLength = ArmLength.Value
-        };
-
-        EvaluateDirtiness();
-    }
-
-    public override string ToJson()
-    {
-        Debug.Assert(MaxLength is not null);
-        Debug.Assert(ArmLength is not null);
-
-        var sc = new RotationalForkSensorConfiguration
-        {
-            MaxLength = MaxLength.Value,
-            ArmLength = ArmLength.Value
-        };
-
-        return SensorConfiguration.ToJson(sc);
-    }
-
-    #endregion SensorConfigurationViewModel overrides
-
-    #region Constructors
-
-    public RotationalForkSensorConfigurationViewModel() : this(new RotationalForkSensorConfiguration()) { }
-
-    public RotationalForkSensorConfigurationViewModel(RotationalForkSensorConfiguration configuration)
-    {
-        Type = SensorType.RotationalFork;
-        sensorConfiguration = configuration;
-        MaxLength = sensorConfiguration.MaxLength;
-        ArmLength = sensorConfiguration.ArmLength;
-    }
-
-    #endregion Constructors
+    public override SensorDraft CaptureDraft() => new SensorDraft.RotationalFork(MaxLength, ArmLength);
 }

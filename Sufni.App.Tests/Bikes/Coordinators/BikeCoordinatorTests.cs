@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Doubles;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Shared.Models;
@@ -21,7 +22,7 @@ public class BikeCoordinatorTests : IDisposable
     private readonly InMemorySynchronizableRepository<Bike> repository = new(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9)));
     private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
-    private readonly TestSaveValidator validator = new();
+    private readonly TestBikeSaveValidator validator = new();
 
     public void Dispose() => bikeStore.Dispose();
 
@@ -388,10 +389,4 @@ public class BikeCoordinatorTests : IDisposable
         Assert.Equal(initial, bikeStore.Get(id));
     }
 
-    private sealed class TestSaveValidator : IBikeSaveValidator
-    {
-        public Func<BikeDraft, Task<BikeSaveValidation>> Evaluate { get; set; } =
-            _ => Task.FromResult<BikeSaveValidation>(new BikeSaveValidation.Valid());
-        public Task<BikeSaveValidation> ValidateAsync(BikeDraft draft, CancellationToken cancellationToken = default) => Evaluate(draft);
-    }
 }

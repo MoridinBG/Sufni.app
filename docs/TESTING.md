@@ -244,10 +244,10 @@ Code that usually does not need direct tests includes:
 
 Editor and coordinator tests should make the optimistic-concurrency mechanism explicit.
 
-- Recorded session editors capture an immutable `SessionDraft` base. Their coordinator compares the fields saved by that draft against the current snapshot; alignment, processing options and derived updates must not conflict. Test a metadata conflict even when `Updated` is unchanged, and preservation of unrelated changes when `Updated` has advanced.
-- Bike/setup editors currently carry `BaselineUpdated`, initialized from the loaded snapshot's `Updated` value. Their coordinators compare that timestamp against the current snapshot on save.
+- Bike, setup and recorded-session editors capture an immutable draft base. Coordinators compare the fields saved by that draft against current facts. Separate damping-cutoff, alignment, processing-option and derived updates must not conflict. Test an authored-field conflict even when `Updated` is unchanged, and preservation of unrelated changes when `Updated` has advanced.
+- Setup sensor comparisons use authored values, so JSON formatting alone is not a conflict. Saved snapshots advance the draft base while preserving edits made during persistence as dirty.
 - If the values diverge, the save should be rejected with the appropriate conflict path instead of silently overwriting newer data.
-- Tests should cover both the matching-version case and the stale-version case.
+- Tests should cover unchanged authored fields and a divergent draft base.
 
 Assert the applicable editor contract through save outcomes and captured draft inputs; do not assert private synchronization flags.
 

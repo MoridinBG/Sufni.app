@@ -14,15 +14,11 @@ public interface ISetupCoordinator
 {
     SetupDetails CreateDraft(Guid? suggestedBoardId = null);
 
-    Task<SetupSaveResult> SaveAsync(Setup setup, Guid? boardId, long baselineUpdated);
+    Task<SetupSaveResult> SaveAsync(SetupDraft draft, SetupDraft? draftBase);
 
     Task<SetupDeleteResult> DeleteAsync(Guid setupId);
 
     Task<SetupImportResult> ImportSetupAsync(CancellationToken cancellationToken = default);
 
-    Task<SetupExportResult> ExportSetupAsync(
-        Setup setup,
-        Bike bike,
-        Guid? boardId,
-        CancellationToken cancellationToken = default);
+    Task<SetupExportResult> ExportSetupAsync(SetupDraft draft, CancellationToken cancellationToken = default);
 }

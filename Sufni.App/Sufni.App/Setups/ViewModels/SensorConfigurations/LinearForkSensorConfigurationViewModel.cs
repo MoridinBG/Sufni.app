@@ -1,54 +1,15 @@
-using System.Diagnostics;
+using Sufni.App.Setups.Coordinators;
 
-using Sufni.App.Setups.Models.SensorConfigurations;
 namespace Sufni.App.Setups.ViewModels.SensorConfigurations;
 
 public partial class LinearForkSensorConfigurationViewModel : LinearSensorConfigurationViewModelBase
 {
-    private LinearForkSensorConfiguration sensorConfiguration;
-
-    #region SensorConfigurationViewModel overrides
-
-    public override void Save()
+    public LinearForkSensorConfigurationViewModel(SensorDraft.LinearFork draft)
     {
-        Debug.Assert(Length.HasValue);
-        Debug.Assert(Resolution.HasValue);
-
-        sensorConfiguration = new LinearForkSensorConfiguration
-        {
-            Length = Length.Value,
-            Resolution = Resolution.Value
-        };
-
-        AcceptSavedLinearValues(sensorConfiguration.Length, sensorConfiguration.Resolution);
+        Type = draft.Type;
+        Length = draft.Length;
+        Resolution = draft.Resolution;
     }
 
-    public override string ToJson()
-    {
-        Debug.Assert(Length is not null);
-        Debug.Assert(Resolution is not null);
-
-        var sc = new LinearForkSensorConfiguration
-        {
-            Length = Length.Value,
-            Resolution = Resolution.Value
-        };
-
-        return SensorConfiguration.ToJson(sc);
-    }
-
-    #endregion SensorConfigurationViewModel overrides
-
-    #region Constructors
-
-    public LinearForkSensorConfigurationViewModel() : this(new LinearForkSensorConfiguration()) { }
-
-    public LinearForkSensorConfigurationViewModel(LinearForkSensorConfiguration configuration)
-    {
-        Type = SensorType.LinearFork;
-        sensorConfiguration = configuration;
-        LoadLinearValues(sensorConfiguration.Length, sensorConfiguration.Resolution);
-    }
-
-    #endregion Constructors
+    public override SensorDraft CaptureDraft() => new SensorDraft.LinearFork(Length, Resolution);
 }

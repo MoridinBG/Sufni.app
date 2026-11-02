@@ -65,6 +65,17 @@ public sealed record FailurePresentation
         BikeDeleteFailureReason.Delete => "The bike could not be deleted. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SetupValidationFailureReason reason, string? details = null) => new(reason switch
+    {
+        SetupValidationFailureReason.Name => "Enter a setup name.",
+        SetupValidationFailureReason.Board => "Choose a board for this setup.",
+        SetupValidationFailureReason.Bike => "Choose an available bike for this setup.",
+        SetupValidationFailureReason.Sensor => "Configure at least one sensor for this setup.",
+        SetupValidationFailureReason.Calibration => "Complete the sensor calibration fields.",
+        SetupValidationFailureReason.RearCompatibility => "The rear sensor configuration is not compatible with the selected bike.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason)),
+    }, details);
+
     public static FailurePresentation From(SetupSaveFailureReason reason, string? details = null) => new(reason switch
     {
         SetupSaveFailureReason.Save => "The setup could not be saved. Try again.",
@@ -79,6 +90,7 @@ public sealed record FailurePresentation
 
     public static FailurePresentation From(SetupExportFailureReason reason, string? details = null) => new(reason switch
     {
+        SetupExportFailureReason.BikeUnavailable => "Setup could not be exported: associated bike not found.",
         SetupExportFailureReason.Export => "The setup could not be exported. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
