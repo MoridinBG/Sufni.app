@@ -184,9 +184,12 @@ There are five kinds of view model in the presentation layer:
   workspaces. User-originated workspace setters call
   `RecordedSessionEditorActions` instead of mutating backing fields directly;
   `RecordedSessionEditorStateController` is the only reducer for those intents.
-  It combines intents with typed input streams to derive the current load data,
+  It reduces each intent or typed input once and publishes one coherent state, including the current load data,
   selected page, analysis range, signal availability, map/media state, and
-  analysis presentation. `SessionDetailViewModel` keeps one current state
+  analysis presentation. Reentrant intents wait until the current state has reached
+  all subscribers. Signal and analysis workspaces hold one state reference and
+  derive their binding properties from it; notifications see the whole new state.
+  `SessionDetailViewModel` keeps one current state
   snapshot for legacy read properties and property notifications, while
   `RecordedSessionEditorEffects` drives named effects such as analysis
   invalidation, command refresh, map/media
@@ -206,7 +209,8 @@ There are five kinds of view model in the presentation layer:
   Internal collaborators in `ViewModels/Editors/` keep
   flows off the editor itself: `SignalRowActionsController` builds the
   built-in signal-row header actions (airtime and analysis-selection toggles)
-  through owner-supplied state accessors and actions;
+  by reading the current signal state and emitting an editor intent.
+  `ApplyActionStates(state)` projects all twelve toggles from each accepted state;
   `ProcessingPreferenceWorkflow` owns the confirm-recompute-persist flow that
   runs when a processing preference change is committed. The editor constructs
   these collaborators and delegates; it no longer owns those flows. Session

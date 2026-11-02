@@ -21,28 +21,7 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
     private readonly ISessionOperationGateway gateway;
     private readonly RecordedSessionEditorActions actions;
     private readonly IDisposable stateSubscription;
-    private TelemetryData? telemetryData;
-    private TelemetryTimeRange? analysisRange;
-    private TravelDistributionMode selectedTravelDistributionMode = TravelDistributionMode.ActiveSuspension;
-    private BalanceDisplacementMode selectedBalanceDisplacementMode = BalanceDisplacementMode.Zenith;
-    private BalanceSpeedMode selectedBalanceSpeedMode = BalanceSpeedMode.Both;
-    private VelocityAverageMode selectedVelocityAverageMode = VelocityAverageMode.SampleAveraged;
-    private SessionInsightsTargetProfile selectedSessionInsightsTargetProfile = SessionInsightsTargetProfile.Trail;
-    private SurfacePresentationState frontAnalysisState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState rearAnalysisState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState compressionBalanceState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState reboundBalanceState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState frontForkVibrationState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState frontFrameVibrationState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState rearForkVibrationState = SurfacePresentationState.Hidden;
-    private SurfacePresentationState rearFrameVibrationState = SurfacePresentationState.Hidden;
-    private SessionDampingPercentages dampingPercentages = SessionDampingPercentages.Empty;
-    private DampingSpeedCutoffs dampingSpeedCutoffs = DampingSpeedCutoffs.Default;
-    private DampingSpeedCutoffs plotDampingSpeedCutoffs = DampingSpeedCutoffs.Default;
-    private bool canEditDampingSpeedCutoffs;
-    private SessionInsightsResult sessionInsights = SessionInsightsResult.Hidden;
-    private TelemetryRangeSelection? activeFrontAnalysisSelection;
-    private TelemetryRangeSelection? activeRearAnalysisSelection;
+    private RecordedSessionEditorState currentState = RecordedSessionEditorState.CreateInitial();
 
     public SessionAnalysisWorkspaceViewModel(
         IObservable<RecordedSessionEditorState> state,
@@ -65,37 +44,37 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         stateSubscription = state.Subscribe(ApplyState);
     }
 
-    public TelemetryData? TelemetryData => telemetryData;
+    public TelemetryData? TelemetryData => currentState.TelemetryData;
 
-    public TelemetryTimeRange? AnalysisRange => analysisRange;
+    public TelemetryTimeRange? AnalysisRange => currentState.Intent.AnalysisRange;
 
     public TravelDistributionMode SelectedTravelDistributionMode
     {
-        get => selectedTravelDistributionMode;
+        get => currentState.Intent.SelectedTravelDistributionMode;
         set => actions.SetTravelDistributionMode(value);
     }
 
     public BalanceDisplacementMode SelectedBalanceDisplacementMode
     {
-        get => selectedBalanceDisplacementMode;
+        get => currentState.Intent.SelectedBalanceDisplacementMode;
         set => actions.SetBalanceDisplacementMode(value);
     }
 
     public BalanceSpeedMode SelectedBalanceSpeedMode
     {
-        get => selectedBalanceSpeedMode;
+        get => currentState.Intent.SelectedBalanceSpeedMode;
         set => actions.SetBalanceSpeedMode(value);
     }
 
     public VelocityAverageMode SelectedVelocityAverageMode
     {
-        get => selectedVelocityAverageMode;
+        get => currentState.Intent.SelectedVelocityAverageMode;
         set => actions.SetVelocityAverageMode(value);
     }
 
     public SessionInsightsTargetProfile SelectedSessionInsightsTargetProfile
     {
-        get => selectedSessionInsightsTargetProfile;
+        get => currentState.Intent.SelectedSessionInsightsTargetProfile;
         set => actions.SetSessionInsightsTargetProfile(value);
     }
 
@@ -126,43 +105,43 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
         SelectedBalanceDisplacementMode,
         SelectedBalanceSpeedMode);
 
-    public SurfacePresentationState FrontAnalysisState => frontAnalysisState;
+    public SurfacePresentationState FrontAnalysisState => currentState.Presentation.Analysis.FrontAnalysis;
 
-    public SurfacePresentationState RearAnalysisState => rearAnalysisState;
+    public SurfacePresentationState RearAnalysisState => currentState.Presentation.Analysis.RearAnalysis;
 
-    public SurfacePresentationState CompressionBalanceState => compressionBalanceState;
+    public SurfacePresentationState CompressionBalanceState => currentState.Presentation.Analysis.CompressionBalance;
 
-    public SurfacePresentationState ReboundBalanceState => reboundBalanceState;
+    public SurfacePresentationState ReboundBalanceState => currentState.Presentation.Analysis.ReboundBalance;
 
-    public SurfacePresentationState FrontForkVibrationState => frontForkVibrationState;
+    public SurfacePresentationState FrontForkVibrationState => currentState.Presentation.Analysis.FrontForkVibration;
 
-    public SurfacePresentationState FrontFrameVibrationState => frontFrameVibrationState;
+    public SurfacePresentationState FrontFrameVibrationState => currentState.Presentation.Analysis.FrontFrameVibration;
 
-    public SurfacePresentationState RearForkVibrationState => rearForkVibrationState;
+    public SurfacePresentationState RearForkVibrationState => currentState.Presentation.Analysis.RearForkVibration;
 
-    public SurfacePresentationState RearFrameVibrationState => rearFrameVibrationState;
+    public SurfacePresentationState RearFrameVibrationState => currentState.Presentation.Analysis.RearFrameVibration;
 
-    public SessionDampingPercentages DampingPercentages => dampingPercentages;
+    public SessionDampingPercentages DampingPercentages => currentState.Presentation.DampingPercentages;
 
-    public DampingSpeedCutoffs DampingSpeedCutoffs => dampingSpeedCutoffs;
+    public DampingSpeedCutoffs DampingSpeedCutoffs => currentState.Intent.DampingSpeedCutoffs;
 
-    public DampingSpeedCutoffs PlotDampingSpeedCutoffs => plotDampingSpeedCutoffs;
+    public DampingSpeedCutoffs PlotDampingSpeedCutoffs => currentState.Presentation.PlotDampingSpeedCutoffs;
 
-    public bool CanEditDampingSpeedCutoffs => canEditDampingSpeedCutoffs;
+    public bool CanEditDampingSpeedCutoffs => currentState.Presentation.CanEditDampingSpeedCutoffs;
 
     public ISessionAnalysisResultSource AnalysisResultState { get; }
 
     public PositionVelocityPageViewModel PositionVelocity { get; }
 
-    public SessionInsightsResult SessionInsights => sessionInsights;
+    public SessionInsightsResult SessionInsights => currentState.Presentation.SessionInsights;
 
     public void RequestSessionInsights() => gateway.RequestSessionInsights();
 
     public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; }
 
-    public TelemetryRangeSelection? ActiveFrontAnalysisSelection => activeFrontAnalysisSelection;
+    public TelemetryRangeSelection? ActiveFrontAnalysisSelection => currentState.AnalysisSelection.ActiveFront;
 
-    public TelemetryRangeSelection? ActiveRearAnalysisSelection => activeRearAnalysisSelection;
+    public TelemetryRangeSelection? ActiveRearAnalysisSelection => currentState.AnalysisSelection.ActiveRear;
 
     public void PreviewDampingSpeedCutoff(
         SuspensionType side,
@@ -192,42 +171,51 @@ internal sealed class SessionAnalysisWorkspaceViewModel : ObservableObject, ISes
 
     private void ApplyState(RecordedSessionEditorState state)
     {
-        SetProperty(ref telemetryData, state.TelemetryData, nameof(TelemetryData));
-        if (SetProperty(ref analysisRange, state.Intent.AnalysisRange, nameof(AnalysisRange)))
+        var previous = currentState;
+        currentState = state;
+        NotifyChanged(previous.TelemetryData, state.TelemetryData, nameof(TelemetryData));
+        if (NotifyChanged(previous.Intent.AnalysisRange, state.Intent.AnalysisRange, nameof(AnalysisRange)))
         {
             OnPropertyChanged(nameof(SessionAnalysisRangeText));
         }
 
         var modesChanged =
-            SetProperty(ref selectedTravelDistributionMode, state.Intent.SelectedTravelDistributionMode, nameof(SelectedTravelDistributionMode)) |
-            SetProperty(ref selectedVelocityAverageMode, state.Intent.SelectedVelocityAverageMode, nameof(SelectedVelocityAverageMode)) |
-            SetProperty(ref selectedBalanceDisplacementMode, state.Intent.SelectedBalanceDisplacementMode, nameof(SelectedBalanceDisplacementMode)) |
-            SetProperty(ref selectedBalanceSpeedMode, state.Intent.SelectedBalanceSpeedMode, nameof(SelectedBalanceSpeedMode));
+            NotifyChanged(previous.Intent.SelectedTravelDistributionMode, state.Intent.SelectedTravelDistributionMode, nameof(SelectedTravelDistributionMode)) |
+            NotifyChanged(previous.Intent.SelectedVelocityAverageMode, state.Intent.SelectedVelocityAverageMode, nameof(SelectedVelocityAverageMode)) |
+            NotifyChanged(previous.Intent.SelectedBalanceDisplacementMode, state.Intent.SelectedBalanceDisplacementMode, nameof(SelectedBalanceDisplacementMode)) |
+            NotifyChanged(previous.Intent.SelectedBalanceSpeedMode, state.Intent.SelectedBalanceSpeedMode, nameof(SelectedBalanceSpeedMode));
         if (modesChanged)
         {
             OnPropertyChanged(nameof(SessionAnalysisModesText));
         }
 
-        SetProperty(ref selectedSessionInsightsTargetProfile, state.Intent.SelectedSessionInsightsTargetProfile, nameof(SelectedSessionInsightsTargetProfile));
-        SetProperty(ref frontAnalysisState, state.Presentation.Analysis.FrontAnalysis, nameof(FrontAnalysisState));
-        SetProperty(ref rearAnalysisState, state.Presentation.Analysis.RearAnalysis, nameof(RearAnalysisState));
-        SetProperty(ref compressionBalanceState, state.Presentation.Analysis.CompressionBalance, nameof(CompressionBalanceState));
-        SetProperty(ref reboundBalanceState, state.Presentation.Analysis.ReboundBalance, nameof(ReboundBalanceState));
-        SetProperty(ref frontForkVibrationState, state.Presentation.Analysis.FrontForkVibration, nameof(FrontForkVibrationState));
-        SetProperty(ref frontFrameVibrationState, state.Presentation.Analysis.FrontFrameVibration, nameof(FrontFrameVibrationState));
-        SetProperty(ref rearForkVibrationState, state.Presentation.Analysis.RearForkVibration, nameof(RearForkVibrationState));
-        SetProperty(ref rearFrameVibrationState, state.Presentation.Analysis.RearFrameVibration, nameof(RearFrameVibrationState));
-        SetProperty(ref dampingPercentages, state.Presentation.DampingPercentages, nameof(DampingPercentages));
-        SetProperty(ref dampingSpeedCutoffs, state.Intent.DampingSpeedCutoffs, nameof(DampingSpeedCutoffs));
-        SetProperty(ref plotDampingSpeedCutoffs, state.Presentation.PlotDampingSpeedCutoffs, nameof(PlotDampingSpeedCutoffs));
-        SetProperty(ref canEditDampingSpeedCutoffs, state.Presentation.CanEditDampingSpeedCutoffs, nameof(CanEditDampingSpeedCutoffs));
-        SetProperty(ref sessionInsights, state.Presentation.SessionInsights, nameof(SessionInsights));
-        SetProperty(ref activeFrontAnalysisSelection, state.AnalysisSelection.ActiveFront, nameof(ActiveFrontAnalysisSelection));
-        SetProperty(ref activeRearAnalysisSelection, state.AnalysisSelection.ActiveRear, nameof(ActiveRearAnalysisSelection));
+        NotifyChanged(previous.Intent.SelectedSessionInsightsTargetProfile, state.Intent.SelectedSessionInsightsTargetProfile, nameof(SelectedSessionInsightsTargetProfile));
+        NotifyChanged(previous.Presentation.Analysis.FrontAnalysis, state.Presentation.Analysis.FrontAnalysis, nameof(FrontAnalysisState));
+        NotifyChanged(previous.Presentation.Analysis.RearAnalysis, state.Presentation.Analysis.RearAnalysis, nameof(RearAnalysisState));
+        NotifyChanged(previous.Presentation.Analysis.CompressionBalance, state.Presentation.Analysis.CompressionBalance, nameof(CompressionBalanceState));
+        NotifyChanged(previous.Presentation.Analysis.ReboundBalance, state.Presentation.Analysis.ReboundBalance, nameof(ReboundBalanceState));
+        NotifyChanged(previous.Presentation.Analysis.FrontForkVibration, state.Presentation.Analysis.FrontForkVibration, nameof(FrontForkVibrationState));
+        NotifyChanged(previous.Presentation.Analysis.FrontFrameVibration, state.Presentation.Analysis.FrontFrameVibration, nameof(FrontFrameVibrationState));
+        NotifyChanged(previous.Presentation.Analysis.RearForkVibration, state.Presentation.Analysis.RearForkVibration, nameof(RearForkVibrationState));
+        NotifyChanged(previous.Presentation.Analysis.RearFrameVibration, state.Presentation.Analysis.RearFrameVibration, nameof(RearFrameVibrationState));
+        NotifyChanged(previous.Presentation.DampingPercentages, state.Presentation.DampingPercentages, nameof(DampingPercentages));
+        NotifyChanged(previous.Intent.DampingSpeedCutoffs, state.Intent.DampingSpeedCutoffs, nameof(DampingSpeedCutoffs));
+        NotifyChanged(previous.Presentation.PlotDampingSpeedCutoffs, state.Presentation.PlotDampingSpeedCutoffs, nameof(PlotDampingSpeedCutoffs));
+        NotifyChanged(previous.Presentation.CanEditDampingSpeedCutoffs, state.Presentation.CanEditDampingSpeedCutoffs, nameof(CanEditDampingSpeedCutoffs));
+        NotifyChanged(previous.Presentation.SessionInsights, state.Presentation.SessionInsights, nameof(SessionInsights));
+        NotifyChanged(previous.AnalysisSelection.ActiveFront, state.AnalysisSelection.ActiveFront, nameof(ActiveFrontAnalysisSelection));
+        NotifyChanged(previous.AnalysisSelection.ActiveRear, state.AnalysisSelection.ActiveRear, nameof(ActiveRearAnalysisSelection));
     }
 
     private static string FormatSeconds(double seconds)
     {
         return seconds.ToString("F1", CultureInfo.InvariantCulture);
     }
+    private bool NotifyChanged<T>(T previous, T current, string propertyName)
+    {
+        if (EqualityComparer<T>.Default.Equals(previous, current)) return false;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
 }

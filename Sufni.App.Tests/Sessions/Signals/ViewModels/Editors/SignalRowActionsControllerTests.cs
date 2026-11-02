@@ -1,197 +1,87 @@
+using System.Reactive.Linq;
 using Sufni.App.Shared.Views.Controls;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Sessions.Signals.ViewModels.Editors;
+using Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
-using Sufni.App.Sessions.Signals.ViewModels.Editors;
 namespace Sufni.App.Tests.Sessions.Signals.ViewModels.Editors;
 
-public class SignalRowActionsControllerTests
+public class SignalRowActionsControllerTests : IDisposable
 {
-    private readonly SignalRowActionState state = new();
+    private readonly RecordedSessionEditorStateControllerTestDriver driver = new();
+    private RecordedSessionEditorState state = RecordedSessionEditorState.CreateInitial();
     private readonly SignalRowActionsController controller;
+    private readonly IDisposable subscription;
 
     public SignalRowActionsControllerTests()
     {
-        controller = CreateController(state);
+        controller = new SignalRowActionsController(() => state.Presentation.Signals, driver.Actions);
+        subscription = driver.Controller.State.Subscribe(value =>
+        {
+            state = value;
+            controller.ApplyActionStates(value);
+        });
     }
 
     [Fact]
-    public void Constructor_CreatesHeaderActionPairs()
+    public void AirtimeActions_FollowLoadedTelemetryPresence()
     {
-        Assert.Equal(
-            ["travel_airtime", "travel_analysis_selection"],
-            controller.TravelHeaderActions.Select(action => action.Id));
-        Assert.Equal(
-            ["elevation_airtime", "elevation_analysis_selection"],
-            controller.ElevationHeaderActions.Select(action => action.Id));
-        Assert.All(
-            controller.TravelHeaderActions,
-            action => Assert.Equal(SignalRowActionKind.Toggle, action.Kind));
+        Assert.All(Actions(0), action => Assert.False(action.IsVisible));
+        var telemetry = TestTelemetryData.CreateMinimal();
+        telemetry.Airtimes = [new Airtime { Start = 1, End = 2 }];
+
+        driver.PublishTelemetry(telemetry);
+
+        Assert.All(Actions(0), action => Assert.True(action.IsVisible));
+        driver.PublishLoadedData();
+        Assert.All(Actions(0), action => Assert.False(action.IsVisible));
     }
 
     [Fact]
-    public void Constructor_InitialActionStates_MirrorContextDefaults()
+    public void AirtimeCommand_ChangesOnlyItsSignalAndFollowsLaterState()
     {
-        // Travel airtime defaults to visible; the other airtime rows start hidden.
-        Assert.True(controller.TravelHeaderActions[0].IsChecked);
-        Assert.False(controller.VelocityHeaderActions[0].IsChecked);
-        // Statistics-selection toggles start disabled until a selection exists.
-        Assert.False(controller.TravelHeaderActions[1].IsEnabled);
-        Assert.False(controller.SpeedHeaderActions[1].IsEnabled);
+        var action = controller.VelocityHeaderActions[0];
+        action.Command!.Execute(null);
+
+        Assert.True(state.Presentation.Signals.ShowVelocityAirtime);
+        Assert.True(action.IsChecked);
+        Assert.False(state.Presentation.Signals.ShowSpeedAirtime);
+
+        driver.Actions.SetSignalPresentation(state.Presentation.Signals with { ShowVelocityAirtime = false });
+        Assert.False(action.IsChecked);
     }
 
     [Fact]
-    public void AirtimeActions_AreHidden_UntilTheSessionHasAirtimes()
+    public void AnalysisActions_FollowSelectionAndProjectTheirToggleIntent()
     {
-        var airtimeActions = AirtimeActions().ToArray();
-        Assert.All(airtimeActions, action => Assert.False(action.IsVisible));
+        Assert.All(Actions(1), action => Assert.False(action.IsEnabled));
+        driver.AnalysisSelections.OnNext(new AnalysisSelectionState(null, null, [new TelemetryHighlightRange(1, 2)]));
+        Assert.All(Actions(1), action => Assert.True(action.IsEnabled));
 
-        controller.SetHasAirtimes(true);
+        controller.SpeedHeaderActions[1].Command!.Execute(null);
 
-        Assert.All(airtimeActions, action => Assert.True(action.IsVisible));
+        Assert.True(state.Presentation.Signals.ShowSpeedAnalysisSelection);
+        Assert.True(controller.SpeedHeaderActions[1].IsChecked);
+        driver.Actions.ClearAnalysisSelection();
+        Assert.All(Actions(1), action =>
+        {
+            Assert.False(action.IsEnabled);
+            Assert.False(action.IsChecked);
+        });
     }
 
-    [Fact]
-    public void AirtimeActionCommand_TogglesContextFlag_AndSyncsCheckedState()
-    {
-        var airtimeAction = controller.TravelHeaderActions[0];
-
-        airtimeAction.Command!.Execute(null);
-
-        Assert.False(state.ShowAirtime);
-        Assert.False(airtimeAction.IsChecked);
-
-        airtimeAction.Command.Execute(null);
-
-        Assert.True(state.ShowAirtime);
-        Assert.True(airtimeAction.IsChecked);
-    }
-
-    [Fact]
-    public void ExternalShowFlagChange_DoesNotUpdateAirtimeActionCheckedState()
-    {
-        state.ShowVelocityAirtime = true;
-
-        Assert.False(controller.VelocityHeaderActions[0].IsChecked);
-    }
-
-    [Fact]
-    public void AnalysisSelectionActionCommand_TogglesContextFlag_AndSyncsCheckedState()
-    {
-        var selectionAction = controller.TravelHeaderActions[1];
-
-        selectionAction.Command!.Execute(null);
-
-        Assert.True(state.ShowAnalysisSelection);
-        Assert.True(selectionAction.IsChecked);
-    }
-
-    [Fact]
-    public void RefreshAnalysisSelectionActionStates_EnablesActions_WhileSelectionExists()
-    {
-        state.AnalysisSelectionHighlightRanges = [new TelemetryHighlightRange(1.0, 2.0)];
-
-        controller.RefreshAnalysisSelectionActionStates();
-
-        Assert.All(
-            AllAnalysisSelectionActions(),
-            action => Assert.True(action.IsEnabled));
-
-        state.AnalysisSelectionHighlightRanges = [];
-        controller.RefreshAnalysisSelectionActionStates();
-
-        Assert.All(
-            AllAnalysisSelectionActions(),
-            action => Assert.False(action.IsEnabled));
-    }
-
-    [Fact]
-    public void ClearAnalysisSelectionToggles_UnchecksEveryToggle_AndResetsContextFlags()
-    {
-        state.ShowAnalysisSelection = true;
-        state.ShowVelocityAnalysisSelection = true;
-        state.ShowElevationAnalysisSelection = true;
-
-        controller.ClearAnalysisSelectionToggles();
-
-        Assert.False(state.ShowAnalysisSelection);
-        Assert.False(state.ShowVelocityAnalysisSelection);
-        Assert.False(state.ShowImuAnalysisSelection);
-        Assert.False(state.ShowPitchRollAnalysisSelection);
-        Assert.False(state.ShowSpeedAnalysisSelection);
-        Assert.False(state.ShowElevationAnalysisSelection);
-        Assert.All(
-            AllAnalysisSelectionActions(),
-            action => Assert.False(action.IsChecked));
-    }
-
-    private IEnumerable<SignalRowAction> AllAnalysisSelectionActions()
-    {
-        return
-        [
-            controller.TravelHeaderActions[1],
-            controller.VelocityHeaderActions[1],
-            controller.ImuHeaderActions[1],
-            controller.PitchRollHeaderActions[1],
-            controller.SpeedHeaderActions[1],
-            controller.ElevationHeaderActions[1],
-        ];
-    }
-
-    private IEnumerable<SignalRowAction> AirtimeActions() =>
+    private IEnumerable<SignalRowAction> Actions(int index) =>
     [
-        controller.TravelHeaderActions[0],
-        controller.VelocityHeaderActions[0],
-        controller.ImuHeaderActions[0],
-        controller.PitchRollHeaderActions[0],
-        controller.SpeedHeaderActions[0],
-        controller.ElevationHeaderActions[0],
+        controller.TravelHeaderActions[index], controller.VelocityHeaderActions[index],
+        controller.ImuHeaderActions[index], controller.PitchRollHeaderActions[index],
+        controller.SpeedHeaderActions[index], controller.ElevationHeaderActions[index],
     ];
 
-    private static SignalRowActionsController CreateController(SignalRowActionState state)
+    public void Dispose()
     {
-        return new SignalRowActionsController(
-            () => state.HasAnalysisSelection,
-            () => state.ShowAirtime,
-            value => state.ShowAirtime = value,
-            () => state.ShowVelocityAirtime,
-            value => state.ShowVelocityAirtime = value,
-            () => state.ShowImuAirtime,
-            value => state.ShowImuAirtime = value,
-            () => state.ShowPitchRollAirtime,
-            value => state.ShowPitchRollAirtime = value,
-            () => state.ShowSpeedAirtime,
-            value => state.ShowSpeedAirtime = value,
-            () => state.ShowElevationAirtime,
-            value => state.ShowElevationAirtime = value,
-            () => state.ShowAnalysisSelection,
-            value => state.ShowAnalysisSelection = value,
-            () => state.ShowVelocityAnalysisSelection,
-            value => state.ShowVelocityAnalysisSelection = value,
-            () => state.ShowImuAnalysisSelection,
-            value => state.ShowImuAnalysisSelection = value,
-            () => state.ShowPitchRollAnalysisSelection,
-            value => state.ShowPitchRollAnalysisSelection = value,
-            () => state.ShowSpeedAnalysisSelection,
-            value => state.ShowSpeedAnalysisSelection = value,
-            () => state.ShowElevationAnalysisSelection,
-            value => state.ShowElevationAnalysisSelection = value);
-    }
-
-    private sealed class SignalRowActionState
-    {
-        public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; set; } = [];
-        public bool HasAnalysisSelection => AnalysisSelectionHighlightRanges.Count > 0;
-        public bool ShowAirtime { get; set; } = true;
-        public bool ShowVelocityAirtime { get; set; }
-        public bool ShowImuAirtime { get; set; }
-        public bool ShowPitchRollAirtime { get; set; }
-        public bool ShowSpeedAirtime { get; set; }
-        public bool ShowElevationAirtime { get; set; }
-        public bool ShowAnalysisSelection { get; set; }
-        public bool ShowVelocityAnalysisSelection { get; set; }
-        public bool ShowImuAnalysisSelection { get; set; }
-        public bool ShowPitchRollAnalysisSelection { get; set; }
-        public bool ShowSpeedAnalysisSelection { get; set; }
-        public bool ShowElevationAnalysisSelection { get; set; }
+        subscription.Dispose();
+        driver.Dispose();
     }
 }

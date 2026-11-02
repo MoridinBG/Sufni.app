@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reactive.Linq;
+using System.Reactive.Concurrency;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Views.Plots;
@@ -51,196 +52,189 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
         ArgumentNullException.ThrowIfNull(inputs.DomainStates);
 
-        var selectedPageIndex = CreateSelectedPageIndexState(inputs.Intents, inputs.PageCounts);
-        var loadPresentationState = CreateInputState(
-            inputs.LoadPresentations,
-            new RecordedSessionLoadPresentation.Empty());
-        var loadedDataState = CreateInputState(
-            loadPresentationState.Select(CreateLoadedDataFromLoadPresentation),
-            CreateEmptyLoadedData());
-        var analysisRange = CreateAnalysisRangeState(inputs.Intents, loadedDataState);
-        var dampingSpeedCutoffs = CreateDampingSpeedCutoffsState(inputs.Intents);
-        var preferenceIntent = CreatePreferenceIntentState(inputs.Intents, inputs.PreferenceReplays);
-        var screenState = CreateInputState(
-            loadPresentationState.Select(CreateScreenStateFromLoadPresentation),
-            SessionScreenPresentationState.Ready);
-        var operationState = CreateInputState(inputs.OperationStates, SessionOperationPresentationState.Hidden);
-        var mapState = CreateInputState(
-            loadPresentationState.Select(CreateMapStateFromLoadPresentation),
-            SurfacePresentationState.Hidden);
-        var analysisPresentation = CreateInputState(
-            loadPresentationState.CombineLatest(
-                analysisRange,
-                static (load, analysis) => CreateAnalysisPresentationFromLoadPresentation(load, analysis.AnalysisRange)),
-            RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState());
-        var dampingPercentageState = CreateInputState(
-            inputs.DampingPercentages,
-            SessionDampingPercentages.Empty);
-        var plotDampingSpeedCutoffState = CreateInputState(
-            inputs.PlotDampingSpeedCutoffs,
-            DampingSpeedCutoffs.Default);
-        var canEditDampingSpeedCutoffState = CreateInputState(
-            inputs.CanEditDampingSpeedCutoffs,
-            false);
-        var sessionInsightsState = CreateInputState(
-            inputs.SessionInsights,
-            SessionInsightsResult.Hidden);
-        var signalAvailabilityState = CreateInputState(
-            loadPresentationState.Select(CreateSignalAvailabilityFromLoadPresentation),
-            RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState());
-        var analysisSelectionState = CreateAnalysisSelectionState(
-            inputs.Intents,
-            inputs.AnalysisSelections,
-            preferenceIntent,
-            loadedDataState,
-            analysisRange);
-        var explicitSignalPresentationState = CreateSignalPresentationOverlayState(
-            inputs.Intents,
-            analysisSelectionState);
-        var signalPresentationState = loadPresentationState
-            .CombineLatest(
-                explicitSignalPresentationState,
-                CreateSignalPresentationFromLoadPresentation)
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-        var signalPlotContextMenuActionState = CreateInputState(
-            inputs.SignalPlotContextMenuActions,
-            CreateEmptySignalPlotContextMenuActions());
-        var domainState = CreateOptionalInputState(inputs.DomainStates);
-        var derivedIntentState = selectedPageIndex
-            .CombineLatest(
-                analysisRange,
-                static (pageIndex, analysis) => new { pageIndex, analysis })
-            .CombineLatest(
-                dampingSpeedCutoffs,
-                static (current, cutoffs) => new { current.pageIndex, current.analysis, cutoffs })
-            .CombineLatest(
-                preferenceIntent,
-                static (current, preferences) => new DerivedIntentState(
-                    current.pageIndex,
-                    current.analysis,
-                    current.cutoffs,
-                    preferences));
-        var derivedPresentationState = screenState
-            .CombineLatest(
-                operationState,
-                static (screen, operation) => new DerivedPresentationState(screen, operation));
-        var replayingState = Observable.Return(RecordedSessionEditorState.CreateInitial())
-            .CombineLatest(
-                derivedIntentState,
-                static (state, derived) => new { state, derived })
-            .CombineLatest(
-                derivedPresentationState,
-                static (current, presentation) => new { current.state, current.derived, presentation })
-            .CombineLatest(
-                mapState,
-                static (current, media) => new { current.state, current.derived, current.presentation, media })
-            .CombineLatest(
-                loadPresentationState,
-                static (current, load) => new { current.state, current.derived, current.presentation, current.media, load })
-            .CombineLatest(
-                analysisPresentation,
-                static (current, analysis) => new { current.state, current.derived, current.presentation, current.media, current.load, analysis })
-            .CombineLatest(
-                dampingPercentageState,
-                static (current, percentages) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, percentages })
-            .CombineLatest(
-                plotDampingSpeedCutoffState,
-                static (current, plotCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, plotCutoffs })
-            .CombineLatest(
-                canEditDampingSpeedCutoffState,
-                static (current, canEditCutoffs) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, canEditCutoffs })
-            .CombineLatest(
-                sessionInsightsState,
-                static (current, insights) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, insights })
-            .CombineLatest(
-                signalAvailabilityState,
-                static (current, signalAvailability) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, signalAvailability })
-            .CombineLatest(
-                signalPresentationState,
-                static (current, signals) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signalAvailability, signals })
-            .CombineLatest(
-                analysisSelectionState,
-                static (current, analysisSelection) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signalAvailability, current.signals, analysisSelection })
-            .CombineLatest(
-                loadedDataState,
-                static (current, loadedData) => new { current.state, current.derived, current.presentation, current.media, current.load, current.analysis, current.percentages, current.plotCutoffs, current.canEditCutoffs, current.insights, current.signalAvailability, current.signals, current.analysisSelection, loadedData })
-            .CombineLatest(
-                signalPlotContextMenuActionState,
-                static (current, signalPlotContextMenuActions) => new
+        var initial = RecordedSessionEditorState.CreateInitial();
+        var updates = Observable.Merge(
+            Updates(inputs.Intents, ReduceIntent),
+            Updates(inputs.PageCounts, static (current, count) => current with
+            {
+                PageCount = count,
+                Editor = current.Editor with
                 {
-                    current.state,
-                    current.derived,
-                    current.presentation,
-                    current.media,
-                    current.load,
-                    current.analysis,
-                    current.percentages,
-                    current.plotCutoffs,
-                    current.canEditCutoffs,
-                    current.insights,
-                    current.signalAvailability,
-                    current.signals,
-                    current.analysisSelection,
-                    current.loadedData,
-                    signalPlotContextMenuActions,
-                })
-            .CombineLatest(
-                domainState,
-                static (current, domain) =>
-                {
-                    var loaded = current.loadedData;
-                    var session = domain?.Session ?? loaded.Session ?? current.state.Session;
-
-                    return current.state with
+                    Intent = current.Editor.Intent with
                     {
-                        Domain = domain ?? current.state.Domain,
-                        Load = current.load,
-                        Session = session,
-                        TelemetryData = loaded.TelemetryData,
-                        FullTrackPoints = loaded.FullTrackPoints,
-                        TrackPoints = loaded.TrackPoints,
-                        TrackTimelineContext = loaded.TrackTimelineContext,
-                        Preferences = current.derived.Preferences,
-                        Intent = current.state.Intent with
-                        {
-                            SelectedPageIndex = current.derived.SelectedPageIndex,
-                            AnalysisRange = ClampAnalysisRange(current.derived.Analysis.AnalysisRange, loaded.TelemetryData),
-                            PendingAnalysisRangeBoundary = current.derived.Analysis.PendingAnalysisRangeBoundary,
-                            SelectedTravelDistributionMode = current.derived.Preferences.Analysis.TravelDistributionMode,
-                            SelectedBalanceDisplacementMode = current.derived.Preferences.Analysis.BalanceDisplacementMode,
-                            SelectedBalanceSpeedMode = current.derived.Preferences.Analysis.BalanceSpeedMode,
-                            SelectedVelocityAverageMode = current.derived.Preferences.Analysis.VelocityAverageMode,
-                            SelectedSessionInsightsTargetProfile = current.derived.Preferences.Analysis.SessionInsightsTargetProfile,
-                            DampingSpeedCutoffs = current.derived.DampingSpeedCutoffs,
-                            SignalDisplayPreferences = current.derived.Preferences.SignalDisplay,
-                            SignalLayoutPreferences = current.derived.Preferences.SignalLayout,
-                            LayoutPreferences = current.derived.Preferences.Layout,
-                        },
-                        Presentation = current.state.Presentation with
-                        {
-                            MapState = current.media,
-                            SignalAvailability = current.signalAvailability,
-                            Signals = current.signals,
-                            Analysis = current.analysis,
-                            DampingPercentages = current.percentages,
-                            PlotDampingSpeedCutoffs = current.plotCutoffs,
-                            CanEditDampingSpeedCutoffs = current.canEditCutoffs,
-                            SessionInsights = current.insights,
-                            SignalPlotContextMenuActionsBySignalRowId = current.signalPlotContextMenuActions,
-                            ScreenState = current.presentation.ScreenState,
-                            OperationState = current.presentation.OperationState,
-                        },
-                        AnalysisSelection = current.analysisSelection,
-                    };
-                })
+                        SelectedPageIndex = RecordedSessionPageSelection.ClampSelectedPageIndex(current.Editor.Intent.SelectedPageIndex, count),
+                    },
+                },
+            }),
+            EditorUpdates(inputs.PreferenceReplays, ApplyPreferences),
+            Updates(inputs.LoadPresentations, ApplyLoad),
+            EditorUpdates(inputs.OperationStates, static (state, operation) => state with
+            {
+                Presentation = state.Presentation with { OperationState = operation },
+            }),
+            EditorUpdates(inputs.DampingPercentages, static (state, percentages) => state with
+            {
+                Presentation = state.Presentation with { DampingPercentages = percentages },
+            }),
+            EditorUpdates(inputs.PlotDampingSpeedCutoffs, static (state, cutoffs) => state with
+            {
+                Presentation = state.Presentation with { PlotDampingSpeedCutoffs = cutoffs },
+            }),
+            EditorUpdates(inputs.CanEditDampingSpeedCutoffs, static (state, canEdit) => state with
+            {
+                Presentation = state.Presentation with { CanEditDampingSpeedCutoffs = canEdit },
+            }),
+            EditorUpdates(inputs.SessionInsights, static (state, insights) => state with
+            {
+                Presentation = state.Presentation with { SessionInsights = insights },
+            }),
+            EditorUpdates(inputs.AnalysisSelections, ApplySelection),
+            EditorUpdates(inputs.SignalPlotContextMenuActions, static (state, actions) => state with
+            {
+                Presentation = state.Presentation with { SignalPlotContextMenuActionsBySignalRowId = actions },
+            }),
+            EditorUpdates(inputs.DomainStates, static (state, domain) => state with
+            {
+                Domain = domain,
+                Session = domain.Session,
+            }));
+        var replayingState = updates
+            // Effects may emit another intent while observing a state. Finish this publication first.
+            .ObserveOn(CurrentThreadScheduler.Instance)
+            .Scan(new Reduction(initial, 0, AnalysisRangeIntentState.Empty), static (current, update) => update(current))
+            .Select(static current => current.Editor)
+            .StartWith(initial)
             .DistinctUntilChanged()
             .Replay(1);
 
         State = replayingState.AsObservable();
         connection = replayingState.Connect();
     }
+
+    private static IObservable<Func<Reduction, Reduction>> Updates<T>(
+        IObservable<T> source, Func<Reduction, T, Reduction> reduce) =>
+        source.Select(value => new Func<Reduction, Reduction>(current => reduce(current, value)));
+
+    private static IObservable<Func<Reduction, Reduction>> EditorUpdates<T>(
+        IObservable<T> source, Func<RecordedSessionEditorState, T, RecordedSessionEditorState> reduce) =>
+        Updates(source, (current, value) => current with { Editor = reduce(current.Editor, value) });
+
+    private static Reduction ReduceIntent(Reduction current, RecordedSessionEditorIntent intent)
+    {
+        var state = current.Editor;
+        if (RecordedSessionEditorIntentReducers.CreatePreferenceUpdate(intent) is { } preferenceUpdate)
+            return current with { Editor = ApplyPreferences(state, preferenceUpdate(state.Preferences)) };
+
+        if (CreateAnalysisRangeUpdate(intent, state.TelemetryData) is { } rangeUpdate)
+        {
+            var requested = rangeUpdate(current.RequestedRange);
+            var range = ClampAnalysisRange(requested.AnalysisRange, state.TelemetryData);
+            var updated = state with
+            {
+                Intent = state.Intent with
+                {
+                    AnalysisRange = range,
+                    PendingAnalysisRangeBoundary = requested.PendingAnalysisRangeBoundary,
+                },
+                Presentation = state.Presentation with
+                {
+                    Analysis = CreateAnalysisPresentationFromLoadPresentation(state.Load, range),
+                },
+            };
+            if (range != state.Intent.AnalysisRange)
+                updated = ApplySelection(updated, RefreshAnalysisSelectionHighlights(state.AnalysisSelection, state.TelemetryData, range));
+            return current with { Editor = updated, RequestedRange = requested };
+        }
+
+        if (CreateAnalysisSelectionUpdate(intent, state.TelemetryData, state.Intent.AnalysisRange) is { } selectionUpdate)
+            return current with { Editor = ApplySelection(state, selectionUpdate(state.AnalysisSelection)) };
+
+        return current with
+        {
+            Editor = intent switch
+            {
+                RecordedSessionEditorIntent.SelectPageIndex select => state with
+                {
+                    Intent = state.Intent with
+                    {
+                        SelectedPageIndex = RecordedSessionPageSelection.ClampSelectedPageIndex(select.PageIndex, current.PageCount),
+                    },
+                },
+                RecordedSessionEditorIntent.SetDampingSpeedCutoffs set => state with
+                {
+                    Intent = state.Intent with { DampingSpeedCutoffs = set.Cutoffs },
+                },
+                RecordedSessionEditorIntent.SetSignalPresentation set => state with
+                {
+                    Presentation = state.Presentation with
+                    {
+                        Signals = CreateSignalPresentationFromLoadPresentation(state.Load, set.State),
+                    },
+                },
+                _ => state,
+            },
+        };
+    }
+
+    private static Reduction ApplyLoad(Reduction current, RecordedSessionLoadPresentation load)
+    {
+        var state = current.Editor;
+        var loaded = CreateLoadedDataFromLoadPresentation(load);
+        var range = ClampAnalysisRange(current.RequestedRange.AnalysisRange, loaded.TelemetryData);
+        var updated = state with
+        {
+            Load = load,
+            Session = state.Domain?.Session ?? loaded.Session ?? state.Session,
+            TelemetryData = loaded.TelemetryData,
+            FullTrackPoints = loaded.FullTrackPoints,
+            TrackPoints = loaded.TrackPoints,
+            TrackTimelineContext = loaded.TrackTimelineContext,
+            Intent = state.Intent with { AnalysisRange = range },
+            Presentation = state.Presentation with
+            {
+                ScreenState = CreateScreenStateFromLoadPresentation(load),
+                MapState = CreateMapStateFromLoadPresentation(load),
+                SignalAvailability = CreateSignalAvailabilityFromLoadPresentation(load),
+                Signals = CreateSignalPresentationFromLoadPresentation(load, state.Presentation.Signals),
+                Analysis = CreateAnalysisPresentationFromLoadPresentation(load, range),
+            },
+        };
+        if (!ReferenceEquals(state.TelemetryData, loaded.TelemetryData) || state.Intent.AnalysisRange != range)
+            updated = ApplySelection(updated, RefreshAnalysisSelectionHighlights(state.AnalysisSelection, loaded.TelemetryData, range));
+        return current with { Editor = updated };
+    }
+
+    private static RecordedSessionEditorState ApplyPreferences(RecordedSessionEditorState state, SessionPreferences preferences)
+    {
+        var updated = state with
+        {
+            Preferences = preferences,
+            Intent = state.Intent with
+            {
+                SelectedTravelDistributionMode = preferences.Analysis.TravelDistributionMode,
+                SelectedBalanceDisplacementMode = preferences.Analysis.BalanceDisplacementMode,
+                SelectedBalanceSpeedMode = preferences.Analysis.BalanceSpeedMode,
+                SelectedVelocityAverageMode = preferences.Analysis.VelocityAverageMode,
+                SelectedSessionInsightsTargetProfile = preferences.Analysis.SessionInsightsTargetProfile,
+                SignalDisplayPreferences = preferences.SignalDisplay,
+                SignalLayoutPreferences = preferences.SignalLayout,
+                LayoutPreferences = preferences.Layout,
+            },
+        };
+        return state.Preferences.Analysis.VelocityAverageMode == preferences.Analysis.VelocityAverageMode
+            ? updated
+            : ApplySelection(updated, ClearDampingRangeSelections(state.AnalysisSelection, state.TelemetryData, state.Intent.AnalysisRange));
+    }
+
+    private static RecordedSessionEditorState ApplySelection(RecordedSessionEditorState state, AnalysisSelectionState selection) =>
+        state.AnalysisSelection == selection ? state : state with
+        {
+            AnalysisSelection = selection,
+            Presentation = state.Presentation with
+            {
+                Signals = ApplyAnalysisSelectionOverlayDefaults(state.Presentation.Signals, selection),
+            },
+        };
 
     public IObservable<RecordedSessionEditorState> State { get; }
 
@@ -253,11 +247,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
 
         disposed = true;
         connection.Dispose();
-    }
-
-    private static IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> CreateEmptySignalPlotContextMenuActions()
-    {
-        return new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
     }
 
     private static RecordedSessionLoadedData CreateLoadedDataFromLoadPresentation(
@@ -284,16 +273,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 telemetry.TelemetryData,
                 telemetry.TrackPoints,
                 session));
-    }
-
-    private static RecordedSessionLoadedData CreateEmptyLoadedData()
-    {
-        return new RecordedSessionLoadedData(
-            Session: null,
-            TelemetryData: null,
-            FullTrackPoints: null,
-            TrackPoints: null,
-            TrackTimelineContext: null);
     }
 
     private static SessionSnapshot? GetSessionSnapshot(RecordedSessionLoadPresentation load)
@@ -459,75 +438,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             : $"Local session data is incomplete: {string.Join(", ", missingParts)}. Run sync and try again.";
     }
 
-    private static IObservable<int> CreateSelectedPageIndexState(
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<int> pageCounts)
-    {
-        var selectedPageRequests = intents
-            .OfType<RecordedSessionEditorIntent.SelectPageIndex>()
-            .Select(static intent => new PageSelectionUpdate(PageIndex: Math.Max(0, intent.PageIndex), PageCount: null));
-
-        var pageCountClamps = pageCounts
-            .StartWith(0)
-            .Select(static count => new PageSelectionUpdate(PageIndex: null, PageCount: count));
-
-        return selectedPageRequests
-            .Merge(pageCountClamps)
-            .Scan(
-                new PageSelectionState(SelectedPageIndex: 0, PageCount: 0),
-                static (current, update) =>
-                {
-                    var pageCount = update.PageCount ?? current.PageCount;
-                    var selectedPageIndex = update.PageIndex ?? current.SelectedPageIndex;
-                    return new PageSelectionState(
-                        RecordedSessionPageSelection.ClampSelectedPageIndex(selectedPageIndex, pageCount),
-                        pageCount);
-                })
-            .Select(static state => state.SelectedPageIndex)
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
-    private static IObservable<T> CreateInputState<T>(IObservable<T> updates, T initialValue)
-    {
-        return updates
-            .StartWith(initialValue)
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
-    private static IObservable<T?> CreateOptionalInputState<T>(IObservable<T> updates)
-        where T : class
-    {
-        return updates
-            .Select(static value => (T?)value)
-            .StartWith((T?)null)
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
-    private static IObservable<AnalysisRangeIntentState> CreateAnalysisRangeState(
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<RecordedSessionLoadedData?> loadedDataStates)
-    {
-        var updates = intents
-            .WithLatestFrom(
-                loadedDataStates,
-                static (intent, loadedData) => CreateAnalysisRangeUpdate(intent, loadedData?.TelemetryData))
-            .Where(static update => update is not null)
-            .Select(static update => update!);
-
-        return updates
-            .StartWith(new Func<AnalysisRangeIntentState, AnalysisRangeIntentState>(static current => current))
-            .Scan(AnalysisRangeIntentState.Empty, static (current, update) => update(current))
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
     private static Func<AnalysisRangeIntentState, AnalysisRangeIntentState>? CreateAnalysisRangeUpdate(
         RecordedSessionEditorIntent intent,
         TelemetryData? telemetryData)
@@ -609,65 +519,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             };
     }
 
-    private static IObservable<AnalysisSelectionState> CreateAnalysisSelectionState(
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<AnalysisSelectionState> analysisSelectionStates,
-        IObservable<SessionPreferences> preferenceIntentStates,
-        IObservable<RecordedSessionLoadedData?> loadedDataStates,
-        IObservable<AnalysisRangeIntentState> analysisRangeStates)
-    {
-        var context = loadedDataStates
-            .CombineLatest(
-                analysisRangeStates,
-                static (loadedData, analysisRange) => new AnalysisSelectionContext(
-                    loadedData?.TelemetryData,
-                    ClampAnalysisRange(analysisRange.AnalysisRange, loadedData?.TelemetryData)));
-
-        var intentUpdates = intents
-            .WithLatestFrom(
-                context,
-                static (intent, selectionContext) => CreateAnalysisSelectionUpdate(
-                    intent,
-                    selectionContext.TelemetryData,
-                    selectionContext.AnalysisRange))
-            .Where(static update => update is not null)
-            .Select(static update => update!);
-
-        var inputUpdates = analysisSelectionStates
-            .Select(static state => new Func<AnalysisSelectionState, AnalysisSelectionState>(_ => state));
-
-        var velocityAverageModeUpdates = preferenceIntentStates
-            .Select(static preferences => preferences.Analysis.VelocityAverageMode)
-            .DistinctUntilChanged()
-            .Skip(1)
-            .WithLatestFrom(
-                context,
-                static (_, selectionContext) => new Func<AnalysisSelectionState, AnalysisSelectionState>(
-                    current => ClearDampingRangeSelections(
-                        current,
-                        selectionContext.TelemetryData,
-                        selectionContext.AnalysisRange)));
-
-        var analysisContextUpdates = context
-            .DistinctUntilChanged()
-            .Skip(1)
-            .Select(static selectionContext => new Func<AnalysisSelectionState, AnalysisSelectionState>(
-                current => RefreshAnalysisSelectionHighlights(
-                    current,
-                    selectionContext.TelemetryData,
-                    selectionContext.AnalysisRange)));
-
-        return inputUpdates
-            .Merge(intentUpdates)
-            .Merge(velocityAverageModeUpdates)
-            .Merge(analysisContextUpdates)
-            .StartWith(new Func<AnalysisSelectionState, AnalysisSelectionState>(static current => current))
-            .Scan(CreateEmptyAnalysisSelectionState(), static (current, update) => update(current))
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
     private static Func<AnalysisSelectionState, AnalysisSelectionState>? CreateAnalysisSelectionUpdate(
         RecordedSessionEditorIntent intent,
         TelemetryData? telemetryData,
@@ -734,29 +585,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return CreateAnalysisSelectionState(controller);
     }
 
-    private static IObservable<RecordedSignalPresentationState> CreateSignalPresentationOverlayState(
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<AnalysisSelectionState> analysisSelectionStates)
-    {
-        var intentUpdates = intents
-            .OfType<RecordedSessionEditorIntent.SetSignalPresentation>()
-            .Select(static intent => new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(
-                _ => intent.State));
-
-        var analysisSelectionUpdates = analysisSelectionStates
-            .DistinctUntilChanged()
-            .Select(static selection => new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(
-                current => ApplyAnalysisSelectionOverlayDefaults(current, selection)));
-
-        return intentUpdates
-            .Merge(analysisSelectionUpdates)
-            .StartWith(new Func<RecordedSignalPresentationState, RecordedSignalPresentationState>(static current => current))
-            .Scan(RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(), static (current, update) => update(current))
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
     private static RecordedSignalPresentationState ApplyAnalysisSelectionOverlayDefaults(
         RecordedSignalPresentationState current,
         AnalysisSelectionState selection)
@@ -801,40 +629,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             HighlightRanges: []);
     }
 
-    private static IObservable<DampingSpeedCutoffs> CreateDampingSpeedCutoffsState(
-        IObservable<RecordedSessionEditorIntent> intents)
-    {
-        return intents
-            .OfType<RecordedSessionEditorIntent.SetDampingSpeedCutoffs>()
-            .Select(static intent => new Func<DampingSpeedCutoffs, DampingSpeedCutoffs>(_ => intent.Cutoffs))
-            .StartWith(new Func<DampingSpeedCutoffs, DampingSpeedCutoffs>(static current => current))
-            .Scan(DampingSpeedCutoffs.Default, static (current, update) => update(current))
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
-    private static IObservable<SessionPreferences> CreatePreferenceIntentState(
-        IObservable<RecordedSessionEditorIntent> intents,
-        IObservable<SessionPreferences> preferenceReplays)
-    {
-        var userUpdates = intents
-            .Select(RecordedSessionEditorIntentReducers.CreatePreferenceUpdate)
-            .Where(static update => update is not null)
-            .Select(static update => update!);
-
-        var replayUpdates = preferenceReplays
-            .Select(static preferences => new Func<SessionPreferences, SessionPreferences>(_ => preferences));
-
-        return userUpdates
-            .Merge(replayUpdates)
-            .StartWith(new Func<SessionPreferences, SessionPreferences>(static current => current))
-            .Scan(SessionPreferences.Default, static (current, update) => update(current))
-            .DistinctUntilChanged()
-            .Replay(1)
-            .RefCount();
-    }
-
     private static TelemetryTimeRange? ClampAnalysisRange(TelemetryTimeRange? range, TelemetryData? telemetryData)
     {
         if (!range.HasValue || telemetryData is null)
@@ -851,9 +645,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             : null;
     }
 
-    private sealed record PageSelectionUpdate(int? PageIndex, int? PageCount);
-
-    private sealed record PageSelectionState(int SelectedPageIndex, int PageCount);
+    private sealed record Reduction(RecordedSessionEditorState Editor, int PageCount, AnalysisRangeIntentState RequestedRange);
 
     private sealed record AnalysisRangeIntentState(
         TelemetryTimeRange? AnalysisRange,
@@ -870,19 +662,5 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         Start,
         End,
     }
-
-    private sealed record AnalysisSelectionContext(
-        TelemetryData? TelemetryData,
-        TelemetryTimeRange? AnalysisRange);
-
-    private sealed record DerivedIntentState(
-        int SelectedPageIndex,
-        AnalysisRangeIntentState Analysis,
-        DampingSpeedCutoffs DampingSpeedCutoffs,
-        SessionPreferences Preferences);
-
-    private sealed record DerivedPresentationState(
-        SessionScreenPresentationState ScreenState,
-        SessionOperationPresentationState OperationState);
 
 }

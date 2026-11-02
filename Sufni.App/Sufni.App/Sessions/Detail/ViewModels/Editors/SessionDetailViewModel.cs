@@ -1447,6 +1447,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 analysisSelectionInput,
                 signalPlotContextMenuActionsInput,
                 domainInput));
+        signalRowActions = new SignalRowActionsController(() => currentEditorState.Presentation.Signals, editorActions);
         editorStateSubscription = editorStateController.State.Subscribe(ApplyEditorState);
         segmentComparison = segmentComparisonFactory.Create(
             snapshot.Id,
@@ -1466,32 +1467,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             sessionPreferences,
             () => Id,
             message => ErrorMessages.Add(new FailurePresentation(message)));
-        signalRowActions = new SignalRowActionsController(
-            () => currentEditorState.AnalysisSelection.HighlightRanges.Count > 0,
-            () => currentEditorState.Presentation.Signals.ShowAirtime,
-            SetShowAirtime,
-            () => currentEditorState.Presentation.Signals.ShowVelocityAirtime,
-            SetShowVelocityAirtime,
-            () => currentEditorState.Presentation.Signals.ShowImuAirtime,
-            SetShowImuAirtime,
-            () => currentEditorState.Presentation.Signals.ShowPitchRollAirtime,
-            SetShowPitchRollAirtime,
-            () => currentEditorState.Presentation.Signals.ShowSpeedAirtime,
-            SetShowSpeedAirtime,
-            () => currentEditorState.Presentation.Signals.ShowElevationAirtime,
-            SetShowElevationAirtime,
-            () => currentEditorState.Presentation.Signals.ShowAnalysisSelection,
-            SetShowAnalysisSelection,
-            () => currentEditorState.Presentation.Signals.ShowVelocityAnalysisSelection,
-            SetShowVelocityAnalysisSelection,
-            () => currentEditorState.Presentation.Signals.ShowImuAnalysisSelection,
-            SetShowImuAnalysisSelection,
-            () => currentEditorState.Presentation.Signals.ShowPitchRollAnalysisSelection,
-            SetShowPitchRollAnalysisSelection,
-            () => currentEditorState.Presentation.Signals.ShowSpeedAnalysisSelection,
-            SetShowSpeedAnalysisSelection,
-            () => currentEditorState.Presentation.Signals.ShowElevationAnalysisSelection,
-            SetShowElevationAnalysisSelection);
         signalAutozoomController = new SignalAutozoomController(Timeline);
         setAnalysisRangeStartCommand = new RelayCommand<TelemetryPlotContextMenuContext?>(
             SetAnalysisRangeStartFromPlotContext,
@@ -1709,6 +1684,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
     {
         var previous = currentEditorState;
         currentEditorState = state;
+        signalRowActions.ApplyActionStates(state);
         if (state.Presentation.MapState.ReservesLayout && !mapInitializeRequested)
         {
             mapInitializeRequested = true;
@@ -1736,7 +1712,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             }
 
             PreferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
-            signalRowActions.SetHasAirtimes(state.TelemetryData?.Airtimes.Length > 0);
             NotesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
             OnPropertyChanged(nameof(CurrentTelemetryData));
         }
@@ -1760,13 +1735,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         {
             OnPropertyChanged(nameof(ActiveFrontAnalysisSelection));
             OnPropertyChanged(nameof(ActiveRearAnalysisSelection));
-            signalRowActions.RefreshAnalysisSelectionActionStates();
-        }
-
-        if (previous.Presentation.Signals != state.Presentation.Signals)
-        {
-            signalRowActions.RefreshAirtimeActionStates();
-            signalRowActions.RefreshAnalysisSelectionActionStates();
         }
 
         if (previous.Presentation.SignalAvailability != state.Presentation.SignalAvailability)
@@ -1867,42 +1835,6 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                state.SpeedHeaderActions.Count > 0 ||
                state.ElevationHeaderActions.Count > 0;
     }
-
-    private void SetShowAirtime(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowAirtime = value });
-
-    private void SetShowVelocityAirtime(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowVelocityAirtime = value });
-
-    private void SetShowImuAirtime(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowImuAirtime = value });
-
-    private void SetShowPitchRollAirtime(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowPitchRollAirtime = value });
-
-    private void SetShowSpeedAirtime(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowSpeedAirtime = value });
-
-    private void SetShowElevationAirtime(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowElevationAirtime = value });
-
-    private void SetShowAnalysisSelection(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowAnalysisSelection = value });
-
-    private void SetShowVelocityAnalysisSelection(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowVelocityAnalysisSelection = value });
-
-    private void SetShowImuAnalysisSelection(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowImuAnalysisSelection = value });
-
-    private void SetShowPitchRollAnalysisSelection(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowPitchRollAnalysisSelection = value });
-
-    private void SetShowSpeedAnalysisSelection(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowSpeedAnalysisSelection = value });
-
-    private void SetShowElevationAnalysisSelection(bool value) =>
-        SetSignalPresentationState(CreateSignalPresentationState() with { ShowElevationAnalysisSelection = value });
 
     private void ApplySignalAvailability(RecordedSignalAvailabilityState availability)
     {
