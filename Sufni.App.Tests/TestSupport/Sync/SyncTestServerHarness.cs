@@ -14,16 +14,26 @@ using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Stores;
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Coordinators;
+using System.Reactive.Subjects;
+using System.Reactive.Linq;
 using Sufni.App.Tests.TestSupport.Doubles;
 
 namespace Sufni.App.Tests.TestSupport.Sync;
 
-internal sealed class SyncTestServerHarness
+internal sealed class SyncTestServerHarness : IDisposable
 {
     public static readonly PeerIdentity Peer = new("hub-certificate", "hub-database");
     public SyncTestServerHarness()
     {
-        SecureStorage.GetStringAsync("ServerUrl").Returns("https://sync.example.test");
+        SourceStore = new RecordedSessionSourceStore(publication);
+        Pairing.PairedState.Returns(PairedState);
+        Pairing.IsPaired.Returns(_ => PairedState.Value);
+        Pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(_ => HttpApiService);
+        SyncDataStore.ApplyRemoteSynchronizationDataAsync(Arg.Any<SynchronizationData>()).Returns(ApplyResult());
+        SyncDataStore.GetSynchronizationDataAsync(Arg.Any<SynchronizationDirection>(), Arg.Any<long>(), Arg.Any<long>())
+            .Returns(new SynchronizationData());
+        HttpApiService.PullSyncAsync(Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(new SynchronizationData());
         SecureStorage.GetStringAsync("RefreshToken").Returns("refresh-1");
         SecureStorage.GetStringAsync("ServerCertificateThumbprint").Returns(Peer.CertificateThumbprint);
         HttpApiService.GetPeerIdentityAsync().Returns(Peer);
@@ -48,9 +58,12 @@ internal sealed class SyncTestServerHarness
     public ISyncDataStore SyncDataStore { get; } = Substitute.For<ISyncDataStore>();
     public ISessionSyncApplier SessionSyncApplier { get; } = Substitute.For<ISessionSyncApplier>();
     public ISessionRepository SessionRepository { get; } = Substitute.For<ISessionRepository>();
-    public ISessionStoreWriter SessionStore { get; } = Substitute.For<ISessionStoreWriter>();
     public IRecordedSessionSourceRepository RecordedSessionSourceRepository { get; } = Substitute.For<IRecordedSessionSourceRepository>();
-    public IRecordedSessionSourceStoreWriter SourceStore { get; } = Substitute.For<IRecordedSessionSourceStoreWriter>();
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    private readonly List<SyncCoordinator> coordinators = [];
+    public RecordedSessionSourceStore SourceStore { get; }
+    public BehaviorSubject<bool> PairedState { get; } = new(true);
+    public IPairingClientCoordinator Pairing { get; } = Substitute.For<IPairingClientCoordinator>();
     public IRecordedSessionSourceSyncQuery RecordedSessionSourceSyncQuery { get; } = Substitute.For<IRecordedSessionSourceSyncQuery>();
     public ISynchronizationPeer HttpApiService { get; } = Substitute.For<ISynchronizationPeer>();
 
@@ -58,14 +71,38 @@ internal sealed class SyncTestServerHarness
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
         new(SecureStorage, _ => new HttpClient(new StubHttpMessageHandler(sendAsync)), Time);
 
-    public SynchronizationClientService CreateSynchronizationClientService(ISyncDataStore? dataStore = null) =>
-        new(
-            dataStore ?? SyncDataStore,
-            SessionRepository,
-            RecordedSessionSourceRepository,
-            SourceStore,
-            RecordedSessionSourceSyncQuery,
-            SessionSyncApplier);
+    public SyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null,
+        ISynchronizationPeer? peer = null, ISynchronizationApplier? applier = null,
+        IUiThreadDispatcher? dispatcher = null, IBackgroundTaskRunner? runner = null,
+        ISynchronizationServerService? server = null, TimeSpan? idleGrace = null)
+    {
+        if (peer is not null)
+            Pairing.ResolvePeerAsync(Arg.Any<TimeSpan>(), Arg.Any<CancellationToken>()).Returns(peer);
+        var store = dataStore ?? SyncDataStore;
+        if (applier is null)
+        {
+            applier = Substitute.For<ISynchronizationApplier>();
+            applier.ApplyAsync(Arg.Any<SynchronizationData>(), SynchronizationDirection.Pull)
+                .Returns(call => store.ApplyRemoteSynchronizationDataAsync(call.Arg<SynchronizationData>()));
+        }
+        var coordinator = new SyncCoordinator(store, applier, SessionRepository, SessionSyncApplier,
+            RecordedSessionSourceRepository, SourceStore, RecordedSessionSourceSyncQuery,
+            runner ?? new InlineBackgroundTaskRunner(), dispatcher ?? new InlineUiThreadDispatcher(), Time,
+            Pairing, server, idleGrace);
+        coordinators.Add(coordinator);
+        return coordinator;
+    }
+
+    public static SynchronizationApplyResult ApplyResult(params SessionBlobSwap[] swaps) =>
+        new([], [], [], [], [], [], [], swaps);
+
+    public void Dispose()
+    {
+        foreach (var coordinator in coordinators) coordinator.Dispose();
+        SourceStore.Dispose();
+        publication.Dispose();
+        PairedState.Dispose();
+    }
 
     public static string CreateAccessToken(DateTimeOffset expiresAt)
     {
@@ -119,5 +156,31 @@ internal sealed class SyncTestServerHarness
     {
         var json = await request.Content!.ReadAsStringAsync();
         return JsonSerializer.Deserialize<T>(json);
+    }
+}
+
+internal static class SyncRunObservation
+{
+    public static async Task<SynchronizationRunResult?> RunSyncAsync(this SyncCoordinator coordinator,
+        IProgress<SynchronizationProgressSnapshot>? progress = null, CancellationToken cancellationToken = default)
+    {
+        SynchronizationRunResult? result = null;
+        void Completed(object? _, SyncCompletedEventArgs args) => result = args.Result;
+        void Failed(object? _, SyncFailedEventArgs args) => result = new SynchronizationRunResult.Failed(args.Reason, args.Details);
+        void Progress(object? _, EventArgs args)
+        {
+            if (coordinator.Progress is { } snapshot) progress?.Report(snapshot);
+        }
+        coordinator.SyncCompleted += Completed;
+        coordinator.SyncFailed += Failed;
+        coordinator.ProgressChanged += Progress;
+        try { await coordinator.SyncAllAsync(cancellationToken); }
+        finally
+        {
+            coordinator.SyncCompleted -= Completed;
+            coordinator.SyncFailed -= Failed;
+            coordinator.ProgressChanged -= Progress;
+        }
+        return result;
     }
 }

@@ -87,7 +87,7 @@ Mobile native lifetime creates `MainView` so Avalonia single-view integration, s
 Desktop heads register capabilities and services that mobile heads do not provide:
 
 - **Sync server**: `ISynchronizationServerService` / `SynchronizationServerService` (ASP.NET Core / Kestrel, TLS, JWT, mDNS advertisement of `_sstsync._tcp`). See [Sync § Server](sync.md#server).
-- **Inbound sync coordinator**: endpoints await `IInboundSyncCoordinator` row push/pull operations. It merges incoming rows, then loads and publishes authoritative snapshots for every synced row family in one batch before acknowledging the request. The same coordinator owns source uploads and awaits the session applier for BLOB uploads; it also owns PIN challenges, confirmation, refresh rotation and remote unpair. `PairingServerViewModel` projects its expiring challenge stream.
+- **Inbound sync coordinator**: endpoints await `IInboundSyncCoordinator` row push/pull operations. It awaits the shared `SynchronizationApplier` to merge incoming rows and publish authoritative snapshots for every affected row family in one batch before acknowledging the request. The same coordinator owns source uploads and awaits the session applier for BLOB uploads; it also owns PIN challenges, confirmation, refresh rotation and remote unpair. `PairingServerViewModel` projects its expiring challenge stream.
 - **Mass-storage DAQ import**: drive-mounted DAQ devices (`BOARDID` marker scanning) are available only when `AppCapabilities.SupportsMassStorageImport` is true. Storage-provider import is separately gated by `SupportsStorageProviderImport`.
 - **Native windowing**: the Avalonia desktop lifetime supplies the owner window and window-hosted dialogs and shortcuts.
 
@@ -102,7 +102,7 @@ startup failure/reset surface; reset requires relaunch.
 
 Mobile heads register capabilities and services that desktop heads generally do not provide:
 
-- **Sync client**: `ISynchronizationClientService` / `SynchronizationClientService` and `IPairingClientCoordinator`, which owns the `DeviceId` / `DisplayName` / `ServerUrl` / `IsPaired` source of truth, mDNS browse lifecycle, and the request / confirm / unpair HTTP plumbing. See [Sync § Client](sync.md#client).
+- **Sync client**: shared `SyncCoordinator` owns the run, cursors and publication. Mobile `IPairingClientCoordinator` owns device/display identity, mDNS browse and pairing commands; it resolves a captured `ISynchronizationPeer` through `IHttpApiService`. Pairing availability still mirrors the HTTP owner’s replayed state. See [Sync § Client](sync.md#client).
 - **`PairingClientViewModel`**: the pairing client UI; it opens as a shared workspace tab/page surface.
 - **`IHapticFeedback`**: invoked from `HapticFeedbackBehavior` when the platform registers a haptics implementation.
 - **`IFriendlyNameProvider`**: queried by `PairingClientCoordinator` to seed a default display name for the pairing record.

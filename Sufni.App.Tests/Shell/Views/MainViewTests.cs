@@ -58,8 +58,9 @@ public class MainViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
+        using var syncHarness = new Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness();
         var server = new TestSynchronizationServerService();
-        var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: CreateSyncCoordinator(server));
+        var mainPages = MainPagesViewModelTestFactory.Create(syncCoordinator: syncHarness.CreateCoordinator(server: server, idleGrace: TimeSpan.Zero));
         var root = CreateRoot(mainPages);
         var view = new MainView
         {
@@ -127,16 +128,7 @@ public class MainViewTests
             new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
-    private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
-        new(
-            Substitute.For<IAppDataRefresher>(),
-            synchronizationClientService: null,
-            pairingClientCoordinator: null,
-            synchronizationServerService: server,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero,
-            uiThreadDispatcher: new InlineUiThreadDispatcher(),
-            timeProvider: new FakeTimeProvider());
+
 }
 
 internal sealed class MountedMainView(Window host, MainView view) : IAsyncDisposable

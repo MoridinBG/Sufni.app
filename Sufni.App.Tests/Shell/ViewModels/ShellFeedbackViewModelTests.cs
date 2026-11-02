@@ -84,7 +84,7 @@ public class ShellFeedbackViewModelTests
         sync.SyncFailed += Raise.Event<EventHandler<SyncFailedEventArgs>>(sync, new SyncFailedEventArgs(SyncFailureReason.Synchronize, "failed"));
         Assert.Single(feedback.ErrorMessages);
 
-        sync.SyncCompleted += Raise.Event<EventHandler<SyncCompletedEventArgs>>(sync, new SyncCompletedEventArgs("complete"));
+        sync.SyncCompleted += Raise.Event<EventHandler<SyncCompletedEventArgs>>(sync, new SyncCompletedEventArgs(new SynchronizationRunResult.Completed()));
 
         Assert.Empty(feedback.ErrorMessages);
         Assert.Single(feedback.Notifications);

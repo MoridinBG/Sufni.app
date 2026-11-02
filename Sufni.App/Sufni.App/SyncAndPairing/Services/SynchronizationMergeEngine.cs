@@ -45,13 +45,10 @@ public interface ISyncDataStore
         long upperInclusive);
 
     /// <summary>
-    /// Applies a pulled remote delta and returns the processed-BLOB swaps it
-    /// discovered: rows that hold a BLOB whose fingerprint differs from the
-    /// accepted remote current-schema fingerprint. The session-data phase
-    /// consumes them. The list is transient and re-derived if the run does not
-    /// complete.
+    /// Applies a pulled remote delta and returns affected identities and pending
+    /// generation swaps. Swaps are re-derived if the run does not complete.
     /// </summary>
-    Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data);
+    Task<SynchronizationApplyResult> ApplyRemoteSynchronizationDataAsync(SynchronizationData data);
 
     Task<SynchronizationApplyResult> MergeAllAsync(SynchronizationData data);
 }
@@ -178,8 +175,8 @@ internal sealed class SynchronizationMergeEngine(
         };
     }
 
-    public async Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
-        (await connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false))).Swaps;
+    public Task<SynchronizationApplyResult> ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
+        connectionContext.RunInTransactionAsync(connection => MergeRows(connection, data, asHub: false));
 
     public async Task<long> GetLastPushSequenceAsync(PeerIdentity peer)
     {

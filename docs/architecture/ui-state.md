@@ -37,7 +37,8 @@ methods (`PublishSnapshotAsync`, `PublishSnapshotsAsync`, `PublishRemoveAsync`,
 Each store keeps its domain-specific lookups and read/write interfaces. Cache
 mutation stays inside stores; persistence, conflict checks and snapshot loading
 belong to the requesting workflow. No store has a repository dependency.
-Startup and post-sync refresh are coordinated by `IAppDataRefresher`. `LiveDaqStore` remains separate
+Startup refresh is coordinated by `IAppDataRefresher`; sync publishes affected
+rows through `SynchronizationApplier`. `LiveDaqStore` remains separate
 because it is runtime-only and publishes `ReplaceAll(...)` rather than
 loading persisted rows.
 
@@ -68,8 +69,8 @@ Each persisted writer interface additionally exposes:
   constructs their snapshots off-thread, then publishes them inside one shared
   UI-thread batch. Concurrent full-refresh requests share the active run; a
   cancellation or load failure leaves the previously published state intact.
-  Video and inbound-segment refreshes load their narrower snapshot sets through
-  their coordinators before replacing those stores.
+  Video refresh loads its narrower snapshot set through its coordinator.
+  Sync uses affected-ID publication, including for segments.
 - Publication methods accept prepared snapshots or ids to remove. Segment
   publication combines changes and removals in one cache update; segments are keyed
   by source ownership and survive session deletion; video
@@ -82,9 +83,10 @@ Each persisted writer interface additionally exposes:
 - Bike save checks its snapshot baseline once after analysis, before writing;
   session metadata save has one check in its command service. Missing sessions
   are workflow outcomes, not store results. Stores have no mutation-result union.
-- The inbound row coordinator prepares authoritative snapshots off-thread and
+- The shared sync applier prepares authoritative snapshots off-thread and
   publishes all affected row families in one batch, with removals when a
-  reconciled row no longer exists. Endpoints await this publication. Source
+  reconciled row no longer exists. Both hub endpoints and client phases await
+  this publication. Source
   publication contains only metadata; payload reads use the source repository.
 
 Snapshots are immutable records, not view models. Snapshots for
@@ -102,8 +104,7 @@ columns; point JSON stays outside the store. Startup/full refresh loads tracks
 with the other families. GPX import publishes the committed metadata; recording
 import, live save and recompute publish tracks with their session/source changes.
 Session deletion publishes the track removal returned by its transaction, and
-recompute removes an old orphan after its deletion commits. Direct inbound sync
-publication remains part of the sync ownership migration.
+recompute removes an old orphan after its deletion commits. Both incoming sync directions publish affected track snapshots in the shared row batch.
 
 `SessionSnapshot` is metadata-only: it carries BLOB availability projected from
 `data IS NOT NULL`, the processing fingerprint and duration. Session reads join

@@ -374,4 +374,4 @@ Topics in [architecture/sync.md](architecture/sync.md):
 
 - [Pairing Flow](architecture/sync.md#pairing-flow) — request → confirm → refresh sequence
 - [Server](architecture/sync.md#server) — `SynchronizationServerService`, TLS / JWT / mDNS setup, full endpoint table
-- [Client](architecture/sync.md#client) — `SynchronizationClientService` metadata/blob/source sync phases, `SyncCoordinator`, `HttpApiService` token refresh, `SynchronizationData` payload
+- [Client](architecture/sync.md#client) — `SyncCoordinator` metadata/blob/source phases and cursor writes, shared `SynchronizationApplier`, per-peer HTTP transport and token refresh, `SynchronizationData` payload

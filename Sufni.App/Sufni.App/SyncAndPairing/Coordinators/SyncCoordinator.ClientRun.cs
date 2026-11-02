@@ -13,11 +13,11 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Sessions.Coordination;
-namespace Sufni.App.SyncAndPairing.Services;
+using Sufni.App.SyncAndPairing.Services;
+namespace Sufni.App.SyncAndPairing.Coordinators;
 
-public class SynchronizationClientService : ISynchronizationClientService
+public partial class SyncCoordinator
 {
-    private static readonly ILogger logger = Log.ForContext<SynchronizationClientService>();
     private const int SyncTransferDop = 3;
     private readonly ISyncDataStore syncDataStore;
     private readonly ISessionRepository sessionRepository;
@@ -26,21 +26,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private readonly IRecordedSessionSourceStoreWriter sourceStore;
     private readonly IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery;
 
-    public SynchronizationClientService(
-        ISyncDataStore syncDataStore,
-        ISessionRepository sessionRepository,
-        IRecordedSessionSourceRepository recordedSessionSourceRepository,
-        IRecordedSessionSourceStoreWriter sourceStore,
-        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
-        ISessionSyncApplier sessionSyncApplier)
-    {
-        this.syncDataStore = syncDataStore;
-        this.sessionRepository = sessionRepository;
-        this.sessionSyncApplier = sessionSyncApplier;
-        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
-        this.sourceStore = sourceStore;
-        this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
-    }
+    private readonly ISynchronizationApplier rowApplier;
 
     private async Task PushLocalChanges(ISynchronizationPeer httpApiService, PeerIdentity peer, long sinceExclusive, long upperInclusive, CancellationToken cancellationToken)
     {
@@ -93,7 +79,7 @@ public class SynchronizationClientService : ISynchronizationClientService
     private async Task<(IReadOnlyList<SessionBlobSwap> Swaps, long UpperBound)> PullRemoteChanges(ISynchronizationPeer httpApiService, long sinceExclusive, CancellationToken cancellationToken)
     {
         var syncData = await httpApiService.PullSyncAsync(sinceExclusive, cancellationToken: cancellationToken);
-        var swaps = await syncDataStore.ApplyRemoteSynchronizationDataAsync(syncData);
+        var applied = await rowApplier.ApplyAsync(syncData, SynchronizationDirection.Pull);
         logger.Verbose(
             "Pulled remote changes with {RemovedBoardCount}/{UpsertedBoardCount} boards, {RemovedBikeCount}/{UpsertedBikeCount} bikes, {RemovedSetupCount}/{UpsertedSetupCount} setups, {RemovedTrackCount}/{UpsertedTrackCount} tracks, {RemovedSessionCount}/{UpsertedSessionCount} sessions removed/upserted",
             syncData.Boards.Count(board => board.Deleted.HasValue),
@@ -107,7 +93,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             syncData.Sessions.Count(session => session.Deleted.HasValue),
             syncData.Sessions.Count(session => !session.Deleted.HasValue));
 
-        return (swaps, syncData.UpperBound);
+        return (applied.Swaps, syncData.UpperBound);
     }
 
     private async Task<int> PullIncompleteSessions(ISynchronizationPeer httpApiService, IReadOnlyList<SessionBlobSwap> swaps, ConcurrentBag<SynchronizationPendingTransfer> pending, CancellationToken cancellationToken)
@@ -299,7 +285,7 @@ public class SynchronizationClientService : ISynchronizationClientService
             incompleteRecordedSourceCount, pending.ToArray());
     }
 
-    public async Task<SynchronizationRunResult> SyncAll(ISynchronizationPeer httpApiService, IProgress<SynchronizationProgressSnapshot>? progress = null, CancellationToken cancellationToken = default)
+    private async Task<SynchronizationRunResult> RunClientAsync(ISynchronizationPeer httpApiService, CancellationToken cancellationToken = default)
     {
         using var run = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, httpApiService.Lifetime);
         cancellationToken = run.Token;
@@ -335,10 +321,10 @@ public class SynchronizationClientService : ISynchronizationClientService
                 });
             var rowPhases = lastPushSequence == 0 ? new[] { pull, push } : new[] { push, pull };
             for (var index = 0; index < rowPhases.Length; index++)
-                await RunPhaseAsync(progress, rowPhases[index].Phase, rowPhases[index].Message, index + 1, rowPhases[index].Run, cancellationToken);
+                await RunPhaseAsync( rowPhases[index].Phase, rowPhases[index].Message, index + 1, rowPhases[index].Run, cancellationToken);
 
-            await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, () => PushIncompleteSessions(httpApiService, pending, cancellationToken), cancellationToken);
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(httpApiService, swaps, pending, cancellationToken), cancellationToken);
+            await RunPhaseAsync( SynchronizationPhase.PushingIncompleteSessions, "Uploading session data", 3, () => PushIncompleteSessions(httpApiService, pending, cancellationToken), cancellationToken);
+            await RunPhaseAsync( SynchronizationPhase.PullingIncompleteSessions, "Downloading session data", 4, async () => unresolvedSwaps = await PullIncompleteSessions(httpApiService, swaps, pending, cancellationToken), cancellationToken);
 
             if (unresolvedSwaps == 0)
             {
@@ -351,8 +337,8 @@ public class SynchronizationClientService : ISynchronizationClientService
                     unresolvedSwaps);
             }
 
-            await RunPhaseAsync(progress, SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, () => PushIncompleteSessionSources(httpApiService, pending, cancellationToken), cancellationToken);
-            await RunPhaseAsync(progress, SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, () => PullIncompleteSessionSources(httpApiService, pending, cancellationToken), cancellationToken);
+            await RunPhaseAsync( SynchronizationPhase.PushingIncompleteSessionSources, "Uploading recorded sources", 5, () => PushIncompleteSessionSources(httpApiService, pending, cancellationToken), cancellationToken);
+            await RunPhaseAsync( SynchronizationPhase.PullingIncompleteSessionSources, "Downloading recorded sources", 6, () => PullIncompleteSessionSources(httpApiService, pending, cancellationToken), cancellationToken);
             var result = await VerifyLocalCompleteness(pending);
 
             logger.Verbose("Synchronization client run completed");
@@ -369,8 +355,7 @@ public class SynchronizationClientService : ISynchronizationClientService
         }
     }
 
-    private static async Task RunPhaseAsync(
-        IProgress<SynchronizationProgressSnapshot>? progress,
+    private async Task RunPhaseAsync(
         SynchronizationPhase phase,
         string message,
         int currentStep,
@@ -378,22 +363,8 @@ public class SynchronizationClientService : ISynchronizationClientService
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ReportProgress(progress, phase, message, currentStep);
+        await uiThreadDispatcher.InvokeAsync(() => Progress = new SynchronizationProgressSnapshot(phase, message, currentStep + 1, 7, true));
         await action();
-    }
-
-    private static void ReportProgress(
-        IProgress<SynchronizationProgressSnapshot>? progress,
-        SynchronizationPhase phase,
-        string message,
-        int currentStep)
-    {
-        progress?.Report(new SynchronizationProgressSnapshot(
-            phase,
-            message,
-            currentStep,
-            TotalSteps: 6,
-            IsDeterminate: true));
     }
 
     private static RecordedSessionSourcePayload ToPayload(RecordedSessionSource source) => new(

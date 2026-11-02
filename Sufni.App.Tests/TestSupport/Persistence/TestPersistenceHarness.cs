@@ -240,8 +240,8 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public Task ApplyRemoteSynchronizationDataAsync(SynchronizationData data) =>
         syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
 
-    public Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAndReturnSwapsAsync(SynchronizationData data) =>
-        syncDataStore.ApplyRemoteSynchronizationDataAsync(data);
+    public async Task<IReadOnlyList<SessionBlobSwap>> ApplyRemoteSynchronizationDataAndReturnSwapsAsync(SynchronizationData data) =>
+        (await syncDataStore.ApplyRemoteSynchronizationDataAsync(data)).Swaps;
 
     public Task MergeAllAsync(SynchronizationData data) =>
         syncDataStore.MergeAllAsync(data);

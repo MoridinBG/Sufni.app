@@ -135,18 +135,17 @@ the framework's lifetime validation.
 ## Client
 
 Outbound sync accepts cancellation through server discovery, transfer loops and
-HTTP sends/body reads. A canceled run is neutral, and the coordinator refreshes
-already committed data before its stop operation completes. Source transfers
-publish committed sources even if another transfer is canceled. The shared token
+HTTP sends/body reads. A canceled run is neutral. Each committed row batch publishes before the next
+phase; source transfers publish committed sources while draining cancellation. The shared token
 refresh is allowed to finish and persist rotated credentials before a canceled
 caller exits; cancellation does not abandon a credential rotation midway.
 The sync coordinator retains its active run and idle tasks for shutdown and
 releases its event subscriptions on disposal.
 
-`HttpApiService` uses its injected clock for certificate validity and the
+`SynchronizationPeer` uses its injected clock for certificate validity and the
 30-second token-refresh margin. Sync delta bounds use database sequences.
 
-`SynchronizationClientService` (`Sufni.App/Sufni.App/SyncAndPairing/Services/SynchronizationClientService.cs`) runs `SyncAll()` in six phases. Push and pull have independent sequence cursors. At run start the client captures its local sequence upper bound. Its first run after cursor reset pulls the baseline before pushing; subsequent runs push then pull. This lets upgraded replicas retain the newer authored content before their first outbound selection. Edits made after the captured bound remain for the next run.
+`SyncCoordinator` runs the client workflow through `IBackgroundTaskRunner` in six phases after discovery. The coordinator owns phase sequencing, persistence, cursor writes and publication. Push and pull have independent sequence cursors. At run start the client captures its local sequence upper bound. Its first run after cursor reset pulls the baseline before pushing; subsequent runs push then pull. This lets upgraded replicas retain the newer authored content before their first outbound selection. Edits made after the captured bound remain for the next run.
 
 1. **Push local changes** — select rows and deletion ledger entries whose `local_seq` lies in `(lastPushSequence, capturedUpperBound]`, PUT that bounded snapshot to `/sync/push`, then advance only `last_push_sequence` after success
 2. **Pull remote changes** — GET `/sync/pull?since=` from the pull sequence, receive the server's `sync_seq` upper bound, and merge rows and deletion ledger entries in one SQLite transaction. Advance only `last_pull_sequence`, and only after processed-BLOB swap handling leaves the pull complete
@@ -218,8 +217,9 @@ batch, including ledger-only removals. A rejected remote delete therefore cannot
 hide retained local content. HTTP acknowledges only after publication; an apply
 failure returns 500. There is no metadata-arrival event or eager subscription.
 `SessionSyncApplier` owns generation publication; the inbound coordinator owns
-source publication. The client uses a full `IAppDataRefresher.RefreshAsync()`
-run after synchronization. Stores never read
+source publication. Both client pulls and hub pushes await `SynchronizationApplier`, which merges
+through `ISyncDataStore`, prepares snapshots for the affected IDs and publishes
+one batch. The client does not refresh all stores after a run. Stores never read
 or write repositories, so publication does not duplicate the persistence operation.
 
 ### Processed-BLOB coherence (download-then-swap)
@@ -234,7 +234,7 @@ or write repositories, so publication does not duplicate the persistence operati
 
 "Incomplete," for the purpose of these phases, therefore means **missing _or_ awaiting a matching processed blob**.
 
-`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and refreshes all stores through `IAppDataRefresher` after a successful round-trip. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as an 8-step determinate run: resolve server, the six `SynchronizationClientService` phases, then refresh local lists. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop inbound sync activity is reported from `SynchronizationServerService` activity results that cover the full request and response-body lifetime, then normalized by `SyncCoordinator` into the same six service phases as one determinate run. Its inbound idle grace uses the injected `TimeProvider`. The coordinator bridges longer endpoint gaps during session-data transfer so the desktop shell does not flash or fall back to indeterminate activity while the mobile side is doing local work between requests. Inbound row and source writes are awaited coordinator operations; processed BLOB commits use the session applier — see [Coordinators](ui-workflows.md#coordinators).
+`SyncCoordinator` (`Sufni.App/Sufni.App/SyncAndPairing/Coordinators/SyncCoordinator.cs`) is the application-layer entry point: it owns `IsRunning` / `IsPaired` / `CanSync`, drives `SyncAllAsync()`, publishes the current `SynchronizationProgressSnapshot`, and owns the full client run. Row merges publish through the shared `SynchronizationApplier`; BLOB commits use `SessionSyncApplier`; the coordinator publishes committed source snapshots from the transfer drain, including on failure or cancellation. On mobile it derives pairing availability from `IPairingClientCoordinator.PairedState`, which mirrors the replayed state published by `HttpApiService`; this lets sync availability drop immediately when the HTTP service clears local credentials. It also subscribes to `IPairingClientCoordinator.PairingConfirmed` so a fresh pair triggers an immediate sync. Mobile outbound sync is reported as a seven-step determinate run: resolve server, then six transfer phases. There is no separate full-refresh phase. The remote client phases run through `IBackgroundTaskRunner`; progress is marshalled back to the UI thread so large session BLOB downloads, recorded-source transfers, and local patching do not block the mobile shell spinner. Desktop inbound sync activity is reported from `SynchronizationServerService` activity results that cover the full request and response-body lifetime, then normalized by `SyncCoordinator` into the same six service phases as one determinate run. Its inbound idle grace uses the injected `TimeProvider`. The coordinator bridges longer endpoint gaps during session-data transfer so the desktop shell does not flash or fall back to indeterminate activity while the mobile side is doing local work between requests. Inbound row and source writes are awaited coordinator operations; processed BLOB commits use the session applier — see [Coordinators](ui-workflows.md#coordinators).
 
 `HttpApiService` is registered by `MobileAppBootstrapper` alongside the outbound sync and pairing clients. Desktop composition does not register it.
 
@@ -267,9 +267,8 @@ Saved segments use the core paths unchanged: the client applies remote rows
 verbatim and the hub applies the shared authored-history merge rule, after sessions in
 the same transaction. Segments carry source-hash ownership and source-relative anchors. They survive
 session deletion; each session window derives visibility, including split windows
-received from a peer. The client refreshes the segment store
-with the other stores after a sync; the hub's `InboundSyncCoordinator` publishes
-affected segments in the same batch as related rows.
+received from a peer. Client and hub row application publish affected segments in the same batch as
+related rows through the shared applier.
 
 Processed telemetry blobs (`session.data`) and raw recorded sources (`session_recording_source.payload`) are transferred through the dedicated session-data and session-source endpoints, not through `SynchronizationData`. Their bodies are binary `application/octet-stream`; row metadata travels in HTTP headers so large BLOBs are not base64-encoded in JSON.
 
@@ -302,7 +301,7 @@ unresolved swaps retain it. Fills and sources retry through the incomplete queri
 independent of either cursor. A 204 acknowledgement is terminal for that item.
 
 `SyncCoordinator` forwards typed failures to shell feedback without another log.
-It retains the existing refresh-on-success policy; cancellation also refreshes
-already-committed data. No discovered endpoint produces `ServerUnavailable`
-notification state, with no client run or refresh. The shell shows fixed failure
+Already-committed rows and sources remain published when a later phase fails or
+is canceled. No discovered endpoint produces `ServerUnavailable`
+notification state, without starting the transfer phases. The shell shows fixed failure
 summaries with optional details while keeping progress/completion text unchanged.

@@ -161,7 +161,7 @@ The layer roles are consistent across slices:
   - `ISessionSyncApplier` (incoming sync generation validation, guarded writes and
     publication) → `Sessions/Coordination/`; `ISessionRepository` → `Sessions/Services/`.
   - `ITelemetryDataStoreService` → `Acquisition/Services/`.
-  - `IHttpApiService`, `ISynchronizationClientService` → `SyncAndPairing/Services/`
+  - `IHttpApiService`, `ISynchronizationPeer` → `SyncAndPairing/Services/`
     (the desktop-only `ISynchronizationServerService` stays in `Sufni.App.Desktop`).
   - The live preview transport layer (`LiveDaqV2Client` / `LiveDaqV3Client`,
     `LiveV2ProtocolReader` / `LiveV3ProtocolReader`,
@@ -302,11 +302,13 @@ including [Database Service](docs/architecture/persistence.md#database-service),
 A desktop instance can host an embedded ASP.NET Core HTTP server
 (`SyncAndPairing/Services/SynchronizationServerService.cs`) over TLS with JWT auth,
 advertised via mDNS. Mobile clients
-(`SyncAndPairing/Services/SynchronizationClientService.cs`, driving `HttpApiService`) pair
-with the server, then push and pull entity changes plus processed-session and
+pair through `PairingClientCoordinator`; `SyncCoordinator` owns their run,
+cursors and publication through the captured peer transport. They push and pull
+entity changes plus processed-session and
 recorded-source BLOBs through dedicated binary endpoints. Protocol version 6 is
-carried by an HTTP header on every sync request. These two services are the
-source of truth for the endpoints and payloads.
+carried by an HTTP header on every sync request. `SynchronizationPeer` and the
+server service define the endpoints and payloads; `SynchronizationApplier`
+merges and publishes affected row families on both sides.
 
 Full details: [docs/architecture/sync.md](docs/architecture/sync.md),
 including [Pairing Flow](docs/architecture/sync.md#pairing-flow),

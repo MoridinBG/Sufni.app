@@ -5,6 +5,7 @@ using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Video.Coordinators;
 
 namespace Sufni.App.Shell.ViewModels;
@@ -60,9 +61,22 @@ public sealed class ShellFeedbackViewModel : ViewModelBase, IShellActions, IDisp
 
     private void OnSyncCompleted(object? sender, SyncCompletedEventArgs args) => UiThreadDispatcher.Post(() =>
     {
-        Notifications.Add(args.Message);
+        Notifications.Add(GetCompletionMessage(args.Result));
         ErrorMessages.Clear();
     });
+
+    private static string GetCompletionMessage(SynchronizationRunResult result) =>
+        result switch
+        {
+            SynchronizationRunResult.Completed => "Sync successful",
+            SynchronizationRunResult.IncompleteData incomplete when incomplete.MissingProcessedSessionCount == 0
+                && incomplete.IncompleteRecordedSourceCount == 0 =>
+                $"Sync incomplete: {incomplete.PendingTransfers.Count} transfer(s) pending",
+            SynchronizationRunResult.IncompleteData incomplete =>
+                $"Sync incomplete: {incomplete.MissingProcessedSessionCount} session blob(s) and {incomplete.IncompleteRecordedSourceCount} recorded source(s) still missing"
+                + (incomplete.PendingTransfers.Count == 0 ? "" : $"; {incomplete.PendingTransfers.Count} transfer(s) pending"),
+            _ => "Sync completed"
+        };
 
     private void OnSyncFailed(object? sender, SyncFailedEventArgs args) =>
         UiThreadDispatcher.Post(() => ErrorMessages.Add(FailurePresentation.From(args.Reason, args.Details)));

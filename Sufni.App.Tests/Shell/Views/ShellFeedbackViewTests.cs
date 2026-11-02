@@ -8,6 +8,7 @@ using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Shell.Views;
 using Sufni.App.SyncAndPairing.Coordinators;
+using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Tests.Shell.ViewModels;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -35,7 +36,7 @@ public class ShellFeedbackViewTests
         var host = await ViewTestHelpers.ShowViewAsync(view);
         try
         {
-            sync.SyncCompleted += Raise.Event<EventHandler<SyncCompletedEventArgs>>(sync, new SyncCompletedEventArgs("Synced"));
+            sync.SyncCompleted += Raise.Event<EventHandler<SyncCompletedEventArgs>>(sync, new SyncCompletedEventArgs(new SynchronizationRunResult.Completed()));
             pages.SelectedPrimaryIndex = 2;
             await ViewTestHelpers.FlushDispatcherAsync();
 

@@ -285,10 +285,10 @@ Canceled | Failed`. Failures carry the corresponding `SetupSaveFailureReason.Sav
 `SetupExportFailureReason.Export` plus optional details. Import publication failure
 still reports failure after the transaction has committed.
 
-`SynchronizationRunResult` is `Completed | IncompleteLocalData | Failed(reason, details)`.
-Completeness verification still owns the incomplete counts. The client workflow
+`SynchronizationRunResult` is `Completed | IncompleteData | Failed(reason, details)`.
+Incomplete results include local missing-data counts and pending transfers. `SyncCoordinator`
 logs run failures once and returns `SyncFailureReason.Synchronize | ProtocolMismatch`;
-the coordinator forwards the reason without re-logging. Discovery without an
+shell feedback consumes the typed completion or failure without re-logging. Discovery without an
 endpoint raises `ServerUnavailable`, displayed as a notification. Progress and
 completion `Message` values remain ordinary text.
 

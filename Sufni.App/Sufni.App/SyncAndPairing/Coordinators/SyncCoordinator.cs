@@ -7,20 +7,20 @@ using System.Linq;
 using Serilog;
 using Sufni.App.Shared.Models;
 
-using Sufni.App.Shell.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Services;
+using Sufni.App.Sessions.Store;
+using Sufni.App.Sessions.Coordination;
 namespace Sufni.App.SyncAndPairing.Coordinators;
 
-public class SyncCoordinator : ISyncCoordinator, IDisposable
+public partial class SyncCoordinator : ISyncCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<SyncCoordinator>();
     private static readonly TimeSpan ServerDiscoveryTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultInboundActivityIdleGrace = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan FinalInboundActivityIdleGrace = TimeSpan.FromSeconds(2);
 
-    private readonly IAppDataRefresher appDataRefresher;
-    private readonly ISynchronizationClientService? synchronizationClientService;
     private readonly IPairingClientCoordinator? pairingClientCoordinator;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
     private readonly IUiThreadDispatcher uiThreadDispatcher;
@@ -74,19 +74,29 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
     public event EventHandler? ServerUnavailable;
 
     public SyncCoordinator(
-        IAppDataRefresher appDataRefresher,
+        ISyncDataStore syncDataStore,
+        ISynchronizationApplier rowApplier,
+        ISessionRepository sessionRepository,
+        ISessionSyncApplier sessionSyncApplier,
+        IRecordedSessionSourceRepository recordedSessionSourceRepository,
+        IRecordedSessionSourceStoreWriter sourceStore,
+        IRecordedSessionSourceSyncQuery recordedSessionSourceSyncQuery,
         IBackgroundTaskRunner backgroundTaskRunner,
         IUiThreadDispatcher uiThreadDispatcher,
         TimeProvider timeProvider,
-        ISynchronizationClientService? synchronizationClientService = null,
         IPairingClientCoordinator? pairingClientCoordinator = null,
         ISynchronizationServerService? synchronizationServerService = null,
         TimeSpan? inboundActivityIdleGrace = null,
         TimeSpan? finalInboundActivityIdleGrace = null)
     {
-        this.appDataRefresher = appDataRefresher;
+        this.syncDataStore = syncDataStore;
+        this.rowApplier = rowApplier;
+        this.sessionRepository = sessionRepository;
+        this.sessionSyncApplier = sessionSyncApplier;
+        this.recordedSessionSourceRepository = recordedSessionSourceRepository;
+        this.sourceStore = sourceStore;
+        this.recordedSessionSourceSyncQuery = recordedSessionSourceSyncQuery;
         synchronizationServer = synchronizationServerService;
-        this.synchronizationClientService = synchronizationClientService;
         this.pairingClientCoordinator = pairingClientCoordinator;
         this.backgroundTaskRunner = backgroundTaskRunner;
         this.uiThreadDispatcher = uiThreadDispatcher;
@@ -161,79 +171,44 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
                     SynchronizationPhase.ResolvingServer,
                     "Finding sync server",
                     CurrentStep: 1,
-                    TotalSteps: 8,
+                    TotalSteps: 7,
                     IsDeterminate: true);
 
                 peer = await pairingClientCoordinator.ResolvePeerAsync(ServerDiscoveryTimeout, token);
                 if (peer is null)
                 {
-                    ServerUnavailable?.Invoke(this, EventArgs.Empty);
+                    await uiThreadDispatcher.InvokeAsync(() => ServerUnavailable?.Invoke(this, EventArgs.Empty));
                     return;
                 }
             }
 
             logger.Verbose("Running remote synchronization phases");
             var result = await backgroundTaskRunner.RunAsync(() =>
-                synchronizationClientService!.SyncAll(peer!, new SyncProgressReporter(ReportOutboundServiceProgress), token));
+                RunClientAsync(peer!, token));
 
             if (result is SynchronizationRunResult.Failed failed)
             {
-                SyncFailed?.Invoke(this, new SyncFailedEventArgs(failed.Reason, failed.Details));
+                await uiThreadDispatcher.InvokeAsync(() => SyncFailed?.Invoke(this, new SyncFailedEventArgs(failed.Reason, failed.Details)));
                 return;
             }
 
-            logger.Verbose("Refreshing local stores after synchronization");
-            Progress = new SynchronizationProgressSnapshot(
-                SynchronizationPhase.RefreshingLocalStores,
-                "Refreshing local lists",
-                CurrentStep: 8,
-                TotalSteps: 8,
-                IsDeterminate: true);
-
-            await RefreshStateOnUiThreadAsync();
-            var completionMessage = GetCompletionMessage(result);
-            logger.Information("Synchronization completed: {CompletionMessage}", completionMessage);
-            SyncCompleted?.Invoke(this, new SyncCompletedEventArgs(completionMessage));
+            logger.Information("Synchronization completed with {Outcome}", result.GetType().Name);
+            await uiThreadDispatcher.InvokeAsync(() => SyncCompleted?.Invoke(this, new SyncCompletedEventArgs(result)));
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested || peer?.Lifetime.IsCancellationRequested == true)
-        {
-            // Already committed phases still need to reach the shared read state.
-            await RefreshStateOnUiThreadAsync();
-        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested || peer?.Lifetime.IsCancellationRequested == true) { }
         catch (Exception e)
         {
             logger.Error(e, "Synchronization failed during {Phase}", Progress?.Phase);
-            SyncFailed?.Invoke(this, new SyncFailedEventArgs(SyncFailureReason.Synchronize, e.Message));
+            await uiThreadDispatcher.InvokeAsync(() => SyncFailed?.Invoke(this, new SyncFailedEventArgs(SyncFailureReason.Synchronize, e.Message)));
         }
         finally
         {
-            if (!inboundSyncRunning)
+            await uiThreadDispatcher.InvokeAsync(() =>
             {
-                Progress = null;
-            }
-
-            SetOutboundSyncRunning(false);
+                if (!inboundSyncRunning) Progress = null;
+                SetOutboundSyncRunning(false);
+            });
         }
-    }
-
-    private void ReportOutboundServiceProgress(SynchronizationProgressSnapshot snapshot)
-    {
-        SetProgressOnUiThread(snapshot with
-        {
-            CurrentStep = snapshot.CurrentStep + 1,
-            TotalSteps = 8
-        });
-    }
-
-    private void SetProgressOnUiThread(SynchronizationProgressSnapshot? snapshot)
-    {
-        if (uiThreadDispatcher.CheckAccess())
-        {
-            Progress = snapshot;
-            return;
-        }
-
-        uiThreadDispatcher.Post(() => Progress = snapshot);
     }
 
     private void PublishPairedStateChangeOnUiThread()
@@ -393,45 +368,7 @@ public class SyncCoordinator : ISyncCoordinator, IDisposable
             TotalSteps = 6,
             IsDeterminate = true
         };
-
-    private static string GetCompletionMessage(SynchronizationRunResult result) =>
-        result switch
-        {
-            SynchronizationRunResult.Completed => "Sync successful",
-            SynchronizationRunResult.IncompleteData incomplete when incomplete.MissingProcessedSessionCount == 0
-                && incomplete.IncompleteRecordedSourceCount == 0 =>
-                $"Sync incomplete: {incomplete.PendingTransfers.Count} transfer(s) pending",
-            SynchronizationRunResult.IncompleteData incomplete =>
-                $"Sync incomplete: {incomplete.MissingProcessedSessionCount} session blob(s) and {incomplete.IncompleteRecordedSourceCount} recorded source(s) still missing"
-                + (incomplete.PendingTransfers.Count == 0 ? "" : $"; {incomplete.PendingTransfers.Count} transfer(s) pending"),
-            _ => "Sync completed"
-        };
-
-    private async Task RefreshStateOnUiThreadAsync()
-    {
-        if (uiThreadDispatcher.CheckAccess())
-        {
-            await RefreshStateAsync();
-            return;
-        }
-
-        await uiThreadDispatcher.InvokeAsync(RefreshStateAsync);
-    }
-
-    private Task RefreshStateAsync()
-    {
-        return appDataRefresher.RefreshAsync();
-    }
-
-    private sealed class SyncProgressReporter(Action<SynchronizationProgressSnapshot> report)
-        : IProgress<SynchronizationProgressSnapshot>
-    {
-        public void Report(SynchronizationProgressSnapshot value)
-        {
-            report(value);
-        }
-    }
 }
 
-public sealed record SyncCompletedEventArgs(string Message);
+public sealed record SyncCompletedEventArgs(SynchronizationRunResult Result);
 public sealed record SyncFailedEventArgs(SyncFailureReason Reason, string? Details = null);

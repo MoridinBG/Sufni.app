@@ -61,18 +61,22 @@ internal sealed class InboundSyncFixture : IAsyncDisposable
     public InboundSyncCoordinator CreateCoordinator(ISyncDataStore? dataStore = null, IRecordedSessionSourceRepository? sourceRepository = null)
     {
         var coordinator = new InboundSyncCoordinator(
-        dataStore ?? Database.SyncDataStore,
-        Database.GetRepository<Bike>(), Database.GetRepository<Setup>(), Database.GetRepository<Board>(),
-        Database.GetRepository<CustomTileLayer>(), Database.SessionRepository,
-        new SessionSyncApplier(Sessions, Database.SessionRepository, new InlineBackgroundTaskRunner(),
-            new SessionTelemetryProcessor(), Database.SwapRequests, new ProcessingFingerprintService()),
-        sourceRepository ?? Database.SourceRepository, Database.TrackRepository,
-        Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Sources, Tracks, Segments,
-        Database.PairedDeviceRepository, PairedDevices, Tokens, Time,
-        Publication, new InlineBackgroundTaskRunner(), dispatcher);
+            dataStore ?? Database.SyncDataStore, CreateRowApplier(dataStore),
+            new SessionSyncApplier(Sessions, Database.SessionRepository, new InlineBackgroundTaskRunner(),
+                new SessionTelemetryProcessor(), Database.SwapRequests, new ProcessingFingerprintService()),
+            sourceRepository ?? Database.SourceRepository, Sources,
+            Database.PairedDeviceRepository, PairedDevices, Tokens, Time,
+            new InlineBackgroundTaskRunner(), dispatcher);
         coordinators.Add(coordinator);
         return coordinator;
     }
+
+    public SynchronizationApplier CreateRowApplier(ISyncDataStore? dataStore = null) => new(
+        dataStore ?? Database.SyncDataStore,
+        Database.GetRepository<Bike>(), Database.GetRepository<Setup>(), Database.GetRepository<Board>(),
+        Database.GetRepository<CustomTileLayer>(), Database.SessionRepository, Database.TrackRepository,
+        Database.SessionSegmentRepository, Bikes, Setups, Boards, Layers, Sessions, Tracks, Segments,
+        Publication, new InlineBackgroundTaskRunner(), dispatcher);
 
     public async ValueTask DisposeAsync()
     {

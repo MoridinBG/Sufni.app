@@ -47,7 +47,6 @@ public class MobileAppBootstrapperTests
         Assert.Same(discoveries["sync"], syncDiscovery);
         Assert.Equal(["daq", "sync"], discoveryKeys);
 
-        AssertSingletonRegistration<ISynchronizationClientService>(services);
         AssertSingletonRegistration<IPairingClientCoordinator>(services, typeof(PairingClientCoordinator));
         AssertSingletonRegistration<PairingClientViewModel>(services, typeof(PairingClientViewModel));
     }

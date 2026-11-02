@@ -102,8 +102,9 @@ public class MainPagesDesktopViewTests
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
         var pairingCoordinator = Substitute.For<IInboundSyncCoordinator>();
+        using var syncHarness = new Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness();
         var server = new TestSynchronizationServerService();
-        var syncCoordinator = CreateSyncCoordinator(server);
+        var syncCoordinator = syncHarness.CreateCoordinator(server: server, idleGrace: TimeSpan.Zero);
         var viewModel = MainPagesViewModelTestFactory.Create(
             syncCoordinator: syncCoordinator,
             pairingServerViewModel: new PairingServerViewModel(pairingCoordinator, new InlineUiThreadDispatcher(), new FakeTimeProvider(), new ManualUiTimerScheduler()));
@@ -273,16 +274,7 @@ public class MainPagesDesktopViewTests
             new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
-    private static SyncCoordinator CreateSyncCoordinator(ISynchronizationServerService server) =>
-        new(
-            Substitute.For<IAppDataRefresher>(),
-            synchronizationClientService: null,
-            pairingClientCoordinator: null,
-            synchronizationServerService: server,
-            backgroundTaskRunner: new InlineBackgroundTaskRunner(),
-            inboundActivityIdleGrace: TimeSpan.Zero,
-            uiThreadDispatcher: new InlineUiThreadDispatcher(),
-            timeProvider: new FakeTimeProvider());
+
 }
 
 internal sealed class MountedMainPagesDesktopView(Window host, MainPagesDesktopView view) : IAsyncDisposable

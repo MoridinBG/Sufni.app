@@ -13,7 +13,6 @@ public enum SynchronizationPhase
     PullingIncompleteSessions,
     PushingIncompleteSessionSources,
     PullingIncompleteSessionSources,
-    RefreshingLocalStores,
     ReceivingChanges,
     ServingChanges,
     CheckingIncompleteSessions,

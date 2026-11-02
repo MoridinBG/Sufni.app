@@ -113,6 +113,7 @@ public static class AppComposition
         services.AddSingleton<ISessionRepository, SessionRepository>();
         services.AddSingleton<ISessionBlobSwapRequestStore, SessionBlobSwapRequestStore>();
         services.AddSingleton<ISyncDataStore, SynchronizationMergeEngine>();
+        services.AddSingleton<ISynchronizationApplier, SynchronizationApplier>();
         services.AddSingleton<ISessionContentReader, SessionContentReader>();
         services.AddSingleton<ISessionOperationRunner, SessionOperationRunner>();
         services.AddSingleton<IAppPreferences>(sp => new AppPreferences(
