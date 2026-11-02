@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+using System.Collections.Immutable;
+using Sufni.App.Sessions.Models;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,72 +18,78 @@ internal sealed class SetupPersistenceTransactionRunner(
     ILocalDeviceIdentity localDeviceIdentity)
     : ISetupPersistenceTransactionRunner
 {
-    public async Task<IReadOnlyList<Guid>> SaveSetupAsync(
+    public async Task<SetupWriteResult> SaveSetupAsync(
         Setup setup,
         Guid? originalBoardId,
         Guid? newBoardId,
         CancellationToken cancellationToken = default)
     {
         var writer = await localDeviceIdentity.GetIdAsync();
-        return await connectionContext.RunInTransactionAsync(connection =>
+        return await connectionContext.RunInTransactionAsync<SetupWriteResult>(connection =>
         {
+            if (BoardIsInUse(connection, newBoardId, setup.Id)) return new SetupWriteResult.BoardInUse(newBoardId!.Value);
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now, writer);
-            return ReassignBoardInTransaction(connection, originalBoardId, newBoardId, setup.Id, now, writer);
+            return new SetupWriteResult.Applied(ReassignBoardInTransaction(connection, originalBoardId, newBoardId, setup.Id, now, writer));
         }, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Guid>> DeleteSetupAsync(
+    public async Task<SetupDeletePersistenceResult> DeleteSetupAsync(
         Guid setupId,
         Guid? boardId,
         CancellationToken cancellationToken = default)
     {
         var writer = await localDeviceIdentity.GetIdAsync();
-        return await connectionContext.RunInTransactionAsync(connection =>
+        return await connectionContext.RunInTransactionAsync<SetupDeletePersistenceResult>(connection =>
         {
+            if (connection.Table<Session>().Where(session => session.Deleted == null && session.Setup == setupId).Count() > 0)
+                return new SetupDeletePersistenceResult.InUse();
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Setup>.DeleteInTransaction(connection, setupId, now, writer);
-            return ReassignBoardInTransaction(connection, boardId, null, setupId, now, writer);
+            return new SetupDeletePersistenceResult.Deleted(ReassignBoardInTransaction(connection, boardId, null, setupId, now, writer));
         }, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Guid>> ImportSetupAsync(
+    public async Task<SetupWriteResult> ImportSetupAsync(
         Bike bike,
         Setup setup,
         Guid? boardId,
         CancellationToken cancellationToken = default)
     {
         var writer = await localDeviceIdentity.GetIdAsync();
-        return await connectionContext.RunInTransactionAsync(connection =>
+        return await connectionContext.RunInTransactionAsync<SetupWriteResult>(connection =>
         {
+            if (BoardIsInUse(connection, boardId, setup.Id)) return new SetupWriteResult.BoardInUse(boardId!.Value);
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Bike>.PutInTransaction(connection, bike, now, writer);
             SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now, writer);
-            return ReassignBoardInTransaction(connection, originalBoardId: null, boardId, setup.Id, now, writer);
+            return new SetupWriteResult.Applied(ReassignBoardInTransaction(connection, originalBoardId: null, boardId, setup.Id, now, writer));
         }, cancellationToken);
     }
 
-    private static IReadOnlyList<Guid> ReassignBoardInTransaction(
-        SQLiteConnection connection,
-        Guid? originalBoardId,
-        Guid? newBoardId,
-        Guid setupId,
-        long now, string writer)
+    private static bool BoardIsInUse(SQLiteConnection connection, Guid? boardId, Guid setupId) =>
+        boardId is { } id && connection.Find<Board>(id) is { Deleted: null, SetupId: { } owner } && owner != setupId;
+
+    private static ImmutableArray<Guid> ReassignBoardInTransaction(
+        SQLiteConnection connection, Guid? originalBoardId, Guid? newBoardId, Guid setupId, long now, string writer)
     {
-        if (originalBoardId == newBoardId) return [];
-        var changed = new List<Guid>();
-
-        if (originalBoardId.HasValue)
+        var changed = ImmutableArray.CreateBuilder<Guid>();
+        if (originalBoardId is { } oldId && originalBoardId != newBoardId &&
+            connection.Find<Board>(oldId) is { Deleted: null, SetupId: { } owner } previous && owner == setupId)
         {
-            SynchronizableRepository<Board>.PutInTransaction(connection, new Board(originalBoardId.Value, null), now, writer);
-            changed.Add(originalBoardId.Value);
+            previous.SetupId = null;
+            SynchronizableRepository<Board>.PutInTransaction(connection, previous, now, writer);
+            changed.Add(oldId);
         }
-
-        if (newBoardId.HasValue)
+        if (newBoardId is { } newId)
         {
-            SynchronizableRepository<Board>.PutInTransaction(connection, new Board(newBoardId.Value, setupId), now, writer);
-            changed.Add(newBoardId.Value);
+            var current = connection.Find<Board>(newId);
+            if (current is not { Deleted: null } || current.SetupId != setupId)
+            {
+                SynchronizableRepository<Board>.PutInTransaction(connection, new Board(newId, setupId), now, writer);
+                changed.Add(newId);
+            }
         }
-        return changed;
+        return changed.ToImmutable();
     }
 }

@@ -68,6 +68,7 @@ public sealed record FailurePresentation
     public static FailurePresentation From(SetupValidationFailureReason reason, string? details = null) => new(reason switch
     {
         SetupValidationFailureReason.Name => "Enter a setup name.",
+        SetupValidationFailureReason.BoardInUse => "The board is already assigned to another setup. Choose a different board.",
         SetupValidationFailureReason.Board => "Choose a board for this setup.",
         SetupValidationFailureReason.Bike => "Choose an available bike for this setup.",
         SetupValidationFailureReason.Sensor => "Configure at least one sensor for this setup.",

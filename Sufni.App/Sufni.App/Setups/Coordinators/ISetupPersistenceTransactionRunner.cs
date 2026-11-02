@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,20 +10,34 @@ namespace Sufni.App.Setups.Coordinators;
 /// <summary>Commits setup writes and returns the affected board identities for publication.</summary>
 public interface ISetupPersistenceTransactionRunner
 {
-    Task<IReadOnlyList<Guid>> SaveSetupAsync(
+    Task<SetupWriteResult> SaveSetupAsync(
         Setup setup,
         Guid? originalBoardId,
         Guid? newBoardId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<Guid>> DeleteSetupAsync(
+    Task<SetupDeletePersistenceResult> DeleteSetupAsync(
         Guid setupId,
         Guid? boardId,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<Guid>> ImportSetupAsync(
+    Task<SetupWriteResult> ImportSetupAsync(
         Bike bike,
         Setup setup,
         Guid? boardId,
         CancellationToken cancellationToken = default);
+}
+
+public abstract record SetupWriteResult
+{
+    private SetupWriteResult() { }
+    public sealed record Applied(ImmutableArray<Guid> ChangedBoardIds) : SetupWriteResult;
+    public sealed record BoardInUse(Guid BoardId) : SetupWriteResult;
+}
+
+public abstract record SetupDeletePersistenceResult
+{
+    private SetupDeletePersistenceResult() { }
+    public sealed record Deleted(ImmutableArray<Guid> ChangedBoardIds) : SetupDeletePersistenceResult;
+    public sealed record InUse : SetupDeletePersistenceResult;
 }

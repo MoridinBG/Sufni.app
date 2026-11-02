@@ -265,6 +265,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 }
                 break;
 
+            case SetupSaveResult.BoardInUse:
+                ErrorMessages.Add(FailurePresentation.From(SetupValidationFailureReason.BoardInUse));
+                break;
             case SetupSaveResult.Missing:
                 Notifications.Add("The setup is no longer available.");
                 break;
@@ -325,6 +328,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
             case SetupDeleteResult.Deleted:
                 await shell.CloseEditorAsync(new EditorKey.Setup(Id));
                 break;
+            case SetupDeleteResult.InUse:
+                ErrorMessages.Add(new FailurePresentation("Setup is referenced by a session and cannot be deleted."));
+                break;
             case SetupDeleteResult.Failed failed:
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
@@ -353,6 +359,9 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
                 case SetupImportResult.Imported imported:
                     await ApplyImportedSetupAsync(imported.Data);
                     break;
+                case SetupImportResult.BoardInUse:
+                    ErrorMessages.Add(FailurePresentation.From(SetupValidationFailureReason.BoardInUse));
+                    break;
                 case SetupImportResult.InvalidFile invalid:
                     ErrorMessages.Add(new FailurePresentation(invalid.ErrorMessage));
                     break;
@@ -376,10 +385,6 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         EvaluateDirtiness();
         NotifyEditorCommandStateChanged();
 
-        if (data.BoardIdWarning is not null)
-        {
-            ErrorMessages.Add(new FailurePresentation(data.BoardIdWarning));
-        }
     }
 
     [RelayCommand]

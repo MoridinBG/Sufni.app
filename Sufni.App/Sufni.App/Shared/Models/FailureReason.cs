@@ -29,7 +29,7 @@ public enum BikeDampingCutoffFailureReason { Save }
 public enum BikeDeleteFailureReason { Delete }
 
 public enum SetupSaveFailureReason { Save }
-public enum SetupValidationFailureReason { Name, Board, Bike, Sensor, Calibration, RearCompatibility }
+public enum SetupValidationFailureReason { Name, Board, Bike, Sensor, Calibration, RearCompatibility, BoardInUse }
 public enum SetupImportFailureReason { Import }
 public enum SetupExportFailureReason { Export, BikeUnavailable }
 public enum SetupDeleteFailureReason { Delete }

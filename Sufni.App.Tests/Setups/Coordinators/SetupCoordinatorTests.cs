@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Services;
@@ -29,6 +30,7 @@ public class SetupCoordinatorTests : IDisposable
     private readonly BoardStore boardStore;
     private readonly InMemorySynchronizableRepository<Setup> setups;
     private readonly InMemorySynchronizableRepository<Board> boards;
+    private readonly InMemorySynchronizableRepository<Session> sessions;
     private readonly InMemorySetupTransactions transactions;
     private readonly SetupCoordinator coordinator;
     private readonly SetupBoardQuery query;
@@ -43,7 +45,8 @@ public class SetupCoordinatorTests : IDisposable
         var clock = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9));
         setups = new(clock);
         boards = new(clock);
-        transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards);
+        sessions = new(clock);
+        transactions = new(setups, new InMemorySynchronizableRepository<Bike>(clock), boards, sessions);
         coordinator = new(setupStore, bikeStore, files, new TestBikeSaveValidator(), new InlineBackgroundTaskRunner(), transactions, boards, boardStore, new InlineUiThreadDispatcher(), publication, query);
     }
 
@@ -110,14 +113,32 @@ public class SetupCoordinatorTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CreateDraft_UsesSuggestedBoardOnlyWhenUnclaimed(bool claimed)
+    public async Task CreateDraft_ClaimedSuggestedBoardIsRejectedWhenCreatingTheSetup(bool claimed)
     {
         var boardId = Guid.NewGuid();
-        if (claimed) await SeedAsync(TestSnapshots.Setup(), boardId);
+        var other = TestSnapshots.Setup();
+        if (claimed) await SeedAsync(other, boardId);
+        var bike = TestSnapshots.Bike();
+        await bikeStore.PublishBikesChangedAsync([bike]);
+        var created = coordinator.CreateDraft(boardId);
+        var draft = SetupDraft.From(created.Setup, created.BoardId) with
+        {
+            BikeId = bike.Id, FrontSensor = new SensorDraft.LinearFork(150, 12),
+        };
 
-        var draft = coordinator.CreateDraft(boardId);
+        var result = await coordinator.SaveAsync(draft, null);
 
-        Assert.Equal(claimed ? null : (Guid?)boardId, draft.BoardId);
+        if (claimed)
+        {
+            Assert.Equal(boardId, Assert.IsType<SetupSaveResult.BoardInUse>(result).BoardId);
+            Assert.Equal(other.Id, (await boards.GetAsync(boardId))!.SetupId);
+            Assert.Null(await setups.GetAsync(draft.Id));
+        }
+        else
+        {
+            Assert.IsType<SetupSaveResult.Saved>(result);
+            Assert.Equal(draft.Id, (await boards.GetAsync(boardId))!.SetupId);
+        }
     }
 
     [Theory]
@@ -216,6 +237,67 @@ public class SetupCoordinatorTests : IDisposable
 
         Assert.Empty(await setups.GetAllAsync());
         Assert.Empty(await boards.GetAllAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsync_RejectsClaimedBoardWithoutPublishingForNewAndExistingSetups(bool isNew)
+    {
+        var current = TestSnapshots.Setup();
+        await SeedAsync(current);
+        var occupied = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        boards.Seed(new Board(occupied, other));
+        var id = isNew ? Guid.NewGuid() : current.Id;
+        var draft = new SetupDraft(id, "changed", current.BikeId, occupied, new SensorDraft.LinearFork(150, 12), null);
+        var changes = 0;
+        using var watch = publication.Committed.Subscribe(_ => changes++);
+
+        var result = await coordinator.SaveAsync(draft, isNew ? null : SetupDraft.From(current, null));
+
+        Assert.Equal(occupied, Assert.IsType<SetupSaveResult.BoardInUse>(result).BoardId);
+        Assert.Equal(other, (await boards.GetAsync(occupied))!.SetupId);
+        Assert.Equal(0, changes);
+        if (isNew) Assert.Null(await setups.GetAsync(id));
+        else Assert.Equal(current.Name, (await setups.GetAsync(id))!.Name);
+    }
+
+    [Fact]
+    public async Task ImportSetupAsync_RejectsClaimedBoardInsteadOfDroppingItsAssociation()
+    {
+        var occupied = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        boards.Seed(new Board(occupied, other));
+        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(occupied, other, 1)]);
+        var bike = new Bike(Guid.NewGuid(), "bike") { HeadAngle = 65, ForkStroke = 150 };
+        var setup = new Setup(Guid.NewGuid(), "setup")
+        {
+            BikeId = bike.Id, FrontSensorConfigurationJson = "{\"type\":\"linear_fork\",\"length\":150,\"resolution\":12}",
+        };
+        files.ReadAsync(Arg.Any<CancellationToken>()).Returns(new SetupFileReadResult.Read(new(setup, bike, occupied)));
+
+        var result = await coordinator.ImportSetupAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(occupied, Assert.IsType<SetupImportResult.BoardInUse>(result).BoardId);
+        Assert.Empty(await setups.GetAllAsync());
+        Assert.Null(bikeStore.Get(bike.Id));
+        Assert.Equal(other, boardStore.Get(occupied)!.SetupId);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_InUseKeepsSetupAndBoardPublished()
+    {
+        var setup = TestSnapshots.Setup();
+        var board = Guid.NewGuid();
+        await SeedAsync(setup, board);
+        sessions.Seed(new Session(Guid.NewGuid(), "ride", "", setup.Id));
+
+        Assert.IsType<SetupDeleteResult.InUse>(await coordinator.DeleteAsync(setup.Id));
+
+        Assert.Equal(setup, setupStore.Get(setup.Id));
+        Assert.Equal(setup.Id, boardStore.Get(board)!.SetupId);
+        Assert.NotNull(await setups.GetAsync(setup.Id));
     }
 
     [Theory]

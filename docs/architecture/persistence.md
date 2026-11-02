@@ -273,6 +273,14 @@ helpers do not read the wall clock.
 
 The connection context is also the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization, then delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`, so the connection/transaction lock is held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations; raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences are not used.
 
+`SetupPersistenceTransactionRunner` checks board ownership before save/import
+writes. An occupied board returns `BoardInUse` without changing the setup, bike or
+board rows. Reassignment and deletion clear the previous board only if its current
+active owner is still the setup being changed; already-correct assignments do not
+advance the board version. Setup deletion checks active session references in the
+same transaction and returns `InUse` without deleting or clearing associations.
+Successful writes return only changed board IDs for coherent store publication.
+
 Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
 
 Startup migration ensures bike rows use the single `rear_suspension` union JSON column. Legacy schemas with `rear_suspension_kind`, `linkage`, and/or `leverage_ratio` are backfilled into `RearSuspensionSpec` JSON, linkage shock stroke is reconciled against the bike-level `shock_stroke` column, draft rows preserve the selected mode when the payload is missing or unparseable, and the legacy columns are dropped after backfill.

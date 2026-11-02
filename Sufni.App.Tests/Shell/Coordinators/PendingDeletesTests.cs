@@ -1,3 +1,4 @@
+using Sufni.App.Setups.Coordinators;
 using Sufni.App.Shared.Models;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -76,14 +77,19 @@ public class PendingDeletesTests
         await sessions.Received(1).DeleteAsync(key.Id);
     }
 
-    [Fact]
-    public async Task ReferencedBike_RemovesPendingIntentAndReportsFailureWithoutClosingEditor()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReferencedEntity_RemovesPendingIntentAndReportsFailureWithoutClosingEditor(bool setup)
     {
-        var key = new PendingDeleteKey.Bike(Guid.NewGuid());
+        var id = Guid.NewGuid();
+        PendingDeleteKey key = setup ? new PendingDeleteKey.Setup(id) : new PendingDeleteKey.Bike(id);
         var bikes = TestCoordinatorSubstitutes.Bike();
-        bikes.DeleteAsync(key.Id).Returns(new BikeDeleteResult.InUse());
+        var setups = TestCoordinatorSubstitutes.Setup();
+        bikes.DeleteAsync(id).Returns(new BikeDeleteResult.InUse());
+        setups.DeleteAsync(id).Returns(new SetupDeleteResult.InUse());
         var shell = Substitute.For<IShellCoordinator>();
-        using var owner = TestPendingDeletes.Create(bikes: bikes, shell: shell);
+        using var owner = TestPendingDeletes.Create(bikes: bikes, setups: setups, shell: shell);
         PendingDeleteCompletion? result = null;
         owner.Completed += (_, value) => result = value;
         owner.Schedule(key, "bike");

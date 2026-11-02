@@ -285,14 +285,16 @@ and optional details. Image decode failure has its own presentation reason.
 CSV validation stays beside the curve; workflow failures use the editor error
 bar so diagnostics can expand without replacing the curve or leaking into text.
 
-Setup save returns `SetupSaveResult.Saved(Snapshot, BoardId) | Conflict | Missing | Invalid | Failed`, deletion returns
-`SetupDeleteResult.Deleted | Failed`, import returns `SetupImportResult.Imported |
-Canceled | InvalidFile | Failed`, and export returns `SetupExportResult.Exported |
+Setup save returns `SetupSaveResult.Saved(Snapshot, BoardId) | Conflict | Missing | Invalid | BoardInUse | Failed`, deletion returns
+`SetupDeleteResult.Deleted | InUse | Failed`, import returns `SetupImportResult.Imported |
+Canceled | InvalidFile | BoardInUse | Failed`, and export returns `SetupExportResult.Exported |
 Canceled | Failed`. Failures carry the corresponding `SetupSaveFailureReason.Save`,
 `SetupDeleteFailureReason.Delete`, `SetupImportFailureReason.Import` or
 `SetupExportFailureReason.Export | BikeUnavailable` plus optional details. Save validation
 uses `SetupValidationFailureReason` for missing name/board/bike/sensor, incomplete
-calibration, and incompatible rear sensors. Import publication failure
+calibration, and incompatible rear sensors. Board ownership is checked in the
+write transaction, which returns `BoardInUse` before writing any setup/bike rows.
+Deletion is rejected while active sessions reference the setup. Import publication failure
 still reports failure after the transaction has committed.
 
 `SynchronizationRunResult` is `Completed | IncompleteData | Failed(reason, details)`.

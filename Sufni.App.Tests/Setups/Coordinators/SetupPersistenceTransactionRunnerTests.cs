@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models;
@@ -7,6 +8,116 @@ namespace Sufni.App.Tests.Setups.Coordinators;
 
 public class SetupPersistenceTransactionRunnerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ClaimedBoard_RejectsSaveOrImportWithoutWritingRows(bool import)
+    {
+        await using var context = PersistenceTestData.CreateConnectionContext($"setup-claim-{Guid.NewGuid():N}", inMemory: true);
+        var connection = await context.GetInitializedConnectionAsync(TestContext.Current.CancellationToken);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
+        var bike = new Bike(Guid.NewGuid(), "new bike");
+        var setup = new Setup(Guid.NewGuid(), "changed") { BikeId = bike.Id };
+        var board = new Board(Guid.NewGuid(), Guid.NewGuid()) { Version = 7, Updated = 20 };
+        await connection.InsertAsync(board);
+        if (!import) await connection.InsertAsync(new Setup(setup.Id, "original") { BikeId = bike.Id });
+
+        var result = import
+            ? await runner.ImportSetupAsync(bike, setup, board.Id, TestContext.Current.CancellationToken)
+            : await runner.SaveSetupAsync(setup, board.Id, board.Id, TestContext.Current.CancellationToken);
+
+        Assert.Equal(board.Id, Assert.IsType<SetupWriteResult.BoardInUse>(result).BoardId);
+        var retained = await connection.GetAsync<Board>(board.Id);
+        Assert.Equal(board.SetupId, retained.SetupId);
+        Assert.Equal(7, retained.Version);
+        Assert.Equal(20, retained.Updated);
+        Assert.Null(await connection.FindAsync<Bike>(bike.Id));
+        if (import) Assert.Null(await connection.FindAsync<Setup>(setup.Id));
+        else Assert.Equal("original", (await connection.GetAsync<Setup>(setup.Id)).Name);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StalePreviousBoard_SaveOrDeleteNeverClearsAnotherSetupOwner(bool delete)
+    {
+        await using var context = PersistenceTestData.CreateConnectionContext($"setup-stale-board-{Guid.NewGuid():N}", inMemory: true);
+        var connection = await context.GetInitializedConnectionAsync(TestContext.Current.CancellationToken);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = Guid.NewGuid() };
+        var oldBoard = new Board(Guid.NewGuid(), Guid.NewGuid()) { Version = 7 };
+        var next = Guid.NewGuid();
+        await connection.InsertAsync(setup);
+        await connection.InsertAsync(oldBoard);
+
+        if (delete)
+        {
+            var result = Assert.IsType<SetupDeletePersistenceResult.Deleted>(await runner.DeleteSetupAsync(setup.Id, oldBoard.Id, TestContext.Current.CancellationToken));
+            Assert.Empty(result.ChangedBoardIds);
+            Assert.NotNull((await connection.GetAsync<Setup>(setup.Id)).Deleted);
+        }
+        else
+        {
+            var result = Assert.IsType<SetupWriteResult.Applied>(await runner.SaveSetupAsync(setup, oldBoard.Id, next, TestContext.Current.CancellationToken));
+            Assert.Equal(next, Assert.Single(result.ChangedBoardIds));
+            Assert.Equal(setup.Id, (await connection.GetAsync<Board>(next)).SetupId);
+        }
+        var retained = await connection.GetAsync<Board>(oldBoard.Id);
+        Assert.Equal(oldBoard.SetupId, retained.SetupId);
+        Assert.Equal(7, retained.Version);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteSetup_OnlyActiveSessionReferencesBlockDeletion(bool sessionDeleted)
+    {
+        await using var context = PersistenceTestData.CreateConnectionContext($"setup-in-use-{Guid.NewGuid():N}", inMemory: true);
+        var connection = await context.GetInitializedConnectionAsync(TestContext.Current.CancellationToken);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = Guid.NewGuid() };
+        var board = new Board(Guid.NewGuid(), setup.Id);
+        var session = new Session(Guid.NewGuid(), "ride", "", setup.Id) { Deleted = sessionDeleted ? 1 : null };
+        await connection.InsertAsync(setup);
+        await connection.InsertAsync(board);
+        await connection.InsertAsync(session);
+
+        var result = await runner.DeleteSetupAsync(setup.Id, board.Id, TestContext.Current.CancellationToken);
+
+        var storedSetup = await connection.GetAsync<Setup>(setup.Id);
+        var storedBoard = await connection.GetAsync<Board>(board.Id);
+        if (sessionDeleted)
+        {
+            Assert.IsType<SetupDeletePersistenceResult.Deleted>(result);
+            Assert.NotNull(storedSetup.Deleted);
+            Assert.Null(storedBoard.SetupId);
+        }
+        else
+        {
+            Assert.IsType<SetupDeletePersistenceResult.InUse>(result);
+            Assert.Null(storedSetup.Deleted);
+            Assert.Equal(setup.Id, storedBoard.SetupId);
+        }
+        Assert.Equal(setup.Id, (await connection.GetAsync<Session>(session.Id)).Setup);
+    }
+
+    [Fact]
+    public async Task SaveSetup_AlreadyOwnedBoardDoesNotAdvanceItsVersion()
+    {
+        await using var context = PersistenceTestData.CreateConnectionContext($"setup-same-board-{Guid.NewGuid():N}", inMemory: true);
+        var connection = await context.GetInitializedConnectionAsync(TestContext.Current.CancellationToken);
+        var runner = new SetupPersistenceTransactionRunner(context, PersistenceTestData.CreateTimeProvider(), PersistenceTestData.CreateDeviceIdentity());
+        var setup = new Setup(Guid.NewGuid(), "setup") { BikeId = Guid.NewGuid() };
+        var board = new Board(Guid.NewGuid(), setup.Id) { Version = 7, Updated = 20 };
+        await connection.InsertAsync(board);
+
+        var result = Assert.IsType<SetupWriteResult.Applied>(await runner.SaveSetupAsync(setup, null, board.Id, TestContext.Current.CancellationToken));
+
+        Assert.Empty(result.ChangedBoardIds);
+        Assert.Equal(7, (await connection.GetAsync<Board>(board.Id)).Version);
+        Assert.Equal(setup.Id, (await connection.GetAsync<Setup>(setup.Id)).Id);
+    }
+
     [Fact]
     public async Task SaveSetupAsync_PersistsSetupAndBoardReassignment()
     {

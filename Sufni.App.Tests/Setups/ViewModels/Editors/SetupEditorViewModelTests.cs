@@ -400,8 +400,10 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal("renamed", editor.Name);
     }
 
-    [AvaloniaFact]
-    public async Task Save_OnFailed_AppendsErrorMessage()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Save_RejectedOrFailed_AppendsErrorAndKeepsDraft(bool boardInUse)
     {
         var bike = TestSnapshots.Bike();
         bikeStore.Add(bike);
@@ -414,11 +416,16 @@ public class SetupEditorViewModelTests : IDisposable
         editor.Name = "renamed";
 
         setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId))
-            .Returns(new SetupSaveResult.Failed(SetupSaveFailureReason.Save, "disk full"));
+            .Returns(boardInUse
+                ? new SetupSaveResult.BoardInUse(boardId)
+                : new SetupSaveResult.Failed(SetupSaveFailureReason.Save, "disk full"));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.Single(editor.ErrorMessages);
+        Assert.True(editor.IsDirty);
+        Assert.Equal(boardId, editor.BoardId);
+        shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
     }
 
     [AvaloniaTheory]
@@ -484,18 +491,20 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [AvaloniaFact]
-    public async Task Delete_Failed_AppendsErrorMessage_AndDoesNotNavigateBack()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Delete_InUseOrFailed_KeepsEditorOpen(bool inUse)
     {
         var snapshot = TestSnapshots.Setup();
         var editor = CreateEditor(snapshot);
         setupCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new SetupDeleteResult.Failed(SetupDeleteFailureReason.Delete, "locked"));
+            .Returns(inUse ? new SetupDeleteResult.InUse() : new SetupDeleteResult.Failed(SetupDeleteFailureReason.Delete, "locked"));
 
         await editor.DeleteCommand.ExecuteAsync(true);
 
         Assert.Single(editor.ErrorMessages);
-        shell.DidNotReceive().GoBack();
+        await shell.DidNotReceive().CloseEditorAsync(Arg.Any<EditorKey>());
     }
 
     // ----- EditBike -----

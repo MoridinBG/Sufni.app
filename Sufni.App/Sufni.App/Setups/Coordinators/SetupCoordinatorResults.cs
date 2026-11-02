@@ -8,7 +8,6 @@ namespace Sufni.App.Setups.Coordinators;
 public sealed record ImportedSetupEditorData(
     SetupSnapshot Setup,
     BikeSnapshot Bike,
-    string? BoardIdWarning,
     Guid? BoardId = null);
 
 public abstract record SetupImportResult
@@ -17,6 +16,7 @@ public abstract record SetupImportResult
 
     public sealed record Imported(ImportedSetupEditorData Data) : SetupImportResult;
     public sealed record Canceled : SetupImportResult;
+    public sealed record BoardInUse(Guid BoardId) : SetupImportResult;
     public sealed record InvalidFile(string ErrorMessage) : SetupImportResult;
     public sealed record Failed(SetupImportFailureReason Reason, string? Details = null) : SetupImportResult;
 }

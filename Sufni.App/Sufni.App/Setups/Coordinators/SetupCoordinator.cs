@@ -40,15 +40,8 @@ internal class SetupCoordinator(
 
     public SetupDetails CreateDraft(Guid? suggestedBoardId = null)
     {
-        // Honour the suggested board ID only if no other setup claims it.
-        Guid? actualBoardId = null;
-        if (suggestedBoardId.HasValue && boardStore.Get(suggestedBoardId.Value)?.SetupId is null)
-        {
-            actualBoardId = suggestedBoardId;
-        }
-
         var seed = new Setup(Guid.NewGuid(), "new setup");
-        var snapshot = new SetupDetails(SetupSnapshot.From(seed), actualBoardId);
+        var snapshot = new SetupDetails(SetupSnapshot.From(seed), suggestedBoardId);
         return snapshot;
     }
 
@@ -77,9 +70,16 @@ internal class SetupCoordinator(
             var prepared = await backgroundTaskRunner.RunAsync(async () =>
             {
                 var row = BuildRow(draft);
-                var boards = await LoadBoardsAsync(await setupPersistenceTransactions.SaveSetupAsync(row, current?.BoardId, draft.BoardId));
-                return (Snapshot: SetupSnapshot.From(row), Boards: boards);
+                var result = await setupPersistenceTransactions.SaveSetupAsync(row, current?.BoardId, draft.BoardId);
+                (BoardSnapshot[] Changed, Guid[] Removed) boards = result is SetupWriteResult.Applied applied
+                    ? await LoadBoardsAsync(applied.ChangedBoardIds) : ([], []);
+                return (Result: result, Snapshot: SetupSnapshot.From(row), Boards: boards);
             });
+            if (prepared.Result is SetupWriteResult.BoardInUse rejected)
+            {
+                logger.Warning("Setup save rejected for {SetupId}: board {BoardId} is already assigned", draft.Id, rejected.BoardId);
+                return new SetupSaveResult.BoardInUse(rejected.BoardId);
+            }
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
@@ -103,13 +103,23 @@ internal class SetupCoordinator(
 
         try
         {
-            var boards = await backgroundTaskRunner.RunAsync(async () =>
-                await LoadBoardsAsync(await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId)));
+            var prepared = await backgroundTaskRunner.RunAsync(async () =>
+            {
+                var result = await setupPersistenceTransactions.DeleteSetupAsync(setupId, snapshot?.BoardId);
+                (BoardSnapshot[] Changed, Guid[] Removed) boards = result is SetupDeletePersistenceResult.Deleted deleted
+                    ? await LoadBoardsAsync(deleted.ChangedBoardIds) : ([], []);
+                return (Result: result, Boards: boards);
+            });
+            if (prepared.Result is SetupDeletePersistenceResult.InUse)
+            {
+                logger.Warning("Setup delete rejected for {SetupId}: sessions still reference it", setupId);
+                return new SetupDeleteResult.InUse();
+            }
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
                 await setupStore.PublishSetupsRemovedAsync([setupId]);
-                await PublishBoardsAsync(boards);
+                await PublishBoardsAsync(prepared.Boards);
             });
         }
         catch (Exception e)
@@ -157,14 +167,18 @@ internal class SetupCoordinator(
                     return new SetupImportResult.Failed(SetupImportFailureReason.Import, failed.Details);
             }
 
-            var (resolvedBoardId, boardWarning) = ResolveImportedBoardId(payload.BoardId);
-
             var prepared = await backgroundTaskRunner.RunAsync(async () =>
             {
-                var boards = await LoadBoardsAsync(await setupPersistenceTransactions.ImportSetupAsync(
-                    payload.Bike, payload.Setup, resolvedBoardId));
-                return (Boards: boards, Bike: BikeSnapshot.From(payload.Bike), Setup: SetupSnapshot.From(payload.Setup));
+                var result = await setupPersistenceTransactions.ImportSetupAsync(payload.Bike, payload.Setup, payload.BoardId);
+                (BoardSnapshot[] Changed, Guid[] Removed) boards = result is SetupWriteResult.Applied applied
+                    ? await LoadBoardsAsync(applied.ChangedBoardIds) : ([], []);
+                return (Result: result, Boards: boards, Bike: BikeSnapshot.From(payload.Bike), Setup: SetupSnapshot.From(payload.Setup));
             });
+            if (prepared.Result is SetupWriteResult.BoardInUse rejected)
+            {
+                logger.Warning("Setup import rejected for {SetupId}: board {BoardId} is already assigned", payload.Setup.Id, rejected.BoardId);
+                return new SetupImportResult.BoardInUse(rejected.BoardId);
+            }
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();
@@ -177,10 +191,10 @@ internal class SetupCoordinator(
                 "Setup import completed for {SetupId} (bike {BikeId}, board {BoardId})",
                 payload.Setup.Id,
                 payload.Bike.Id,
-                resolvedBoardId);
+                payload.BoardId);
 
             return new SetupImportResult.Imported(
-                new ImportedSetupEditorData(prepared.Setup, prepared.Bike, boardWarning, resolvedBoardId));
+                new ImportedSetupEditorData(prepared.Setup, prepared.Bike, payload.BoardId));
         }
         catch (JsonException exception)
         {
@@ -243,20 +257,6 @@ internal class SetupCoordinator(
         await boardStore.PublishBoardsRemovedAsync(boards.Removed);
     }
 
-    private (Guid? ResolvedBoardId, string? Warning) ResolveImportedBoardId(Guid? importedBoardId)
-    {
-        if (!importedBoardId.HasValue)
-        {
-            return (null, null);
-        }
-
-        if (boardStore.Get(importedBoardId.Value)?.SetupId is null)
-        {
-            return (importedBoardId, null);
-        }
-
-        return (null, $"Board ID {importedBoardId.Value} was dropped because another setup uses it.");
-    }
 
 }
 
@@ -266,6 +266,7 @@ public abstract record SetupSaveResult
 
     public sealed record Saved(SetupSnapshot Snapshot, Guid? BoardId) : SetupSaveResult;
     public sealed record Missing : SetupSaveResult;
+    public sealed record BoardInUse(Guid BoardId) : SetupSaveResult;
     public sealed record Invalid(SetupValidationFailureReason Reason) : SetupSaveResult;
     public sealed record Conflict(SetupSnapshot CurrentSnapshot, Guid? BoardId = null) : SetupSaveResult;
     public sealed record Failed(SetupSaveFailureReason Reason, string? Details = null) : SetupSaveResult;
@@ -275,5 +276,6 @@ public abstract record SetupDeleteResult
 {
     private SetupDeleteResult() { }
     public sealed record Deleted : SetupDeleteResult;
+    public sealed record InUse : SetupDeleteResult;
     public sealed record Failed(SetupDeleteFailureReason Reason, string? Details = null) : SetupDeleteResult;
 }

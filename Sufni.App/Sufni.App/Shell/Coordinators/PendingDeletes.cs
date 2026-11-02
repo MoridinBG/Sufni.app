@@ -151,6 +151,7 @@ public sealed class PendingDeletes(
                 var setupResult = await setups.DeleteAsync(setup.Id);
                 return setupResult switch
                 {
+                    SetupDeleteResult.InUse => (new FailurePresentation("Setup is referenced by a session and cannot be deleted."), null),
                     SetupDeleteResult.Deleted => (null, new EditorKey.Setup(setup.Id)),
                     SetupDeleteResult.Failed setupFailure => (FailurePresentation.From(setupFailure.Reason, setupFailure.Details), null),
                     _ => throw new ArgumentOutOfRangeException(nameof(setupResult))
