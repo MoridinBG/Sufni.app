@@ -26,9 +26,10 @@ internal sealed class BonjourBrowseLifecycle<TPending>
         }
     }
 
-    public bool TryStop(Action<TPending> cancelPending)
+    public bool TryStop(Action<TPending> cancelPending, Action<ServiceAnnouncement> publishRemoved)
     {
         List<TPending> pendingToCancel;
+        ServiceAnnouncement[] removed;
         lock (gate)
         {
             if (!isBrowsing)
@@ -44,8 +45,12 @@ internal sealed class BonjourBrowseLifecycle<TPending>
             }
 
             pendingByKey.Clear();
+            removed = [.. resolvedByKey.Values];
             resolvedByKey.Clear();
         }
+
+        foreach (var announcement in removed)
+            publishRemoved(announcement);
 
         foreach (var pending in pendingToCancel)
         {

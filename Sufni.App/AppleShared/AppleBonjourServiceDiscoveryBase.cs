@@ -53,14 +53,14 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         catch
         {
             browser = null;
-            browseLifecycle.TryStop(static connection => connection.Cancel());
+            browseLifecycle.TryStop(static connection => connection.Cancel(), PublishRemoved);
             throw;
         }
     }
 
     public void StopBrowse()
     {
-        if (!browseLifecycle.TryStop(static connection => connection.Cancel()))
+        if (!browseLifecycle.TryStop(static connection => connection.Cancel(), PublishRemoved))
         {
             logger.Verbose("Ignoring Bonjour browse stop on {Platform} because browsing is not active", platformName);
             return;
@@ -71,6 +71,9 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
         browser?.Cancel();
         browser = null;
     }
+
+    private void PublishRemoved(ServiceAnnouncement announcement) =>
+        ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(announcement));
 
     private void OnServiceAdded(NWBrowseResult? result)
     {
@@ -168,7 +171,7 @@ public abstract class AppleBonjourServiceDiscoveryBase : IServiceDiscovery
             platformName,
             announcement!.Address,
             announcement.Port);
-        ServiceRemoved?.Invoke(this, new ServiceAnnouncementEventArgs(announcement));
+        PublishRemoved(announcement);
     }
 
     private NWBrowser CreateBrowser(string type)

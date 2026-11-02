@@ -179,6 +179,26 @@ public class LiveDaqCoordinatorTests
     }
 
     [Fact]
+    public void CatalogRemovals_LeaveKnownBoardsOffline_AndRemoveUnknownBoards()
+    {
+        const string knownId = "known";
+        knownBoardsChanges.OnNext([new KnownLiveDaqRecord(knownId, "ride", knownId, null, null, null, null)]);
+        var coordinator = CreateCoordinator();
+        coordinator.Activate();
+        catalogEntries.OnNext([
+            new LiveDaqCatalogEntry(knownId, "ride", knownId, "192.168.0.10", 1557),
+            new LiveDaqCatalogEntry("unknown", "new", null, "192.168.0.11", 1557)]);
+        Assert.True(liveDaqStore.Get(knownId)!.IsOnline);
+
+        catalogEntries.OnNext([]);
+
+        Assert.False(liveDaqStore.Get(knownId)!.IsOnline);
+        Assert.Null(liveDaqStore.Get(knownId)!.Endpoint);
+        Assert.Null(liveDaqStore.Get("unknown"));
+        coordinator.Deactivate();
+    }
+
+    [Fact]
     public void Reconcile_PublishesAtomicUpdate_WithoutTransientEmptyState()
     {
         var firstBoard = Guid.NewGuid();

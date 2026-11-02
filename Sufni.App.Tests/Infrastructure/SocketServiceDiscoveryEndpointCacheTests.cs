@@ -6,6 +6,26 @@ namespace Sufni.App.Tests.Infrastructure;
 public class SocketServiceDiscoveryEndpointCacheTests
 {
     [Fact]
+    public void Drain_ReturnsEachEmittedEndpointOnce_AndClearsRemovalState()
+    {
+        var firstAddress = IPAddress.Parse("192.168.0.10");
+        var resolvedAddress = IPAddress.Parse("192.168.0.11");
+        var cache = new SocketServiceDiscoveryEndpointCache();
+        cache.Add("daq-a", [firstAddress, resolvedAddress], 5575, resolvedAddress);
+        cache.Add("daq-b", [firstAddress], 5575, firstAddress);
+
+        var removed = cache.Drain();
+
+        Assert.Equal(2, removed.Count);
+        Assert.Contains(removed, item => item.InstanceName == "daq-a" && item.Address.Equals(resolvedAddress) && item.Port == 5575);
+        Assert.Contains(removed, item => item.InstanceName == "daq-b" && item.Address.Equals(firstAddress) && item.Port == 5575);
+        Assert.Empty(cache.Drain());
+        Assert.False(cache.TryRemove("daq-a", [firstAddress, resolvedAddress], 5575, out _));
+        cache.Add("daq-a", [firstAddress], 5575, firstAddress);
+        Assert.Equal(firstAddress, Assert.Single(cache.Drain()).Address);
+    }
+
+    [Fact]
     public void Remove_ReturnsEmittedConnectableAddress_WhenAnnouncedFirstAddressDiffers()
     {
         var announcedFirst = IPAddress.Parse("192.168.0.10");

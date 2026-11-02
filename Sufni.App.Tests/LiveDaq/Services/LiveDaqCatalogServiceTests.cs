@@ -38,6 +38,33 @@ public class LiveDaqCatalogServiceTests
     }
 
     [Fact]
+    public void Observe_LastBrowseLeaseRemovalClearsCatalog_AndNextBrowseStartsEmpty()
+    {
+        var cache = new SocketServiceDiscoveryEndpointCache();
+        serviceDiscovery.When(discovery => discovery.StopBrowse()).Do(_ =>
+        {
+            foreach (var removed in cache.Drain())
+                serviceDiscovery.ServiceRemoved += Raise.EventWith(serviceDiscovery, new ServiceAnnouncementEventArgs(removed));
+        });
+        using var service = CreateCatalogService();
+        IReadOnlyList<LiveDaqCatalogEntry> observed = [];
+        using var observation = service.Observe().Subscribe(entries => observed = entries);
+        var first = service.AcquireBrowse();
+        var second = service.AcquireBrowse();
+        var announcement = CreateAnnouncement("192.168.0.10", 1557, LiveProtocolVersion.V2,
+            bid: "0102030405060708", instanceName: "daq");
+        cache.Add(announcement.InstanceName, [announcement.Address], announcement.Port, announcement.Address);
+        serviceDiscovery.ServiceAdded += Raise.EventWith(serviceDiscovery, new ServiceAnnouncementEventArgs(announcement));
+
+        first.Dispose();
+        Assert.Single(observed);
+        second.Dispose();
+        Assert.Empty(observed);
+        using var restarted = service.AcquireBrowse();
+        Assert.Empty(observed);
+    }
+
+    [Fact]
     public void AcquireBrowse_WhenFirstStartThrows_RunsCompensatingStop_AndRetryStartsCleanly()
     {
         var failingDiscovery = Substitute.For<IServiceDiscovery>();

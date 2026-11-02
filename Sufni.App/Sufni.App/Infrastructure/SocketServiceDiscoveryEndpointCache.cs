@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 
 namespace Sufni.App.Infrastructure;
@@ -42,6 +43,17 @@ internal sealed class SocketServiceDiscoveryEndpointCache
 
         emittedAddress = removedAddress!;
         return removedAddress is not null;
+    }
+
+    public IReadOnlyList<ServiceAnnouncement> Drain()
+    {
+        var removed = emittedAddresses
+            .Select(pair => (pair.Key.InstanceName, Address: pair.Value, pair.Key.Port))
+            .Distinct()
+            .Select(endpoint => new ServiceAnnouncement(endpoint.Address, endpoint.Port, endpoint.InstanceName, null))
+            .ToArray();
+        emittedAddresses.Clear();
+        return removed;
     }
 
     private readonly record struct ServiceEndpointKey(string? InstanceName, IPAddress Address, ushort Port);

@@ -252,7 +252,11 @@ reflection.
 
 ### Browse Ownership
 
-`DaqBrowseOwner` implements reference-counted lease-based browse ownership for `_sufni._tcp`. `AcquireBrowse()` returns a disposable lease; the first lease starts the underlying `IServiceDiscovery` mDNS browse, and the last disposed lease stops it. This keeps live discovery decoupled from the import pipeline — both features can browse concurrently without one clearing the other's state. The lease uses `Interlocked.Exchange` for safe double-dispose.
+`DaqBrowseOwner` implements reference-counted lease-based browse ownership for `_sufni._tcp`. `AcquireBrowse()` returns a disposable lease; the first lease starts the underlying `IServiceDiscovery` mDNS browse, and the last disposed lease stops it. This keeps live discovery decoupled from the import pipeline — both features can browse concurrently without one clearing the other's state. The lease uses `Interlocked.Exchange` for safe double-dispose. When browsing stops,
+socket and Bonjour adapters emit removals for every retained announcement before
+forgetting them. The catalog becomes empty; active consumers retain known boards
+as offline rows. Restarting browse begins with no stale endpoints. Socket endpoint
+probes completing after their browse session ends cannot republish that presence.
 
 ### Board-ID Inspector
 

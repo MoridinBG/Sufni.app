@@ -13,8 +13,8 @@ public class BonjourBrowseLifecycleTests
 
         Assert.True(lifecycle.TryStart());
         Assert.False(lifecycle.TryStart());
-        Assert.True(lifecycle.TryStop(_ => { }));
-        Assert.False(lifecycle.TryStop(_ => { }));
+        Assert.True(lifecycle.TryStop(_ => { }, _ => { }));
+        Assert.False(lifecycle.TryStop(_ => { }, _ => { }));
         Assert.True(lifecycle.TryStart());
     }
 
@@ -57,7 +57,11 @@ public class BonjourBrowseLifecycleTests
         Assert.True(lifecycle.TryTrackPending("resolved", "resolved-value", canceled.Add, out var resolvedId));
         Assert.True(lifecycle.TryResolve("resolved", resolvedId, new ServiceAnnouncement(IPAddress.Loopback, 4567)));
 
-        Assert.True(lifecycle.TryStop(canceled.Add));
+        var removed = new List<ServiceAnnouncement>();
+        Assert.True(lifecycle.TryStop(canceled.Add, removed.Add));
+        Assert.Equal((ushort)4567, Assert.Single(removed).Port);
+        Assert.False(lifecycle.TryStop(canceled.Add, removed.Add));
+        Assert.Single(removed);
         Assert.Equal(["pending-value"], canceled);
         Assert.False(lifecycle.TryResolve("pending", resolutionId, new ServiceAnnouncement(IPAddress.Loopback, 1234)));
         Assert.False(lifecycle.TryRemoveResolved("resolved", out _));
@@ -114,7 +118,7 @@ public class BonjourBrowseLifecycleTests
 
             firstCancellationStarted.TrySetResult();
             allowStopToFinish.Task.GetAwaiter().GetResult();
-        }));
+        }, _ => { }));
 
         await firstCancellationStarted.Task;
 
