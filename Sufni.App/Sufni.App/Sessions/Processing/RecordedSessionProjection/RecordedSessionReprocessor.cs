@@ -1,7 +1,6 @@
 using System;
 using Serilog;
 using Sufni.App.Shared.Models;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Telemetry;
@@ -104,23 +103,7 @@ internal sealed class RecordedSessionReprocessor(
         TelemetryProcessingOptions processingOptions,
         RecordedSessionDerivationWindow? window)
     {
-        var payload = JsonSerializer.Deserialize(sourcePayload.Span, AppJson.Context.RecordedLiveCaptureSourcePayload)
-                      ?? throw new JsonException("Recorded live-capture source payload is invalid.");
-        var hasSegmentPayload = payload.FrontSegments is not null || payload.RearSegments is not null;
-        var capture = new LiveTelemetryCapture(
-            payload.Metadata,
-            bikeData,
-            hasSegmentPayload ? payload.FrontSegments ?? [] : CreateDenseSegments(payload.FrontMeasurements ?? []),
-            hasSegmentPayload ? payload.RearSegments ?? [] : CreateDenseSegments(payload.RearMeasurements ?? []),
-            payload.ImuData,
-            payload.GpsData,
-            payload.Markers ?? [],
-            hasSegmentPayload ? payload.StreamGaps ?? [] : [],
-            hasSegmentPayload ? payload.FinalStatus : null,
-            hasSegmentPayload && payload.MissingFinalStatus == true)
-        {
-            TemperatureData = payload.TemperatureData ?? [],
-        };
+        var capture = TelemetryCodec.DecodeLiveSource(sourcePayload).ToCapture(bikeData);
         if (window is not null)
         {
             capture = capture.Slice(window.StartSeconds, window.EndSeconds);
@@ -128,19 +111,6 @@ internal sealed class RecordedSessionReprocessor(
 
         return TelemetryData.FromLiveCapture(capture, processingOptions);
     }
-
-    private static RawCountSegment[] CreateDenseSegments(ushort[] measurements) =>
-        measurements.Length == 0
-            ? []
-            :
-            [
-                new RawCountSegment
-                {
-                    FirstIndex = 0,
-                    FirstMonotonicDeltaUs = 0,
-                    Counts = measurements,
-                }
-            ];
 
     internal static Metadata MetadataFromRaw(string sourceName, RawTelemetryData rawTelemetryData) => new()
     {

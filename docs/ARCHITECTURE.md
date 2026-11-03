@@ -375,6 +375,9 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 
 ## Persistence & Serialization
 
+`Sufni.Telemetry.TelemetryCodec` owns processed MessagePack and live-capture
+source JSON formats, with permanent legacy readers and frozen byte fixtures.
+
 SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying authored version/timestamp/writer metadata, a deletion marker and transport sequences. Hub and client apply one merge rule, and durable deletion ledger entries survive payload purge. Separate local-only revisions identify processed telemetry and full-track point payloads; replaceable SQLite triggers advance them only on effective content changes, and revision-constrained readers return no value when the requested generation is gone. Metadata-only session saves do not name the processed BLOB. Session-window tracks are derived on read and have no persisted payload or revision. Session metadata includes derived `duration_seconds`; device-local `session_gps_metrics` holds distance/ascent/descent and their complete input key, while processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):

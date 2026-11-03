@@ -1,8 +1,7 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using Sufni.App.Infrastructure;
+using Sufni.Telemetry;
 using Sufni.App.Shared.Common;
 
 namespace Sufni.App.Sessions.Models;
@@ -26,11 +25,10 @@ public static class RecordedSessionSourceHash
         if (sourceKind != RecordedSessionSourceKind.LiveCapture)
             throw new ArgumentOutOfRangeException(nameof(sourceKind), sourceKind, "Unknown recorded session source kind.");
 
-        var capture = JsonSerializer.Deserialize(payload.Span, AppJson.Context.RecordedLiveCaptureSourcePayload)
-            ?? throw new JsonException("Live capture source is missing.");
+        var capture = TelemetryCodec.DecodeLiveSource(payload);
         // The live metadata name comes from the setup selected at capture time.
         capture = capture with { Metadata = capture.Metadata with { SourceName = string.Empty } };
-        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(AppJson.Serialize(capture))));
+        return Convert.ToHexStringLower(SHA256.HashData(TelemetryCodec.EncodeLiveSource(capture)));
     }
 
     public static bool Matches(RecordedSessionSource source) =>

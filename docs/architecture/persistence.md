@@ -422,6 +422,11 @@ that held the schema versions of the old tables.
 
 ## JSON Serialization
 
+Live-capture source JSON belongs to `Sufni.Telemetry.TelemetryCodec` and its
+source-generated context. The library payload maps legacy dense and current
+segment shapes to captures. Frozen fixtures pin its bytes; source identity clears
+only `Metadata.SourceName` before re-encoding through that same codec.
+
 `AppJson` (`Sufni.App/Sufni.App/Infrastructure/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` and exposes two profiles:
 
 - **Lenient** (`AppJson.Options` / `AppJson.Context`) — all local round-trips (entity and track JSON columns; the processing dependency hash) and the entire sync client. Case-insensitive binding with a snake_case enum converter. Its output is deliberately **byte-stable**: `ProcessingDependencyHash` SHA-256s the `AppJson.Options`-serialized payload, so any change to the lenient options would silently invalidate every stored processing fingerprint. Treat the lenient profile as a wire/hash contract, not a tunable.

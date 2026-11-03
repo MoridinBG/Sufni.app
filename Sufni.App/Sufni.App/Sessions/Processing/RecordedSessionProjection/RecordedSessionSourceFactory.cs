@@ -1,9 +1,7 @@
-using System.Text;
 using Sufni.Telemetry;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Infrastructure;
 namespace Sufni.App.Sessions.Processing.RecordedSessionProjection;
 
 // Centralizes raw-source payload creation so imported SSTs and live captures
@@ -30,21 +28,8 @@ public static class RecordedSessionSourceFactory
 
     public static RecordedSessionSource CreateLiveCapture(LiveTelemetryCapture capture)
     {
-        var payload = new RecordedLiveCaptureSourcePayload
-        {
-            SchemaVersion = SchemaVersion,
-            Metadata = capture.Metadata,
-            FrontSegments = capture.FrontSegments,
-            RearSegments = capture.RearSegments,
-            ImuData = capture.ImuData,
-            GpsData = capture.GpsData,
-            TemperatureData = capture.TemperatureData,
-            Markers = capture.Markers,
-            StreamGaps = capture.StreamGaps,
-            FinalStatus = capture.FinalStatus,
-            MissingFinalStatus = capture.MissingFinalStatus,
-        };
-        var payloadBytes = Encoding.UTF8.GetBytes(AppJson.Serialize(payload));
+        var payload = RecordedLiveCaptureSourcePayload.FromCapture(capture);
+        var payloadBytes = TelemetryCodec.EncodeLiveSource(payload);
         var sourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.LiveCapture, payloadBytes);
 
         return new RecordedSessionSource

@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
-using Sufni.Telemetry;
 
-namespace Sufni.App.Sessions.Models;
+namespace Sufni.Telemetry;
 
 /// <summary>
 /// JSON payload shape for a saved live-capture source.
@@ -9,6 +8,40 @@ namespace Sufni.App.Sessions.Models;
 /// </summary>
 public sealed record RecordedLiveCaptureSourcePayload
 {
+    public static RecordedLiveCaptureSourcePayload FromCapture(LiveTelemetryCapture capture) => new()
+    {
+        SchemaVersion = 1,
+        Metadata = capture.Metadata,
+        FrontSegments = capture.FrontSegments,
+        RearSegments = capture.RearSegments,
+        ImuData = capture.ImuData,
+        GpsData = capture.GpsData,
+        TemperatureData = capture.TemperatureData,
+        Markers = capture.Markers,
+        StreamGaps = capture.StreamGaps,
+        FinalStatus = capture.FinalStatus,
+        MissingFinalStatus = capture.MissingFinalStatus,
+    };
+
+    public LiveTelemetryCapture ToCapture(BikeData bikeData)
+    {
+        var hasSegments = FrontSegments is not null || RearSegments is not null;
+        return new LiveTelemetryCapture(
+            Metadata, bikeData,
+            hasSegments ? FrontSegments ?? [] : DenseSegments(FrontMeasurements ?? []),
+            hasSegments ? RearSegments ?? [] : DenseSegments(RearMeasurements ?? []),
+            ImuData, GpsData, Markers ?? [],
+            hasSegments ? StreamGaps ?? [] : [],
+            hasSegments ? FinalStatus : null,
+            hasSegments && MissingFinalStatus == true)
+        {
+            TemperatureData = TemperatureData ?? [],
+        };
+    }
+
+    private static RawCountSegment[] DenseSegments(ushort[] samples) =>
+        samples.Length == 0 ? [] : [new RawCountSegment { Counts = samples }];
+
     [JsonPropertyName("schema_version")]
     public int SchemaVersion { get; init; }
 

@@ -1,10 +1,24 @@
 using MessagePack;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Sufni.Telemetry;
 
-/// <summary>Owns the persisted processed-telemetry format and legacy segment normalization.</summary>
+/// <summary>Owns processed telemetry and live-source serialization with legacy normalization.</summary>
 public static class TelemetryCodec
 {
+    private static readonly TelemetryJsonContext JsonContext = new(new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+    });
+
+    public static byte[] EncodeLiveSource(RecordedLiveCaptureSourcePayload source) =>
+        JsonSerializer.SerializeToUtf8Bytes(source, JsonContext.RecordedLiveCaptureSourcePayload);
+
+    public static RecordedLiveCaptureSourcePayload DecodeLiveSource(ReadOnlyMemory<byte> bytes) =>
+        JsonSerializer.Deserialize(bytes.Span, JsonContext.RecordedLiveCaptureSourcePayload)
+        ?? throw new JsonException("Recorded live-capture source payload is invalid.");
+
     public static byte[] Encode(TelemetryData telemetry) => MessagePackSerializer.Serialize(telemetry);
 
     public static TelemetryData Decode(ReadOnlyMemory<byte> bytes)
@@ -35,3 +49,7 @@ public static class TelemetryCodec
         };
     }
 }
+
+[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSerializable(typeof(RecordedLiveCaptureSourcePayload))]
+internal partial class TelemetryJsonContext : JsonSerializerContext;

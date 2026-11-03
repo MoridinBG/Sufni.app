@@ -443,7 +443,7 @@ public class RecordedSessionReprocessorTests
     {
         var sessionId = Guid.NewGuid();
         var payload = CreateTemperatureCompatibilityPayload([]);
-        var payloadJson = JsonNode.Parse(AppJson.Serialize(payload))!.AsObject();
+        var payloadJson = JsonNode.Parse(TelemetryCodec.EncodeLiveSource(payload))!.AsObject();
         Assert.True(payloadJson.Remove("temperature_data"));
         var source = CreateLiveCaptureSource(
             sessionId,
@@ -679,7 +679,7 @@ public class RecordedSessionReprocessorTests
         CreateLiveCaptureSource(
             sessionId,
             sourceName,
-            Encoding.UTF8.GetBytes(AppJson.Serialize(payload)));
+            TelemetryCodec.EncodeLiveSource(payload));
 
     private static RecordedSessionSource CreateLiveCaptureSource(
         Guid sessionId,

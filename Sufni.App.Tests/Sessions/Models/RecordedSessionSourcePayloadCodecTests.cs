@@ -15,6 +15,7 @@ public class RecordedSessionSourcePayloadCodecTests
         var source = RecordedSessionSourceFactory.CreateLiveCapture(TelemetryCodecFixtureData.LiveCapture());
 
         Assert.Equal(expected, source.Payload);
+        Assert.Equal("8d48096e0b4ef640b5d38f908494629944ee9bb64cefbce12a36828dcaba563a", source.SourceHash);
     }
 
     [Fact]

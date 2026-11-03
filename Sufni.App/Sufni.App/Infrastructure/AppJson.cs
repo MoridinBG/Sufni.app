@@ -98,7 +98,6 @@ internal static class AppJson
 [JsonSerializable(typeof(GpsMetricsKey))]
 [JsonSerializable(typeof(TrackPoint))]
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
-[JsonSerializable(typeof(RecordedLiveCaptureSourcePayload))]
 [JsonSerializable(typeof(ProcessingFingerprint))]
 [JsonSerializable(typeof(RecordedSessionDerivationWindow))]
 [JsonSerializable(typeof(Metadata))]
