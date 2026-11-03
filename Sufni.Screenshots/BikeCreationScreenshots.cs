@@ -1,3 +1,7 @@
+using Microsoft.Extensions.Time.Testing;
+using Sufni.App.Tests.TestSupport.Harness;
+using Sufni.App.Tests.TestSupport.Async;
+using Sufni.App.Tests.TestSupport.Doubles;
 using System;
 using System.IO;
 using System.Reactive;
@@ -53,7 +57,7 @@ public class BikeCreationScreenshots
             FrontWheel: null,
             RearWheel: null,
             ImageRotationDegrees: 0,
-            ImageBytes: [],
+            HasImage: false,
             Updated: 1);
 
         var vm = CreateViewModel(snapshot, isNew: true);
@@ -76,7 +80,7 @@ public class BikeCreationScreenshots
             FrontWheel: null,
             RearWheel: null,
             ImageRotationDegrees: 0,
-            ImageBytes: [],
+            HasImage: false,
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
@@ -99,7 +103,7 @@ public class BikeCreationScreenshots
             FrontWheel: null,
             RearWheel: null,
             ImageRotationDegrees: 0,
-            ImageBytes: SmallTestImageBytes(),
+            HasImage: true,
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
@@ -122,7 +126,7 @@ public class BikeCreationScreenshots
             FrontWheel: new WheelSpec(WheelDiameter(EtrtoRimSize.Inch29, 2.4), EtrtoRimSize.Inch29, 2.4),
             RearWheel: new WheelSpec(WheelDiameter(EtrtoRimSize.Inch275, 2.5), EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees: 0,
-            ImageBytes: SmallTestImageBytes(),
+            HasImage: true,
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
@@ -154,11 +158,12 @@ public class BikeCreationScreenshots
 
         window.Close();
         await FlushAsync();
+        await vm.PrepareCloseAsync();
     }
 
     private static BikeEditorViewModel CreateViewModel(BikeSnapshot snapshot, bool isNew = false)
     {
-        var bikeCoordinator = CreateBikeCoordinator();
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
 
         var dependencyQuery = Substitute.For<IBikeDependencyQuery>();
         dependencyQuery.Changes.Returns(Observable.Empty<Unit>());
@@ -171,25 +176,11 @@ public class BikeCreationScreenshots
             dependencyQuery,
             Substitute.For<IShellCoordinator>(),
             Substitute.For<IDialogService>(),
-            Substitute.For<IUiThreadDispatcher>());
-    }
-
-    private static IBikeCoordinator CreateBikeCoordinator()
-    {
-        var bikeCoordinator = Substitute.For<IBikeCoordinator>();
-
-        bikeCoordinator.LoadAnalysisAsync(Arg.Any<RearSuspensionSpec>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeEditorAnalysisResult>(new BikeEditorAnalysisResult.Unavailable()));
-        bikeCoordinator.LoadImageAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImageLoadResult>(new BikeImageLoadResult.Canceled()));
-        bikeCoordinator.ImportBikeAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeImportResult>(new BikeImportResult.Canceled()));
-        bikeCoordinator.ImportLeverageRatioAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<LeverageRatioImportResult>(new LeverageRatioImportResult.Canceled()));
-        bikeCoordinator.ExportBikeAsync(Arg.Any<Bike>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<BikeExportResult>(new BikeExportResult.Canceled()));
-
-        return bikeCoordinator;
+            new InlineUiThreadDispatcher(),
+            TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input,
+            new InlineBackgroundTaskRunner(),
+            new FakeTimeProvider(),
+            BikeDraft.From(snapshot, snapshot.HasImage ? SmallTestImageBytes() : []));
     }
 
     private static async Task FlushAsync() =>

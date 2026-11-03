@@ -6,20 +6,33 @@
     xmlns:converters="using:Avalonia.Data.Converters"
     x:DataType="vm:ShellRootViewModel"
     Background="{DynamicResource SufniSurfacePage}">
-    <ScrollViewer>
-        <StackPanel MaxWidth="560" Margin="24" Spacing="16"
-                    HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock Name="StartupMessage" Text="{Binding StartupMessage}" TextWrapping="Wrap" />
-            <StackPanel IsVisible="{Binding CanQuit}" Spacing="8">
-                <TextBlock Text="Log location" />
-                <SelectableTextBlock Text="{Binding LogPath}" TextWrapping="Wrap" />
+    <ScrollViewer HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center">
+        <Border Name="StartupCard" MaxWidth="600" Margin="24" Padding="28"
+                HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                Background="{DynamicResource SufniSurfaceElevatedBrush}"
+                BorderBrush="{DynamicResource SufniLineSubtleBrush}" BorderThickness="1" CornerRadius="12">
+            <StackPanel Spacing="24">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{Binding StartupTitle}" FontSize="{DynamicResource SufniFontSizeDisplay}"
+                               FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" />
+                    <TextBlock Name="StartupMessage" Text="{Binding StartupMessage}"
+                               TextAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel IsVisible="{Binding CanQuit}" Spacing="8">
+                    <TextBlock Text="Log location" FontWeight="SemiBold" />
+                    <SelectableTextBlock Text="{Binding LogPath}" TextWrapping="Wrap"
+                                         Foreground="{DynamicResource SufniTextSecondaryBrush}" />
+                </StackPanel>
+                <Expander Name="StartupDetails" Header="Details" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          IsVisible="{Binding StartupDetails, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
+                    <SelectableTextBlock Text="{Binding StartupDetails}" TextWrapping="Wrap" />
+                </Expander>
+                <WrapPanel HorizontalAlignment="Center" Orientation="Horizontal" ItemSpacing="12" LineSpacing="12">
+                    <Button Name="ResetDatabase" Content="Reset database" Command="{Binding ResetDatabaseCommand}"
+                            IsVisible="{Binding CanResetDatabase}" />
+                    <Button Name="Quit" Content="Quit" Command="{Binding QuitCommand}" IsVisible="{Binding CanQuit}" />
+                </WrapPanel>
             </StackPanel>
-            <Expander Header="Details" IsVisible="{Binding StartupDetails, Converter={x:Static converters:ObjectConverters.IsNotNull}}">
-                <SelectableTextBlock Text="{Binding StartupDetails}" TextWrapping="Wrap" />
-            </Expander>
-            <Button Name="ResetDatabase" Content="Reset database" Command="{Binding ResetDatabaseCommand}"
-                    IsVisible="{Binding CanResetDatabase}" />
-            <Button Name="Quit" Content="Quit" Command="{Binding QuitCommand}" IsVisible="{Binding CanQuit}" />
-        </StackPanel>
+        </Border>
     </ScrollViewer>
 </UserControl>

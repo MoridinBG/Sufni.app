@@ -34,6 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Sufni.Screenshots" />
     <Using Include="Xunit" />
     <Using Include="Sufni.App.Tests.TestSupport.Async" />
     <Using Include="Sufni.App.Tests.TestSupport.Fixtures" />

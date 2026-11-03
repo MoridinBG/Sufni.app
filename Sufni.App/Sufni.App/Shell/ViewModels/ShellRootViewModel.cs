@@ -50,7 +50,7 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty] public partial MainPagesViewModel? Pages { get; internal set; }
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsReady), nameof(CanResetDatabase), nameof(CanQuit), nameof(StartupMessage), nameof(StartupDetails))]
+    [NotifyPropertyChangedFor(nameof(IsReady), nameof(CanResetDatabase), nameof(CanQuit), nameof(StartupTitle), nameof(StartupMessage), nameof(StartupDetails))]
     [NotifyCanExecuteChangedFor(nameof(ResetDatabaseCommand), nameof(QuitCommand))]
     public partial ShellStartupState StartupState { get; private set; } = new ShellStartupState.Starting();
 
@@ -64,6 +64,12 @@ public sealed partial class ShellRootViewModel : ViewModelBase, IDisposable
         { Reason: StartupFailureReason.Database or StartupFailureReason.Reset };
     public bool CanQuit => StartupState is ShellStartupState.Failed or ShellStartupState.RelaunchRequired;
     public string LogPath => startup.LogPath;
+    public string StartupTitle => StartupState switch
+    {
+        ShellStartupState.Failed => "Unable to start Sufni",
+        ShellStartupState.RelaunchRequired => "Restart required",
+        _ => "Starting Sufni"
+    };
     public string StartupMessage => StartupState switch
     {
         ShellStartupState.Failed failed => FailurePresentation.From(failed.Reason, failed.Details).Summary,

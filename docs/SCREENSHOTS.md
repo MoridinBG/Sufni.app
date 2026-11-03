@@ -19,7 +19,7 @@ Key pieces:
 
 | File | Role |
 |------|------|
-| `Infrastructure/ScreenshotApp.axaml.cs` | `ScreenshotApp : Sufni.App.App` — `Initialize()` calls `base.Initialize()` so the production `App.axaml` styles and resources load unchanged, then pins `RequestedThemeVariant = ThemeVariant.Dark`; `OnFrameworkInitializationCompleted()` is overridden to a no-op, so no DI container is built |
+| `Infrastructure/ScreenshotApp.axaml.cs` | `ScreenshotApp : Sufni.App.App` — receives an isolated typed root from `TestAppEnvironment`; `Initialize()` calls `base.Initialize()` so the production `App.axaml` styles and resources load unchanged, then pins `RequestedThemeVariant = ThemeVariant.Dark`; `OnFrameworkInitializationCompleted()` is overridden to a no-op, so no DI container is built |
 | `Infrastructure/ScreenshotAppBuilder.cs` | Configures `.UseSkia()` + `UseHeadless(UseHeadlessDrawing = false)` |
 
 Because `ScreenshotApp` subclasses the production `App` and runs the real
@@ -96,6 +96,27 @@ Each step builds an immutable snapshot record that represents the data the
 user would have entered at that point. Snapshots are not persisted; they are
 constructed inline with the values relevant to the stage. Fields the user
 has not reached yet stay `null` or at their default.
+
+### Shared fixtures
+
+The screenshot project references `Sufni.App.Tests` to reuse its isolated platform
+root, dispatch/background runners, clock setup and typed coordinator substitutes.
+It has test-assembly friend access only; production internals are not exposed.
+Bike snapshots carry `HasImage`; image-bearing captures supply the image through
+`BikeDraft.From(snapshot, bytes)`. Editors receive explicit input capabilities,
+clock and execution seams, and are closed after capture.
+
+`StartupScreenshots` captures the recovery card at desktop and phone widths,
+with diagnostics collapsed and expanded:
+
+```
+TMPDIR="$PWD/Sufni.App.Tests/obj/test-tmp" dotnet test Sufni.Screenshots --filter StartupScreenshots
+```
+
+Those PNGs live under `screenshots/startup/` beside the screenshot assembly.
+This is visual verification with an injected failure, not a database reset or
+proof of native-head startup. Native smoke checks launch the built macOS and
+mobile apps separately.
 
 ### Mocking Collaborators
 
@@ -279,20 +300,16 @@ bypasses `ViewLocator` and instantiates views directly — to screenshot a
 compact view, construct the compact/common view class; for a workspace view,
 construct the workspace view class.
 
-When the scenario does register `ViewLocator` at runtime (see below),
-`App.Current` is the `ScreenshotApp` instance, but its `IsDesktop` stays
-`false` because the production startup (which determines platform mode
-from the application lifetime) never runs. The locator therefore returns
-mobile views by default, and `SetIsDesktopForTests` is internal to
-`Sufni.App` (no `InternalsVisibleTo` for the screenshot project) — there
-is no supported way to flip it to desktop from a screenshot test.
+`ScreenshotApp` receives a workspace launch profile through its typed platform root.
+For a compact capture, construct the compact view directly. For shell captures,
+pass a `ShellRootPresentation` carrying the requested profile. `ViewLocator`
+selects ordinary feature views from its app environment; no static desktop flag
+or test-only platform override is used.
 
 ## Resolving Pages Through ViewLocator
 
-Some shells render their content via `ItemsControl` bound to a list of
-view models — for example `SessionShellMobileView` binds
-`ItemsSource="{Binding Pages}"` to a `PageViewModelBase` collection and
-relies on Avalonia's data-template lookup to materialize each page view.
+Composed views may host view models through content controls and rely on
+Avalonia's data-template lookup to materialize their child views.
 That lookup walks `Application.DataTemplates`, which the screenshot app
 leaves empty by default.
 
@@ -388,7 +405,7 @@ public async Task Step_ShowsLoadingState()
     window.CaptureRenderedFrame()!.Save(Path.Combine(OutputDir, "loading.png"));
 
     // Complete the operation so cleanup runs.
-    tcs.SetResult(new BikeEditorAnalysisResult.Unavailable());
+    tcs.SetResult(new BikeEditorAnalysisResult.NotApplicable());
 
     window.Close();
     await FlushAsync();

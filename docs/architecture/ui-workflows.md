@@ -100,7 +100,7 @@ off-thread; initialization or refresh failure prevents page creation. After the
 refresh, the composition callback resolves subscription owners and pages before
 the server can accept arrivals. `ShellRootViewModel` observes the shell startup
 state: `Starting`, `Ready`, `Failed(reason, details)`, or `RelaunchRequired`.
-Both layout profiles block their normal surfaces until `Ready`.
+Both layout profiles block their normal surfaces until `Ready`. The startup surface centers a bounded card with a status heading, explanation, log location, expandable diagnostics and grouped recovery actions. It scrolls when the available height is small.
 
 Database failure offers the log location and reset. Reset closes the existing
 connection, archives remaining database files, creates the replacement through
