@@ -1,6 +1,6 @@
 using NSubstitute;
 using Sufni.App.Sessions.Coordination;
-using Sufni.App.Sessions.Pages.ViewModels.Editors;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Store;
 using Sufni.App.Shared.Models;
@@ -8,7 +8,7 @@ using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 
-namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
+namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class ProcessingPreferenceWorkflowTests
 {

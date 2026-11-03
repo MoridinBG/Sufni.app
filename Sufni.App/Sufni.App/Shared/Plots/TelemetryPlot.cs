@@ -6,7 +6,6 @@ using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;
 
-using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Infrastructure.Theming;

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 
 using Sufni.App.Infrastructure;
-namespace Sufni.App.LiveDaq.Services;
+namespace Sufni.App.AppleShared;
 
 internal sealed class BonjourBrowseLifecycle<TPending>
 {

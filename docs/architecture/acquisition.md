@@ -141,6 +141,9 @@ On import, files move to an `uploaded/` subdirectory, which the datastore create
 
 ### Network (WiFi DAQ)
 
+Legacy board identification lives in `Acquisition/Services/LiveDaqBoardIdInspector`.
+Management and live readers share framing buffers from `Shared/IO`.
+
 `TelemetryDataStoreService` observes `ILiveDaqCatalogService`; the catalog is the
 only raw mDNS subscriber for acquisition. Browse leases keep sources present
 while consumers need them. Catalog updates create, replace or remove network

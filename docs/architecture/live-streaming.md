@@ -312,6 +312,9 @@ The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDa
 
 ## Discovery & Catalog
 
+The Apple heads link `AppleShared/BonjourBrowseLifecycle.cs`; the neutral shared
+application does not contain the Bonjour browse implementation.
+
 ### Announcement Metadata
 
 DAQ discovery resolves DNS records without connecting to the single-client port.

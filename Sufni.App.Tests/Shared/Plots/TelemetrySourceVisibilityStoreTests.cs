@@ -1,7 +1,8 @@
+using Sufni.App.Shared.Plots;
 
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
-namespace Sufni.App.Tests.Acquisition.Models;
+namespace Sufni.App.Tests.Shared.Plots;
 
 public class TelemetrySourceVisibilityStoreTests
 {

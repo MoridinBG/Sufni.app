@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
 using Sufni.App.Acquisition.Models;

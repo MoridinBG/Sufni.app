@@ -4,7 +4,6 @@ using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Shared.Models;
 using Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
@@ -12,7 +11,7 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
+namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class DampingCutoffWorkflowTests : IDisposable
 {

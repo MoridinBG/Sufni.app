@@ -4,12 +4,11 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Pages.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Common;
 
-namespace Sufni.App.Tests.Sessions.Pages.ViewModels.Editors;
+namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class RecordedPagePresentationApplierTests
 {

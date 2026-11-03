@@ -7,7 +7,7 @@ using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Analysis.Services;
 
-namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
+namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal sealed class RecordedPagePresentationApplier
 {

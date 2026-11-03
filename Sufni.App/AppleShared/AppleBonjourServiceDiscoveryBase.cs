@@ -10,7 +10,6 @@ using CoreFoundation;
 using Network;
 using Serilog;
 using Sufni.App.Infrastructure;
-using Sufni.App.LiveDaq.Services;
 
 namespace Sufni.App.AppleShared;
 

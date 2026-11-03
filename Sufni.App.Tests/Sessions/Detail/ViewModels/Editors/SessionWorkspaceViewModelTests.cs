@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Video.Stores;
 using Sufni.App.Video.Models;

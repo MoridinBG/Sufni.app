@@ -7,7 +7,7 @@ using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Models;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
+namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 /// <summary>Edits a cutoff preview against the current projected bike.</summary>
 internal sealed class DampingCutoffWorkflow(

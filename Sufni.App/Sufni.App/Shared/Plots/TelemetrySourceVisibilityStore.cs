@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Sufni.App.Acquisition.Models;
+namespace Sufni.App.Shared.Plots;
 
 public static class TelemetrySourceKeys
 {

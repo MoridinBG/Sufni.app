@@ -400,7 +400,7 @@ Two pages diverge from that pattern:
   through callbacks. `RefreshSignalDisplayPreferences` raises binding notifications
   after the owner changes; the page keeps no smoothing copy. Availability uses
   `ApplySignalAvailability`. The recorded editor projects the filter from the
-  session row; `ProcessingPreferenceWorkflow` sends commits to
+  session row; `ProcessingPreferenceWorkflow` in `Sessions/Detail/ViewModels/Editors` sends commits to
   `ISessionCoordinator.SetProcessingOptionAsync` and displays the returned outcome.
   The coordinator owns persistence, recompute and conditional rollback. Live save
   puts the selected option on the new session.

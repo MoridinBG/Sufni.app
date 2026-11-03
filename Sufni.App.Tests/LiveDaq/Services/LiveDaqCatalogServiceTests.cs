@@ -1,3 +1,4 @@
+using Sufni.App.Acquisition.Services;
 using Sufni.App.Tests.TestSupport.LiveDaq;
 using System.Net;
 using Microsoft.Extensions.Time.Testing;

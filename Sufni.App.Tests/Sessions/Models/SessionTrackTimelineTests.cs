@@ -2,7 +2,7 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Video.Models;
 using Sufni.App.Video.Stores;
 
-namespace Sufni.App.Tests.MapsAndTracks.Models;
+namespace Sufni.App.Tests.Sessions.Models;
 
 public class SessionTrackTimelineTests
 {

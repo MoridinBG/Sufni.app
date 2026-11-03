@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 using Sufni.App.Infrastructure;
 
-namespace Sufni.App.LiveDaq.Services;
+namespace Sufni.App.Acquisition.Services;
 
 /// <summary>Resolves a legacy v2 endpoint's board identity through IDENTIFY.</summary>
 public interface ILiveDaqBoardIdInspector

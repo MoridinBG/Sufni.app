@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Serilog;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
@@ -35,7 +36,7 @@ using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 using Sufni.App.Sessions.Signals.ViewModels.SessionPages;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Pages.ViewModels.Editors;
+using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Processing.Services;
 using Sufni.App.Sessions.Services;

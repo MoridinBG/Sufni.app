@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <Compile Include="..\Sufni.App\AppleShared\BonjourSocketAddress.cs" Link="AppleShared/BonjourSocketAddress.cs" />
+    <Compile Include="..\Sufni.App\AppleShared\BonjourBrowseLifecycle.cs" Link="AppleShared/BonjourBrowseLifecycle.cs" />
     <Compile Include="..\Sufni.App\Sufni.App.macOS\RawTabShortcutHandler.cs" Link="Platform/macOS/RawTabShortcutHandler.cs" />
     <Compile Include="..\Sufni.App\Sufni.App.macOS\InertWindowAutomationPeer.cs" Link="Platform/macOS/InertWindowAutomationPeer.cs" />
     <Compile Include="..\Sufni.App\Sufni.App.Android\AndroidServiceDiscovery.cs" Link="Infrastructure\AndroidServiceDiscovery.cs" />

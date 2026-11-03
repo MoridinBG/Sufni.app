@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <Compile Include="..\AppleShared\BonjourSocketAddress.cs" Link="AppleShared/BonjourSocketAddress.cs" />
+    <Compile Include="..\AppleShared\BonjourBrowseLifecycle.cs" Link="AppleShared/BonjourBrowseLifecycle.cs" />
     <Compile Include="..\AppleShared\AppleBonjourServiceDiscoveryBase.cs"
       Link="AppleShared/AppleBonjourServiceDiscoveryBase.cs" />
     <Compile Include="..\AppleShared\AppleSecureStorageBase.cs"

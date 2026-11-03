@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using System;
 using ScottPlot;
 using ScottPlot.Plottables;

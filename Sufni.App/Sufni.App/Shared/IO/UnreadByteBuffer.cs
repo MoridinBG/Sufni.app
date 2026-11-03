@@ -1,6 +1,6 @@
 using System;
 
-namespace Sufni.App.Acquisition.Services;
+namespace Sufni.App.Shared.IO;
 
 internal sealed class UnreadByteBuffer
 {

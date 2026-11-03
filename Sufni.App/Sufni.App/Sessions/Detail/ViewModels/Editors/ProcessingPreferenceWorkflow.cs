@@ -5,7 +5,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Store;
 
-namespace Sufni.App.Sessions.Pages.ViewModels.Editors;
+namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 /// <summary>Forwards committed filter edits and projects their outcome.</summary>
 internal sealed class ProcessingPreferenceWorkflow(

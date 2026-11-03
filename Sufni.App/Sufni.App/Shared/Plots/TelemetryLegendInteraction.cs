@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using ScottPlot;
 
-using Sufni.App.Acquisition.Models;
 namespace Sufni.App.Shared.Plots;
 
 internal sealed class TelemetryLegendInteraction(Plot plot)

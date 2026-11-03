@@ -8,7 +8,7 @@ using Serilog;
 
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.Shared.Common;
-namespace Sufni.App.LiveDaq.Services;
+namespace Sufni.App.Acquisition.Services;
 
 // Sends an IDENTIFY frame over the live protocol and parses the IDENTIFY_ACK
 // response to recover the board's 8-byte serial without starting a session.
