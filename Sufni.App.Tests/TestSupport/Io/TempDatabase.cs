@@ -2,21 +2,16 @@ namespace Sufni.App.Tests.TestSupport.Io;
 
 public sealed class TempDatabase : IDisposable
 {
-    public string DirectoryPath { get; }
+    private readonly TempDirectory directory;
+
+    public string DirectoryPath => directory.Path;
     public string DatabasePath { get; }
 
     public TempDatabase(string databaseFileName = "test.db", string prefix = "sufni-db-test")
     {
-        DirectoryPath = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(DirectoryPath);
+        directory = new TempDirectory(prefix);
         DatabasePath = Path.Combine(DirectoryPath, databaseFileName);
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(DirectoryPath))
-        {
-            Directory.Delete(DirectoryPath, recursive: true);
-        }
-    }
+    public void Dispose() => directory.Dispose();
 }

@@ -124,48 +124,6 @@ public class PairingClientViewTests
         Assert.True(unpairButton!.IsVisible);
     }
 
-    [AvaloniaFact]
-    public async Task PairingClientView_ShowsErrorBar_WhenRequestFails()
-    {
-        var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: "https://desktop", isPaired: false);
-        coordinator.RequestPairingAsync("Phone").Returns(new RequestPairingResult.Failed(PairingFailureReason.Request, "network"));
-        var shell = Substitute.For<IShellCoordinator>();
-        using var viewModel = CreateViewModel(coordinator, shell);
-
-        await using var mounted = await MountAsync(viewModel);
-
-        var requestButton = mounted.View.FindControl<Button>("RequestPairingButton");
-        var errorBar = mounted.View.GetVisualDescendants().OfType<ErrorMessagesBar>().Single();
-
-        Assert.NotNull(requestButton);
-        requestButton!.Command!.Execute(requestButton.CommandParameter);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotEmpty(viewModel.ErrorMessages);
-        Assert.True(errorBar.IsVisible);
-    }
-
-    [AvaloniaFact]
-    public async Task PairingClientView_ShowsNotificationBar_WhenUnpairFallsBackToLocalOnly()
-    {
-        var coordinator = CreateCoordinator(displayName: "Phone", serverUrl: null, isPaired: true);
-        coordinator.UnpairAsync().Returns(new UnpairResult.LocalOnly());
-        var shell = Substitute.For<IShellCoordinator>();
-        using var viewModel = CreateViewModel(coordinator, shell);
-
-        await using var mounted = await MountAsync(viewModel);
-
-        var unpairButton = mounted.View.FindControl<Button>("UnpairButton");
-        var notificationsBar = mounted.View.GetVisualDescendants().OfType<NotificationsBar>().Single();
-
-        Assert.NotNull(unpairButton);
-        unpairButton!.Command!.Execute(unpairButton.CommandParameter);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotEmpty(viewModel.Notifications);
-        Assert.True(notificationsBar.IsVisible);
-    }
-
     private static IPairingClientCoordinator CreateCoordinator(string? displayName, string? serverUrl, bool isPaired)
     {
         var coordinator = Substitute.For<IPairingClientCoordinator>();
@@ -187,7 +145,7 @@ public class PairingClientViewTests
             Substitute.For<IDialogService>(),
             new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
 
-    private static async Task<MountedPairingClientView> MountAsync(PairingClientViewModel viewModel)
+    private static async Task<MountedView<PairingClientView>> MountAsync(PairingClientViewModel viewModel)
     {
         ViewTestHelpers.EnsureViewTestResources();
 
@@ -196,19 +154,6 @@ public class PairingClientViewTests
             DataContext = viewModel,
         };
 
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedPairingClientView(host, view);
-    }
-}
-
-internal sealed class MountedPairingClientView(Window host, PairingClientView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public PairingClientView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        return await ViewTestHelpers.MountAsync(view);
     }
 }

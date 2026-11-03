@@ -144,12 +144,6 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public Task<SessionProcessingInputBundle?> GetProcessingInputBundleAsync(Guid sessionId) =>
         sessionRepository.GetProcessingInputBundleAsync(sessionId);
 
-    public async Task<TelemetryData?> GetSessionPsstAsync(Guid id)
-    {
-        var raw = await sessionRepository.GetSessionRawPsstAsync(id);
-        return raw is null ? null : sessionTelemetryProcessor.ReadProcessedTelemetryData(raw);
-    }
-
     public Task<byte[]?> GetSessionRawPsstAsync(Guid id) =>
         sessionRepository.GetSessionRawPsstAsync(id);
 
@@ -162,7 +156,7 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
         await PutRecordedSessionSourceAsync(source);
     }
 
-    public async Task<Session> PutProcessedSessionAsync(
+    public async Task<Session> SeedProcessedSessionAsync(
         Session session,
         Track? newFullTrack,
         RecordedSessionSource? source)
@@ -195,9 +189,6 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
 
     public Task<List<RecordedSessionSourceSnapshot>> GetRecordedSessionSourceSnapshotsAsync() =>
         recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotsAsync();
-
-    public Task<RecordedSessionSourceSnapshot?> GetRecordedSessionSourceSnapshotAsync(Guid id) =>
-        recordedSessionSourceRepository.GetRecordedSessionSourceSnapshotAsync(id);
 
     public Task<List<Guid>> GetSessionIdsMissingRecordedSourceAsync() =>
         recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync();

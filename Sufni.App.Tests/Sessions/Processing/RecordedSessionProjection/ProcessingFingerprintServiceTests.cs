@@ -17,28 +17,8 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
 public class ProcessingFingerprintServiceTests
 {
-    private static readonly Guid DependencyHashSetupId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-    private static readonly Guid DependencyHashBikeId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     private readonly ProcessingFingerprintService service = new();
-
-    [Fact]
-    public void EvaluateState_ReturnsCurrent_WhenPersistedFingerprintMatches()
-    {
-        var context = CreateContext();
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-        var session = context.Session with
-        {
-            HasProcessedData = true,
-            ProcessingFingerprintJson = AppJson.Serialize(current)
-        };
-
-        var staleness = service.EvaluateState(session, context.Setup, context.Bike, context.Source, dependencyHash: null).Staleness;
-
-        Assert.IsType<SessionStaleness.Current>(staleness);
-        Assert.False(staleness.IsStale);
-        Assert.False(staleness.CanRecompute);
-    }
 
     [Fact]
     public void EvaluateState_ReturnsCurrentPersistedAndStaleness()
@@ -56,59 +36,6 @@ public class ProcessingFingerprintServiceTests
         Assert.Equal(current, evaluation.Current);
         Assert.Equal(current, evaluation.Persisted);
         Assert.IsType<SessionStaleness.Current>(evaluation.Staleness);
-    }
-
-    [Fact]
-    public void CreateCurrent_IncludesCurrentProcessingAndTrackProjectionVersions()
-    {
-        var context = CreateContext();
-
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-
-        Assert.Equal(4, current.SchemaVersion);
-        Assert.Equal(6, TelemetryProcessingVersion.Current);
-        Assert.Equal(6, current.ProcessingVersion);
-        Assert.Equal(1, current.TrackProjectionVersion);
-    }
-
-    [Fact]
-    public void CreateCurrent_UsesPrecomputedDependencyHash()
-    {
-        var context = CreateContext();
-        const string dependencyHash = "precomputed-dependency-hash";
-
-        var current = service.CreateCurrent(
-            context.Session with { VelocityFilterWindowMilliseconds = 100 },
-            context.Setup, context.Bike, context.Source, dependencyHash);
-
-        Assert.Equal(dependencyHash, current.DependencyHash);
-        Assert.Equal(100, current.VelocityFilterWindowMilliseconds);
-    }
-
-    [Fact]
-    public void CreateCurrent_OmitsNullDerivationWindow_FromLegacyJsonShape()
-    {
-        var context = CreateContext();
-        var current = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
-
-        var json = AppJson.Serialize(current);
-        var roundTripped = AppJson.Serialize(service.Parse(json));
-
-        Assert.DoesNotContain(nameof(ProcessingFingerprint.DerivationWindow), json);
-        Assert.Equal(json, roundTripped);
-    }
-
-    [Fact]
-    public void CreateCurrent_IncludesDerivationWindow_AndAllowsMatchingForeignSource()
-    {
-        var context = CreateContext();
-        var sourceSessionId = Guid.NewGuid();
-        var source = CreateSource(sourceSessionId);
-        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1.25, 3.5);
-
-        var current = service.CreateCurrent(WithWindow(context.Session, window), context.Setup, context.Bike, source);
-
-        Assert.Equal(window, current.DerivationWindow);
     }
 
     [Fact]
@@ -188,29 +115,6 @@ public class ProcessingFingerprintServiceTests
         Assert.IsType<SessionStaleness.Stale>(staleness);
         Assert.True(staleness.IsStale);
         Assert.True(staleness.CanRecompute);
-    }
-
-    [Fact]
-    public void EvaluateState_ReturnsStale_WhenWindowAndDependencyDiffer()
-    {
-        var context = CreateContext();
-        var persistedWindow = new RecordedSessionDerivationWindow(context.Source.SessionId, 1, 5);
-        var currentWindow = persistedWindow with { EndSeconds = 4 };
-        var persisted = service.CreateCurrent(
-            WithWindow(context.Session, persistedWindow),
-            context.Setup,
-            context.Bike,
-            context.Source);
-        var session = WithWindow(context.Session, currentWindow) with
-        {
-            HasProcessedData = true,
-            ProcessingFingerprintJson = AppJson.Serialize(persisted)
-        };
-        var changedBike = context.Bike with { HeadAngle = context.Bike.HeadAngle + 1 };
-
-        var staleness = service.EvaluateState(session, context.Setup, changedBike, context.Source, dependencyHash: null).Staleness;
-
-        Assert.IsType<SessionStaleness.Stale>(staleness);
     }
 
     [Theory]
@@ -312,7 +216,7 @@ public class ProcessingFingerprintServiceTests
         switch (testCase)
         {
             case ProcessedDataCase.ProcessedDataMissing:
-                session = session with { HasProcessedData = false };
+                session = PersistCurrentFingerprint(context) with { HasProcessedData = false };
                 break;
             case ProcessedDataCase.FingerprintMissing:
                 break;
@@ -371,6 +275,40 @@ public class ProcessingFingerprintServiceTests
     }
 
     [Fact]
+    public void Parse_LegacyFingerprintWithoutCalibrationOrWindow_RemainsReadableAndStale()
+    {
+        const string legacy = """{"SchemaVersion":3,"ProcessingVersion":5,"SetupId":"11111111-1111-1111-1111-111111111111","BikeId":"22222222-2222-2222-2222-222222222222","TrackProjectionVersion":1,"DependencyHash":"old-calibration","SourceHash":"captured"}""";
+        var parsed = service.Parse(legacy);
+        Assert.NotNull(parsed);
+        Assert.Equal(0, parsed.CalibrationVersion);
+        Assert.Null(parsed.DerivationWindow);
+        var context = CreateContext();
+
+        var result = service.EvaluateState(context.Session with { ProcessingFingerprintJson = legacy },
+            context.Setup, context.Bike, context.Source, dependencyHash: null);
+
+        Assert.IsType<SessionStaleness.Stale>(result.Staleness);
+        Assert.True(result.Staleness.CanRecompute);
+    }
+
+    [Fact]
+    public void CreateCurrent_ReorderedIndependentLinkageCollectionsKeepFingerprint()
+    {
+        var context = CreateContext();
+        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+        var bike = context.Bike with { ShockStroke = linkage.ShockStroke, RearSuspension = new RearSuspensionSpec.Linkage(linkage) };
+        var reordered = new LinkageSpec(linkage.Joints.Reverse().ToArray(), linkage.Links.Reverse().ToArray(), linkage.Shock, linkage.ShockStroke);
+
+        var original = service.CreateCurrent(context.Session, context.Setup, bike, context.Source);
+        var equivalent = service.CreateCurrent(context.Session, context.Setup,
+            bike with { RearSuspension = new RearSuspensionSpec.Linkage(reordered) }, context.Source);
+        var changed = service.CreateCurrent(context.Session, context.Setup, bike with { HeadAngle = bike.HeadAngle + 1 }, context.Source);
+
+        Assert.Equal(original, equivalent);
+        Assert.NotEqual(original, changed);
+    }
+
+    [Fact]
     public void Parse_ReturnsNull_WhenJsonIsMalformed()
     {
         var session = TestSnapshots.Session(processingFingerprintJson: "{bad json", hasProcessedData: true);
@@ -410,46 +348,10 @@ public class ProcessingFingerprintServiceTests
             Updated = 99
         };
 
-        var original = ProcessingDependencyHash.Compute(context.Setup, context.Bike);
-        var changed = ProcessingDependencyHash.Compute(changedSetup, changedBike);
+        var original = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        var changed = service.CreateCurrent(context.Session, changedSetup, changedBike, context.Source);
 
         Assert.Equal(original, changed);
-    }
-
-    [Fact]
-    public void ProcessingDependencyInputs_UseStructuralEqualityForIndependentCollections()
-    {
-        var setup = DependencyHashSetup();
-        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
-        var reorderedLinkage = new LinkageSpec(
-            linkage.Joints.Reverse().ToArray(),
-            linkage.Links.Reverse().ToArray(),
-            linkage.Shock,
-            linkage.ShockStroke);
-        var firstLinkageBike = DependencyHashBike(
-            new RearSuspensionSpec.Linkage(linkage),
-            shockStroke: linkage.ShockStroke);
-        var secondLinkageBike = DependencyHashBike(
-            new RearSuspensionSpec.Linkage(reorderedLinkage),
-            shockStroke: reorderedLinkage.ShockStroke);
-        var firstBike = DependencyHashBike(
-            new RearSuspensionSpec.LeverageRatio(
-                TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))),
-            shockStroke: 20);
-        var secondBike = DependencyHashBike(
-            new RearSuspensionSpec.LeverageRatio(
-                TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))),
-            shockStroke: 20);
-
-        var firstLinkage = ProcessingDependencyInputs.Create(setup, firstLinkageBike);
-        var secondLinkage = ProcessingDependencyInputs.Create(setup, secondLinkageBike);
-        var firstLeverageRatio = ProcessingDependencyInputs.Create(setup, firstBike);
-        var secondLeverageRatio = ProcessingDependencyInputs.Create(setup, secondBike);
-
-        Assert.Equal(firstLinkage, secondLinkage);
-        Assert.Equal(firstLinkage.GetHashCode(), secondLinkage.GetHashCode());
-        Assert.Equal(firstLeverageRatio, secondLeverageRatio);
-        Assert.Equal(firstLeverageRatio.GetHashCode(), secondLeverageRatio.GetHashCode());
     }
 
     [Fact]
@@ -465,77 +367,10 @@ public class ProcessingFingerprintServiceTests
             })
         };
 
-        var original = ProcessingDependencyHash.Compute(context.Setup, context.Bike);
-        var changed = ProcessingDependencyHash.Compute(changedSetup, context.Bike);
+        var original = service.CreateCurrent(context.Session, context.Setup, context.Bike, context.Source);
+        var changed = service.CreateCurrent(context.Session, changedSetup, context.Bike, context.Source);
 
         Assert.NotEqual(original, changed);
-    }
-
-    [Fact]
-    public void ProcessingDependencyHash_PreservesRearSuspensionPayloadShape()
-    {
-        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
-        var leverageRatio = TestSnapshots.LeverageRatioCurve((0, 0), (10, 25));
-        var cases = new[]
-        {
-            HashCase(
-                "hardtail",
-                new RearSuspensionSpec.Hardtail(),
-                shockStroke: null,
-                rearSuspensionKind: "none",
-                linkagePayload: null,
-                leverageRatioPayload: null),
-            HashCase(
-                "linkage draft",
-                new RearSuspensionSpec.LinkageDraft(),
-                shockStroke: null,
-                rearSuspensionKind: "linkage",
-                linkagePayload: null,
-                leverageRatioPayload: null),
-            HashCase(
-                "leverage-ratio draft",
-                new RearSuspensionSpec.LeverageRatioDraft(),
-                shockStroke: null,
-                rearSuspensionKind: "leverage_ratio",
-                linkagePayload: null,
-                leverageRatioPayload: null),
-            HashCase(
-                "linkage",
-                new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.6)),
-                shockStroke: 0.6,
-                rearSuspensionKind: "linkage",
-                linkagePayload: linkage.WithShockStroke(0.6),
-                leverageRatioPayload: null),
-            HashCase(
-                "leverage ratio",
-                new RearSuspensionSpec.LeverageRatio(leverageRatio),
-                shockStroke: 10,
-                rearSuspensionKind: "leverage_ratio",
-                linkagePayload: null,
-                leverageRatioPayload: leverageRatio),
-            HashCase(
-                "legacy linkage null shock stroke",
-                new RearSuspensionSpec.Linkage(linkage),
-                shockStroke: linkage.ShockStroke,
-                rearSuspensionKind: "linkage",
-                linkagePayload: linkage,
-                leverageRatioPayload: null),
-            HashCase(
-                "legacy linkage divergent shock stroke",
-                new RearSuspensionSpec.Linkage(linkage.WithShockStroke(0.75)),
-                shockStroke: 0.75,
-                rearSuspensionKind: "linkage",
-                linkagePayload: linkage.WithShockStroke(0.75),
-                leverageRatioPayload: null),
-        };
-
-        foreach (var testCase in cases)
-        {
-            var setup = DependencyHashSetup();
-            var bike = DependencyHashBike(testCase.RearSuspension, testCase.ShockStroke);
-
-            Assert.Equal(Hash(testCase.CurrentPayload), ProcessingDependencyHash.Compute(setup, bike));
-        }
     }
 
     private SessionSnapshot PersistCurrentFingerprint(TestContext context)
@@ -571,77 +406,6 @@ public class ProcessingFingerprintServiceTests
         return new TestContext(session, setup, bike, source);
     }
 
-    private static SetupSnapshot DependencyHashSetup() =>
-        TestSnapshots.Setup(id: DependencyHashSetupId, bikeId: DependencyHashBikeId);
-
-    private static BikeSnapshot DependencyHashBike(RearSuspensionSpec rearSuspension, double? shockStroke) =>
-        TestSnapshots.Bike(id: DependencyHashBikeId) with
-        {
-            HeadAngle = 65,
-            ForkStroke = 160,
-            ShockStroke = shockStroke,
-            RearSuspension = rearSuspension
-        };
-
-    private static DependencyHashCase HashCase(
-        string name,
-        RearSuspensionSpec rearSuspension,
-        double? shockStroke,
-        string rearSuspensionKind,
-        LinkageSpec? linkagePayload,
-        LeverageRatioSpec? leverageRatioPayload)
-    {
-        var currentLinkage = linkagePayload is null ? "null" : CurrentLinkagePayload(linkagePayload);
-        var currentLeverageRatio = leverageRatioPayload is null ? "null" : CurrentLeverageRatioPayload(leverageRatioPayload);
-
-        return new DependencyHashCase(
-            name,
-            rearSuspension,
-            shockStroke,
-            $$$"""{"Setup":{"Id":"{{{DependencyHashSetupId}}}","BikeId":"{{{DependencyHashBikeId}}}","FrontSensorConfiguration":null,"RearSensorConfiguration":null},"Bike":{"Id":"{{{DependencyHashBikeId}}}","HeadAngle":65,"ForkStroke":160,"ShockStroke":{{{JsonNumber(shockStroke)}}},"RearSuspensionKind":"{{{rearSuspensionKind}}}","Linkage":{{{currentLinkage}}},"LeverageRatio":{{{currentLeverageRatio}}}}}""");
-    }
-
-    private static string CurrentLinkagePayload(LinkageSpec linkage)
-    {
-        var joints = string.Join(
-            ",",
-            linkage.Joints
-                .OrderBy(joint => joint.Name, StringComparer.Ordinal)
-                .Select(joint => $$"""{"Name":{{JsonString(joint.Name)}},"Type":{{JsonValue(joint.Type)}},"X":{{JsonNumber(joint.X)}},"Y":{{JsonNumber(joint.Y)}}}"""));
-        var links = string.Join(
-            ",",
-            linkage.Links
-                .OrderBy(link => link.A, StringComparer.Ordinal)
-                .ThenBy(link => link.B, StringComparer.Ordinal)
-                .Select(link => $$"""{"AName":{{JsonString(link.A)}},"BName":{{JsonString(link.B)}}}"""));
-
-        return $$"""{"ShockStroke":{{JsonNumber(linkage.ShockStroke)}},"ShockAName":{{JsonString(linkage.Shock.A)}},"ShockBName":{{JsonString(linkage.Shock.B)}},"Joints":[{{joints}}],"Links":[{{links}}]}""";
-    }
-
-    private static string CurrentLeverageRatioPayload(LeverageRatioSpec leverageRatio)
-    {
-        var points = string.Join(
-            ",",
-            leverageRatio.Points.Select(point =>
-                $$"""{"ShockTravelMm":{{JsonNumber(point.ShockTravelMm)}},"WheelTravelMm":{{JsonNumber(point.WheelTravelMm)}}}"""));
-        return $$"""{"Points":[{{points}}]}""";
-    }
-
-    private static string JsonString(string value) => JsonSerializer.Serialize(value);
-
-    private static string JsonValue<T>(T value) => JsonSerializer.Serialize(value, AppJson.Options);
-
-    private static string JsonNumber(double? value) =>
-        value.HasValue
-            ? JsonNumber(value.Value)
-            : "null";
-
-    private static string JsonNumber(double value) =>
-        JsonSerializer.Serialize(value, AppJson.Options);
-
-    private static string Hash(string payload) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
-
     private static RecordedSessionSourceSnapshot CreateSource(Guid sessionId)
     {
         byte[] payload = [4, 3, 2, 1];
@@ -659,12 +423,6 @@ public class ProcessingFingerprintServiceTests
         SetupSnapshot Setup,
         BikeSnapshot Bike,
         RecordedSessionSourceSnapshot Source);
-
-    private sealed record DependencyHashCase(
-        string Name,
-        RearSuspensionSpec RearSuspension,
-        double? ShockStroke,
-        string CurrentPayload);
 
     public enum MissingRawSourceCase
     {

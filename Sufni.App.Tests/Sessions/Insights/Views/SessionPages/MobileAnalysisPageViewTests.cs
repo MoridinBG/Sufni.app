@@ -18,7 +18,7 @@ public class MobileAnalysisPageViewTests
     [AvaloniaFact]
     public async Task StrokesPageView_SideSelector_ShowsOneSuspensionSideAtATime()
     {
-        var workspace = new TestSessionAnalysisWorkspace(
+        using var workspace = new TestSessionAnalysisWorkspace(
             telemetryData: TestTelemetryData.CreateProcessed(),
             hasFrontAnalysis: true,
             hasRearAnalysis: true);

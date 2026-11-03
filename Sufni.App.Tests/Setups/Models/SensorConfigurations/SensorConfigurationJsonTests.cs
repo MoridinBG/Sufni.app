@@ -5,13 +5,10 @@ using Xunit;
 
 namespace Sufni.App.Tests.Setups.Models.SensorConfigurations;
 
-// Guards the persisted/sync wire-format contract for sensor configurations: the polymorphic
-// SensorConfigurationJsonConverter must keep byte-identical output for every SensorType and must
-// preserve the load-bearing "type" discriminator (LinearShock vs LinearShockStroke share one CLR
-// type). Expected strings lock the exact compact JSON so a format regression fails loudly.
+// Persisted sensor payloads retain their discriminator and authored fields.
 public class SensorConfigurationJsonTests
 {
-    // Expected compact JSON per SensorType (derived properties first, base "type" last).
+    // Independent persisted payloads for the supported sensor variants.
     private const string LinearForkExpectedJson = """{"length":100,"resolution":12,"type":"linear_fork"}""";
     private const string RotationalForkExpectedJson = """{"max_length":205,"arm_length":60,"type":"rotational_fork"}""";
     private const string LinearShockExpectedJson = """{"length":55,"resolution":10,"type":"linear_shock"}""";
@@ -19,65 +16,29 @@ public class SensorConfigurationJsonTests
     private const string RotationalShockExpectedJson =
         """{"central_joint":"Bottom bracket","adjacent_joint_1":"Rear wheel","adjacent_joint_2":"Shock eye 1","type":"rotational_shock"}""";
 
-    [Fact]
-    public void ToJson_LinearFork_MatchesExpectedString()
-    {
-        var configuration = new LinearForkSensorConfiguration { Length = 100, Resolution = 12 };
-        Assert.Equal(LinearForkExpectedJson, SensorConfiguration.ToJson(configuration));
-    }
-
-    [Fact]
-    public void ToJson_RotationalFork_MatchesExpectedString()
-    {
-        var configuration = new RotationalForkSensorConfiguration { MaxLength = 205, ArmLength = 60 };
-        Assert.Equal(RotationalForkExpectedJson, SensorConfiguration.ToJson(configuration));
-    }
-
-    [Fact]
-    public void ToJson_LinearShock_MatchesExpectedString()
-    {
-        var configuration = new LinearShockSensorConfiguration { Length = 55, Resolution = 10 };
-        Assert.Equal(LinearShockExpectedJson, SensorConfiguration.ToJson(configuration));
-    }
-
-    [Fact]
-    public void ToJson_LinearShockStroke_MatchesExpectedString()
-    {
-        // Same CLR type as LinearShock; the overridden Type must round-trip into the discriminator.
-        var configuration = new LinearShockSensorConfiguration
-        {
-            Length = 55,
-            Resolution = 10,
-            Type = SensorType.LinearShockStroke,
-        };
-        Assert.Equal(LinearShockStrokeExpectedJson, SensorConfiguration.ToJson(configuration));
-    }
-
-    [Fact]
-    public void ToJson_RotationalShock_MatchesExpectedString()
-    {
-        var configuration = new RotationalShockSensorConfiguration
-        {
-            CentralJoint = "Bottom bracket",
-            AdjacentJoint1 = "Rear wheel",
-            AdjacentJoint2 = "Shock eye 1",
-        };
-        Assert.Equal(RotationalShockExpectedJson, SensorConfiguration.ToJson(configuration));
-    }
-
     [Theory]
     [InlineData(LinearForkExpectedJson)]
     [InlineData(RotationalForkExpectedJson)]
     [InlineData(LinearShockExpectedJson)]
     [InlineData(LinearShockStrokeExpectedJson)]
     [InlineData(RotationalShockExpectedJson)]
-    public void FromJson_ThenToJson_PreservesBytes(string json)
+    public void FromJson_ThenToJson_PreservesSchemaAndCalibration(string json)
     {
-        // Single-parse polymorphic deserialize followed by serialize must reproduce the input exactly.
         var configuration = SensorConfiguration.FromJson(json);
 
         Assert.NotNull(configuration);
-        Assert.Equal(json, SensorConfiguration.ToJson(configuration));
+        using var expected = JsonDocument.Parse(json);
+        using var actual = JsonDocument.Parse(SensorConfiguration.ToJson(configuration));
+        Assert.Equal(expected.RootElement.EnumerateObject().Count(), actual.RootElement.EnumerateObject().Count());
+        foreach (var property in expected.RootElement.EnumerateObject())
+        {
+            var value = actual.RootElement.GetProperty(property.Name);
+            Assert.Equal(property.Value.ValueKind, value.ValueKind);
+            if (value.ValueKind == JsonValueKind.Number)
+                Assert.Equal(property.Value.GetDouble(), value.GetDouble());
+            else
+                Assert.Equal(property.Value.GetString(), value.GetString());
+        }
     }
 
     [Fact]

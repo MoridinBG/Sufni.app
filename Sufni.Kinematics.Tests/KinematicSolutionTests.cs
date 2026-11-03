@@ -20,7 +20,8 @@ public class KinematicSolutionTests
         Assert.Equal(0, path.X[0]);
         Assert.Equal(3, path.Y[1]);
         Assert.True(solution.TryGetPath("rear", out var copiedPath));
-        Assert.Same(path, copiedPath);
+        Assert.Equal([0, 1], copiedPath.X);
+        Assert.Equal([2, 3], copiedPath.Y);
         Assert.False(solution.TryGetPath("front", out _));
     }
 }

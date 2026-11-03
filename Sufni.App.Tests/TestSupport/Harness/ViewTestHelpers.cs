@@ -54,6 +54,9 @@ public static class ViewTestHelpers
         return host;
     }
 
+    internal static async Task<MountedView<TView>> MountAsync<TView>(TView view)
+        where TView : Control => new(await ShowViewAsync(view), view);
+
     public static async Task FlushDispatcherAsync()
     {
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -166,4 +169,17 @@ public static class ViewTestHelpers
                 HasKeyboard: true,
                 SupportsLongPressContextMenu: true,
                 CommandModifier: CommandModifier.Control));
+}
+
+internal sealed class MountedView<TView>(Window host, TView view) : IAsyncDisposable
+    where TView : Control
+{
+    public Window Host { get; } = host;
+    public TView View { get; } = view;
+
+    public async ValueTask DisposeAsync()
+    {
+        Host.Close();
+        await ViewTestHelpers.FlushDispatcherAsync();
+    }
 }

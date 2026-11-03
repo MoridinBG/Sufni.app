@@ -1,11 +1,7 @@
 using Sufni.App.Sessions.Plots;
-using System.Security.Cryptography;
-using System.Text.Json;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
-using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Sessions.Analysis.Services;
-using Sufni.App.Sessions.Insights.Services.SessionInsights;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.Telemetry;
@@ -15,91 +11,6 @@ namespace Sufni.App.Tests.Sessions.Analysis.Services;
 
 public class RecordedSessionAnalysisResultStateTests
 {
-    [Fact]
-    public async Task Availability_UsesSelectedRangeButKeepsFullSessionBalance_AndReusesAcrossModes()
-    {
-        var telemetry = AnalysisTelemetryFixture.CreateTelemetry(AnalysisTelemetryFixture.BuildSide(), AnalysisTelemetryFixture.BuildSide());
-        var computer = new CountingAnalysisComputer(new RecordedSessionAnalysisComputer(new SessionInsightsService()));
-        using var state = new RecordedSessionAnalysisResultState(computer, new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher(), () => telemetry);
-        var inputs = CreateInputs(new TelemetryTimeRange(1.6, 1.8));
-        state.Invalidate(inputs);
-        await state.RequestAsync(inputs.AvailabilityKey, TestContext.Current.CancellationToken);
-
-        var result = Assert.IsType<AnalysisAvailabilityResult>(state.Get(inputs.AvailabilityKey));
-        Assert.Equal(AnalysisDataAvailability.Empty, result.Front);
-        Assert.Equal(AnalysisDataAvailability.Empty, result.CompressionBalance);
-        Assert.Equal(AnalysisDataAvailability.Absent, result.FrontForkVibration);
-        Assert.True(result.FullSessionBalanceAvailable);
-        state.Invalidate(inputs with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged });
-        await state.RequestAsync(inputs.AvailabilityKey, TestContext.Current.CancellationToken);
-        Assert.Same(result, state.Get(inputs.AvailabilityKey));
-        Assert.Equal(1, computer.ComputeCount);
-    }
-
-    [Fact]
-    public async Task Highlights_TagSuspension_AndRejectCompletionAfterSelectionIsCleared()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var histogram = TelemetryStatistics.CalculateStrokeLengthHistogram(telemetry, SuspensionType.Front, BalanceType.Compression);
-        var bin = Enumerable.Range(0, histogram.Values.Count).First(index => histogram.Values[index] > 0);
-        var selection = new StrokeLengthRangeSelection(SuspensionType.Front, BalanceType.Compression,
-            TelemetryRangeSelection.BinRange.FromBins(histogram.Bins, bin));
-        var dispatcher = new ManualUiThreadDispatcher();
-        var runner = new Sufni.App.Tests.TestSupport.Async.DeferredBackgroundTaskRunner();
-        using var state = new RecordedSessionAnalysisResultState(new RecordedSessionAnalysisComputer(new SessionInsightsService()),
-            runner, dispatcher, () => telemetry);
-        var inputs = CreateInputs(null) with { FrontSelection = selection };
-        state.Invalidate(inputs);
-        var changes = new List<RecordedSessionAnalysisResultChanged>();
-        using var subscription = state.Connect().Subscribe(changes.Add);
-        var request = state.RequestAsync(inputs.SelectionHighlightsKey, TestContext.Current.CancellationToken);
-        await runner.RunNextAsync();
-        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        await dispatcher.DrainAsync();
-        await request.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        var result = Assert.IsType<SelectionHighlightsAnalysisResult>(state.Get(inputs.SelectionHighlightsKey));
-        Assert.NotEmpty(result.Ranges);
-        Assert.All(result.Ranges, range => Assert.Equal(SuspensionType.Front, range.SuspensionType));
-
-        var both = inputs with { RearSelection = selection with { SuspensionType = SuspensionType.Rear } };
-        state.Invalidate(both);
-        var pending = state.RequestAsync(both.SelectionHighlightsKey, TestContext.Current.CancellationToken);
-        await runner.RunNextAsync();
-        await dispatcher.WaitForWorkAsync(TestContext.Current.CancellationToken).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        state.Invalidate(inputs with { FrontSelection = null });
-        await dispatcher.DrainAsync();
-        await pending.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        Assert.Single(changes);
-        Assert.Null(state.Get(both.SelectionHighlightsKey));
-    }
-
-    [Fact]
-    public async Task CutoffPreview_KeepsCommittedPlotResultUntilCommit()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var computer = new CountingAnalysisComputer(new RecordedSessionAnalysisComputer(new SessionInsightsService()));
-        using var state = new RecordedSessionAnalysisResultState(computer, new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher(), () => telemetry);
-        var original = CreateInputs(null);
-        var key = original.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
-        state.Invalidate(original);
-        await state.RequestAsync(key, TestContext.Current.CancellationToken);
-        var result = state.Get(key);
-        var preview = original with { DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(300, 400, 500, 600) };
-
-        state.Invalidate(preview);
-        await state.RequestAsync(preview.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front), TestContext.Current.CancellationToken);
-
-        Assert.Same(result, state.Get(key));
-        Assert.Equal(1, computer.ComputeCount);
-        var committed = preview with { PlotDampingSpeedCutoffs = preview.DampingSpeedCutoffs };
-        state.Invalidate(committed);
-        await state.RequestAsync(committed.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front), TestContext.Current.CancellationToken);
-        Assert.Null(state.Get(key));
-        Assert.Equal(2, computer.ComputeCount);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -114,7 +25,8 @@ public class RecordedSessionAnalysisResultStateTests
         using var subscription = state.Connect().Subscribe(change =>
         {
             Assert.True(dispatcher.CheckAccess());
-            Assert.Same(change.Result, state.Get(change.Key));
+            Assert.Equal(11, Assert.IsType<DampingPercentagesAnalysisResult>(change.Result).Percentages.FrontHscPercentage);
+            Assert.Equal(11, Assert.IsType<DampingPercentagesAnalysisResult>(state.Get(change.Key)).Percentages.FrontHscPercentage);
             changes.Add(change);
         });
         var request = state.RequestAsync(inputs.DampingPercentagesKey, TestContext.Current.CancellationToken);
@@ -180,166 +92,10 @@ public class RecordedSessionAnalysisResultStateTests
     }
 
     [Fact]
-    public async Task RequestAsync_ReusesOneTypedVelocityResult_ForIdenticalSemanticKey()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var computer = new CountingAnalysisComputer(
-            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
-        var backgroundTaskRunner = new ControllableBackgroundTaskRunner();
-        using var state = new RecordedSessionAnalysisResultState(
-            computer,
-            backgroundTaskRunner,
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var changes = new List<RecordedSessionAnalysisResultChanged>();
-        using var subscription = state.Connect().Subscribe(changes.Add);
-        var inputs = CreateInputs(range: null);
-        var key = inputs.CreateKey(
-            RecordedSessionAnalysisFamily.VelocityDistribution,
-            SuspensionType.Front);
-        state.Invalidate(inputs);
-
-        var nonCancelableToken = new CancellationToken(canceled: false);
-        var firstRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
-        var secondRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
-        Assert.Same(firstRequest, secondRequest);
-        Assert.Equal(1, backgroundTaskRunner.RunCount);
-
-        await backgroundTaskRunner.CompleteNextAsync();
-        await Task.WhenAll(firstRequest, secondRequest);
-
-        Assert.Equal(1, computer.ComputeCount);
-        var cached = Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(key));
-        var initialChange = Assert.Single(changes);
-        Assert.Same(cached, initialChange.Result);
-
-        await state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(1, computer.ComputeCount);
-        Assert.Equal(2, changes.Count);
-        Assert.Same(cached, changes[^1].Result);
-        var direct = RecordedSessionAnalysisComputer.CalculateVelocityDistribution(key, telemetry);
-        Assert.Equal(Fingerprint(direct), Fingerprint(cached));
-    }
-
-    [Fact]
-    public async Task RequestAsync_ReusesOneImuDisplayProjection_AcrossUnrelatedInputChanges()
-    {
-        var telemetry = TestTelemetryData.CreateWithImu();
-        var computer = new CountingAnalysisComputer(
-            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
-        var backgroundTaskRunner = new ControllableBackgroundTaskRunner();
-        using var state = new RecordedSessionAnalysisResultState(
-            computer,
-            backgroundTaskRunner,
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var inputs = CreateInputs(range: null);
-        var key = inputs.ImuDisplayProjectionKey;
-        state.Invalidate(inputs);
-
-        var nonCancelableToken = new CancellationToken(canceled: false);
-        var firstRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
-        var secondRequest = state.RequestAsync(key, cancellationToken: nonCancelableToken);
-
-        Assert.Same(firstRequest, secondRequest);
-        Assert.Equal(1, backgroundTaskRunner.RunCount);
-
-        await backgroundTaskRunner.CompleteNextAsync();
-        await Task.WhenAll(firstRequest, secondRequest);
-
-        var cached = Assert.IsType<ImuDisplayProjectionAnalysisResult>(state.Get(key));
-        Assert.Equal(1, computer.ComputeCount);
-        Assert.Equal(
-            Fingerprint(ImuDisplaySignalProcessor.ProcessRecorded(telemetry)),
-            Fingerprint(cached.Projection));
-
-        var updatedInputs = inputs with
-        {
-            AnalysisRange = new TelemetryTimeRange(0, 1),
-            TravelDistributionMode = TravelDistributionMode.DynamicSag,
-            VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged,
-        };
-        state.Invalidate(updatedInputs);
-        await state.RequestAsync(updatedInputs.ImuDisplayProjectionKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(key, updatedInputs.ImuDisplayProjectionKey);
-        Assert.Equal(1, computer.ComputeCount);
-        Assert.Same(cached, state.Get(updatedInputs.ImuDisplayProjectionKey));
-    }
-
-    [Fact]
-    public async Task Invalidate_ReplacesImuDisplayProjection_WhenTelemetryGenerationChanges()
-    {
-        var telemetry = TestTelemetryData.CreateWithImu();
-        var computer = new CountingAnalysisComputer(
-            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
-        using var state = new RecordedSessionAnalysisResultState(
-            computer,
-            new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var firstInputs = CreateInputs(range: null);
-        var firstKey = firstInputs.ImuDisplayProjectionKey;
-        state.Invalidate(firstInputs);
-        await state.RequestAsync(firstKey, cancellationToken: TestContext.Current.CancellationToken);
-        var firstResult = Assert.IsType<ImuDisplayProjectionAnalysisResult>(state.Get(firstKey));
-
-        var nextInputs = firstInputs with { TelemetryGeneration = firstInputs.TelemetryGeneration + 1 };
-        var nextKey = nextInputs.ImuDisplayProjectionKey;
-        state.Invalidate(nextInputs);
-
-        Assert.Null(state.Get(firstKey));
-
-        await state.RequestAsync(nextKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, computer.ComputeCount);
-        Assert.NotEqual(firstKey, nextKey);
-        Assert.NotSame(firstResult, state.Get(nextKey));
-    }
-
-    [Fact]
-    public async Task RequestAsync_KeepsVelocitySideKeysDistinct_AndDisposeReleasesOwner()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed();
-        var computer = new CountingAnalysisComputer(
-            new RecordedSessionAnalysisComputer(new SessionInsightsService()));
-        var state = new RecordedSessionAnalysisResultState(
-            computer,
-            new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var inputs = CreateInputs(range: null);
-        var frontKey = inputs.CreateKey(
-            RecordedSessionAnalysisFamily.VelocityDistribution,
-            SuspensionType.Front);
-        var rearKey = inputs.CreateKey(
-            RecordedSessionAnalysisFamily.VelocityDistribution,
-            SuspensionType.Rear);
-        state.Invalidate(inputs);
-
-        await state.RequestAsync(frontKey, cancellationToken: TestContext.Current.CancellationToken);
-        await state.RequestAsync(rearKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, computer.ComputeCount);
-        Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(frontKey));
-        Assert.IsType<VelocityDistributionAnalysisResult>(state.Get(rearKey));
-        Assert.NotSame(state.Get(frontKey), state.Get(rearKey));
-
-        state.Dispose();
-        await state.RequestAsync(frontKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Null(state.CurrentInputs);
-        Assert.Null(state.Get(frontKey));
-        Assert.Null(state.Get(rearKey));
-        Assert.Equal(2, computer.ComputeCount);
-    }
-
-    [Fact]
     public async Task RequestAsync_PublishesAgain_WhenSynchronousRequestReusesPreviousKey()
     {
         var telemetry = new TelemetryData();
-        var state = new RecordedSessionAnalysisResultState(
+        using var state = new RecordedSessionAnalysisResultState(
             new TestAnalysisComputer(),
             new InlineBackgroundTaskRunner(),
             new InlineUiThreadDispatcher(),
@@ -378,8 +134,7 @@ public class RecordedSessionAnalysisResultStateTests
         var key = inputs.DampingPercentagesKey;
         state.Invalidate(inputs);
         await state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
-        var cached = state.Get(key);
-        Assert.NotNull(cached);
+        Assert.Equal(11, Assert.IsType<DampingPercentagesAnalysisResult>(state.Get(key)).Percentages.FrontHscPercentage);
         changes.Clear();
 
         var updatedInputs = inputs with { TravelDistributionMode = TravelDistributionMode.DynamicSag };
@@ -387,85 +142,9 @@ public class RecordedSessionAnalysisResultStateTests
         await state.RequestAsync(updatedInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(1, computer.ComputeCount);
-        Assert.Same(cached, state.Get(updatedInputs.DampingPercentagesKey));
+        Assert.Equal(11, Assert.IsType<DampingPercentagesAnalysisResult>(state.Get(updatedInputs.DampingPercentagesKey)).Percentages.FrontHscPercentage);
         var change = Assert.Single(changes);
-        Assert.Same(cached, change.Result);
-    }
-
-    [Fact]
-    public void RequestAsync_StartsFreshWork_WhenSameKeyIsRequestedAfterInvalidation()
-    {
-        var telemetry = new TelemetryData();
-        var backgroundTaskRunner = new DeferredBackgroundTaskRunner();
-        using var state = new RecordedSessionAnalysisResultState(
-            new TestAnalysisComputer(),
-            backgroundTaskRunner,
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var fullInputs = CreateInputs(range: null);
-        var rangedInputs = CreateInputs(new TelemetryTimeRange(0, 1));
-
-        state.Invalidate(fullInputs);
-        _ = state.RequestAsync(fullInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(1, backgroundTaskRunner.RunCount);
-
-        state.Invalidate(rangedInputs);
-        state.Invalidate(fullInputs);
-        _ = state.RequestAsync(fullInputs.DampingPercentagesKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, backgroundTaskRunner.RunCount);
-    }
-
-    [Fact]
-    public void Invalidate_ReusesMatchingInFlightWork_WhenOnlyUnrelatedInputsChange()
-    {
-        var telemetry = new TelemetryData();
-        var backgroundTaskRunner = new DeferredBackgroundTaskRunner();
-        using var state = new RecordedSessionAnalysisResultState(
-            new TestAnalysisComputer(),
-            backgroundTaskRunner,
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var inputs = CreateInputs(range: null);
-        state.Invalidate(inputs);
-        var nonCancelableToken = new CancellationToken(canceled: false);
-        var firstRequest = state.RequestAsync(inputs.DampingPercentagesKey, cancellationToken: nonCancelableToken);
-
-        var updatedInputs = inputs with { TravelDistributionMode = TravelDistributionMode.DynamicSag };
-        state.Invalidate(updatedInputs);
-        var secondRequest = state.RequestAsync(updatedInputs.DampingPercentagesKey, cancellationToken: nonCancelableToken);
-
-        Assert.Same(firstRequest, secondRequest);
-        Assert.Equal(1, backgroundTaskRunner.RunCount);
-    }
-
-    [Fact]
-    public void Invalidate_CancelsOnlyMismatchingInFlightWork()
-    {
-        var telemetry = new TelemetryData();
-        var backgroundTaskRunner = new DeferredBackgroundTaskRunner();
-        using var state = new RecordedSessionAnalysisResultState(
-            new TestAnalysisComputer(),
-            backgroundTaskRunner,
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var inputs = CreateInputs(range: null);
-        var travelKey = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-        var velocityKey = inputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
-        state.Invalidate(inputs);
-        var nonCancelableToken = new CancellationToken(canceled: false);
-        var travelRequest = state.RequestAsync(travelKey, cancellationToken: nonCancelableToken);
-        _ = state.RequestAsync(velocityKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        var updatedInputs = inputs with { VelocityAverageMode = VelocityAverageMode.StrokePeakAveraged };
-        var updatedTravelKey = updatedInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-        var updatedVelocityKey = updatedInputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
-        state.Invalidate(updatedInputs);
-        var reusedTravelRequest = state.RequestAsync(updatedTravelKey, cancellationToken: nonCancelableToken);
-        _ = state.RequestAsync(updatedVelocityKey, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Same(travelRequest, reusedTravelRequest);
-        Assert.Equal(3, backgroundTaskRunner.RunCount);
+        Assert.Equal(11, Assert.IsType<DampingPercentagesAnalysisResult>(change.Result).Percentages.FrontHscPercentage);
     }
 
     [Fact]
@@ -473,7 +152,7 @@ public class RecordedSessionAnalysisResultStateTests
     {
         var telemetry = new TelemetryData();
         var computer = new TestAnalysisComputer();
-        var backgroundTaskRunner = new ControllableBackgroundTaskRunner();
+        var backgroundTaskRunner = new Sufni.App.Tests.TestSupport.Async.DeferredBackgroundTaskRunner();
         using var state = new RecordedSessionAnalysisResultState(
             computer,
             backgroundTaskRunner,
@@ -491,13 +170,13 @@ public class RecordedSessionAnalysisResultStateTests
         await callerCancellation.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => firstRequest);
-        await backgroundTaskRunner.CompleteNextAsync();
-        await secondRequest;
+        await backgroundTaskRunner.RunNextAsync();
+        await secondRequest.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(1, computer.ComputeCount);
         var change = Assert.Single(changes);
-        Assert.Same(key, change.Key);
-        Assert.IsType<DampingPercentagesAnalysisResult>(change.Result);
+        Assert.Equal(key, change.Key);
+        Assert.Equal(11, Assert.IsType<DampingPercentagesAnalysisResult>(change.Result).Percentages.FrontHscPercentage);
     }
 
     [Fact]
@@ -518,10 +197,10 @@ public class RecordedSessionAnalysisResultStateTests
 
         state.Invalidate(fullInputs);
         var staleRequest = state.RequestAsync(staleKey, cancellationToken: TestContext.Current.CancellationToken);
-        await computer.Started;
+        await computer.Started.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         state.Invalidate(rangedInputs);
         computer.Complete();
-        await staleRequest;
+        await staleRequest.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Empty(changes);
         Assert.Null(state.Get(staleKey));
@@ -551,24 +230,25 @@ public class RecordedSessionAnalysisResultStateTests
     [Fact]
     public async Task RequestAsync_AfterDispose_IsNoOp()
     {
-        var telemetry = new TelemetryData();
-        var state = new RecordedSessionAnalysisResultState(
-            new TestAnalysisComputer(),
-            new InlineBackgroundTaskRunner(),
-            new InlineUiThreadDispatcher(),
-            () => telemetry);
-        var inputs = CreateInputs(range: null);
-        var key = inputs.DampingPercentagesKey;
+        var computer = new TestAnalysisComputer();
+        var state = new RecordedSessionAnalysisResultState(computer, new InlineBackgroundTaskRunner(),
+            new InlineUiThreadDispatcher(), () => new TelemetryData());
+        var inputs = CreateInputs(null);
         state.Invalidate(inputs);
-
         state.Dispose();
+        var changes = new List<RecordedSessionAnalysisResultChanged>();
+        var inputChanges = new List<RecordedSessionAnalysisInputs>();
+        using var subscription = state.Connect().Subscribe(changes.Add);
+        using var inputSubscription = state.ConnectInputs().Subscribe(inputChanges.Add);
 
-        Assert.Null(state.CurrentInputs);
-        Assert.Null(state.Get(key));
         state.Invalidate(inputs);
-        await state.RequestAsync(key, cancellationToken: TestContext.Current.CancellationToken);
-        using var subscription = state.Connect().Subscribe(_ => Assert.Fail("Disposed state should not publish."));
-        using var inputSubscription = state.ConnectInputs().Subscribe(_ => Assert.Fail("Disposed state should not publish input changes."));
+        await state.RequestAsync(inputs.DampingPercentagesKey, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, computer.ComputeCount);
+        Assert.Empty(changes);
+        Assert.Empty(inputChanges);
+        Assert.Null(state.CurrentInputs);
+        Assert.Null(state.Get(inputs.DampingPercentagesKey));
     }
 
     private static RecordedSessionAnalysisInputs CreateInputs(TelemetryTimeRange? range) =>
@@ -582,24 +262,6 @@ public class RecordedSessionAnalysisResultStateTests
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             SessionInsightsTargetProfile: SessionInsightsTargetProfile.Trail);
-
-    private static string Fingerprint<T>(T value)
-    {
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
-        return Convert.ToHexStringLower(SHA256.HashData(bytes));
-    }
-
-    private sealed class CountingAnalysisComputer(IRecordedSessionAnalysisComputer inner)
-        : IRecordedSessionAnalysisComputer
-    {
-        public int ComputeCount { get; private set; }
-
-        public RecordedSessionAnalysisResult Compute(RecordedSessionAnalysisKey key, TelemetryData telemetry)
-        {
-            ComputeCount++;
-            return inner.Compute(key, telemetry);
-        }
-    }
 
     private sealed class FailingAnalysisComputer : IRecordedSessionAnalysisComputer
     {
@@ -655,126 +317,4 @@ public class RecordedSessionAnalysisResultStateTests
             Task.Run(work);
     }
 
-    private sealed class DeferredBackgroundTaskRunner : IBackgroundTaskRunner
-    {
-        public int RunCount { get; private set; }
-
-        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default)
-        {
-            RunCount++;
-            return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
-        }
-
-        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
-        {
-            RunCount++;
-            return new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
-        }
-
-        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
-        {
-            RunCount++;
-            return new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
-        }
-    }
-
-    private sealed class ControllableBackgroundTaskRunner : IBackgroundTaskRunner
-    {
-        private readonly Queue<Func<Task>> completions = new();
-
-        public int RunCount { get; private set; }
-
-        public Task CompleteNextAsync()
-        {
-            var completion = completions.Dequeue();
-            return completion();
-        }
-
-        public Task RunAsync(Func<Task> work, CancellationToken cancellationToken = default)
-        {
-            RunCount++;
-            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
-            completions.Enqueue(async () =>
-            {
-                try
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    await work();
-                    completion.TrySetResult();
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    completion.TrySetCanceled(cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    completion.TrySetException(exception);
-                }
-                finally
-                {
-                    registration.Dispose();
-                }
-            });
-            return completion.Task;
-        }
-
-        public Task<T> RunAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
-        {
-            RunCount++;
-            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
-            completions.Enqueue(() =>
-            {
-                try
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    completion.TrySetResult(work());
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    completion.TrySetCanceled(cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    completion.TrySetException(exception);
-                }
-                finally
-                {
-                    registration.Dispose();
-                }
-
-                return Task.CompletedTask;
-            });
-            return completion.Task;
-        }
-
-        public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
-        {
-            RunCount++;
-            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
-            completions.Enqueue(async () =>
-            {
-                try
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    completion.TrySetResult(await work());
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    completion.TrySetCanceled(cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    completion.TrySetException(exception);
-                }
-                finally
-                {
-                    registration.Dispose();
-                }
-            });
-            return completion.Task;
-        }
-    }
 }

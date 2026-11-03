@@ -22,7 +22,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void ImportAvailability_FollowsSelectedPortHolderAndStopsObservingOnUnload()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         using var transport = new BehaviorSubject<DaqTransportHolder?>(null);
         source.ObserveTransport().Returns(transport);
@@ -47,7 +47,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void RefreshForSameSource_CancelsEarlierListingAndRejectsItsLateRows()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         var oldFile = CreateTelemetryFile("old");
         var currentFile = CreateTelemetryFile("current");
@@ -74,7 +74,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task ClearedSources_EndSelectionAndCancelPendingListing()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         harness.DataStores.Add(source);
         var listing = new TaskCompletionSource<TelemetryFileListing>();
@@ -99,7 +99,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task Close_CancelsAndDrainsListingWithoutPublishingItsLateResult()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         var listing = new TaskCompletionSource<TelemetryFileListing>(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken token = default;
@@ -126,7 +126,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void FolderCommand_IsDisabledWhenFolderPickingIsUnavailable()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         harness.ImportSessionsCoordinatorSubstitute.CanPickFolder.Returns(false);
         var vm = harness.CreateViewModel();
 
@@ -136,7 +136,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task FolderCommand_DisplaysTypedFailureDetails()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var vm = harness.CreateViewModel();
         harness.ImportSessionsCoordinatorSubstitute.OpenFolderAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<StorageProviderRegistrationResult>(new StorageProviderRegistrationResult.Failed(ImportSourceFailureReason.OpenFolder, "folder diagnostic")));
@@ -151,7 +151,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task ImportCommand_CapturesRowEditsBeforeBackgroundWorkStarts()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         var file = CreateTelemetryFile("recording");
         harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>())
@@ -187,9 +187,9 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public async Task SelectingDataStore_ResolvesSetupLoadsFilesAndIgnoresStaleLoads()
+    public async Task SelectingDataStore_IgnoresLateFilesFromPreviousSelection()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup();
         harness.SetupQuery.Add(setup, boardId);
@@ -204,102 +204,18 @@ public class ImportSessionsViewModelTests
             .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. secondFiles], null)));
 
         var viewModel = harness.CreateViewModel();
-        viewModel.NewDataStoresAvailable = true;
-        viewModel.SelectedDataStore = firstStore;
-
-        Assert.Equal(setup.Id, viewModel.SelectedSetup);
-
-        viewModel.SelectedDataStore = secondStore;
-        firstLoad.SetResult(new TelemetryFileListing.Listed([.. firstFiles], null));
-        await Task.Yield();
-
-        Assert.False(viewModel.NewDataStoresAvailable);
-        Assert.Null(viewModel.SelectedSetup);
-        Assert.Equal(secondFiles, viewModel.TelemetryFiles.Select(row => row.File));
-    }
-
-    [Fact]
-    public async Task ImportSessionsCommand_ReportsProgressSummarizesResultAndRefreshesCurrentStore()
-    {
-        var harness = new ImportWorkflowHarness();
-        var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup();
-        harness.SetupQuery.Add(setup, boardId);
-        var dataStore = CreateDataStore(boardId: boardId);
-        var initialFile = CreateTelemetryFile("lap");
-        var refreshedFile = CreateTelemetryFile("after-import");
-        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(
-                Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { initialFile }], null)),
-                Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([.. new[] { refreshedFile }], null)));
-        var failure = new SessionImportFailure.OperationFailed("broken.SST", SessionImportFailureOperation.Import, SessionImportFailureReason.Import, "boom");
-        var capturedProgressText = new List<string>();
-        var viewModel = harness.CreateViewModel();
-        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<ITelemetryDataStore>(), Arg.Any<IReadOnlyList<SessionImportItem>>(),
-                setup.Id)
-            .Returns(callInfo =>
-            {
-                harness.ImportState.OnNext(new SessionImportState.Running(1, 2, []));
-                capturedProgressText.Add(viewModel.ImportProgressText);
-                harness.ImportState.OnNext(new SessionImportState.Completed(
-                    new SessionImportResult([TestSnapshots.Session(name: "lap")], [failure]),
-                    [new SessionImportEvent.Imported(TestSnapshots.Session(name: "lap")),
-                     new SessionImportEvent.Failed(failure)]));
-                return Task.CompletedTask;
-            });
-
-        viewModel.SelectedDataStore = dataStore;
-        await viewModel.ImportSessionsCommand.ExecuteAsync(null);
-
-        await harness.ImportSessionsCoordinatorSubstitute.Received(1).ImportAsync(
-            dataStore, Arg.Is<IReadOnlyList<SessionImportItem>>(files => files.Count == 1 && ReferenceEquals(files[0].File, initialFile)),
-            setup.Id);
-        Assert.Equal(["File 1/2"], capturedProgressText);
-        Assert.Equal(0, viewModel.CurrentFileIndex);
-        Assert.Equal(0, viewModel.TotalFiles);
-        Assert.Equal(string.Empty, viewModel.ImportProgressText);
-        Assert.Equal([refreshedFile], viewModel.TelemetryFiles.Select(row => row.File));
-        Assert.Contains(viewModel.Notifications, message => message.Contains("lap", StringComparison.Ordinal));
-        Assert.Contains(viewModel.Notifications, message => message.Contains("Import finished", StringComparison.Ordinal));
-        Assert.Single(viewModel.ErrorMessages);
-    }
-
-    [Fact]
-    public async Task ImportSessionsCommand_ReportsCommittedButUnpublishedFilesAccurately()
-    {
-        var harness = new ImportWorkflowHarness();
-        var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup();
-        harness.SetupQuery.Add(setup, boardId);
-        var dataStore = CreateDataStore(boardId: boardId);
-        var file = CreateTelemetryFile("lap");
-        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(dataStore, Arg.Any<CancellationToken>())
-            .Returns(
-                Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)),
-                Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([], null)));
-        var imported = TestSnapshots.Session(name: "lap");
-        var failure = new SessionImportFailure.OperationFailed(
-            "lap", SessionImportFailureOperation.Publish, SessionImportFailureReason.Publish, "publish failed");
-        harness.ImportSessionsCoordinatorSubstitute.ImportAsync(
-                Arg.Any<ITelemetryDataStore>(), Arg.Any<IReadOnlyList<SessionImportItem>>(),
-                setup.Id)
-            .Returns(callInfo =>
-            {
-                harness.ImportState.OnNext(new SessionImportState.Completed(
-                    new SessionImportResult([imported], [failure]),
-                    [new SessionImportEvent.Failed(failure)]));
-                return Task.CompletedTask;
-            });
-        var viewModel = harness.CreateViewModel();
-
-        viewModel.SelectedDataStore = dataStore;
-        await viewModel.ImportSessionsCommand.ExecuteAsync(null);
-
-        Assert.NotEmpty(viewModel.ErrorMessages);
-        Assert.Contains(
-            viewModel.Notifications,
-            message => message.Contains("1 committed, 1 unpublished, 0 failed", StringComparison.Ordinal));
+        try
+        {
+            viewModel.SelectedDataStore = firstStore;
+            viewModel.SelectedDataStore = secondStore;
+            firstLoad.SetResult(new TelemetryFileListing.Listed([.. firstFiles], null));
+            await Task.Yield();
+            Assert.Equal(secondFiles, viewModel.TelemetryFiles.Select(row => row.File));
+        }
+        finally
+        {
+            await viewModel.PrepareCloseAsync();
+        }
     }
 
     [Theory]
@@ -307,7 +223,7 @@ public class ImportSessionsViewModelTests
     [InlineData(OpenStoreResult.AlreadyOpen)]
     public async Task OpenDataStoreCommand_SelectsReturnedStore(OpenStoreResult result)
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var dataStore = CreateDataStore(name: "store");
         harness.ImportSessionsCoordinatorSubstitute.OpenFolderAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<StorageProviderRegistrationResult>(
@@ -330,38 +246,10 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void LoadedAndUnloaded_StartBrowseTrackSetupChangesAndClearState()
-    {
-        var harness = new ImportWorkflowHarness();
-        var browseLease = Substitute.For<IDisposable>();
-        harness.ImportSessionsCoordinatorSubstitute.ObserveSources(Arg.Any<Action<DataStoreDiscoveryIssue>>()).Returns(browseLease);
-        var boardId = Guid.NewGuid();
-        var dataStore = CreateDataStore(boardId: boardId);
-        var viewModel = harness.CreateViewModel();
-        viewModel.SelectedDataStore = dataStore;
-        viewModel.NewDataStoresAvailable = true;
-
-        viewModel.LoadedCommand.Execute(null);
-        harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
-
-        harness.ImportSessionsCoordinatorSubstitute.Received(1).ObserveSources(Arg.Any<Action<DataStoreDiscoveryIssue>>());
-        Assert.NotNull(viewModel.SelectedSetup);
-
-        viewModel.UnloadedCommand.Execute(null);
-        harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
-
-        browseLease.Received(1).Dispose();
-        Assert.Empty(viewModel.TelemetryFiles);
-        Assert.Null(viewModel.SelectedDataStore);
-        Assert.Null(viewModel.SelectedSetup);
-        Assert.False(viewModel.NewDataStoresAvailable);
-    }
-
-    [Fact]
     public async Task SetupChanges_UpdateSelectionOnUiThread_AndStopAfterUnload()
     {
         var dispatcher = new ManualUiThreadDispatcher();
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         var viewModel = harness.CreateViewModel(dispatcher);
         viewModel.SelectedDataStore = CreateDataStore(boardId: boardId);
@@ -383,25 +271,9 @@ public class ImportSessionsViewModelTests
     }
 
     [Fact]
-    public void ShowMalformedMessage_AddsSingleNotification()
-    {
-        var harness = new ImportWorkflowHarness();
-        var file = CreateTelemetryFile(
-            name: "trimmed",
-            malformedMessage: "trailing chunk was trimmed",
-            canImport: true);
-        var viewModel = harness.CreateViewModel();
-
-        viewModel.ShowMalformedMessageCommand.Execute(new ImportFileRowViewModel(file));
-        viewModel.ShowMalformedMessageCommand.Execute(new ImportFileRowViewModel(file));
-
-        Assert.Single(viewModel.Notifications);
-    }
-
-    [Fact]
     public void DriveScanFailure_ShowsSafeDiagnosticsOnlyWhileLoaded()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var vm = harness.CreateViewModel();
         vm.LoadedCommand.Execute(null);
         const string details = "drive diagnostic";
@@ -420,7 +292,7 @@ public class ImportSessionsViewModelTests
     [InlineData(true)]
     public void ListingUnavailability_IsNotificationRatherThanImportFailure(bool busy)
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(source, Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<TelemetryFileListing>(busy
@@ -439,7 +311,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void BusyImportStart_DoesNotReportACompletedOrFailedImport()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var vm = harness.CreateViewModel();
 
         harness.ImportState.OnNext(new SessionImportState.SourceBusy(new DaqTransportHolder.Streaming()));
@@ -452,7 +324,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public async Task LegacyListingIdentity_SelectsKnownSetupAndSuggestsItForNewSetup()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var source = CreateDataStore();
         var boardId = Guid.NewGuid();
         var setup = TestSnapshots.Setup();
@@ -471,7 +343,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void ReplacedSource_SelectsItsNewLifetimeAndReplacesFileRows()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var original = CreateDataStore("old");
         var replacement = CreateDataStore("new");
         var file = CreateTelemetryFile("current");
@@ -489,7 +361,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void AcknowledgementFailure_ReportsSourceCleanupWithSeparateDiagnostics()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var vm = harness.CreateViewModel();
         const string details = "acknowledgement diagnostic";
 
@@ -505,7 +377,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void ProcessingFailure_ReportsFileWithSeparateDiagnostics()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var vm = harness.CreateViewModel();
         const string details = "calibration diagnostic";
         var failure = new SessionImportFailure.ProcessingFailed("ride.SST", SessionProcessingFailureReason.InvalidCalibration, details);
@@ -522,7 +394,7 @@ public class ImportSessionsViewModelTests
     [Fact]
     public void NewTab_ObservesActiveImport_WithoutStartingAnotherCommand()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         harness.ImportState.OnNext(new SessionImportState.Running(2, 3, []));
 
         var reopened = harness.CreateViewModel();

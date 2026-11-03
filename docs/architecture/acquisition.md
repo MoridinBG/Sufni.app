@@ -4,43 +4,41 @@
 
 ## Data Acquisition
 
-Three data store implementations feed telemetry files into the app through a common interface. The import-sessions screen is the clearest worked example of how those sources flow through the architecture: the view model owns selection and notifications, the setup store answers the "setup for this board" lookup, the data-store service owns browse and datastore registration, and the coordinator owns the per-file import lifecycle.
+Three data store implementations feed telemetry files into the app through a common interface. The import-sessions screen is the clearest worked example of how those sources flow through the architecture: the view model owns selection and notifications, the setup query answers the "setup for this board" lookup, and the coordinator owns source access (through the data-store service) and the per-file import lifecycle.
 
 ```mermaid
 graph LR
     subgraph Sources
         USB["USB Drive<br/>(MassStorageTelemetryDataStore)"]
         WiFi["WiFi DAQ<br/>(NetworkTelemetryDataStore)"]
-        Picker["Picked Folder<br/>(IStorageFolder)"]
+        Picker["Picked Folder<br/>(StorageProviderTelemetryDataStore)"]
     end
 
-    Picker --> Files["IFilesService"]
     USB --> DSS["TelemetryDataStoreService"]
     WiFi --> DSS
-    Files --> Coord
-    Import["ImportSessionsViewModel"] -->|"ObserveSources / LoadFilesAsync / OpenFolderAsync"| Coord
-    Coord -->|"browse / list / register"| DSS
+    Picker --> DSS
+    Import["ImportSessionsViewModel"] -->|"Sources / ObserveSources / LoadFilesAsync<br/>OpenFolderAsync / ImportAsync / Observe"| Coord["ImportSessionsCoordinator"]
     Import -->|"FindByBoardId"| SetupQuery["ISetupBoardQuery"]
-    Import -->|"ImportAsync / Observe"| Coord["ImportSessionsCoordinator"]
+    Coord -->|"OpenDataStoreFolderAsync"| Files["IFilesService"]
+    Coord -->|"browse / list / register"| DSS
     Coord --> Runner["IBackgroundTaskRunner"]
     Coord --> SourceFactory["RecordedSessionSourceFactory"]
-    Coord --> Reprocessor["RecordedSessionReprocessor"]
+    Coord --> Reprocessor["IRecordedSessionReprocessor"]
     Coord --> Repo["ISessionRepository<br/>ImportProcessedSessionAsync"]
-    Coord --> SessionStore["ISessionStoreWriter"]
-    Coord --> SourceStore["IRecordedSessionSourceStoreWriter"]
+    Coord --> Stores["ISessionStoreWriter / IRecordedSessionSourceStoreWriter<br/>ITrackStoreWriter"]
     Coord --> TelemetryFile["ITelemetryFile"]
 ```
 
 Shutdown cancellation stops import intake and cancels a source read in progress.
 Files already queued finish processing and persistence, then their store
 publication and acknowledgement complete before the coordinator's `StopAsync`
-returns. The batch remains owned by the coordinator throughout this drain;
+returns. The coordinator owns the batch throughout this drain;
 closing its tab does not cancel it. There is no user-facing cancel action.
 
 Before processing, the coordinator reads the repository's source-hash checkpoint.
 An existing recording skips derivation and writes, republishes persisted session/
 source state and track metadata, then retries acknowledgement. A new recording
-still passes the atomic import transaction, which classifies by source hash before inserting. The repository returns `Inserted` or `Exists`; an existing
+passes the atomic import transaction, which classifies by source hash before inserting. The repository returns `Inserted` or `Exists`; an existing
 hash, including a legacy recording with a random id, yields `AlreadyImported`
 and preserves its session/source. If a live content-id session arrived by sync but
 has no source, the transaction inserts only that source and reports `Imported`;
@@ -73,16 +71,16 @@ Key adapter members:
 - `OnImported()` / `OnTrashed()` — post-action hooks (move file on local stores; `MARK_SST_UPLOADED` / remote trash over the management protocol on network stores).
 - `StartTime`, `Duration` — resolved eagerly from the SST header before import (source varies by implementation). Start times, including filesystem/network fallbacks, remain UTC through persistence; the import view alone formats them in local time.
 
-**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live source collection and infrastructure for browsing, file listing and picked-folder registration. `ImportSessionsCoordinator` owns the user workflows over it and exposes a read-only `Sources` collection. The view model has no datastore-service or file-service dependency.
+**`ITelemetryDataStoreService`** (`Sufni.App/Sufni.App/Acquisition/Services/ITelemetryDataStoreService.cs`) owns the live source collection and infrastructure for browsing, file listing and picked-folder registration. `ImportSessionsCoordinator` owns the user workflows over it and exposes its `DataStores` as a read-only `Sources` collection. The view model has no datastore-service or file-service dependency.
 
 ### Import Screen Boundaries
 
-The import-sessions feature is the canonical worked example of the current boundary rules:
+The import-sessions feature is the canonical worked example of the boundary rules:
 
-- `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors.
+- `ImportSessionsViewModel` owns only screen-scoped state: available datastores/files, selected datastore/setup, notifications, and errors. Its feature dependencies are `IImportSessionsCoordinator` and `ISetupBoardQuery`.
 - It resolves the current board's setup through `ISetupBoardQuery.FindByBoardId(Guid)` and never reads persistence repositories directly.
-- It acquires/disposes an `ObserveSources` lease in `Loaded` / `Unloaded`, forwards listing and folder intents to the coordinator, and uses `SessionImportState.Running` for import progress. Superseded listings are canceled and late results rejected, including a second request for the same source. Closing drains pending UI listing work.
-- `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
+- It binds the coordinator's `Sources`, acquires/disposes an `ObserveSources` lease in `Loaded` / `Unloaded`, forwards listing and folder intents to the coordinator, and uses `SessionImportState.Running` for import progress. Superseded listings are canceled and late results rejected, including a second request for the same source. Closing drains pending UI listing work.
+- Behind the coordinator, `ITelemetryDataStoreService` owns the live `DataStores` collection, mass-storage/network browse lifetime, storage-provider datastore construction and duplicate detection.
 - `ImportSessionsCoordinator` owns the full per-file import / trash workflow, source capture through `RecordedSessionSourceFactory`, processed telemetry derivation through `IRecordedSessionReprocessor`, atomic session/source/track persistence, session/source-store publication (source metadata is prepared from the committed recording), background execution, and per-file progress reporting.
 
 Source observations share one browse lifetime: the first starts it and the last
@@ -131,13 +129,13 @@ source files remain unacknowledged.
 
 `MassStorageTelemetryDataStore` (`Sufni.App/Sufni.App/Acquisition/Models/MassStorageTelemetryDataStore.cs`) identifies DAQ drives by the presence of a `BOARDID` marker file at the drive root. The file contains the device serial as a hex string, converted to a UUID via `UuidUtil.CreateDeviceUuid()`.
 
-`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) requires its dispatcher, background runner and clock. It owns a one-second `PeriodicTimer` scan loop per browse lifetime, cancels on stop, waits for the previous scan before restarting, and awaits cleanup on disposal. Each failed scan logs once and reports a closed reason with optional diagnostics through `DiscoveryIssueReported`; the next tick can retry. Drive probing, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Import publication goes through the store writers, whose base marshals cache edits through `IUiThreadDispatcher`.
+`TelemetryDataStoreService` (`Sufni.App/Sufni.App/Acquisition/Services/TelemetryDataStoreService.cs`) uses the injected dispatcher, background runner and `TimeProvider`. When `AppCapabilities.SupportsMassStorageImport` is set, it owns a one-second `PeriodicTimer` scan loop per browse lifetime. It cancels the loop on stop, waits for the previous scan before restarting, and awaits cleanup on disposal. Each failed scan logs once and reports a closed reason with optional diagnostics through `DiscoveryIssueReported`; the next tick can retry. Drive probing, mass-storage datastore creation and file enumeration cross an explicit background boundary through `IBackgroundTaskRunner`; only `DataStores` mutation is marshaled back to the UI thread. Import publication goes through the store writers, whose base marshals cache edits through `IUiThreadDispatcher`.
 
 `IDaqDriveProbe` isolates drive discovery and filesystem access. `DaqDriveProbe` returns immutable drive descriptors, reads `BOARDID`, creates `uploaded/`, and enumerates recording files. `MassStorageTelemetryDataStore.CreateAsync()` uses that probe off thread. Browse matching retains volume-label identity; folder registration compares root paths. `ImportSessionsCoordinator.LoadFilesAsync()` is the surface the import view model uses instead of calling `GetFiles()` directly, so the page stays responsive while enumerating files from the device. Mass-storage and picked-folder files both map `SstFileInspection` through `TelemetryFileInspectionMapper`, so local SST sources expose the same importability, malformed warnings, start-time, and duration state for the same bytes. `TelemetryFileInspector` also translates invalid headers, unsupported versions and invalid timestamp values into non-importable rows; inaccessible files are skipped at the listing boundary.
 
 `DaqDriveLayout` owns the marker and destination folder names shared by local adapters. Picked folders stay registered for the browse lifetime; listing reports access failures without a separate availability probe.
 
-On import, files move to an `uploaded/` subdirectory, which the datastore creates during initialization. On trash, files move to `trash/`; the current local-file implementations expect that directory to already exist, so a missing `trash/` directory is a filesystem error surfaced by the import workflow rather than silently creating it.
+On import, files move to an `uploaded/` subdirectory, which the datastore creates during initialization. On trash, files move to `trash/`. Local adapters do not create `trash/`; a missing directory is a filesystem error that the import workflow reports.
 
 ### Network (WiFi DAQ)
 
@@ -171,7 +169,7 @@ and Import is disabled until the port is idle. An empty source collection shows
 from the owning batch; the coordinator never casts files or attaches sessions.
 Downloads stream into memory, post-publication acknowledgement uses
 `MARK_SST_UPLOADED`, and trash uses the corresponding management operation.
-Management protocol errors still become exceptions at the file-operation
+Management protocol errors become exceptions at the file-operation
 boundary, where the coordinator reports them per file.
 
 `DataStoreDiscoveryIssue` reports drive-scan failures from the service and browse-lifecycle failures from the coordinator. Network availability
@@ -190,7 +188,7 @@ fixed user-facing summaries.
 
 ## File Format & Parsing
 
-SST files are the raw binary format written by the Pico DAQ. The app currently supports SST v3, SST v4 TLV, and SST v5 chunked recordings.
+SST files are the raw binary format written by the Pico DAQ. The app reads SST v3, SST v4 TLV, and SST v5 chunked recordings.
 
 ```mermaid
 graph TD
@@ -259,7 +257,7 @@ The first chunk must be `SESSION_METADATA`. It declares stream descriptors and s
 
 The app imports SST v5 only when metadata contains processable travel: a `TRAVEL` stream descriptor, at least one accepted fork or shock travel source, an integer-Hz travel rate that fits the app's `ushort` sample-rate model, and at least one complete travel data chunk. Valid SST v5 files without processable travel are reported as `MalformedSstFileInspection` with `CanImport = false` and the message `SST v5 travel data is missing or unsupported by this app.`
 
-SST v5 preserves fixed-rate gaps. Raw travel is stored as `RawCountSegment` runs per side (`FrontSegments` / `RearSegments`), and newly parsed raw IMU is stored only as `RawImuSegment` runs per physical location. The dense IMU `Records` collection is a permanent legacy-reader fallback and is not populated for new v4/v5 parses, live captures, or segment slices. Missing indexes, timing discontinuities, invalid source validity, and producer/sink final-status misses are recorded as `RawStreamGap` entries. `TelemetryData.FromRecording()` processes each travel segment independently, stores `ProcessedSuspensionSegment` runs on each `Suspension`, and keeps stroke times in real seconds so strokes, airtime, statistics, plots, and IMU vibration do not bridge missing time.
+SST v5 preserves fixed-rate gaps. Raw travel is stored as `RawCountSegment` runs per side (`FrontSegments` / `RearSegments`), and parsed raw IMU is stored as `RawImuSegment` runs per physical location. V4/v5 parses, live captures and segment slices leave the dense IMU `Records` collection empty; it holds only legacy dense payloads. Missing indexes, timing discontinuities, invalid source validity, and producer/sink final-status misses are recorded as `RawStreamGap` entries. `TelemetryData.FromRecording()` processes each travel segment independently, stores `ProcessedSuspensionSegment` runs on each `Suspension`, and keeps stroke times in real seconds so strokes, airtime, statistics, plots, and IMU vibration do not bridge missing time.
 
 SST v5 final status is parsed into `SstFinalStatus` when present. Stream final-status records retain producer and sink miss counts, sink backlog batches, dropped batches, final gaps, and producer failure reasons for diagnostics and reprocessing. Missing final status is importable and shown as a warning: `SST v5 final status is missing; parsed complete data chunks only.` If a trailing chunk declares bytes beyond EOF after valid metadata and at least one complete travel chunk, the parser trims only the incomplete trailing chunk, keeps the complete prefix importable, and surfaces `SST v5 chunk extends past end of file; incomplete trailing chunk data was trimmed.`
 
@@ -275,7 +273,7 @@ SST v5 final status is parsed into `SstFinalStatus` when present. Stream final-s
 
 4. **Handle temporary dips and unrecovered tails** — walks the remaining changes in order, tracking a cumulative negative offset (`activeFaultDelta`). Each segment between changes is shifted by the active offset. Negative changes accumulate into the offset; subsequent positive changes partially undo it (clamped to zero). Any leftover offset at the final change is also applied to the trailing samples through end of capture, so a dip that never recovers is corrected as a sensor fault rather than left in the signal.
 
-`SpikeElimination` edits the integer samples in place and returns an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is stored as a per-suspension anomaly rate; a sensor-quality indicator is planned, and no current UI consumes it.
+`SpikeElimination` edits the integer samples in place and returns an anomaly count. The later `MeasurementPreprocessor.Process(...)` caller decides how to map those cleaned samples back to the sensor domain: linear sensors clamp to the valid 12-bit ADC range `[0, 4095]`, while rotational sensors are unwrapped before spike detection and wrapped modulo 4096 afterward. The anomaly count is stored as a per-suspension anomaly rate; no UI consumes it.
 
 ### Parsed Telemetry Data Structures
 
@@ -284,7 +282,7 @@ All are MessagePack-serializable types defined in `Sufni.Telemetry/`:
 - **`GpsRecord`** — Timestamp (UTC DateTime), Latitude, Longitude, Altitude, Speed (m/s), Heading, FixMode, Satellites, Epe2d/Epe3d (error estimates in meters)
 - **`ImuRecord`** — Ax, Ay, Az (int16 acceleration counts), Gx, Gy, Gz (int16 gyroscope counts), already bias-corrected and rotated by firmware into bike frame (`X=forward`, `Y=left`, `Z=up`)
 - **`ImuMetaEntry`** — LocationId (sensor position: 0=frame, 1=fork, 2=shock), AccelLsbPerG, GyroLsbPerDps (calibration)
-- **`RawImuData`** — Container: metadata, sample rate, active locations, per-location `RawImuSegment` runs, and `HasGaps`; `Records` is retained only to read legacy dense payloads. Processed telemetry writes compact encoding v1 as indexed arrays with one segment/sample graph, while the formatter permanently accepts legacy named-map shapes.
+- **`RawImuData`** — Container: metadata, sample rate, active locations, per-location `RawImuSegment` runs, and `HasGaps`; `Records` holds only legacy dense payloads. Processed telemetry writes compact encoding v1 as indexed arrays with one segment/sample graph; the formatter also reads legacy named-map shapes.
 - **`MarkerData`** — TimestampOffset (seconds from session start)
 - **`TemperatureSample`** — TimestampUtc, LocationId, TemperatureCelsius
 - **`TemperatureAverage`** — LocationId and averaged TemperatureCelsius, derived during processing and serialized on `TelemetryData`

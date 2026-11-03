@@ -62,13 +62,13 @@ Scenario-specific solutions live at the repository root:
 The shared app is organized **domain-slice-first**: top-level folders are feature/domain
 slices, and the technical layers (`ViewModels/`, `Views/`, `DesktopViews/`, `Coordinators/`,
 `Stores/`, `Queries/`, `Services/`, `Models/`, `Plots/`) live *inside* each slice. The
-layering rules are unchanged — only the folder grouping is slice-first instead of layer-first.
+layering rules apply across slices in the same way.
 
 | Slice | Folder | Covers |
 | --- | --- | --- |
 | **Bikes** | `Bikes/` | Bike entity: list/editor VMs+views, store, coordinator, linkage/image editing, telemetry-bike factory |
 | **Setups** | `Setups/` | Setup entity + `Models/SensorConfigurations/` calibration strategies, editor workflow |
-| **Sessions** | `Sessions/` | Recorded sessions: store, coordinator + use-case services, processing (`Processing/RecordedSessionProjection`, `Processing/SessionDetails`), Telemetry Analysis, detail/signals/media pages, lists, plots |
+| **Sessions** | `Sessions/` | Recorded sessions: store, coordinators, processing (`Processing/RecordedSessionProjection`, `Processing/SessionDetails`), Telemetry Analysis, detail/signals/media pages, lists, plots |
 | **LiveDaq** | `LiveDaq/` | Live DAQ streaming: `Services/LiveStreaming`, `Services/Imu`, stores, editor/page VMs+views, live plots |
 | **Acquisition** | `Acquisition/` | Telemetry import + DAQ management (`Services/Management`), data-store models, import UI |
 | **SyncAndPairing** | `SyncAndPairing/` | Client sync + pairing coordinators/services/VMs (desktop sync server stays in `Sufni.App.Desktop`) |
@@ -110,7 +110,7 @@ directory.
 
 ## Platform Capabilities And Layout Profiles
 
-A cross-cutting reference for the remaining divergence points between platform heads and layout profiles: shared `Compact` / `Workspace` shell presentation, profile-based `ViewLocator` selection, platform capabilities, desktop-capable sync server / inbound coordinators, mobile-capable pairing client and haptic / friendly-name services, DI composition order, solution scoping, and behavioral differences across feature workflows.
+A cross-cutting reference for the divergence points between platform heads and layout profiles: shared `Compact` / `Workspace` shell presentation, profile-based `ViewLocator` selection, platform capabilities, desktop-capable sync server / inbound coordinators, mobile-capable pairing client and haptic / friendly-name services, DI composition order, solution scoping, and behavioral differences across feature workflows.
 
 Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md):
 
@@ -152,13 +152,13 @@ Topics in [architecture/acquisition.md](architecture/acquisition.md):
 
 ## DAQ Management
 
-A side-channel framed TCP protocol for non-streaming DAQ operations: list and retrieve files, mark uploaded, trash remotely, set time, edit and replace CONFIG. Network imports use this management protocol for file transfer. It is distinct from live preview but shares the DAQ's single-client TCP port. Used by the network telemetry store, the import workflow, and the Live DAQ diagnostics tab.
+A side-channel framed TCP protocol for non-streaming DAQ operations: list and retrieve files, mark uploaded, trash remotely, set time, edit and replace CONFIG. Network imports use this protocol for file transfer. It is distinct from live preview but shares the DAQ's single-client TCP port. The network telemetry store, the import workflow and the `LiveDaqCoordinator` diagnostics workflow use it.
 
 Topics in [architecture/daq-management.md](architecture/daq-management.md):
 
 - [Service Surface](architecture/daq-management.md#service-surface) — `IDaqManagementService`, `IDaqManagementSession`, `DaqManagementException`
 - [Wire Protocol](architecture/daq-management.md#wire-protocol) — frame header, frame types, result codes, per-operation choreography
-- [Callers](architecture/daq-management.md#callers) — `NetworkTelemetryDataStore`, `NetworkTelemetryFile`, `LiveDaqDetailViewModel`
+- [Callers](architecture/daq-management.md#callers) — `NetworkTelemetryDataStore`, `NetworkTelemetryFile`, `LiveDaqCoordinator`
 - [CONFIG Document](architecture/daq-management.md#config-document) — `DaqConfigDocument`, `DaqConfigFields`, `DaqConfigValidator`, `SelectedDeviceConfigFile`
 
 ---
@@ -205,7 +205,7 @@ own their menus and session import intent; feature views do not reach into a
 parent shell to invoke import.
 
 `AppStartup` gates page creation on schema initialization and the first store
-refresh, then starts the capable head's sync server. Tile layers derive their state from store and preference observations without startup initialization.
+refresh, then starts the capable head's sync server.
 Both shells render structural failures as a blocking screen with a log location
 and database reset. Reset archives the closed database and creates a new
 incarnation through normal migrations; continuing requires relaunch. Startup
@@ -214,7 +214,15 @@ owns and cancels its post-readiness retention work.
 finalization, server stop and provider disposal. Android pause and iOS
 background finalize pending deletes and flush logs while preserving tabs.
 
-The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Read Graphs / Queries → Services → Platform`. Stores own shared read state and cache mutation without repository dependencies; workflow owners persist and prepare snapshots for publication; view models depend on read-only store interfaces; writer interfaces are used by coordinators, session use-case services behind coordinators, sync appliers, transaction runners, and composition. Read graphs publish joined reactive projections such as recorded-session staleness and session-list summaries; coordinators own user-facing workflows and long-lived event subscriptions; the shell owns navigation and editor creation; queries answer command-side business questions; view models project state to bindings and route commands. ScottPlot rendering helpers live alongside the rest of the UI, and signal row hierarchy/expanded state, signal root-row height ratios, and desktop session-detail pane ratios are stored per session through app preferences.
+The presentation layer is layered `Views → ViewModels → Coordinators / Stores / Queries → Services → Platform`. Classes hold the five roles of the [manifest](ARCHITECTURE-MANIFEST.md), whatever their names ([role holders](architecture/ui.md#architectural-invariants)):
+
+- Stores own shared read state and cache mutation, with no repository dependencies.
+- Coordinators own workflows and long-lived event subscriptions. They persist data, and only they hold store writers. Besides the `*Coordinator` classes, the role covers `SessionRecomputeEngine`, `SessionSyncApplier`, `SynchronizationApplier`, `AppDataRefresher` and `RecordedSessionSourceRetentionCleanup`.
+- Queries answer business questions and publish joined projections, such as recorded-session staleness and session-list summaries.
+- View models depend on read-only store interfaces, project state to bindings and route commands. The shell owns navigation and editor creation.
+- Services reach the world. Transaction runners are persistence services: they commit cross-aggregate SQL and do not publish.
+
+ScottPlot rendering helpers live alongside the rest of the UI. App preferences store per-session signal row hierarchy and expanded state, signal root-row height ratios, and desktop session-detail pane ratios.
 
 Recorded-session editors reduce each accepted input into one coherent state.
 Workspaces read that state, and the coordinator owns staleness choices, preference
@@ -269,7 +277,14 @@ Topics in [architecture/plot-rendering.md](architecture/plot-rendering.md):
 
 ## Maps & GPS Tracks
 
-GPS records from V4 SST files or live captures are projected into a `Track` row on session save and rendered on a Mapsui-backed map alongside the recorded session view and the live-session media workspace. Generated tracks and imported GPX tracks share content-derived IDs. Generated tracks are persisted or reused atomically with the processed session and recorded source, and `TrackCoordinator` independently derives windowed GPS metrics for the grouped session list. These values are device-local, keyed by content/window inputs, and recomputed from committed session/track changes. `TrackStore` holds content IDs, fractional bounds and points revisions without point payloads, populated at startup and by local writing workflows. Sessions have no stored full-track link; their domain projection, map and comparison reads select the greatest overlapping track (tie lowest ID) and derive the session window from exact full-track points. Their cache key includes all window inputs and the points revision; exact reads fail closed instead of advancing to newer content. `MapLayerCoordinator` owns map-layer writes; `TileLayerService` derives a catalog/selection snapshot from `CustomTileLayerStore` and device-local selection for `MapViewModel`. Custom definitions sync as ordinary rows; preferences stay local. Attached map views own native map/layer disposal and cancellable background geometry preparation; timeline interactions consume the prepared geometry.
+GPS records from V4 SST files or live captures are projected into a `Track` row on session save. A Mapsui-backed map renders them beside the recorded session view and the live-session media workspace.
+
+- Generated tracks and imported GPX tracks share content-derived IDs. Generated tracks are persisted or reused atomically with the processed session and recorded source.
+- `TrackCoordinator` derives windowed GPS metrics for the grouped session list. These values are device-local, keyed by content/window inputs, and recomputed from committed session/track changes.
+- `TrackStore` holds content IDs, fractional bounds and points revisions without point payloads. Startup and local writing workflows populate it.
+- Sessions have no stored full-track link. Their domain projection, map and comparison reads select the greatest overlapping track (tie lowest ID) and derive the session window from exact full-track points. The cache key includes all window inputs and the points revision; exact reads fail closed instead of advancing to newer content.
+- `MapLayerCoordinator` owns map-layer writes. `TileLayerService` derives a catalog/selection snapshot from `CustomTileLayerStore` and device-local selection for `MapViewModel`. Custom definitions sync as ordinary rows; preferences stay local.
+- Attached map views own native map/layer disposal and cancellable background geometry preparation. Timeline interactions consume the prepared geometry.
 
 Topics in [architecture/maps-and-tracks.md](architecture/maps-and-tracks.md):
 
@@ -319,7 +334,14 @@ Topics in [architecture/segments.md](architecture/segments.md):
 
 ## Live DAQ Streaming
 
-The live preview feature streams real-time telemetry from a connected DAQ over framed TCP protocols. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, protocol-specific v2/v3 clients behind `ILiveDaqClientFactory`, and the diagnostics tab. The shared stream owns one convergent lifecycle operation per identity: caller cancellation stops only that caller's wait, client generations reject stale events and completions from replaced transports, and stop cleanup rechecks the desired state so a concurrent restart continues on a fresh binding rather than publishing a terminal disconnect. V2 start results publish the ACK's accepted stream-family mask as the canonical mask after matching the session header id, retain transport session identity after direct waiter cancellation, and complete a pending start before clearing it on stop acknowledgment. V3 connections validate the server hello against the discovered board ID when one is available, then use descriptor-based SST v5 stream metadata for telemetry and final-status reporting. The feature activates only when the user selects the Live primary page; diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side that turns a live stream into a recorded session with source data lives in [Live Session Recording](#live-session-recording).
+The live preview feature streams real-time telemetry from a connected DAQ over framed TCP protocols. It owns the transport: discovery catalog, browse ownership, runtime-only store, per-identity shared stream, protocol-specific v2/v3 clients behind `ILiveDaqClientFactory`, and the diagnostics tab.
+
+- The shared stream owns one convergent lifecycle operation per identity. Caller cancellation stops only that caller's wait. Client generations reject stale events and completions from replaced transports.
+- Stop cleanup rechecks the desired state, so a concurrent restart continues on a fresh binding rather than publishing a terminal disconnect.
+- V2 start results publish the ACK's accepted stream-family mask as the canonical mask after matching the session header id. They retain transport session identity after direct waiter cancellation, and stop acknowledgment completes a pending start before clearing it.
+- V3 connections validate the server hello against the discovered board ID when one is available. They then use descriptor-based SST v5 stream metadata for telemetry and final-status reporting.
+
+The feature activates only when the user selects the Live primary page. Diagnostics and live-session tabs for the same DAQ attach to the shared stream through leases. The recording / capture / save side lives in [Live Session Recording](#live-session-recording).
 
 ```
 mDNS announcement
@@ -388,12 +410,18 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 `Sufni.Telemetry.TelemetryCodec` owns processed MessagePack and live-capture
 source JSON formats, with permanent legacy readers and frozen byte fixtures.
 
-SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode. All sync-enabled entities inherit from `Synchronizable`, carrying authored version/timestamp/writer metadata, a deletion marker and transport sequences. Hub and client apply one merge rule, and durable deletion ledger entries survive payload purge. Separate local-only revisions identify processed telemetry and full-track point payloads; replaceable SQLite triggers advance them only on effective content changes, and revision-constrained readers return no value when the requested generation is gone. Metadata-only session saves do not name the processed BLOB. Session-window tracks are derived on read and have no persisted payload or revision. Session metadata includes derived `duration_seconds`; device-local `session_gps_metrics` holds distance/ascent/descent and their complete input key, while processed telemetry, processing fingerprints, generated tracks, and raw recorded sources have distinct persistence paths; processed-session writes that derive data from a source use one transaction for the session, optional generated track, and source row.
+SQLite via the sqlite-net API (`sqlite-net-e` package) with WAL mode.
+
+- All sync-enabled entities inherit from `Synchronizable`, carrying authored version/timestamp/writer metadata, a deletion marker and transport sequences. Hub and client apply one merge rule, and durable deletion ledger entries survive payload purge.
+- Separate local-only revisions identify processed telemetry and full-track point payloads. Replaceable SQLite triggers advance them only on effective content changes. Revision-constrained readers return no value when the requested generation is gone.
+- Metadata-only session saves do not name the processed BLOB. Session-window tracks are derived on read and have no persisted payload or revision.
+- Session metadata includes derived `duration_seconds`. Device-local `session_gps_metrics` holds distance/ascent/descent and their complete input key.
+- Processed telemetry, processing fingerprints, generated tracks and raw recorded sources have distinct persistence paths. Processed-session writes that derive data from a source use one transaction for the session, optional generated track and source row.
 
 Topics in [architecture/persistence.md](architecture/persistence.md):
 
 - [Schema](architecture/persistence.md#schema) — ER diagram for `session`, `bike`, `setup`, `board`, `track`, `session_recording_source`, `sync`, `paired_device`
-- [Database Service](architecture/persistence.md#database-service) — generic `Synchronizable` operations, processed-session transactions, session blob ops, and recorded-source ops
+- [SQLite Persistence Repositories](architecture/persistence.md#sqlite-persistence-repositories) — generic `Synchronizable` operations, processed-session transactions, session blob ops, and recorded-source ops
 - [Soft Delete](architecture/persistence.md#soft-delete) — `Deleted` timestamp, 1-day purge window, expired-pair cleanup
 - [Conflict Resolution](architecture/persistence.md#conflict-resolution) — one version/deletion/timestamp/writer ordering on both devices
 

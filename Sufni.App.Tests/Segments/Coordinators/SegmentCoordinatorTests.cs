@@ -3,6 +3,9 @@ using Sufni.App.Shared.Stores;
 using NSubstitute;
 
 using Sufni.App.Segments.Coordinators;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Infrastructure;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.Services;
@@ -42,28 +45,31 @@ public class SegmentCoordinatorTests
     {
         var derived = session with { SourceSessionId = Guid.NewGuid(), WindowStartSeconds = 10 };
         sessionStore.Get(session.Id).Returns(derived);
-        var coordinator = CreateCoordinator();
+        using var store = new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher()));
+        SessionSegment? saved = null;
+        repository.InsertAsync(Arg.Any<SessionSegment>()).Returns(call =>
+        {
+            saved = call.Arg<SessionSegment>();
+            return Task.CompletedTask;
+        });
+        var coordinator = CreateCoordinator(store);
 
-        Assert.IsType<SegmentChangeResult.SourceUnavailable>(await coordinator.CreateAsync(session.Id, "climb", 2, 5));
-        await repository.DidNotReceive().InsertAsync(Arg.Any<SessionSegment>());
+        Assert.IsType<SegmentChangeResult.SourceUnavailable>(await coordinator.CreateAsync(session.Id, " climb ", 2, 5));
+        Assert.Null(saved);
+        Assert.Empty(store.GetForOwner("source-hash"));
         sourceStore.Get(derived.RecordingSourceSessionId).Returns(new RecordedSessionSourceSnapshot(
             derived.RecordingSourceSessionId, RecordedSessionSourceKind.ImportedSst, "ride.SST", 1, "source-hash"));
 
-        Assert.IsType<SegmentChangeResult.Applied>(await coordinator.CreateAsync(session.Id, "climb", 2, 5));
-        await repository.Received(1).InsertAsync(Arg.Is<SessionSegment>(segment =>
-            segment.OwnerKey == "source-hash" && segment.StartSeconds == 12 && segment.EndSeconds == 15));
-    }
+        Assert.IsType<SegmentChangeResult.Applied>(await coordinator.CreateAsync(session.Id, " climb ", 2, 5));
 
-    [Fact]
-    public async Task CreateAsync_PublishesInsertedSegment()
-    {
-        var result = await CreateCoordinator().CreateAsync(session.Id, " climb ", 2, 5);
-
-        Assert.IsType<SegmentChangeResult.Applied>(result);
-        await repository.Received(1).InsertAsync(Arg.Is<SessionSegment>(segment =>
-            segment.OwnerKey == "source-hash" && segment.Name == "climb" && segment.StartSeconds == 2 && segment.EndSeconds == 5));
-        await segmentStore.Received(1).PublishSegmentsAsync(Arg.Is<IReadOnlyCollection<SessionSegmentSnapshot>>(segments =>
-            segments.Single().Name == "climb"), Arg.Is<IReadOnlyCollection<Guid>>(ids => ids.Count == 0));
+        Assert.NotNull(saved);
+        var published = Assert.Single(store.GetForOwner("source-hash"));
+        Assert.Equal(saved.Id, published.Id);
+        Assert.Equal("climb", published.Name);
+        Assert.Equal(12, published.StartSeconds);
+        Assert.Equal(15, published.EndSeconds);
+        Assert.Equal(12, saved.StartSeconds);
+        Assert.Equal(15, saved.EndSeconds);
     }
 
     [Fact]
@@ -171,6 +177,7 @@ public class SegmentCoordinatorTests
     {
         AddSession(sourceId, SourceTrack());
         var changedId = AddMatchedSession(TestSegmentMatches.Token with { ProcessedTelemetryRevision = 2 });
+        contentReader.ExactResults[changedId] = new SessionContentSnapshotResult.Stale();
         var changed = TestSegmentMatches.Match(10, 12, changedId);
         MatcherReturns(changed);
 
@@ -213,9 +220,29 @@ public class SegmentCoordinatorTests
         var matchedId = AddMatchedSession();
         var comparison = Assert.IsType<SegmentComparisonPageResult.Loaded>(await CreateCoordinator().LoadComparisonPageAsync(
             [TestSegmentMatches.Match(10, 12, matchedId)], 30, CancellationToken.None)).Page.Comparisons.Single();
-        contentReader.Sessions = [CatalogItem(matchedId, TestSegmentMatches.Token with { FullTrackPointsRevision = 2 })];
+        contentReader.ExactResults[matchedId] = new SessionContentSnapshotResult.Stale();
 
         Assert.IsType<SegmentComparisonDetailResult.Unavailable>(await CreateCoordinator().LoadComparisonDetailAsync(comparison, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BuildAnalysisComparisonAsync_ReturnsFailureWhenAnalysisCannotRun()
+    {
+        var runner = Substitute.For<IBackgroundTaskRunner>();
+        runner.RunAsync(Arg.Any<Func<SegmentAnalysisComparison>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<SegmentAnalysisComparison>(new InvalidOperationException("analysis failed")));
+        var coordinator = CreateCoordinator(runner: runner);
+        var telemetry = TestSegmentMatches.Telemetry();
+        var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!;
+        var detail = SegmentComparisonBuilder.BuildDetail(telemetry, null);
+
+        var result = await coordinator.BuildAnalysisComparisonAsync(comparison, detail,
+            TravelDistributionMode.ActiveSuspension, VelocityAverageMode.SampleAveraged,
+            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, TestContext.Current.CancellationToken);
+
+        var failure = Assert.IsType<SegmentAnalysisComparisonResult.Failed>(result);
+        Assert.Equal(SegmentComparisonFailureReason.Analysis, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
     }
 
     [Theory]
@@ -337,5 +364,5 @@ public class SegmentCoordinatorTests
         return [];
     }
 
-    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, new InlineBackgroundTaskRunner(), stravaService, sourceStore);
+    private SegmentCoordinator CreateCoordinator(ISessionSegmentStoreWriter? store = null, IBackgroundTaskRunner? runner = null) => new(repository, store ?? segmentStore, sessionStore, matcher, contentReader, operationRunner, runner ?? new InlineBackgroundTaskRunner(), stravaService, sourceStore);
 }

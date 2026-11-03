@@ -34,22 +34,17 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.TestSupport.Sessions;
 
-internal sealed class SessionDetailHarness
+internal sealed class SessionDetailHarness : IDisposable
 {
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
     public SessionDetailHarness()
     {
+        SegmentStore = new SessionSegmentStore(publication);
         SessionPreferences.WithDefaultObserveRecorded();
         SessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(global::Sufni.App.Sessions.Models.SessionPreferences.Default));
         SessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<global::Sufni.App.Sessions.Models.SessionPreferences, global::Sufni.App.Sessions.Models.SessionPreferences>>())
             .Returns(Task.CompletedTask);
-        SessionPresentationService.CalculateDampingPercentages(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(SessionDampingPercentages.Empty);
         SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
@@ -57,7 +52,6 @@ internal sealed class SessionDetailHarness
     public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
     public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
     public IRecordedSessionProjection RecordedSessionProjection { get; } = Substitute.For<IRecordedSessionProjection>();
-    public ISessionPresentationService SessionPresentationService { get; } = Substitute.For<ISessionPresentationService>();
     public ISessionInsightsService SessionInsightsService { get; } = Substitute.For<ISessionInsightsService>();
     public IShellCoordinator Shell { get; } = Substitute.For<IShellCoordinator>();
     public IDialogService DialogService { get; } = Substitute.For<IDialogService>();
@@ -65,11 +59,11 @@ internal sealed class SessionDetailHarness
     public TestSessionProcessedTelemetryReader ProcessedTelemetryReader { get; } = new();
     public ISessionEditingCoordinator SessionEditingCoordinator { get; } = Substitute.For<ISessionEditingCoordinator>();
     public IVideoPaneFactory? VideoPaneFactory { get; set; }
-    public SessionSegmentStore SegmentStore { get; } = new(new StorePublication(new InlineUiThreadDispatcher()));
+    private readonly StorePublication publication = new(new InlineUiThreadDispatcher());
+    public SessionSegmentStore SegmentStore { get; }
     public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
     public SessionOperationRunner OperationRunner { get; } = new();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
-    public IObservable<RecordedSessionDomainSnapshot> ProjectionChanges { get; private set; } = Observable.Empty<RecordedSessionDomainSnapshot>();
 
     public SessionSnapshot CreateRecordedSession(
         string name = "Recorded Session 01",
@@ -78,7 +72,7 @@ internal sealed class SessionDetailHarness
         long updated = 1) =>
         TestSnapshots.Session(name: name, description: description, hasProcessedData: hasProcessedData, updated: updated);
 
-    public SessionDetailViewModel CreateLoadedRecordedSession(
+    public SessionDetailViewModel CreateRecordedEditor(
         SessionSnapshot? snapshot = null,
         SessionDetailLoadResult? loadResult = null,
         IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null,
@@ -101,10 +95,9 @@ internal sealed class SessionDetailHarness
 
     public Task CloseAsync(SessionDetailViewModel editor) => editor.PrepareCloseAsync();
 
-    public void ConfigureSnapshot(SessionSnapshot snapshot, IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null)
+    private void ConfigureSnapshot(SessionSnapshot snapshot, IObservable<RecordedSessionDomainSnapshot>? projectionChanges = null)
     {
-        ProjectionChanges = projectionChanges ?? Observable.Empty<RecordedSessionDomainSnapshot>();
-        RecordedSessionProjection.WatchSession(snapshot.Id).Returns(ProjectionChanges);
+        RecordedSessionProjection.WatchSession(snapshot.Id).Returns(projectionChanges ?? Observable.Empty<RecordedSessionDomainSnapshot>());
         SessionStore.Get(snapshot.Id).Returns(snapshot);
     }
 
@@ -184,5 +177,10 @@ internal sealed class SessionDetailHarness
             timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike());
         editor.SetTabActive(true);
         return editor;
+    }
+    public void Dispose()
+    {
+        SegmentStore.Dispose();
+        publication.Dispose();
     }
 }

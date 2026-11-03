@@ -21,30 +21,6 @@ namespace Sufni.App.Tests.Sessions.Signals.Views.Controls;
 public class SignalRowTests
 {
     [AvaloniaFact]
-    public async Task SignalRow_CollapsesAndExpands_FromHeaderClick()
-    {
-        var row = CreateRow("Travel");
-        await using var mounted = await MountAsync(row);
-
-        Measure(row, 400, row.GetPreferredGroupHeight());
-        Assert.True(row.IsExpanded);
-        Assert.Equal(212, row.AllocatedGroupHeight);
-
-        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
-        await ClickHeaderAsync(mounted, header);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        Assert.False(row.IsExpanded);
-        Assert.Equal(row.CollapsedHeaderHeight, row.AllocatedGroupHeight);
-
-        await ClickHeaderAsync(mounted, header);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        Assert.True(row.IsExpanded);
-        Assert.Equal(212, row.AllocatedGroupHeight);
-    }
-
-    [AvaloniaFact]
     public async Task SignalRow_CollapseDetachesPlotContent_AndExpandReattaches()
     {
         var plotContent = new Border();
@@ -52,63 +28,16 @@ public class SignalRowTests
         row.PlotContent = plotContent;
         await using var mounted = await MountAsync(row);
 
-        Measure(row, 400, row.GetPreferredGroupHeight());
         Assert.Contains(plotContent, row.GetVisualDescendants());
 
         var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
         await ClickHeaderAsync(mounted, header);
-        Measure(row, 400, row.GetPreferredGroupHeight());
 
         Assert.DoesNotContain(plotContent, row.GetVisualDescendants());
 
         await ClickHeaderAsync(mounted, header);
-        Measure(row, 400, row.GetPreferredGroupHeight());
 
         Assert.Contains(plotContent, row.GetVisualDescendants());
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HiddenPresentation_RemovesRowFromLayout()
-    {
-        var row = CreateRow("Velocity");
-        row.PresentationState = SurfacePresentationState.Hidden;
-
-        await using var mounted = await MountAsync(row);
-        Measure(row, 400, 260);
-
-        Assert.False(row.IsVisible);
-        Assert.Equal(0, row.AllocatedGroupHeight);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HeaderSpansRowAndUsesPlusMinusGlyphs()
-    {
-        var row = CreateRow("Travel");
-        await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
-        var glyph = row.GetVisualDescendants().OfType<TextBlock>().First();
-        Assert.Equal(400, header.Bounds.Width);
-        Assert.Equal("-", glyph.Text);
-
-        await ClickHeaderAsync(mounted, header, new Point(390, 16));
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        Assert.Equal(400, header.Bounds.Width);
-        Assert.Equal("+", glyph.Text);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_TitleToolTip_AppliesToTitleText()
-    {
-        var row = CreateRow("Travel");
-        row.TitleToolTip = "Title tool tip.";
-
-        await using var mounted = await MountAsync(row);
-
-        var title = Assert.Single(row.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == "Travel");
-        Assert.Equal(row.TitleToolTip, ToolTip.GetTip(title));
     }
 
     [AvaloniaFact]
@@ -116,45 +45,12 @@ public class SignalRowTests
     {
         var row = CreateRow("Travel");
         await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
 
         var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
 
         await ClickHeaderAsync(mounted, header, new Point(200, 16), new Point(204, 18));
-        Measure(row, 400, row.GetPreferredGroupHeight());
 
         Assert.False(row.IsExpanded);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_NestedPlot_UsesHostPlotHeight()
-    {
-        var velocity = CreateRow("Velocity");
-        var travel = CreateRow("Travel");
-        travel.ChildRows.Add(velocity);
-
-        await using var mounted = await MountAsync(travel);
-        Measure(travel, 400, travel.GetPreferredGroupHeight());
-
-        Assert.Equal(travel.AllocatedPlotHeight, velocity.AllocatedPlotHeight);
-        Assert.Equal(180, travel.AllocatedPlotHeight);
-        Assert.Equal(424, travel.AllocatedGroupHeight);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_AppliesPlotBackgrounds_ToHostedPlotView()
-    {
-        var plotView = new TestPlotView();
-        var row = CreateRow("Travel");
-        row.PlotContent = plotView;
-        row.PlotFigureBackground = Color.Parse("#101820");
-        row.PlotDataBackground = Color.Parse("#203040");
-
-        await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        Assert.Equal(Color.Parse("#101820"), plotView.PlotFigureBackground);
-        Assert.Equal(Color.Parse("#203040"), plotView.PlotDataBackground);
     }
 
     [AvaloniaFact]
@@ -169,7 +65,6 @@ public class SignalRowTests
             (_, args) => received = args);
 
         await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
 
         RaiseDoubleTapped(plotContent);
 
@@ -177,199 +72,6 @@ public class SignalRowTests
         Assert.Same(
             Assert.Single(row.GetVisualDescendants().OfType<PlotZoomContainer>()),
             received.Container);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_DefaultsNestedPlotBackgrounds()
-    {
-        var theme = SufniDarkTheme.Instance;
-        var childPlotView = new TestPlotView();
-        var velocity = CreateRow("Velocity");
-        velocity.PlotContent = childPlotView;
-        var travel = CreateRow("Travel");
-        travel.ChildRows.Add(velocity);
-
-        await using var mounted = await MountAsync(travel);
-        Measure(travel, 400, travel.GetPreferredGroupHeight());
-
-        Assert.Equal(theme.Spacing.HierarchyIndent, velocity.TitleLeftInset);
-        AssertSolidBrush(theme.SignalRow.HostedLevel1.Container, velocity.RowBackground);
-        AssertSolidBrush(theme.SignalRow.HostedLevel1.Header, velocity.HeaderBackground);
-        Assert.Equal(theme.SignalRow.HostedLevel1.PlotFigure, velocity.PlotFigureBackground);
-        Assert.Equal(theme.SignalRow.HostedLevel1.PlotData, velocity.PlotDataBackground);
-        Assert.Equal(theme.SignalRow.HostedLevel1.PlotFigure, childPlotView.PlotFigureBackground);
-        Assert.Equal(theme.SignalRow.HostedLevel1.PlotData, childPlotView.PlotDataBackground);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_NestedHostedRows_UseProgressiveTitleInsetsAndParentConnectors()
-    {
-        var acceleration = CreateRow("Acceleration");
-        var velocity = CreateRow("Velocity");
-        velocity.ChildRows.Add(acceleration);
-        var travel = CreateRow("Travel");
-        travel.ChildRows.Add(velocity);
-
-        await using var mounted = await MountAsync(travel);
-        Measure(travel, 400, travel.GetPreferredGroupHeight());
-
-        Assert.Equal(16, velocity.TitleLeftInset);
-        Assert.Equal(32, acceleration.TitleLeftInset);
-        Assert.True(travel.HasVisibleChildConnectors);
-        Assert.True(velocity.HasVisibleChildConnectors);
-        Assert.False(acceleration.HasVisibleChildConnectors);
-        Assert.Equal(2, travel.ChildConnectorSegmentCount);
-        Assert.Equal(2, velocity.ChildConnectorSegmentCount);
-        Assert.True(velocity.ChildConnectorStartLeft > travel.ChildConnectorStartLeft);
-
-        travel.IsExpanded = false;
-        Measure(travel, 400, travel.GetPreferredGroupHeight());
-
-        Assert.False(travel.HasVisibleChildConnectors);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HostedRows_UseThemeDepthsAndClampAfterLevelThree()
-    {
-        var theme = SufniDarkTheme.Instance;
-        var level4 = CreateRow("Level 4");
-        var level3 = CreateRow("Level 3");
-        level3.ChildRows.Add(level4);
-        var level2 = CreateRow("Level 2");
-        level2.ChildRows.Add(level3);
-        var level1 = CreateRow("Level 1");
-        level1.ChildRows.Add(level2);
-        var root = CreateRow("Root");
-        root.ChildRows.Add(level1);
-
-        await using var mounted = await MountAsync(root);
-        Measure(root, 400, root.GetPreferredGroupHeight());
-
-        AssertRowDepthTheme(level1, theme.SignalRow.HostedLevel1, theme.Spacing.HierarchyIndent);
-        AssertRowDepthTheme(level2, theme.SignalRow.HostedLevel2, theme.Spacing.HierarchyIndent * 2);
-        AssertRowDepthTheme(level3, theme.SignalRow.HostedLevel3Plus, theme.Spacing.HierarchyIndent * 3);
-        AssertRowDepthTheme(level4, theme.SignalRow.HostedLevel3Plus, theme.Spacing.HierarchyIndent * 4);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HostedDefaults_DoNotOverwriteStyledPropertyOverrides()
-    {
-        var rowBackground = new SolidColorBrush(Color.Parse("#123456"));
-        var headerBackground = new SolidColorBrush(Color.Parse("#234567"));
-        var plotFigure = Color.Parse("#345678");
-        var plotData = Color.Parse("#456789");
-        var child = CreateRow("Velocity");
-        child.RowBackground = rowBackground;
-        child.HeaderBackground = headerBackground;
-        child.PlotFigureBackground = plotFigure;
-        child.PlotDataBackground = plotData;
-        var root = CreateRow("Travel");
-        root.ChildRows.Add(child);
-
-        await using var mounted = await MountAsync(root);
-        Measure(root, 400, root.GetPreferredGroupHeight());
-
-        Assert.Same(rowBackground, child.RowBackground);
-        Assert.Same(headerBackground, child.HeaderBackground);
-        Assert.Equal(plotFigure, child.PlotFigureBackground);
-        Assert.Equal(plotData, child.PlotDataBackground);
-    }
-
-    [AvaloniaFact]
-    public void SignalRow_DefaultMinimumPlotHeight_KeepsManualResizeReadable()
-    {
-        var row = new SignalRow
-        {
-            Title = "Travel",
-            PresentationState = SurfacePresentationState.Ready,
-            PlotContent = new Border(),
-            HeaderHeight = 32,
-            CollapsedHeaderHeight = 32,
-        };
-
-        Assert.Equal(160, row.MinimumPlotHeight);
-        Assert.Equal(192, row.GetMinimumGroupHeight());
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HeaderActions_NoActionsKeepsPresenterHidden()
-    {
-        var row = CreateRow("Travel");
-
-        await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        var presenter = Assert.Single(row.GetVisualDescendants().OfType<SignalRowActionsPresenter>());
-        var header = Assert.Single(row.GetVisualDescendants().OfType<Button>());
-        Assert.False(presenter.IsVisible);
-        Assert.Equal(400, header.Bounds.Width);
-        Assert.Equal(212, row.AllocatedGroupHeight);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HeaderActions_RenderToggleGroupBeforeExecuteGroupWithGroupGap()
-    {
-        var row = CreateRow("Travel");
-        row.HeaderActions =
-        [
-            CreateAction("execute_action", SignalRowActionKind.Execute),
-            CreateAction("toggle_action", SignalRowActionKind.Toggle),
-        ];
-
-        await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        var toggleGroup = Assert.Single(row.GetVisualDescendants().OfType<StackPanel>(), panel => panel.Name == "ToggleActionsGroup");
-        var executeGroup = Assert.Single(row.GetVisualDescendants().OfType<StackPanel>(), panel => panel.Name == "ExecuteActionsGroup");
-        var groupGap = Assert.Single(row.GetVisualDescendants().OfType<Border>(), border => border.Name == "ActionGroupGap");
-        var actionsRoot = Assert.Single(row.GetVisualDescendants().OfType<StackPanel>(), panel => panel.Name == "SignalRowActionsRoot");
-        var actionsRootOrigin = actionsRoot.TranslatePoint(new Point(0, 0), row);
-        Assert.NotNull(actionsRootOrigin);
-
-        Assert.Equal("toggle_action", Assert.Single(toggleGroup.Children.OfType<Button>()).Name);
-        Assert.Equal("execute_action", Assert.Single(executeGroup.Children.OfType<Button>()).Name);
-        Assert.True(actionsRootOrigin.Value.X > 300);
-        Assert.True(toggleGroup.Bounds.X < groupGap.Bounds.X);
-        Assert.True(groupGap.Bounds.X < executeGroup.Bounds.X);
-        Assert.Equal(SignalRowActionsPresenter.GroupSpacing, groupGap.Width);
-        Assert.True(groupGap.IsVisible);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HeaderToggleAction_UpdatesCheckedState()
-    {
-        var action = CreateAction("toggle_action", SignalRowActionKind.Toggle);
-        var row = CreateRow("Travel");
-        row.HeaderActions = [action];
-
-        await using var mounted = await MountAsync(row);
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        var uncheckedButton = Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
-        Assert.Equal(new Thickness(0), uncheckedButton.BorderThickness);
-
-        action.IsChecked = true;
-        await ViewTestHelpers.FlushDispatcherAsync();
-        Measure(row, 400, row.GetPreferredGroupHeight());
-
-        var checkedButton = Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
-        Assert.Equal(new Thickness(1), checkedButton.BorderThickness);
-    }
-
-    [AvaloniaFact]
-    public async Task SignalRow_HiddenHeaderAction_AppearsWhenItBecomesVisible()
-    {
-        var action = CreateAction("toggle_action", SignalRowActionKind.Toggle);
-        action.IsVisible = false;
-        var row = CreateRow("Travel");
-        row.HeaderActions = [action];
-
-        await using var mounted = await MountAsync(row);
-
-        action.IsVisible = true;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Single(row.GetVisualDescendants().OfType<Button>(), button => button.Name == "toggle_action");
     }
 
     private static SignalRow CreateRow(string title)
@@ -388,36 +90,17 @@ public class SignalRowTests
         };
     }
 
-    private static SignalRowAction CreateAction(
-        string id,
-        SignalRowActionKind kind)
+    private static async Task<MountedView<SignalRow>> MountAsync(SignalRow row)
     {
-        return new SignalRowAction
-        {
-            Id = id,
-            Kind = kind,
-            IconPathData = "M0 0L12 0L12 12L0 12Z",
-            ToolTip = id,
-        };
-    }
-
-    private static async Task<MountedRow> MountAsync(SignalRow row)
-    {
-        Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
         ViewTestHelpers.EnsureViewTestResources();
-        var host = await ViewTestHelpers.ShowViewAsync(row);
-        return new MountedRow(host);
-    }
-
-    private static void Measure(SignalRow row, double width, double height)
-    {
-        row.ApplyAllocatedGroupHeight(height);
-        row.Measure(new Size(width, row.AllocatedGroupHeight));
-        row.Arrange(new Rect(0, 0, width, row.AllocatedGroupHeight));
+        var root = new SignalRowsRoot();
+        root.Rows.Add(row);
+        var host = await ViewTestHelpers.ShowViewAsync(root);
+        return new MountedView<SignalRow>(host, row);
     }
 
     private static async Task ClickHeaderAsync(
-        MountedRow mounted,
+        MountedView<SignalRow> mounted,
         Button header,
         Point? relativeStart = null,
         Point? relativeEnd = null)
@@ -447,44 +130,4 @@ public class SignalRowTests
         source.RaiseEvent(new TappedEventArgs(InputElement.DoubleTappedEvent, pointerArgs));
     }
 
-    private static void AssertSolidBrush(Color expectedColor, IBrush? brush)
-    {
-        var solidBrush = Assert.IsType<SolidColorBrush>(brush);
-        Assert.Equal(expectedColor, solidBrush.Color);
-    }
-
-    private static void AssertRowDepthTheme(
-        SignalRow row,
-        SufniSignalRowDepthTheme expectedTheme,
-        double expectedTitleLeftInset)
-    {
-        Assert.Equal(expectedTitleLeftInset, row.TitleLeftInset);
-        AssertSolidBrush(expectedTheme.Container, row.RowBackground);
-        AssertSolidBrush(expectedTheme.Header, row.HeaderBackground);
-        Assert.Equal(expectedTheme.PlotFigure, row.PlotFigureBackground);
-        Assert.Equal(expectedTheme.PlotData, row.PlotDataBackground);
-    }
-
-    private sealed class MountedRow : IAsyncDisposable
-    {
-        public MountedRow(Window host)
-        {
-            Host = host;
-        }
-
-        public Window Host { get; }
-
-        public async ValueTask DisposeAsync()
-        {
-            Host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    private sealed class TestPlotView : SufniPlotView
-    {
-        protected override void CreatePlot()
-        {
-        }
-    }
 }

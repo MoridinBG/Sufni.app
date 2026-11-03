@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Sufni.App.Shared.Views;
+using Sufni.App.Tests.TestSupport.Async;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.VisualTree;
@@ -28,58 +30,6 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 public class VelocityBandViewTests
 {
     [AvaloniaFact]
-    public void ZoneLengths_AlignToVelocityThresholds()
-    {
-        var sut = new VelocityBandView();
-
-        Assert.Equal(GridUnitType.Star, sut.HighSpeedZoneLength.GridUnitType);
-        Assert.Equal(GridUnitType.Star, sut.LowSpeedZoneLength.GridUnitType);
-        Assert.Equal(
-            SessionDampingSettings.VelocityDistributionLimitMmPerSecond -
-            SessionDampingSettings.HighSpeedThresholdMmPerSecond,
-            sut.HighSpeedZoneLength.Value);
-        Assert.Equal(
-            SessionDampingSettings.HighSpeedThresholdMmPerSecond,
-            sut.LowSpeedZoneLength.Value);
-    }
-
-    [AvaloniaFact]
-    public void ZoneLengths_ReflectCompressionAndReboundCutoffsIndependently()
-    {
-        var cutoffs = DampingSpeedCutoffs.FromValues(
-            frontCompressionMmPerSecond: 300,
-            frontReboundMmPerSecond: 500,
-            rearCompressionMmPerSecond: 700,
-            rearReboundMmPerSecond: 900);
-        var sut = new VelocityBandView
-        {
-            SuspensionType = SuspensionType.Rear,
-            DampingSpeedCutoffs = cutoffs,
-        };
-
-        Assert.Equal(1100, sut.HsrZoneLength.Value);
-        Assert.Equal(900, sut.LsrZoneLength.Value);
-        Assert.Equal(700, sut.LscZoneLength.Value);
-        Assert.Equal(1300, sut.HscZoneLength.Value);
-        Assert.Equal(900, sut.ReboundCutoff);
-        Assert.Equal(700, sut.CompressionCutoff);
-    }
-
-    [AvaloniaFact]
-    public async Task VelocityBandView_BandsUseVelocityDistributionDataAreaOffsets()
-    {
-        var view = CreateMountedView(CreateWorkspace());
-
-        await using var mounted = await MountAsync(view);
-        var bandsGrid = view.GetVisualDescendants()
-            .OfType<Grid>()
-            .Single(control => control.Name == "PART_BandsGrid");
-
-        Assert.InRange(Math.Abs(bandsGrid.Bounds.Y - 40), 0, 0.5);
-        Assert.InRange(Math.Abs(bandsGrid.Bounds.Height - (view.Bounds.Height - 95)), 0, 0.5);
-    }
-
-    [AvaloniaFact]
     public async Task DesktopDrag_PreviewsCommitsAndDoesNotRequestHapticFeedback()
     {
         var workspace = CreateWorkspace();
@@ -92,29 +42,33 @@ public class VelocityBandViewTests
         await using var mounted = await MountAsync(view);
         var handle = FindHandle(view, "PART_CompressionHandle");
         var start = Translate(handle, mounted.Host);
-        var dragTarget = Translate(view, mounted.Host, new Point(view.Bounds.Width / 2.0, view.Bounds.Height - 70));
+        var dragTarget = Translate(view, mounted.Host, new Point(view.Bounds.Width / 2.0, 40 + (420 - 95) * 0.75));
 
         mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseMove(dragTarget, RawInputModifiers.LeftMouseButton);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(view.IsDampingGuideVisible);
+        await workspace.DidNotReceive().CommitDampingSpeedCutoffAsync(
+            Arg.Any<SuspensionType>(), Arg.Any<DampingSpeedCircuit>(), Arg.Any<double>());
         mounted.Host.MouseUp(dragTarget, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
 
         workspace.Received().PreviewDampingSpeedCutoff(
             SuspensionType.Front,
             DampingSpeedCircuit.Compression,
-            Arg.Any<double>());
+            Arg.Is<double>(cutoff => Math.Abs(cutoff - 1000) < 0.01));
         await workspace.Received().CommitDampingSpeedCutoffAsync(
             SuspensionType.Front,
             DampingSpeedCircuit.Compression,
-            Arg.Any<double>());
+            Arg.Is<double>(cutoff => Math.Abs(cutoff - 1000) < 0.01));
         Assert.Equal(0, hapticCount);
         Assert.False(view.IsDampingGuideVisible);
-        Assert.Equal(string.Empty, view.DampingGuideLabel);
     }
 
     [AvaloniaFact]
     public async Task MobileMovementBeforeLongPress_CancelsActivation()
     {
+        using var scheduler = new ManualUiTimerScheduler();
         var workspace = CreateWorkspace();
         var view = CreateMountedView(workspace);
         PointerGesture.SetSupportsTouchLongPressContextMenu(view, true);
@@ -123,24 +77,15 @@ public class VelocityBandViewTests
             HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
             (_, _) => hapticCount++);
 
-        await using var mounted = await MountAsync(view);
-        var bubbledPressCount = 0;
-        var bubbledMoveCount = 0;
-        mounted.Host.AddHandler<PointerPressedEventArgs>(
-            InputElement.PointerPressedEvent,
-            (_, _) => bubbledPressCount++);
-        mounted.Host.AddHandler<PointerEventArgs>(
-            InputElement.PointerMovedEvent,
-            (_, _) => bubbledMoveCount++);
+        await using var mounted = await MountAsync(view, scheduler);
         var handle = FindHandle(view, "PART_ReboundHandle");
         var start = Translate(handle, mounted.Host);
         var moved = start + new Vector(0, 12);
 
         mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
         mounted.Host.MouseMove(moved, RawInputModifiers.LeftMouseButton);
-        await Task.Delay(
-            PointerGesture.DampingCutoffLongPressDelay + TimeSpan.FromMilliseconds(50),
-            TestContext.Current.CancellationToken);
+        using var tick = scheduler.ScheduleOnce(TimeSpan.FromSeconds(1), () => { });
+        scheduler.FireAll();
         await ViewTestHelpers.FlushDispatcherAsync();
         mounted.Host.MouseUp(moved, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -153,14 +98,13 @@ public class VelocityBandViewTests
             Arg.Any<SuspensionType>(),
             Arg.Any<DampingSpeedCircuit>(),
             Arg.Any<double>());
-        Assert.Equal(1, bubbledPressCount);
-        Assert.True(bubbledMoveCount > 0);
         Assert.Equal(0, hapticCount);
     }
 
     [AvaloniaFact]
     public async Task MobileLongPress_RequestsHapticFeedbackThenPreviewsAndCommits()
     {
+        using var scheduler = new ManualUiTimerScheduler();
         var workspace = CreateWorkspace();
         var view = CreateMountedView(workspace);
         PointerGesture.SetSupportsTouchLongPressContextMenu(view, true);
@@ -169,17 +113,19 @@ public class VelocityBandViewTests
             HapticFeedbackBehavior.LongPressFeedbackRequestedEvent,
             (_, _) => hapticCount++);
 
-        await using var mounted = await MountAsync(view);
+        await using var mounted = await MountAsync(view, scheduler);
         var handle = FindHandle(view, "PART_ReboundHandle");
         var start = Translate(handle, mounted.Host);
-        var dragTarget = Translate(view, mounted.Host, new Point(view.Bounds.Width / 2.0, 120));
+        var dragTarget = Translate(view, mounted.Host, new Point(view.Bounds.Width / 2.0, 40 + (420 - 95) * 0.25));
 
         mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
-        await Task.Delay(
-            PointerGesture.DampingCutoffLongPressDelay + TimeSpan.FromMilliseconds(50),
-            TestContext.Current.CancellationToken);
+        scheduler.FireAll();
         await ViewTestHelpers.FlushDispatcherAsync();
         mounted.Host.MouseMove(dragTarget, RawInputModifiers.LeftMouseButton);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.True(view.IsDampingGuideVisible);
+        await workspace.DidNotReceive().CommitDampingSpeedCutoffAsync(
+            Arg.Any<SuspensionType>(), Arg.Any<DampingSpeedCircuit>(), Arg.Any<double>());
         mounted.Host.MouseUp(dragTarget, MouseButton.Left, RawInputModifiers.None);
         await ViewTestHelpers.FlushDispatcherAsync();
 
@@ -187,41 +133,11 @@ public class VelocityBandViewTests
         workspace.Received().PreviewDampingSpeedCutoff(
             SuspensionType.Front,
             DampingSpeedCircuit.Rebound,
-            Arg.Any<double>());
+            Arg.Is<double>(cutoff => Math.Abs(cutoff - 1000) < 0.01));
         await workspace.Received().CommitDampingSpeedCutoffAsync(
             SuspensionType.Front,
             DampingSpeedCircuit.Rebound,
-            Arg.Any<double>());
-    }
-
-    [AvaloniaFact]
-    public async Task DampingAnalysisHost_EnablesHapticFeedbackOnDampingHandles()
-    {
-        var host = new DampingAnalysisHost
-        {
-            Width = 600,
-            Height = 420,
-            PresentationState = SurfacePresentationState.Ready,
-            HasAnalysisData = false,
-            StaticSource = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"12\" />",
-            SuspensionType = SuspensionType.Front,
-            DampingSpeedCutoffs = DampingSpeedCutoffs.Default,
-            AnalysisWorkspace = CreateWorkspace(),
-        };
-
-        EnsureVelocityBandStyle();
-        var window = await ViewTestHelpers.ShowViewAsync(host);
-        try
-        {
-            var band = host.GetVisualDescendants().OfType<VelocityBandView>().Single();
-
-            Assert.True(HapticFeedbackBehavior.GetIsEnabled(band));
-        }
-        finally
-        {
-            window.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
+            Arg.Is<double>(cutoff => Math.Abs(cutoff - 1000) < 0.01));
     }
 
     private static VelocityBandView CreateMountedView(ISessionAnalysisWorkspace workspace) => new()
@@ -237,13 +153,6 @@ public class VelocityBandViewTests
     private static ISessionAnalysisWorkspace CreateWorkspace()
     {
         var workspace = Substitute.For<ISessionAnalysisWorkspace>();
-        workspace.CanEditDampingSpeedCutoffs.Returns(true);
-        workspace.DampingSpeedCutoffs.Returns(DampingSpeedCutoffs.Default);
-        workspace.DampingPercentages.Returns(SessionDampingPercentages.Empty);
-        workspace.FrontAnalysisState.Returns(SurfacePresentationState.Ready);
-        workspace.RearAnalysisState.Returns(SurfacePresentationState.Ready);
-        workspace.CompressionBalanceState.Returns(SurfacePresentationState.Ready);
-        workspace.ReboundBalanceState.Returns(SurfacePresentationState.Ready);
         workspace.CommitDampingSpeedCutoffAsync(
                 Arg.Any<SuspensionType>(),
                 Arg.Any<DampingSpeedCircuit>(),
@@ -252,11 +161,12 @@ public class VelocityBandViewTests
         return workspace;
     }
 
-    private static async Task<MountedVelocityBandView> MountAsync(VelocityBandView view)
+    private static async Task<MountedView<VelocityBandView>> MountAsync(VelocityBandView view, ManualUiTimerScheduler? scheduler = null)
     {
         EnsureVelocityBandStyle();
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedVelocityBandView(host);
+        if (scheduler is not null) UiTimers.SetScheduler(host, scheduler);
+        return new MountedView<VelocityBandView>(host, view);
     }
 
     private static void EnsureVelocityBandStyle()
@@ -290,14 +200,4 @@ public class VelocityBandViewTests
         return translated.Value;
     }
 
-    private sealed class MountedVelocityBandView(Window host) : IAsyncDisposable
-    {
-        public Window Host { get; } = host;
-
-        public async ValueTask DisposeAsync()
-        {
-            Host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
 }

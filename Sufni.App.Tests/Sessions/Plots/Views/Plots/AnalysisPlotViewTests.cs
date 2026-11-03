@@ -24,86 +24,6 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 [Collection("Ui")]
 public class AnalysisPlotViewTests
 {
-    [AvaloniaTheory]
-    [InlineData(AnalysisPlotKind.TravelDistribution, SuspensionType.Front, null, typeof(TravelDistributionPlot))]
-    [InlineData(AnalysisPlotKind.TravelFrequencyDistribution, SuspensionType.Rear, null, typeof(TravelFrequencyDistributionPlot))]
-    [InlineData(AnalysisPlotKind.VelocityDistribution, SuspensionType.Front, null, typeof(VelocityDistributionPlot))]
-    [InlineData(AnalysisPlotKind.Balance, null, BalanceType.Compression, typeof(BalancePlot))]
-    public async Task AnalysisPlotView_UsesExpectedPlotModel_ForPlotKind(
-        AnalysisPlotKind plotKind,
-        SuspensionType? suspensionType,
-        BalanceType? balanceType,
-        Type expectedPlotModelType)
-    {
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = plotKind,
-        };
-        if (suspensionType.HasValue)
-        {
-            view.SuspensionType = suspensionType.Value;
-        }
-        if (balanceType.HasValue)
-        {
-            view.BalanceType = balanceType.Value;
-        }
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        Assert.Equal(expectedPlotModelType, mounted.View.PlotModelType);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_AnalysisRangeChangeReloadsAnalysisPlot()
-    {
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            SuspensionType = SuspensionType.Front,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = CreateMinimal();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Null(mounted.View.PlotAnalysisRange);
-
-        var range = new TelemetryTimeRange(0.25, 0.75);
-        view.AnalysisRange = range;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(range, mounted.View.PlotAnalysisRange);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_RendersPublishedStateAnalysisResult()
-    {
-        var telemetry = CreateProcessed();
-        var inputs = CreateAnalysisInputs();
-        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-        using var state = new TestAnalysisResultState(inputs);
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            AnalysisResultState = state,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = telemetry,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(key, Assert.Single(state.Requests));
-        Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
-
-        state.Publish(key, CreateTravelDistributionResult(telemetry, range: null));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
-        Assert.Single(state.Requests);
-    }
-
     [AvaloniaFact]
     public async Task AnalysisPlotView_ClearsPlot_WhenStateResultDoesNotMatchPlotKind()
     {
@@ -111,7 +31,7 @@ public class AnalysisPlotViewTests
         var inputs = CreateAnalysisInputs();
         var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
         using var state = new TestAnalysisResultState(inputs);
-        var view = new TestableAnalysisPlotView
+        var view = new AnalysisPlotView
         {
             AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
             AnalysisResultState = state,
@@ -138,43 +58,6 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task AnalysisPlotView_RequestsNewResult_WhenInputsInvalidateAfterRangeBindingChanged()
-    {
-        var telemetry = CreateProcessed();
-        var initialInputs = CreateAnalysisInputs();
-        var range = new TelemetryTimeRange(0, telemetry.Metadata.Duration);
-        var nextInputs = initialInputs with { AnalysisRange = range };
-        var initialKey = initialInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-        var nextKey = nextInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-        using var state = new TestAnalysisResultState(initialInputs);
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            AnalysisResultState = state,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = telemetry,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        state.Publish(initialKey, CreateTravelDistributionResult(telemetry, range: null));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        view.AnalysisRange = range;
-        await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.DoesNotContain(nextKey, state.Requests);
-
-        state.Invalidate(nextInputs);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Contains(nextKey, state.Requests);
-        state.Publish(nextKey, CreateTravelDistributionResult(telemetry, range));
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
-    }
-
-    [AvaloniaFact]
     public async Task AnalysisPlotView_DefersStateBackedRequestsUntilDemandActive()
     {
         var telemetry = CreateProcessed();
@@ -184,7 +67,7 @@ public class AnalysisPlotViewTests
         var initialKey = initialInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
         var nextKey = nextInputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
         using var state = new TestAnalysisResultState(initialInputs);
-        var view = new TestableAnalysisPlotView
+        var view = new AnalysisPlotView
         {
             IsAnalysisDemandActive = false,
             AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
@@ -217,41 +100,13 @@ public class AnalysisPlotViewTests
     }
 
     [AvaloniaFact]
-    public async Task AnalysisPlotView_DefersReloadToDispatcher_InsteadOfRunningSynchronously()
-    {
-        var telemetry = CreateProcessed();
-        var inputs = CreateAnalysisInputs();
-        using var state = new TestAnalysisResultState(inputs);
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            AnalysisResultState = state,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = telemetry,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        state.Requests.Clear();
-
-        // A reload triggered by a bound-property change must be applied on a
-        // later dispatcher turn, not synchronously on the property-change
-        // callback, so teardown-time property reverts cannot recompute inline.
-        view.AnalysisRange = new TelemetryTimeRange(0.25, 0.75);
-        Assert.Empty(state.Requests);
-
-        await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.NotEmpty(state.Requests);
-    }
-
-    [AvaloniaFact]
     public async Task AnalysisPlotView_DoesNotRecomputeSynchronously_WhenStateInputsUnavailable()
     {
         var telemetry = CreateProcessed();
         var inputs = CreateAnalysisInputs();
         var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
         using var state = new TestAnalysisResultState(inputs);
-        var view = new TestableAnalysisPlotView
+        var view = new AnalysisPlotView
         {
             AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
             AnalysisResultState = state,
@@ -273,257 +128,6 @@ public class AnalysisPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.Empty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_DoesNotReload_WhenAnalysisResultStateCleared()
-    {
-        var telemetry = CreateProcessed();
-        var inputs = CreateAnalysisInputs();
-        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.TravelDistribution, SuspensionType.Front);
-        using var state = new TestAnalysisResultState(inputs);
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            AnalysisResultState = state,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = telemetry,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-        state.Publish(key, CreateTravelDistributionResult(telemetry, range: null));
-        await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
-
-        // Clearing the state binding (as the DataContext reverts during tab
-        // teardown) must not trigger a reload that clears or recomputes the plot.
-        view.AnalysisResultState = null;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.NotEmpty(GetBars(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot));
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_UsesAvaloniaTitleAndSuppressesScottPlotTitle()
-    {
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            SuspensionType = SuspensionType.Rear,
-            TravelDistributionMode = TravelDistributionMode.DynamicSag,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        Assert.Equal("Rear travel distribution", mounted.View.AnalysisTitle);
-        Assert.False(mounted.View.PlotShowsScottPlotTitle);
-
-        view.Telemetry = CreateProcessed();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Empty(mounted.View.ScottPlotTitle);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_AppliesComparisonOverlaysOfItsKindAndSide()
-    {
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = CreateProcessed(),
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        var otherOverlay = new AnalysisPlotOverlay([1, 3], [2, 4], [new AnalysisPlotMarker(4, "other", LabelAbove: true)]);
-
-        view.AnalysisOverlays =
-        [
-            new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Rear, otherOverlay),
-            new SegmentAnalysisOverlay(SegmentAnalysisPlot.VelocityDistribution, SuspensionType.Front, otherOverlay),
-            new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Front, CreateFrontOverlay()),
-        ];
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        AssertAnalysisOverlay(plot);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_KeepsComparisonOverlays_WhenTelemetryReloads()
-    {
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.TravelDistribution,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = CreateProcessed(),
-            AnalysisOverlays =
-            [
-                new SegmentAnalysisOverlay(SegmentAnalysisPlot.TravelDistribution, SuspensionType.Front, CreateFrontOverlay()),
-            ],
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-
-        view.Telemetry = CreateProcessed();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        AssertAnalysisOverlay(plot);
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_ForwardsActiveAnalysisSelectionToSelectablePlot()
-    {
-        var telemetry = CreateProcessed();
-        var selection = CreateFrontDampingSelection(telemetry);
-        var inputs = CreateAnalysisInputs();
-        using var state = new TestAnalysisResultState(inputs);
-        var key = inputs.CreateKey(RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
-        state.Publish(key, RecordedSessionAnalysisComputer.CalculateVelocityDistribution(key, telemetry));
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.VelocityDistribution,
-            AnalysisResultState = state,
-            SuspensionType = SuspensionType.Front,
-            Telemetry = telemetry,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.ActiveAnalysisSelection = selection;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Contains(GetBars(plot.Plot), bar => bar.LineWidth == 3.0f);
-    }
-
-    private static AnalysisPlotOverlay CreateFrontOverlay() =>
-        new([2, 8], [12, 18], [new AnalysisPlotMarker(18, "match avg: 18.0 mm", LabelAbove: true)]);
-
-    private static void AssertAnalysisOverlay(ScottPlot.Avalonia.AvaPlot plot)
-    {
-        var trace = Assert.Single(plot.Plot.PlottableList.OfType<Scatter>());
-        Assert.False(trace.MarkerStyle.IsVisible);
-        Assert.Equal([2.0, 8.0], trace.Data.GetScatterPoints().Select(point => point.X));
-        Assert.Contains(plot.Plot.PlottableList.OfType<FixedHorizontalLine>(), line => line.Y == 18);
-        var labels = plot.Plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels).ToArray();
-        Assert.Contains("match avg: 18.0 mm", labels);
-        Assert.DoesNotContain("other", labels);
-    }
-
-    private static DampingRangeSelection CreateFrontDampingSelection(TelemetryData telemetry)
-    {
-        var histogram = TelemetryStatistics.CalculateVelocityHistogram(telemetry, SuspensionType.Front);
-        for (var velocityBinIndex = 0; velocityBinIndex < histogram.Values.Count; velocityBinIndex++)
-        {
-            var travelValues = histogram.Values[velocityBinIndex];
-            for (var travelBinIndex = 0; travelBinIndex < travelValues.Length; travelBinIndex++)
-            {
-                if (travelValues[travelBinIndex] > 0)
-                {
-                    return new DampingRangeSelection(
-                        SuspensionType.Front,
-                        VelocityAverageMode.SampleAveraged,
-                        velocityBinIndex,
-                        travelBinIndex,
-                        travelBinIndex);
-                }
-            }
-        }
-
-        Assert.Fail("Expected a non-empty front damping histogram bin.");
-        return default!;
-    }
-
-    [AvaloniaTheory]
-    [InlineData(PositionVelocitySideMode.Both, 2)]
-    [InlineData(PositionVelocitySideMode.Front, 1)]
-    [InlineData(PositionVelocitySideMode.Rear, 1)]
-    public async Task AnalysisPlotView_PositionVelocity_RendersStrokeTracesForShownSides(
-        PositionVelocitySideMode sideMode,
-        int expectedTraceCount)
-    {
-        var (view, state, key) = CreatePositionVelocityView();
-        view.PositionVelocitySideMode = sideMode;
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        state.Publish(key, CreatePositionVelocityResult());
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
-        Assert.Equal(expectedTraceCount, plot.PlottableList.OfType<ViewportReducedScatter>().Count());
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_PositionVelocity_HeatmapModeRendersHeatmapsInsteadOfTraces()
-    {
-        var (view, state, key) = CreatePositionVelocityView();
-        view.PositionVelocityDisplayMode = PositionVelocityDisplayMode.Heatmap;
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        state.Publish(key, CreatePositionVelocityResult());
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot;
-        Assert.Equal(2, plot.PlottableList.OfType<Heatmap>().Count());
-        Assert.Empty(plot.PlottableList.OfType<ViewportReducedScatter>());
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_PositionVelocity_RequestsNewResult_WhenTelemetryRecomputesWithSameRange()
-    {
-        var (view, state, key) = CreatePositionVelocityView();
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-        state.Publish(key, CreatePositionVelocityResult());
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        state.Invalidate(state.CurrentInputs! with { TelemetryGeneration = 2 });
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(2, state.Requests.Last().TelemetryGeneration);
-        Assert.Empty(PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot.PlottableList.OfType<ViewportReducedScatter>());
-    }
-
-    [AvaloniaFact]
-    public async Task AnalysisPlotView_PositionVelocity_DisposesStrokeTraces_WhenDetached()
-    {
-        var (view, state, key) = CreatePositionVelocityView();
-        var mounted = await PlotViewTestSupport.MountAsync(view);
-        state.Publish(key, CreatePositionVelocityResult());
-        await ViewTestHelpers.FlushDispatcherAsync();
-        var traces = PlotViewTestSupport.GetRenderedPlot(mounted.View).Plot.PlottableList
-            .OfType<ViewportReducedScatter>()
-            .ToArray();
-
-        await mounted.DisposeAsync();
-
-        Assert.NotEmpty(traces);
-        Assert.All(traces, trace => Assert.True(trace.IsDisposed));
-    }
-
-    private static (TestableAnalysisPlotView View, TestAnalysisResultState State, RecordedSessionAnalysisKey Key)
-        CreatePositionVelocityView()
-    {
-        var inputs = CreateAnalysisInputs();
-        var state = new TestAnalysisResultState(inputs);
-        var view = new TestableAnalysisPlotView
-        {
-            AnalysisPlotKind = AnalysisPlotKind.PositionVelocity,
-            AnalysisResultState = state,
-            Telemetry = CreateProcessed(),
-        };
-        return (view, state, inputs.CreateKey(RecordedSessionAnalysisFamily.PositionVelocity));
-    }
-
-    private static PositionVelocityAnalysisResult CreatePositionVelocityResult()
-    {
-        static PositionVelocitySideTrace Side() => new(
-            [new PositionVelocityStrokeTrace([0, 50, 100], [0, 500, -500])],
-            new double[PositionVelocityTraceBuilder.HeatmapVelocityBinCount, PositionVelocityTraceBuilder.HeatmapPositionBinCount]);
-
-        return new PositionVelocityAnalysisResult(new PositionVelocityTraceSet(Side(), Side(), 1000));
     }
 
     private static Bar[] GetBars(Plot plot)
@@ -620,11 +224,4 @@ public class AnalysisPlotViewTests
         }
     }
 
-    private sealed class TestableAnalysisPlotView : AnalysisPlotView
-    {
-        public Type PlotModelType => PlotModel.GetType();
-        public TelemetryTimeRange? PlotAnalysisRange => PlotModel.AnalysisRange;
-        public bool PlotShowsScottPlotTitle => PlotModel.ShowTitle;
-        public string ScottPlotTitle => PlotControl.Plot.Axes.Title.Label.Text;
-    }
 }

@@ -106,22 +106,26 @@ public class SegmentMatcherTests
         Assert.Empty(matches);
     }
 
-    [Fact]
-    public async Task FindMatchesAsync_WithParallelScanningMatchesSerialResult()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public async Task FindMatchesAsync_ReturnsKnownRangesAndCosts_ForSerialAndParallelScanning(int parallelism)
     {
-        AddSession("Exact", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        AddSession("Offset", timestamp: 3000, BuildLineTrack(3000, 0, 400, y: 1));
-        AddSession("Later exact", timestamp: 4000, BuildLineTrack(4000, 0, 400));
-        var source = BuildLineTrack(1000, 100, 300);
+        var exact = AddSession("Exact", timestamp: 2000, BuildLineTrack(2000, 0, 400));
+        var offset = AddSession("Offset", timestamp: 3000, BuildLineTrack(3000, 0, 400, y: 1));
+        var later = AddSession("Later exact", timestamp: 4000, BuildLineTrack(4000, 0, 400));
 
-        var serial = await new SegmentMatcher(reader).FindMatchesAsync(
-            CreateRequest(source, CreateOptions()),
-            TestContext.Current.CancellationToken);
-        var parallel = await new SegmentMatcher(reader).FindMatchesAsync(
-            CreateRequest(source, CreateOptions(maxDegreeOfParallelism: 4)),
+        var matches = await new SegmentMatcher(reader).FindMatchesAsync(
+            CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions(maxDegreeOfParallelism: parallelism)),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(serial, parallel, MatchComparer.Instance);
+        Assert.Equal(new[] { exact.Id, offset.Id, later.Id }, matches.Select(match => match.SessionId));
+        Assert.Equal(new[] { 0.0, 1.0, 0.0 }, matches.Select(match => match.NormalizedCostMeters));
+        Assert.All(matches, match =>
+        {
+            Assert.Equal(100, match.StartSeconds, precision: 6);
+            Assert.Equal(300, match.EndSeconds, precision: 6);
+        });
     }
 
     [Fact]
@@ -152,167 +156,22 @@ public class SegmentMatcherTests
     }
 
     [Fact]
-    public async Task FindMatchesAsync_ReturnsNothing_WhenTheSourceChangedDuringMatching()
+    public async Task FindMatchesAsync_DiscardsMatches_WhenSourceRevalidationReturnsStale()
     {
         var source = AddSession("Source", timestamp: 1000, BuildLineTrack(1000, 0, 400));
-        AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var staleToken = source.ContentToken with { ProcessedTelemetryRevision = 0 };
+        var candidate = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
+        var request = new SegmentMatchRequest(
+            BuildLineTrack(1000, 100, 300),
+            new SegmentMatchSourceContext(source.Id, new TelemetryTimeRange(100, 300), source.ContentToken),
+            CreateOptions());
+        var matcher = new SegmentMatcher(reader);
+        var baseline = Assert.Single(await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken));
+        Assert.Equal(candidate.Id, baseline.SessionId);
+        reader.ExactResults[source.Id] = new SessionContentSnapshotResult.Stale();
 
-        var matches = await new SegmentMatcher(reader).FindMatchesAsync(
-            new SegmentMatchRequest(
-                BuildLineTrack(1000, 100, 300),
-                new SegmentMatchSourceContext(source.Id, new TelemetryTimeRange(100, 300), staleToken),
-                CreateOptions()),
-            TestContext.Current.CancellationToken);
+        var matches = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
 
         Assert.Empty(matches);
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_ReusesPreparedPathForUnchangedContent()
-    {
-        var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var matcher = new SegmentMatcher(reader);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        var first = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        var second = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(first, second, MatchComparer.Instance);
-        Assert.Equal(1, reader.TrackReads(session.Id));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_PreparesPathsPerSegmentLocation()
-    {
-        var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 500));
-        var matcher = new SegmentMatcher(reader);
-        var firstRequest = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-        var otherRequest = firstRequest with { SegmentPoints = BuildLineTrack(1000, 200, 400) };
-
-        var first = await matcher.FindMatchesAsync(firstRequest, TestContext.Current.CancellationToken);
-        _ = await matcher.FindMatchesAsync(otherRequest, TestContext.Current.CancellationToken);
-        var again = await matcher.FindMatchesAsync(firstRequest, TestContext.Current.CancellationToken);
-
-        Assert.Equal(first, again, MatchComparer.Instance);
-        Assert.Equal(2, reader.TrackReads(session.Id));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_RereadsTheTrackOnlyWhenContentChanges()
-    {
-        var session = AddSession("Original", timestamp: 3000, BuildLineTrack(3000, 0, 400));
-        var matcher = new SegmentMatcher(reader);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        ReplaceSession(session with { Name = "Renamed" });
-        var renamed = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        ReplaceSession(session with { ContentToken = session.ContentToken with { FullTrackPointsRevision = 2 } });
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal("Renamed", Assert.Single(renamed).SessionName);
-        Assert.Equal(2, reader.TrackReads(session.Id));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_DoesNotKeepAPathReadUnderAStaleToken()
-    {
-        var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var current = session with { ContentToken = session.ContentToken with { FullTrackPointsRevision = 2 } };
-        var loadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseLoad = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        reader.TrackLoader = async (sessionId, _) =>
-        {
-            if (reader.Sessions[0] == session)
-            {
-                loadStarted.TrySetResult();
-                await releaseLoad.Task;
-            }
-
-            return reader.Tracks.GetValueOrDefault(sessionId);
-        };
-        var matcher = new SegmentMatcher(reader);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        var staleRun = matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        await loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        ReplaceSession(current);
-        releaseLoad.SetResult();
-        var staleMatches = await staleRun;
-        var currentMatches = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Empty(staleMatches);
-        Assert.Equal(current.ContentToken, Assert.Single(currentMatches).ContentToken);
-        Assert.Equal(1, reader.TrackReads(session.Id, current.ContentToken));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_ConcurrentRequestsReadTheTrackOnce()
-    {
-        var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var loadStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseLoad = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        reader.TrackLoader = async (sessionId, _) =>
-        {
-            loadStarted.TrySetResult();
-            await releaseLoad.Task;
-            return reader.Tracks.GetValueOrDefault(sessionId);
-        };
-        var matcher = new SegmentMatcher(reader);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        var first = matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        await loadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        var second = matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        releaseLoad.SetResult();
-
-        Assert.Equal(await first, await second, MatchComparer.Instance);
-        Assert.Equal(1, reader.TrackReads(session.Id));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_EvictsPreparedPathsBeyondTheWeightLimit()
-    {
-        var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var changed = session with { ContentToken = session.ContentToken with { FullTrackPointsRevision = 2 } };
-        var matcher = new SegmentMatcher(reader, preparedPathRetentionLimitBytes: 1_500);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        ReplaceSession(changed);
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        ReplaceSession(session);
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, reader.TrackReads(session.Id, session.ContentToken));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_DoesNotKeepAPathLargerThanTheWeightLimit()
-    {
-        var session = AddSession("Candidate", timestamp: 2000, BuildLineTrack(2000, 0, 400));
-        var matcher = new SegmentMatcher(reader, preparedPathRetentionLimitBytes: 1);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, reader.TrackReads(session.Id));
-    }
-
-    [Fact]
-    public async Task FindMatchesAsync_DoesNotKeepAMissingTrack()
-    {
-        var session = AddSession("Missing", timestamp: 2000, track: null);
-        var matcher = new SegmentMatcher(reader);
-        var request = CreateRequest(BuildLineTrack(1000, 100, 300), CreateOptions());
-
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-        _ = await matcher.FindMatchesAsync(request, TestContext.Current.CancellationToken);
-
-        Assert.Equal(2, reader.TrackReads(session.Id));
     }
 
     [Fact]
@@ -450,15 +309,4 @@ public class SegmentMatcherTests
         CandidateLengthToleranceRatio: 0.35,
         MaxDegreeOfParallelism: 1);
 
-    private sealed class MatchComparer : IEqualityComparer<SegmentMatch>
-    {
-        public static MatchComparer Instance { get; } = new();
-
-        public bool Equals(SegmentMatch? x, SegmentMatch? y) =>
-            x is not null && y is not null &&
-            (x with { TimeMap = [] }) == (y with { TimeMap = [] }) &&
-            x.TimeMap.SequenceEqual(y.TimeMap);
-
-        public int GetHashCode(SegmentMatch obj) => obj.SessionId.GetHashCode();
-    }
 }

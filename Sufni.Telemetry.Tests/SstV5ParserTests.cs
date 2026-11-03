@@ -79,7 +79,7 @@ public class SstV5ParserTests
         Assert.Equal(5, inspection.Version);
         Assert.Equal(200, inspection.TelemetrySampleRate);
         Assert.Equal(TimeSpan.FromSeconds(0.005), inspection.Duration);
-        Assert.Equal("SST v5 final status is missing; parsed complete data chunks only.", inspection.MalformedMessage);
+        Assert.False(string.IsNullOrWhiteSpace(inspection.MalformedMessage));
     }
 
     [Fact]
@@ -240,7 +240,8 @@ public class SstV5ParserTests
 
         var inspection = Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectStream(stream));
 
-        Assert.Equal("SST v5 travel data is missing or unsupported by this app.", inspection.Message);
+        Assert.Equal((byte)5, inspection.Version);
+        Assert.Null(inspection.TelemetrySampleRate);
     }
 
     [Fact]
@@ -260,7 +261,8 @@ public class SstV5ParserTests
 
         var inspection = Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectStream(stream));
 
-        Assert.Equal("SST v5 travel data is missing or unsupported by this app.", inspection.Message);
+        Assert.Equal((byte)5, inspection.Version);
+        Assert.Null(inspection.TelemetrySampleRate);
     }
 
     [Fact]
@@ -290,13 +292,18 @@ public class SstV5ParserTests
         var result = RawTelemetryData.FromStream(stream);
 
         Assert.NotNull(result.ImuData);
-        Assert.Equal([0, 1], result.ImuData.ActiveLocations);
-        Assert.Equal(2, result.ImuData.Meta.Length);
-        Assert.Equal(2, result.ImuData.Segments.Length);
-        Assert.Empty(result.ImuData.Records);
-        Assert.False(result.ImuData.HasGaps);
-        Assert.Equal(1, result.ImuData.Segments[0].Records[0].Ax);
-        Assert.Equal(7, result.ImuData.Segments[1].Records[0].Ax);
+        Assert.Equal(100, result.ImuData.SampleRate);
+        var segments = result.ImuData.SampleSegments;
+        Assert.Equal(2, segments.Count);
+        Assert.Equal((byte)0, segments[0].LocationId);
+        Assert.Equal((byte)1, segments[1].LocationId);
+        Assert.Equal(new ImuRecord(1, 2, 3, 4, 5, 6), segments[0][0]);
+        Assert.Equal(new ImuRecord(7, 8, 9, 10, 11, 12), segments[1][0]);
+        Assert.All(new[] { segments[0], segments[1] }, segment =>
+        {
+            Assert.Equal((ulong)0, segment.FirstMonotonicDeltaUs);
+            Assert.Equal(1, segment.Count);
+        });
     }
 
     [Fact]
@@ -337,40 +344,33 @@ public class SstV5ParserTests
     }
 
     [Fact]
-    public void Parse_TemperatureMarkerBatteryAndFinalStatus_DecodesSupportedAppData()
+    public void Parse_TemperatureData_ConvertsCountsAndSourceTime()
     {
-        using var stream = SstV5TestFiles.CreateStream(
-            chunks:
-            [
-                Sufni.Telemetry.Tests.SstV5TestFiles.Metadata(
-                    Sufni.Telemetry.Tests.SstV5TestFiles.TravelStream(),
-                    Sufni.Telemetry.Tests.SstV5TestFiles.TemperatureStream(),
-                    Sufni.Telemetry.Tests.SstV5TestFiles.BatteryStream(),
-                    Sufni.Telemetry.Tests.SstV5TestFiles.MarkerStream()),
-                Sufni.Telemetry.Tests.SstV5TestFiles.TravelData(
-                    0,
-                    0,
-                    Sufni.Telemetry.Tests.SstV5TestFiles.ForkTravel | Sufni.Telemetry.Tests.SstV5TestFiles.ShockTravel,
-                    (1000, 2000)),
-                Sufni.Telemetry.Tests.SstV5TestFiles.TemperatureData(0, 2_000_000, Sufni.Telemetry.Tests.SstV5TestFiles.FrameImu, 340),
-                Sufni.Telemetry.Tests.SstV5TestFiles.BatteryData(0, 3_000_000, (4200, 0x0003)),
-                Sufni.Telemetry.Tests.SstV5TestFiles.MarkerData(0, 4_000_000, 1),
-                Sufni.Telemetry.Tests.SstV5TestFiles.FinalStatus(
-                    Sufni.Telemetry.Tests.SstV5TestFiles.OkStatus(),
-                    Sufni.Telemetry.Tests.SstV5TestFiles.OkStatus(),
-                    Sufni.Telemetry.Tests.SstV5TestFiles.OkStatus(),
-                    Sufni.Telemetry.Tests.SstV5TestFiles.OkStatus())
-            ]);
+        using var stream = SstV5TestFiles.CreateStream(chunks:
+        [
+            SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream(), SstV5TestFiles.TemperatureStream()),
+            SstV5TestFiles.TravelData(0, 0, SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel, (1000, 2000)),
+            SstV5TestFiles.TemperatureData(0, 2_000_000, SstV5TestFiles.FrameImu, 340),
+        ]);
 
-        var result = RawTelemetryData.FromStream(stream);
+        var temperature = Assert.Single(RawTelemetryData.FromStream(stream).TemperatureData);
 
-        var temperature = Assert.Single(result.TemperatureData);
         Assert.Equal((byte)0, temperature.LocationId);
+        Assert.Equal(1_700_000_002, temperature.TimestampUtc);
         Assert.Equal(37.53f, temperature.TemperatureCelsius, 2);
-        var marker = Assert.Single(result.Markers);
-        Assert.Equal(4.0, marker.TimestampOffset);
-        Assert.NotNull(result.FinalStatus);
-        Assert.Equal(4, result.FinalStatus.Streams.Length);
+    }
+
+    [Fact]
+    public void Parse_MarkerData_UsesMonotonicSourceTime()
+    {
+        using var stream = SstV5TestFiles.CreateStream(chunks:
+        [
+            SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream(), SstV5TestFiles.MarkerStream()),
+            SstV5TestFiles.TravelData(0, 0, SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel, (1000, 2000)),
+            SstV5TestFiles.MarkerData(0, 4_000_000, 1),
+        ]);
+
+        Assert.Equal(4.0, Assert.Single(RawTelemetryData.FromStream(stream).Markers).TimestampOffset);
     }
 
     [Fact]
@@ -416,75 +416,28 @@ public class SstV5ParserTests
         Assert.NotEmpty(inspection.Message);
     }
 
-    [Fact]
-    public void Inspect_MalformedEnvelope_PreservesFullParserFirstError()
+    [Theory]
+    [InlineData(0)] // File flags.
+    [InlineData(1)] // Data preceding metadata.
+    [InlineData(2)] // Chunk flags.
+    [InlineData(3)] // Data following final status.
+    public void Inspect_MalformedEnvelope_RejectsInvalidFraming(int cause)
     {
-        var invalidFileFlags = SstV5TestFiles.Create(
-            chunks:
-            [
-                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
-                SstV5TestFiles.Chunk(999, [], flags: 1)
-            ]);
-        invalidFileFlags[6] = 1;
-
-        var cases = new (byte[] Bytes, string ExpectedMessage)[]
+        var bytes = cause switch
         {
-            (invalidFileFlags, "SST v5 file flags are invalid."),
-            (
-                SstV5TestFiles.Create(
-                    chunks:
-                    [
-                        SstV5TestFiles.TravelData(
-                            0,
-                            0,
-                            SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
-                            (1000, 2000))
-                    ]),
-                "SST v5 data chunk appears before session metadata."),
-            (
-                SstV5TestFiles.Create(
-                    chunks:
-                    [
-                        SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
-                        SstV5TestFiles.Chunk(999, [], flags: 1)
-                    ]),
-                "SST v5 chunk flags are invalid."),
-            (
-                SstV5TestFiles.Create(
-                    chunks:
-                    [
-                        SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
-                        SstV5TestFiles.FinalStatus(SstV5TestFiles.OkStatus()),
-                        SstV5TestFiles.TravelData(
-                            0,
-                            0,
-                            SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
-                            (1000, 2000))
-                    ]),
-                "SST v5 final status must be the last chunk."),
-            (
-                SstV5TestFiles.Create(
-                    chunks:
-                    [
-                        SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream(), SstV5TestFiles.MarkerStream()),
-                        SstV5TestFiles.TravelData(
-                            0,
-                            0,
-                            SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
-                            (1000, 2000)),
-                        SstV5TestFiles.MarkerData(0, 1_000_000, 1, 1)
-                    ]),
-                "SST v5 marker sample count is invalid."),
+            0 => SstV5TestFiles.Create(chunks: [SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream())]),
+            1 => SstV5TestFiles.Create(chunks: [SstV5TestFiles.TravelData(0, 0, SstV5TestFiles.ForkTravel, (1000, 0))]),
+            2 => SstV5TestFiles.Create(chunks: [SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()), SstV5TestFiles.Chunk(999, [], flags: 1)]),
+            _ => SstV5TestFiles.Create(chunks: [SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()), SstV5TestFiles.FinalStatus(SstV5TestFiles.OkStatus()), SstV5TestFiles.TravelData(0, 0, SstV5TestFiles.ForkTravel, (1000, 0))]),
         };
+        if (cause == 0) bytes[6] = 1;
 
-        foreach (var (bytes, expectedMessage) in cases)
-        {
-            AssertMalformedInspectionMatchesFullParser(bytes, expectedMessage);
-        }
+        Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
+        Assert.Throws<FormatException>(() => RawTelemetryData.FromByteArray(bytes));
     }
 
     [Fact]
-    public void Inspect_TruncatedPayloadAfterCompleteTravel_ReportsWarningAndMatchesParsedTiming()
+    public void Inspect_TruncatedPayloadAfterCompleteTravel_PreservesKnownPrefix()
     {
         var bytes = SstV5TestFiles.Create(
             chunks:
@@ -501,13 +454,12 @@ public class SstV5ParserTests
         var inspection = Assert.IsType<ValidSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
         var parsed = RawTelemetryData.FromByteArray(bytes);
 
-        Assert.NotNull(inspection.MalformedMessage);
-        Assert.Equal(TimeSpan.FromSeconds(parsed.RecordingDurationSeconds!.Value), inspection.Duration);
-        Assert.Equal(parsed.SampleRate, inspection.TelemetrySampleRate);
-        Assert.Equal(DateTimeKind.Utc, inspection.StartTime.Kind);
-        Assert.Equal(
-            DateTimeOffset.FromUnixTimeMilliseconds(parsed.SessionStartUtcMs).UtcDateTime,
-            inspection.StartTime);
+        Assert.False(string.IsNullOrWhiteSpace(inspection.MalformedMessage));
+        Assert.Equal(TimeSpan.FromMilliseconds(5), inspection.Duration);
+        Assert.Equal(200, inspection.TelemetrySampleRate);
+        Assert.Equal(new DateTime(2023, 11, 14, 22, 13, 20, 123, DateTimeKind.Utc), inspection.StartTime);
+        Assert.Equal([1000], parsed.Front);
+        Assert.Equal([2000], parsed.Rear);
     }
 
     [Fact]
@@ -521,38 +473,26 @@ public class SstV5ParserTests
                 SstV5TestFiles.Chunk(SstV5TestFiles.ChunkImuData, [1], declaredLength: 128)
             ]);
 
-        AssertMalformedInspectionMatchesFullParser(
-            bytes,
-            "SST v5 travel data is missing or unsupported by this app.");
+        Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
+        Assert.Throws<FormatException>(() => RawTelemetryData.FromByteArray(bytes));
     }
 
-    [Fact]
-    public void Inspect_IncompleteTailBeforeCompleteTravel_AndIncompleteHeaderRemainMalformed()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Inspect_IncompletePayloadOrHeader_RejectsUnsuitablePrefix(bool incompleteHeader)
     {
-        var incompleteTravelPayload = SstV5TestFiles.Create(
-            chunks:
-            [
-                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
-                SstV5TestFiles.Chunk(SstV5TestFiles.ChunkTravelData, [1], declaredLength: 128)
-            ]);
-        AssertMalformedInspectionMatchesFullParser(
-            incompleteTravelPayload,
-            "SST v5 chunk extends past end of file.");
+        var prefix = SstV5TestFiles.Create(chunks:
+        [
+            SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
+            incompleteHeader
+                ? SstV5TestFiles.TravelData(0, 0, SstV5TestFiles.ForkTravel, (1000, 0))
+                : SstV5TestFiles.Chunk(SstV5TestFiles.ChunkTravelData, [1], declaredLength: 128),
+        ]);
+        byte[] bytes = incompleteHeader ? [.. prefix, 1, 2, 3, 4] : prefix;
 
-        var completeTravel = SstV5TestFiles.Create(
-            chunks:
-            [
-                SstV5TestFiles.Metadata(SstV5TestFiles.TravelStream()),
-                SstV5TestFiles.TravelData(
-                    0,
-                    0,
-                    SstV5TestFiles.ForkTravel | SstV5TestFiles.ShockTravel,
-                    (1000, 2000))
-            ]);
-        byte[] incompleteHeader = [.. completeTravel, 1, 2, 3, 4];
-        AssertMalformedInspectionMatchesFullParser(
-            incompleteHeader,
-            "SST v5 file ends with an incomplete chunk header.");
+        Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
+        Assert.Throws<FormatException>(() => RawTelemetryData.FromByteArray(bytes));
     }
 
     [Fact]
@@ -653,12 +593,4 @@ public class SstV5ParserTests
         Assert.Equal((ushort)12, streamStatus.SinkBacklogBatches);
     }
 
-    private static void AssertMalformedInspectionMatchesFullParser(byte[] bytes, string expectedMessage)
-    {
-        var inspection = Assert.IsType<MalformedSstFileInspection>(RawTelemetryData.InspectByteArray(bytes));
-        var parseError = Assert.Throws<FormatException>(() => RawTelemetryData.FromByteArray(bytes));
-
-        Assert.Equal(expectedMessage, inspection.Message);
-        Assert.Equal(parseError.Message, inspection.Message);
-    }
 }

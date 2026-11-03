@@ -42,7 +42,13 @@ public class SessionEditingCoordinatorTests
         recomputeEngine.RequestRecomputeAsync(Arg.Any<Guid>())
             .Returns(completion.Task);
         var progress = new RecordingProgress<SessionEditProgress>();
-        var operation = CreateCoordinator().SplitAsync(session.Id, 3, progress);
+        var dispatcher = new InlineUiThreadDispatcher();
+        using var publication = new StorePublication(dispatcher);
+        using var store = new SessionStore(publication);
+        await store.PublishSessionsChangedAsync([session]);
+        ISessionEditingCoordinator coordinator = new SessionEditingCoordinator(store, transactions, recomputeEngine, sessionRepository,
+            new InlineBackgroundTaskRunner(), dispatcher, publication);
+        var operation = coordinator.SplitAsync(session.Id, 3, progress);
 
         Assert.Equal(part2.Id, Assert.Single(progress.Reports).CreatedSessionId);
         Assert.False(operation.IsCompleted);
@@ -50,9 +56,7 @@ public class SessionEditingCoordinatorTests
         var result = await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(new SessionEditResult.Applied(), result);
-        await sessionStore.Received(1).PublishSessionsChangedAsync(
-            Arg.Is<IReadOnlyCollection<SessionSnapshot>>(ids => ids.Select(snapshot => snapshot.Id).SequenceEqual(new[] { session.Id, part2.Id })),
-            Arg.Any<CancellationToken>());
+        Assert.Equal(new[] { session.Id, part2.Id }.Order(), store.GetAll().Select(row => row.Id).Order());
         await recomputeEngine.Received(1).RequestRecomputeAsync(session.Id);
         await recomputeEngine.Received(1).RequestRecomputeAsync(part2.Id);
         Assert.Equal(part2.Id, Assert.Single(progress.Reports).CreatedSessionId);
@@ -81,7 +85,9 @@ public class SessionEditingCoordinatorTests
 
         var result = await CreateCoordinator().UndoTrimAsync(session.Id);
 
-        Assert.NotNull(Assert.IsType<SessionEditResult.Applied>(result).RecomputeFailure);
+        var failure = Assert.IsType<SessionRecomputeResult.Failed>(Assert.IsType<SessionEditResult.Applied>(result).RecomputeFailure);
+        Assert.Equal(SessionRecomputeFailureReason.Recompute, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
     }
 
     [Fact]

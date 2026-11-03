@@ -12,48 +12,6 @@ namespace Sufni.App.Tests.Shared.Models;
 
 public class ModelJsonTests
 {
-    [Fact]
-    public void BikeToJson_ExcludesSynchronizationFields()
-    {
-        var bike = new Bike(Guid.NewGuid(), "exported bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 150,
-            PixelsToMillimeters = 2.5,
-        };
-
-        var json = BikeFileFormat.Serialize(bike);
-
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-
-        Assert.Equal("exported bike", root.GetProperty("name").GetString());
-        Assert.Equal(64, root.GetProperty("head_angle").GetDouble());
-        Assert.False(root.TryGetProperty("id", out _));
-        Assert.False(root.TryGetProperty("updated", out _));
-        Assert.False(root.TryGetProperty("client_updated", out _));
-        Assert.False(root.TryGetProperty("deleted", out _));
-    }
-
-    [Fact]
-    public void BikeFromJson_RoundTripsLinkageSpec()
-    {
-        var linkage = CreateSimpleLinkageSpec();
-        var bike = new Bike(Guid.NewGuid(), "linkage bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 150,
-            ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
-        };
-
-        var imported = BikeFileFormat.Parse(BikeFileFormat.Serialize(bike));
-
-        Assert.NotNull(imported);
-        var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
-        Assert.Equal(0.5, imported.ShockStroke);
-        Assert.Equal(linkage, importedLinkage.Spec);
-    }
 
     [Fact]
     public void SensorConfigurationJson_RemainsCaseInsensitiveAndUsesSnakeCaseEnum()
@@ -76,16 +34,11 @@ public class ModelJsonTests
     [Fact]
     public void TrackJson_RoundTripsPointValuesAndQuality()
     {
-        var points =
-            new[]
-            {
-                new TrackPoint(10, 1.25, 2.5, 3.75, 4.5, 3, 12, 0.5f, 0.8f),
-                new TrackPoint(11, 4.5, 5.5, null)
-            };
-
-        var track = new Track { Points = [.. points] };
-        var rehydratedTrack = new Track { PointsJson = track.PointsJson };
-
+        const string json = """
+            [{"time":10,"x":1.25,"y":2.5,"ele":3.75,"spd":4.5,"fix":3,"sats":12,"epe2d":0.5,"epe3d":0.8},
+             {"time":11,"x":4.5,"y":5.5,"ele":null}]
+            """;
+        var rehydratedTrack = new Track { PointsJson = json };
 
         Assert.Equal(2, rehydratedTrack.Points.Count);
         Assert.Equal(1.25, rehydratedTrack.Points[0].X);
@@ -94,6 +47,9 @@ public class ModelJsonTests
         Assert.Equal((byte)12, rehydratedTrack.Points[0].Satellites);
         Assert.Equal(0.5f, rehydratedTrack.Points[0].Epe2d);
         Assert.Equal(0.8f, rehydratedTrack.Points[0].Epe3d);
+        Assert.Null(rehydratedTrack.Points[1].FixMode);
+        using var serialized = JsonDocument.Parse(rehydratedTrack.PointsJson);
+        Assert.Equal(3, serialized.RootElement[0].GetProperty("fix").GetInt32());
     }
 
     [Fact]
@@ -122,20 +78,4 @@ public class ModelJsonTests
         Assert.Null(point.Epe3d);
     }
 
-    private static LinkageSpec CreateSimpleLinkageSpec()
-    {
-        return new LinkageSpec(
-            [
-                new JointSpec(JointNames.BottomBracket, JointType.BottomBracket, 0, 0),
-                new JointSpec(JointNames.RearWheel, JointType.RearWheel, 4, 0),
-                new JointSpec(JointNames.ShockEye1, JointType.Floating, 4, 3),
-                new JointSpec(JointNames.ShockEye2, JointType.Fixed, 0, 3)
-            ],
-            [
-                new LinkSpec(JointNames.BottomBracket, JointNames.RearWheel),
-                new LinkSpec(JointNames.RearWheel, JointNames.ShockEye1)
-            ],
-            new LinkSpec(JointNames.ShockEye1, JointNames.ShockEye2),
-            0.5);
-    }
 }

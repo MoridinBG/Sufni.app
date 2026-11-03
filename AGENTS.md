@@ -58,7 +58,7 @@ maps use Mapsui.
 # Solution Layout
 
 Use `Sufni.App.sln` as the full-matrix solution. For day-to-day work,
-scenario-specific solutions now exist beside it:
+scenario-specific solutions exist beside it:
 
 - `Sufni.Desktop.sln`
 - `Sufni.Android.sln`
@@ -114,7 +114,7 @@ The layer roles are consistent across slices:
     into row view models.
   - `Rows/` — cheap, non-editable wrappers around a single store
     snapshot. Inherit `ListItemRowViewModelBase` so list controls bind against a
-    single shared `x:DataType`.
+    single shared `x:DataType` (`LiveDaqRowViewModel` is the exception).
   - `Editors/` — `BikeEditorViewModel` (`Bikes/ViewModels/Editors/`),
     `SetupEditorViewModel` (`Setups/ViewModels/Editors/`), `SessionDetailViewModel`
     (`Sessions/Detail/ViewModels/Editors/`), `LiveDaqDetailViewModel`
@@ -136,25 +136,30 @@ The layer roles are consistent across slices:
   `IInboundSyncCoordinator` and the mobile-only
   `IPairingClientCoordinator` (`SyncAndPairing/`), and the `IShellCoordinator`
   implemented by the shared `ShellWorkspaceCoordinator` (`Shell/Coordinators/`). View models depend on read-only
-  stores. Persisted write workflows live in coordinators or session use-case
-  services behind coordinators; sync appliers and transaction runners may use
-  writer interfaces for publish-only post-persistence updates. Stores remain
-  the only owners of DynamicData cache mutation. Stores have no repository
-  dependencies; their writer interfaces accept prepared snapshots/removals. `ShellWorkspaceCoordinator`
+  stores. Persisted write workflows live in coordinators and the session
+  workflow owners beside them (`SessionRecomputeEngine`, `SessionSyncApplier`).
+  Transaction runners (`IBikePersistenceTransactionRunner`,
+  `ISetupPersistenceTransactionRunner`, `ISessionPersistenceTransactionRunner`)
+  run cross-aggregate SQL; their calling
+  coordinator publishes after commit. Stores are the only owners of DynamicData
+  cache mutation. Stores have no repository dependencies; their writer
+  interfaces accept prepared snapshots/removals. `ShellWorkspaceCoordinator`
   owns `IEditorFactory`; feature view models request editor keys through
   `IShellCoordinator.OpenEditor` and close deleted editors through
   `CloseEditorAsync`. The factory creates editors from current snapshots and
   receives the shell at call time. Feature coordinators never navigate.
 - `<Slice>/Stores/` — shared read state, one per entity family (`BikeStore` in
-  `Bikes/Stores/`, `SetupStore` in `Setups/Stores/`, `SessionStore` in `Sessions/`,
+  `Bikes/Stores/`, `SetupStore` in `Setups/Stores/`, `SessionStore` in `Sessions/Store/`,
   etc.). Each store has an `IXxxStore` (read-only) interface for VMs/queries and an
-  `IXxxStoreWriter` (read+write) interface reserved for coordinators
-  and the composition root. Snapshots are immutable records carrying
-  an `Updated` field. Bike, setup and session editors compare authored fields
+  `IXxxStoreWriter` (read+write) interface held only by coordinators: the
+  `*Coordinator` classes plus `SessionRecomputeEngine`, `SessionSyncApplier`,
+  `SynchronizationApplier`, `AppDataRefresher` and
+  `RecordedSessionSourceRetentionCleanup`. Persisted
+  snapshots are immutable records carrying an `Updated` field. Bike, setup and session editors compare authored fields
   against one immutable draft base. The shared
   `SourceCacheStoreBase` lives in `Shared/Base/`.
 - `<Slice>/Queries/` — cross-entity reads (`IBikeDependencyQuery` in `Bikes/`,
-  `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
+  `ISetupBoardQuery` in `Setups/`, `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
   stores, never by view models.
 - Services are split across slices and `Infrastructure/`:
   - SQLite connection lifetime (`SqliteConnectionContext`),
@@ -185,14 +190,14 @@ DI registrations live in `Sufni.App/Sufni.App/AppComposition.cs`.
 Each platform head passes a `PlatformRoot` (capabilities, input capabilities,
 launch preferences, paths, and platform registrations) into `App` through the
 Avalonia application factory. `App.OnFrameworkInitializationCompleted` builds
-the graph with `ValidateOnBuild = true`. No static service collection remains.
+the graph with `ValidateOnBuild = true`. There is no static service collection.
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),
-including [Stores](docs/architecture/ui.md#stores),
-[Coordinators](docs/architecture/ui.md#coordinators),
-[Queries](docs/architecture/ui.md#queries),
-[View Models](docs/architecture/ui.md#view-models), and
-[Dependency Injection](docs/architecture/ui.md#dependency-injection).
+including [Stores](docs/architecture/ui-state.md#stores),
+[Coordinators](docs/architecture/ui-workflows.md#coordinators),
+[Queries](docs/architecture/ui-state.md#queries),
+[View Models](docs/architecture/ui-view-models.md#view-models), and
+[Dependency Injection](docs/architecture/ui-workflows.md#dependency-injection).
 
 # Telemetry Acquisition
 
@@ -209,9 +214,10 @@ behind `ITelemetryDataStore` / `ITelemetryFile`:
   Listing and import reserve the shared per-identity DAQ port; TXT board identity
   avoids IDENTIFY unless a legacy device needs that fallback. See
   `docs/architecture/daq-management.md` and
-  `Services/Management/ManagementClient.cs` for the wire protocol.
+  `Acquisition/Services/Management/ManagementClient.cs` for the wire protocol.
 
-`TelemetryDataStoreService` aggregates sources and polls for drive changes.
+`TelemetryDataStoreService` aggregates sources and polls for drive changes when
+`AppCapabilities.SupportsMassStorageImport` is set.
 `ImportSessionsCoordinator` owns source observations, listing, folder registration
 and import lifetime. Immutable jobs capture editable rows; persisted source hashes
 are the retry checkpoint. Publication precedes acknowledgement, whose failure
@@ -298,14 +304,14 @@ guards compare the captured fingerprint/revision and complete hub requests atomi
 data (`%LOCALAPPDATA%`, `~/Library/Application Support`, `~/.local/share`,
 etc.).
 
-Sync-enabled entities inherit from `Models/Synchronizable.cs`, which adds
+Sync-enabled entities inherit from `SyncAndPairing/Models/Synchronizable.cs`, which adds
 authored `Version` / `Updated` / `UpdatedBy`, a `Deleted` marker and local/hub
 sequences. Hub and client share one merge rule; equal-version deletion ties use
 later Updated then higher UpdatedBy. Payload rows soft-deleted more than a day
 ago are purged on startup; deletion ledger entries are retained.
 
 Full details: [docs/architecture/persistence.md](docs/architecture/persistence.md),
-including [Database Service](docs/architecture/persistence.md#database-service),
+including [SQLite Persistence Repositories](docs/architecture/persistence.md#sqlite-persistence-repositories),
 [Soft Delete](docs/architecture/persistence.md#soft-delete), and
 [Conflict Resolution](docs/architecture/persistence.md#conflict-resolution).
 
@@ -332,18 +338,22 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
 / Queries → Services → Platform`. View models do not depend on other
   feature view models for business answers, do not write to stores
   directly, and do not subscribe to synchronization events. Those
-  responsibilities live on coordinators. The only carve-out is shell
-  composition (`MainPagesViewModel` holding the page VMs for binding).
+  responsibilities live on coordinators. The exceptions are shell
+  composition (`MainPagesViewModel` holding the page VMs for binding,
+  `IShellActions` implemented by `ShellFeedbackViewModel`) and editors that
+  construct their own sub-page view models.
 - **Stores** own shared read state via DynamicData
   `SourceCache<TSnapshot, TKey>`. Each store is exposed behind a
   read-only and a writer interface; only coordinators get the writer.
   Persisted snapshots carry `Updated`; bike, setup and session saves compare
-  authored fields against the draft base and current snapshot. Runtime-only stores (`LiveDaqStore`) omit `Updated` and
-  `RefreshAsync()`.
-- **Coordinators** own feature workflows: save/delete and
-  synchronization-arrival handling. `SaveAsync` returns
-  a sealed `Saved` / `Conflict` / `Failed` record so editors can prompt
-  the user before reloading on conflict.
+  authored fields against the draft base and current snapshot. Runtime-only
+  stores (`LiveDaqStore`) omit `Updated`. No store loads itself;
+  `AppDataRefresher` publishes full refreshes through `ReplaceAllAsync`.
+- **Coordinators** own feature workflows such as save and delete. Incoming
+  sync rows go through `SynchronizationApplier`, processed BLOBs through
+  `SessionSyncApplier`. `SaveAsync` returns a sealed result (`Saved`,
+  `Conflict`, `Missing`, `Failed` plus entity-specific cases) so editors can
+  prompt the user before reloading on conflict.
 - **MVVM** with CommunityToolkit.Mvvm source generators
   (`[ObservableProperty]`, `[RelayCommand]`). Views are XAML with
   compiled bindings, view models contain no direct UI dependencies.
@@ -383,20 +393,23 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   work drainage, pending deletes, server stop and provider disposal.
   `SessionCoordinator` owns metadata save, processing-option changes, GPS alignment
   and deletion. `LiveDaqCoordinator` owns live-capture save/reset and reserved DAQ management workflows. Recorded editors use `ISessionLoader` for staged reads;
-  lists and staleness prompts call `ISessionRecomputeEngine` directly. The engine
+  presentation reaches `ISessionRecomputeEngine` only through `SessionCoordinator`
+  (`RecomputeAsync` for the list's recalculate, `ReconcileStalenessAsync` for
+  editor staleness prompts); `SessionEditingCoordinator` calls it after trim and
+  split. The engine
   owns recompute liveness and commit guards; `SessionSyncApplier` owns incoming
   generation writes and inbound publication — see [ui-workflows.md](docs/architecture/ui-workflows.md#coordinators).
 
 Full details: [docs/architecture/ui.md](docs/architecture/ui.md),
 starting from [Layered Architecture](docs/architecture/ui.md#layered-architecture)
-through [Stores](docs/architecture/ui.md#stores),
-[Coordinators](docs/architecture/ui.md#coordinators),
-[Queries](docs/architecture/ui.md#queries),
-[View Models](docs/architecture/ui.md#view-models),
-[Dependency Injection](docs/architecture/ui.md#dependency-injection), and
-[Navigation](docs/architecture/ui.md#navigation). Sensor calibration strategy
+through [Stores](docs/architecture/ui-state.md#stores),
+[Coordinators](docs/architecture/ui-workflows.md#coordinators),
+[Queries](docs/architecture/ui-state.md#queries),
+[View Models](docs/architecture/ui-view-models.md#view-models),
+[Dependency Injection](docs/architecture/ui-workflows.md#dependency-injection), and
+[Navigation](docs/architecture/ui-workflows.md#navigation). Sensor calibration strategy
 lives at [§ Sensor Calibration](docs/architecture/processing.md#sensor-calibration), and
-ScottPlot plot classes at [§ Data Visualization](docs/architecture/ui.md#data-visualization).
+ScottPlot plot classes at [Plot Rendering](docs/architecture/plot-rendering.md).
 
 # Terminology
 
@@ -405,6 +418,10 @@ Store: owns shared read state for an entity family and direct lookups over that 
 Query: answers a business question; it does not own the shared entity collection.
 Coordinator: owns workflows with side effects and store writes.
 Service or factory: owns infrastructure-facing work such as picker integration, datastore creation, and background execution.
+
+These are the manifest's roles, and they are semantic: a class holds the role
+that matches its responsibility, whatever its name. Add another role only under manifest §22.
+See [UI Architecture § Architectural Invariants](docs/architecture/ui.md#architectural-invariants).
 
 # Testing
 

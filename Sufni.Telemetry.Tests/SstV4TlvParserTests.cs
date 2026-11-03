@@ -5,38 +5,6 @@ namespace Sufni.Telemetry.Tests;
 public class SstV4TlvParserTests
 {
     [Fact]
-    public void Parse_ValidV4File_AllChunks_ReturnsCorrectData()
-    {
-        using var ms = SstTestFiles.CreateV4ParserStream(
-            123456789,
-            SstTestFiles.Rates((TlvChunkType.Telemetry, 1000), (TlvChunkType.Imu, 100)),
-            SstTestFiles.Telemetry((1000, 2000), (1100, 2100)),
-            SstTestFiles.Marker(),
-            SstTestFiles.ImuMeta(new ImuMetaSpec(0, 16384.0f, 16.4f)),
-            SstTestFiles.Imu(new ImuRecordSpec(100, 200, 300, 10, 20, 30)));
-        using var reader = new BinaryReader(ms);
-
-        var parser = new SstV4TlvParser();
-
-        // Act
-        var result = parser.Parse(reader, 4);
-
-        // Assert
-        Assert.Equal(4, result.Version);
-        Assert.Equal(1000, result.SampleRate);
-        Assert.Equal(123456789, result.Timestamp);
-        Assert.Equal(2, result.Front.Length);
-        Assert.Equal(2, result.Rear.Length);
-        Assert.Single(result.Markers);
-        Assert.Equal(2.0 / 1000.0, result.Markers[0].TimestampOffset);
-        Assert.NotNull(result.ImuData);
-        Assert.Single(result.ImuData.Meta);
-        Assert.Empty(result.ImuData.Records);
-        var segment = Assert.Single(result.ImuData.Segments);
-        Assert.Equal(100, segment.Records[0].Ax);
-    }
-
-    [Fact]
     public void Parse_HardtailRecording_RetainsRawSentinelChannelForProcessing()
     {
         using var stream = SstTestFiles.CreateV4Stream(123,
@@ -229,8 +197,8 @@ public class SstV4TlvParserTests
 
         var result = RawTelemetryData.FromStream(ms);
 
-        Assert.Equal(2, result.Front.Length);
-        Assert.Equal(2, result.Rear.Length);
+        Assert.Equal([500, 501], result.Front);
+        Assert.Equal([600, 601], result.Rear);
     }
 
     [Fact]

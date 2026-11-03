@@ -1,4 +1,4 @@
-using Sufni.App.Shared.Stores;
+using DynamicData;
 using System.Reactive.Linq;
 using NSubstitute;
 
@@ -16,10 +16,17 @@ internal static class TestSegmentPickers
         ISegmentCoordinator? segmentCoordinator = null,
         IDialogService? dialogService = null) =>
         new SegmentPickerFactory(
-            segmentStore ?? new SessionSegmentStore(new StorePublication(new InlineUiThreadDispatcher())),
+            segmentStore ?? EmptyStore(),
             segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(),
             dialogService ?? Substitute.For<IDialogService>());
 
     public static SegmentPickerViewModel Create() =>
         CreateFactory().Create(Guid.NewGuid(), Observable.Never<SegmentPickerSessionState>(), _ => { }, _ => { }, _ => { });
+    private static ISessionSegmentStore EmptyStore()
+    {
+        var store = Substitute.For<ISessionSegmentStore>();
+        store.Connect().Returns(Observable.Empty<IChangeSet<SessionSegmentSnapshot, Guid>>());
+        store.GetForOwner(Arg.Any<string>()).Returns(Array.Empty<SessionSegmentSnapshot>());
+        return store;
+    }
 }

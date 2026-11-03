@@ -1,3 +1,7 @@
+using System.Reactive.Linq;
+using System.Reactive;
+using Sufni.App.Bikes.Stores;
+using Sufni.App.Setups.Queries;
 using Microsoft.Extensions.Time.Testing;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
@@ -88,35 +92,69 @@ internal static class MainPagesViewModelTestFactory
 
     private static BikeListViewModel CreateBikeListPage(IShellCoordinator shell, IShellActions feedback) =>
         new(
-            new BikeStoreStub(),
+            EmptyBikeStore(),
             Substitute.For<IBikeDependencyQuery>(),
             TestCoordinatorSubstitutes.Bike(),
             UiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
+            pendingDeletes: EmptyPendingDeletes(), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static SessionListViewModel CreateSessionListPage(IShellCoordinator shell, IShellActions feedback) =>
         new(
             CreateRecordedSessionProjection(),
-            TestCoordinatorSubstitutes.RecomputeEngine(),
+            TestCoordinatorSubstitutes.Session(),
             UiThreadDispatcher,
-            pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
+            pendingDeletes: EmptyPendingDeletes(), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static IRecordedSessionProjection CreateRecordedSessionProjection()
     {
         var projection = Substitute.For<IRecordedSessionProjection>();
-        var cache = new SourceCache<RecordedSessionSummary, Guid>(summary => summary.Id);
-        projection.ConnectSessions().Returns(cache.Connect());
+        projection.ConnectSessions().Returns(Observable.Empty<IChangeSet<RecordedSessionSummary, Guid>>());
         return projection;
     }
 
     private static SetupListViewModel CreateSetupListPage(IShellCoordinator shell, IShellActions feedback) =>
-        new(new SetupBoardQueryStub(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
+        new(EmptySetupQuery(), TestCoordinatorSubstitutes.Setup(), UiThreadDispatcher, pendingDeletes: EmptyPendingDeletes(), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: feedback);
 
     private static LiveDaqListViewModel CreateLiveDaqListPage(IShellCoordinator shell) =>
-        new(new LiveDaqStore(new InlineUiThreadDispatcher()), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
+        new(EmptyLiveStore(), TestCoordinatorSubstitutes.LiveDaq(), UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
 
     private static PairedDeviceListViewModel CreatePairedDeviceListPage() =>
-        new(new PairedDeviceStoreStub(), UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider());
+        new(EmptyPairedDeviceStore(), UiThreadDispatcher, pendingDeletes: EmptyPendingDeletes(), timeProvider: new FakeTimeProvider());
 
 
+    private static IBikeStore EmptyBikeStore()
+    {
+        var store = Substitute.For<IBikeStore>();
+        store.Connect().Returns(Observable.Empty<IChangeSet<BikeSnapshot, Guid>>());
+        return store;
+    }
+
+    private static ISetupBoardQuery EmptySetupQuery()
+    {
+        var query = Substitute.For<ISetupBoardQuery>();
+        query.Connect().Returns(Observable.Empty<IChangeSet<SetupDetails, Guid>>());
+        query.Changes.Returns(Observable.Empty<Unit>());
+        return query;
+    }
+
+    private static ILiveDaqStore EmptyLiveStore()
+    {
+        var store = Substitute.For<ILiveDaqStore>();
+        store.Connect().Returns(Observable.Empty<IChangeSet<LiveDaqSnapshot, string>>());
+        return store;
+    }
+
+    private static IPairedDeviceStore EmptyPairedDeviceStore()
+    {
+        var store = Substitute.For<IPairedDeviceStore>();
+        store.Connect().Returns(Observable.Empty<IChangeSet<PairedDeviceSnapshot, string>>());
+        return store;
+    }
+
+    private static IPendingDeletes EmptyPendingDeletes()
+    {
+        var pending = Substitute.For<IPendingDeletes>();
+        pending.Observe().Returns(Observable.Return<IReadOnlyList<PendingDelete>>([]));
+        return pending;
+    }
 }

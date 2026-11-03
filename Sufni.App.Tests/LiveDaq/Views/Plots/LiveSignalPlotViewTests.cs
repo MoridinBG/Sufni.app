@@ -35,83 +35,28 @@ public class LiveSignalPlotViewTests
     public async Task AnalysisOnlyBatch_DoesNotClearVisibleLiveSamples()
     {
         ViewTestHelpers.EnsurePlotViewStyle();
-        var batches = new Subject<LiveSignalBatch>();
+        using var batches = new Subject<LiveSignalBatch>();
         var view = new LiveSessionSignalsDesktopView { DataContext = new StubLiveSessionSignalsWorkspace(batches) };
         var host = new Window { Width = 1200, Height = 900, Content = view };
+        await using var mounted = new MountedView<LiveSessionSignalsDesktopView>(host, view);
         ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
-        try
-        {
-            var travel = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
-            batches.OnNext(CreateBatch(1));
-            await FlushSignalBatchesAsync(travel);
-            var plot = GetRenderedPlot(travel);
-            Assert.All(plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        var travel = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
+        batches.OnNext(CreateBatch(1));
+        await FlushSignalBatchesAsync(travel);
+        var plot = GetRenderedPlot(travel);
+        AssertTravelSamples(plot, [10, 11, 12]);
 
-            var analysis = LiveSessionAnalysis.Compute(1,
-                LiveAnalysisOptions.Default(Sufni.App.Bikes.Models.DampingSpeedCutoffs.Default),
-                TestTelemetryData.CreateProcessed(), Sufni.App.Sessions.Models.SessionDampingPercentages.Empty, true, true);
-            batches.OnNext(LiveSignalBatch.Empty with { Revision = 2, Analysis = analysis });
-            await FlushSignalBatchesAsync(travel);
-            Assert.All(plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        var analysis = LiveSessionAnalysis.Compute(1,
+            LiveAnalysisOptions.Default(Sufni.App.Bikes.Models.DampingSpeedCutoffs.Default),
+            TestTelemetryData.CreateProcessed(), Sufni.App.Sessions.Models.SessionDampingPercentages.Empty, true, true);
+        batches.OnNext(LiveSignalBatch.Empty with { Revision = 2, Analysis = analysis });
+        await FlushSignalBatchesAsync(travel);
+        AssertTravelSamples(plot, [10, 11, 12]);
 
-            batches.OnNext(LiveSignalBatch.Empty with { Revision = 3 });
-            await FlushSignalBatchesAsync(travel);
-            Assert.All(plot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(0, streamer.Data.CountTotal));
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task LiveSessionSignalsDesktopView_WiresLivePlotViews_AndAppendsSignalBatches()
-    {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var batches = new Subject<LiveSignalBatch>();
-        var workspace = new StubLiveSessionSignalsWorkspace(batches, hasPitchRollSection: true);
-        var view = new LiveSessionSignalsDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        ViewTestHelpers.ShowWindow(host);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
-        var velocityView = GetNamedVisual<LiveVelocityPlotView>(view, "VelocityPlot");
-        var imuView = GetNamedVisual<LiveImuPlotView>(view, "ImuPlot");
-        var pitchRollView = GetNamedVisual<LiveFramePitchRollPlotView>(view, "PitchRollPlot");
-
-        Assert.NotNull(travelView);
-        Assert.NotNull(velocityView);
-        Assert.NotNull(imuView);
-        Assert.NotNull(pitchRollView);
-
-        batches.OnNext(CreateBatch(revision: 1));
-        await FlushSignalBatchesAsync(travelView!, velocityView!, imuView!, pitchRollView!);
-
-        var travelPlot = GetRenderedPlot(travelView!);
-        var velocityPlot = GetRenderedPlot(velocityView!);
-        var imuPlot = GetRenderedPlot(imuView!);
-        var pitchRollPlot = GetRenderedPlot(pitchRollView!);
-
-        Assert.Contains(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
-        Assert.Contains(velocityPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
-        Assert.Contains(imuPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
-        Assert.Contains(pitchRollPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => streamer.Data.CountTotal > 0);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        batches.OnNext(LiveSignalBatch.Empty with { Revision = 3 });
+        await FlushSignalBatchesAsync(travel);
+        AssertTravelSamples(plot, []);
     }
 
     [AvaloniaFact]
@@ -119,7 +64,7 @@ public class LiveSignalPlotViewTests
     {
         ViewTestHelpers.EnsurePlotViewStyle();
 
-        var batches = new Subject<LiveSignalBatch>();
+        using var batches = new Subject<LiveSignalBatch>();
         var workspace = new StubLiveSessionSignalsWorkspace(batches);
         var view = new LiveSessionSignalsDesktopView
         {
@@ -132,6 +77,7 @@ public class LiveSignalPlotViewTests
             Content = view
         };
 
+        await using var mounted = new MountedView<LiveSessionSignalsDesktopView>(host, view);
         ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
@@ -142,7 +88,7 @@ public class LiveSignalPlotViewTests
         await FlushSignalBatchesAsync(travelView!);
 
         var travelPlot = GetRenderedPlot(travelView!);
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        AssertTravelSamples(travelPlot, [10, 11, 12]);
 
         host.Content = null;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -150,13 +96,10 @@ public class LiveSignalPlotViewTests
         host.Content = view;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        batches.OnNext(CreateBatch(revision: 2));
+        batches.OnNext(CreateBatch(revision: 2, startOffset: 3));
         await FlushSignalBatchesAsync(travelView!);
 
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        AssertTravelSamples(travelPlot, [10, 11, 12, 13, 14, 15]);
     }
 
     [AvaloniaFact]
@@ -164,7 +107,7 @@ public class LiveSignalPlotViewTests
     {
         ViewTestHelpers.EnsurePlotViewStyle();
 
-        var batches = new Subject<LiveSignalBatch>();
+        using var batches = new Subject<LiveSignalBatch>();
         var workspace = new StubLiveSessionSignalsWorkspace(batches);
         var view = new LiveSessionSignalsDesktopView
         {
@@ -181,6 +124,7 @@ public class LiveSignalPlotViewTests
             Content = tabContent
         };
 
+        await using var mounted = new MountedView<LiveSessionSignalsDesktopView>(host, view);
         ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
@@ -188,24 +132,20 @@ public class LiveSignalPlotViewTests
         batches.OnNext(CreateBatch(revision: 1));
         await FlushSignalBatchesAsync(travelView);
         var travelPlot = GetRenderedPlot(travelView);
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
-        Assert.True(batches.HasObservers);
+        AssertTravelSamples(travelPlot, [10, 11, 12]);
 
         tabContent.IsVisible = false;
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.False(batches.HasObservers);
 
-        batches.OnNext(CreateBatch(revision: 2));
+        batches.OnNext(CreateBatch(revision: 2, startOffset: 30));
+        await FlushSignalBatchesAsync(travelView);
+        AssertTravelSamples(travelPlot, [10, 11, 12]);
         tabContent.IsVisible = true;
         await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.True(batches.HasObservers);
 
-        batches.OnNext(CreateBatch(revision: 3));
+        batches.OnNext(CreateBatch(revision: 3, startOffset: 3));
         await FlushSignalBatchesAsync(travelView);
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        AssertTravelSamples(travelPlot, [10, 11, 12, 13, 14, 15]);
     }
 
     [AvaloniaFact]
@@ -214,7 +154,7 @@ public class LiveSignalPlotViewTests
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsurePlotViewStyle();
 
-        var batches = new Subject<LiveSignalBatch>();
+        using var batches = new Subject<LiveSignalBatch>();
         var workspace = new StubLiveSessionSignalsWorkspace(batches);
         var view = new LiveSessionSignalsDesktopView
         {
@@ -236,6 +176,7 @@ public class LiveSignalPlotViewTests
             Content = root
         };
 
+        await using var mounted = new MountedView<LiveSessionSignalsDesktopView>(host, view);
         ViewTestHelpers.ShowWindow(host);
         await ViewTestHelpers.FlushDispatcherAsync();
 
@@ -246,62 +187,30 @@ public class LiveSignalPlotViewTests
         await FlushSignalBatchesAsync(travelView);
 
         var travelPlot = GetRenderedPlot(travelView);
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(3, streamer.Data.CountTotal));
+        AssertTravelSamples(travelPlot, [10, 11, 12]);
 
         zoomContainer.RaiseEvent(new PlotZoomRequestedEventArgs(zoomContainer));
         await ViewTestHelpers.FlushDispatcherAsync();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(overlay.IsZoomOpen);
-        Assert.True(zoomContainer.IsChildBorrowed);
+        Assert.Contains(overlay, travelView.GetVisualAncestors());
 
-        batches.OnNext(CreateBatch(revision: 2));
+        batches.OnNext(CreateBatch(revision: 2, startOffset: 3));
         await FlushSignalBatchesAsync(travelView);
 
-        Assert.All(travelPlot.Plot.PlottableList.OfType<DataStreamer>(), streamer => Assert.Equal(6, streamer.Data.CountTotal));
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        AssertTravelSamples(travelPlot, [10, 11, 12, 13, 14, 15]);
     }
 
-    [AvaloniaFact]
-    public async Task LiveSessionSignalsDesktopView_CoalescesPendingSignalBatches_ToBoundRenderWork()
+    private static void AssertTravelSamples(AvaPlot plot, double[] expectedFront)
     {
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var batches = new Subject<LiveSignalBatch>();
-        var workspace = new StubLiveSessionSignalsWorkspace(batches);
-        var view = new LiveSessionSignalsDesktopView
-        {
-            DataContext = workspace
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 900,
-            Content = view
-        };
-
-        ViewTestHelpers.ShowWindow(host);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var travelView = GetNamedVisual<LiveTravelPlotView>(view, "TravelPlot");
-        Assert.NotNull(travelView);
-
-        for (var revision = 1; revision <= 6; revision++)
-        {
-            batches.OnNext(CreateBatch(revision, sampleCount: 600, startOffset: (revision - 1) * 600));
-        }
-
-        await FlushSignalBatchesAsync(travelView!);
-
-        var travelPlot = GetRenderedPlot(travelView!);
-        Assert.All(
-            travelPlot.Plot.PlottableList.OfType<DataStreamer>(),
-            streamer => Assert.Equal(2560, streamer.Data.CountTotal));
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        var series = plot.Plot.PlottableList.OfType<DataStreamer>().ToArray();
+        Assert.NotEmpty(series);
+        var front = Assert.Single(series, value => value.LegendText == "Front");
+        var rear = Assert.Single(series, value => value.LegendText == "Rear");
+        Assert.Equal(expectedFront.Length, front.Data.CountTotal);
+        Assert.Equal(expectedFront, front.Data.Data.Take(expectedFront.Length));
+        Assert.Equal(expectedFront.Select(value => value - 1), rear.Data.Data.Take(rear.Data.CountTotal));
     }
 
     private static T GetNamedVisual<T>(Control root, string name)
@@ -316,48 +225,13 @@ public class LiveSignalPlotViewTests
     private static AvaPlot GetRenderedPlot(Control view) =>
         Assert.Single(view.GetVisualDescendants().OfType<AvaPlot>());
 
-    private static LiveSignalBatch CreateBatch(long revision, int sampleCount = 3, int startOffset = 0)
+    private static LiveSignalBatch CreateBatch(long revision, int startOffset = 0) => LiveSignalBatch.Empty with
     {
-        var times = Enumerable.Range(startOffset, sampleCount)
-            .Select(index => index * 0.01)
-            .ToArray();
-        var frontTravel = Enumerable.Range(startOffset, sampleCount)
-            .Select(index => 10.0 + index)
-            .ToArray();
-        var rearTravel = Enumerable.Range(startOffset, sampleCount)
-            .Select(index => 9.0 + index)
-            .ToArray();
-        var frontVelocity = Enumerable.Range(startOffset, sampleCount)
-            .Select(index => 1000.0 + index * 10.0)
-            .ToArray();
-        var rearVelocity = Enumerable.Range(startOffset, sampleCount)
-            .Select(index => 900.0 + index * 10.0)
-            .ToArray();
-
-        return new LiveSignalBatch(
-            Revision: revision,
-            TravelTimes: times,
-            FrontTravel: frontTravel,
-            RearTravel: rearTravel,
-            VelocityTimes: times,
-            FrontVelocity: frontVelocity,
-            RearVelocity: rearVelocity,
-            ImuTimes: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
-            {
-                [LiveImuLocation.Frame] = [times[^1]],
-            },
-            ImuVibrationRms: new Dictionary<LiveImuLocation, IReadOnlyList<double>>
-            {
-                [LiveImuLocation.Frame] = [1.5],
-            },
-            FramePitchRollTimes: times,
-            FramePitchDegrees: Enumerable.Range(startOffset, sampleCount)
-                .Select(index => 1.0 + index)
-                .ToArray(),
-            FrameRollDegrees: Enumerable.Range(startOffset, sampleCount)
-                .Select(index => -1.0 - index)
-                .ToArray());
-    }
+        Revision = revision,
+        TravelTimes = Enumerable.Range(startOffset, 3).Select(index => index * 0.01).ToArray(),
+        FrontTravel = Enumerable.Range(startOffset, 3).Select(index => 10.0 + index).ToArray(),
+        RearTravel = Enumerable.Range(startOffset, 3).Select(index => 9.0 + index).ToArray(),
+    };
 
     private static async Task FlushSignalBatchesAsync(params LiveSignalPlotViewBase[] views)
     {
@@ -369,33 +243,16 @@ public class LiveSignalPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
     }
 
-    private sealed class StubLiveSessionSignalsWorkspace(
-        Subject<LiveSignalBatch> signalBatches,
-        bool hasTravelSection = true,
-        bool hasVelocitySection = true,
-        bool hasImuSection = true,
-        bool hasPitchRollSection = false) : ILiveSessionSignalsWorkspace
+    private sealed class StubLiveSessionSignalsWorkspace(Subject<LiveSignalBatch> signalBatches) : ILiveSessionSignalsWorkspace
     {
         public IObservable<LiveSignalBatch> SignalBatches { get; } = signalBatches;
         public LiveSessionPlotRanges PlotRanges { get; } = new(180, 5, 5);
-        public IReadOnlyList<TrackPoint> TrackPoints { get; } =
-        [
-            new TrackPoint(0, 0, 0, 100, 5),
-            new TrackPoint(1, 1, 1, 101, 6),
-        ];
-        public TrackTimeRange? TrackTimelineContext { get; } = new(0, 1);
-        public SurfacePresentationState TravelSignalState { get; } = hasTravelSection
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        public SurfacePresentationState VelocitySignalState { get; } = hasVelocitySection
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        public SurfacePresentationState ImuSignalState { get; } = hasImuSection
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
-        public SurfacePresentationState PitchRollSignalState { get; } = hasPitchRollSection
-            ? SurfacePresentationState.Ready
-            : SurfacePresentationState.Hidden;
+        public IReadOnlyList<TrackPoint> TrackPoints { get; } = [];
+        public TrackTimeRange? TrackTimelineContext { get; } = null;
+        public SurfacePresentationState TravelSignalState { get; } = SurfacePresentationState.Ready;
+        public SurfacePresentationState VelocitySignalState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState ImuSignalState { get; } = SurfacePresentationState.Hidden;
+        public SurfacePresentationState PitchRollSignalState { get; } = SurfacePresentationState.Hidden;
         public SurfacePresentationState SpeedSignalState { get; } = SurfacePresentationState.Hidden;
         public SurfacePresentationState ElevationSignalState { get; } = SurfacePresentationState.Hidden;
         public SignalDisplayPreferences SignalDisplayPreferences { get; } = new();

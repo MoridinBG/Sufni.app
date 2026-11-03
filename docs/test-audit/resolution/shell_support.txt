@@ -1,0 +1,17 @@
+Shell / Shared audit resolution
+
+Resolved all 158 non-KEEP test-method findings in shell_support.csv plus the MainPagesViewModelTestFactory REWRITE helper finding. No non-KEEP method finding remains deferred in this assignment. Shared TestSupport helpers remain owned by root.
+
+Test method attributes: 273 -> 146 (-127). C# test/support lines in Shell and Shared: 8929 -> 5206 (-3723). Counts compare the current worktree captured before this agent's edits, preserving existing user changes. Theory data rows are not counted as separate methods.
+
+Removed internal formatter/decimator/smoother/label-selector/hit-tester/menu/invalidation tests; duplicate factory, constructor, command-forwarding, static-control, synthetic-store and framework-cache coverage. Retained existing concrete cancellation, conflicts, recovery, cleanup and compatibility cases.
+
+Focused rewrites cover real store remove/re-add and queued publication, literal historical track quality JSON, legacy/current session preference precedence and tree preservation, pending concurrent preference commit preserving both edits, exact observation without a negative wall-clock timeout, parent-owned panel/overlay visibility, mounted startup-reset binding, diagnostics replacement drainage, intermediate navigation history and zoomed bound-text context preservation/restoration through actual double taps with manual close completion.
+
+MainPages factory now supplies explicit empty observable read contracts and pending-delete facts instead of constructing caches, subjects, stores or real pending-delete workflows for unrelated primary pages. No factory API change. Six simple mounted-view wrappers reuse root's MountedView<T> disposal lease.
+
+Validation: git diff --check passed for Shell/Shared. No builds or tests run, as instructed; root must compile and run focused Shell/Shared tests and then the affected project. In particular verify the new preference migration theories, pending dispatcher commit test and zoom binding/lifecycle tests.
+
+Integration notes: Bike JSON metadata exclusion moved out of Shared ownership; requested bikes owner add it to BikeFileFormatTests, where linkage roundtrip/normalization already live. RecordingUiThreadDispatcher has no remaining consumer from this assignment and root can prune it. Production MainPages event listeners have no public disposal API (theme/environment/optional pairing); existing production ownership remains outside test-only scope, and no production changes were made.
+
+Runtime follow-up: NotificationsBar rendered-item test now loads the Fluent control theme and mounts through arranged ShowViewAsync before asserting effectively-visible TextBlocks; the stripped headless app does not load those templates by default. Root reruns validation.

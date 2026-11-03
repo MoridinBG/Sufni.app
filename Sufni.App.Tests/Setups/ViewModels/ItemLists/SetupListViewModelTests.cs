@@ -17,37 +17,18 @@ public class SetupListViewModelTests
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
-    public void AddCommand_OpensSetupCreate_WithoutImportPageBoardContext()
-    {
-        var setupStore = Substitute.For<ISetupBoardQuery>();
-        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
-        var setupCoordinator = TestCoordinatorSubstitutes.Setup();
-
-        setupStore.Connect().Returns(setupCache.Connect());
-
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
-
-        viewModel.AddCommand.Execute(null);
-
-        shell.Received(1).OpenEditor(new EditorKey.NewSetup());
-    }
-
-    [Fact]
     public async Task FinalizeDelete_KeepsSetupHidden_WhileDeleteInProgress()
     {
-        var setupStore = Substitute.For<ISetupBoardQuery>();
-        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
-        setupStore.Connect().Returns(setupCache.Connect());
+        using var setupStore = new SetupBoardQueryStub();
 
         var snapshot = TestSnapshots.Setup(name: "to delete");
-        setupCache.AddOrUpdate(new SetupDetails(snapshot, null));
-        setupStore.Get(snapshot.Id).Returns(new SetupDetails(snapshot, null));
+        setupStore.Add(snapshot);
 
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
         var deleteTcs = new TaskCompletionSource<SetupDeleteResult>();
         setupCoordinator.DeleteAsync(snapshot.Id).Returns(deleteTcs.Task);
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        using var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -58,9 +39,9 @@ public class SetupListViewModelTests
         var finalizeTask = entry.FinalizeDeleteCommand.ExecuteAsync(null);
         Assert.Empty(viewModel.Items);
 
-        setupCache.Remove(snapshot.Id);
+        setupStore.Remove(snapshot.Id);
         deleteTcs.SetResult(new SetupDeleteResult.Deleted());
-        await finalizeTask;
+        await finalizeTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Empty(viewModel.Items);
     }
@@ -68,14 +49,12 @@ public class SetupListViewModelTests
     [Fact]
     public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
     {
-        var setupStore = Substitute.For<ISetupBoardQuery>();
-        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
-        setupStore.Connect().Returns(setupCache.Connect());
+        using var setupStore = new SetupBoardQueryStub();
         var first = TestSnapshots.Setup(name: "first");
         var second = TestSnapshots.Setup(name: "second");
-        setupCache.AddOrUpdate(new SetupDetails(first, null));
+        setupStore.Add(first);
 
-        var viewModel = new SetupListViewModel(
+        using var viewModel = new SetupListViewModel(
             setupStore,
             TestCoordinatorSubstitutes.Setup(),
             UiThreadDispatcher,
@@ -87,7 +66,7 @@ public class SetupListViewModelTests
         Assert.Single(viewModel.Items);
 
         viewModel.UnloadedCommand.Execute(null);
-        setupCache.AddOrUpdate(new SetupDetails(second, null));
+        setupStore.Add(second);
         Assert.Empty(viewModel.Items);
 
         viewModel.LoadedCommand.Execute(null);
@@ -98,19 +77,16 @@ public class SetupListViewModelTests
     [Fact]
     public async Task FinalizeDelete_RestoresSetup_WhenCoordinatorReportsFailure()
     {
-        var setupStore = Substitute.For<ISetupBoardQuery>();
-        using var setupCache = new SourceCache<SetupDetails, Guid>(snapshot => snapshot.Setup.Id);
-        setupStore.Connect().Returns(setupCache.Connect());
+        using var setupStore = new SetupBoardQueryStub();
 
         var snapshot = TestSnapshots.Setup(name: "stays");
-        setupCache.AddOrUpdate(new SetupDetails(snapshot, null));
-        setupStore.Get(snapshot.Id).Returns(new SetupDetails(snapshot, null));
+        setupStore.Add(snapshot);
 
         var setupCoordinator = TestCoordinatorSubstitutes.Setup();
         setupCoordinator.DeleteAsync(snapshot.Id)
             .Returns(new SetupDeleteResult.Failed(SetupDeleteFailureReason.Delete, "boom"));
 
-        var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
+        using var viewModel = new SetupListViewModel(setupStore, setupCoordinator, UiThreadDispatcher, pendingDeletes: TestPendingDeletes.Create(setups: setupCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
 
@@ -120,24 +96,6 @@ public class SetupListViewModelTests
 
         Assert.Single(viewModel.Items);
         Assert.NotEmpty(viewModel.ErrorMessages);
-    }
-
-    [Fact]
-    public async Task Import_OpensNewEditorThroughShell()
-    {
-        var coordinator = TestCoordinatorSubstitutes.Setup();
-        var setupId = Guid.NewGuid();
-        var imported = new SetupImportResult.Imported(setupId);
-        coordinator.ImportSetupAsync(Arg.Any<CancellationToken>()).Returns(imported);
-        var query = new SetupBoardQueryStub();
-        using var viewModel = new SetupListViewModel(query, coordinator,
-            UiThreadDispatcher, TestPendingDeletes.Create(setups: coordinator, shell: shell),
-            new FakeTimeProvider(), shell, TestShellFeedback.Create());
-
-        await viewModel.ImportCommand.ExecuteAsync(null);
-
-        shell.Received(1).OpenEditor(new EditorKey.Setup(setupId));
-        Assert.Empty(viewModel.ErrorMessages);
     }
 
     [Theory]
@@ -153,7 +111,7 @@ public class SetupListViewModelTests
             token = call.Arg<CancellationToken>();
             return pending.Task;
         });
-        var query = new SetupBoardQueryStub();
+        using var query = new SetupBoardQueryStub();
         using var viewModel = new SetupListViewModel(query, coordinator,
             UiThreadDispatcher, TestPendingDeletes.Create(setups: coordinator, shell: shell),
             new FakeTimeProvider(), shell, TestShellFeedback.Create());
@@ -178,7 +136,7 @@ public class SetupListViewModelTests
         var coordinator = TestCoordinatorSubstitutes.Setup();
         coordinator.ImportSetupAsync(Arg.Any<CancellationToken>())
             .Returns(new SetupImportResult.InvalidFile("Invalid file"), new SetupImportResult.Canceled());
-        var query = new SetupBoardQueryStub();
+        using var query = new SetupBoardQueryStub();
         using var viewModel = new SetupListViewModel(query, coordinator,
             UiThreadDispatcher, TestPendingDeletes.Create(setups: coordinator, shell: shell),
             new FakeTimeProvider(), shell, TestShellFeedback.Create());

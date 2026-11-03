@@ -1,6 +1,6 @@
 # Platform Capabilities And Layout Profiles
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file is a cross-cutting reference for the remaining platform divergence points after the unified shell refactor: project layout, layout-profile view selection, platform capabilities, native lifetime hosts, platform-only services, DI composition, scenario-specific solutions, and behavioral differences worth knowing. Per-feature details live in the linked subsystem docs; this file does not re-derive them.
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file is a cross-cutting reference for the platform divergence points: project layout, layout-profile view selection, platform capabilities, native lifetime hosts, platform-only services, DI composition, scenario-specific solutions, and behavioral differences worth knowing. Per-feature details live in the linked subsystem docs; this file does not re-derive them.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ The shared application code lives in `Sufni.App/Sufni.App/` and is consumed by e
  Windows   macOS    Linux    Android           iOS
 ```
 
-Only desktop heads pull in `Sufni.App.Desktop`, which is what keeps ASP.NET Core server hosting, JWT bearer validation, and server certificate generation off the mobile builds. Shared client-side JWT parsing still lives in `Sufni.App` because mobile sync clients need to inspect access-token expiry for refresh.
+Only desktop heads pull in `Sufni.App.Desktop`, which is what keeps ASP.NET Core server hosting, JWT bearer validation, and server certificate generation off the mobile builds. Shared client-side JWT parsing lives in `Sufni.App` because mobile sync clients need to inspect access-token expiry for refresh.
 
 Video players are head-specific. The Windows and Linux heads reference `Sufni.App/Sufni.App.Video.LibVlc/`. The macOS and iOS heads link `Sufni.App/AppleShared/AppleAvPlaybackBackend.cs` and each define an AVFoundation player factory. Android has no video player. See [video.md](video.md#platform-players).
 
@@ -49,9 +49,9 @@ The selected profile is a local preference read during startup through `IAppEnvi
 Shell roots supply `ShellRootPresentation`, which carries the root view model and
 selected profile; the locator sets that root as the shell view's data context.
 
-This means a mobile platform can render workspace-profile views when the local preference requests it, and a desktop platform can render compact-profile views. Platform capabilities still decide which actions are available inside those views.
+This means a mobile platform can render workspace-profile views when the local preference requests it, and a desktop platform can render compact-profile views. Platform capabilities decide which actions are available inside those views.
 
-The older folder names remain for continuity: `Views/` mostly contains common or compact-profile views, while `DesktopViews/` mostly contains workspace-profile views. The folder name is not the selection mechanism; `IAppEnvironment.LayoutProfile` is.
+`Views/` mostly contains common or compact-profile views, while `DesktopViews/` mostly contains workspace-profile views. The folder name does not select the view; `IAppEnvironment.LayoutProfile` does.
 
 ## Platform Capabilities
 
@@ -125,11 +125,11 @@ a platform registration delegate. The mobile native hosts override
    use `RegisterMobileSync`. Video capability must agree with player registration.
 3. `App.OnFrameworkInitializationCompleted` builds one provider with
    `ValidateOnBuild = true`. `AppStartup` gates page creation on database
-   initialization and the first store refresh, initializes tile layers, and
-   starts the server on capable heads. The page-activation callback resolves
-   subscription owners before server startup. Mobile pairing initialization is
-   awaited by `AppStartup` before pages are created.
-   Desktop pairing has no eager event subscriptions; startup calls the server directly.
+   initialization and the first store refresh. On mobile, it then awaits pairing
+   initialization. The page-activation callback resolves subscription owners.
+   After activation, `AppStartup` starts the server on capable heads. Desktop
+   pairing has no eager event subscriptions. Tile state derives from store and
+   preference observations, with no startup step.
 
 Debug developer tools are attached by `DesktopAppBootstrapper` after Avalonia
 application setup. There is no shared OS check for them.
@@ -161,9 +161,9 @@ View-test helpers should select compact/workspace profile and capabilities expli
 
 ## Behavioral Differences
 
-The places where platform behavior still differs are deliberately small:
+Platform behavior differs in a few deliberate places:
 
-- **Session detail load**. `SessionDetailViewModel` uses the same local-only staged coordinator path in both profiles: `LoadDetailAsync(...)` publishes decoded telemetry first, then `LoadTrackAsync(...)` settles optional map/track data under the same active load token. Missing processed telemetry or recorded-source payloads surface as an incomplete-local-data screen state; sync is responsible for downloading those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
+- **Session detail load**. `SessionDetailViewModel` uses the same local-only staged `ISessionLoader` path in both profiles: `LoadDetailAsync(...)` publishes decoded telemetry first, then `LoadTrackAsync(...)` settles optional map/track data under the same active load token. Missing processed telemetry surfaces as an incomplete-local-data screen state. A missing recorded source shows a warning but does not block the session. Sync downloads those payloads before the session is opened. See [UI Workflows § Coordinators](ui-workflows.md#coordinators) and [Sync](sync.md).
 - **Sync side**. Desktop-capable platforms can host the server; mobile-capable platforms pair and sync as clients. There is no peer-to-peer mode and no path that runs both on one device unless a future platform registers both capabilities deliberately.
 - **Platform-only actions**. Sync server actions, pairing client actions, mass-storage import, storage-provider import, and video playback are capability-gated. Haptics require a registered service; native windowing follows the application lifetime.
 - **Import folder picking**. `ImportSessionsCoordinator` and the command both use `CanPickFolder`; the current heads enable it explicitly. File-picker support and layout do not imply folder-picker support.

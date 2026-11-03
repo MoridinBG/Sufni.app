@@ -7,7 +7,6 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 internal sealed class TestSessionProcessedTelemetryReader : ISessionProcessedTelemetryReader
 {
     private readonly Dictionary<Guid, TelemetryData?> telemetryBySession = [];
-    private readonly Dictionary<Guid, int> getCallCounts = [];
 
     public Exception? ReadFailure { get; set; }
 
@@ -22,9 +21,6 @@ internal sealed class TestSessionProcessedTelemetryReader : ISessionProcessedTel
     public void Set(Guid sessionId, TelemetryData? telemetry) =>
         telemetryBySession[sessionId] = telemetry;
 
-    public int GetCallCount(Guid sessionId) =>
-        getCallCounts.GetValueOrDefault(sessionId);
-
     public IDisposable Retain(Guid sessionId)
     {
         RetainedSessionIds.Add(sessionId);
@@ -35,7 +31,6 @@ internal sealed class TestSessionProcessedTelemetryReader : ISessionProcessedTel
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (ReadFailure is { } failure) return Task.FromException<TelemetryData?>(failure);
-        getCallCounts[sessionId] = GetCallCount(sessionId) + 1;
         telemetryBySession.TryGetValue(sessionId, out var telemetry);
         return Task.FromResult(telemetry);
     }
@@ -48,7 +43,7 @@ internal sealed class TestSessionProcessedTelemetryReader : ISessionProcessedTel
         cancellationToken.ThrowIfCancellationRequested();
         ExactReads.Add((sessionId, processedTelemetryRevision));
         return ExactReader?.Invoke(sessionId, processedTelemetryRevision, cancellationToken)
-               ?? GetAsync(sessionId, cancellationToken);
+               ?? Task.FromResult<TelemetryData?>(null);
     }
 
     private sealed class Retention(Action release) : IDisposable

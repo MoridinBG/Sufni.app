@@ -48,26 +48,6 @@ public class TrackCoordinatorTests
         tracks ?? trackStore, sessionStore, new InlineUiThreadDispatcher(), publication);
 
     [Fact]
-    public async Task BuildAnalysisComparisonAsync_ReturnsFailureWhenAnalysisCannotRun()
-    {
-        var runner = Substitute.For<IBackgroundTaskRunner>();
-        runner.RunAsync(Arg.Any<Func<SegmentAnalysisComparison>>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromException<SegmentAnalysisComparison>(new InvalidOperationException("analysis failed")));
-        using var coordinator = CreateCoordinator(runner: runner);
-        var telemetry = TestSegmentMatches.Telemetry();
-        var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!;
-        var detail = SegmentComparisonBuilder.BuildDetail(telemetry, null);
-
-        var result = await coordinator.BuildAnalysisComparisonAsync(comparison, detail,
-            TravelDistributionMode.ActiveSuspension, VelocityAverageMode.SampleAveraged,
-            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, TestContext.Current.CancellationToken);
-
-        var failure = Assert.IsType<SegmentAnalysisComparisonResult.Failed>(result);
-        Assert.Equal(SegmentComparisonFailureReason.Analysis, failure.Reason);
-        Assert.NotEmpty(failure.Details!);
-    }
-
-    [Fact]
     public async Task ImportGpxAsync_IndependentInstallationsChooseTheSameContentIdentity()
     {
         var identities = new List<Guid>();
@@ -193,23 +173,12 @@ public class TrackCoordinatorTests
     }
 
     [Fact]
-    public async Task ImportGpxAsync_ReturnsInvalidFile_WhenGpxContainsNoValidTrackPoints()
-    {
-        var file = TestStorageItems.PickedTextFile("ride.gpx", EmptyTrackGpx());
-        filesService.OpenGpxFilesAsync().Returns([file]);
-
-        var result = await CreateCoordinator().ImportGpxAsync(cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(GpxImportFailureReason.InvalidFile, Assert.IsType<GpxImportResult.Failed>(result).Reason);
-        Assert.Empty(await trackEntityRepository.GetAllAsync());
-    }
-
-    [Fact]
     public async Task ImportGpxAsync_StopsAtInvalidFile_AndReportsAlreadyCommittedTracks()
     {
         List<PickedFile> files = [
             TestStorageItems.PickedTextFile("first.gpx", ValidGpx()),
             TestStorageItems.PickedTextFile("broken.gpx", "not gpx"),
-            TestStorageItems.PickedTextFile("last.gpx", ValidGpx())];
+            TestStorageItems.PickedTextFile("last.gpx", ValidGpx().Replace("2025-06-01", "2025-06-02"))];
         filesService.OpenGpxFilesAsync().Returns(files);
 
         var result = Assert.IsType<GpxImportResult.Failed>(
@@ -217,7 +186,8 @@ public class TrackCoordinatorTests
 
         Assert.Equal(GpxImportFailureReason.InvalidFile, result.Reason);
         Assert.Equal(1, result.ImportedCount);
-        Assert.Single(await trackEntityRepository.GetAllAsync());
+        var committed = Assert.Single(await trackEntityRepository.GetAllAsync());
+        Assert.Equal(new DateTimeOffset(2025, 6, 1, 12, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds(), committed.Points[0].Time);
     }
 
     [Fact]
@@ -342,18 +312,4 @@ public class TrackCoordinatorTests
                """;
     }
 
-    private static string EmptyTrackGpx()
-    {
-        return """
-                             <?xml version="1.0" encoding="UTF-8"?>
-                             <gpx version="1.1" creator="tests" xmlns="http://www.topografix.com/GPX/1/1">
-                                 <trk>
-                                     <name>Example</name>
-                                     <trkseg>
-                                         <trkpt lat="42.0" lon="23.0"><ele>600</ele></trkpt>
-                                     </trkseg>
-                                 </trk>
-                             </gpx>
-                             """;
-    }
 }

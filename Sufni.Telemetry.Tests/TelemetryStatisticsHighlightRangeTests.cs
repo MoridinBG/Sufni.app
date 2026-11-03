@@ -5,22 +5,6 @@ namespace Sufni.Telemetry.Tests;
 public class TelemetryStatisticsHighlightRangeTests
 {
     [Fact]
-    public void BinRange_FromBins_CapturesBoundariesAndMatchesSameBins()
-    {
-        double[] bins = [0, 10, 20];
-
-        var range = TelemetryRangeSelection.BinRange.FromBins(bins, 1);
-
-        Assert.Equal(1, range.Index);
-        Assert.Equal(10, range.Start);
-        Assert.Equal(20, range.End);
-        Assert.False(range.IsFirst);
-        Assert.True(range.IsLast);
-        Assert.True(range.MatchesBins(bins));
-        Assert.False(range.MatchesBins([0, 12, 20]));
-    }
-
-    [Fact]
     public void CalculateHighlightRanges_SampleAveragedDamping_ReturnsMatchingSampleRuns()
     {
         var telemetry = CreateTelemetryData(

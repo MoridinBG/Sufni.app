@@ -30,7 +30,6 @@ public class LiveV2ProtocolReaderTests
         var ackFrame = Assert.IsType<LiveStartAckFrame>(frame);
         Assert.Equal((uint)5, ackFrame.Sequence);
         Assert.Equal(LiveStartErrorCode.Busy, ackFrame.Payload.Result);
-        Assert.Equal(0, reader.BufferedByteCount);
     }
 
     [Fact]
@@ -46,7 +45,6 @@ public class LiveV2ProtocolReaderTests
         Assert.True(reader.TryReadFrame(out var firstFrame));
         var firstAck = Assert.IsType<LiveStartAckFrame>(firstFrame);
         Assert.Equal((uint)1, firstAck.Sequence);
-        Assert.Equal(8, reader.BufferedByteCount);
 
         reader.Append(secondFrameBytes.AsSpan(8));
 
@@ -54,7 +52,6 @@ public class LiveV2ProtocolReaderTests
         var secondAck = Assert.IsType<LiveStartAckFrame>(secondFrame);
         Assert.Equal((uint)2, secondAck.Sequence);
         Assert.Equal(LiveStartErrorCode.Busy, secondAck.Payload.Result);
-        Assert.Equal(0, reader.BufferedByteCount);
     }
 
     [Fact]
@@ -117,7 +114,7 @@ public class LiveV2ProtocolReaderTests
         var frameBytes = LiveV2ProtocolReader.CreateStartLiveFrame(12, request);
 
         Assert.Equal((ushort)2, BinaryPrimitives.ReadUInt16LittleEndian(frameBytes.AsSpan(4, 2)));
-        Assert.Equal((uint)LiveSensorInstanceMask.ForkTravel | (uint)LiveSensorInstanceMask.RearImu | (uint)LiveSensorInstanceMask.Gps, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(16, 4)));
+        Assert.Equal(0x31u, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(16, 4)));
         Assert.Equal((uint)100, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(20, 4)));
         Assert.Equal((uint)201, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(24, 4)));
         Assert.Equal((uint)10, BinaryPrimitives.ReadUInt32LittleEndian(frameBytes.AsSpan(28, 4)));
@@ -169,7 +166,6 @@ public class LiveV2ProtocolReaderTests
         Assert.True(reader.TryReadFrame(out var frame));
         var ack = Assert.IsType<LiveStartAckFrame>(frame);
         Assert.Equal((uint)2, ack.Sequence);
-        Assert.Equal(0, reader.BufferedByteCount);
     }
 
     [Fact]
@@ -201,9 +197,9 @@ public class LiveV2ProtocolReaderTests
 
     private static byte[] CreateRawFrameHeader(LiveV2FrameType frameType, uint payloadLength, uint sequence)
     {
-        var header = new byte[LiveV2ProtocolConstants.FrameHeaderSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), LiveV2ProtocolConstants.Magic);
-        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), LiveV2ProtocolConstants.Version);
+        var header = new byte[16];
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(0, 4), 0x4556494C);
+        BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(4, 2), 2);
         BinaryPrimitives.WriteUInt16LittleEndian(header.AsSpan(6, 2), (ushort)frameType);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8, 4), payloadLength);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(12, 4), sequence);

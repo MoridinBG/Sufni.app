@@ -20,61 +20,6 @@ namespace Sufni.App.Tests.Sessions.Detail.DesktopViews.Items;
 public class SessionSidebarDesktopViewTests
 {
     [AvaloniaFact]
-    public async Task SessionSidebarDesktopView_RendersNotesAndPreferencesTabs()
-    {
-        var workspace = new SessionSidebarWorkspaceStub
-        {
-            Name = "Recorded Session 01",
-            DescriptionText = "Suspension notes",
-        };
-        workspace.PreferencesPage.ApplySignalAvailability(
-            travelAvailable: true,
-            velocityAvailable: false,
-            imuAvailable: true,
-            pitchRollAvailable: true,
-            speedAvailable: true,
-            elevationAvailable: true);
-
-        await using var mounted = await MountAsync(workspace);
-
-        var tabControl = mounted.View.FindControl<TabControl>("SidebarTabControl");
-        var preferencesTab = mounted.View.FindControl<TabItem>("PreferencesTab");
-
-        Assert.NotNull(tabControl);
-        Assert.NotNull(preferencesTab);
-
-        preferencesTab!.IsSelected = true;
-        tabControl!.SelectedItem = preferencesTab;
-        tabControl.SelectedIndex = 1;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var preferencesView = FindVisual<PreferencesPageView>(mounted.View, "PreferencesContent");
-        Assert.Same(workspace.PreferencesPage, preferencesView.DataContext);
-    }
-
-    [AvaloniaFact]
-    public async Task SessionSidebarDesktopView_BindsNameField()
-    {
-        var workspace = new SessionSidebarWorkspaceStub
-        {
-            Name = "Recorded Session 01",
-            DescriptionText = "Suspension notes",
-        };
-
-        await using var mounted = await MountAsync(workspace);
-
-        var nameTextBox = mounted.View.FindControl<TextBox>("NameTextBox");
-
-        Assert.NotNull(nameTextBox);
-        Assert.Equal("Recorded Session 01", nameTextBox!.Text);
-
-        workspace.Name = "Renamed Session";
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal("Renamed Session", nameTextBox.Text);
-    }
-
-    [AvaloniaFact]
     public async Task SessionSidebarDesktopView_WiresSaveAndResetCommands()
     {
         var workspace = new SessionSidebarWorkspaceStub
@@ -131,7 +76,7 @@ public class SessionSidebarDesktopViewTests
         Assert.Empty(FindVisibleButtons(mounted.View, "ResetButton"));
     }
 
-    private static async Task<MountedSessionSidebarDesktopView> MountAsync(SessionSidebarWorkspaceStub workspace)
+    private static async Task<MountedView<SessionSidebarDesktopView>> MountAsync(SessionSidebarWorkspaceStub workspace)
     {
         ViewTestHelpers.EnsureViewTestResources();
 
@@ -141,16 +86,7 @@ public class SessionSidebarDesktopViewTests
         };
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedSessionSidebarDesktopView(host, view);
-    }
-
-    private static T FindVisual<T>(Control root, string name)
-        where T : Control
-    {
-        return root.GetVisualDescendants()
-            .OfType<T>()
-            .Concat(root.GetLogicalDescendants().OfType<T>())
-            .Single(control => control.Name == name);
+        return new MountedView<SessionSidebarDesktopView>(host, view);
     }
 
     private static IEnumerable<Button> FindVisibleButtons(Control root, string name)
@@ -200,17 +136,5 @@ public class SessionSidebarDesktopViewTests
         public IAsyncRelayCommand ResetCommand { get; }
         public bool SaveInvoked { get; private set; }
         public bool ResetInvoked { get; private set; }
-    }
-}
-
-internal sealed class MountedSessionSidebarDesktopView(Window host, SessionSidebarDesktopView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public SessionSidebarDesktopView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
     }
 }

@@ -81,6 +81,11 @@ internal class SetupCoordinator(
                 logger.Warning("Setup save rejected for {SetupId}: board {BoardId} is already assigned", draft.Id, rejected.BoardId);
                 return new SetupSaveResult.BoardInUse(rejected.BoardId);
             }
+            if (prepared.Result is SetupWriteResult.BikeMissing)
+            {
+                logger.Warning("Setup save rejected for {SetupId}: bike {BikeId} is missing", draft.Id, draft.BikeId);
+                return new SetupSaveResult.Invalid(SetupValidationFailureReason.Bike);
+            }
             await dispatcher.InvokeAsync(async () =>
             {
                 using var batch = publication.BeginBatch();

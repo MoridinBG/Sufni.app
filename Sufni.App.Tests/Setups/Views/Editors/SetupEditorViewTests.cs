@@ -99,30 +99,4 @@ public class SetupEditorViewTests
         Assert.Null(forkContent.FindFirstVisual<RotationalForkSensorConfigurationView>());
     }
 
-    [AvaloniaFact]
-    public async Task SetupEditorView_ShockSensorConfigContentControl_Empty_WhenNull()
-    {
-        using var context = new SetupEditorViewTestContext();
-        var bike = context.AddBike();
-        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike) with
-        {
-            RearSensorConfigurationJson = null
-        });
-        var view = mounted.View;
-        var editor = mounted.Editor;
-
-        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
-        Assert.NotNull(commonFields);
-
-        var shockContent = commonFields!.FindControl<ContentControl>("ShockSensorConfigContent");
-        var shockSensorTypeComboBox = commonFields.FindControl<ComboBox>("ShockSensorTypeComboBox");
-        Assert.NotNull(shockContent);
-        Assert.NotNull(shockSensorTypeComboBox);
-
-        Assert.Null(editor.ShockSensorConfiguration);
-        Assert.Null(shockContent!.Content);
-        Assert.Null(shockSensorTypeComboBox!.SelectedItem);
-        Assert.Null(shockContent.FindFirstVisual<LinearShockSensorConfigurationView>());
-        Assert.Null(shockContent.FindFirstVisual<RotationalShockSensorConfigurationView>());
-    }
 }

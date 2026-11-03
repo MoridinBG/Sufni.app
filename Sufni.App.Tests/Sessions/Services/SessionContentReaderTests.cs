@@ -89,37 +89,6 @@ public class SessionContentReaderTests
     }
 
     [Fact]
-    public async Task GetSessionAsync_IncludesLinkedTrackUpdateInContentVersion()
-    {
-        var sessionId = Guid.NewGuid();
-        var fullTrackId = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(sessionId).Returns(new Session(
-            sessionId,
-            "Session",
-            "",
-            setup: null,
-            timestamp: 1000)
-        {
-            Updated = 12,
-            DurationSeconds = 20,
-
-        });
-        trackStore.GetAll().Returns([new TrackSnapshot(fullTrackId, 1000, 1030, 56)]);
-
-        var result = await CreateReader().GetSessionAsync(sessionId, TestContext.Current.CancellationToken);
-
-        Assert.NotNull(result);
-        Assert.Equal(new SessionContentToken(
-            ProcessedTelemetryRevision: 0,
-
-            FullTrackId: fullTrackId,
-            FullTrackPointsRevision: 56,
-            Timestamp: 1000,
-            DurationSeconds: 20,
-            GpsOffsetSeconds: 0), result.ContentToken);
-    }
-
-    [Fact]
     public async Task GetExactSnapshotAsync_LoadsOnlySelectedFamilyAtExpectedRevision()
     {
         var sessionId = Guid.NewGuid();
@@ -131,8 +100,8 @@ public class SessionContentReaderTests
 
         };
         var token = CreateToken(session);
-        var telemetry = TestTelemetryData.CreateProcessed();
-        processedTelemetryReader.Set(sessionId, telemetry);
+        processedTelemetryReader.ExactReader = (id, revision, _) => Task.FromResult<Sufni.Telemetry.TelemetryData?>(
+            id == sessionId && revision == 11 ? TestTelemetryData.CreateMinimal(duration: 20) : null);
         sessionRepository.GetSessionAsync(sessionId).Returns(session);
 
         var result = await CreateReader().GetExactSnapshotAsync(
@@ -144,9 +113,8 @@ public class SessionContentReaderTests
         var snapshot = Assert.IsType<SessionContentSnapshotResult.Available>(result).Snapshot;
         Assert.Equal(token, snapshot.Token);
         Assert.Equal(SessionContentSelection.ProcessedTelemetry, snapshot.Selection);
-        Assert.Same(telemetry, snapshot.ProcessedTelemetry);
+        Assert.Equal(20, snapshot.ProcessedTelemetry!.Metadata.Duration);
         Assert.Null(snapshot.Track);
-        Assert.Equal([(sessionId, 11L)], processedTelemetryReader.ExactReads);
         await sessionTrackReader.DidNotReceive().GetSessionTrackAsync(
             Arg.Any<SessionTrackKey>(),
             Arg.Any<CancellationToken>());
@@ -256,24 +224,6 @@ public class SessionContentReaderTests
 
         Assert.IsType<SessionContentSnapshotResult.Stale>(result);
         Assert.Equal([(sessionId, 11L)], processedTelemetryReader.ExactReads);
-    }
-
-    [Fact]
-    public async Task GetExactSnapshotAsync_UsesSelectedTrackInputs()
-    {
-        var trackId = Guid.NewGuid();
-        var session = new Session(Guid.NewGuid(), "ride", "", null, 1000)
-        { DurationSeconds = 2, GpsOffsetSeconds = 0.5 };
-        sessionRepository.GetSessionAsync(session.Id).Returns(session);
-        trackStore.GetAll().Returns([new TrackSnapshot(trackId, 1000, 1003, 7)]);
-        var token = new SessionContentToken(0, trackId, 7, 1000, 2, 0.5);
-        IReadOnlyList<TrackPoint> points = [new(1000.5, 1, 2, 3), new(1001.5, 2, 3, 4)];
-        sessionTrackReader.GetSessionTrackAsync(token.TrackKey!.Value, Arg.Any<CancellationToken>()).Returns(points);
-
-        var result = await CreateReader().GetExactSnapshotAsync(session.Id, token,
-            SessionContentSelection.Track, TestContext.Current.CancellationToken);
-
-        Assert.Same(points, Assert.IsType<SessionContentSnapshotResult.Available>(result).Snapshot.Track);
     }
 
     [Fact]

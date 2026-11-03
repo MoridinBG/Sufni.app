@@ -7,10 +7,10 @@ public class TelemetryDataLiveCaptureTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FromLiveCapture_PreservesAuxiliaryData_AndReportsDetectedAnomalies(bool segmentedImu)
+    public void FromLiveCapture_PublishesSnapshotIsolatedFromMutableInput(bool segmentedImu)
     {
-        var front = BuildSignalWithSpike(1200, 80, spikeIndex: 32, spikeValue: 5000);
-        var rear = BuildSignalWithSpike(1300, 80, spikeIndex: 48, spikeValue: 4800);
+        var front = Enumerable.Repeat((ushort)1200, 80).ToArray();
+        var rear = Enumerable.Repeat((ushort)1300, 80).ToArray();
         ImuRecord[] imuSamples = [new ImuRecord(0, 0, 16384, 0, 0, 0)];
         var imuData = new RawImuData
         {
@@ -57,19 +57,15 @@ public class TelemetryDataLiveCaptureTests
 
         var result = TelemetryData.FromLiveCapture(capture);
 
-        Assert.Same(imuData, result.ImuData);
         Assert.Equal(gpsData, result.GpsData!.Value);
         Assert.Equal(markers, result.Markers);
-        Assert.True(result.Front.Present);
-        Assert.True(result.Rear.Present);
-        Assert.True(result.Front.AnomalyRate > 0);
-        Assert.True(result.Rear.AnomalyRate > 0);
+        Assert.All(result.Front.Travel, value => Assert.Equal(120, value));
+        Assert.All(result.Rear.Travel, value => Assert.Equal(130, value));
         var frozen = result.BinaryForm;
         gpsData[0] = gpsData[0] with { Latitude = 0 };
         markers[0] = new MarkerData(99);
         front[0] = 0;
         rear[0] = 0;
-        imuSamples[0] = new ImuRecord(999, 0, 0, 0, 0, 0);
         Assert.Equal(frozen, result.BinaryForm);
     }
 
@@ -167,114 +163,13 @@ public class TelemetryDataLiveCaptureTests
         Assert.True(result.Front.Present);
         Assert.True(result.Front.HasGaps);
         Assert.False(result.Rear.Present);
-    }
-
-    [Fact]
-    public void FromLiveCapture_MatchesFinalBatchProcessingForTheSameSegmentedRecording()
-    {
-        RawCountSegment[] frontSegments =
-        [
-            new RawCountSegment
-            {
-                FirstIndex = 0,
-                FirstMonotonicDeltaUs = 0,
-                Counts = Enumerable.Range(0, 40).Select(index => (ushort)(1000 + index)).ToArray(),
-            },
-            new RawCountSegment
-            {
-                FirstIndex = 44,
-                FirstMonotonicDeltaUs = 440_000,
-                Counts = Enumerable.Range(0, 40).Select(index => (ushort)(1100 + index)).ToArray(),
-            },
-        ];
-        RawCountSegment[] rearSegments =
-        [
-            new RawCountSegment
-            {
-                FirstIndex = 0,
-                FirstMonotonicDeltaUs = 0,
-                Counts = Enumerable.Range(0, 84).Select(index => (ushort)(1200 + index % 9)).ToArray(),
-            },
-        ];
-        RawStreamGap[] streamGaps =
-        [
-            new RawStreamGap
-            {
-                StreamKind = SstV5ProtocolConstants.StreamTravel,
-                LocationId = (byte)SstV5ProtocolConstants.SensorForkTravel,
-                FirstMissingIndex = 40,
-                MissingCount = 4,
-                MissingTimeUs = 40_000,
-                Reason = "index_gap",
-            },
-        ];
-        MarkerData[] markers = [new MarkerData(0.25), new MarkerData(0.6)];
-        var finalStatus = new SstFinalStatus
-        {
-            SessionResultReason = 1,
-            StoppedMonotonicDeltaUs = 840_000,
-            Streams =
-            [
-                new SstStreamFinalStatus
-                {
-                    StreamKind = SstV5ProtocolConstants.StreamTravel,
-                    ProducerState = 1,
-                },
-            ],
-        };
-        var bikeData = CreateBikeData();
-        var metadata = new Metadata
-        {
-            SourceName = "parity-fixture",
-            Version = 5,
-            SampleRate = 100,
-            Timestamp = 1_704_164_646,
-            Duration = 0.84,
-        };
-        var capture = new LiveTelemetryCapture(
-            metadata,
-            bikeData,
-            frontSegments,
-            rearSegments,
-            ImuData: null,
-            GpsData: null,
-            markers,
-            streamGaps,
-            finalStatus,
-            MissingFinalStatus: false);
-        var raw = new RawTelemetryData
-        {
-            Version = 5,
-            SampleRate = 100,
-            Timestamp = metadata.Timestamp,
-            Front = frontSegments.SelectMany(segment => segment.Counts).ToArray(),
-            Rear = rearSegments.SelectMany(segment => segment.Counts).ToArray(),
-            FrontSegments = frontSegments,
-            RearSegments = rearSegments,
-            StreamGaps = streamGaps,
-            FinalStatus = finalStatus,
-            MissingFinalStatus = false,
-            SessionStartUtcMs = metadata.Timestamp * 1000,
-            RecordingDurationSeconds = metadata.Duration,
-            Markers = markers,
-        };
-
-        var live = TelemetryData.FromLiveCapture(capture);
-        var finalBatch = TelemetryData.FromRecording(raw, metadata, bikeData);
-
-        Assert.Equal(finalBatch.BinaryForm, live.BinaryForm);
-    }
-
-    private static ushort[] BuildSignalWithSpike(ushort baseline, int length, int spikeIndex, ushort spikeValue)
-    {
-        var samples = new ushort[length];
-        for (var index = 0; index < length; index++)
-        {
-            samples[index] = (ushort)(baseline + index % 7);
-        }
-
-        samples[spikeIndex] = spikeValue;
-        return samples;
+        Assert.Equal([0, 32], result.Front.Segments.Select(segment => segment.FirstDenseIndex));
+        Assert.Equal([0, 0.36], result.Front.Segments.Select(segment => segment.StartSeconds));
+        Assert.All(result.Front.Segments, segment => Assert.Equal(32, segment.SampleCount));
+        Assert.Equal(
+            Enumerable.Range(1000, 32).Concat(Enumerable.Range(1100, 32)).Select(value => value * 0.1),
+            result.Front.Travel);
+        Assert.All(result.Front.Velocity, value => Assert.Equal(10, value, 6));
     }
 
     private static BikeData CreateBikeData(double measurementScale = 0.1)

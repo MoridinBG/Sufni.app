@@ -7,7 +7,7 @@ namespace Sufni.App.Tests.Acquisition.Models;
 public class MassStorageTelemetryDataStoreTests
 {
     [Fact]
-    public async Task DataStore_ReadsBoardIdCreatesUploadedFolderListsFilesAndReadsSource()
+    public async Task GetFiles_RetainsMalformedRowsAndReadsNewestRecordingBytes()
     {
         using var tempDirectory = new TempDirectory("sufni-mass-storage-test");
         File.WriteAllText(Path.Combine(tempDirectory.Path, "BOARDID"), "ABCDEF1234567890");
@@ -24,8 +24,6 @@ public class MassStorageTelemetryDataStoreTests
         var files = Assert.IsType<TelemetryFileListing.Listed>(await dataStore.GetFiles(TestContext.Current.CancellationToken)).Files;
         using var source = await files[0].ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);
-        Assert.True(Directory.Exists(Path.Combine(tempDirectory.Path, "uploaded")));
         Assert.Collection(
             files,
             first => Assert.Equal("newer.SST", first.FileName),

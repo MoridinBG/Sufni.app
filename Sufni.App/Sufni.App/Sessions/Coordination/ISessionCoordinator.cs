@@ -16,6 +16,9 @@ public interface ISessionCoordinator
         RecordedSessionDomainSnapshot domain, SessionRecomputeChoice choice = SessionRecomputeChoice.Inspect,
         IProgress<SessionRecomputeAllProgress>? progress = null);
 
+    /// <summary>Recomputes one session on the user's request, whether or not it is stale.</summary>
+    Task<SessionRecomputeResult> RecomputeAsync(Guid sessionId);
+
     Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds);
 
     Task<SessionPreferenceLoadResult> LoadPreferencesAsync(Guid sessionId);

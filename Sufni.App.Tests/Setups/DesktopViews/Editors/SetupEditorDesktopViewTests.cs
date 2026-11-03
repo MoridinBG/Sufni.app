@@ -89,54 +89,6 @@ public class SetupEditorDesktopViewTests
     }
 
     [AvaloniaFact]
-    public async Task SetupEditorDesktopView_SaveButton_BindsSaveCommand()
-    {
-        using var context = new SetupEditorViewTestContext();
-        var bike = context.AddBike();
-        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
-
-        var saveButton = mounted.View.FindControl<Button>("SaveButton");
-        Assert.NotNull(saveButton);
-        Assert.Same(mounted.Editor.SaveCommand, saveButton!.Command);
-    }
-
-    [AvaloniaFact]
-    public async Task SetupEditorDesktopView_ResetButton_BindsResetCommand()
-    {
-        using var context = new SetupEditorViewTestContext();
-        var bike = context.AddBike();
-        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
-
-        var resetButton = mounted.View.FindControl<Button>("ResetButton");
-        Assert.NotNull(resetButton);
-        Assert.Same(mounted.Editor.ResetCommand, resetButton!.Command);
-    }
-
-    [AvaloniaFact]
-    public async Task SetupEditorDesktopView_BikeComboBox_SelectedItemPresenter_HasEditButton()
-    {
-        using var context = new SetupEditorViewTestContext();
-        var bike = context.AddBike();
-        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
-        var view = mounted.View;
-        var editor = mounted.Editor;
-
-        var commonFields = view.FindFirstVisual<SetupEditorCommonFields>();
-        Assert.NotNull(commonFields);
-
-        var bikeComboBox = commonFields!.FindControl<ComboBox>("BikeComboBox");
-        Assert.NotNull(bikeComboBox);
-
-        var selectedItemHost = AttachSelectedBikeTemplateHost(commonFields, bikeComboBox!, bike);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var editBikeButton = Assert.Single(selectedItemHost.GetLogicalDescendants().OfType<Button>());
-
-        Assert.Same(editor.EditBikeCommand, editBikeButton.Command);
-        Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(editBikeButton.CommandParameter).Id);
-    }
-
-    [AvaloniaFact]
     public async Task SetupEditorDesktopView_EditBikeButton_InvokesEditBikeCommand()
     {
         using var context = new SetupEditorViewTestContext();

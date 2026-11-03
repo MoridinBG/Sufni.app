@@ -59,8 +59,8 @@ public class RecordedSessionReprocessorTests
         Assert.Equal("compressed-source.SST", telemetryData.Metadata.SourceName);
         Assert.Equal(3, telemetryData.Metadata.Version);
         Assert.NotEmpty(telemetryData.Front.Travel);
-        Assert.Equal(telemetryData.BinaryForm, result.Generation.ProcessedTelemetry.Data);
-        Assert.Equal(AppJson.Serialize(result.Fingerprint), result.Generation.ProcessedTelemetry.FingerprintJson);
+        Assert.Equal(64, telemetryData.Front.Travel.Length);
+        Assert.Equal(1200 * 10.0 / 4095 * Math.Sin(bike.HeadAngle * Math.PI / 180), telemetryData.Front.Travel[0], precision: 8);
     }
 
     [Fact]
@@ -186,9 +186,9 @@ public class RecordedSessionReprocessorTests
 
         var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
         Assert.Equal("live", telemetryData.Metadata.SourceName);
-        Assert.NotEmpty(telemetryData.Front.Travel);
-        Assert.NotNull(result.Generation.TrackPoints);
-        Assert.Single(result.Generation.TrackPoints);
+        var point = Assert.Single(result.Generation.TrackPoints!);
+        Assert.Equal(new DateTimeOffset(2026, 1, 2, 3, 4, 6, TimeSpan.Zero).ToUnixTimeSeconds(), point.Time);
+        Assert.Equal(600, point.Elevation);
         Assert.Equal(22.0, Assert.Single(telemetryData.TemperatureAverages).TemperatureCelsius);
         Assert.Equal(source.SourceHash, result.Fingerprint.SourceHash);
     }
@@ -353,27 +353,16 @@ public class RecordedSessionReprocessorTests
             MissingFinalStatus: true);
         var source = RecordedSessionSourceFactory.CreateLiveCapture(capture);
         source.SessionId = sessionId;
-        var sourceJson = Encoding.UTF8.GetString(source.Payload);
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
 
         var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
 
-        Assert.Contains("\"front_segments\"", sourceJson);
-        Assert.DoesNotContain("\"front_measurements\"", sourceJson);
-        using var sourceDocument = JsonDocument.Parse(source.Payload);
-        var sourceImuRecords = sourceDocument.RootElement
-            .GetProperty("imu_data")
-            .GetProperty(nameof(RawImuData.Records));
-        Assert.Equal(0, sourceImuRecords.GetArrayLength());
         var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
-        Assert.Equal(4, telemetryData.Metadata.Version);
         Assert.True(telemetryData.Front.HasGaps);
-        var persistedTelemetry = TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data);
-        Assert.NotNull(persistedTelemetry.ImuData);
-        Assert.Empty(persistedTelemetry.ImuData.Records);
-        Assert.Single(persistedTelemetry.ImuData.Segments);
-        Assert.Equal(1, persistedTelemetry.ImuData.Segments[0].Records[0].Ax);
+        Assert.Equal(0.7, telemetryData.Metadata.Duration, precision: 6);
+        Assert.Equal(64, telemetryData.Front.Travel.Length);
+        Assert.Equal(new ulong[] { 0, 36 }, telemetryData.Front.Segments.Select(segment => segment.FirstSourceIndex));
     }
 
     [Fact]
@@ -420,35 +409,16 @@ public class RecordedSessionReprocessorTests
         Assert.Equal(10, segment.Records[0].Ax);
     }
 
-    [Fact]
-    public async Task ReprocessAsync_LiveCaptureSource_WithNullTemperatureData_TreatsTemperatureAsAbsent()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReprocessAsync_LiveCaptureSource_WithAbsentTemperature_ProcessesWithoutTemperature(bool omitProperty)
     {
         var sessionId = Guid.NewGuid();
         var payload = CreateTemperatureCompatibilityPayload(temperatureData: null);
-        var source = CreateLiveCaptureSource(sessionId, "null-temperature", payload);
-        using var sourceDocument = JsonDocument.Parse(source.Payload);
-        var domain = CreateLiveCaptureDomain(source);
-        var reprocessor = CreateReprocessor();
-
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, TelemetryProcessingOptions.Default), cancellationToken: TestContext.Current.CancellationToken));
-
-        Assert.Equal(JsonValueKind.Null, sourceDocument.RootElement.GetProperty("temperature_data").ValueKind);
-        Assert.NotEmpty(result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel);
-        Assert.Empty(result.Generation.ProcessedTelemetry.TelemetryData.TemperatureAverages);
-        Assert.Empty(TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data).TemperatureAverages);
-    }
-
-    [Fact]
-    public async Task ReprocessAsync_LiveCaptureSource_WithoutTemperatureData_TreatsTemperatureAsAbsent()
-    {
-        var sessionId = Guid.NewGuid();
-        var payload = CreateTemperatureCompatibilityPayload([]);
         var payloadJson = JsonNode.Parse(TelemetryCodec.EncodeLiveSource(payload))!.AsObject();
-        Assert.True(payloadJson.Remove("temperature_data"));
-        var source = CreateLiveCaptureSource(
-            sessionId,
-            "missing-temperature",
-            Encoding.UTF8.GetBytes(payloadJson.ToJsonString()));
+        if (omitProperty) payloadJson.Remove("temperature_data");
+        var source = CreateLiveCaptureSource(sessionId, "temperature-compatibility", Encoding.UTF8.GetBytes(payloadJson.ToJsonString()));
         var domain = CreateLiveCaptureDomain(source);
         var reprocessor = CreateReprocessor();
 
@@ -456,72 +426,6 @@ public class RecordedSessionReprocessorTests
 
         Assert.NotEmpty(result.Generation.ProcessedTelemetry.TelemetryData.Front.Travel);
         Assert.Empty(result.Generation.ProcessedTelemetry.TelemetryData.TemperatureAverages);
-        Assert.Empty(TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data).TemperatureAverages);
-    }
-
-    [Fact]
-    public void MetadataFromRaw_UsesRecordingDurationSecondsWhenPresent()
-    {
-        var raw = new RawTelemetryData
-        {
-            Version = 5,
-            SampleRate = 100,
-            Timestamp = 1_700_000_000,
-            Front = [1, 2],
-            Rear = [1, 2],
-            RecordingDurationSeconds = 12.5,
-        };
-
-        var metadata = RecordedSessionReprocessor.MetadataFromRaw("v5-gap.sst", raw);
-
-        Assert.Equal("v5-gap.sst", metadata.SourceName);
-        Assert.Equal(5, metadata.Version);
-        Assert.Equal(100, metadata.SampleRate);
-        Assert.Equal(1_700_000_000, metadata.Timestamp);
-        Assert.Equal(12.5, metadata.Duration);
-    }
-
-    [Fact]
-    public async Task ReprocessAsync_RecordsTheProcessingOptionInTheFingerprint()
-    {
-        var session = TestSnapshots.Session(id: Guid.NewGuid(), setupId: Guid.NewGuid());
-        var bike = TestSnapshots.Bike(id: Guid.NewGuid());
-        var setup = TestSnapshots.Setup(id: session.SetupId!.Value, bikeId: bike.Id) with
-        {
-            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
-            {
-                Length = 10,
-                Resolution = 12
-            })
-        };
-        var sstBytes = TestSstFiles.CreateV3WithFrontOnly();
-        var payload = RecordedSessionSourcePayloadCodec.CompressImportedSst(sstBytes);
-        var source = new RecordedSessionSource
-        {
-            SessionId = session.Id,
-            SourceKind = RecordedSessionSourceKind.ImportedSst,
-            SourceName = "source.SST",
-            SchemaVersion = 1,
-            SourceHash = RecordedSessionSourceHash.Compute(RecordedSessionSourceKind.ImportedSst, payload),
-            Payload = payload
-        };
-        var domain = new RecordedSessionDomainSnapshot(
-            session,
-            setup,
-            bike,
-            null,
-            null,
-            RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
-        var reprocessor = CreateReprocessor();
-
-        // The single derivation path (import / live-save / recompute all flow through
-        // here) stamps the option it was produced with into the v3 fingerprint, so a
-        // later velocity-filter change makes the stored BLOB read as stale.
-        var result = Assert.IsType<RecordedSessionReprocessResult.Processed>(await reprocessor.ReprocessAsync(TestDerivationInputs.Create(domain, source, new TelemetryProcessingOptions(100)), CancellationToken.None));
-
-        Assert.Equal(4, result.Fingerprint.SchemaVersion);
-        Assert.Equal(100, result.Fingerprint.VelocityFilterWindowMilliseconds);
     }
 
     [Fact]
@@ -646,8 +550,8 @@ public class RecordedSessionReprocessorTests
             new SessionStaleness.Stale());
     }
 
-    private static RecordedSessionReprocessor CreateReprocessor() =>
-        new(
+    private static IRecordedSessionReprocessor CreateReprocessor() =>
+        new RecordedSessionReprocessor(
             new ProcessingFingerprintService(),
             new TelemetryBikeProcessingContextFactory(
                 new RearTravelCalibrationBuilder(

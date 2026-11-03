@@ -62,6 +62,12 @@ public class SetupCoordinatorTests : IDisposable
         publication.Dispose();
     }
 
+    private async Task PersistBikeAsync(BikeSnapshot bike)
+    {
+        bikes.Seed(Bike.FromSnapshot(bike, []));
+        await bikeStore.PublishBikesChangedAsync([bike]);
+    }
+
     private async Task SeedAsync(SetupSnapshot snapshot, Guid? boardId = null)
     {
         setups.Seed(new Setup(snapshot.Id, snapshot.Name)
@@ -70,7 +76,7 @@ public class SetupCoordinatorTests : IDisposable
             FrontSensorConfigurationJson = snapshot.FrontSensorConfigurationJson,
             RearSensorConfigurationJson = snapshot.RearSensorConfigurationJson,
         });
-        await bikeStore.PublishBikesChangedAsync([TestSnapshots.Bike(id: snapshot.BikeId)]);
+        await PersistBikeAsync(TestSnapshots.Bike(id: snapshot.BikeId));
         if (boardId is { } id)
         {
             var board = new Board(id, snapshot.Id);
@@ -78,22 +84,6 @@ public class SetupCoordinatorTests : IDisposable
             await boardStore.PublishBoardsChangedAsync([BoardSnapshot.From(board)]);
         }
         await setupStore.PublishSetupsChangedAsync([snapshot]);
-    }
-
-    [Fact]
-    public async Task ExportSetupAsync_ReadsEmbeddedBikeImageOnDemand()
-    {
-        var bike = new Bike(Guid.NewGuid(), "pictured") { ImageBytes = [1, 2, 3] };
-        bikes.Seed(bike);
-        await bikeStore.PublishBikesChangedAsync([BikeSnapshot.From(bike)]);
-        var draft = SetupDraft.From(TestSnapshots.Setup(bikeId: bike.Id), Guid.NewGuid());
-        files.ExportAsync(Arg.Any<Setup>(), Arg.Any<Bike>(), draft.BoardId, Arg.Any<CancellationToken>())
-            .Returns(new SetupExportResult.Exported());
-
-        Assert.IsType<SetupExportResult.Exported>(await coordinator.ExportSetupAsync(draft, TestContext.Current.CancellationToken));
-
-        await files.Received(1).ExportAsync(Arg.Any<Setup>(), Arg.Is<Bike>(value => value.ImageBytes.SequenceEqual(new byte[] { 1, 2, 3 })),
-            draft.BoardId, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -127,37 +117,6 @@ public class SetupCoordinatorTests : IDisposable
         Assert.Equal(setup.Id, (await boards.GetAsync(boardId))!.SetupId);
         Assert.Equal(boardId, query.Get(setup.Id)!.BoardId);
         Assert.NotNull(bikeStore.Get(bike.Id));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task CreateDraft_ClaimedSuggestedBoardIsRejectedWhenCreatingTheSetup(bool claimed)
-    {
-        var boardId = Guid.NewGuid();
-        var other = TestSnapshots.Setup();
-        if (claimed) await SeedAsync(other, boardId);
-        var bike = TestSnapshots.Bike();
-        await bikeStore.PublishBikesChangedAsync([bike]);
-        var created = coordinator.CreateDraft(boardId);
-        var draft = SetupDraft.From(created.Setup, created.BoardId) with
-        {
-            BikeId = bike.Id, FrontSensor = new SensorDraft.LinearFork(150, 12),
-        };
-
-        var result = await coordinator.SaveAsync(draft, null);
-
-        if (claimed)
-        {
-            Assert.Equal(boardId, Assert.IsType<SetupSaveResult.BoardInUse>(result).BoardId);
-            Assert.Equal(other.Id, (await boards.GetAsync(boardId))!.SetupId);
-            Assert.Null(await setups.GetAsync(draft.Id));
-        }
-        else
-        {
-            Assert.IsType<SetupSaveResult.Saved>(result);
-            Assert.Equal(draft.Id, (await boards.GetAsync(boardId))!.SetupId);
-        }
     }
 
     [Theory]
@@ -196,6 +155,44 @@ public class SetupCoordinatorTests : IDisposable
         Assert.Equal(9, published.Updated);
         if (newBoard is { } claimed) Assert.Equal(existing.Id, (await boards.GetAsync(claimed))!.SetupId);
         if (oldBoard is { } cleared && oldBoard != newBoard) Assert.Null((await boards.GetAsync(cleared))!.SetupId);
+    }
+
+    [Theory]
+    [InlineData("sensor", SetupValidationFailureReason.Sensor)]
+    [InlineData("calibration", SetupValidationFailureReason.Calibration)]
+    [InlineData("hardtail", SetupValidationFailureReason.RearCompatibility)]
+    [InlineData("curve", SetupValidationFailureReason.RearCompatibility)]
+    [InlineData("joint", SetupValidationFailureReason.Calibration)]
+    public async Task SaveAsync_RejectsInvalidCalibrationWithoutChangingFacts(string invalidInput, SetupValidationFailureReason expected)
+    {
+        var original = TestSnapshots.Setup();
+        await SeedAsync(original);
+        var bike = bikeStore.Get(original.BikeId)!;
+        var draft = new SetupDraft(original.Id, "changed", bike.Id, Guid.NewGuid(), new SensorDraft.LinearFork(150, 12), null);
+        if (invalidInput == "curve")
+        {
+            bike = TestSnapshots.LeverageRatioBike(TestSnapshots.LeverageRatioCurve((0, 0), (20, 50)), shockStroke: 20, id: bike.Id);
+            draft = draft with { RearSensor = new SensorDraft.LinearShock(50, 12) };
+        }
+        else if (invalidInput == "joint")
+        {
+            var linkage = TestSnapshots.FullSuspensionLinkageSpec();
+            bike = bike with { RearSuspension = new RearSuspensionSpec.Linkage(linkage) };
+            draft = draft with { RearSensor = new SensorDraft.RotationalShock(linkage.Joints[0].Name, linkage.Joints[0].Name, linkage.Joints[2].Name) };
+        }
+        else draft = invalidInput switch
+        {
+            "sensor" => draft with { FrontSensor = null },
+            "calibration" => draft with { FrontSensor = new SensorDraft.LinearFork(null, 12) },
+            _ => draft with { RearSensor = new SensorDraft.LinearShock(50, 12) },
+        };
+        await PersistBikeAsync(bike);
+
+        Assert.Equal(expected, Assert.IsType<SetupSaveResult.Invalid>(await coordinator.SaveAsync(draft, SetupDraft.From(original, null))).Reason);
+
+        Assert.Equal(original, setupStore.Get(original.Id));
+        Assert.Equal(original.Name, (await setups.GetAsync(original.Id))!.Name);
+        Assert.Empty(await boards.GetAllAsync());
     }
 
     [Fact]
@@ -280,6 +277,23 @@ public class SetupCoordinatorTests : IDisposable
         Assert.Equal(0, changes);
         if (isNew) Assert.Null(await setups.GetAsync(id));
         else Assert.Equal(current.Name, (await setups.GetAsync(id))!.Name);
+    }
+
+    [Fact]
+    public async Task SaveAsync_ReturnsInvalidBike_WhenBikeIsDeletedAfterPublication()
+    {
+        var current = TestSnapshots.Setup();
+        await SeedAsync(current);
+        await bikes.DeleteAsync(current.BikeId);
+        var draft = SetupDraft.From(current, null) with { Name = "changed", BoardId = Guid.NewGuid(), FrontSensor = new SensorDraft.LinearFork(150, 12) };
+        var changes = 0;
+        using var watch = publication.Committed.Subscribe(_ => changes++);
+
+        var result = await coordinator.SaveAsync(draft, SetupDraft.From(current, null));
+
+        Assert.Equal(SetupValidationFailureReason.Bike, Assert.IsType<SetupSaveResult.Invalid>(result).Reason);
+        Assert.Equal(current.Name, (await setups.GetAsync(current.Id))!.Name);
+        Assert.Equal(0, changes);
     }
 
     [Fact]

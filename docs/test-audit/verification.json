@@ -1,0 +1,28 @@
+{
+  "methods": 2511,
+  "test_bearing_files": 358,
+  "support_only_files": 92,
+  "source_files": 450,
+  "source_lines": 83752,
+  "verdicts": {
+    "KEEP": 1326,
+    "REWRITE": 892,
+    "REMOVE": 159,
+    "MERGE": 132,
+    "UNPROVEN": 2
+  },
+  "support_verdicts": {
+    "REWRITE": 29,
+    "KEEP": 56,
+    "REMOVE": 2,
+    "MERGE": 5
+  },
+  "method_coverage_exact": true,
+  "all_method_fields_populated": true,
+  "source_hash_changes_after_refresh": [
+    "Sufni.App.Tests/Setups/Coordinators/SetupCoordinatorTests.cs",
+    "Sufni.App.Tests/Setups/Coordinators/SetupPersistenceTransactionRunnerTests.cs"
+  ],
+  "tests_executed": false,
+  "notes": "Concurrent source edits were refreshed through a follow-up audit. The audit itself changed only docs/test-audit artifacts. Recorded hashes define the reviewed snapshot."
+}

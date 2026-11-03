@@ -1,0 +1,2146 @@
+{
+  "before": {
+    "files": 450,
+    "methods": 2513,
+    "lines": 83804
+  },
+  "after": {
+    "files": 353,
+    "methods": 1606,
+    "lines": 58077
+  },
+  "audit_nonkeep_total": 1185,
+  "method_actions": {
+    "removed": 839,
+    "rewritten": 262,
+    "merged": 74,
+    "retained_revalidated": 10
+  },
+  "support_files": 92,
+  "support_actions": {
+    "rewritten": 24,
+    "retained_revalidated": 57,
+    "removed": 5,
+    "merged": 6
+  },
+  "files": [
+    {
+      "file": "Sufni.App.Tests/Acquisition/Coordinators/ImportSessionsCoordinatorSourcesTests.cs",
+      "lines": 160,
+      "methods": 7,
+      "sha256": "983f5350900ae4e94e08794e6aca3c0eaef85f552c4a268f9dc374a331a0559e"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Coordinators/ImportSessionsCoordinatorTests.cs",
+      "lines": 456,
+      "methods": 13,
+      "sha256": "a13edf2d11e3d105160115026a01bf7c309af61a1346ac775a7162a5e7bbed58"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Models/MassStorageTelemetryDataStoreTests.cs",
+      "lines": 40,
+      "methods": 1,
+      "sha256": "99db2ed0748160982b1dc32f812aeb4ff640e819e2f027a7a327760d4b749c34"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Models/NetworkTelemetryDataStoreTests.cs",
+      "lines": 299,
+      "methods": 9,
+      "sha256": "cd9cec63bacec6983f09af3ffd24c76886d77c428921b467599c9d9f9356cd50"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Models/StorageProviderTelemetryDataStoreTests.cs",
+      "lines": 68,
+      "methods": 2,
+      "sha256": "5d72cb3274ad0d2ac18efbb74e27a9a2737a6ebfcd409340bbf8f54b267411bf"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Models/TelemetryFileInspectionMappingTests.cs",
+      "lines": 104,
+      "methods": 1,
+      "sha256": "3bef41c0715ff4771533f1a2287b3307b894652fb3aca9e60dacc6048fa2c0f7"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/Management/DaqConfigDocumentTests.cs",
+      "lines": 92,
+      "methods": 4,
+      "sha256": "eeac2d883535cbcd1da460d8546a9d48887f19f9099bb338a80d68d6232576da"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/Management/DaqManagementServiceTests.cs",
+      "lines": 393,
+      "methods": 12,
+      "sha256": "08d93ddb19cc8b7d8e51a7b699cce23007bb13a1ab56fa6616cb734d0a53cf81"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/Management/ManagementProtocolTestFrames.cs",
+      "lines": 105,
+      "methods": 0,
+      "sha256": "bf53e1a0edcb3b6f02e9ac6d634eb56c69db1976acecae0fcd8f447e097108f6"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/Management/ManagementRequestFrames.cs",
+      "lines": 38,
+      "methods": 0,
+      "sha256": "0db7f9626724b54a8fafc81881f88a258cfda008e2075d3162a757dc7e71b751"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/Management/ManagementRequestReader.cs",
+      "lines": 54,
+      "methods": 0,
+      "sha256": "e02d487b77229ccd61791bb20f61ad39d4103403c4c627772d7172eb2ba124d1"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/Management/ManagementTestServer.cs",
+      "lines": 122,
+      "methods": 0,
+      "sha256": "af7b79b23e91eb385b9159ee840237f59e91684d24c230ace7c8641cc9abb4fc"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Services/TelemetryDataStoreServiceTests.cs",
+      "lines": 316,
+      "methods": 10,
+      "sha256": "5ad0f1c9e48eb67ead322806707916ca4643d01e77206e5e0faaf01b7ccbd0e9"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/ViewModels/ImportSessionsViewModelTests.cs",
+      "lines": 422,
+      "methods": 18,
+      "sha256": "ca58ac8ae52b59357b027f9fe41cfbcfbe7c2ced8c494fbb766e0aee4fd1348e"
+    },
+    {
+      "file": "Sufni.App.Tests/Acquisition/Views/ImportSessionsViewTests.cs",
+      "lines": 174,
+      "methods": 4,
+      "sha256": "7865600674956da567fa500eb811060fbe3539b9a210616f12232ab118e6b505"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Coordinators/BikeCoordinatorTests.cs",
+      "lines": 490,
+      "methods": 23,
+      "sha256": "7f70715968d05d0aebbb19ee5fa8a4a5a637c1a383ad51e55e9280412e92493b"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Coordinators/BikeDraftTests.cs",
+      "lines": 25,
+      "methods": 2,
+      "sha256": "a473169739bb4a02a0dc466b09c41c3cd66ae0593d5ea6e875c46e39c98b9653"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Coordinators/BikePersistenceTransactionRunnerTests.cs",
+      "lines": 42,
+      "methods": 2,
+      "sha256": "11f9f41e9821686005648e16031691048066f478dc6ce1b4be465ec8da015404"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Models/BikeRestorationTests.cs",
+      "lines": 58,
+      "methods": 2,
+      "sha256": "72ce5b9ce0e9893ec24959ce95cbf84beab4b146eeb4e5beedcaaf648a5d5feb"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Models/RearSuspensionSpecJsonTests.cs",
+      "lines": 58,
+      "methods": 1,
+      "sha256": "ebeb526e67c83494e3854cda53c4f71274f1ec4eae7d7e28bddc30f546bbbc68"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Queries/BikeDependencyQueryTests.cs",
+      "lines": 52,
+      "methods": 2,
+      "sha256": "650384bb44d9f5d7ad1aed8bfb01636a6b54645dbae9f244bf0b672086d1c53a"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Services/BikeEditorServiceTests.cs",
+      "lines": 193,
+      "methods": 9,
+      "sha256": "7bd524b25e7c9bf3c4dc18996f76c818d72f02c186e96798c98e03d0fc17208e"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Services/BikeFileFormatTests.cs",
+      "lines": 170,
+      "methods": 7,
+      "sha256": "62062b8371205420173fcd6629350076456e26bd8b256ae67383a49216c5e7a8"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Services/BikeMetadataReaderTests.cs",
+      "lines": 37,
+      "methods": 1,
+      "sha256": "fca57b74f8ec3ec296872b59b8d2fbfe0ce312f336988fbb14d1d94103c268d7"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Services/LeverageRatioCsvParserTests.cs",
+      "lines": 65,
+      "methods": 5,
+      "sha256": "ec6f5bf78a077f7b4d611776000d9abe32193bf3a3f84d061c2942128c3d185b"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs",
+      "lines": 711,
+      "methods": 33,
+      "sha256": "5c38289c70e8b830c4417ad6d44435e561ce56e2c87ceb4bbd831fdf295b8684"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/ViewModels/ItemLists/BikeListViewModelTests.cs",
+      "lines": 166,
+      "methods": 5,
+      "sha256": "d5079150a76e610625e9e66143f278987fbe3c35eb4acd0451d547952876a47e"
+    },
+    {
+      "file": "Sufni.App.Tests/Bikes/Views/Editors/BikeEditorViewSmokeTests.cs",
+      "lines": 131,
+      "methods": 2,
+      "sha256": "6b165d91cedd2aca1478d45465697bb101b1918c1a6fd332fd289647bdf61dea"
+    },
+    {
+      "file": "Sufni.App.Tests/DatabaseMigrationRunnerTests.cs",
+      "lines": 1536,
+      "methods": 25,
+      "sha256": "bb6ba44afd3ce89c3e4b55c32c514e65f31add543564fb19074bfdc1029409d9"
+    },
+    {
+      "file": "Sufni.App.Tests/Infrastructure/AndroidServiceDiscoveryTests.cs",
+      "lines": 215,
+      "methods": 6,
+      "sha256": "7b01dc9c434096b2d77aaebf2f2dec218365b732a1c08d26569f04902a90fdcd"
+    },
+    {
+      "file": "Sufni.App.Tests/Infrastructure/AppCompositionTests.cs",
+      "lines": 62,
+      "methods": 2,
+      "sha256": "52256cd4bb060b781320b1325d6af3374b7eb07c8a23683e3261b08b8b12f49d"
+    },
+    {
+      "file": "Sufni.App.Tests/Infrastructure/ServiceAnnouncementMetadataReaderTests.cs",
+      "lines": 40,
+      "methods": 2,
+      "sha256": "cc0ca1558d52c516454f76942522a51252a9c010e7e5ffbb7173d6938cf9a416"
+    },
+    {
+      "file": "Sufni.App.Tests/Infrastructure/SmokeTests.cs",
+      "lines": 28,
+      "methods": 1,
+      "sha256": "20ec8c803a62ddf997c9ff3f8b0bf7ec49da2e917b1aaffec43fdfc2cfdfa022"
+    },
+    {
+      "file": "Sufni.App.Tests/Infrastructure/StartupDatabaseTests.cs",
+      "lines": 52,
+      "methods": 2,
+      "sha256": "12e38e823c70830367dede1fda06ab26c72ab9fe25198694987fc5402e55fce5"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Coordinators/LiveDaqCoordinatorCaptureSaveTests.cs",
+      "lines": 389,
+      "methods": 10,
+      "sha256": "b8a89ecaf5714761ae484a93328c57e15189a0c93227c317766571321f7cbf08"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Coordinators/LiveDaqCoordinatorManagementTests.cs",
+      "lines": 116,
+      "methods": 4,
+      "sha256": "2b988aa3119e55184da5902138f2166d55ad1439445fab785237b0207e51a644"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Coordinators/LiveDaqCoordinatorTests.cs",
+      "lines": 262,
+      "methods": 4,
+      "sha256": "2b15e7e18c566c15468dd63df984878840fbae91b4c11e5a13a7039d27935c43"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Plots/LiveTravelPlotTests.cs",
+      "lines": 65,
+      "methods": 2,
+      "sha256": "0a0404e370e1b64240a09ca8003221f78191950dc2f36091e0626176df599c7a"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Queries/LiveDaqKnownBoardsQueryTests.cs",
+      "lines": 298,
+      "methods": 8,
+      "sha256": "e6431486ab9567d48d4cdf45115c0db5536e16d2f2d7da525d82a09c97198baa"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/DeviceConfigFileServiceTests.cs",
+      "lines": 35,
+      "methods": 2,
+      "sha256": "2eeb52a3b5fbf2f9df39424f7aea77801c93f22b96852db7f10b5f7839aac5b8"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveDaqCatalogServiceTests.cs",
+      "lines": 376,
+      "methods": 12,
+      "sha256": "3de7d56f264ecc378ae045d88f9106f4970c0a587535d0d5e078f2170127c28f"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveDaqSharedStreamTests.cs",
+      "lines": 887,
+      "methods": 16,
+      "sha256": "91cddc6324ec7592daefb99d3e766a2bbc968754baaa1b03cc404d0156ce7b51"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveDaqStreamConfigurationTests.cs",
+      "lines": 24,
+      "methods": 1,
+      "sha256": "c26127724aba09ec08fad4441dde606b0b96b4642567653985fafb848e050935"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveDaqTransportOwnershipTests.cs",
+      "lines": 163,
+      "methods": 5,
+      "sha256": "d56930d8e0fde2641a7c7f5f912a711db9d7f1b7f9561236a595f961e1667d4c"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveDaqV2ClientTests.cs",
+      "lines": 715,
+      "methods": 14,
+      "sha256": "bff29fcc56a166b1b526caf38d3487882c21dd5c1f75ec5dfe99f73dd6c268ed"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveDaqV3ClientTests.cs",
+      "lines": 906,
+      "methods": 18,
+      "sha256": "c1806d7852fd52b0c152d33052a5825297a929315ee809247e1da231e8b55219"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveProtocolTestFrames.cs",
+      "lines": 216,
+      "methods": 0,
+      "sha256": "b0c3d43a9f6c1ea6e7c7cff34f79db5172ea17a83e186039798c79823a021f4d"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveSessionServiceTests.cs",
+      "lines": 1244,
+      "methods": 26,
+      "sha256": "0f482035b04a9e974a7c8521a46ee05b051be70a52bc600f80cfb185752b6016"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveV2ProtocolReaderTests.cs",
+      "lines": 208,
+      "methods": 10,
+      "sha256": "a33efa4382b9c4c2f815c639661d9e49cba951dc1aee25bbf41d606947433976"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveV3ProtocolReaderTests.cs",
+      "lines": 92,
+      "methods": 6,
+      "sha256": "d857af94af0f56ad31620a5f2d73382af49a095e7eaed30107145d744ad8bae8"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveV3ProtocolSerializationTests.cs",
+      "lines": 387,
+      "methods": 13,
+      "sha256": "c273149c9dbe1011c5cd4b004acdfe7f3faad53113ff2a87f0dcf4795e342a85"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Services/LiveStreaming/LiveV3ProtocolTestFrames.cs",
+      "lines": 738,
+      "methods": 0,
+      "sha256": "1c0de44c3d0117d58fc90333be1363cf76efc032303d397d0cfc7a2f607aa185"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Stores/LiveDaqStoreTests.cs",
+      "lines": 47,
+      "methods": 2,
+      "sha256": "cda0c1e48282989835aa85534567f485fab80ccd0ad3823eedf9d8a4a3774344"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/ViewModels/Editors/LiveDaqConfigEditorViewModelTests.cs",
+      "lines": 132,
+      "methods": 5,
+      "sha256": "b4a6b3271a483d696772f4c729c4e9a6b9bdd9f75e5588f6c9f5695dc8e13d79"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/ViewModels/Editors/LiveDaqDetailViewModelTests.cs",
+      "lines": 153,
+      "methods": 7,
+      "sha256": "3b5ee3f2b2efa9f877136fd1693b93541fc81c9854bf9e92b9c1751139174460"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/ViewModels/Editors/LiveSessionDetailViewModelTests.cs",
+      "lines": 533,
+      "methods": 13,
+      "sha256": "6b6fa9630153c5abe0d393f80724782bec10dff02f493228b7a82d2b58e48e02"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/ViewModels/Editors/LiveSessionSignalsWorkspaceViewModelTests.cs",
+      "lines": 36,
+      "methods": 2,
+      "sha256": "71de584b63ffc94d20c085f92ace423039a4bbe1f9b6be2cf3f08161de66dfa8"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/ViewModels/ItemLists/LiveDaqListViewModelTests.cs",
+      "lines": 137,
+      "methods": 4,
+      "sha256": "a394c7cc14af175a23a99bd20d45d9ee5e5e29441a428b0f83f7ffb8fc18130f"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Views/Editors/LiveDaqConfigEditorViewTests.cs",
+      "lines": 78,
+      "methods": 0,
+      "sha256": "6c4387d824f10a8acab6d06be7d05122e7c5c872fbb8bcde68df2f56d8d7503c"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Views/ItemLists/LiveDaqListViewTests.cs",
+      "lines": 63,
+      "methods": 1,
+      "sha256": "a7d7ef749216ae7c2acdd871eaec40de77cdd9a67dc546c88de2e6bd4447410d"
+    },
+    {
+      "file": "Sufni.App.Tests/LiveDaq/Views/Plots/LiveSignalPlotViewTests.cs",
+      "lines": 263,
+      "methods": 4,
+      "sha256": "f58bbcdc9f24af8c9b70f930dd9450f56fa46951c734af9a182bd2908ed4690e"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Coordinators/MapLayerCoordinatorTests.cs",
+      "lines": 125,
+      "methods": 5,
+      "sha256": "7d4d581b6145afdd29f99eb99da8e0e1e860bbc337fa67f6c2bead002c875092"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Coordinators/TrackCoordinatorTests.cs",
+      "lines": 315,
+      "methods": 13,
+      "sha256": "64e9ce2ad9817a8bc16842abb50c4c2d396787a2c8d56d2881bc5915514177ac"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Coordinators/TrackMetricsWorkflowTests.cs",
+      "lines": 205,
+      "methods": 7,
+      "sha256": "a45c5c14ff96983e02219e42ea813724725b78e27918b5fe45e603834c865fdf"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Models/SessionGpsMetricsQueryTests.cs",
+      "lines": 22,
+      "methods": 1,
+      "sha256": "4fde03616305271b7d8a3103b2258f5eed66f8da70367846e4b94a0db683cd38"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Models/SessionTrackSelectionTests.cs",
+      "lines": 35,
+      "methods": 2,
+      "sha256": "c2f36d9fba63971cf208fd79473986443c1f0932b224b38ef25c104140cff97f"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Models/TrackTests.cs",
+      "lines": 239,
+      "methods": 9,
+      "sha256": "c8a104398adf64a81ec8a102aae47a7090bad6414113c6e3ceec716551f0b864"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Plots/TrackSignalPlotTests.cs",
+      "lines": 103,
+      "methods": 4,
+      "sha256": "6d09f3f914a6f04cb24a32311709adaff690ae126823bab68c50a651c83a413b"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Services/FullTrackPointReaderTests.cs",
+      "lines": 91,
+      "methods": 3,
+      "sha256": "41e13a707243a3026c52d599e9f68a3e290f93d456c5e6a3b519ce4331d51278"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Services/GpsMetricsRepositoryTests.cs",
+      "lines": 78,
+      "methods": 2,
+      "sha256": "b61c76f8becd2f824d41e0f5556efed467b2e7a50414eabcf5003beaa919b2f7"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Services/GpxTrackReaderTests.cs",
+      "lines": 100,
+      "methods": 5,
+      "sha256": "99b1a23b2544babff2ff454c1597131366bcde4c0963e45eff755ae303174a63"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Services/SessionTrackReaderTests.cs",
+      "lines": 101,
+      "methods": 5,
+      "sha256": "cb400ae1fe3a3c64169fa72a3c98f18a33f2e83a6c4fd1e2c85ed08703d57e7e"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Services/TileLayerServiceTests.cs",
+      "lines": 94,
+      "methods": 4,
+      "sha256": "a7dbda250fd07b931032896a08a132e7751dbfce2ea7e54ce96a37e569accc4d"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Services/TrackRepositoryTests.cs",
+      "lines": 157,
+      "methods": 6,
+      "sha256": "c2773f20e71e60a60ccf3b16760f6942caed36055e9ee5597d63e7cac8f26791"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/ViewModels/AddTileLayerViewModelTests.cs",
+      "lines": 34,
+      "methods": 2,
+      "sha256": "e3ed1fc8c31a46c7a9ee168b5653644081bbba67718a8079bc44a37da9b6e462"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/ViewModels/MapViewModelTests.cs",
+      "lines": 64,
+      "methods": 2,
+      "sha256": "528e8bbc1aff8f6f15dd95087ad7aabed6de5563d827709447bbad8b42cfef87"
+    },
+    {
+      "file": "Sufni.App.Tests/MapsAndTracks/Views/MapViewTests.cs",
+      "lines": 595,
+      "methods": 14,
+      "sha256": "84b095d6c3595cd1fb2016f947e284f5f507de308592a0ca73c667727e017d64"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Coordinators/SegmentCoordinatorTests.cs",
+      "lines": 368,
+      "methods": 19,
+      "sha256": "f7c4e7d7762fda44ab83b6b5fcd828ad653e912328355440c7de09c7ce9c7665"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Plots/SegmentComparisonPlotTests.cs",
+      "lines": 119,
+      "methods": 6,
+      "sha256": "4236fbea213469181f95080a1ff4ff1890dceac4d7b921d1b6ae44362d2be93f"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Services/Matching/SegmentMatcherTests.cs",
+      "lines": 312,
+      "methods": 11,
+      "sha256": "e4ae2a187dd135600615f4bd48ebe5e8628d73ef7c1538ef01cd899b9a204938"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Services/SessionSegmentRepositoryTests.cs",
+      "lines": 46,
+      "methods": 2,
+      "sha256": "86e04c1a6c5d702ce56c5d6591b9e056888f9fc696ae5d472baca5a4d13e5602"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Services/StravaSegmentServiceTests.cs",
+      "lines": 321,
+      "methods": 14,
+      "sha256": "22b2b3286b47d9dddd66bb0ca420e9f6d40c5b0f65488df8582d6005e0ab90ee"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/ViewModels/SegmentComparisonViewModelTests.cs",
+      "lines": 304,
+      "methods": 13,
+      "sha256": "92454f96a72d3fb97a353611495a7e9a8f0cbb993a9ff3e5e7c83b9881e3a7ce"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/ViewModels/SegmentNamePromptViewModelTests.cs",
+      "lines": 46,
+      "methods": 3,
+      "sha256": "69485efe6b97b2d30dd72832778c86fcadb432e08588fff44edda227342ec27a"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/ViewModels/SegmentPickerViewModelTests.cs",
+      "lines": 335,
+      "methods": 16,
+      "sha256": "350682f9da11265d7ce4d75943e6cdd95ca25effee855b1a71d18cd4770f055b"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/ViewModels/StravaConnectDialogViewModelTests.cs",
+      "lines": 131,
+      "methods": 6,
+      "sha256": "7f919ff998c1fa6eacff19df58095f8f4c78fa1471ec74e8754bb051fe2cd24a"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Views/SegmentAnalysisComparisonBannerViewTests.cs",
+      "lines": 50,
+      "methods": 2,
+      "sha256": "af3f7d5669036c69d038ecca212b9079535b612c88b65c03f0ff2bafb4b94f99"
+    },
+    {
+      "file": "Sufni.App.Tests/Segments/Views/StravaFailureViewsTests.cs",
+      "lines": 61,
+      "methods": 1,
+      "sha256": "ad2f2783ade99e879df01d1521a41bd37411a36f7ead2ea6ff5d242e4a2f4109"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Analysis/DesktopViews/Items/SessionAnalysisDesktopViewTests.cs",
+      "lines": 57,
+      "methods": 1,
+      "sha256": "384184e2c9886f513c12b7fc8fb46e6d2cc5f14a53e4899f7f584425a1aacc30"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Analysis/Services/RecordedSessionAnalysisResultStateTests.cs",
+      "lines": 320,
+      "methods": 9,
+      "sha256": "7204b3b1721ec7a5863b90203d01c73b857426e0d6ab542a04625bc8f9912b08"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionCoordinatorTests.cs",
+      "lines": 450,
+      "methods": 16,
+      "sha256": "83c288409629216684e39332560685fb045cbef2bd16d1c237572225b802e597"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionEditTransactionTests.cs",
+      "lines": 249,
+      "methods": 12,
+      "sha256": "357f409bd3eeb4c77709b052878d2a6a2b295a3c4d5623686d992280743a0b8f"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionEditingCoordinatorTests.cs",
+      "lines": 126,
+      "methods": 5,
+      "sha256": "f913531b88cbc96ce5e170e85e5eea857475e689063edc492d74bdd428595f49"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionLoaderTests.cs",
+      "lines": 205,
+      "methods": 9,
+      "sha256": "b46a32428770e40d40d14deba185b41f616309f1f285dcd09895dab35aa9b0b6"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionPersistenceTransactionRunnerTests.cs",
+      "lines": 51,
+      "methods": 1,
+      "sha256": "056e44f75a751916c50a0e930764527341dfbf4d3a83258fa6652e89536cbae1"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionRecomputeEngineTests.cs",
+      "lines": 369,
+      "methods": 8,
+      "sha256": "a0db16c72554423a07d92e35da3e293772135ac0220593cf27f9bcd4aeea3dfa"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionSyncGenerationTests.cs",
+      "lines": 264,
+      "methods": 10,
+      "sha256": "a48ab1f9d1dd143e331325285b008eff441b4da6d0611a2e109628061c1baded"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Coordination/SessionWindowEditPolicyTests.cs",
+      "lines": 45,
+      "methods": 2,
+      "sha256": "62752f668ef0cb5ede76114ca52e8146209b949ee4d39aa536f5f95121ca01e7"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/DesktopViews/Controls/CollapsibleSplitViewTests.cs",
+      "lines": 137,
+      "methods": 3,
+      "sha256": "941cc3b4df4cfd2a756005c40fc836e2c6df451a3fdad6343901c6c0d9dd571c"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/DesktopViews/Editors/SessionDetailDesktopViewTests.cs",
+      "lines": 96,
+      "methods": 3,
+      "sha256": "ebe1de53b536a088572c69db73f7101081bf3e526ff1388eb64b8ac903f3d93a"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/DesktopViews/Items/SessionSidebarDesktopViewTests.cs",
+      "lines": 140,
+      "methods": 2,
+      "sha256": "ba9ecf02873aed80bdba19a88070d93d6bc09f4c116b1e0fd01a97ff98b90808"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/ViewModels/Editors/SessionDetailViewModelTests.cs",
+      "lines": 999,
+      "methods": 32,
+      "sha256": "0bac2b64ab7e992f169466e430ae093d8a6bde78eb2bd94d1ad687e4f3459442"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/ViewModels/Editors/SessionWorkspaceViewModelTests.cs",
+      "lines": 173,
+      "methods": 2,
+      "sha256": "b21e1a8ee87b8f1ea995dcef322f3bc50c0360fc6a648afd72df155a4697dc4a"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/Views/Editors/SessionDetailViewTestContext.cs",
+      "lines": 132,
+      "methods": 0,
+      "sha256": "ab3ecf06fdd6695111e38940c9aabe74fca6f1ec3322f7e3ab07915210f8627b"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Detail/Views/Editors/SessionShellMobileViewTests.cs",
+      "lines": 239,
+      "methods": 3,
+      "sha256": "a8f7de1fad1dd031542a1d54e803bf5c31293ab01eb068465f18a5900448b0b4"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Insights/Services/SessionInsights/SessionInsightsServiceTests.cs",
+      "lines": 207,
+      "methods": 11,
+      "sha256": "7562a5ab9f83cff74e7d82f557cd152719ca9758e318cfe1db40828752f545ed"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Insights/Views/Controls/SessionInsightsControlsTests.cs",
+      "lines": 69,
+      "methods": 2,
+      "sha256": "12385cea0e0e87f447a3b0d6a81eb9009bc1524790c5e124fd6cbac21ed4d97d"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Insights/Views/SessionPages/MobileAnalysisPageViewTests.cs",
+      "lines": 71,
+      "methods": 1,
+      "sha256": "9bb6c6c64cd30f713bccd2de06cdf78770a21e9e6f76b04824c27832f680b065"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Lists/ViewModels/ItemLists/SessionListViewModelTests.cs",
+      "lines": 427,
+      "methods": 14,
+      "sha256": "a58e419230d5bb089bd90187eab64a0262887df20272d62e3ae958a3cab6c5bf"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Lists/Views/ItemLists/SessionListViewTests.cs",
+      "lines": 175,
+      "methods": 4,
+      "sha256": "32e1554599c5dad702da5e1efc6f89c9596592263e5de6a894f723413126e661"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Media/DesktopViews/Items/SessionMediaDesktopViewTests.cs",
+      "lines": 82,
+      "methods": 2,
+      "sha256": "eb4ef92d40a0a4c4ce33340baa5530f268bd9b92edaa33092f9a20b3c861471e"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Models/RecordedSessionSourceHashTests.cs",
+      "lines": 68,
+      "methods": 3,
+      "sha256": "239ca2fd8e2798ede7c9edf3aeefd205b499776f8eb653d483d7ac8e1de174aa"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Models/RecordedSessionSourcePayloadCodecTests.cs",
+      "lines": 32,
+      "methods": 2,
+      "sha256": "1d96fef487c813b4bd053a9e6efb12c81bf030f9be63923569bd0c2c4f08c082"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Models/SessionTrackTimelineTests.cs",
+      "lines": 30,
+      "methods": 2,
+      "sha256": "d0ba331c2d0da98ccfa167b086fe53fc752ea7611bdaf2f10ec44bdaf9a1d636"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Pages/ViewModels/SessionPages/PositionVelocityPageViewModelTests.cs",
+      "lines": 67,
+      "methods": 4,
+      "sha256": "d69d08453ab19610480b812ff979a9a4e4cc45c2a9cc5193ee431b60b0baedf8"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Pages/ViewModels/SessionPages/PreferencesPageViewModelTests.cs",
+      "lines": 51,
+      "methods": 3,
+      "sha256": "088c526f16240aace7cbe842aa06b3921013763f74ba0a8cd2c0d128cac5f781"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Pages/Views/SessionPages/NotesPageViewTests.cs",
+      "lines": 69,
+      "methods": 2,
+      "sha256": "6fdb21877b425bdd25d1878eddaeb0f17c190d316fa6ac1bd5839821c7d2d584"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Pages/Views/SessionPages/PreferencesPageViewTests.cs",
+      "lines": 58,
+      "methods": 1,
+      "sha256": "7f80073a898be14dc4ae8f95819c55b51c0da5079e369979da30d913f8459bb1"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/BalancePlotTests.cs",
+      "lines": 122,
+      "methods": 3,
+      "sha256": "053c25c6e656cf6aa1f145246f260293816649c420e31ea4f248a1a55cdf953d"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/ImuDisplaySignalProcessorTests.cs",
+      "lines": 281,
+      "methods": 8,
+      "sha256": "12754b31fc67f7ef0677b052102f457897b69e7e8fd2acd80e479596b3ecf9fe"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/RecordedCursorReadoutTests.cs",
+      "lines": 220,
+      "methods": 11,
+      "sha256": "fb4708d0ce65b0d302ad38073e3fa6e42afcff216cad158981dd5ff4420c5fea"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/RecordedTimeSeriesPlotTests.cs",
+      "lines": 88,
+      "methods": 2,
+      "sha256": "f08ae2756f797d11e64fab477946fdc2a3a1960b81627c5e4bc711ae3060769c"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/SelectableAnalysisPlotTests.cs",
+      "lines": 278,
+      "methods": 7,
+      "sha256": "cbc2b3e2646fb98e2d706c8a9fa1705f8b08860f0dff724112a9807b475fd8cc"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/StrokeDistributionPlotTests.cs",
+      "lines": 172,
+      "methods": 4,
+      "sha256": "f45499351465a6f2c54f6ef6d051c99b9f95ec8c56f26fe41824aa74a6bf0dc1"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/TravelPlotAirtimeLabelTests.cs",
+      "lines": 133,
+      "methods": 5,
+      "sha256": "211046db9551c9c7333111db440d2e95f73bd22ef265311fd752c017c6140def"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/TravelVelocityLegendTests.cs",
+      "lines": 115,
+      "methods": 4,
+      "sha256": "3d417222ac7a867956906317d90f78436349718ce08ac2b2ad184b3ec05fbfeb"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/VelocityDistributionPlotTests.cs",
+      "lines": 30,
+      "methods": 1,
+      "sha256": "7cbf65d67f79e0c7e99f5fa04143ab1182ca73991043bd0896180d715149b9c4"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/Views/Plots/AnalysisPlotViewTests.cs",
+      "lines": 227,
+      "methods": 3,
+      "sha256": "1589e68fbe8fac700281b0618451365662807384ee5f461c440be3fc0aa6420d"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/Views/Plots/TimeSeriesPlotPlaybackRequestTests.cs",
+      "lines": 220,
+      "methods": 7,
+      "sha256": "48b81c2db9689b9fe7bd26df2e91e9cde3e89842d49b18d00a1aa44b5ee5839d"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/Views/Plots/TravelPlotViewTests.cs",
+      "lines": 442,
+      "methods": 6,
+      "sha256": "5cc6f318620f199a776189ffbc06ce49f47f7dd03bd0ce6c9fa0005e57306792"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Plots/Views/Plots/VelocityBandViewTests.cs",
+      "lines": 203,
+      "methods": 3,
+      "sha256": "09b1caafbd93cd893e97e5dce457588a4102958a440901ac50d2931bd28291a4"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Presentation/AnalysisSurfaceStateTests.cs",
+      "lines": 22,
+      "methods": 1,
+      "sha256": "9e7d85942fac7a41d01e9e11c145276c64a9f3504c7942ae394a945ca25e2932"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Processing/RecordedSessionProjection/ProcessedGenerationTests.cs",
+      "lines": 20,
+      "methods": 1,
+      "sha256": "af85da96cb988fdb748d17865b568e523a48cc63d6aeb805649f79cc7eff14d9"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Processing/RecordedSessionProjection/ProcessingFingerprintServiceTests.cs",
+      "lines": 452,
+      "methods": 15,
+      "sha256": "5155375a98baabd821b3cf4b31a7f9f690ee0cda05e46334eee4ce414f01e4e9"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Processing/RecordedSessionProjection/ProcessingInputBundleTests.cs",
+      "lines": 120,
+      "methods": 1,
+      "sha256": "09556f7c10a8d26f7f17291a2942285cc13bb16579cdafd97a84669c8e1d1d0e"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Processing/RecordedSessionProjection/RecordedSessionDomainQueryTests.cs",
+      "lines": 133,
+      "methods": 3,
+      "sha256": "c7c4c10cc3de8dbf99a16020cdaeb72b8a94befc1587573a4b9c066df92c08ff"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Processing/RecordedSessionProjection/RecordedSessionProjectionTests.cs",
+      "lines": 549,
+      "methods": 13,
+      "sha256": "1859d9d43bb072f4874976b2e41919257d4da0219f10634f466aaca073a009ee"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Processing/RecordedSessionProjection/RecordedSessionReprocessorTests.cs",
+      "lines": 601,
+      "methods": 12,
+      "sha256": "5d55e1658dc798f1292dd323c55c41663d42c1456a95ee1e94d7b8f066a7bec8"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Services/RecordedSessionSourceRepositoryTests.cs",
+      "lines": 264,
+      "methods": 7,
+      "sha256": "9ff204cfbb6337faead3af6e667b5b383083a61ef881c964b5318a2d69ee341c"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Services/RecordedSessionSourceSyncQueryTests.cs",
+      "lines": 24,
+      "methods": 1,
+      "sha256": "a5420a37b81a960692b4ca6e865f4ac46afbbf6cb23bc0111c4d7677ff93205b"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Services/SessionContentReaderTests.cs",
+      "lines": 258,
+      "methods": 8,
+      "sha256": "18aadb1b0d9cdc76ee2d0f96ed435de15d5c48dbdef070d7aa31ae684e757bbc"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Services/SessionOperationRunnerTests.cs",
+      "lines": 87,
+      "methods": 5,
+      "sha256": "c6254144680e9c44e65577bc8a927f629cdc42d4699e26aa9cc471870484ad28"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Services/SessionPresentationServiceTests.cs",
+      "lines": 200,
+      "methods": 5,
+      "sha256": "d0d25ca609c8b2299b7f9cd55932d9eb9e51f8019d0b7fa397fe6b851cdc3e2d"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Services/SessionRepositoryTests.cs",
+      "lines": 923,
+      "methods": 25,
+      "sha256": "138fdabea492869de303ea7ad69d920559df919ba808cf72186bb89b15597147"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Signals/ViewModels/Editors/SessionTimelineLinkViewModelTests.cs",
+      "lines": 75,
+      "methods": 5,
+      "sha256": "8f73fb85a51107f7e061278f7260b0539b5a6defb8bfad7a099cde1f346c3cce"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Signals/Views/Controls/SignalRowTests.cs",
+      "lines": 133,
+      "methods": 3,
+      "sha256": "7f511f435c3643039f9c48c6ee350f1fafe3571335f8003b8ab2e1a3ce392b93"
+    },
+    {
+      "file": "Sufni.App.Tests/Sessions/Signals/Views/Controls/SignalRowsRootTests.cs",
+      "lines": 261,
+      "methods": 3,
+      "sha256": "9072cfd25addc6ed5c0b6f46b21531bd42da0a3dea6d06f82ac9977875a292ba"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Coordinators/SetupCoordinatorTests.cs",
+      "lines": 363,
+      "methods": 13,
+      "sha256": "03133ee372c711f5b510c1ea5c543158ea91aa5765430c2f40da4980e31a2130"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Coordinators/SetupPersistenceTransactionRunnerTests.cs",
+      "lines": 219,
+      "methods": 8,
+      "sha256": "724dc6503d31bf9e10f8b4d0f1052a4e446084203c8c7d2a562e4b49570f65e8"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/DesktopViews/Editors/SetupEditorDesktopViewTests.cs",
+      "lines": 135,
+      "methods": 4,
+      "sha256": "fe4d22828ce562220918ca8142ee0832a35b331f7e71239f05c79f74f164967e"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Models/SensorConfigurations/SensorConfigurationJsonTests.cs",
+      "lines": 130,
+      "methods": 10,
+      "sha256": "df68fb851b8610339eb913351c24908421450b3bc35425c400c1419e2029d30b"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Queries/SetupBoardQueryTests.cs",
+      "lines": 94,
+      "methods": 3,
+      "sha256": "02e2e7281a468041690eacd04872d401560360d5c0fcbebb3bcb22d2d8a3e53e"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Services/SetupFileFormatTests.cs",
+      "lines": 52,
+      "methods": 2,
+      "sha256": "4e86f5844df30e849bdd595c3e7bd986b04b6889dd710d74902dd03f59e6b14f"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Services/SetupFileServiceTests.cs",
+      "lines": 103,
+      "methods": 5,
+      "sha256": "2d1c8a06962fcbba7085d6d0b856e23924dbf29ae66f291eb6a5bd029da994d8"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/ViewModels/Editors/SetupEditorViewModelTests.cs",
+      "lines": 377,
+      "methods": 14,
+      "sha256": "4d4e18bf1ced2ceed5e4890ef9a39e2fb3b8a1ad2624786396b89ee10c6ebe0e"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/ViewModels/ItemLists/SetupListViewModelTests.cs",
+      "lines": 152,
+      "methods": 5,
+      "sha256": "6beb5b219dbc5f23af9b327544c912f5974736a9aed8c9c7630adb9a2b1504f3"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Views/Editors/SetupEditorViewTestContext.cs",
+      "lines": 118,
+      "methods": 0,
+      "sha256": "7edd15693e2d5ade7c93c8a8aaeb93311f56c4e53bfe90e032774c2b7e440aef"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Views/Editors/SetupEditorViewTests.cs",
+      "lines": 102,
+      "methods": 4,
+      "sha256": "f982d58a392d8100742f07f8fe33e1a7aa881fa386731dc88e1a75ebdf1e2722"
+    },
+    {
+      "file": "Sufni.App.Tests/Setups/Views/SensorConfigurations/RotationalShockSensorConfigurationViewTests.cs",
+      "lines": 86,
+      "methods": 2,
+      "sha256": "c3ba2d249ac6f35bd3c6682b7bdba9f9f0b707e760f8534eaaf214b78a03835c"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Base/PersistedStoreTests.cs",
+      "lines": 146,
+      "methods": 4,
+      "sha256": "33a464e87f20ca7e80045ab70e9146b2b81b27b8798bbc5f9efd7b3a180245af"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Base/ViewModelBaseTests.cs",
+      "lines": 29,
+      "methods": 1,
+      "sha256": "760be58b85c0ca9b31f680f600442ac23ea264307bf3bf3c6a944418021eb5c5"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Models/FailurePresentationTests.cs",
+      "lines": 18,
+      "methods": 1,
+      "sha256": "a8031364eefee3c654e5f93625fc40253f70eff603fe09671aedaaa3eee47194"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Models/ModelJsonTests.cs",
+      "lines": 81,
+      "methods": 3,
+      "sha256": "f09b1f353571188c206c5befc608d9c6c9e76dad528488004e5ec35ba5840994"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Plots/AnalysisBarReadoutTests.cs",
+      "lines": 35,
+      "methods": 1,
+      "sha256": "19d193100122e0c39de7c856640ba4e4b5d361fce9a9e4cc57b20f99f4ebc569"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Plots/AxisRangeConstraintsTests.cs",
+      "lines": 63,
+      "methods": 5,
+      "sha256": "67cc81212a34d4545b3679425721f464bd9cd9f1bbb543037bcb6a3e0f01aef8"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Plots/TelemetrySourceVisibilityStoreTests.cs",
+      "lines": 46,
+      "methods": 3,
+      "sha256": "55891459a8ca729aecf25f7b8b3c65c455d97dc729e641327445bbe82ca08a74"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/CommonButtonLineTests.cs",
+      "lines": 63,
+      "methods": 1,
+      "sha256": "54f7a2482e764c607e027eb8a2f7b28d27bc102c09d4d31153fde925fa80f95b"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/EditableTitleTests.cs",
+      "lines": 93,
+      "methods": 2,
+      "sha256": "52c1a1380d3f6b5d688563f6c634251d4ce77f821d99c356431db56c5afa533c"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/ErrorMessagesBarTests.cs",
+      "lines": 86,
+      "methods": 2,
+      "sha256": "f518122b7f257e3300dda7867370071142f93c94bc89d9dcda63ff28f877c354"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/NotificationsBarTests.cs",
+      "lines": 83,
+      "methods": 2,
+      "sha256": "e63d485d6ad03c0ee191617ffb8e1705a112a65063f9ed898b8307b19a193f2c"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/SearchBarTests.cs",
+      "lines": 51,
+      "methods": 1,
+      "sha256": "f379632a7720a2d53bf732a6884f5ed3e0b2a42f8004862ffddbbe96c007bf32"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/SearchBarWithDateFilterTests.cs",
+      "lines": 89,
+      "methods": 2,
+      "sha256": "cca8ce1d387772238fd47b1593c0f1f63c600b829eda1ac89c7f2247325319ea"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Controls/SwipeToDeleteButtonTests.cs",
+      "lines": 74,
+      "methods": 1,
+      "sha256": "27021622bda9ce6d2cd011e7d59096d7f0b7e843f90b7be69a53a9243b1e7106"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Dialogs/DialogServiceTests.cs",
+      "lines": 341,
+      "methods": 7,
+      "sha256": "ad8eb8f258e57b304c1dbd483c205217aef4d16653bcc1cc2a6a53474021d1ca"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Dialogs/OkCancelDialogWindowTests.cs",
+      "lines": 79,
+      "methods": 2,
+      "sha256": "0cb396b92bf74f34c75e2c2bbc91b41bc6df8af1ff061801008afaaf23581ef3"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Dialogs/YesNoCancelDialogWindowTests.cs",
+      "lines": 65,
+      "methods": 3,
+      "sha256": "b57b9c748aa9ec1dca2f28f3c6c24799ee1cf71fe7cac1316ff8e02ac6da9924"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Overlays/BusyOverlayTests.cs",
+      "lines": 56,
+      "methods": 1,
+      "sha256": "fd690d4ec50521b852878284e880fce8593744097a12180e9b58337cd16cebac"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Overlays/PlaceholderOverlayContainerTests.cs",
+      "lines": 49,
+      "methods": 2,
+      "sha256": "b22ba257adb8730bb0e64813c283dfeb2a05ef7c1e64ac64f6684fec78a02e9f"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Overlays/PlotZoomOverlayHostTests.cs",
+      "lines": 250,
+      "methods": 7,
+      "sha256": "33cffc9493e2d662a588c168b6ab0708a41996f620a469f5ee3cb59923df498f"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Plots/PlotZoomContainerTests.cs",
+      "lines": 67,
+      "methods": 2,
+      "sha256": "8862e7dbf909639c062c52d734a3abf44e473b3935410ae69924290561a5a205"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/Plots/SufniAvaPlotTests.cs",
+      "lines": 63,
+      "methods": 1,
+      "sha256": "812d2ca4475ff67f7464ee6a95f4ef563f3da6ac67b2a64ab3fa93f5ab852e0c"
+    },
+    {
+      "file": "Sufni.App.Tests/Shared/Views/ViewLifecycleTests.cs",
+      "lines": 115,
+      "methods": 4,
+      "sha256": "e5666224c9870528dec2ccae153798f0c59f6f85aedd76525c826f016d59befa"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Coordinators/AppDataRefresherTests.cs",
+      "lines": 201,
+      "methods": 3,
+      "sha256": "3c153d00be5dbabef0378cd3afd8409cead0a1939fe271dd120b030f7fd2ec92"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Coordinators/AppShutdownTests.cs",
+      "lines": 144,
+      "methods": 3,
+      "sha256": "9b36d76fa1e12a3503e7d11b889741275dda0090207785f0932f0750dcb72a77"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Coordinators/AppStartupTests.cs",
+      "lines": 246,
+      "methods": 8,
+      "sha256": "96e99735e0f062f7616a4b5470d0bd4ec18f5ab1ca27718828afd7f64bd8f6c4"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Coordinators/PendingDeletesTests.cs",
+      "lines": 103,
+      "methods": 4,
+      "sha256": "a6db5532efdb72c4e38a63e768015d15e9647193d1e799f014f4d8db8a1414d5"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Coordinators/ShellWorkspaceCoordinatorTests.cs",
+      "lines": 374,
+      "methods": 13,
+      "sha256": "69b67d8a318c6e759971216b9a516d4ad525db0ccac5f1d014e63e314da69fd3"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/DesktopViews/MainPagesDesktopViewTests.cs",
+      "lines": 262,
+      "methods": 6,
+      "sha256": "eece9a3df55673f285f130b19f48dc896e18ac4687a4f588679afa44ee958c0e"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/DesktopViews/MainWindowTests.cs",
+      "lines": 184,
+      "methods": 3,
+      "sha256": "0d8d8c4e704f770c1bac643197646b54002d7f7428a9913da469e0fb739d86f0"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/DesktopViews/WorkspaceShellViewTests.cs",
+      "lines": 118,
+      "methods": 2,
+      "sha256": "a3b65754dfe5ef6693e9c3afc7bd6357c7a611f15297bfa7c54aac19ce16b56b"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/HapticFeedbackBehaviorTests.cs",
+      "lines": 39,
+      "methods": 1,
+      "sha256": "d4a7799edeb9563f42864a04c24c76934b3d14a0f47501d6509d6c0c2512c6d5"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Services/Preferences/AppPreferencesTests.cs",
+      "lines": 486,
+      "methods": 19,
+      "sha256": "1172437b1500731a2147de321d7c2d5a737416dfbf5b9c55365ee877046d7875"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/Base/ItemListViewModelBaseTests.cs",
+      "lines": 28,
+      "methods": 1,
+      "sha256": "5c0aada1cb76d80eba715ef355c97579cb73bc9877d7a9a16e1c8c0c94b7d4ea"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/Base/TabPageViewModelBaseTests.cs",
+      "lines": 68,
+      "methods": 3,
+      "sha256": "8ac9e28e5d6d3ed1aefa15af4563bf39e5a4b3b81009f5dcd8ee8b6b20d2700d"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/MainPagesViewModelTestFactory.cs",
+      "lines": 160,
+      "methods": 0,
+      "sha256": "1ab6a5fc5ff010fdc8d198c5b92bbdf24f69e0e8a5628c138c94b1d5bceacaa3"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/MainPagesViewModelTests.cs",
+      "lines": 71,
+      "methods": 3,
+      "sha256": "690efe439c192b2d291beefe477a1f0c481f368566009c3491c95a17fc5b1cde"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/ShellFeedbackViewModelTests.cs",
+      "lines": 131,
+      "methods": 7,
+      "sha256": "e89835e67573e9b0ec8500d5242e82d7b4a07dc17bba7906650e4f2707e6d6f5"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/ShellRootViewModelTestFactory.cs",
+      "lines": 26,
+      "methods": 0,
+      "sha256": "30adaa309362ee2be23eebac07ad3eab5ffb8b2b61aaa376897bd8d20106640c"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/ViewModels/ShellRootViewModelTests.cs",
+      "lines": 112,
+      "methods": 5,
+      "sha256": "5ae1b29f1d6095bfb6406b3ec55b941c79b82baa287e731c9286df9692bf5e9d"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Views/CompactShellViewTests.cs",
+      "lines": 198,
+      "methods": 4,
+      "sha256": "4ab42cbdae8c17063dac6ca1b0128e3e8a5652f1c0f2777e57a494c0defd1935"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Views/MainViewTests.cs",
+      "lines": 92,
+      "methods": 1,
+      "sha256": "0dcc3c8d5dbe742c57550dc2397cc83207ef72df5c3c007cf52177d89f69b13d"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Views/ShellFeedbackViewTests.cs",
+      "lines": 56,
+      "methods": 1,
+      "sha256": "2ec05dd762683451eff429051520af0385c94d67e320143a088bbd737f85aaaf"
+    },
+    {
+      "file": "Sufni.App.Tests/Shell/Views/ShellStartupViewTests.cs",
+      "lines": 67,
+      "methods": 1,
+      "sha256": "62e6d4fe30410f38def16f8b2da386b3018cd44ebbef693cf1c3efbf6946515c"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/InboundPairingTests.cs",
+      "lines": 153,
+      "methods": 7,
+      "sha256": "7e2c41fd6bf62658d67b6298b3f6644303fa049cc7ea33720af2c63ae374e305"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/InboundSyncActivityTests.cs",
+      "lines": 82,
+      "methods": 3,
+      "sha256": "8303e0087c7b4f2d777fca60d5ff32f149b59af34af31287b22e18e65b6084c5"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/InboundSyncCoordinatorTests.cs",
+      "lines": 147,
+      "methods": 7,
+      "sha256": "3004b6c1f2e98b62d60d67ab0102dfd9f5786e7cb772f4bcc7478298fc48d0ce"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/PairedDeviceCoordinatorTests.cs",
+      "lines": 45,
+      "methods": 1,
+      "sha256": "ac19c3032b2bca3408acef0ebd612ddc666cf5560bea3f6e81dfa00f030592bf"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/PairingClientCoordinatorTests.cs",
+      "lines": 501,
+      "methods": 21,
+      "sha256": "a7beea059276d0e1d337d4c3ff7bec34052ecd9932db0c9f6832d6dd4fce8cdc"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/SyncCoordinatorClientRunTests.cs",
+      "lines": 648,
+      "methods": 16,
+      "sha256": "97c85a83dddf8b187961979f9ba0cec23c0f1f8f4b38bab8a57ddbb1c747f65e"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/SyncCoordinatorTests.cs",
+      "lines": 213,
+      "methods": 10,
+      "sha256": "54fbc85d7610937a1a04580d02736e242febd9a6c809c5bdefd950eaecf9ff78"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Coordinators/SynchronizationApplierTests.cs",
+      "lines": 67,
+      "methods": 1,
+      "sha256": "e49a5ddf99de9959209b36c820250670cd0c4d5f41d9a55b138bb1f677a2e0ab"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/DesktopViews/ItemLists/PairedDeviceListDesktopViewTests.cs",
+      "lines": 60,
+      "methods": 1,
+      "sha256": "341723304261d2ac051c01d7d4e30d7d64da5daa2e475b51533d48d3cd0c179b"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Models/SynchronizationDataJsonTests.cs",
+      "lines": 215,
+      "methods": 9,
+      "sha256": "e20df1d52624e553c19478d45b204e4c866639b5a2a78049fec938b000f80adc"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/HttpApiServiceTests.cs",
+      "lines": 778,
+      "methods": 22,
+      "sha256": "4c2baa7b5e44d1db4d87f1354ba2cd7bfb567ed77f39e611985675c3082854cc"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/LocalDeviceIdentityTests.cs",
+      "lines": 54,
+      "methods": 3,
+      "sha256": "026b7594f07ef4d67dfab40778ba432bcf96c729f6be879a7b9bb8899d246038"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/SessionBlobSwapRequestStoreTests.cs",
+      "lines": 26,
+      "methods": 1,
+      "sha256": "3577757dcb8ae70c394f0b417c039005b8b0560a3de9ed9374e7cd015eeb019e"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/SynchronizableRepositoryTests.cs",
+      "lines": 134,
+      "methods": 5,
+      "sha256": "9f43d2c0dd383f159690053d81b69c4325f8b5b38e1fe28e5a34aa5c54445e5b"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/SynchronizationJsonTests.cs",
+      "lines": 44,
+      "methods": 3,
+      "sha256": "454385cb7ee8222149f0b81ad943eebd257eca08eeb855153bde8222976b8836"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/SynchronizationMergeEngineTests.cs",
+      "lines": 943,
+      "methods": 20,
+      "sha256": "0210ce3105d8a582b4b8dd26fe0b884563f48029392ea881081d839045b61e5a"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/SynchronizationServerServiceTests.cs",
+      "lines": 66,
+      "methods": 2,
+      "sha256": "0e8ac765dd83280b02cc41b0e87172fdcc6cfc96e1221d77e647aa51c80e698d"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Services/SynchronizationTokenServiceTests.cs",
+      "lines": 33,
+      "methods": 1,
+      "sha256": "03d764b7478d2b649a27837279fc5f234db08c946c2012248fdce07ffb331f2e"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/ViewModels/ItemLists/PairedDeviceListViewModelTests.cs",
+      "lines": 48,
+      "methods": 1,
+      "sha256": "98e98d471e40be6cb9b72063459d156488cb18b7b693e2e4ae2c530f58025db7"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/ViewModels/PairingClientViewModelTests.cs",
+      "lines": 101,
+      "methods": 3,
+      "sha256": "2789bf06a3972f86174008ebf28c951e797e1df0152ebee71ea7ea4617abbecb"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/ViewModels/PairingServerViewModelTests.cs",
+      "lines": 71,
+      "methods": 3,
+      "sha256": "fa1a4055abf24585fa09daa10ef8801300f977a456c2a072eb0a02a7efe6b99b"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Views/Controls/PinInputTests.cs",
+      "lines": 99,
+      "methods": 3,
+      "sha256": "8067002178c0f71bf9d20264885f65f9d32e978442720687e6d483caae969cba"
+    },
+    {
+      "file": "Sufni.App.Tests/SyncAndPairing/Views/PairingClientViewTests.cs",
+      "lines": 159,
+      "methods": 3,
+      "sha256": "d3d331ebbe90c0296964e9e68d92ec0d9e55a73de450154517ca50ff8206c8af"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Acquisition/FakeMassStorageDriveSource.cs",
+      "lines": 19,
+      "methods": 0,
+      "sha256": "bc801cdd1d8d06fa0c7ebf0c0453b0b92c7b981ca95085a242a7a5eaa8e0dee1"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Acquisition/ImportWorkflowHarness.cs",
+      "lines": 176,
+      "methods": 0,
+      "sha256": "df5d8c8b10b910ff64876d0bc52e9c2332c7a9e66db74bd4fbe2c8c5ec31bbd1"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Acquisition/NetworkTelemetrySourceHarness.cs",
+      "lines": 51,
+      "methods": 0,
+      "sha256": "22e3f14f2da997dce9c9d939495f203ec5f15fe7360514d2fecb03ac9970c56b"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/BoundedTaskExtensions.cs",
+      "lines": 10,
+      "methods": 0,
+      "sha256": "fd7e9a03ad1b5a7ba70eea01ee204e0f7ea067052732a596b37fc4fa21c6f3f0"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/DeferredBackgroundTaskRunner.cs",
+      "lines": 39,
+      "methods": 0,
+      "sha256": "7952d2cd0e331404aea0a398d67c87b35cba41c11f2cb4d22fbbdb643c8fb734"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/InlineBackgroundTaskRunner.cs",
+      "lines": 12,
+      "methods": 0,
+      "sha256": "97dcd2420aadbdda72b13c2b4a13e7819b7f15fa21357a8101d858bda6e26608"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/InlineUiThreadDispatcher.cs",
+      "lines": 20,
+      "methods": 0,
+      "sha256": "a10294536b5d07a01a5856b384b1b489a7ce413b1393fcde7790b99e327c81ea"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/ManualUiThreadDispatcher.cs",
+      "lines": 68,
+      "methods": 0,
+      "sha256": "5d2f258b986deb02f58a2d46e63fa5ef5c814e25cf870ab5493175a998d0d82b"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/ManualUiTimerScheduler.cs",
+      "lines": 129,
+      "methods": 0,
+      "sha256": "d94a7780fa8562e7c032f3f3364f4fa06d037443a69b0da09163a54f802ee77e"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/RecordingBackgroundTaskRunner.cs",
+      "lines": 30,
+      "methods": 0,
+      "sha256": "8f45902a8df5f45f36d15dcdbec01020e50ae23305df4e7bae86eb4f859a493d"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/RecordingProgress.cs",
+      "lines": 20,
+      "methods": 0,
+      "sha256": "29888ce99f9889023f3dd9bd186a60909fe305eb644a6de3af5170118d201760"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Async/SignalingFakeTimeProvider.cs",
+      "lines": 20,
+      "methods": 0,
+      "sha256": "3c2f6c47a85e7016fd5aedca1500652048acc053a2286dfb8ed4f5283b53fe1a"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/InMemoryMapPreferences.cs",
+      "lines": 26,
+      "methods": 0,
+      "sha256": "4ae099fe737ae61e7405386b4e8444b03cfdf6104fe552fd078ee472d91c52ac"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/InMemorySecureStorage.cs",
+      "lines": 55,
+      "methods": 0,
+      "sha256": "a5dbf70035d8639d168cc5cae68ac683e9034977934b1d13e2c24f70a722b4f8"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/StubHttpMessageHandler.cs",
+      "lines": 8,
+      "methods": 0,
+      "sha256": "b50f66826d48a2c4bea97478f921edbb75c0b0f06f2f0819afc58a6e25c8888c"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestBikeSaveValidator.cs",
+      "lines": 10,
+      "methods": 0,
+      "sha256": "1156fd9b2a5fe0000230f5599ec492d5bf085f036249908d739e90a374573554"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestCoordinatorSubstitutes.cs",
+      "lines": 141,
+      "methods": 0,
+      "sha256": "daa9b6717086b3c7593314c008ad09727959a0ac90efe04098e1eb2a95fad01e"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestEditorFactories.cs",
+      "lines": 85,
+      "methods": 0,
+      "sha256": "ece0b3e89fd83fa1791c28e1b665030f392e9ad0b17863e0d7e0b5d19545291d"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestListStores.cs",
+      "lines": 77,
+      "methods": 0,
+      "sha256": "13e1a049467e507c6152fee20fc09e4ab4d4615a8c34fb7e0cb6978a0d1ff2e6"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestMapViewModelFactory.cs",
+      "lines": 23,
+      "methods": 0,
+      "sha256": "f7a5c9575c2e8ddeb901c05c794ddf8a04da3d397baf4f4fe06c43ba75bb9fdf"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestPendingDeleteListViewModel.cs",
+      "lines": 13,
+      "methods": 0,
+      "sha256": "de7e27b912cd298050db55f323151f0ead96261b3ed6aa7a950d67a9a208a199"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestPendingDeletes.cs",
+      "lines": 25,
+      "methods": 0,
+      "sha256": "0edf1afd9e2d3a12c42964c50dabebebed40fea15d3e08b4bfbb416aa78ec8e9"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestSegmentComparisons.cs",
+      "lines": 66,
+      "methods": 0,
+      "sha256": "985c477ad92c7a24b30056f23336dbd16af5378985bf5c5325cbacbd605f9ee2"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestSegmentPickers.cs",
+      "lines": 32,
+      "methods": 0,
+      "sha256": "cb926fcdd0b81dd5964ac4c69f6c2fcabf005821e4185f884bb3396094847905"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestSessionContentReader.cs",
+      "lines": 63,
+      "methods": 0,
+      "sha256": "732e6d8acd14a7914b36a7138acb81b967ee772d06ca85899bf01f0370a18b5c"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestSessionProcessedTelemetryReader.cs",
+      "lines": 58,
+      "methods": 0,
+      "sha256": "d6fc8b87f808671a4adc84c56cea4743700dfbe474ada48da61e0fd6b7358a49"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestShellFeedback.cs",
+      "lines": 16,
+      "methods": 0,
+      "sha256": "ac6599e86b0feba612c9cd77759869afd1f9c583b4ccf9aace08eb5cdd03dd26"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Doubles/TestViewModels.cs",
+      "lines": 32,
+      "methods": 0,
+      "sha256": "1e795301c6162b5d52edecf783e549acf3ca4a360620d0c120064901822990f1"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Extensions/SessionPreferencesTestExtensions.cs",
+      "lines": 20,
+      "methods": 0,
+      "sha256": "b6b23aeddece6f7850012633202466332a59ba55b73d17fc6e7b9027dce88d8e"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Extensions/TileLayerServiceTestExtensions.cs",
+      "lines": 14,
+      "methods": 0,
+      "sha256": "93d7328fbc937caef47006b58e7df4dc8f1f2c3d8cbe28bb0f0c1a028df5b33a"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/AnalysisTelemetryFixture.cs",
+      "lines": 195,
+      "methods": 0,
+      "sha256": "ed60f54492dbf07692dc6f56ba7052eba7c7df844cc1f1872783c13b97ab77b4"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/MapLayerFixture.cs",
+      "lines": 61,
+      "methods": 0,
+      "sha256": "583e3feacdf7218b31cc53e5f35f1088f5f93084f19e8899f20b0b356265ec00"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/PlotTestHelpers.cs",
+      "lines": 97,
+      "methods": 0,
+      "sha256": "0d12c70019ca67af42f0ee95c9e8f0057f44d67c3c9c48501c1e9058307f2c17"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestAppPreferences.cs",
+      "lines": 11,
+      "methods": 0,
+      "sha256": "17708b2a965f2b134c2fbff5380259666ad8b64fd2797a31244a5fc5378f09ae"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestDerivationInputs.cs",
+      "lines": 26,
+      "methods": 0,
+      "sha256": "71bac11aa4a333a4e5b001e5d7fcb850001330897cafc9f5b1cea57488b4f9ab"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestImages.cs",
+      "lines": 10,
+      "methods": 0,
+      "sha256": "24f8c2cc8d9b1336303c9d1c93a2a1656819f4a796c4b0a022110b472b0a27b7"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestPreferencesPages.cs",
+      "lines": 21,
+      "methods": 0,
+      "sha256": "b345aa0970b7342532640880897ad7aa993e52b9ea031d7c9d9f393822d1fd33"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestRecordedSessionTimeline.cs",
+      "lines": 55,
+      "methods": 0,
+      "sha256": "9e96661cf16b7f653e42af6b817a63a21196b4b0f128ea78504dd4df42e8bf23"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestSegmentComparisonRows.cs",
+      "lines": 32,
+      "methods": 0,
+      "sha256": "a44253f26dc8ca50e1698107c85d19b0982c16863789a8195e68df48e7901911"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestSegmentMatches.cs",
+      "lines": 75,
+      "methods": 0,
+      "sha256": "3534fe5bf81bb4e62757ac81e96aadcf70db74c64cddf131f5634f0a5da8fb05"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestSnapshots.cs",
+      "lines": 103,
+      "methods": 0,
+      "sha256": "8e04c1b659b6dd2cbd7790579a09580a4b88096ca558aa2982f786a08ff58473"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestSstFiles.cs",
+      "lines": 52,
+      "methods": 0,
+      "sha256": "13cba420ef94800cf254e607dfd7c89d5a3286b17b40f831848304eff876ee9f"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestStorageItems.cs",
+      "lines": 35,
+      "methods": 0,
+      "sha256": "9013a6cb4dfc3f0737cac159f70796a887053251d0081e8519786d361a728e2f"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestTelemetryData.cs",
+      "lines": 143,
+      "methods": 0,
+      "sha256": "ab55b5c623158cf4bf04b58690859ffe0079d9f108992af6ccc3a699504f2a7f"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Fixtures/TestTelemetrySources.cs",
+      "lines": 48,
+      "methods": 0,
+      "sha256": "ebcbeeacfa82922c57ddc7351c035262e8987348347ee8f66b2a96c46e38399b"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/ListHostTestSupport.cs",
+      "lines": 40,
+      "methods": 0,
+      "sha256": "457dda01b50af974e07148d55fcf3f7bb296c5dfee432701f83e91e7a368a378"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/PlotViewTestSupport.cs",
+      "lines": 22,
+      "methods": 0,
+      "sha256": "5d54d0b9d5c1f0b0d46365ae6a24ca0de8bf14d887f907dee69a67b81d199260"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/TestApp.cs",
+      "lines": 13,
+      "methods": 0,
+      "sha256": "25a18529208e7e3b338abe186c60314fce4da8defc1a416221f3761c41b35473"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/TestAppBuilder.cs",
+      "lines": 24,
+      "methods": 0,
+      "sha256": "d53c1ba91ea70da8355581662eef76f6a098a171b1a54ef96e4a600cecebcc9a"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/TestAppEnvironment.cs",
+      "lines": 36,
+      "methods": 0,
+      "sha256": "08641c22c42c929692c31a2011dcfe63ad127fcb69e2fa8f87432e7ac289634e"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/UiCollection.cs",
+      "lines": 12,
+      "methods": 0,
+      "sha256": "2c88d74bc804c3808ca0fd41c47f377c0145f48df4824c57396ee4d20d1333e4"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Harness/ViewTestHelpers.cs",
+      "lines": 185,
+      "methods": 0,
+      "sha256": "6638c1825ad24cc5002a2d2a835a20ba8c27ccfe4f5539ecc52d32d4d76a3165"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Io/ProtocolStreamIo.cs",
+      "lines": 12,
+      "methods": 0,
+      "sha256": "3a72910ee682e8569bca9f9d21d4a25d6faf97d986e3a3a80824d12f87867ad9"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Io/TempDatabase.cs",
+      "lines": 17,
+      "methods": 0,
+      "sha256": "6c4bc0368c292b433f76e704b8ba782db87282d2142cfa0df29f3dd26f9c5910"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Io/TempDirectory.cs",
+      "lines": 20,
+      "methods": 0,
+      "sha256": "caae4b4f9f6a3f1c40b66a0b66f9361728481a847bb47a3e49eb067b996c5fba"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/LiveDaq/LiveDaqClientProtocolHarness.cs",
+      "lines": 119,
+      "methods": 0,
+      "sha256": "0fda1e63dd8ccd2704508e0ec365ad9fac4f6a1e2d00d20769ccebc126a248e5"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/LiveDaq/LiveDaqDetailHarness.cs",
+      "lines": 173,
+      "methods": 0,
+      "sha256": "b3edc720bca9c1cc74aaac7bb241a64035240ab5e04b7698ed9f4e97772105bf"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/LiveDaq/LiveV2RequestReader.cs",
+      "lines": 24,
+      "methods": 0,
+      "sha256": "ea0e9803f92b6bc3a544add1ee08bff98af85121f2ababf0f63587e1a2ac9deb"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/InMemoryBikeTransactions.cs",
+      "lines": 18,
+      "methods": 0,
+      "sha256": "c32c20b106f8c90569b39e34be864c817a16356e81049fb1807cdf57f1dca715"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/InMemoryPairedDeviceRepository.cs",
+      "lines": 31,
+      "methods": 0,
+      "sha256": "a9193f6a4e8da00f6213a777f8b89febf898f36b76eff17dfe26f7659a3c266e"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/InMemorySessionRepository.cs",
+      "lines": 178,
+      "methods": 0,
+      "sha256": "6c368d5329dfc5a5b68b0b36ee4b6acdc8b0637b0120fb078624a56169b90ead"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/InMemorySetupTransactions.cs",
+      "lines": 65,
+      "methods": 0,
+      "sha256": "fabe42bc5e058da30bea549169513bf79a21783e635ad7c31a9bedf03d7f379d"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/InMemorySynchronizableRepository.cs",
+      "lines": 50,
+      "methods": 0,
+      "sha256": "ba57897265739947d0083362455428c38b109c6b9a7f4f050351b28ee0e97eba"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/PersistenceTestData.cs",
+      "lines": 81,
+      "methods": 0,
+      "sha256": "b329a4e86b20e233d27100aa3a64265d2946021d1f09799da61be483f0611298"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Persistence/TestPersistenceHarness.cs",
+      "lines": 254,
+      "methods": 0,
+      "sha256": "b9f4123060a2af7dabc9ef85b4ab079d8eb309977d3bce16dee3cd191db88f6a"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Sessions/SessionDetailHarness.cs",
+      "lines": 186,
+      "methods": 0,
+      "sha256": "3c4c488037a959f7d1aaf77712bad02a458c304b68830c125aa88b882d0aaaec"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Sessions/SessionWorkspaceTestDoubles.cs",
+      "lines": 171,
+      "methods": 0,
+      "sha256": "a6f61f4cf3fbdb02f8c20dfbd33d84acadcede43f95282b03315f3f22598f9f0"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Sync/InboundSyncFixture.cs",
+      "lines": 98,
+      "methods": 0,
+      "sha256": "58dbc95aeeb9b63dc382147716ecf56a746851508204e120543c33348478ac73"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Sync/SyncTestServerHarness.cs",
+      "lines": 199,
+      "methods": 0,
+      "sha256": "7e7471b1eb0a6c30a290fd50b4cb05356b7b03df2a6cbbf5e2d242c747e447b9"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Video/FakeVideoFilePresence.cs",
+      "lines": 37,
+      "methods": 0,
+      "sha256": "4945fda75a197e9745c3b8be6f9e8595d8f32865ba0fd79d250be6be3820655f"
+    },
+    {
+      "file": "Sufni.App.Tests/TestSupport/Video/VideoTestDoubles.cs",
+      "lines": 139,
+      "methods": 0,
+      "sha256": "40612f9471fede284998980ede645432774d059a2d3d38d4e11b26b3d5364fae"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Coordinators/VideoCoordinatorTests.cs",
+      "lines": 260,
+      "methods": 11,
+      "sha256": "5d1e685968873fee458fd6ba501baceb6f653a71491a2159baabb06c7a9773ee"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Models/SessionVideoSelectionTests.cs",
+      "lines": 81,
+      "methods": 5,
+      "sha256": "b978a0945342d29493f060178a770ca8b230b19664b34e2980ec65ccaf9022e2"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Services/BookmarkedVideoFileAccessTests.cs",
+      "lines": 80,
+      "methods": 4,
+      "sha256": "be23620076ecf01f1135666cd4b7e7d6dcb9985443d9646855eb82da6bfbbfb3"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Services/Mp4VideoMetadataReaderTests.cs",
+      "lines": 126,
+      "methods": 4,
+      "sha256": "afff27cd4d97446029c81585f28ea61c71cbb7095fb52b2e742523829eb3eab7"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Services/SessionVideoRepositoryTests.cs",
+      "lines": 89,
+      "methods": 5,
+      "sha256": "959d06d0fa380944885243df06b2ab48d7c93944e41ea41b5eae289952c2d9b0"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Services/VideoFilePresenceTests.cs",
+      "lines": 40,
+      "methods": 1,
+      "sha256": "bf374ac03e8efa644169c7da11b39b1ff8240484c089e9aec5316773e44f4e1c"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Services/VideoImportFileServiceTests.cs",
+      "lines": 71,
+      "methods": 4,
+      "sha256": "2eba3b06ee99c154ada76e2f0eb03734c535ab90ab4869c99abc363de9d75aac"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/ViewModels/VideoPaneViewModelTests.cs",
+      "lines": 109,
+      "methods": 6,
+      "sha256": "d36aafbd3c7e0427d8363ecc396e7287a8b896e263fd247a090eb0f8e4ddd971"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/ViewModels/VideoPlaybackViewModelTests.cs",
+      "lines": 333,
+      "methods": 19,
+      "sha256": "65ffe96f64282422f3e42bb72dfbfd69f26d42ec7115c6024cabc6fea0676f3f"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Views/NativeVideoPlayerTests.cs",
+      "lines": 94,
+      "methods": 4,
+      "sha256": "5203cf71d5e0d6b3d8d8acf0218b4108a37eb880bccecd276d6dc2d4cfbc4eeb"
+    },
+    {
+      "file": "Sufni.App.Tests/Video/Views/VideoPaneViewTests.cs",
+      "lines": 100,
+      "methods": 4,
+      "sha256": "b9ff57b4ddac6aeefa5dbb4abd674fd89a7f4fb72a7554cdb34da22c389eb6eb"
+    },
+    {
+      "file": "Sufni.App.Tests/ViewLocatorTests.cs",
+      "lines": 26,
+      "methods": 1,
+      "sha256": "a6ce01fbbec136e7ef2c3de2250252ca6ddf5cb553c0f8503172c4df5f696368"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/Caching/SingleFlightLruCacheTests.cs",
+      "lines": 399,
+      "methods": 15,
+      "sha256": "4cf34070464023311418e52e43332911c1e87cbe92a7c3c27a22f46106434e76"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/FiltersTests.cs",
+      "lines": 147,
+      "methods": 6,
+      "sha256": "9e7275dc4e093563d4b91e35384fd2bfd3b0d69474a7415641c02b9c693e8270"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/FixedRateSegmentBuilderTests.cs",
+      "lines": 123,
+      "methods": 6,
+      "sha256": "ec0aa56e57a8ec5940aad046d59545c066f8d630f22e3cfda3abfccc2e5f55e9"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/GoldenTelemetryCompatibilityFixtureTests.cs",
+      "lines": 456,
+      "methods": 15,
+      "sha256": "44bfff1d19ca2acd0605ff38aa882c99c146c1ffb94bd450919f768653dc8d58"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/GoldenTelemetryCompatibilityFixtures.cs",
+      "lines": 76,
+      "methods": 0,
+      "sha256": "f464b76300f98fca17c5f85fb830ec1219fe67394a386c06d2a56c4538882ad4"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/GpsBinaryRecordDecoderTests.cs",
+      "lines": 92,
+      "methods": 3,
+      "sha256": "49b07380431df70617c60f356e36e36471abc07b93b3bb876fb74509a7bac12f"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/HistogramBuilderTests.cs",
+      "lines": 20,
+      "methods": 1,
+      "sha256": "e228d6f31ed2f2028703d0bf7ce4466fd456a01a4116a535632188d719d28b15"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/LiveTelemetryCaptureSliceTests.cs",
+      "lines": 131,
+      "methods": 3,
+      "sha256": "24404d4a212a8579b99cf96221569b1f1e954c571718f99768f54266b4f64904"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/MeasurementPreprocessorTests.cs",
+      "lines": 55,
+      "methods": 4,
+      "sha256": "73804014cad0de92c4b3186ca4c40153655104feb158ae0a865716e4347fbb9a"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/PositionVelocityTraceBuilderTests.cs",
+      "lines": 466,
+      "methods": 15,
+      "sha256": "ddab0947610de8d33240b2ae0ab9c7b103851124329284f5f78298fab14a3807"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/RawTelemetryDataSliceTests.cs",
+      "lines": 354,
+      "methods": 8,
+      "sha256": "cd293db09d63c4ec67963b827c3fb29713ee0ed616eb63cf4adef1ba5ecafd00"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/RawTelemetryDataTests.cs",
+      "lines": 46,
+      "methods": 3,
+      "sha256": "89e2dbb9dea4485c9fc3e52bfb507f00c6bd88e409f5e0e567d1b5fa99ae12a0"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SpikeEliminationTests.cs",
+      "lines": 188,
+      "methods": 11,
+      "sha256": "dca848c7728ebfc24f689fe1724d0a4b76966ac834e914f79d72511ebf172940"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SstTestFiles.cs",
+      "lines": 248,
+      "methods": 0,
+      "sha256": "9be899ea9be58d7692622bae6fbaf80c628ae6b85323fa749a02b558ab6eaebd"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SstV3ParserTests.cs",
+      "lines": 114,
+      "methods": 7,
+      "sha256": "6ef96f698590378a1563c1fc17b5108cf425ac9c31c4cce289bc69e79fb45c7e"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SstV4TlvParserTests.cs",
+      "lines": 255,
+      "methods": 12,
+      "sha256": "a09d5c05ae43ab2fdca4158222f83bfa7f6e3bed281ccc9b5044f5fa0c92568d"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SstV5ParserTests.cs",
+      "lines": 596,
+      "methods": 24,
+      "sha256": "c755e87c4828ac019e0ea09bb995a20680782fc01a41fb130c96f25c5a534f47"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SstV5TestFiles.cs",
+      "lines": 498,
+      "methods": 0,
+      "sha256": "3dc5232ce29fffc76b2debf906d5cd1c83e2b2f5cfe601aa1ef9fcb5c40d60f1"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/StrokeAnalyzerTests.cs",
+      "lines": 22,
+      "methods": 1,
+      "sha256": "68e3e939140d50247b15c1d02a924ad30724b31f5fb5e9e6e1f3a0dd873a108f"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/StrokeCoarseIndexesTests.cs",
+      "lines": 183,
+      "methods": 4,
+      "sha256": "f1e24e659a255ce3e5aea919bbd0c8a4796dbe196ef9e2d9d0c40d24bdf729dd"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/StrokesTests.cs",
+      "lines": 58,
+      "methods": 4,
+      "sha256": "cc237daffd87decff2d33d89f1cef52051e039316155db0d40b999ee872cc61a"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/SuspensionTraceProcessorTests.cs",
+      "lines": 46,
+      "methods": 3,
+      "sha256": "3c5f9bca94094490a9645e380bcdd5ae7084998c6f12945280cd084d77b85350"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryCodecFixtureData.cs",
+      "lines": 44,
+      "methods": 0,
+      "sha256": "5263b820fd85219b6f540f606848420d8793c39a6ce67ac1390f6b8aeb859804"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryCodecSchemaTests.cs",
+      "lines": 62,
+      "methods": 4,
+      "sha256": "a367e014c465147768f080b3da7362fa609d110f0d7b13121fdd4557a45867e9"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryDataLiveCaptureTests.cs",
+      "lines": 183,
+      "methods": 3,
+      "sha256": "60942d2b6fc9527fd47b4739bd46fc2c8aebe6b3d5c8def08570aaf353e40184"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryDataRegressionOutputTests.cs",
+      "lines": 290,
+      "methods": 3,
+      "sha256": "1d4a1dd2b745e0a99d520f533423c12dac968b083fa8674417d1d688037ac5fc"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryDataTests.cs",
+      "lines": 1732,
+      "methods": 45,
+      "sha256": "4347b1d1852c76d927c4023aa29f8545b9fe89bb2d8a3c8167873a02ed15749b"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryNormalDistributionTests.cs",
+      "lines": 63,
+      "methods": 1,
+      "sha256": "537a5582bf9b274a8da6866d0680ba7ce5e7dc966566ffd0297f2ac72d4f4d51"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryProcessingOptionsTests.cs",
+      "lines": 41,
+      "methods": 3,
+      "sha256": "f95b4e401c7b313bce802d737d7431bead91df9fea561f71b834927b0737dce5"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryStatisticsHighlightRangeTests.cs",
+      "lines": 186,
+      "methods": 4,
+      "sha256": "45c87fcd25ef4e3d7e242a2c7d488a94620f0911b12cb9528de138d0f91cafa5"
+    },
+    {
+      "file": "Sufni.Telemetry.Tests/TelemetryTimeRangeTests.cs",
+      "lines": 93,
+      "methods": 7,
+      "sha256": "973eff8cf322963676506c206defb519d2eca15bf0e0b7e9902d729204b2e91f"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/BikeCharacteristicsRearMappingTests.cs",
+      "lines": 81,
+      "methods": 5,
+      "sha256": "782b0ce169e40dd2d5e48b7f2557872159ed86b09bb35fdcabb0b31e4321e7bb"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/KinematicSolutionTests.cs",
+      "lines": 27,
+      "methods": 1,
+      "sha256": "efe435f76a9daa923ddc826216fd6d42876c2731fface3f8aa92830e817bd9c9"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/KinematicSolverTests.cs",
+      "lines": 51,
+      "methods": 3,
+      "sha256": "5680656a66647f8f148b1c537b038f49ae06940d353bb274571d7ff0566cc09a"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/KinematicValidationTests.cs",
+      "lines": 142,
+      "methods": 8,
+      "sha256": "8a3e30f6211ae84d53edfd2ab1bd75a67cac49ec5a0dda90e92260abca99edaf"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/KinematicsHelperTests.cs",
+      "lines": 148,
+      "methods": 11,
+      "sha256": "ce5339fd76125cf069a94045da6524ac5bf952ebaf0bc4d2601bfc483f671bfc"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/LeverageRatioSpecTests.cs",
+      "lines": 74,
+      "methods": 4,
+      "sha256": "69bd0d3785e14b42f78e5ccbe3ce1a898c956f9228ddc50be90675c42ee58239"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/LinkageSpecTests.cs",
+      "lines": 83,
+      "methods": 3,
+      "sha256": "0e96970891f707a040685ff4a90c8a72a6608b39a30293cf95d120ce190739ea"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/TestLinkages.cs",
+      "lines": 33,
+      "methods": 0,
+      "sha256": "4e45a7d23fe80472c25c084b99d5d43e41b07b17a9ecf2a2f0965e0113b4ce5e"
+    },
+    {
+      "file": "Sufni.Kinematics.Tests/TravelInterpolationTests.cs",
+      "lines": 17,
+      "methods": 1,
+      "sha256": "ce595744d058fe63dd2da889a07edb732377ee7be198b1a8d47abe2d910f91e3"
+    },
+    {
+      "file": "Sufni.Screenshots/BikeCreationScreenshots.cs",
+      "lines": 192,
+      "methods": 4,
+      "sha256": "ae81634a604cb8f2ae89d36bf33d40ebfc39e30160ccb2656530cdebb90f9406"
+    },
+    {
+      "file": "Sufni.Screenshots/Infrastructure/ScreenshotApp.axaml.cs",
+      "lines": 21,
+      "methods": 0,
+      "sha256": "7aedf38013ee39f4d66d501426f1a36f99b2759be7e33b2450a07849ff7543bc"
+    },
+    {
+      "file": "Sufni.Screenshots/Infrastructure/ScreenshotAppBuilder.cs",
+      "lines": 20,
+      "methods": 0,
+      "sha256": "59cec97e21fab393abca0e5062cfe1563404ea94f41b16dc9a91d2483a137829"
+    },
+    {
+      "file": "Sufni.Screenshots/StartupScreenshots.cs",
+      "lines": 61,
+      "methods": 1,
+      "sha256": "a9fe1b8575cca21f836046456c531b58931f277ad2b459295cce90330b463550"
+    }
+  ]
+}

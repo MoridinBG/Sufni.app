@@ -28,7 +28,7 @@ public class PairedDeviceListDesktopViewTests
             DeviceId: "device-1",
             DisplayName: "Phone",
             Expires: new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Utc));
-        var store = new PairedDeviceStoreStub(snapshot);
+        using var store = new PairedDeviceStoreStub(snapshot);
         var viewModel = new PairedDeviceListViewModel(store, new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider());
         var view = new PairedDeviceListDesktopView
         {
@@ -49,40 +49,12 @@ public class PairedDeviceListDesktopViewTests
         Assert.Equal("Phone", entry.Name);
     }
 
-    [AvaloniaFact]
-    public async Task PairedDeviceListDesktopView_RendersNoRows_WhenStoreIsEmpty()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-
-        var view = new PairedDeviceListDesktopView
-        {
-            DataContext = new PairedDeviceListViewModel(new PairedDeviceStoreStub(), new InlineUiThreadDispatcher(), pendingDeletes: TestPendingDeletes.Create(), timeProvider: new FakeTimeProvider()),
-        };
-
-        await using var mounted = await MountAsync(view);
-
-        Assert.Empty(mounted.View.FindAllVisual<PairedDeviceListItemButton>());
-    }
-
-    private static async Task<MountedPairedDeviceListDesktopView> MountAsync(PairedDeviceListDesktopView view)
+    private static async Task<MountedView<PairedDeviceListDesktopView>> MountAsync(PairedDeviceListDesktopView view)
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
 
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedPairedDeviceListDesktopView(host, view);
+        return await ViewTestHelpers.MountAsync(view);
     }
 
-}
-
-internal sealed class MountedPairedDeviceListDesktopView(Window host, PairedDeviceListDesktopView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public PairedDeviceListDesktopView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
 }

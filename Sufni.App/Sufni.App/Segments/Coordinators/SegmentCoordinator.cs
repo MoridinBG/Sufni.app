@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
+using Sufni.App.Bikes.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Segments.Models;
@@ -12,6 +13,7 @@ using Sufni.App.Segments.Services;
 using Sufni.App.Segments.Services.Matching;
 using Sufni.App.Segments.Stores;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Sessions.Store;
 using Sufni.Telemetry;
@@ -105,6 +107,15 @@ public interface ISegmentCoordinator
     Task<SegmentComparisonDetailResult> LoadComparisonDetailAsync(
         SegmentComparison comparison,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Compares the analysis of a loaded comparison detail against the current session's analysis.
+    /// </summary>
+    Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
+        SegmentComparison comparison, SegmentComparisonDetail detail,
+        TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
+        CancellationToken cancellationToken = default);
 
     Task<StravaConnectionSnapshot> GetStravaConnectionAsync();
 
@@ -368,6 +379,26 @@ internal sealed class SegmentCoordinator(
             cancellationToken.ThrowIfCancellationRequested();
             logger.Error(e, "Segment comparison detail could not be loaded for {SessionId}", comparison.Match.SessionId);
             return new SegmentComparisonDetailResult.Failed(SegmentComparisonFailureReason.Detail, e.Message);
+        }
+    }
+
+    public async Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
+        SegmentComparison comparison, SegmentComparisonDetail detail,
+        TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
+        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return new SegmentAnalysisComparisonResult.Built(await backgroundTaskRunner.RunAsync(
+                () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
+                cancellationToken));
+        }
+        catch (Exception e)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            logger.Error(e, "Segment analysis comparison failed for {SessionId}", comparison.Match.SessionId);
+            return new SegmentAnalysisComparisonResult.Failed(SegmentComparisonFailureReason.Analysis, e.Message);
         }
     }
 

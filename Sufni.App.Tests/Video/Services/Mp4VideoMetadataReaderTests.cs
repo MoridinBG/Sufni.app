@@ -19,6 +19,7 @@ public class Mp4VideoMetadataReaderTests
 
         var parsed = Assert.IsType<VideoMetadataReadResult.Parsed>(result);
         Assert.Equal(start, parsed.Metadata.StartUtc);
+        Assert.Equal(TimeSpan.Zero, parsed.Metadata.StartUtc.Offset);
         Assert.Equal(88.088, parsed.Metadata.Duration.TotalSeconds, precision: 3);
     }
 
@@ -54,19 +55,6 @@ public class Mp4VideoMetadataReaderTests
         var result = await reader.ReadAsync(stream, TestContext.Current.CancellationToken);
 
         Assert.IsType<VideoMetadataReadResult.Invalid>(result);
-    }
-
-    [Fact]
-    public async Task ReadAsync_InterpretsCreationTimeAsUtc()
-    {
-        var start = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
-        await using var stream = CreateMovie(version: 0, start, timescale: 1, durationUnits: 9);
-
-        var result = await reader.ReadAsync(stream, TestContext.Current.CancellationToken);
-
-        var parsed = Assert.IsType<VideoMetadataReadResult.Parsed>(result);
-        Assert.Equal(TimeSpan.Zero, parsed.Metadata.StartUtc.Offset);
-        Assert.Equal(start, parsed.Metadata.StartUtc);
     }
 
     private static MemoryStream CreateMovie(byte version, DateTimeOffset start, uint timescale, ulong durationUnits)

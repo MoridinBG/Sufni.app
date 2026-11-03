@@ -13,25 +13,6 @@ namespace Sufni.App.Tests.Shared.Views.Controls;
 [Collection("Ui")]
 public class SearchBarTests
 {
-    [AvaloniaFact]
-    public async Task SearchBar_HidesCloseButton_WhenSearchTextIsNull_AndNotFocused()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        var control = new SearchBar
-        {
-            DataContext = new ItemListViewModelBase(new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider()),
-        };
-
-        await using var mounted = await ListHostTestSupport.MountInSharedMainPagesHostAsync(control);
-
-        var core = mounted.Control.FindFirstVisual<SearchBarCore>();
-        Assert.NotNull(core);
-
-        var closeButton = core!.FindControl<Button>("CloseButton");
-
-        Assert.NotNull(closeButton);
-        Assert.False(closeButton!.IsVisible);
-    }
 
     [AvaloniaFact]
     public async Task SearchBar_BindsSearchText_AndClearsIt()

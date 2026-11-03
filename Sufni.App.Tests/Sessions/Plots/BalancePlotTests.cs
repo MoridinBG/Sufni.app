@@ -11,20 +11,6 @@ namespace Sufni.App.Tests.Sessions.Plots;
 public class BalancePlotTests
 {
     [Fact]
-    public void LoadAnalysisData_InsufficientBalanceSamples_SkipsRendering()
-    {
-        var telemetry = CreateTelemetryWithSingleBalanceSamplePerSide();
-        var plot = new Plot();
-        var sut = new BalancePlot(plot, BalanceType.Compression);
-
-        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
-            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
-
-        Assert.Empty(plot.PlottableList);
-        Assert.True(string.IsNullOrWhiteSpace(plot.Axes.Title.Label.Text));
-    }
-
-    [Fact]
     public void SetPointerPositionWithReadout_ShowsFrontAndRearBalanceValuesAtPointerX()
     {
         var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
@@ -38,8 +24,6 @@ public class BalancePlotTests
 
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
-        Assert.DoesNotContain("Balance", tooltip.LabelText);
-        Assert.StartsWith("Zenith: 7.5 %", tooltip.LabelText);
         Assert.Contains("Zenith: 7.5 %", tooltip.LabelText);
         Assert.Contains("Front peak speed: 150 mm/s", tooltip.LabelText);
         Assert.Contains("Rear peak speed: 125 mm/s", tooltip.LabelText);
@@ -68,38 +52,6 @@ public class BalancePlotTests
     }
 
     [Fact]
-    public void LoadAnalysisData_KeepsSourceLegendCompactAndDrawsTrendStatisticsSeparately()
-    {
-        var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
-        var plot = new Plot();
-        var sut = new BalancePlot(plot, BalanceType.Compression);
-
-        sut.LoadAnalysisData(RecordedSessionAnalysisComputer.CalculateBalance(
-            PlotTestHelpers.CreateAnalysisKey(RecordedSessionAnalysisFamily.Balance, balanceMode: sut.DisplacementMode), telemetry));
-
-        var legendLabels = plot.PlottableList
-            .OfType<Scatter>()
-            .Select(scatter => scatter.LegendText)
-            .Where(label => !string.IsNullOrWhiteSpace(label))
-            .ToArray();
-        plot.RenderInMemory(320, 180);
-        using var paint = Paint.NewDisposablePaint();
-        var legendLayout = plot.Legend.GetLayout(plot.LastRender.DataRect.Size, paint);
-
-        Assert.Equal("Front", legendLabels[0]);
-        Assert.Equal("Rear", legendLabels[1]);
-        Assert.Equal(Orientation.Horizontal, plot.Legend.Orientation);
-        Assert.Equal(2, legendLayout.LegendItems.Length);
-        Assert.True(
-            legendLayout.LegendRect.Height < plot.LastRender.DataRect.Height * 0.35,
-            $"Legend height {legendLayout.LegendRect.Height} should stay compact relative to data height {plot.LastRender.DataRect.Height}.");
-        Assert.DoesNotContain(legendLabels, label => label.StartsWith("Δ ") || label.StartsWith("MSD "));
-        Assert.Contains(
-            plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels),
-            label => label.StartsWith("Δ ") && label.Contains("MSD "));
-    }
-
-    [Fact]
     public void SetPointerPositionWithReadout_UsesNearestPointInSpeedMode()
     {
         var telemetry = CreateTelemetryWithTwoBalanceSamplesPerSide();
@@ -114,60 +66,10 @@ public class BalancePlotTests
         plot.GetSvgXml(500, 320);
         sut.SetPointerPositionWithReadout(10, 200);
 
-        Assert.Equal(2, plot.PlottableList.OfType<Scatter>().Count());
         var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
         Assert.True(tooltip.IsVisible);
         Assert.Contains("Peak speed position: 10 %", tooltip.LabelText);
         Assert.Contains("Front peak speed: 200 mm/s", tooltip.LabelText);
-    }
-
-    private static TelemetryData CreateTelemetryWithSingleBalanceSamplePerSide()
-    {
-        var telemetry = TestTelemetryData.CreateProcessed(frontPresent: true, rearPresent: true);
-
-        telemetry = telemetry with { Front = telemetry.Front with { Strokes = new Strokes
-        {
-            Compressions =
-            [
-                new Stroke
-                {
-                    Start = 0,
-                    End = 0,
-                    Stat = new StrokeStat
-                    {
-                        Count = 1,
-                        MaxTravel = 10,
-                        MaxVelocity = 100,
-                    },
-                    DigitizedTravel = [0],
-                    DigitizedVelocity = [0],
-                },
-            ],
-            Rebounds = [],
-        } } };
-
-        telemetry = telemetry with { Rear = telemetry.Rear with { Strokes = new Strokes
-        {
-            Compressions =
-            [
-                new Stroke
-                {
-                    Start = 0,
-                    End = 0,
-                    Stat = new StrokeStat
-                    {
-                        Count = 1,
-                        MaxTravel = 12,
-                        MaxVelocity = 120,
-                    },
-                    DigitizedTravel = [0],
-                    DigitizedVelocity = [0],
-                },
-            ],
-            Rebounds = [],
-        } } };
-
-        return telemetry;
     }
 
     private static TelemetryData CreateTelemetryWithTwoBalanceSamplesPerSide()

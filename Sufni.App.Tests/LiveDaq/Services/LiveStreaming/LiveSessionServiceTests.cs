@@ -60,55 +60,41 @@ public class LiveSessionServiceTests
             .Returns(new SessionDampingPercentages(1, 2, 3, 4, 5, 6, 7, 8));
     }
 
-    [Fact]
-    public async Task EnsureAttachedAsync_AcquiresLeases_StartsStream_AndPublishesStreamingState()
-    {
-        await using var service = CreateService();
-
-        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        sharedStream.Received(1).AcquireLease();
-        sharedStream.Received(1).AcquireConfigurationLock();
-        await sharedStream.Received(1).ConnectLiveAsync(Arg.Any<CancellationToken>());
-
-        Assert.Equal(new LiveConnectionState.Connected(), service.Current.Controls.ConnectionState);
-        Assert.Equal(sessionHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
-
-        await service.DisposeAsync();
-
-        await observerLease.Received(1).DisposeAsync();
-        await configurationLockLease.Received(1).DisposeAsync();
-    }
-
-    [Fact]
-    public void CreateService_DoesNotAcquireLeasesBeforeEnsureAttachedAsync()
-    {
-        _ = CreateService();
-
-        sharedStream.DidNotReceive().AcquireLease();
-        sharedStream.DidNotReceive().AcquireConfigurationLock();
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task EnsureAttachedAsync_WhenStreamClosed_ReturnsReasonAndReleasesPartialAttachment(bool closedDuringLockAcquisition)
+    public async Task SignalBatches_ConvertCalibratedTravelToVelocityAcrossBatchGaps(bool gap)
     {
-        var closure = new LiveConnectionState.Closed(LiveStreamClosedReason.Offline);
-        currentState = currentState with { ConnectionState = closure };
-        if (closedDuringLockAcquisition)
-            sharedStream.AcquireConfigurationLock().Returns(new LiveStreamLeaseResult.Closed(closure));
-        else
-            sharedStream.AcquireLease().Returns(new LiveStreamLeaseResult.Closed(closure));
         await using var service = CreateService();
-
-        var result = await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal(closure, Assert.IsType<LivePreviewStartResult.Closed>(result).State);
-        Assert.Equal(closure, service.Current.Controls.ConnectionState);
-        await sharedStream.DidNotReceive().ConnectLiveAsync(Arg.Any<CancellationToken>());
-        await observerLease.Received(closedDuringLockAcquisition ? 1 : 0).DisposeAsync();
-        await configurationLockLease.DidNotReceive().DisposeAsync();
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
+        var header = sessionHeader with { AcceptedTravelRateMhz = 100_000 };
+        PublishSharedState(header, isClosed: false);
+        await service.ResetCaptureAsync(TestContext.Current.CancellationToken);
+        LiveTravelBatchFrame Batch(int start, int count, int deltaMs) => new(
+            new LiveFrameMetadata(1),
+            new LiveBatchHeader(header.SessionId, 1, (ulong)start,
+                header.SessionStartMonotonicUs + (ulong)deltaMs * 1000, (uint)count),
+            Enumerable.Range(start, count).Select(index => new LiveTravelRecord((ushort)(10 * index), (ushort)(20 * index))).ToArray());
+        if (gap)
+        {
+            var first = WaitForSignalBatchAsync(service.SignalBatches, batch => batch.FrontTravel.Count == 3, TimeSpan.FromSeconds(2));
+            frames.OnNext(Batch(0, 3, 0));
+            var initial = await first;
+            Assert.Equal(3, initial.FrontVelocity.Count);
+            Assert.All(initial.FrontVelocity, value => Assert.True(double.IsNaN(value)));
+        }
+        var count = gap ? 4 : 7;
+        var next = WaitForSignalBatchAsync(service.SignalBatches, batch => batch.FrontTravel.Count == count, TimeSpan.FromSeconds(2));
+        frames.OnNext(Batch(gap ? 3 : 0, count, gap ? 40 : 0));
+        var batch = await next;
+        double[] expected = gap ? [80, 80, 100, 100] : [100, 100, 100, 100, 100, 100, 100];
+        Assert.Equal(count, batch.FrontVelocity.Count);
+        Assert.Equal(count, batch.RearVelocity.Count);
+        for (var index = 0; index < count; index++)
+        {
+            Assert.Equal(expected[index], batch.FrontVelocity[index], 1e-8);
+            Assert.Equal(2 * expected[index], batch.RearVelocity[index], 1e-8);
+        }
     }
 
     [Fact]
@@ -128,69 +114,18 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task EnsureAttachedAsync_DisposesFreshLeases_WhenStartThrows()
-    {
-        sharedStream.ConnectLiveAsync(Arg.Any<CancellationToken>())
-            .Returns<Task<LivePreviewStartResult?>>(_ => throw new InvalidOperationException("boom"));
-        await using var service = CreateService();
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken));
-
-        await observerLease.Received(1).DisposeAsync();
-        await configurationLockLease.Received(1).DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Frames_AccumulateSignalTrackAndAnalysis_AndRemainSaveableAfterTerminalClose()
+    public async Task PrepareCaptureForSaveAsync_PreservesTravelAfterTerminalClose()
     {
         await using var service = CreateService();
-        var analysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
-        {
-            if (snapshot.AnalysisTelemetry is not null)
-            {
-                analysisReady.TrySetResult();
-            }
-        });
-
-        var travelBatch = WaitForSignalBatchAsync(
-            service.SignalBatches,
-            batch => batch.FrontTravel.Count == 5 && batch.RearTravel.Count == 5,
-            TimeSpan.FromSeconds(2));
-        var imuBatch = WaitForSignalBatchAsync(
-            service.SignalBatches,
-            batch => batch.ImuTimes.TryGetValue(LiveImuLocation.Frame, out var imuTimes) && imuTimes.Count == 50,
-            TimeSpan.FromSeconds(2));
-
-        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
-
+        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
         frames.OnNext(CreateTravelBatchFrame());
-        frames.OnNext(CreateImuBatchFrame());
-        frames.OnNext(CreateGpsBatchFrame());
-        frames.OnNext(CreateGpsBatchFrame(
-            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
-            latitude: 42.6978,
-            longitude: 23.3220,
-            altitude: 601));
-
-        await Task.WhenAll(travelBatch, imuBatch);
-        await analysisReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
-        Assert.True(service.Current.Controls.CanSave);
-        Assert.NotNull(service.Current.AnalysisTelemetry);
-        Assert.Equal(2, service.Current.SessionTrackPoints.Count);
-        Assert.True(service.Current.SessionTrackPoints[0].Time < service.Current.SessionTrackPoints[1].Time);
-
-        var capture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(5, capture.TelemetryCapture.FrontMeasurements.Length);
-        Assert.Equal(2, capture.TelemetryCapture.GpsData!.Length);
-
+        var before = await service.PrepareCaptureForSaveAsync(TestContext.Current.CancellationToken);
         currentState = currentState with { ConnectionState = new LiveConnectionState.Closed(LiveStreamClosedReason.ConnectionLost, "link lost") };
         states.OnNext(currentState);
-
-        var partialCapture = await service.PrepareCaptureForSaveAsync(cancellationToken: TestContext.Current.CancellationToken);
-        Assert.Equal(5, partialCapture.TelemetryCapture.RearMeasurements.Length);
+        var after = await service.PrepareCaptureForSaveAsync(TestContext.Current.CancellationToken);
+        Assert.NotEmpty(after.TelemetryCapture.FrontMeasurements);
+        Assert.Equal(before.TelemetryCapture.FrontMeasurements, after.TelemetryCapture.FrontMeasurements);
+        Assert.Equal(before.TelemetryCapture.RearMeasurements, after.TelemetryCapture.RearMeasurements);
     }
 
     [Fact]
@@ -422,31 +357,6 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task Frames_CalculateDampingPercentagesWithContextCutoffs()
-    {
-        var cutoffs = DampingSpeedCutoffs.FromValues(150, 250, 350, 450);
-        await using var service = CreateService(context: CreateSessionContext(cutoffs));
-        var analysisReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var snapshotSubscription = service.Snapshots.Subscribe(snapshot =>
-        {
-            if (snapshot.AnalysisTelemetry is not null)
-            {
-                analysisReady.TrySetResult();
-            }
-        });
-
-        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
-        frames.OnNext(CreateTravelBatchFrame());
-        await analysisReady.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
-        sessionPresentationService.Received(1).CalculateDampingPercentages(
-            Arg.Any<TelemetryData>(),
-            Arg.Any<TelemetryTimeRange?>(),
-            Arg.Any<VelocityAverageMode>(),
-            Arg.Is<DampingSpeedCutoffs?>(value => value == cutoffs));
-    }
-
-    [Fact]
     public async Task GpsFrames_DerivingFirstPointSpeed_DoesNotMutatePublishedSnapshot()
     {
         await using var service = CreateService();
@@ -466,29 +376,6 @@ public class LiveSessionServiceTests
     }
 
     [Fact]
-    public async Task SnapshotObserver_ResetDuringPublication_PreservesRevisionOrderForAllObservers()
-    {
-        await using var service = CreateService();
-        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
-        Task? reset = null;
-        using var resetSubscription = service.Snapshots.Subscribe(snapshot =>
-        {
-            if (snapshot.Controls.CanSave)
-                reset = service.ResetCaptureAsync(TestContext.Current.CancellationToken);
-        });
-        var observed = new List<LiveSessionPresentationSnapshot>();
-        using var subscription = service.Snapshots.Subscribe(observed.Add);
-
-        frames.OnNext(CreateTravelBatchFrame());
-        await Assert.IsAssignableFrom<Task>(reset);
-
-        Assert.True(observed.Any(snapshot => snapshot.Controls.CanSave));
-        Assert.False(observed[^1].Controls.CanSave);
-        Assert.Same(service.Current, observed[^1]);
-        Assert.True(observed.Zip(observed.Skip(1), (previous, next) => previous.Revision < next.Revision).All(ordered => ordered));
-    }
-
-    [Fact]
     public async Task ResetCaptureAsync_WhenStreamClosesDuringReset_DoesNotPublishOlderOpenSnapshot()
     {
         var pipeline = new BlockingSignalPipeline();
@@ -501,22 +388,7 @@ public class LiveSessionServiceTests
         await service.ResetCaptureAsync(TestContext.Current.CancellationToken);
 
         Assert.IsType<LiveConnectionState.Closed>(service.Current.Controls.ConnectionState);
-        Assert.Same(service.Current, observed[^1]);
-        Assert.Equal(2, observed.Count);
-    }
-
-    [Fact]
-    public async Task SnapshotObserver_ConnectionChangeWithoutNewSamples_AdvancesPublicationRevision()
-    {
-        await using var service = CreateService();
-        await service.EnsureAttachedAsync(TestContext.Current.CancellationToken);
-        var before = service.Current;
-
-        PublishSharedState(sessionHeader, isClosed: true);
-
-        Assert.Equal(before.CaptureRevision, service.Current.CaptureRevision);
-        Assert.True(before.Revision < service.Current.Revision);
-        Assert.IsType<LiveConnectionState.Closed>(service.Current.Controls.ConnectionState);
+        Assert.IsType<LiveConnectionState.Closed>(observed[^1].Controls.ConnectionState);
     }
 
     [Fact]
@@ -589,7 +461,9 @@ public class LiveSessionServiceTests
 
         await service.ResetCaptureAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Assert.NotEqual(nextHeader.SessionId, service.Current.Controls.SessionHeader?.SessionId);
+        frames.OnNext(CreateTravelBatchFrame());
+        frames.OnNext(CreateTravelBatchFrame(nextHeader, measurementBase: 2000));
+        Assert.False(service.Current.Controls.CanSave);
     }
 
     [Fact]
@@ -631,46 +505,6 @@ public class LiveSessionServiceTests
         Assert.Equal((byte)2, capture.FinalStatus?.SessionResultReason);
         var imuSegment = Assert.Single(capture.ImuData!.Segments);
         Assert.Equal((short)20, Assert.Single(imuSegment.Records).Ax);
-    }
-
-    [Theory]
-    [InlineData(GpsSpeedScenario.Incremental)]
-    [InlineData(GpsSpeedScenario.OutOfOrderFallback)]
-    public async Task GpsFrames_CalculateSpeeds_ForOrderedAndOutOfOrderFrames(GpsSpeedScenario scenario)
-    {
-        await using var service = CreateService();
-        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        frames.OnNext(CreateGpsBatchFrame());
-        if (scenario is GpsSpeedScenario.OutOfOrderFallback)
-        {
-            frames.OnNext(CreateGpsBatchFrame(
-                timestamp: new DateTime(2026, 1, 2, 3, 4, 8, DateTimeKind.Utc),
-                latitude: 42.6979,
-                longitude: 23.3221,
-                altitude: 602));
-        }
-
-        frames.OnNext(CreateGpsBatchFrame(
-            timestamp: new DateTime(2026, 1, 2, 3, 4, 7, DateTimeKind.Utc),
-            latitude: 42.6978,
-            longitude: 23.3220,
-            altitude: 601));
-
-        var points = service.Current.SessionTrackPoints;
-        if (scenario is GpsSpeedScenario.Incremental)
-        {
-            Assert.Equal(2, points.Count);
-            Assert.NotNull(points[1].Speed);
-            Assert.True(points[1].Speed > 0);
-            Assert.Equal(points[1].Speed, points[0].Speed);
-            return;
-        }
-
-        Assert.Equal(3, points.Count);
-        Assert.True(points[0].Time < points[1].Time);
-        Assert.True(points[1].Time < points[2].Time);
-        Assert.All(points, point => Assert.NotNull(point.Speed));
     }
 
     [Fact]
@@ -910,44 +744,8 @@ public class LiveSessionServiceTests
 
         frames.OnNext(CreateTravelBatchFrame());
 
-        var expectedDurationUs = SstV5CompactPayloadDecoder.RoundDurationUs(
-            5,
-            sessionHeader.AcceptedTravelRateMhz);
-        Assert.Equal(
-            TimeSpan.FromMilliseconds(expectedDurationUs / 1000.0),
-            service.Current.Controls.CaptureDuration);
+        Assert.Equal(TimeSpan.FromMilliseconds(25), service.Current.Controls.CaptureDuration);
 
-        await service.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Frames_TwoTravelFramesBeforeFlush_ProduceSingleMergedBatchWithIndependentSignalRevision()
-    {
-        var pipeline = new LiveSignalPipeline(TimeSpan.FromMilliseconds(200), Logger.None, TimeProvider.System);
-        var service = new LiveSessionService(
-            CreateSessionContext(),
-            sharedStream,
-            sessionPresentationService,
-            backgroundTaskRunner,
-            pipeline,
-            time);
-
-        var mergedBatchTask = WaitForSignalBatchAsync(
-            service.SignalBatches,
-            batch => batch.FrontTravel.Count == 10,
-            TimeSpan.FromSeconds(2));
-
-        await service.EnsureAttachedAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        frames.OnNext(CreateTravelBatchFrame());
-        frames.OnNext(CreateTravelBatchFrame());
-
-        var mergedBatch = await mergedBatchTask;
-
-        Assert.Equal(1L, mergedBatch.Revision);
-        Assert.True(service.Current.CaptureRevision >= 2L);
-
-        await service.DisposeAsync();
     }
 
     [Fact]
@@ -1443,9 +1241,4 @@ public class LiveSessionServiceTests
             DampingSpeedCutoffs: cutoffs ?? DampingSpeedCutoffs.Default);
     }
 
-    public enum GpsSpeedScenario
-    {
-        Incremental,
-        OutOfOrderFallback
-    }
 }

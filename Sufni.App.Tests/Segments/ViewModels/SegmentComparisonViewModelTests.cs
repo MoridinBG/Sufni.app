@@ -141,21 +141,25 @@ public class SegmentComparisonViewModelTests
     public async Task SessionState_WithOtherDampingCutoffs_RebuildsTheAnalysisComparison()
     {
         using var comparison = CreateComparison();
-        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        var compared = new SegmentComparison(TestSegmentMatches.Match(10, 13), 30, [],
+            [new SegmentComparisonSeries("Front", "m/s", SegmentComparisonSeriesRole.FrontVelocity,
+                [10, 11, 12, 13], [0.05, 0.10, 0.20, -0.10])], [], [], [], [], new TelemetryTimeRange(10, 13));
         MatchReturns(compared);
         DetailReturns(compared);
         await comparison.MatchCommand.ExecuteAsync(null);
-        CompareAction(comparison.TravelRows[0]).Command!.Execute(null);
-        var before = comparison.AnalysisComparison;
+        CompareAction(comparison.VelocityRows[0]).Command!.Execute(null);
+        Assert.Equal(25, comparison.AnalysisComparison!.Metrics.Single(metric =>
+            metric.Side == SuspensionType.Front && metric.Band == Sufni.App.Sessions.Models.DampingBand.Hsc).MatchValue);
 
         sessionState.OnNext(State() with
         {
-            DampingSpeedCutoffs = new DampingSpeedCutoffs(new DampingSpeedCutoffSide(10, 10), DampingSpeedCutoffSide.Default),
+            DampingSpeedCutoffs = new DampingSpeedCutoffs(new DampingSpeedCutoffSide(100, 100), DampingSpeedCutoffSide.Default),
         });
 
         Assert.NotNull(comparison.AnalysisComparison);
-        Assert.NotSame(before, comparison.AnalysisComparison);
-        Assert.Single(comparison.TravelRows);
+        Assert.Equal(50, comparison.AnalysisComparison.Metrics.Single(metric =>
+            metric.Side == SuspensionType.Front && metric.Band == Sufni.App.Sessions.Models.DampingBand.Hsc).MatchValue);
+        Assert.Single(comparison.VelocityRows);
     }
 
     [Fact]
@@ -265,8 +269,7 @@ public class SegmentComparisonViewModelTests
         var comparison = new SegmentComparisonViewModel(
             Guid.NewGuid(),
             sessionState,
-            coordinator,
-            TestSegmentComparisons.CreateTrackCoordinator(),
+            TestSegmentComparisons.BuildAnalysisComparisons(coordinator),
             (start, end) => visibleRanges.Add((start, end)),
             errors.Add,
             notifications.Add);

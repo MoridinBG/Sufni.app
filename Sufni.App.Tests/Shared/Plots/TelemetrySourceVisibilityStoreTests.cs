@@ -7,13 +7,6 @@ namespace Sufni.App.Tests.Shared.Plots;
 
 public class TelemetrySourceVisibilityStoreTests
 {
-    [Fact]
-    public void IsVisible_ReturnsTrue_ForSourcesNotExplicitlyHidden()
-    {
-        var sut = new TelemetrySourceVisibilityStore();
-
-        Assert.True(sut.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Front));
-    }
 
     [Fact]
     public void SetVisible_StoresHiddenState_PerRowAndSource()

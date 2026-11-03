@@ -67,50 +67,6 @@ public class LinkageSpecTests
         Assert.Equal("A", spec.Links[0].A);
     }
 
-    [Fact]
-    public void WithShockStroke_ReturnsNewValue()
-    {
-        var spec = SampleSpec();
-
-        var updated = spec.WithShockStroke(60);
-
-        Assert.Equal(55, spec.ShockStroke);
-        Assert.Equal(60, updated.ShockStroke);
-        Assert.Equal(spec.Joints, updated.Joints);
-        Assert.Equal(spec.Links, updated.Links);
-        Assert.Equal(spec.Shock, updated.Shock);
-    }
-
-    [Fact]
-    public void StructuralEquality_UsesOrderAndExactDoubleBits()
-    {
-        var spec = new LinkageSpec(
-            [new JointSpec("A", JointType.Fixed, 0.0, 0), new JointSpec("B", JointType.Floating, 1, 1)],
-            [new LinkSpec("A", "B")],
-            new LinkSpec("A", "B"),
-            10);
-        var same = new LinkageSpec(
-            [new JointSpec("A", JointType.Fixed, 0.0, 0), new JointSpec("B", JointType.Floating, 1, 1)],
-            [new LinkSpec("A", "B")],
-            new LinkSpec("A", "B"),
-            10);
-        var negativeZero = new LinkageSpec(
-            [new JointSpec("A", JointType.Fixed, -0.0, 0), new JointSpec("B", JointType.Floating, 1, 1)],
-            [new LinkSpec("A", "B")],
-            new LinkSpec("A", "B"),
-            10);
-        var reordered = new LinkageSpec(
-            [new JointSpec("B", JointType.Floating, 1, 1), new JointSpec("A", JointType.Fixed, 0.0, 0)],
-            [new LinkSpec("A", "B")],
-            new LinkSpec("A", "B"),
-            10);
-
-        Assert.Equal(spec, same);
-        Assert.Equal(spec.GetHashCode(), same.GetHashCode());
-        Assert.NotEqual(spec, negativeZero);
-        Assert.NotEqual(spec, reordered);
-    }
-
     private static LinkageSpec SampleSpec() => new(
         [
             new JointSpec("Bottom bracket", JointType.BottomBracket, 0, 0),

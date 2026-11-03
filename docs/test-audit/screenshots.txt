@@ -1,0 +1,13 @@
+Screenshot project audit, 2026-11-03
+
+5 actual methods: KEEP 0, REMOVE 5. These are useful manual artifact generators, not earned regression tests. Three DatabaseFailure theory rows are one method. Two infrastructure files: KEEP for capture-tooling purpose, not counted as tests. No execution performed; capture would write artifacts and invoke rendering.
+
+StartupScreenshots.cs:25 DatabaseFailure fabricates startup Failed state, optionally expands details, and merely asserts frame non-null before Save. Replacing content with an empty Border could still produce a bitmap. It does not prove diagnostic collapse, blocking, reset availability, overflow or text safety. ShellStartupViewTests owns actual rendered failure behavior.
+
+BikeCreationScreenshots.cs:46/70/95/120 Step01..04 construct progressively populated snapshots. CaptureControlsPanel at :142 hides only Assert.Empty(vm.ErrorMessages) and Assert.NotNull(bitmap). Blank, wrong or clipped field rendering can satisfy both. Keep these stages as opt-in visual-review fixtures if still useful; move them outside regression accounting rather than inventing image tests without an actual requirement.
+
+Support: ScreenshotApp intentionally loads production XAML while suppressing DI; ScreenshotAppBuilder selects real Skia/HarfBuzz rendering. They serve a different purpose from stripped app-test TestApp/TestAppBuilder and should not be blindly merged. The runner consumes builder through assembly attribute, so absent ordinary call sites are not unused evidence. Shared TestSnapshots, TestImages, inline dispatch/background, TestCoordinatorSubstitutes, TestShellFeedback and TestAppEnvironment have genuine screenshot consumers.
+
+Embedded support: BikeCreationScreenshots duplicates large BikeSnapshot constructors already covered by TestSnapshots.Bike and repeats dispatcher flushing already in ViewTestHelpers.FlushDispatcherAsync; reuse those narrowly if tooling survives. CaptureControlsPanel owns view/window/VM teardown but lacks try/finally, so failed capture/save can leak window/VM; put cleanup in a fixture lifetime rather than adding behavioral fake machinery. Output paths belong to artifact generation; no image comparison or expected pixels exist. StartupScreenshots properly closes its window in finally.
+
+Limitations: static source/configuration audit only, no screenshot generation, visual QA, passing test run or empirical mutation proof. No production/test sources changed.

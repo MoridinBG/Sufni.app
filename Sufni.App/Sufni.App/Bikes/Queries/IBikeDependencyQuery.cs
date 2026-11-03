@@ -1,6 +1,5 @@
 using System;
 using System.Reactive;
-using System.Threading.Tasks;
 
 namespace Sufni.App.Bikes.Queries;
 
@@ -11,18 +10,8 @@ namespace Sufni.App.Bikes.Queries;
 public interface IBikeDependencyQuery
 {
     /// <summary>
-    /// True if any setup currently references the bike. Backed by
-    /// <see cref="Services.ISynchronizableRepository{T}"/> for the authoritative
-    /// answer used inside coordinator delete checks.
-    /// </summary>
-    Task<bool> IsBikeInUseAsync(Guid bikeId);
-
-    /// <summary>
-    /// Synchronous variant backed by the in-memory
-    /// <see cref="Stores.ISetupStore"/>. Used by view models that need
-    /// to drive <c>CanExecute</c> on a delete command. The DB-backed
-    /// <see cref="IsBikeInUseAsync"/> remains the authoritative check
-    /// inside the bike coordinator's delete path.
+    /// True if any published setup references the bike. Drives command
+    /// availability only; the bike delete transaction makes the authoritative check.
     /// </summary>
     bool IsBikeInUse(Guid bikeId);
 

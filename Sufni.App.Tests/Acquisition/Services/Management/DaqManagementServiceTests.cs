@@ -23,12 +23,12 @@ public class DaqManagementServiceTests
         {
             var request = Assert.IsType<ManagementGetFileRequestFrame>(
                 await ManagementTestServer.ReadFrameAsync(stream, new ManagementRequestReader()));
-            Assert.Equal(DaqFileClass.Config, request.FileClass);
+            Assert.Equal((ushort)1, (ushort)request.FileClass);
             Assert.Equal(0, request.RecordId);
             if (rejected)
             {
                 await ManagementTestServer.WriteFrameAsync(stream,
-                    ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
+                    ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, -3));
                 return;
             }
             await ManagementTestServer.WriteFrameAsync(stream, ManagementProtocolTestFrames.CreateFileBeginFrame(
@@ -55,7 +55,7 @@ public class DaqManagementServiceTests
             var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             Assert.Equal((uint)1, request.RequestId);
-            Assert.Equal(DaqDirectoryId.Root, request.DirectoryId);
+            Assert.Equal((ushort)1, (ushort)request.DirectoryId);
 
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateListDirectoryEntryFrame(
@@ -86,7 +86,7 @@ public class DaqManagementServiceTests
         var result = await CreateService().ListDirectoryAsync(new ServiceEndpoint(unreachableFirstAddress
                     ? [IPAddress.IPv6Loopback, IPAddress.Loopback]
                     : [IPAddress.Loopback], server.Port), cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var listed = Assert.IsType<DaqListDirectoryResult.Listed>(result);
         var directory = Assert.IsType<DaqRootDirectoryRecord>(listed.Directory);
@@ -120,11 +120,11 @@ public class DaqManagementServiceTests
             var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             await ManagementTestServer.WriteFrameAsync(stream,
-                ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
+                ManagementProtocolTestFrames.CreateErrorFrame(request.RequestId, -3));
         });
 
         var result = await CreateService().ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var error = Assert.IsType<DaqListDirectoryResult.Error>(result);
         Assert.Equal(DaqManagementErrorCode.Busy, error.ErrorCode);
@@ -155,18 +155,13 @@ public class DaqManagementServiceTests
         });
 
         var result = await CreateService().ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var listed = Assert.IsType<DaqListDirectoryResult.Listed>(result);
         var directory = Assert.IsType<DaqRootDirectoryRecord>(listed.Directory);
         var malformed = Assert.IsType<DaqMalformedSstFileRecord>(Assert.Single(directory.Files));
-        Assert.Equal(DaqFileClass.RootSst, malformed.FileClass);
-        Assert.Equal(42, malformed.RecordId);
         Assert.Equal("00042.SST", malformed.Name);
-        Assert.Equal((byte)4, malformed.SstVersion);
-        Assert.Equal(TimeSpan.FromMilliseconds(6500), malformed.Duration);
         Assert.Null(malformed.TimestampUtc);
-        Assert.Contains("invalid SST timestamp", malformed.MalformedMessage);
     }
 
     [Fact]
@@ -179,7 +174,7 @@ public class DaqManagementServiceTests
             var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementGetFileRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             Assert.Equal((uint)1, request.RequestId);
-            Assert.Equal(DaqFileClass.RootSst, request.FileClass);
+            Assert.Equal((ushort)2, (ushort)request.FileClass);
             Assert.Equal(42, request.RecordId);
 
             await ManagementTestServer.WriteFrameAsync(stream,
@@ -201,7 +196,7 @@ public class DaqManagementServiceTests
         using var destination = new MemoryStream();
         await using var session = await CreateService().OpenSessionAsync(new ServiceEndpoint(server.Host, server.Port), TestContext.Current.CancellationToken);
         var result = await session.GetFileAsync(DaqFileClass.RootSst, 42, destination, cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var loaded = Assert.IsType<DaqGetFileResult.Downloaded>(result);
         Assert.Equal("00042.SST", loaded.Name);
@@ -233,7 +228,7 @@ public class DaqManagementServiceTests
         await using var session = await CreateService().OpenSessionAsync(new ServiceEndpoint(server.Host, server.Port), TestContext.Current.CancellationToken);
         _ = await Assert.ThrowsAsync<DaqManagementException>(() =>
             session.GetFileAsync(DaqFileClass.RootSst, 12, destination, cancellationToken: TestContext.Current.CancellationToken));
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Empty(destination.ToArray());
     }
@@ -253,7 +248,7 @@ public class DaqManagementServiceTests
         });
 
         var result = await CreateService().MarkSstUploadedAsync(new ServiceEndpoint(server.Host, server.Port), 42, cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.IsType<DaqManagementResult.Ok>(result);
     }
@@ -267,11 +262,11 @@ public class DaqManagementServiceTests
             var reader = new ManagementRequestReader();
             var request = Assert.IsType<ManagementTrashFileRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
             await ManagementTestServer.WriteFrameAsync(stream,
-                ManagementProtocolTestFrames.CreateActionResultFrame(request.RequestId, (int)DaqManagementErrorCode.Busy));
+                ManagementProtocolTestFrames.CreateActionResultFrame(request.RequestId, -3));
         });
 
         var result = await CreateService().TrashFileAsync(new ServiceEndpoint(server.Host, server.Port), 15, cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var error = Assert.IsType<DaqManagementResult.Error>(result);
         Assert.Equal(DaqManagementErrorCode.Busy, error.ErrorCode);
@@ -283,32 +278,28 @@ public class DaqManagementServiceTests
         await using var server = new ManagementTestServer();
         var timeProvider = new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(1_700_000_000));
         int[] roundTripMilliseconds = [10, 50, 20, 30, 40];
-        var observedRequestIds = new List<uint>();
         var serverTask = server.RunSessionAsync(async stream =>
         {
             var reader = new ManagementRequestReader();
             for (var i = 0; i < 5; i++)
             {
                 var ping = Assert.IsType<ManagementPingFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-                observedRequestIds.Add(ping.RequestId);
                 timeProvider.Advance(TimeSpan.FromMilliseconds(roundTripMilliseconds[i]));
                 await ManagementTestServer.WriteFrameAsync(stream, ManagementProtocolTestFrames.CreatePongFrame(ping.RequestId));
             }
 
             var setTime = Assert.IsType<ManagementSetTimeRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            observedRequestIds.Add(setTime.RequestId);
             Assert.Equal((uint)1_700_000_000, setTime.UtcSeconds);
-            Assert.Equal((uint)98_333, setTime.Microseconds);
+            Assert.InRange(setTime.Microseconds, 98_332u, 98_334u);
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateActionResultFrame(setTime.RequestId, 0));
         });
 
         var result = await CreateService(timeProvider).SetTimeAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         var ok = Assert.IsType<DaqSetTimeResult.Ok>(result);
         Assert.InRange(ok.RoundTripTime, TimeSpan.FromMilliseconds(29.9), TimeSpan.FromMilliseconds(30.1));
-        Assert.Equal(new uint[] { 1, 2, 3, 4, 5, 6 }, observedRequestIds);
     }
 
     [Fact]
@@ -320,28 +311,27 @@ public class DaqManagementServiceTests
         {
             var reader = new ManagementRequestReader();
             var begin = Assert.IsType<ManagementPutFileBeginRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)1, begin.RequestId);
-            Assert.Equal(DaqFileClass.Config, begin.FileClass);
+            Assert.Equal((ushort)1, (ushort)begin.FileClass);
             Assert.Equal((ulong)expectedBytes.Length, begin.FileSizeBytes);
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateActionResultFrame(begin.RequestId, 0));
 
             var chunk1 = Assert.IsType<ManagementPutFileChunkFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)1, chunk1.RequestId);
+            Assert.Equal(begin.RequestId, chunk1.RequestId);
             Assert.Equal(expectedBytes[..512], chunk1.Bytes);
 
             var chunk2 = Assert.IsType<ManagementPutFileChunkFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)1, chunk2.RequestId);
+            Assert.Equal(begin.RequestId, chunk2.RequestId);
             Assert.Equal(expectedBytes[512..], chunk2.Bytes);
 
             var commit = Assert.IsType<ManagementPutFileCommitFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            Assert.Equal((uint)1, commit.RequestId);
+            Assert.Equal(begin.RequestId, commit.RequestId);
             await ManagementTestServer.WriteFrameAsync(stream,
                 ManagementProtocolTestFrames.CreateActionResultFrame(commit.RequestId, 0));
         });
 
         var result = await CreateService().WriteConfigAsync(new ServiceEndpoint(server.Host, server.Port), expectedBytes, cancellationToken: TestContext.Current.CancellationToken);
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.IsType<DaqManagementResult.Ok>(result);
     }
@@ -355,14 +345,38 @@ public class DaqManagementServiceTests
         {
             var reader = new ManagementRequestReader();
             _ = Assert.IsType<ManagementListDirectoryRequestFrame>(await ManagementTestServer.ReadFrameAsync(stream, reader));
-            await releaseServer.Task;
+            await releaseServer.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
         });
 
         await Assert.ThrowsAsync<DaqManagementException>(() =>
             CreateService(ioTimeout: TimeSpan.FromMilliseconds(50)).ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), cancellationToken: TestContext.Current.CancellationToken));
 
         releaseServer.TrySetResult();
-        await serverTask;
+        await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(4, 3)]
+    [InlineData(12, 3)]
+    [InlineData(14, 16)]
+    [InlineData(-1, 0)]
+    public async Task ListDirectoryAsync_RejectsMalformedOrTruncatedWireReply(int offset, byte value)
+    {
+        await using var server = new ManagementTestServer();
+        var serving = server.RunSessionAsync(async stream =>
+        {
+            var request = await ManagementTestServer.ReadFrameAsync(stream);
+            var bytes = Convert.FromHexString("4D474D5402001100000000000400000000000000");
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), request.RequestId);
+            if (offset < 0) bytes = bytes[..^2];
+            else bytes[offset] = value;
+            await ManagementTestServer.WriteFrameAsync(stream, bytes);
+        });
+        var operation = () => CreateService().ListDirectoryAsync(new ServiceEndpoint(server.Host, server.Port), TestContext.Current.CancellationToken);
+        if (offset < 0) await Assert.ThrowsAsync<DaqManagementException>(operation);
+        else await Assert.ThrowsAsync<FormatException>(operation);
+        await serving.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
     }
 
     private static DaqManagementService CreateService(

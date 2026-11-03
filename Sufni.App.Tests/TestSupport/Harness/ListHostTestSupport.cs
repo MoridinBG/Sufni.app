@@ -16,25 +16,21 @@ internal static class ListHostTestSupport
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
 
-        var shell = MainPagesViewModelTestFactory.Create();
         var hostView = new MainPagesViewBase
         {
-            DataContext = shell,
             Content = control,
         };
 
         var host = await ViewTestHelpers.ShowViewAsync(hostView);
-        return new MountedInMainPagesHost<TControl>(host, hostView, control, shell);
+        return new MountedInMainPagesHost<TControl>(host, control);
     }
 }
 
-internal sealed class MountedInMainPagesHost<TControl>(Window host, MainPagesViewBase shellView, TControl control, MainPagesViewModel shellViewModel) : IAsyncDisposable
+internal sealed class MountedInMainPagesHost<TControl>(Window host, TControl control) : IAsyncDisposable
     where TControl : Control
 {
     public Window Host { get; } = host;
-    public MainPagesViewBase ShellView { get; } = shellView;
     public TControl Control { get; } = control;
-    public MainPagesViewModel ShellViewModel { get; } = shellViewModel;
 
     public async ValueTask DisposeAsync()
     {

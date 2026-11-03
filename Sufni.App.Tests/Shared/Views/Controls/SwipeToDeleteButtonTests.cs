@@ -15,43 +15,6 @@ namespace Sufni.App.Tests.Shared.Views.Controls;
 [Collection("Ui")]
 public class SwipeToDeleteButtonTests
 {
-    [AvaloniaFact]
-    public async Task SwipeToDeleteButton_BindsRowContent_AndRunsOpenCommand()
-    {
-        var row = new TestListItemRowViewModel();
-        row.SetState("Morning Ride", new DateTime(2025, 1, 2, 8, 30, 0), isComplete: false);
-
-        var view = new SwipeToDeleteButton
-        {
-            DataContext = row
-        };
-
-        var host = ViewTestHelpers.ShowView(view);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        try
-        {
-            var openButton = view.FindControl<Button>("OpenButton");
-            var nameText = view.FindControl<TextBlock>("NameTextBlock");
-            var incompleteIcon = view.FindControl<Image>("IncompleteStatusIcon");
-
-            Assert.NotNull(openButton);
-            Assert.NotNull(nameText);
-            Assert.NotNull(incompleteIcon);
-            Assert.Equal("Morning Ride", nameText!.Text);
-            Assert.True(incompleteIcon!.IsVisible);
-
-            openButton.Command!.Execute(openButton.CommandParameter);
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.Equal(1, row.OpenCount);
-        }
-        finally
-        {
-            host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
 
     [AvaloniaFact]
     public async Task SwipeToDeleteButton_SwipeStateLeftVisible_InvokesDeleteCommand()

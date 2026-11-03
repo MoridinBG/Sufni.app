@@ -1,6 +1,3 @@
-using Sufni.App.Bikes.Models;
-using Sufni.App.Segments.Models;
-using Sufni.App.Segments.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,26 +23,6 @@ namespace Sufni.App.MapsAndTracks.Coordinators;
 
 public class TrackCoordinator : ITrackCoordinator, IDisposable
 {
-    public async Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
-        SegmentComparison comparison, SegmentComparisonDetail detail,
-        TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            return new SegmentAnalysisComparisonResult.Built(await backgroundTaskRunner.RunAsync(
-                () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
-                cancellationToken));
-        }
-        catch (Exception e)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            logger.Error(e, "Segment analysis comparison failed for {SessionId}", comparison.Match.SessionId);
-            return new SegmentAnalysisComparisonResult.Failed(SegmentComparisonFailureReason.Analysis, e.Message);
-        }
-    }
-
     private readonly ITrackRepository trackRepository;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;
     private readonly ISessionRepository sessionRepository;

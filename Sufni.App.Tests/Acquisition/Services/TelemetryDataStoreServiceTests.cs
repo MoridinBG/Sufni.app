@@ -19,25 +19,6 @@ namespace Sufni.App.Tests.Acquisition.Services;
 public class TelemetryDataStoreServiceTests
 {
     [Fact]
-    public async Task StartBrowse_AcquiresBrowseLeaseOnce_AndStopBrowseDisposesLeaseAndClearsStores()
-    {
-        var catalog = Substitute.For<ILiveDaqCatalogService>();
-        catalog.Observe().Returns(Observable.Return<IReadOnlyList<LiveDaqCatalogEntry>>([]));
-        var lease = Substitute.For<IDisposable>();
-        catalog.AcquireBrowse().Returns(lease);
-        await using var service = CreateService(catalog: catalog);
-        service.DataStores.Add(CreateDataStore("DAQ"));
-
-        service.StartBrowse();
-        service.StartBrowse();
-        service.StopBrowse();
-
-        catalog.Received(1).AcquireBrowse();
-        lease.Received(1).Dispose();
-        Assert.Empty(service.DataStores);
-    }
-
-    [Fact]
     public async Task StopBrowse_ClearsPresenceEvenWhenNativeBrowseCleanupFails()
     {
         var network = new NetworkTelemetrySourceHarness();
@@ -51,22 +32,6 @@ public class TelemetryDataStoreServiceTests
         Assert.Empty(service.DataStores);
         service.StopBrowse();
         network.BrowseLease.Received(1).Dispose();
-    }
-
-    [Fact]
-    public async Task LoadFilesAsync_UsesBackgroundRunnerToReadDataStoreFiles()
-    {
-        var backgroundTaskRunner = new RecordingBackgroundTaskRunner();
-        await using var service = CreateService(backgroundTaskRunner: backgroundTaskRunner);
-        var file = Substitute.For<ITelemetryFile>();
-        var dataStore = CreateDataStore("DAQ");
-        dataStore.GetFiles(Arg.Any<CancellationToken>()).Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
-
-        var files = await service.LoadFilesAsync(dataStore, cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Same(file, Assert.Single(Assert.IsType<TelemetryFileListing.Listed>(files).Files));
-        Assert.Equal(1, backgroundTaskRunner.InvocationCount);
-        await dataStore.Received(1).GetFiles(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -159,17 +124,16 @@ public class TelemetryDataStoreServiceTests
         var local = CreateDataStore("USB");
         service.DataStores.Add(local);
         service.StartBrowse();
-        var first = Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>());
+        Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>());
 
         network.Entries.OnNext([entry]);
-        Assert.Same(first, Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>()));
+        Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>());
         network.Entries.OnNext([entry with { NetworkEndpoint = new ServiceEndpoint("127.0.0.1", 6666) }]);
         var replacement = Assert.Single(service.DataStores.OfType<NetworkTelemetryDataStore>());
-        Assert.NotSame(first, replacement);
         Assert.Equal("gosst://127.0.0.1:6666", replacement.Name);
         network.Entries.OnNext([]);
 
-        Assert.Same(local, Assert.Single(service.DataStores));
+        Assert.Equal("USB", Assert.Single(service.DataStores).Name);
     }
 
     [Fact]

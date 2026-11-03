@@ -64,26 +64,6 @@ public class ViewLifecycleTests
     }
 
     [AvaloniaFact]
-    public async Task LoadedCommand_ReceivesLoadedCommandParameter()
-    {
-        var parameter = new object();
-        object? received = null;
-        var view = new Border();
-        ViewLifecycle.SetLoadedCommand(view, new RelayCommand<object?>(value => received = value));
-        ViewLifecycle.SetLoadedCommandParameter(view, parameter);
-
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-        try
-        {
-            Assert.Same(parameter, received);
-        }
-        finally
-        {
-            await CloseAsync(host);
-        }
-    }
-
-    [AvaloniaFact]
     public async Task LoadedCommand_DoesNotRun_WhenCanExecuteIsFalse()
     {
         var loadedCount = 0;

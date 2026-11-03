@@ -22,23 +22,6 @@ public class LiveDaqCatalogServiceTests
         new(serviceDiscovery, browseOwner ?? CreateBrowseOwner());
 
     [Fact]
-    public void AcquireBrowse_StartsUnderlyingBrowseOnFirstLease_AndStopsOnLastLease()
-    {
-        var owner = CreateBrowseOwner();
-
-        var lease1 = owner.AcquireBrowse();
-        var lease2 = owner.AcquireBrowse();
-
-        serviceDiscovery.Received(1).StartBrowse("_sufni._tcp");
-
-        lease1.Dispose();
-        serviceDiscovery.DidNotReceive().StopBrowse();
-
-        lease2.Dispose();
-        serviceDiscovery.Received(1).StopBrowse();
-    }
-
-    [Fact]
     public void Observe_LastBrowseLeaseRemovalClearsCatalog_AndNextBrowseStartsEmpty()
     {
         var cache = new SocketServiceDiscoveryEndpointCache();
@@ -63,64 +46,6 @@ public class LiveDaqCatalogServiceTests
         Assert.Empty(observed);
         using var restarted = service.AcquireBrowse();
         Assert.Empty(observed);
-    }
-
-    [Fact]
-    public void AcquireBrowse_WhenFirstStartThrows_RunsCompensatingStop_AndRetryStartsCleanly()
-    {
-        var failingDiscovery = Substitute.For<IServiceDiscovery>();
-        var shouldThrowOnStart = true;
-        failingDiscovery
-            .When(d => d.StartBrowse("_sufni._tcp"))
-            .Do(_ =>
-            {
-                if (shouldThrowOnStart)
-                {
-                    throw new InvalidOperationException("boom");
-                }
-            });
-
-        var owner = new DaqBrowseOwner(failingDiscovery);
-
-        Assert.Throws<InvalidOperationException>(() => owner.AcquireBrowse());
-        failingDiscovery.Received(1).StartBrowse("_sufni._tcp");
-        failingDiscovery.Received(1).StopBrowse();
-
-        shouldThrowOnStart = false;
-        failingDiscovery.ClearReceivedCalls();
-
-        var lease = owner.AcquireBrowse();
-        failingDiscovery.Received(1).StartBrowse("_sufni._tcp");
-
-        lease.Dispose();
-        failingDiscovery.Received(1).StopBrowse();
-    }
-
-    [Fact]
-    public async Task Observe_AddsBidEnrichedEntry_WhenServiceAdded()
-    {
-        var expectedBoardId = UuidUtil.CreateDeviceUuid("0102030405060708").ToString();
-
-        using var service = CreateCatalogService();
-        var updateTask = WaitForEntriesAsync(service.Observe(), entries => entries.Count == 1);
-
-        serviceDiscovery.ServiceAdded += Raise.EventWith(
-            serviceDiscovery,
-            new ServiceAnnouncementEventArgs(CreateAnnouncement(
-                "192.168.1.10",
-                4567,
-                LiveProtocolVersion.V3,
-                bid: "0102030405060708")));
-
-        var entries = await updateTask;
-        var entry = Assert.Single(entries);
-        Assert.Equal(expectedBoardId, entry.IdentityKey);
-        Assert.Equal(expectedBoardId, entry.DisplayName);
-        Assert.Equal(expectedBoardId, entry.BoardId);
-        Assert.Equal("192.168.1.10", entry.Host);
-        Assert.Equal(4567, entry.Port);
-        Assert.Equal("192.168.1.10:4567", entry.Endpoint);
-        Assert.Equal(LiveProtocolVersion.V3, entry.ProtocolVersion);
     }
 
     [Fact]

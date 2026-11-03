@@ -1,6 +1,6 @@
 # UI View Models
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers presentation view-model categories and the session sub-page composition model. Layering invariants live in [UI Architecture](ui.md), read-state ownership lives in [UI State, Read Graphs, and Queries](ui-state.md), and coordinator/navigation ownership lives in [UI Workflows, Composition, and Navigation](ui-workflows.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers presentation view-model categories and the session sub-page composition model. Layering invariants live in [UI Architecture](ui.md), read-state ownership lives in [UI State and Queries](ui-state.md), and coordinator/navigation ownership lives in [UI Workflows, Composition, and Navigation](ui-workflows.md).
 
 ## View Models
 
@@ -70,10 +70,10 @@ There are five kinds of view model in the presentation layer:
   availability, pairing state and progress, and owns global sync/GPX/video
   notifications and errors. Both shells render its `ShellFeedbackBar`, so
   changing primary pages does not relocate or hide a result. `AppStartup` owns
-  the initial store refresh and invokes page creation only after initialization
-  and refresh succeed.
+  the initial store refresh and creates pages only after initialization and
+  refresh succeed.
 
-- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupBoardQuery.FindByBoardId`; asks `ITelemetryDataStoreService` to browse, load files, and register storage-provider folders; and delegates the actual import lifecycle to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
+- **Feature page view models** — non-entity top-level screens such as `ImportSessionsViewModel` and the pairing pages. They own only screen-scoped state, bind directly to controls, attach subscriptions and browse lifetime in `Loaded` / `Unloaded`, and delegate workflows to coordinators and services. `ImportSessionsViewModel` is the canonical example: it keeps datastore / file selection, notifications, and errors; resolves `SelectedSetup` from `ISetupBoardQuery.FindByBoardId`; and delegates source observation, file listing, folder registration and the import itself to `ImportSessionsCoordinator`. For work that belongs to a screen, generated async-command `IsRunning` remains the busy-state source. Import runs belong to the coordinator: the import tab observes its replayed `SessionImportState` and renders progress/results. It releases the observation on final close. A reopened tab sees the same active batch.
 
 - **List view models** (`ViewModels/ItemLists/`) — `BikeListViewModel`,
   `SetupListViewModel`, `SessionListViewModel`,
@@ -114,7 +114,7 @@ There are five kinds of view model in the presentation layer:
   `ISessionStore.Connect()`, so rows include processed-data presence,
   staleness, raw-source availability, and summary metrics without each
   row doing its own store lookups. It keeps the flat `Items` collection
-  for compatibility and exposes `DateGroups` as the grouped list surface
+  and exposes `DateGroups` as the grouped list surface
   used by the desktop sidebar and mobile pull-menu scroll view. Each list
   constructs its own menu items. `IShellActions` supplies the shared sync
   command and import availability; the session list owns `OpenImportCommand`,
@@ -218,13 +218,12 @@ There are five kinds of view model in the presentation layer:
   `SessionDetailViewModel` keeps one current state
   snapshot for read properties and property notifications. Its binding fields
   form the editable draft; one immutable `SessionDraft` base supports reset,
-  dirtiness and conflict checks without timestamp pinning. A `Created | Loaded |
-  ApplyingDraft | Closed` lifecycle replaces load/disposal/reset flags, and close
-  requests share their cleanup task.
+  dirtiness and conflict checks. A `Created | Loaded | ApplyingDraft | Closed`
+  lifecycle tracks load, reset and close. Close requests share one cleanup task.
   `RecordedSessionEditorEffects` drives named effects such as analysis
   command refresh, map/media synchronization, preference persistence and
   dirty tracking. Analysis requests derive directly from the accepted editor
-  state and semantic result keys; no suppression scheduler sequences them.
+  state and semantic result keys.
   Readiness and selection highlights are keyed background results. The reducer
   clears old outputs with a telemetry/range change and renders pending readiness
   until the matching result arrives; track-only augmentation keeps valid results.
@@ -246,21 +245,19 @@ There are five kinds of view model in the presentation layer:
   flows off the editor itself: `SignalRowActionsController` builds the
   built-in signal-row header actions (airtime and analysis-selection toggles)
   by reading the current signal state and emitting an editor intent.
-  `ApplyActionStates(state)` projects all twelve toggles from each accepted state;
+  `ApplyActionStates(state)` projects all twelve toggles from each accepted state.
   Damping-cutoff editing reads its bike owner and persisted values from the
   current domain snapshot. Preview/commit intents update the editor state;
   cancellation and failed writes restore current projected values. Saved responses
-  do not overwrite a newer projection. Load results no longer carry a second
-  cutoff context.
+  do not overwrite a newer projection.
   `ProcessingPreferenceWorkflow` forwards committed processing-option edits to
-  `SessionCoordinator` and renders its typed result; persistence and conditional
-  rollback stay in that coordinator. The editor retains pending preference
+  `SessionCoordinator` and renders its typed result. The coordinator owns
+  persistence and conditional rollback. The editor retains pending preference
   operations and drains them on close. Session
   detail loading uses one local-only `ISessionLoader.LoadDetailAsync` path;
   inactive-tab deferral is supplied
   by `EditorFactory` for both profiles and evaluated against current tab activity. Collaborators reach the
-  editor through the `ISessionOperationGateway` contract rather than delegate
-  bundles.
+  editor through the `ISessionOperationGateway` contract.
   Recorded-session loading publishes decoded telemetry first through
   `ISessionLoader.LoadDetailAsync`, then
   awaits `LoadTrackAsync` under the same active load token and augments the
@@ -302,7 +299,7 @@ directly on `LiveSessionDetailViewModel`. Both surfaces expose
 `SelectedPageIndex`, `SelectedPage`, `PageCount`, and
 `SelectedPageDisplayName` through `ISessionShellMobileWorkspace`.
 Pages do not own commands, notification bars, selected flags, or shell
-navigation — the editor is still the `TabPageViewModelBase` and keeps
+navigation. The editor is the `TabPageViewModelBase` and keeps
 the `Save` / `Reset` / `Close` surface.
 
 Each editor exposes an `ObservableCollection<PageViewModelBase>
@@ -367,7 +364,7 @@ Two pages diverge from that pattern:
   headers within that hierarchy: dropping on another row appends the
   dragged row to that row's children, while dropping in the divider
   band between root rows makes the dragged row a root row at that
-  position. Row visibility is still controlled
+  position. Row visibility is controlled
   by `TravelSignalState` / `VelocitySignalState` / `ImuSignalState` /
   `PitchRollSignalState` / `SpeedSignalState` / `ElevationSignalState`
   on the workspace
@@ -394,7 +391,7 @@ Two pages diverge from that pattern:
   `SignalLayoutPreferenceTree` helper owns preference normalization,
   capture, root moves, child moves, duplicate removal, unknown-row
   skipping, missing-default appends, and cycle prevention; the Avalonia
-  `SignalRowsRoot` still owns materialization, drag/drop hit
+  `SignalRowsRoot` owns materialization, drag/drop hit
   testing, brushes, manual row-size capture, and visual rebuilding. If
   any visible resizable root row has no stored height ratio, the signal layout
   falls back to default sizing so new or unknown panes do not inherit a
@@ -422,12 +419,12 @@ Two pages diverge from that pattern:
   seeds those preferences for the new session after persistence.
 
 The desktop session shell declares the media pane's 400-pixel default in XAML;
-saved layout preferences still override it. No media-width value travels through
+saved layout preferences override it. No media-width value travels through
 track loading, recorded editor state, or live/recorded workspace contracts.
 
 `TabPageViewModelBase` (`Shell/ViewModels/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
-view (editors and the import view). It takes
+view (editors, the import view and the pairing client view). It takes
 `IShellCoordinator` and `IDialogService` via its constructor and
 provides the shared `IsDirty` machinery, the
 `SaveCommand`/`ResetCommand`/`ExportCommand`/`CloseCommand`
@@ -452,7 +449,7 @@ a dispatcher. Navigation surface belongs to `IShellCoordinator`, not
 `ViewModelBase`; small projection-only view models such as session
 pages, sensor-configuration rows, and linkage parts use
 `ObservableObject` directly when they do not need the shared
-notification/error surface. `ViewLocator` still maps those known
+notification/error surface. `ViewLocator` maps those known
 projection view models through its explicit view-factory table.
 
 Session Insights receives telemetry, range, selected modes, cutoffs and target

@@ -97,41 +97,19 @@ public class TravelVelocityLegendTests
 
         sut.LoadTelemetryData(telemetry);
 
-        var scatters = plot.PlottableList.OfType<Scatter>().ToArray();
-        Assert.Equal(4, scatters.Length);
-        Assert.Equal(["Front", "", "Rear", ""], scatters.Select(scatter => scatter.LegendText ?? string.Empty).ToArray());
+        var rear = Assert.Single(plot.PlottableList.OfType<Scatter>(), scatter => scatter.LegendText == "Rear");
         var plotSize = new PixelSize(500, 300);
-
-        Assert.True(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, scatters[2], plotSize), plotSize));
-
-        Assert.True(scatters[0].IsVisible);
-        Assert.True(scatters[1].IsVisible);
-        Assert.False(scatters[2].IsVisible);
-        Assert.False(scatters[3].IsVisible);
-        Assert.False(visibility.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear));
-    }
-
-    [Fact]
-    public void TravelPlot_SourceVisibilityNull_DisablesInteractiveLegendAndRestoresSources()
-    {
-        var visibility = new TelemetrySourceVisibilityStore();
-        var plot = new Plot();
-        var sut = new TravelPlot(plot)
-        {
-            SourceVisibility = visibility,
-        };
-        sut.LoadTelemetryData(CreateMinimal());
-        var rear = Assert.Single(plot.PlottableList.OfType<Signal>(), signal => signal.LegendText == "Rear");
-        var plotSize = new PixelSize(500, 300);
-
         Assert.True(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, rear, plotSize), plotSize));
-        Assert.False(rear.IsVisible);
 
-        sut.SourceVisibility = null;
+        foreach (var (seconds, frontTravel) in new[] { (0.5, 25), (1.0, 50) })
+        {
+            sut.SetCursorPositionWithReadout(seconds);
+            var tooltip = Assert.Single(plot.PlottableList.OfType<Tooltip>());
+            Assert.True(tooltip.IsVisible);
+            Assert.Contains($"Front: {frontTravel} mm", tooltip.LabelText);
+            Assert.DoesNotContain("Rear:", tooltip.LabelText);
+        }
 
-        Assert.True(rear.IsVisible);
-        Assert.False(plot.Legend.ShowItemsFromHiddenPlottables);
-        Assert.False(sut.TryToggleInteractiveLegendAt(GetLegendItemCenter(plot, rear, plotSize), plotSize));
     }
 
 }

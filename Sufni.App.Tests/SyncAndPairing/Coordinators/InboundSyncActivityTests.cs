@@ -74,7 +74,7 @@ public class InboundSyncActivityTests
         await coordinator.ObserveRequestAsync("another-phone", next.RunId, next.Phases[2]);
         await coordinator.CompleteRunAsync("another-phone", next.RunId);
 
-        Assert.Same(current, state);
+        Assert.Equal(current, state);
         Assert.Equal(next.Phases[0], current.Phase);
         await coordinator.CompleteRunAsync("phone", next.RunId);
         Assert.Equal(new PeerSyncActivity.Completed(next.RunId), state);

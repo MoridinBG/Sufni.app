@@ -22,11 +22,7 @@ public static class PlotTestHelpers
 
     public static IEnumerable<string> ReadTextLabels(Text text)
     {
-        return text.GetType()
-            .GetProperties()
-            .Where(property => property.PropertyType == typeof(string))
-            .Select(property => property.GetValue(text) as string)
-            .Where(label => !string.IsNullOrWhiteSpace(label))!;
+        return string.IsNullOrWhiteSpace(text.LabelText) ? [] : [text.LabelText];
     }
 
     public static Text[] GetAirtimeLabels(Plot plot)

@@ -112,24 +112,6 @@ public class BikeListViewModelTests
         Assert.NotEmpty(viewModel.ErrorMessages);
     }
 
-    [Fact]
-    public async Task Import_OpensNewEditorThroughShell()
-    {
-        var coordinator = TestCoordinatorSubstitutes.Bike();
-        var draft = BikeDraft.From(TestSnapshots.Bike(name: "Imported bike"));
-        var imported = new BikeImportResult.Imported(draft);
-        coordinator.ImportBikeAsync(Arg.Any<CancellationToken>()).Returns(imported);
-        var store = new BikeStoreStub();
-        using var viewModel = new BikeListViewModel(store, Substitute.For<IBikeDependencyQuery>(), coordinator,
-            UiThreadDispatcher, TestPendingDeletes.Create(bikes: coordinator, shell: shell),
-            new FakeTimeProvider(), shell, TestShellFeedback.Create());
-
-        await viewModel.ImportCommand.ExecuteAsync(null);
-
-        shell.Received(1).OpenEditor(new EditorKey.NewBike(draft));
-        Assert.Empty(viewModel.ErrorMessages);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

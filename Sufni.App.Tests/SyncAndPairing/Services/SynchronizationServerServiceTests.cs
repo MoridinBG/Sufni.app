@@ -1,6 +1,4 @@
 using System.Net;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
@@ -15,22 +13,6 @@ namespace Sufni.App.Tests.SyncAndPairing.Services;
 
 public class SynchronizationServerServiceTests
 {
-    [Theory]
-    [InlineData(PairingCommandResult.Applied, StatusCodes.Status200OK)]
-    [InlineData(PairingCommandResult.Rejected, StatusCodes.Status401Unauthorized)]
-    [InlineData(PairingCommandResult.Failed, StatusCodes.Status500InternalServerError)]
-    public async Task PairingResponses_MapDomainOutcomes(PairingCommandResult outcome, int status)
-    {
-        PairingTokenResult tokens = outcome switch
-        {
-            PairingCommandResult.Applied => new PairingTokenResult.Issued(new TokenResponse("access", "refresh", "hub-db")),
-            PairingCommandResult.Rejected => new PairingTokenResult.Rejected(),
-            _ => new PairingTokenResult.Failed()
-        };
-        await AssertStatusCodeAsync(SynchronizationServerService.MapPairingCommand(outcome), status);
-        await AssertStatusCodeAsync(SynchronizationServerService.MapPairingTokens(tokens), status);
-    }
-
     [Fact]
     public async Task StartAsync_ReturnsFailureForCredentialInitialization_AndStopRemainsSafe()
     {
@@ -50,12 +32,15 @@ public class SynchronizationServerServiceTests
             new Microsoft.Extensions.Time.Testing.FakeTimeProvider());
 
         var start = server.StartAsync();
-        Assert.Same(start, server.StartAsync());
+        var concurrentStart = server.StartAsync();
+        Assert.False(concurrentStart.IsCompleted);
         credentials.SetException(new IOException("credential storage unavailable"));
         var failure = Assert.IsType<ServerStartResult.Failed>(
             await start.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
 
         Assert.Equal(ServerStartFailureReason.Start, failure.Reason);
+        Assert.Equal(ServerStartFailureReason.Start, Assert.IsType<ServerStartResult.Failed>(
+            await concurrentStart.AwaitBoundedAsync(TimeSpan.FromSeconds(5))).Reason);
         Assert.NotEmpty(failure.Details!);
         await server.StopAsync().AwaitBoundedAsync(TimeSpan.FromSeconds(5));
     }
@@ -78,76 +63,4 @@ public class SynchronizationServerServiceTests
         Assert.Equal([ipv4, globalIpv6], selected);
     }
 
-    [Fact]
-    public void CreateServiceInstanceNames_StartsWithDefaultName_AndProvidesConflictFallbacks()
-    {
-        Assert.Equal(
-            ["s1", "s1-2", "s1-3", "s1-4", "s1-5"],
-            SynchronizationServerService.CreateServiceInstanceNames().ToList());
-    }
-
-    [Theory]
-    [InlineData(InboundSyncWriteResult.Applied, StatusCodes.Status204NoContent)]
-    [InlineData(InboundSyncWriteResult.InvalidPayload, StatusCodes.Status400BadRequest)]
-    [InlineData(InboundSyncWriteResult.Failed, StatusCodes.Status500InternalServerError)]
-    public async Task ApplySynchronizationPushAsync_AwaitsCoordinatorOutcomeBeforeAcknowledging(
-        InboundSyncWriteResult outcome, int status)
-    {
-        var data = new SynchronizationData();
-        var coordinator = Substitute.For<IInboundSyncCoordinator>();
-        var completion = new TaskCompletionSource<InboundSyncWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        coordinator.ApplyPushAsync(data).Returns(completion.Task);
-        var apply = SynchronizationServerService.ApplySynchronizationPushAsync(data, coordinator);
-        Assert.False(apply.IsCompleted);
-        completion.SetResult(outcome);
-        await AssertStatusCodeAsync(await apply.AwaitBoundedAsync(TimeSpan.FromSeconds(5)), status);
-    }
-
-    [Theory]
-    [InlineData(SessionDataApplyResult.Applied, StatusCodes.Status204NoContent)]
-    [InlineData(SessionDataApplyResult.Ignored, StatusCodes.Status204NoContent)]
-    [InlineData(SessionDataApplyResult.Pending, StatusCodes.Status409Conflict)]
-    [InlineData(SessionDataApplyResult.InvalidPayload, StatusCodes.Status409Conflict)]
-    [InlineData(SessionDataApplyResult.Missing, StatusCodes.Status404NotFound)]
-    [InlineData(SessionDataApplyResult.Failed, StatusCodes.Status500InternalServerError)]
-    public async Task ApplySessionDataPatchAsync_MapsApplicationOutcome(
-        SessionDataApplyResult outcome, int status)
-    {
-        var id = Guid.NewGuid();
-        var payload = new SessionBlobPayload("target", [1, 2, 3]);
-        var coordinator = Substitute.For<IInboundSyncCoordinator>();
-        coordinator.ApplySessionBlobAsync(id, payload).Returns(outcome);
-
-        var result = await SynchronizationServerService.ApplySessionDataPatchAsync(id, payload, coordinator);
-
-        await AssertStatusCodeAsync(result, status);
-    }
-
-    [Theory]
-    [InlineData(InboundSourceApplyResult.Applied, StatusCodes.Status204NoContent)]
-    [InlineData(InboundSourceApplyResult.InvalidPayload, StatusCodes.Status409Conflict)]
-    [InlineData(InboundSourceApplyResult.Failed, StatusCodes.Status500InternalServerError)]
-    public async Task ApplySourcePatchAsync_MapsApplicationOutcome(InboundSourceApplyResult outcome, int status)
-    {
-        var source = Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness.CreateRecordedSource();
-        var payload = Sufni.App.Tests.TestSupport.Sync.SyncTestServerHarness.ToPayload(source);
-        var coordinator = Substitute.For<IInboundSyncCoordinator>();
-        coordinator.ApplySourceAsync(payload).Returns(outcome);
-
-        await AssertStatusCodeAsync(await SynchronizationServerService.ApplySourcePatchAsync(payload, coordinator), status);
-    }
-
-    private static async Task AssertStatusCodeAsync(IResult result, int expectedStatusCode)
-    {
-        var context = new DefaultHttpContext
-        {
-            RequestServices = new ServiceCollection()
-                .AddLogging()
-                .BuildServiceProvider(),
-        };
-
-        await result.ExecuteAsync(context);
-
-        Assert.Equal(expectedStatusCode, context.Response.StatusCode);
-    }
 }

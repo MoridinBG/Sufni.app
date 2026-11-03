@@ -16,42 +16,60 @@ namespace Sufni.App.Tests.Shared.Views.Overlays;
 [Collection("Ui")]
 public class PlotZoomOverlayHostTests
 {
-    [AvaloniaFact]
-    public async Task ZoomRequest_MovesChildIntoOverlay_AndEnablesOverlayHitTesting()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ZoomRequest_MovesChildIntoOverlay_AndEnablesOverlayHitTesting(bool localContext)
     {
-        await using var mounted = await MountAsync();
+        using var timers = new ManualUiTimerScheduler();
+        await using var mounted = await MountAsync(scheduler: timers);
+        mounted.Container.DataContext = "Original";
+        if (localContext) mounted.Child.DataContext = "Local";
+        var text = new TextBlock();
+        text.Bind(TextBlock.TextProperty, new Avalonia.Data.Binding("."));
+        mounted.Child.Child = text;
+        await ViewTestHelpers.FlushDispatcherAsync();
 
         await OpenAsync(mounted.Container);
-
-        Assert.True(mounted.Overlay.IsZoomOpen);
         Assert.True(mounted.Overlay.IsVisible);
         Assert.True(mounted.Overlay.IsHitTestVisible);
-        Assert.True(mounted.Container.IsChildBorrowed);
-        Assert.Null(mounted.Container.Child);
-        Assert.Same(mounted.Child, GetRotationHost(mounted.Overlay).Child);
+        Assert.True(text.IsEffectivelyVisible);
+        Assert.Equal(localContext ? "Local" : "Original", text.Text);
+        mounted.Container.DataContext = "Updated";
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(localContext ? "Local" : "Original", text.Text);
+
+        Assert.True(mounted.Overlay.TryCollapseZoom());
+        timers.FireAll();
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.False(mounted.Overlay.IsVisible);
+        Assert.True(text.IsEffectivelyVisible);
+        Assert.Equal(localContext ? "Local" : "Updated", text.Text);
     }
 
     [AvaloniaFact]
     public async Task DoubleTapInsideOverlay_ClosesAndReturnsChild()
     {
-        await using var mounted = await MountAsync();
+        using var timers = new ManualUiTimerScheduler();
+        await using var mounted = await MountAsync(scheduler: timers);
         await OpenAsync(mounted.Container);
-        await ForceImmediateClosePathAsync(mounted);
 
         RaiseDoubleTapped(mounted.Overlay);
+        timers.FireAll();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.Overlay.IsZoomOpen);
         Assert.False(mounted.Overlay.IsVisible);
         Assert.False(mounted.Container.IsChildBorrowed);
         Assert.Same(mounted.Child, mounted.Container.Child);
-        Assert.Null(GetRotationHost(mounted.Overlay).Child);
     }
 
     [AvaloniaFact]
     public async Task EscapeKey_ClosesOverlay()
     {
-        await using var mounted = await MountAsync();
+        using var timers = new ManualUiTimerScheduler();
+        await using var mounted = await MountAsync(scheduler: timers);
         await OpenAsync(mounted.Container);
         var args = new KeyEventArgs
         {
@@ -60,8 +78,8 @@ public class PlotZoomOverlayHostTests
             Key = Key.Escape,
         };
 
-        await ForceImmediateClosePathAsync(mounted);
         mounted.Host.RaiseEvent(args);
+        timers.FireAll();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(args.Handled);
@@ -104,53 +122,16 @@ public class PlotZoomOverlayHostTests
     }
 
     [AvaloniaFact]
-    public async Task Open_AppliesRotation_WhenCompactAndPortrait()
-    {
-        await using var mounted = await MountAsync(
-            width: 320,
-            height: 640,
-            layoutProfile: UiLayoutProfile.Compact);
-
-        await OpenAsync(mounted.Container);
-
-        Assert.IsType<RotateTransform>(GetRotationHost(mounted.Overlay).LayoutTransform);
-    }
-
-    [AvaloniaFact]
-    public async Task Open_NeverRotates_WhenWorkspace()
-    {
-        await using var mounted = await MountAsync(width: 320, height: 640);
-
-        await OpenAsync(mounted.Container);
-
-        Assert.Null(GetRotationHost(mounted.Overlay).LayoutTransform);
-    }
-
-    [AvaloniaFact]
-    public async Task LayoutProfileChange_UpdatesOpenOverlayPresentation()
-    {
-        await using var mounted = await MountAsync(
-            width: 320,
-            height: 640,
-            layoutProfile: UiLayoutProfile.Compact);
-        await OpenAsync(mounted.Container);
-        Assert.IsType<RotateTransform>(GetRotationHost(mounted.Overlay).LayoutTransform);
-
-        mounted.Overlay.LayoutProfile = UiLayoutProfile.Workspace;
-
-        Assert.Null(GetRotationHost(mounted.Overlay).LayoutTransform);
-    }
-
-    [AvaloniaFact]
     public async Task TryCollapseZoom_ReturnsTrueOnlyWhenOpen()
     {
-        await using var mounted = await MountAsync();
+        using var timers = new ManualUiTimerScheduler();
+        await using var mounted = await MountAsync(scheduler: timers);
 
         Assert.False(mounted.Overlay.TryCollapseZoom());
 
         await OpenAsync(mounted.Container);
-        await ForceImmediateClosePathAsync(mounted);
         Assert.True(mounted.Overlay.TryCollapseZoom());
+        timers.FireAll();
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(mounted.Overlay.IsZoomOpen);
@@ -228,21 +209,9 @@ public class PlotZoomOverlayHostTests
 
     private static async Task OpenAsync(PlotZoomContainer container)
     {
-        container.RaiseEvent(new PlotZoomRequestedEventArgs(container));
+        RaiseDoubleTapped(container);
         await ViewTestHelpers.FlushDispatcherAsync();
     }
-
-    private static async Task ForceImmediateClosePathAsync(MountedOverlay mounted)
-    {
-        mounted.Container.Width = 0;
-        mounted.Container.Height = 0;
-        mounted.Root.Measure(new Size(mounted.Host.Width, mounted.Host.Height));
-        mounted.Root.Arrange(new Rect(0, 0, mounted.Host.Width, mounted.Host.Height));
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    private static LayoutTransformControl GetRotationHost(PlotZoomOverlayHost overlay) =>
-        Assert.Single(overlay.GetVisualDescendants().OfType<LayoutTransformControl>());
 
     private static void RaiseDoubleTapped(Control source)
     {

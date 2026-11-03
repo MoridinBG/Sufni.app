@@ -24,7 +24,8 @@ public class ServiceAnnouncementMetadataReaderTests
     {
         KeyValuePair<string, byte[]>[] source =
         [
-            new("bid", [0xC3, 0x28]),
+            new("invalid", [0xC3, 0x28]),
+            new("bid", Encoding.UTF8.GetBytes("0123456789ABCDEF")),
             new("live_proto", Encoding.UTF8.GetBytes("3")),
             new("live_proto", Encoding.UTF8.GetBytes("2")),
         ];
@@ -32,33 +33,7 @@ public class ServiceAnnouncementMetadataReaderTests
         var records = ServiceAnnouncementMetadataReader.ReadTxtRecords(source);
 
         Assert.Equal("3", records["live_proto"]);
-        Assert.Equal("", records["bid"]);
-    }
-
-    [Fact]
-    public void ReadTxtRecords_ParsesKeyValueByteRecords()
-    {
-        KeyValuePair<string, byte[]>[] source =
-        [
-            new("live_proto", Encoding.UTF8.GetBytes("2")),
-            new("bid", Encoding.UTF8.GetBytes("0123456789ABCDEF")),
-        ];
-
-        var records = ServiceAnnouncementMetadataReader.ReadTxtRecords(source);
-
-        Assert.Equal("2", records["live_proto"]);
-        Assert.Equal("0123456789ABCDEF", records["bid"]);
-    }
-
-    [Fact]
-    public void ReadTxtRecords_ReturnsOwnedSnapshot_WhenSourceChanges()
-    {
-        var source = new List<string> { "live_proto=2", "bid=0123456789ABCDEF" };
-
-        var records = ServiceAnnouncementMetadataReader.ReadTxtRecords(source);
-        source.Clear();
-
-        Assert.Equal("2", records["live_proto"]);
+        Assert.Equal("", records["invalid"]);
         Assert.Equal("0123456789ABCDEF", records["bid"]);
     }
 

@@ -164,7 +164,7 @@ Good assertion surfaces include:
 - a `TextBox.Text`, `NumericUpDown.Value`, or `ComboBox.SelectedItem` reflecting bound state
 - a collection control showing the expected items from a bound source
 - a `ContentControl` rendering the correct subview when content is present and remaining empty when content is `null`
-- a command-bound button exposing the expected `Command` and `CommandParameter`
+- an action invoked through its bound control producing the expected public outcome
 - a reusable subview appearing in one variant and not another when that difference is intentional
 - view visibility changing when the bound error, loading, or empty state changes
 
@@ -185,7 +185,7 @@ whose remaining fields use the same binding mode and no extra logic.
 Choose the assertion surface that is most reliable for the behavior you are testing.
 
 - If the SUT is code-behind handling on the control itself, raising the actual Avalonia event is appropriate.
-- If the SUT is command binding, first assert that the correct command is bound. Then execute that command through the bound button or command object if synthetic click events are unreliable in headless mode.
+- If the SUT is command binding, execute the command obtained from the bound control and assert its meaningful outcome. Command identity and parameter copying alone do not justify a test. Use actual routed input when input handling is the behavior under test.
 - After changing bound state, selected values, or command availability, flush the dispatcher before asserting the resulting UI state.
 - When testing an intermediate busy or loading state, hold the async work pending with `TaskCompletionSource<T>` and assert the mounted view while the work is still active.
 
@@ -228,6 +228,11 @@ The following patterns are easy to get wrong in Avalonia headless tests:
 These are test-environment constraints. Design the test around them rather than fighting them.
 
 **NEVER** make design concessions in the actual app code to accommodate test limitations!
+
+`Sufni.Screenshots` is separate, opt-in image-generation tooling, outside the
+scenario solutions. Its explicit `dotnet test Sufni.Screenshots` invocation uses
+the headless runner to save artifacts; it is not a visual regression suite.
+Successful frame creation is not evidence that the rendered UI is correct.
 
 ## Patterns To Avoid
 

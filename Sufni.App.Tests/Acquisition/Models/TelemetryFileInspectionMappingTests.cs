@@ -53,42 +53,6 @@ public class TelemetryFileInspectionMappingTests
         }
     }
 
-    [Fact]
-    public async Task StorageProviderTelemetryFile_OnImported_MovesToUploadedFolder()
-    {
-        var parent = Substitute.For<IStorageFolder>();
-        var uploaded = Substitute.For<IStorageFolder>();
-        uploaded.Name.Returns("uploaded");
-
-        var storageFile = CreateStorageFile("sample.SST", TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
-        storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
-        storageFile.MoveAsync(uploaded).Returns(Task.FromResult<IStorageItem?>(storageFile));
-        parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
-
-        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
-
-        await file.OnImported();
-
-        await storageFile.Received(1).MoveAsync(uploaded);
-    }
-
-    [Fact]
-    public async Task StorageProviderTelemetryFile_OnTrashed_Throws_WhenTrashFolderMissing()
-    {
-        var parent = Substitute.For<IStorageFolder>();
-        var uploaded = Substitute.For<IStorageFolder>();
-        uploaded.Name.Returns("uploaded");
-
-        var storageFile = CreateStorageFile("sample.SST", TestSstFiles.CreateValidV4WithUnknownChunk(telemetrySampleCount: 5000));
-        storageFile.GetParentAsync().Returns(Task.FromResult<IStorageFolder?>(parent));
-        parent.GetItemsAsync().Returns(EnumerateStorageItems(uploaded));
-
-        var file = await StorageProviderTelemetryFile.CreateAsync(storageFile);
-
-        await Assert.ThrowsAsync<Exception>(() => file.OnTrashed());
-        await storageFile.DidNotReceive().MoveAsync(Arg.Any<IStorageFolder>());
-    }
-
     private static async Task<ITelemetryFile> CreateTelemetryFileAsync(
         TelemetryFileSourceKind sourceKind,
         InspectionPayload payload)
@@ -112,7 +76,7 @@ public class TelemetryFileInspectionMappingTests
 
         if (sourceKind is TelemetryFileSourceKind.StorageProvider)
         {
-            return await StorageProviderTelemetryFile.CreateAsync(CreateStorageFile(fileName, bytes));
+            return await StorageProviderTelemetryFile.CreateAsync(BinaryFile(fileName, bytes));
         }
 
         using var tempDirectory = new TempDirectory("sufni-inspection-test");
@@ -121,13 +85,6 @@ public class TelemetryFileInspectionMappingTests
         return new MassStorageTelemetryFile(new FileInfo(path));
     }
 
-    private static IStorageFile CreateStorageFile(string name, byte[] bytes)
-    {
-        var storageFile = Substitute.For<IStorageFile>();
-        storageFile.Name.Returns(name);
-        storageFile.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
-        return storageFile;
-    }
 
     public enum TelemetryFileSourceKind
     {

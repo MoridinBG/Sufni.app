@@ -28,13 +28,14 @@ public class SynchronizationDataJsonTests
     [Fact]
     public void WriteMetadata_TransmitsAuthorshipAndHubSequence_WithoutLocalSequence()
     {
-        var data = new SynchronizationData { Boards = [new Board(Guid.NewGuid(), null)
+        var data = new SynchronizationData { UpperBound = 42, Boards = [new Board(Guid.NewGuid(), null)
         {
             Version = 4, Updated = 123, UpdatedBy = "writer-a", LocalSequence = 55, SyncSequence = 80
         }] };
         foreach (var json in new[] { AppJson.Serialize(data), JsonSerializer.Serialize(data, SyncTestServerHarness.CreateServerJsonOptions()) })
         {
             using var document = JsonDocument.Parse(json);
+            Assert.Equal(42, document.RootElement.GetProperty("upper_bound").GetInt64());
             var board = document.RootElement.GetProperty("board")[0];
             Assert.False(board.TryGetProperty("local_seq", out _));
             Assert.False(board.TryGetProperty("client_updated", out _));
@@ -50,15 +51,6 @@ public class SynchronizationDataJsonTests
         Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>("{}"));
         Assert.Throws<JsonException>(() =>
             JsonSerializer.Deserialize<SynchronizationData>("{}", SyncTestServerHarness.CreateServerJsonOptions()));
-    }
-
-    [Fact]
-    public void SynchronizationData_RoundTripsUpperBound()
-    {
-        var roundTrip = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(
-            new SynchronizationData { UpperBound = 42 }));
-
-        Assert.Equal(42, roundTrip!.UpperBound);
     }
 
     [Fact]
@@ -160,36 +152,9 @@ public class SynchronizationDataJsonTests
     }
 
     [Fact]
-    public void ServerJson_RejectsSynchronizationDataBikeWithLegacyRearSuspensionTriple()
-    {
-        var json = SyncDataJson(
-            """
-            "rear_suspension_kind": "none",
-            "linkage": null,
-            "leverage_ratio": null
-            """);
-
-        Assert.Throws<JsonException>(() =>
-            JsonSerializer.Deserialize<SynchronizationData>(json, SyncTestServerHarness.CreateServerJsonOptions()));
-    }
-
-    [Fact]
     public void LenientContext_RejectsSynchronizationDataBikeWithoutRearSuspension()
     {
         var json = SyncDataJson("");
-
-        Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>(json));
-    }
-
-    [Fact]
-    public void LenientContext_RejectsSynchronizationDataBikeWithLegacyRearSuspensionTriple()
-    {
-        var json = SyncDataJson(
-            """
-            "rear_suspension_kind": "none",
-            "linkage": null,
-            "leverage_ratio": null
-            """);
 
         Assert.Throws<JsonException>(() => AppJson.Deserialize<SynchronizationData>(json));
     }

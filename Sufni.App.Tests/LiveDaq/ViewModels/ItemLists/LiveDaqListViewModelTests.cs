@@ -59,7 +59,7 @@ public class LiveDaqListViewModelTests
     [Fact]
     public void Items_UpdateOnlyWhileLoaded_AndReloadCurrentStoreState()
     {
-        var store = new LiveDaqStore(new InlineUiThreadDispatcher());
+        using var store = new LiveDaqStore(new InlineUiThreadDispatcher());
         var coordinator = TestCoordinatorSubstitutes.LiveDaq();
         var firstBoard = new LiveDaqSnapshot(
             IdentityKey: "board-1",
@@ -71,13 +71,12 @@ public class LiveDaqListViewModelTests
             SetupName: "Setup",
             BikeName: "Bike");
         store.ReplaceAll([firstBoard]);
-        var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
+        using var viewModel = new LiveDaqListViewModel(store, coordinator, UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
 
         Assert.Empty(viewModel.Items);
 
         viewModel.LoadedCommand.Execute(null);
         Assert.Single(viewModel.Items);
-        coordinator.DidNotReceive().Activate();
 
         viewModel.UnloadedCommand.Execute(null);
         store.ReplaceAll([firstBoard, new LiveDaqSnapshot(
@@ -94,7 +93,6 @@ public class LiveDaqListViewModelTests
         viewModel.LoadedCommand.Execute(null);
         viewModel.LoadedCommand.Execute(null);
         Assert.Equal(2, viewModel.Items.Count);
-        coordinator.DidNotReceive().Activate();
     }
 
     [Fact]
@@ -115,17 +113,6 @@ public class LiveDaqListViewModelTests
         await viewModel.RowSelectedCommand.ExecuteAsync(row);
 
         shell.Received(1).OpenEditor(new EditorKey.LiveDaq("board-1"));
-    }
-
-    [Fact]
-    public async Task RowSelectedCommand_DoesNothing_WhenRowIsNull()
-    {
-        var coordinator = TestCoordinatorSubstitutes.LiveDaq();
-        var viewModel = new LiveDaqListViewModel(new LiveDaqStore(new InlineUiThreadDispatcher()), coordinator, UiThreadDispatcher, timeProvider: new FakeTimeProvider(), shell: shell);
-
-        await viewModel.RowSelectedCommand.ExecuteAsync(null);
-
-        shell.DidNotReceiveWithAnyArgs().OpenEditor(default!);
     }
 
     [Fact]

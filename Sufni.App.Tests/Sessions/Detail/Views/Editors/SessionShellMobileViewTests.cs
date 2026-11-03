@@ -30,11 +30,11 @@ public class SessionShellMobileViewTests
         var host = CreateHost();
         await using var mounted = await MountAsync(host);
 
-        var carousel = mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage")
+        var carousel = mounted.View.FindControl<CarouselPage>("SessionCarouselPage")
             ?? throw new InvalidOperationException("Session carousel was not found.");
-        var pager = mounted.Shell.FindControl<PipsPager>("SessionPipsPager")
+        var pager = mounted.View.FindControl<PipsPager>("SessionPipsPager")
             ?? throw new InvalidOperationException("Session pips pager was not found.");
-        var header = mounted.Shell.FindControl<TextBlock>("SelectedPageHeader")
+        var header = mounted.View.FindControl<TextBlock>("SelectedPageHeader")
             ?? throw new InvalidOperationException("Selected page header was not found.");
 
         carousel.SelectedIndex = 1;
@@ -64,7 +64,7 @@ public class SessionShellMobileViewTests
         host.SessionOperationState = SessionOperationPresentationState.Progress("matching session 8/10", 80);
         await using var mounted = await MountAsync(host);
 
-        var busyOverlay = mounted.Shell.FindControl<BusyOverlay>("SessionOperationBusyOverlay")
+        var busyOverlay = mounted.View.FindControl<BusyOverlay>("SessionOperationBusyOverlay")
             ?? throw new InvalidOperationException("Session operation busy overlay was not found.");
         Assert.True(busyOverlay.IsActive);
         Assert.True(busyOverlay.IsVisible);
@@ -83,7 +83,7 @@ public class SessionShellMobileViewTests
     {
         var host = CreateHost();
         await using var mounted = await MountAsync(host);
-        var carousel = mounted.Shell.FindControl<CarouselPage>("SessionCarouselPage")
+        var carousel = mounted.View.FindControl<CarouselPage>("SessionCarouselPage")
             ?? throw new InvalidOperationException("Session carousel was not found.");
 
         Assert.Equal(carousel.Bounds, Assert.Single(host.LoadedBounds));
@@ -108,7 +108,7 @@ public class SessionShellMobileViewTests
         return host;
     }
 
-    private static async Task<MountedShell> MountAsync(FakeShellHostViewModel host)
+    private static async Task<MountedView<SessionShellMobileView>> MountAsync(FakeShellHostViewModel host)
     {
         ViewTestHelpers.EnsureViewTestResources();
         ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
@@ -123,17 +123,9 @@ public class SessionShellMobileViewTests
             new Avalonia.Data.Binding(nameof(FakeShellHostViewModel.UnloadedCommand)));
 
         var window = await ViewTestHelpers.ShowViewAsync(shell);
-        return new MountedShell(window, shell);
+        return new MountedView<SessionShellMobileView>(window, shell);
     }
 
-    private sealed record MountedShell(Window Host, SessionShellMobileView Shell) : IAsyncDisposable
-    {
-        public async ValueTask DisposeAsync()
-        {
-            Host.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
 }
 
 internal sealed partial class FakeShellHostViewModel : ViewModelBase, ISessionShellMobileWorkspace

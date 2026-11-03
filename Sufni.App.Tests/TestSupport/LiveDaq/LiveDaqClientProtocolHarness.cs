@@ -23,45 +23,50 @@ internal sealed class LiveDaqClientProtocolHarness<TClient>
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var client = createClient();
+        TcpClient? acceptedPeer = null;
         var serverTask = Task.Run(async () =>
         {
-            using var serverClient = await listener.AcceptTcpClientAsync();
+            using var serverClient = await listener.AcceptTcpClientAsync(lifetime.Token);
+            Interlocked.Exchange(ref acceptedPeer, serverClient);
+            lifetime.Token.ThrowIfCancellationRequested();
             await using var stream = serverClient.GetStream();
             await serverScript(stream);
         });
+        // A script held by a test gate may outlive the bounded failure cleanup.
+        _ = serverTask.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
-        await using var client = createClient();
+        var failed = false;
         try
         {
             var result = await clientScript(client, port);
             await serverTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
             return result;
         }
+        catch
+        {
+            failed = true;
+            throw;
+        }
         finally
         {
-            if (client.IsConnected)
+            lifetime.Cancel();
+            listener.Stop();
+            Interlocked.Exchange(ref acceptedPeer, null)?.Dispose();
+            try
             {
-                await client.DisconnectAsync();
+                try { await client.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(2)); }
+                catch when (failed) { }
+            }
+            finally
+            {
+                // Cleanup also runs after runner cancellation, with its own bounded wait.
+                try { await serverTask.WaitAsync(TimeSpan.FromSeconds(2)); }
+                catch when (failed) { }
             }
         }
-    }
-
-    public static async Task<byte[]> ReadExactAsync(Stream stream, int length)
-    {
-        var buffer = new byte[length];
-        var totalRead = 0;
-        while (totalRead < length)
-        {
-            var read = await stream.ReadAsync(buffer.AsMemory(totalRead, length - totalRead));
-            if (read == 0)
-            {
-                throw new EndOfStreamException($"Expected {length} bytes but stream closed after {totalRead}.");
-            }
-
-            totalRead += read;
-        }
-
-        return buffer;
     }
 
     public static async Task<IReadOnlyList<LiveProtocolFrame>> ObserveFramesAsync(

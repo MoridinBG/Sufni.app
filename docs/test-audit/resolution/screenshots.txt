@@ -1,0 +1,1 @@
+Screenshot capture remains explicit artifact tooling, already excluded from all scenario solutions. No fake image oracle or new screenshot framework was added. VIEW-TESTING documents that successful capture is not regression protection. All five capture declarations remain in before/after totals; their retention is tooling preservation, not a claimed test-value exception.

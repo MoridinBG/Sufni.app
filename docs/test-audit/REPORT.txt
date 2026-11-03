@@ -1,0 +1,132 @@
+IMPLEMENTATION UPDATE: The test/support cleanup is recorded in resolution/SUMMARY.txt, with complete resolution ledgers and validation logs. This file below is the original audit snapshot.
+
+EXTENDED TEST AND TEST-INFRASTRUCTURE AUDIT — 2026-11-03
+
+2,511 test methods across 4 projects, 358 test-bearing C# files and 92 support-only C# files.
+83,752 physical C# source lines reviewed across 450 files; embedded helpers are included in test-bearing files.
+
+1,326 methods (52.8%) earn retention unchanged. 1,185 (47.2%) do not.
+
+Final method decisions:
+  KEEP       1,326
+  REMOVE       159
+  MERGE        132
+  REWRITE      892
+  UNPROVEN       2
+
+REMOVE is 159 methods; the other non-KEEP methods are not all deletion recommendations. Rewrites preserve only demonstrated useful scenarios; merges preserve identified coverage at an owning survivor.
+
+By review area (total / KEEP / REMOVE / MERGE / REWRITE / UNPROVEN):
+  Telemetry and kinematics: 296 / 205 / 11 / 9 / 71 / 0
+  Bikes, setups, maps, segments, video: 647 / 374 / 30 / 32 / 211 / 0
+  Session workflows, persistence, editors: 333 / 161 / 31 / 24 / 117 / 0
+  Session analysis, plotting and views: 298 / 93 / 22 / 2 / 181 / 0
+  Live DAQ and acquisition: 408 / 211 / 21 / 17 / 157 / 2
+  Sync, migrations and infrastructure: 252 / 168 / 14 / 22 / 48 / 0
+  Shell and shared controls: 272 / 114 / 25 / 26 / 107 / 0
+  Screenshot capture methods: 5 / 0 / 5 / 0 / 0 / 0
+
+Standalone support decisions (92 files; embedded support is discussed in the reports):
+  KEEP 56; REWRITE/SIMPLIFY 29; MERGE 5; REMOVE 2.
+  File removal recommendations are conditional on retiring/migrating the rejected consumers.
+  Independently found unused nested types/members can be pruned from otherwise useful files.
+
+Start here:
+  methods.csv — authoritative final per-method decisions, source anchors, evidence and actions.
+  helper-inventory.csv — all 92 support-only sources, consumers, rationale and narrow actions.
+  Each named area has a .txt detailed report and .csv subset matching the area keys below.
+  inventory.json — 450 source-file counts/owners/SHA-256 values.
+  method-inventory.json — independently extracted actual test-method identities.
+
+Detailed review reports:
+  pure.txt
+  domains.txt
+  session_core.txt
+  session_presentation.txt
+  live_acquisition.txt
+  sync_infrastructure.txt
+  shell_support.txt
+  screenshots.txt
+
+Independent challenges and final reconciliation:
+  keep-challenge-session.txt — 18 domains KEEP candidates; 6 rewrites and 2 merges accepted.
+  keep-challenge-sync.txt — 15 pure KEEP candidates; 2 rewrites accepted and claims narrowed.
+  keep-challenge-shell.txt — 15 live/acquisition KEEP candidates; 4 focused rewrites accepted.
+  helper-challenge-session.txt — 11 helper reviews; harmless defaults retained, actual dead code/disposal targets narrowed.
+  Root review also required list-test consolidation to exercise BOTH bike and setup implementations.
+  delta-review.txt — concurrent-change refresh: two removed query tests, two new transaction tests, one moved segment test, recompute routing and changed helper setup.
+  Final CSV verdicts supersede provisional proposals retained in challenge notes.
+
+Verification:
+  All 2,511 methods appear exactly once, with no omitted or invented method identities.
+  Every row has a verdict, rationale, evidence, action and exact source declaration line.
+  All 92 standalone support files appear exactly once in the helper ledger.
+  Reviewed source hashes are recorded; subsequent external edits: Sufni.App.Tests/Setups/Coordinators/SetupCoordinatorTests.cs, Sufni.App.Tests/Setups/Coordinators/SetupPersistenceTransactionRunnerTests.cs
+  No test, build, mutation, screenshot or coverage execution was performed.
+
+What the verdicts mean
+KEEP: this existing method earns retention at its current boundary with an independently meaningful, distinct assertion. This is a source-review judgment, not a claim that it passed an executed test or killed an executed mutation.
+REMOVE: no meaningful distinct regression protection demonstrated. For screenshot methods, remove their status as regression tests; useful capture tooling can remain.
+MERGE: remove the separate method after moving any necessary case into the named owning test/survivor. Do not discard a unique case merely to reduce the count.
+REWRITE: the scenario can matter, but this method does not meet the bar unchanged. Prefer replacing/consolidating coverage at the existing public owner, not adding another layer of tests.
+UNPROVEN: reviewed, but a concrete current consumer/contract is unresolved. It has not earned retention; it is not a KEEP by default.
+Theory declarations count once; their individual data rows were considered in the rationale. These counts are not expanded runtime test cases or estimated lines to delete.
+
+Retention gate
+For every retained method, identify (1) a real public domain, user, library or compatibility contract; (2) an expected outcome independent of the implementation under test; (3) a plausible wrong implementation that the actual setup and assertions would reject; and (4) distinct protection beyond another owning test. A public property alone is insufficient. An internal implementation can be constructed to exercise its genuine public interface; internal helper APIs and test-only backdoors do not become public behavior through friend-assembly access.
+
+Principal findings
+1. Tests can get their correctness from test support.
+TestSessionProcessedTelemetryReader.GetExactAsync falls back to a session-ID-only result, unlike the production revision-constrained read. InMemorySessionRepository itself implements guarded swaps, preservation and revision advancement. TestSessionTelemetryProcessor silently invokes real decoding for unmapped arrays. These fixtures can conceal the very behavior a test claims to prove. Use explicit narrow collaborator outcomes for caller tests, and the real repository/codec at the public boundary when proving persistence/compatibility semantics. Do not build a second production implementation inside the fake.
+Evidence: Sufni.App.Tests/TestSupport/Doubles/TestSessionProcessedTelemetryReader.cs:43; TestSupport/Doubles/TestSessionTelemetryProcessor.cs:16; TestSupport/Persistence/InMemorySessionRepository.cs:72. Detailed affected methods: session_core.csv and helper-inventory.csv.
+
+2. Some protocol oracles share the production implementation.
+ManagementProtocolTestFrames uses ManagementProtocolReader.CreateFrame; ManagementRequestReader uses ParseHeader. The live v2 builder/reader has the equivalent dependence. A matching encoder/decoder mistake can pass both sides. Keep independent literal/frozen wire vectors for wire correctness. Scripted client lifecycle tests need not independently encode every frame when framing itself is not their assertion. V3 fixtures are more independent; their limited shared mask helper is a narrower blind spot, not the same entire-envelope problem.
+Evidence: acquisition/live report and rows; shared LiveV2RequestReader helper assessment.
+
+3. Some tests do not observe the component's effect at all.
+MapViewTests.TimelineCursorUpdate_AcceptsEmptySessionTrackPoints sets the timeline cursor to 0.5 and only reads that same timeline property. Removing the map's reaction can satisfy it. RecordedSessionSignalsDesktopViewTests checks four static child-control counts, including a child's own contents. Screenshot methods save images without a reference comparison or behavioral image oracle. Property-copy, resource inventory and trivial command-forwarding tests recur across views and models.
+Evidence: Sufni.App.Tests/MapsAndTracks/Views/MapViewTests.cs:160; Sufni.App.Tests/Sessions/Signals/DesktopViews/Items/RecordedSessionSignalsDesktopViewTests.cs:20; screenshots.csv.
+
+4. Test-only hooks bypass the behavior that could fail.
+BikeEditorViewModel.HandleLinkagePreviewChangedForTests and CollapsibleSplitView's reset/begin/drag/complete ForTests methods let tests skip real events and gesture wiring. Internal editor reducers, private cache-reader interfaces and rendering diagnostics create similar implementation coupling. Migrate useful outcomes into the existing public editor/control/service tests, then retire redundant drivers. This also conflicts with VIEW-TESTING.md's explicit prohibition on production concessions for tests.
+Evidence: production BikeEditorViewModel.cs:601 and CollapsibleSplitView.cs:312,330,337,343; per-method session and bikes ledgers.
+
+5. Several tests claim concurrency, ordering or exclusion without arranging or observing it.
+Single-flight tests release after only the first factory enters, so later readers may simply hit an ordinary cache. A recompute test named concurrent uses immediately completed processing. Pairing publication-order coverage only checks storage after return. A sync batching test does not observe batches. Gap stroke checks and live atomic-update loops can pass with empty result sequences. These scenarios need deterministic gates and an observable consequence; additional sleeps or call-order inventories would not repair them.
+Evidence: pure.txt, session_core.txt, sync_infrastructure.txt, live_acquisition.txt, with exact methods and counterexamples.
+
+6. Expected values sometimes cannot distinguish the claimed failure.
+Equal 25-percent damping bands permit side/band swaps. A GPX batch's identical first/last valid file permits continuing past an invalid file without changing the asserted import count. Rendered scatter tests query the implementation's own error/disposed diagnostics rather than independently observing approximation or resource behavior. Some numerical expected results reproduce the production algorithm or reuse its coefficient function.
+Evidence: session_core.txt, domains.txt, session_presentation.txt and shared smoothing rows.
+
+7. There is avoidable support duplication, but centralization must follow the retained tests.
+Multiple Mounted* wrappers repeat Window.Close plus dispatcher flush. The same linkage graph exists in kinematics and app fixtures; SST/GPS writers and SourceCache store helpers also repeat. Consolidate small mechanical lifetimes and inputs. First remove helpers used only by rejected tests. Keep scenario inputs, expected outcomes and meaningful async gates visible; do not replace duplicates with a configurable application-sized test framework.
+Evidence: helper-inventory.csv, crosscut-notes.txt, and subsystem support assessments. Existing screenshot consumers were checked before calling support unused.
+
+8. Broad snapshots and same-writer roundtrips need an explicit purpose.
+Frozen historical wire/schema bytes can catch a writer and reader drifting together and often earn retention. A whole-output numerical hash, property inventory, current-writer-only roundtrip, or cached object identity does not by itself explain the domain regression it protects. Retain independently derived numerical cases and documented compatibility fixtures; consolidate the rest around the actual owning behavior.
+Evidence: pure.txt and serialization/model rows in the domain and sync ledgers.
+
+Useful tests that should survive
+The audit does not use an arbitrary deletion percentage. Strong examples include a save held pending while the user makes another edit, a revision-guarded database write refusing to overwrite newer bytes, a stale track read rejected after a fuller track arrives, whole-channel sentinel parsing that preserves later valid samples, independently calculated calibration/velocity outputs, and frozen legacy codec bytes. The subsystem reports name exact surviving methods and the specific incorrect behavior each rejects.
+
+Shared infrastructure priorities
+- Repair or narrow semantic shortcuts that undermine surviving tests: exact revision reads, fake persistence guards, production-derived wire oracles, implicit workflow state transitions.
+- Retain and reuse mechanical isolation tools: temporary storage ownership, explicit dispatch queues, completion gates, controlled clocks, and small immutable input builders where current consumers justify them.
+- Consolidate mounted-window cleanup and canonical linkage/SST inputs; avoid extracting helpers from tests scheduled for removal.
+- Reduce broad fixture graphs and make activation/disposal ownership explicit. A test fixture should not secretly perform the action being tested or supply its expected result.
+- Distinguish a fixture limitation from a bug: a manual timer need not simulate time for ownership tests; a scripted collaborator need not implement the entire service. Do not add defensive machinery for hypothetical consumers.
+
+Recommended cleanup order
+1. Remove unequivocal no-op/property/static-inventory tests and separate screenshot capture tooling from regression test accounting.
+2. Consolidate named overlapping methods, then prune their unused local/shared support.
+3. Fix misleading shared oracles before trusting affected keep/rewrite candidates.
+4. Replace useful internal/helper scenarios with focused assertions at their existing public owners; remove the old helper-level coverage and test-only hooks when no consumer remains.
+5. Keep the genuinely distinct cancellation, data-loss, conflict, migration and compatibility cases. Validate each actual cleanup change with the affected suite. This audit did not make those changes.
+
+Incidental architecture observations
+Subsystem reports separately record potential lifetime/ownership discrepancies found while checking test claims. These are static observations, not fixes or demonstrated runtime failures. In particular, read the qualifications around synchronization-server stop/start ordering, recorded-projection worker drainage, and mutable nested arrays in published IMU display projections. Architecture documentation and some source files were edited concurrently. A narrow follow-up reviewed changed tests, public owners and new transaction/helper files; current code was the authority for behavioral claims. See delta-review.txt and refresh notes in affected reports. The delivered audit is bound to the recorded source hashes, not future concurrent edits. This audit wrote only files under docs/test-audit/.
+
+Scope and limitations
+Six GPT-6.1 Sol agents at high reasoning effort reviewed assigned scopes, with the primary agent checking inventories, representative findings, duplicates and cross-scope consistency. Completed independent challenge reviews are included separately. Full test bodies and their supporting code were reviewed; source-based counterexamples are not executed mutations. No tests, rendering comparisons, performance measurements or coverage runs were executed. Test/production source files were not changed. The inventory includes SHA-256 values of audited C# sources so later edits can be distinguished from the reviewed version. Repository HEAD during audit: 6eedc15b621aa521e822cc7a71187aacc471d3ad.

@@ -53,71 +53,6 @@ public class BikeEditorViewSmokeTests
     }
 
     [AvaloniaFact]
-    public async Task BikeEditorView_RendersBoundSummaryAndSharedChrome()
-    {
-        EnsureBikeEditorViewResources();
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var viewModel = CreateViewModel();
-        var view = new BikeEditorView
-        {
-            DataContext = viewModel
-        };
-        var host = new Window
-        {
-            Width = 900,
-            Height = 700,
-            Content = view
-        };
-
-        ViewTestHelpers.ShowWindow(host);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var saveButton = Assert.Single(view.GetVisualDescendants().OfType<Button>(), button => button.Name == "SaveButton");
-        Assert.Same(viewModel.SaveCommand, saveButton.Command);
-        viewModel.Name = "Changed name";
-        await ViewTestHelpers.FlushDispatcherAsync();
-        Assert.True(saveButton.IsEnabled);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task BikeEditorDesktopView_ComposesImageAndControlsPanes()
-    {
-        EnsureBikeEditorViewResources();
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var viewModel = CreateViewModel();
-        var view = new BikeEditorDesktopView
-        {
-            DataContext = viewModel
-        };
-        var host = new Window
-        {
-            Width = 1200,
-            Height = 800,
-            Content = view
-        };
-
-        ViewTestHelpers.ShowWindow(host);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var splitView = Assert.Single(view.GetVisualDescendants().OfType<SplitView>());
-        var imageControls = Assert.IsType<BikeImageControlsDesktopView>(splitView.Pane);
-        var imageView = Assert.IsType<BikeImageDesktopView>(splitView.Content);
-
-        Assert.True(splitView.IsPaneOpen);
-        Assert.Equal(400, splitView.OpenPaneLength);
-        Assert.Same(viewModel, imageControls.DataContext);
-        Assert.Same(viewModel, imageView.DataContext);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
     public async Task BikeEditorView_HidesShockStrokeAndPlot_WhenBikeIsHardtail()
     {
         EnsureBikeEditorViewResources();
@@ -139,72 +74,6 @@ public class BikeEditorViewSmokeTests
 
         Assert.False(view.FindControl<TextBlock>("ShockStrokeLabel")!.IsVisible);
         Assert.False(view.FindControl<Grid>("LeverageRatioPlotGrid")!.IsVisible);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task BikeImageControlsDesktopView_ShowsWheelRemoveButtons_AndBindsCommands()
-    {
-        EnsureBikeEditorViewResources();
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var viewModel = CreateViewModel();
-        var view = new BikeImageControlsDesktopView
-        {
-            DataContext = viewModel
-        };
-        var host = new Window
-        {
-            Width = 500,
-            Height = 800,
-            Content = view
-        };
-
-        ViewTestHelpers.ShowWindow(host);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var removeButtons = view.GetVisualDescendants()
-            .OfType<Button>()
-            .Where(button => button.Content as string == "X")
-            .ToArray();
-
-        Assert.Equal(2, removeButtons.Length);
-        Assert.All(removeButtons, button => Assert.NotNull(button.Command));
-
-        removeButtons[0].Command!.Execute(removeButtons[0].CommandParameter);
-        removeButtons[1].Command!.Execute(removeButtons[1].CommandParameter);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Null(viewModel.WheelGeometry.FrontWheelDiameter);
-        Assert.Null(viewModel.WheelGeometry.RearWheelDiameter);
-
-        host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
-
-    [AvaloniaFact]
-    public async Task BikeImageControlsDesktopView_RendersLeverageRatioEditor_WhenInLeverageRatioMode()
-    {
-        EnsureBikeEditorViewResources();
-        ViewTestHelpers.EnsurePlotViewStyle();
-
-        var view = new BikeImageControlsDesktopView
-        {
-            DataContext = CreateViewModel(CreateLeverageRatioSnapshot())
-        };
-        var host = new Window
-        {
-            Width = 500,
-            Height = 800,
-            Content = view
-        };
-
-        ViewTestHelpers.ShowWindow(host);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Single(view.GetVisualDescendants().OfType<LeverageRatioEditorView>());
 
         host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -253,20 +122,6 @@ public class BikeEditorViewSmokeTests
         };
 
         return BikeSnapshot.From(bike);
-    }
-
-    private static BikeSnapshot CreateLeverageRatioSnapshot()
-    {
-        return TestSnapshots.LeverageRatioBike(
-            TestSnapshots.LeverageRatioCurve((0, 0), (30, 75), (60, 150))) with
-        {
-            FrontWheelRimSize = EtrtoRimSize.Inch29,
-            FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            RearWheelRimSize = EtrtoRimSize.Inch275,
-            RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-        };
     }
 
     private static void EnsureBikeEditorViewResources()

@@ -22,8 +22,8 @@ and travel limit, and its raw samples must not be entirely zero or entirely
 `0xFFFF`. This rule applies across the whole channel, including all of its
 segments. Mixed samples remain present. A calibrated stationary channel stays
 present even when stroke detection finds no active strokes. An absent side is
-recorded by `Suspension.Present = false` and uses the existing single-channel UI.
-The existing fewer-than-five-samples rule for dense recordings still applies.
+recorded by `Suspension.Present = false` and uses the single-channel UI.
+Dense recordings with fewer than five samples mark both sides absent.
 
 Unprocessable recordings raise `TelemetryProcessingException` with a closed
 `TelemetryProcessingFailureReason`: `NoTravelData`, `RecordCountMismatch`, or
@@ -32,10 +32,19 @@ log; these exceptions propagate to the application workflow.
 
 Processing selects dense or segmented travel from the actual runs and travel-gap
 metadata, independently of the source file version. Live processing keeps its
-captured metadata unchanged instead of fabricating a file version; imported
-metadata is derived once after applying the requested source window.
+captured metadata; imported metadata is derived once after applying the
+requested source window.
 
-The pipeline produces histogram **bin definitions**, but does not compute per-stroke digitized indexes, histogram tallies, statistics, FFT frequency histograms, balance, vibration summaries, or velocity-band breakdown. Those values are computed lazily on demand by `Calculate*` methods on the `TelemetryStatistics` static partial class (e.g., `CalculateTravelHistogram`, `CalculateVelocityHistogram`, `CalculateTravelFrequencyHistogram`, `CalculateBalance`, `CalculateVelocityBands`). Position/velocity traces and heatmaps come from `PositionVelocityTraceBuilder.Build` (`Sufni.Telemetry/PositionVelocityTraces.cs`); it clips each compression and rebound stroke to the analysis range, while the statistics code selects only whole strokes inside the range. Coarse travel/velocity indexes needed by active-suspension travel histograms, sample-averaged velocity histograms, and sample damping highlights are derived once by the nonserialized `StrokeCoarseIndexes` owned by each `TelemetryData` result and reused for that result's lifetime. Recorded-session views request the higher-level derived analysis results through the per-open `IRecordedSessionAnalysisResultState`; the state keys include the telemetry generation plus the semantic inputs for each analysis family, runs computation off the UI path through `RecordedSessionAnalysisComputer`, and plot controls render immutable result records so theme and overlay refreshes do not recalculate telemetry statistics. The recorded IMU display projection is a telemetry-generation-only result: the computer calls `ImuDisplaySignalProcessor.ProcessRecorded(TelemetryData)` once to produce both vibration RMS and context-correct frame pitch/roll, and the visible Signals rows share that immutable projection. Front and rear suspension sides are processed independently and in parallel for both dense recordings and SST v5 segment-aware recordings; shared objects passed into those workers are immutable or side-specific. Velocity-band and balance low/high-speed calculations accept presentation-owned damping speed cutoffs, with separate compression and rebound thresholds. Compression values compare against the compression cutoff; rebound values compare against the negative rebound cutoff, and exact threshold values are treated as high speed. Histogram binning has one shared interval contract: interior bins are `[lower, upper)`, exact interior edges belong to the upper bin, the final edge belongs to the last bin, and out-of-range values clamp to the nearest bin. `HistogramBuilder.Digitize(...)` and `DigitizeValue(...)` both use that same rule so lazy per-sample indexes and scalar statistics agree on bin-edge placement.
+The pipeline produces histogram **bin definitions** only. Other derived values are lazy:
+
+- `Calculate*` methods on the static partial `TelemetryStatistics` class (e.g., `CalculateTravelHistogram`, `CalculateVelocityHistogram`, `CalculateTravelFrequencyHistogram`, `CalculateBalance`, `CalculateVelocityBands`) compute histogram tallies, statistics, FFT frequency histograms, balance, vibration summaries and velocity bands on demand.
+- `PositionVelocityTraceBuilder.Build` (`Sufni.Telemetry/PositionVelocityTraces.cs`) builds position/velocity traces and heatmaps. It clips each compression and rebound stroke to the analysis range; the statistics code selects only whole strokes inside the range.
+- The nonserialized `StrokeCoarseIndexes` of each `TelemetryData` result derives the coarse travel/velocity indexes once. Active-suspension travel histograms, sample-averaged velocity histograms and sample damping highlights reuse them for that result's lifetime.
+- Recorded-session views request analysis results through the per-open `IRecordedSessionAnalysisResultState`. Its keys combine the telemetry generation with the semantic inputs of each analysis family. `RecordedSessionAnalysisComputer` runs the computation off the UI path. Plot controls render immutable result records, so theme and overlay refreshes do not recalculate statistics.
+- The recorded IMU display projection depends only on the telemetry generation. The computer calls `ImuDisplaySignalProcessor.ProcessRecorded(TelemetryData)` once for vibration RMS and frame pitch/roll; the Signals rows share that projection.
+- Front and rear sides are processed independently and in parallel, for dense and SST v5 segment-aware recordings. Shared objects passed to those workers are immutable or side-specific.
+- Velocity-band and balance calculations accept presentation-owned damping speed cutoffs, with separate compression and rebound thresholds. Compression values compare against the compression cutoff, rebound values against the negative rebound cutoff. Exact threshold values count as high speed.
+- Histogram binning has one interval contract: interior bins are `[lower, upper)`, the final edge belongs to the last bin, and out-of-range values clamp to the nearest bin. `HistogramBuilder.Digitize(...)` and `DigitizeValue(...)` both use it, so per-sample indexes and scalar statistics agree on bin edges.
 
 ### Measurement Preprocessing
 
@@ -44,7 +53,7 @@ The pipeline produces histogram **bin definitions**, but does not compute per-st
 - **Linear path** (`MeasurementWraps == false`, the default): convert each `ushort` straight to `int`, run `SpikeElimination.EliminateSpikesAsInt`, clamp every result back into `[0, 4095]` (the 12-bit ADC range).
 - **Rotational path** (`MeasurementWraps == true`, rotary sensors): unwrap the 12-bit (4096-step) circular ADC into a continuous `int` signal — each step's delta to the previous sample is examined, and a `±4096` offset is accumulated whenever the delta crosses the half-range (`±2048`) so wrap-arounds become continuous deltas. Run `SpikeElimination.EliminateSpikesAsInt` on the unwrapped integer signal, then re-wrap each result modulo 4096 back to `ushort`.
 
-`SpikeElimination.EliminateSpikesAsInt` (`Sufni.Telemetry/SpikeElimination.cs`) walks the signal three times: it first detects sudden changes using fixed 5 ms search/lookahead windows, a fixed 100 ms early-jump gate, a per-step threshold derived from `MinimumAdjacentStepChangeRateCountsPerSecond=30_000`, and an unscaled total-change threshold of `MinimumCandidateTotalChangeCounts=100`; it skips candidates that keep moving in the same direction and flattens the remaining windows to their endpoints; it then corrects an early-recording baseline jump if the first detected change starts inside the 100 ms gate; finally it tracks negative excursions that never recover and shifts the trailing tail back to the pre-excursion baseline. The method edits samples in place and returns the number of detected sudden changes, which is stored as the per-suspension `AnomalyRate` (anomalies per second) on the `Suspension` record for a planned sensor-quality indicator; no current UI consumes it.
+`SpikeElimination.EliminateSpikesAsInt` (`Sufni.Telemetry/SpikeElimination.cs`) runs the stages described in [Spike Elimination](acquisition.md#spike-elimination). It edits samples in place and returns the number of detected sudden changes. The pipeline stores that count as the per-suspension `AnomalyRate` (anomalies per second) on the `Suspension` record; no UI consumes it.
 
 The preprocessor return record `MeasurementPreprocessorResult(Samples, AnomalyCount)` feeds directly into `SuspensionTraceProcessor.Process` inside `TelemetryData.FromRecording(...)`.
 
@@ -54,13 +63,21 @@ Each preprocessed sample is then passed through the sensor's `MeasurementToTrave
 
 ### Velocity Calculation
 
-A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal unless the session's processing option disables it. The nullable `session.velocity_filter_window_ms` column is authored session state; `SessionSnapshot.ProcessingOptions` derives the library options from it, with null meaning the default 25 ms, valid range 0-1000 ms, with 0 meaning "no velocity filter" and falling back to unfiltered slope velocity. For nonzero windows the target sample count is derived from `sampleRate * windowSeconds`, rounded to an odd value, clamped to the recording length, then raised to the hard minimum of 5 when needed; recordings with fewer than 5 samples skip processing and both suspensions are flagged not-present. The polynomial order is 3 and the derivative order is 1. `SavitzkyGolay.Create(...)` validates those parameters, then returns a shared immutable filter instance from `Sufni.Telemetry.Caching.SingleFlightLruCache`, keyed by `(windowSize, derivative, polynomial)`, so repeated processing runs do not rebuild the same coefficient rows. The cache retains at most 64 entries and 16 MiB of coefficient doubles (`windowSize * windowSize * 8` bytes); a table larger than that budget is shared with concurrent callers but not retained. The implementation uses Gram polynomial basis functions with recursive computation, and handles signal boundaries by precomputing one weight row per evaluation offset within the fixed-size window: edge samples reuse the same first/last `windowSize` data points but apply weights centred at the appropriate off-centre row instead of shrinking the window. Positive velocity = compression (fork/shock compressing), negative = rebound (extending). The per-offset weight row is applied to the window with `TensorPrimitives.Dot` (SIMD). Recorded processing calls the fixed-sample-rate overload (`Process(data, dt)`) instead of allocating a uniform `time[]` array. Live velocity processing in `LiveSignalPipeline.ComputeVelocityAppend` calls the same fixed-step filter with unit spacing, then divides each derivative by its local mean timestamp interval. Live batches have fixed spacing within a batch but may have gaps between batches; the live pipeline owns this normalization, including clipped edge windows. The library exposes only `Process(data, dt)`. Uniform samples agree with direct fixed-dt processing within the tolerated low-bit range.
+A Savitzky-Golay filter (`Sufni.Telemetry/Filters.cs`) computes the smoothed first derivative of the travel signal unless the session's processing option disables it. Positive velocity = compression (fork/shock compressing), negative = rebound (extending).
+
+- **Option.** The nullable `session.velocity_filter_window_ms` column is authored session state. `SessionSnapshot.ProcessingOptions` derives the library options from it: null means the default 25 ms, the valid range is 0–1000 ms, and 0 disables the filter in favour of unfiltered slope velocity.
+- **Window size.** The target sample count is `sampleRate * windowSeconds`, rounded to an odd value and clamped to the recording length. It is then raised to the minimum of 5 when needed. Recordings with fewer than 5 samples skip processing.
+- **Filter.** The polynomial order is 3 and the derivative order is 1. The implementation uses recursive Gram polynomial basis functions. It applies each weight row to the window with `TensorPrimitives.Dot` (SIMD).
+- **Boundaries.** The filter precomputes one weight row per evaluation offset in the fixed-size window. Edge samples reuse the first/last `windowSize` data points with an off-centre weight row instead of shrinking the window.
+- **Cache.** `SavitzkyGolay.Create(...)` validates the parameters and returns a shared immutable filter from `Sufni.Telemetry.Caching.SingleFlightLruCache`, keyed by `(windowSize, derivative, polynomial)`. The cache retains at most 64 entries and 16 MiB of coefficients (`windowSize * windowSize * 8` bytes). A larger table is shared with concurrent callers but not retained.
+- **API.** The library exposes only the fixed-step `Process(data, dt)`; recorded processing calls it without a `time[]` array.
+- **Live.** `LiveSignalPipeline.ComputeVelocityAppend` calls the same filter with unit spacing, then divides each derivative by its local mean timestamp interval. Live batches have fixed spacing inside a batch but can have gaps between batches. The live pipeline owns this normalization, including clipped edge windows. Uniform samples agree with direct fixed-dt processing within the tolerated low-bit range.
 
 ### Stroke Detection
 
 `StrokeAnalyzer.Analyze()` (`Sufni.Telemetry/StrokeAnalyzer.cs`) identifies strokes by finding sign changes in velocity. Adjacent strokes where both have max position < 5mm (near full extension) are concatenated — this prevents small oscillations at top-out from fragmenting the data into many tiny strokes. Strokes too short AND too brief to qualify as any category are silently discarded.
 
-Published strokes record start/end sample indices, timeline bounds and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count). Internal `StrokeCandidate` values retain travel delta, duration and airtime-candidate flags during processing; those scratch values never enter the published `TelemetryData` graph. New processing does not populate the legacy `DigitizedTravel` or `DigitizedVelocity` arrays. When a coarse-index consumer first runs, `StrokeCoarseIndexes` accepts the legacy travel/velocity arrays only as one complete, in-range pair matching the stroke's source range; otherwise it derives both arrays from the processed samples. Segment-aware derivation uses the stroke's original segment-local coarse velocity-bin domain so gapped recordings retain their established histogram semantics. Legacy fine digitized velocity is skipped during decoding.
+Published strokes record start/end sample indices, timeline bounds and aggregated statistics (`StrokeStat`: sum/max travel, sum/max velocity, bottomout count, sample count). Internal `StrokeCandidate` values retain travel delta, duration and airtime-candidate flags during processing; those scratch values never enter the published `TelemetryData` graph. Processing leaves the legacy `DigitizedTravel` and `DigitizedVelocity` arrays empty. When a coarse-index consumer first runs, `StrokeCoarseIndexes` accepts the legacy travel/velocity arrays only as one complete, in-range pair matching the stroke's source range; otherwise it derives both arrays from the processed samples. Segment-aware derivation uses the stroke's original segment-local coarse velocity-bin domain so gapped recordings retain their established histogram semantics. Legacy fine digitized velocity is skipped during decoding.
 
 ### Stroke Categorization
 
@@ -68,7 +85,7 @@ Published strokes record start/end sample indices, timeline bounds and aggregate
 - **Rebound**: length <= -5mm
 - **Idling**: |length| < 5mm AND duration >= 0.1s
 
-Only compressions and rebounds are published in `Strokes` and MessagePack-serialized. Internal idling candidates live only through the pipeline run that computes airtimes; the resolved `Airtimes[]` is serialized. There is no public idling collection or stroke-categorization mutation surface.
+Only compressions and rebounds are published in `Strokes` and MessagePack-serialized. Internal idling candidates live only through the pipeline run that computes airtimes; the resolved `Airtimes[]` is serialized.
 
 ### Airtime Detection
 
@@ -96,7 +113,7 @@ Spike thresholds belong to `SpikeElimination`; velocity-filter defaults and boun
 ### Serialized Structure
 
 `TelemetryCodec` owns processed MessagePack and live-source JSON encoding/decoding,
-with legacy processed-segment normalization. `RecordedLiveCaptureSourcePayload`
+and normalizes legacy processed segments. `RecordedLiveCaptureSourcePayload`
 in the telemetry library maps current and legacy source shapes to/from captures. `TelemetryData.BinaryForm` and `FromBinary` delegate to it. Library
 records remain the persisted shapes with `[MessagePackObject]` attributes. Frozen
 schema fixtures pin the complete current graph and rewrites of the committed
@@ -132,11 +149,11 @@ TelemetryData
 └── TemperatureAverages: TemperatureAverage[] (V4/V5/live samples, averaged by location)
 ```
 
-Suspension `Travel[]` and `Velocity[]` are always the flat dense processed arrays for that side. `ProcessedSuspensionSegment` stores a range over those arrays (`FirstDenseIndex`, `SampleCount`) plus the source timeline anchor (`FirstSourceIndex`, `StartSeconds`); per-segment travel/velocity arrays are no longer serialized. `SuspensionTimeSeriesSampler` samples segment-aware data by combining the segment range with the flat arrays. `TelemetryData.FromBinary(...)` normalizes old blobs whose segments predate `SampleCount`, inferring counts from the next segment's `FirstDenseIndex` or the flat array length so legacy dense and gapped data still samples correctly.
+Suspension `Travel[]` and `Velocity[]` are always the flat dense processed arrays for that side. `ProcessedSuspensionSegment` stores a range over those arrays (`FirstDenseIndex`, `SampleCount`) plus the source timeline anchor (`FirstSourceIndex`, `StartSeconds`); segments carry no travel/velocity arrays of their own. `SuspensionTimeSeriesSampler` samples segment-aware data by combining the segment range with the flat arrays. `TelemetryData.FromBinary(...)` also reads segments without `SampleCount`. It infers the count from the next segment's `FirstDenseIndex` or the flat array length.
 
-Each newly written `Stroke` map contains only `Start`, `End`, `Stat`, `StartSeconds`, and `EndSeconds`. `StrokeFormatter` reads the legacy coarse travel/velocity digitization fields and skips fine velocity indexes, but omits them when writing both new results and rewritten legacy results. Source-less legacy processed BLOBs therefore remain readable while future rewrites stop carrying the duplicate arrays.
+Each written `Stroke` map contains only `Start`, `End`, `Stat`, `StartSeconds`, and `EndSeconds`. `StrokeFormatter` also reads the legacy coarse travel/velocity digitization fields and skips fine velocity indexes. It never writes them, so rewritten legacy results drop the duplicate arrays.
 
-`RawImuData` is written as compact encoding version 1: a six-field indexed array containing the version, sample rate, indexed metadata entries, binary active-location IDs, indexed per-location segments with six-value sample arrays, and `HasGaps`. New processed data serializes one segment/sample graph and never serializes the dense compatibility `Records` list. `RawImuDataFormatter` permanently reads both this compact shape and the legacy named-map dense-only, segment-only, and dense-plus-segment shapes; dense-only values are adapted through `SampleSegments` when rewritten.
+`RawImuData` is written as compact encoding version 1: a six-field indexed array containing the version, sample rate, indexed metadata entries, binary active-location IDs, indexed per-location segments with six-value sample arrays, and `HasGaps`. Processed data serializes one segment/sample graph and never serializes the dense `Records` list. `RawImuDataFormatter` also reads the legacy named-map dense-only, segment-only, and dense-plus-segment shapes; a rewrite adapts dense-only values through `SampleSegments`.
 
 The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a derived BLOB in the `session.data` column. The original recording source is persisted separately so the BLOB can be regenerated when processing inputs change. Stream-gap and final-status metadata stay on the raw source; processed suspensions retain the segment boundaries and `HasGaps` needed for analysis.
 
@@ -144,7 +161,7 @@ The serialized form is accessed via `TelemetryData.BinaryForm` and stored as a d
 
 Recorded sessions have two durable data layers:
 
-- **Recording source** — `RecordedSessionSource` in `session_recording_source`, keyed by `session_id`. Imported SST sessions store compressed original SST bytes (`SourceKind = ImportedSst`). Saved live captures keep source schema version 1 and store a JSON payload (`SourceKind = LiveCapture`) containing capture metadata, raw front/rear segments, segment-only IMU data, GPS data, temperature samples, and markers. Old schema-v1 payloads with flat travel or dense IMU records remain readable; the codec restores empty IMU collections for missing fields before processing or canonical hashing; missing or explicitly null temperature arrays are normalized to empty before processing. The live-capture source deliberately excludes `BikeData`; calibration is resolved again from the current setup and bike when the source is processed.
+- **Recording source** — `RecordedSessionSource` in `session_recording_source`, keyed by `session_id`. Imported SST sessions store compressed original SST bytes (`SourceKind = ImportedSst`). Saved live captures use source schema version 1 and store a JSON payload (`SourceKind = LiveCapture`) containing capture metadata, raw front/rear segments, segment-only IMU data, GPS data, temperature samples, and markers. The codec also reads schema-v1 payloads with flat travel or dense IMU records. It restores empty IMU collections for missing fields before processing or canonical hashing, and empty temperature arrays for missing or null ones before processing. The live-capture source excludes `BikeData`; processing resolves calibration again from the current setup and bike.
 - **Processed telemetry** — MessagePack `TelemetryData` in `session.data`, derived from the recording source plus the current setup/bike calibration and the current `TelemetryProcessingVersion`.
 - **Derivation window** — optional columns on the session row
   (`source_session_id`, `window_start_seconds`, `window_end_seconds`) saying
@@ -156,9 +173,18 @@ Recorded sessions have two durable data layers:
   back to the original source timeline. Trim and split write these columns
   (see [Trim and split](ui-workflows.md#trim-and-split)).
 
-`RecordedSessionSourceFactory` is the only app-layer factory for persisted recording sources: imports call `CreateImportedSst(...)`, while live saves call `CreateLiveCapture(...)`. `RecordedSessionReprocessor.ReprocessAsync(input, ct)` is the single recorded-session derivation path for import, recompute, and live-save persistence. `RecordedSessionDerivationInput` captures session/setup/bike snapshots, source metadata, read-only payload memory, and the processing option carried by the session snapshot; it contains no projected fingerprint or staleness state. For imported SST sources it decompresses the stored source bytes, parses them with `RawTelemetryData.FromByteArray`, applies the derivation window with `RawTelemetryData.Slice(...)` when one is present, rebuilds `Metadata` from the effective raw file, and calls `TelemetryData.FromRecording(...)`. For live-capture sources it decodes the saved live payload through `TelemetryCodec` and rebuilds `LiveTelemetryCapture`, applies the window with `LiveTelemetryCapture.Slice(...)` when present, and calls `TelemetryData.FromLiveCapture(...)`. In both cases it projects GPS points into a pure `ProcessedGeneration` with the processed telemetry. The requesting workflow creates or reuses the full `Track` and owns any association lookup and persistence. The bike-context factory normalizes dependency inputs once for its cache key and dependency hash; the returned calibration context carries that hash. Each derivation combines it with the loaded source metadata, window and explicit processing option used for that pass; it never reuses the projection's fingerprint or dependency hash.
+`RecordedSessionSourceFactory` is the only app-layer factory for persisted recording sources: imports call `CreateImportedSst(...)`, while live saves call `CreateLiveCapture(...)`.
 
-Before calling telemetry processing, the reprocessor asks `ITelemetryBikeProcessingContextFactory` for the shared bike-processing context keyed by structural `ProcessingDependencyInputs` copied from the setup and bike processing inputs. The same normalized input model is serialized by `ProcessingDependencyHash` for the fingerprint's deterministic dependency-hash string. The context carries the calibrated `BikeData` used by `TelemetryData.FromRecording(...)` and `FromLiveCapture(...)`. The context retains typed rear-calibration failures; the reprocessor returns them as a processing failure without running telemetry or logging them again. `TelemetryProcessingException` is logged once with session/source identity and mapped to a processing failure. `RecordedSessionReprocessResult` is `Processed | Failed(reason, details)`; `Processed` carries a complete `ProcessedGeneration` and the typed fingerprint. The generation contains the decoded/serialized telemetry payload and optional projected GPS points. It creates a prepared session with normalized duration without I/O or mutation of its input snapshot. GPS metrics are a separate device-local materialization owned by `TrackCoordinator`. Import, live-save and recompute own track creation/reuse, repository commits and publication; none decodes the generated bytes again. `SessionSyncApplier` owns incoming sync byte validation, guarded fill/swap persistence and publication. GPS alignment is owned separately by `SessionCoordinator`.
+`RecordedSessionReprocessor.ReprocessAsync(input, ct)` is the single recorded-session derivation path for import, recompute, and live-save persistence:
+
+- **Input.** `RecordedSessionDerivationInput` captures session/setup/bike snapshots, source metadata, read-only payload memory, and the session's processing option. It contains no projected fingerprint or staleness state.
+- **Imported SST.** The reprocessor decompresses the source bytes and parses them with `RawTelemetryData.FromByteArray`. It applies a derivation window with `RawTelemetryData.Slice(...)`, rebuilds `Metadata` from the effective raw file, and calls `TelemetryData.FromRecording(...)`.
+- **Live capture.** The reprocessor decodes the payload through `TelemetryCodec` and rebuilds `LiveTelemetryCapture`. It applies a window with `LiveTelemetryCapture.Slice(...)` and calls `TelemetryData.FromLiveCapture(...)`.
+- **Bike context.** The reprocessor first asks `ITelemetryBikeProcessingContextFactory` for the shared context, keyed by structural `ProcessingDependencyInputs` from the setup and bike. `ProcessingDependencyHash` serializes the same normalized inputs into the fingerprint's dependency hash, which the context carries. The context also carries the calibrated `BikeData`.
+- **Fingerprint.** Each derivation combines the context hash with the loaded source metadata, window and processing option of that pass. It never reuses the projection's fingerprint or dependency hash.
+- **Failures.** The context retains typed rear-calibration failures. The reprocessor returns them as a processing failure without running telemetry or logging them again. It logs a `TelemetryProcessingException` once with session/source identity and maps it to a processing failure.
+- **Result.** `RecordedSessionReprocessResult` is `Processed | Failed(reason, details)`. `Processed` carries the typed fingerprint and a complete `ProcessedGeneration`: the decoded/serialized telemetry payload and optional projected GPS points. The generation creates a prepared session with normalized duration, without I/O or mutation of its input snapshot.
+- **Ownership.** Import, live-save and recompute own track creation/reuse, repository commits and publication; none decodes the generated bytes again. `TrackCoordinator` owns the device-local GPS metrics. `SessionSyncApplier` owns incoming sync byte validation, guarded fill/swap persistence and publication. `SessionCoordinator` owns GPS alignment.
 
 Source identity uses SHA-256 of the uncompressed SST bytes; the filename and
 compression representation do not affect it. Live-source identity hashes the
@@ -169,9 +195,9 @@ source hash in a permanent session namespace; existing source/session ids are no
 rewritten. Renaming a file or setup does not change the new recording id.
 Sources are write-once: a processed fingerprint with a
 different source hash is stale, and never authorizes replacing the captured source.
-The one-time `session-domain-ownership` migration
-rewrites existing hashes in place, preserving duplicate imports and all
-session/source ids and derivation-window references.
+On older databases, the one-time `session-domain-ownership` migration
+rewrites hashes in place. It preserves duplicate imports, session/source ids and
+derivation-window references.
 
 `ProcessingFingerprintService` records the inputs used for the derived BLOB: fingerprint schema version, `TelemetryProcessingVersion.Current`, `TelemetryCalibrationVersion.Current`, setup id, bike id, `GpsTrackPointProjection.ProjectionVersion`, a deterministic dependency hash, the recorded-source hash, the session's clamped velocity-filter option (`TelemetryProcessingOptions.ClampedVelocityFilterWindowMilliseconds`), and the optional normalized derivation window. The window field is omitted when no derivation window is present. Because the option and normalized window are part of the fingerprint, changing only the velocity-filter window or source window makes the stored BLOB stale and recomputable. The dependency hash includes the setup's front/rear sensor configuration, the bike geometry needed for processing, rear suspension kind, linkage joints/links/shock definition, and leverage-ratio points. Fields that do not affect processing, such as display names, notes, bike images, and damping speed cutoffs, are not part of the hash. Track-projection-version changes make GPS-derived generated tracks stale/recomputable even if the suspension processing inputs are unchanged.
 
@@ -203,14 +229,13 @@ the snapshot, and starts recompute in the same UI publication turn. A failed or
 unrecomputable change restores the previous value only if the stored option still
 matches this request; a superseded request does not restore it. Metadata editing
 preserves the current option. Live saves write it with the session, and splits
-inherit it. The startup `session-domain-ownership` migration copies legacy values
-captured from the launch preferences document. Runtime preferences no longer
-contain processing options; the old cache, hydration gates and reset/recompute
-startup job are removed. Old processed fingerprints stay stale until recomputed.
+inherit it. Runtime preferences contain no processing options. The startup
+`session-domain-ownership` migration copies legacy values from the launch
+preferences document into the session column.
 
 Derivation is **deterministic for a fixed processing binary**: `TelemetryData.FromRecording` / `FromLiveCapture` are pure functions of `(recorded-source bytes, derivation window, setup configuration, bike geometry, GpsTrackPointProjection.ProjectionVersion, TelemetryProcessingVersion, TelemetryProcessingOptions)`, and recompute persistence is serialized per session through `SessionRecomputeEngine`, the single derived-data writer (see [recompute flow](ui-state.md#recorded-session-projection)). Reproducibility is **scoped to that binary/runtime**, not guaranteed bit-for-bit across CPU architectures — low-bit floating-point differences in the FFT and Savitzky-Golay output are tolerated by design. This is why cross-device coherence is defined on the **fingerprint, never on the BLOB bytes**: two devices that recompute the same source with the same inputs on the same build produce the same fingerprint and are treated as in sync even if their serialized bytes differ in the last bits (see [Cross-Device Sync](sync.md#processed-blob-coherence-download-then-swap)). The fingerprint is the identity of the derived data; the bytes are not.
 
-`TelemetryProcessingVersion.Current` is `6`. Version 6 coordinates the processed-format transition to compact segment-only IMU writes and stroke maps without the three legacy digitization arrays; the permanent readers still accept the older dense/segment IMU maps and digitized stroke fields. It also includes version 5's fixed-dt Savitzky-Golay path, parallel front/rear side processing, pooled preprocessing scratch, and flattened segment serialization. The version bump marks every prior-version source-backed BLOB recomputable so each device regenerates once on the current binary; source-less legacy BLOBs remain readable. It is a recompute-eligibility change only — there is no database schema migration.
+`TelemetryProcessingVersion.Current` is `6`. A source-backed BLOB with an older version is recomputable, so each device regenerates it once on the current binary. Source-less older BLOBs remain readable. The processing version controls recompute eligibility only; it is not a database schema version.
 
 ### Processed Telemetry Read Cache
 
@@ -273,11 +298,11 @@ Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mappin
 The app layer wraps solving in `IKinematicSolutionCache` (`Sufni.App/Sufni.App/Bikes/Services/KinematicSolutionCache.cs`), a capacity-64 single-flight LRU keyed by `(LinkageSpec, steps, iterations)`. Editor analysis, save validation, rear calibration, and telemetry bike-processing context creation all request immutable solutions through this cache instead of independently solving the same linkage.
 
 `CoordinateList` publishes copied read-only coordinate series. Standard editor
-joint names are constants in `JointNames`; there is no mutable name mapping.
+joint names are constants in `JointNames`.
 
 Invalid calculation inputs raise `KinematicCalculationException` with
 `MissingJointPath` or `DegenerateGeometry`; linkage and leverage-ratio validation
-keep their existing typed exceptions. Libraries do not log. Editor analysis
+raise their own typed exceptions. Libraries do not log. Editor analysis
 classifies these expected input failures as `Unsolvable`, while unexpected
 exceptions become a typed analysis failure at the app boundary.
 

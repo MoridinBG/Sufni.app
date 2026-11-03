@@ -5,7 +5,6 @@ using System.Threading;
 using System;
 
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
@@ -15,7 +14,7 @@ namespace Sufni.App.Bikes.Coordinators;
 
 internal class BikeCoordinator(
     IBikeStoreWriter bikeStore,
-    IBikeDependencyQuery dependencyQuery,
+    IBikePersistenceTransactionRunner bikePersistenceTransactions,
     IBikeEditorService bikeEditorService,
     IBikeSaveValidator saveValidator,
     ISynchronizableRepository<Bike> bikeRepository,
@@ -203,13 +202,12 @@ internal class BikeCoordinator(
 
         try
         {
-            if (await dependencyQuery.IsBikeInUseAsync(bikeId))
+            if (await bikePersistenceTransactions.DeleteBikeAsync(bikeId) is BikeDeletePersistenceResult.InUse)
             {
                 logger.Warning("Bike delete blocked because bike {BikeId} is in use", bikeId);
                 return new BikeDeleteResult.InUse();
             }
 
-            await backgroundTaskRunner.RunAsync(() => bikeRepository.DeleteAsync(bikeId));
             await bikeStore.PublishBikesRemovedAsync([bikeId]);
             logger.Information("Bike delete completed for {BikeId}", bikeId);
             return new BikeDeleteResult.Deleted();

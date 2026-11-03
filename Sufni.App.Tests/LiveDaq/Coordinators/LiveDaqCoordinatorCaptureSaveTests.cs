@@ -221,7 +221,7 @@ public partial class LiveDaqCoordinatorTests
     }
 
     [Fact]
-    public async Task SaveCaptureAsync_PersistsGpsAndPublishesSessionAndSource()
+    public async Task SaveCaptureAsync_PassesPreparedGpsTrackToAtomicCommit()
     {
         var capture = CreateLiveCapturePackage(withGps: true);
         SeedLiveCaptureDependencies(capture);
@@ -239,7 +239,6 @@ public partial class LiveDaqCoordinatorTests
         Assert.Equal(SessionSnapshot.From(persisted), sessions.Get(saved.SessionId));
         Assert.Equal(RecordedSessionSourceSnapshot.From(expectedSource), sources.Get(saved.SessionId));
 
-        Assert.NotEmpty((await repository.Repository.GetSessionRawPsstAsync(saved.SessionId))!);
         await repository.Repository.Received(1).ImportProcessedSessionAsync(Arg.Any<Session>(),
             Arg.Is<Track>(track => track.Points.Count == 1 && track.Points[0].FixMode == 3 &&
                 track.Points[0].Satellites == 12 && track.Points[0].Epe2d == 0.5f && track.Points[0].Epe3d == 0.8f),

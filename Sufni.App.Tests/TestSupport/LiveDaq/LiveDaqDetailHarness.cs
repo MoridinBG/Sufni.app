@@ -23,7 +23,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.TestSupport.LiveDaq;
 
-internal sealed class LiveDaqDetailHarness
+internal sealed class LiveDaqDetailHarness : IDisposable
 {
     private LiveDaqSharedStreamState currentStreamState = LiveDaqSharedStreamState.Empty;
     private LiveDaqSnapshot currentCatalogSnapshot = DefaultSnapshot();
@@ -160,5 +160,14 @@ internal sealed class LiveDaqDetailHarness
                 SelectedStreamMask = LiveStreamMask.None,
             });
         }
+    }
+    public void Dispose()
+    {
+        LiveDaqStore.Dispose();
+        ManagementAvailability.Dispose();
+        Frames.Dispose();
+        StreamStates.Dispose();
+        KnownBoardsChanges.Dispose();
+        UiTimers.Dispose();
     }
 }

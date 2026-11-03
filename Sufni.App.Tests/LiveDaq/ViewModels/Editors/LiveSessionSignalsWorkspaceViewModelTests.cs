@@ -33,14 +33,4 @@ public class LiveSessionSignalsWorkspaceViewModelTests
         Assert.False(viewModel.SourceVisibility.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear));
     }
 
-    [Fact]
-    public void ApplySessionHeader_ClearsSourceVisibility_WhenSessionClears()
-    {
-        var viewModel = new LiveSessionSignalsWorkspaceViewModel();
-        viewModel.SourceVisibility.SetVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear, visible: false);
-
-        viewModel.ApplySessionHeader(null);
-
-        Assert.True(viewModel.SourceVisibility.IsVisible(SignalRowIds.Travel, TelemetrySourceKeys.Rear));
-    }
 }

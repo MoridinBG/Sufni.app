@@ -11,7 +11,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void PlaybackFailure_ReleasesTimelineAndDisablesPlayback_UntilSuccessfulReload()
     {
-        var harness = new VideoPlaybackHarness(Context(), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(), cursor: 0.25);
         using var viewModel = harness.ViewModel;
         viewModel.IsSyncEnabled = true;
         harness.Timeline.RequestPlaybackToggle();
@@ -41,21 +41,24 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void Sync_SeeksBackendToAlignedVideoTime_WhenTimelineCursorChanges()
     {
-        var harness = new VideoPlaybackHarness(Context(
+        using var harness = new VideoPlaybackHarness(Context(
             sessionOffsetSeconds: 2,
             videoDurationSeconds: 10,
             alignmentOffsetSeconds: 1));
 
-        harness.ViewModel.IsSyncEnabled = true;
+        harness.ViewModel.ToggleSyncCommand.Execute(null);
         harness.Timeline.SetCursorPosition(0.25);
 
         Assert.Equal(TimeSpan.FromSeconds(8), harness.Backend.SeekedPositions.Single());
+        harness.ViewModel.ToggleSyncCommand.Execute(null);
+        harness.Timeline.SetCursorPosition(0.5);
+        Assert.Single(harness.Backend.SeekedPositions);
     }
 
     [Fact]
     public void Sync_ClampsSeekToVideoDuration()
     {
-        var harness = new VideoPlaybackHarness(Context(
+        using var harness = new VideoPlaybackHarness(Context(
             sessionOffsetSeconds: 8,
             videoDurationSeconds: 10,
             alignmentOffsetSeconds: 5));
@@ -69,7 +72,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void PlayPause_PreservesSyncAndSuppressesSeekWhilePlaying()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30));
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30));
         harness.ViewModel.IsSyncEnabled = true;
         harness.Backend.SeekedPositions.Clear();
 
@@ -92,23 +95,9 @@ public class VideoPlaybackViewModelTests
     }
 
     [Fact]
-    public void ToggleSyncCommand_TogglesSync_WhenSyncIsAvailable()
-    {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 10));
-
-        harness.ViewModel.ToggleSyncCommand.Execute(null);
-
-        Assert.True(harness.ViewModel.IsSyncEnabled);
-
-        harness.ViewModel.ToggleSyncCommand.Execute(null);
-
-        Assert.False(harness.ViewModel.IsSyncEnabled);
-    }
-
-    [Fact]
     public void SetPlaybackContext_DisablesSync_WhenTelemetryDurationIsMissing()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 10));
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 10));
         harness.ViewModel.IsSyncEnabled = true;
 
         harness.ViewModel.SetPlaybackContext(Context(videoDurationSeconds: 10, telemetryDurationSeconds: null));
@@ -120,7 +109,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void SetPlaybackContext_SeeksToCursorWithUpdatedAlignment_WhenSyncIsEnabled()
     {
-        var harness = new VideoPlaybackHarness(
+        using var harness = new VideoPlaybackHarness(
             Context(sessionOffsetSeconds: 2, videoDurationSeconds: 20, alignmentOffsetSeconds: 1),
             cursor: 0.25);
         harness.ViewModel.IsSyncEnabled = true;
@@ -138,7 +127,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlaybackToggle_StartsPlaybackFromCursor_AndPreservesSync()
     {
-        var harness = new VideoPlaybackHarness(
+        using var harness = new VideoPlaybackHarness(
             Context(sessionOffsetSeconds: 2, videoDurationSeconds: 10, alignmentOffsetSeconds: 1),
             cursor: 0.25);
         harness.ViewModel.IsSyncEnabled = true;
@@ -147,6 +136,7 @@ public class VideoPlaybackViewModelTests
         harness.Timeline.RequestPlaybackToggle();
 
         Assert.True(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.True(harness.Timeline.IsPlaybackActive);
         Assert.True(harness.Backend.IsPlaying);
         Assert.True(harness.ViewModel.IsSyncEnabled);
         Assert.Equal(TimeSpan.FromSeconds(8), Assert.Single(harness.Backend.SeekedPositions));
@@ -155,7 +145,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlaybackToggle_ResumesSyncAfterPlaybackPauses()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.ViewModel.IsSyncEnabled = true;
         harness.Timeline.RequestPlaybackToggle();
         harness.Backend.SeekedPositions.Clear();
@@ -173,7 +163,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlaybackToggle_SecondToggle_PausesPlayback()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.Timeline.RequestPlaybackToggle();
@@ -185,7 +175,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlaybackToggle_IsIgnored_WhenTelemetryDurationIsMissing()
     {
-        var harness = new VideoPlaybackHarness(
+        using var harness = new VideoPlaybackHarness(
             Context(videoDurationSeconds: 30, telemetryDurationSeconds: null),
             cursor: 0.25);
 
@@ -198,20 +188,24 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlayback_MovesTimelineCursor_AsVideoPositionAdvances()
     {
-        var harness = new VideoPlaybackHarness(
+        using var harness = new VideoPlaybackHarness(
             Context(sessionOffsetSeconds: 2, videoDurationSeconds: 30, alignmentOffsetSeconds: 1),
             cursor: 0);
         harness.Timeline.RequestPlaybackToggle();
+        harness.Backend.SeekedPositions.Clear();
 
         harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(8));
 
         Assert.Equal(0.25, harness.Timeline.NormalizedCursorPosition);
+        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
+        Assert.Equal(0.35, harness.Timeline.NormalizedCursorPosition);
+        Assert.Empty(harness.Backend.SeekedPositions);
     }
 
     [Fact]
     public void TimelinePlayback_ClampsCursor_WhenVideoRunsPastTelemetryEnd()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 60), cursor: 0.9);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 60), cursor: 0.9);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(45));
@@ -222,7 +216,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlayback_DoesNotMoveCursor_WhenInactive()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.5);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.5);
 
         harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
 
@@ -232,19 +226,20 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlaybackStopRequest_PausesActivePlayback()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.Timeline.RequestPlaybackStop();
 
         Assert.False(harness.ViewModel.IsTimelinePlaybackActive);
+        Assert.False(harness.Timeline.IsPlaybackActive);
         Assert.False(harness.Backend.IsPlaying);
     }
 
     [Fact]
     public void TimelinePlaybackStopRequest_DoesNotStartPlayback_WhenInactive()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
 
         harness.Timeline.RequestPlaybackStop();
 
@@ -255,7 +250,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void TimelinePlayback_Deactivates_WhenBackendStopsOnItsOwn()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.Backend.SimulateEndReached();
@@ -265,22 +260,9 @@ public class VideoPlaybackViewModelTests
     }
 
     [Fact]
-    public void TimelinePlayback_CursorUpdatesDoNotSeekBackend()
-    {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
-        harness.Timeline.RequestPlaybackToggle();
-        harness.Backend.SeekedPositions.Clear();
-
-        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
-        harness.Backend.RaisePositionChanged(TimeSpan.FromSeconds(11));
-
-        Assert.Empty(harness.Backend.SeekedPositions);
-    }
-
-    [Fact]
     public void TimelinePlayback_Deactivates_WhenTelemetryDurationDisappears()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.ViewModel.SetPlaybackContext(Context(videoDurationSeconds: 30, telemetryDurationSeconds: null));
@@ -289,30 +271,9 @@ public class VideoPlaybackViewModelTests
     }
 
     [Fact]
-    public void TimelinePlaybackToggle_MarksTimelineAsPlaybackDriven()
-    {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
-
-        harness.Timeline.RequestPlaybackToggle();
-
-        Assert.True(harness.Timeline.IsPlaybackActive);
-    }
-
-    [Fact]
-    public void TimelinePlaybackStop_ClearsPlaybackDrivenFlagOnTimeline()
-    {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
-        harness.Timeline.RequestPlaybackToggle();
-
-        harness.Timeline.RequestPlaybackStop();
-
-        Assert.False(harness.Timeline.IsPlaybackActive);
-    }
-
-    [Fact]
     public void Dispose_ClearsPlaybackDrivenFlagOnTimeline_WhileActive()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.ViewModel.Dispose();
@@ -323,7 +284,7 @@ public class VideoPlaybackViewModelTests
     [Fact]
     public void SetBackend_Null_ReleasesTimelinePlayback()
     {
-        var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
+        using var harness = new VideoPlaybackHarness(Context(videoDurationSeconds: 30), cursor: 0.25);
         harness.Timeline.RequestPlaybackToggle();
 
         harness.ViewModel.SetBackend(null);
@@ -333,7 +294,7 @@ public class VideoPlaybackViewModelTests
     }
 }
 
-internal sealed class VideoPlaybackHarness
+internal sealed class VideoPlaybackHarness : IDisposable
 {
     public VideoPlaybackHarness(
         VideoPlaybackContext? context = null,
@@ -352,6 +313,8 @@ internal sealed class VideoPlaybackHarness
             ViewModel.SetPlaybackContext(context);
         }
     }
+
+    public void Dispose() => ViewModel.Dispose();
 
     public FakeVideoPlaybackBackend Backend { get; } = new();
     public TestRecordedSessionTimeline Timeline { get; } = new();

@@ -12,7 +12,7 @@ using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.SyncAndPairing.Models;
 namespace Sufni.App.Tests.SyncAndPairing.Coordinators;
 
-public class PairingClientCoordinatorTests
+public class PairingClientCoordinatorTests : IDisposable
 {
     private const string DisplayNameKey = "DisplayName";
 
@@ -65,8 +65,6 @@ public class PairingClientCoordinatorTests
         peerChanges.OnNext(isPaired ? peer : null);
     }
 
-    private static Task DrainInitializationAsync(PairingClientCoordinator coordinator) => coordinator.InitializeAsync();
-
     // ----- Constructor startup -----
 
     [Fact]
@@ -82,7 +80,7 @@ public class PairingClientCoordinatorTests
         coordinator.DeviceIdChanged += (_, _) => eventRaised = true;
 
         deviceIdGate.SetResult("stored-id");
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         Assert.Equal("stored-id", coordinator.DeviceId);
         Assert.True(eventRaised);
@@ -104,7 +102,7 @@ public class PairingClientCoordinatorTests
             friendlyName: friendlyName);
 
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         Assert.Equal(expectedDisplayName, coordinator.DisplayName);
         if (!expectsFriendlyNameRead)
@@ -125,26 +123,10 @@ public class PairingClientCoordinatorTests
         using var coordinator = CreateCoordinator();
 
         deviceIdGate.SetResult("device-123");
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         Assert.Equal(PairingClientState.Paired, coordinator.State);
         await httpApiService.Received(1).InitializeAsync();
-    }
-
-    [Fact]
-    public async Task PeerArrival_PublishesPairedState()
-    {
-        SeedInitDefaults(isPaired: false);
-        using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-
-        var isPairedChanged = 0;
-        using var observation = coordinator.States.Skip(1).Subscribe(_ => isPairedChanged++);
-
-        peerChanges.OnNext(peer);
-
-        Assert.Equal(PairingClientState.Paired, coordinator.State);
-        Assert.Equal(1, isPairedChanged);
     }
 
     [Fact]
@@ -152,7 +134,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         var resolving = coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(5));
         time.Advance(TimeSpan.FromSeconds(4));
@@ -168,7 +150,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
             new ServiceAnnouncementEventArgs(new ServiceAnnouncement(IPAddress.Parse("192.168.1.10"), 8443)));
@@ -185,7 +167,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         var resolving = coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(1));
         serviceDiscovery.Received(1).StartBrowse(SynchronizationProtocol.ServiceType);
@@ -206,7 +188,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         coordinator.StartBrowsing();
 
         var resolving = coordinator.ResolvePeerAsync(TimeSpan.FromSeconds(1));
@@ -238,7 +220,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults();
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         var urlChanged = false;
         coordinator.ServerUrlChanged += (_, _) => urlChanged = true;
@@ -256,7 +238,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults();
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -273,7 +255,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults();
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -296,7 +278,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults();
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -319,7 +301,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults();
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
 
         serviceDiscovery.ServiceAdded += Raise.EventWith(
             serviceDiscovery,
@@ -387,18 +369,6 @@ public class PairingClientCoordinatorTests
     // ----- ConfirmPairingAsync -----
 
     [Fact]
-    public async Task ConfirmPairingAsync_ForwardsNormalizedDisplayNameAndPin_ToHttp()
-    {
-        SeedInitDefaults(existingDeviceId: "device-123");
-        using var coordinator = CreateCoordinator();
-
-        var result = await coordinator.ConfirmPairingAsync("  My Phone  ", "1234");
-
-        Assert.IsType<ConfirmPairingResult.Paired>(result);
-        await httpApiService.Received(1).ConfirmPairingAsync("device-123", "My Phone", "1234");
-    }
-
-    [Fact]
     public async Task ConfirmPairingAsync_HappyPath_FromFallbackName_RaisesDisplayNameChanged()
     {
         SeedInitDefaults(
@@ -407,7 +377,7 @@ public class PairingClientCoordinatorTests
             friendlyName: "phone",
             isPaired: false);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         Assert.Equal("phone", coordinator.DisplayName);
 
         var displayNameChanged = 0;
@@ -415,39 +385,15 @@ public class PairingClientCoordinatorTests
         coordinator.DisplayNameChanged += (_, _) => displayNameChanged++;
         using var observation = coordinator.States.Skip(1).Subscribe(_ => isPairedChanged++);
 
-        var result = await coordinator.ConfirmPairingAsync("new name", "1234");
+        var result = await coordinator.ConfirmPairingAsync("  new name  ", "1234");
 
         Assert.IsType<ConfirmPairingResult.Paired>(result);
+        await httpApiService.Received(1).ConfirmPairingAsync("device-123", "new name", "1234");
         Assert.Equal("new name", coordinator.DisplayName);
         Assert.Equal(PairingClientState.Paired, coordinator.State);
         Assert.Equal(1, displayNameChanged);
         Assert.Equal(1, isPairedChanged);
         await secureStorage.Received(1).SetStringAsync(DisplayNameKey, "new name");
-    }
-
-    [Fact]
-    public async Task ConfirmPairingAsync_HappyPath_ReConfirmWithSameName_DoesNotRaiseDisplayNameChanged()
-    {
-        SeedInitDefaults(
-            existingDeviceId: "device-123",
-            existingDisplayName: "same name",
-            isPaired: false);
-        using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
-        Assert.Equal("same name", coordinator.DisplayName);
-
-        var displayNameChanged = 0;
-        var isPairedChanged = 0;
-        coordinator.DisplayNameChanged += (_, _) => displayNameChanged++;
-        using var observation = coordinator.States.Skip(1).Subscribe(_ => isPairedChanged++);
-
-        var result = await coordinator.ConfirmPairingAsync("same name", "1234");
-
-        Assert.IsType<ConfirmPairingResult.Paired>(result);
-        Assert.Equal("same name", coordinator.DisplayName);
-        Assert.Equal(PairingClientState.Paired, coordinator.State);
-        Assert.Equal(0, displayNameChanged);
-        Assert.Equal(1, isPairedChanged);
     }
 
     [Fact]
@@ -458,7 +404,7 @@ public class PairingClientCoordinatorTests
             existingDisplayName: "previous",
             isPaired: false);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         httpApiService.ConfirmPairingAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>())
             .ThrowsAsync(new InvalidOperationException("boom"));
 
@@ -500,7 +446,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(existingDeviceId: "device-123", isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         Assert.Equal(PairingClientState.Paired, coordinator.State);
 
         var isPairedChanged = 0;
@@ -519,7 +465,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(existingDeviceId: "device-123", isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         httpApiService.UnpairAsync(Arg.Any<string>())
             .Returns(_ =>
             {
@@ -538,7 +484,7 @@ public class PairingClientCoordinatorTests
     {
         SeedInitDefaults(existingDeviceId: "device-123", isPaired: true);
         using var coordinator = CreateCoordinator();
-        await DrainInitializationAsync(coordinator);
+        await coordinator.InitializeAsync();
         httpApiService.UnpairAsync(Arg.Any<string>())
             .Returns(_ =>
             {
@@ -551,4 +497,5 @@ public class PairingClientCoordinatorTests
         Assert.Equal(PairingFailureReason.Unpair, Assert.IsType<UnpairResult.Failed>(result).Reason);
         Assert.Equal(PairingClientState.Unpaired, coordinator.State);
     }
+    public void Dispose() => peerChanges.Dispose();
 }

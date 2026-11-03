@@ -216,74 +216,6 @@ public class SyncCoordinatorClientRunTests : IDisposable
         Assert.True(pushes[1].UpperBound > pushes[0].UpperBound);
     }
 
-    [Fact]
-    public async Task SyncAll_PushesSynchronizationDataFromDatabase()
-    {
-        var trackId = Guid.NewGuid();
-        var localChanges = new SynchronizationData
-        {
-            Sessions =
-            [
-                new Session(Guid.NewGuid(), "session", "desc", null, 1234)
-                {
-                    Updated = 10
-                }
-            ],
-            Tracks =
-            [
-                new Track
-                {
-                    Id = trackId,
-                    Points =
-                    [
-                        new TrackPoint(1234, 1, 1, 0),
-                        new TrackPoint(1235, 2, 2, 0)
-                    ],
-                    Updated = 9
-                }
-            ]
-        };
-
-        syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetLastPullSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(localChanges);
-        httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 12 });
-
-        await CreateCoordinator().RunSyncAsync();
-
-        await httpApiService.Received(1).PushSyncAsync(Arg.Is<SynchronizationData>(data =>
-            ReferenceEquals(data, localChanges) && data.UpperBound == 9), Arg.Any<CancellationToken>());
-        await syncDataStore.Received(1).UpdateLastPushSequenceAsync(
-            SyncTestServerHarness.Peer,
-            localChanges.UpperBound);
-        await syncDataStore.Received(1).UpdateLastPullSequenceAsync(
-            SyncTestServerHarness.Peer,
-            12);
-    }
-
-    [Fact]
-    public async Task SyncAll_UsesIndependentExclusivePushAndPullSequences()
-    {
-        var localChanges = new SynchronizationData();
-        syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(8);
-        syncDataStore.GetLastPullSequenceAsync(SyncTestServerHarness.Peer).Returns(40);
-        syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 8, Arg.Any<long>()).Returns(localChanges);
-        httpApiService.PullSyncAsync(40, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 45 });
-
-        await CreateCoordinator().RunSyncAsync();
-
-        await syncDataStore.Received(1).GetSynchronizationDataAsync(SynchronizationDirection.Push,
-            8,
-            Arg.Is<long>(upper => upper == localChanges.UpperBound && upper > 0));
-        await httpApiService.Received(1).PullSyncAsync(40, Arg.Any<CancellationToken>());
-        await syncDataStore.Received(1).UpdateLastPushSequenceAsync(
-            SyncTestServerHarness.Peer,
-            localChanges.UpperBound);
-        await syncDataStore.Received(1).UpdateLastPullSequenceAsync(
-            SyncTestServerHarness.Peer,
-            45);
-    }
-
     [Theory]
     [InlineData(System.Net.HttpStatusCode.InternalServerError, SyncFailureReason.Synchronize)]
     [InlineData(System.Net.HttpStatusCode.UpgradeRequired, SyncFailureReason.ProtocolMismatch)]
@@ -305,50 +237,6 @@ public class SyncCoordinatorClientRunTests : IDisposable
             Arg.Any<long>());
         await httpApiService.DidNotReceive().PullSyncAsync(Arg.Any<long>(), Arg.Any<CancellationToken>());
     }
-
-    [Fact]
-    public async Task SyncAll_AppliesPulledChangesThroughRemoteSynchronizationPath()
-    {
-        var trackId = Guid.NewGuid();
-        var remoteChanges = new SynchronizationData
-        {
-            Sessions =
-            [
-                new Session(Guid.NewGuid(), "remote", "desc", null, 1234)
-                {
-                    Updated = 20
-                }
-            ],
-            Tracks =
-            [
-                new Track
-                {
-                    Id = trackId,
-                    Points =
-                    [
-                        new TrackPoint(1234, 1, 1, 0),
-                        new TrackPoint(1235, 2, 2, 0)
-                    ],
-                    Updated = 19
-                }
-            ],
-        };
-
-        syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetLastPullSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(remoteChanges);
-
-        await CreateCoordinator().RunSyncAsync();
-
-        await syncDataStore.Received(1).ApplyRemoteSynchronizationDataAsync(Arg.Is<SynchronizationData>(data =>
-            data.Sessions.Count == 1 &&
-            data.Tracks.Count == 1 &&
-            data.Tracks[0].Id == trackId));
-        await sessionRepository.DidNotReceive().PutSessionAsync(Arg.Any<Session>());
-    }
-
-
 
     [Fact]
     public async Task SyncAll_HoldsPullCursor_WhenSwapDoesNotResolve()
@@ -449,7 +337,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
     }
 
     [Fact]
-    public async Task SyncAll_CompletesFillDownloads_BeforeAnySwapDownloadStarts()
+    public async Task SyncAll_CompletesFillDownloads_AndCommits_BeforeAnySwapDownloadStarts()
     {
         var fillId = Guid.NewGuid();
         var swapId = Guid.NewGuid();
@@ -475,6 +363,15 @@ public class SyncCoordinatorClientRunTests : IDisposable
         sessionRepository.GetSessionAsync(fillId).Returns(new Session(fillId, "fill", "", null));
         sessionRepository.GetSessionAsync(swapId).Returns(new Session(swapId, "swap", "", null));
 
+        var commitStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var commit = new TaskCompletionSource<SessionDataApplyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.SessionSyncApplier.ApplyDownloadedAsync(
+            Arg.Is<SessionSnapshot>(snapshot => snapshot.Id == fillId), Arg.Any<SessionBlobPayload>(),
+            fillFingerprint, Arg.Any<SessionProcessedGeneration?>()).Returns(_ =>
+        {
+            commitStarted.SetResult();
+            return commit.Task;
+        });
         var syncTask = CreateCoordinator().RunSyncAsync();
 
         // The swap pass must not start while a fill download is still pending.
@@ -482,22 +379,16 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>());
 
         fillDownload.SetResult(new SynchronizationTransferResult<SessionBlobPayload>(new SessionBlobPayload(fillFingerprint, [4, 5, 6]), SynchronizationTransferStatus.Completed));
+        await commitStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        try
+        {
+            await httpApiService.DidNotReceive().GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>());
+            Assert.False(syncTask.IsCompleted);
+        }
+        finally { commit.TrySetResult(SessionDataApplyResult.Applied); }
         await syncTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         await httpApiService.Received(1).GetSessionPsstAsync(swapId, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SyncAll_ReturnsCompleted_WhenCompletenessVerificationPasses()
-    {
-        syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetLastPullSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 12 });
-
-        var result = await CreateCoordinator().RunSyncAsync();
-
-        Assert.IsType<SynchronizationRunResult.Completed>(result);
     }
 
     [Fact]
@@ -521,38 +412,6 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await syncDataStore.Received(1).UpdateLastPullSequenceAsync(
             SyncTestServerHarness.Peer,
             12);
-    }
-
-    [Fact]
-    public async Task SyncAll_VerifiesCompletenessAfterPullingRecordedSources()
-    {
-        var calls = new List<string>();
-        syncDataStore.GetLastPushSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetLastPullSequenceAsync(SyncTestServerHarness.Peer).Returns(5);
-        syncDataStore.GetSynchronizationDataAsync(SynchronizationDirection.Push, 5, Arg.Any<long>()).Returns(new SynchronizationData());
-        httpApiService.PullSyncAsync(5, Arg.Any<CancellationToken>()).Returns(new SynchronizationData { UpperBound = 12 });
-        recordedSessionSourceSyncQuery.GetSourceSyncTargetIdsAsync()
-            .Returns(_ =>
-            {
-                calls.Add("pull-sources");
-                return Task.FromResult<IReadOnlyList<Guid>>([]);
-            });
-        sessionRepository.GetIncompleteSessionIdsAsync()
-            .Returns(_ =>
-            {
-                calls.Add("verify-sessions");
-                return Task.FromResult(new List<Guid>());
-            });
-        recordedSessionSourceRepository.GetSessionIdsMissingRecordedSourceAsync()
-            .Returns(_ =>
-            {
-                calls.Add("verify-sources");
-                return Task.FromResult(new List<Guid>());
-            });
-
-        await CreateCoordinator().RunSyncAsync();
-
-        Assert.Equal(["pull-sources", "verify-sessions", "verify-sources"], calls);
     }
 
     [Fact]
@@ -669,7 +528,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
             return;
         }
 
-        await CreateCoordinator().RunSyncAsync();
+        var result = await CreateCoordinator().RunSyncAsync();
 
         if (outcome is PulledRecordedSourceOutcome.Persisted or PulledRecordedSourceOutcome.ExistingSource)
         {
@@ -680,6 +539,7 @@ public class SyncCoordinatorClientRunTests : IDisposable
                 saved.SchemaVersion == source.SchemaVersion &&
                 saved.SourceHash == source.SourceHash &&
                 saved.Payload.SequenceEqual(source.Payload)));
+            Assert.IsType<SynchronizationRunResult.Completed>(result);
             Assert.Equal(storedSnapshot, sourceStore.Get(source.SessionId));
             return;
         }
@@ -687,6 +547,9 @@ public class SyncCoordinatorClientRunTests : IDisposable
         await recordedSessionSourceRepository.DidNotReceive().PutRecordedSessionSourceAsync(
             Arg.Any<RecordedSessionSource>());
         Assert.Null(sourceStore.Get(source.SessionId));
+        var incomplete = Assert.IsType<SynchronizationRunResult.IncompleteData>(result);
+        Assert.Equal(new SynchronizationPendingTransfer(source.SessionId,
+            SynchronizationTransferKind.RecordedSource, SynchronizationDirection.Pull), Assert.Single(incomplete.PendingTransfers));
     }
 
     [Fact]
@@ -705,14 +568,13 @@ public class SyncCoordinatorClientRunTests : IDisposable
         httpApiService.GetRecordedSessionSourceAsync(first.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(firstTransfer, SynchronizationTransferStatus.Completed));
         httpApiService.GetRecordedSessionSourceAsync(second.SessionId, Arg.Any<CancellationToken>()).Returns(new SynchronizationTransferResult<RecordedSessionSourcePayload>(secondTransfer, SynchronizationTransferStatus.Completed));
 
+        var publications = new List<(string? First, string? Second)>();
+        using var observation = sourceStore.Connect().Where(changes => changes.Count > 0).Subscribe(_ =>
+            publications.Add((sourceStore.Get(first.SessionId)?.SourceHash, sourceStore.Get(second.SessionId)?.SourceHash)));
+
         await CreateCoordinator().RunSyncAsync();
 
-        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
-            saved.SessionId == first.SessionId &&
-            saved.Payload.SequenceEqual(first.Payload)));
-        await recordedSessionSourceRepository.Received(1).PutRecordedSessionSourceAsync(Arg.Is<RecordedSessionSource>(saved =>
-            saved.SessionId == second.SessionId &&
-            saved.Payload.SequenceEqual(second.Payload)));
+        Assert.Equal([(first.SourceHash, second.SourceHash)], publications);
         Assert.Equal(first.SourceHash, sourceStore.Get(first.SessionId)?.SourceHash);
         Assert.Equal(second.SourceHash, sourceStore.Get(second.SessionId)?.SourceHash);
 

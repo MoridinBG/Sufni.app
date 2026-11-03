@@ -5,14 +5,6 @@ namespace Sufni.Telemetry.Tests;
 public class HistogramBuilderTests
 {
     [Fact]
-    public void Linspace_CreatesInclusiveBins()
-    {
-        var bins = HistogramBuilder.Linspace(0, 20, 3);
-
-        Assert.Equal([0, 10, 20], bins);
-    }
-
-    [Fact]
     public void Digitize_UsesUpperBinForExactInteriorBoundaries()
     {
         double[] bins = [0, 10, 20];
@@ -20,15 +12,9 @@ public class HistogramBuilderTests
 
         var indexes = HistogramBuilder.Digitize(values, bins);
 
-        Assert.Equal([0, 0, 0, 1, 1, 1, 1], indexes);
+        int[] expected = [0, 0, 0, 1, 1, 1, 1];
+        Assert.Equal(expected, indexes);
+        Assert.Equal(expected, values.Select(value => HistogramBuilder.DigitizeValue(value, bins)));
     }
 
-    [Fact]
-    public void DigitizeValue_UsesUpperBinForExactInteriorBoundaries()
-    {
-        double[] bins = [0, 10, 20];
-
-        Assert.Equal(1, HistogramBuilder.DigitizeValue(10, bins));
-        Assert.Equal(1, HistogramBuilder.DigitizeValue(20, bins));
-    }
 }

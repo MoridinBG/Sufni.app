@@ -4,35 +4,23 @@ namespace Sufni.Telemetry.Tests;
 
 public class FixedRateSegmentBuilderTests
 {
-    [Fact]
-    public void CreateSnapshot_SharesSealedChunksButKeepsOlderTailImmutable()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void CreateSnapshot_SharesSealedChunksButKeepsOlderTailImmutable(int initialCount)
     {
         var builder = CreateBuilder(storageChunkSize: 2);
-        AddValues(builder, 0, 1, 2);
+        AddValues(builder, Enumerable.Range(0, initialCount).ToArray());
 
         var olderSnapshot = builder.CreateSnapshot();
 
-        AddValues(builder, 3, 4);
+        AddValues(builder, initialCount, initialCount + 1);
         var newerSnapshot = builder.CreateSnapshot();
 
         var olderSegment = Assert.Single(olderSnapshot);
-        Assert.Equal([0, 1, 2], olderSegment.Values.ToArray());
+        Assert.Equal(Enumerable.Range(0, initialCount), olderSegment.Values.ToArray());
         var newerSegment = Assert.Single(newerSnapshot);
-        Assert.Equal([0, 1, 2, 3, 4], newerSegment.Values.ToArray());
-    }
-
-    [Fact]
-    public void CreateSnapshot_FullTailRemainsImmutableAfterItBecomesSealed()
-    {
-        var builder = CreateBuilder(storageChunkSize: 2);
-        AddValues(builder, 0, 1);
-
-        var olderSnapshot = builder.CreateSnapshot();
-
-        AddValues(builder, 2);
-
-        Assert.Equal([0, 1], Assert.Single(olderSnapshot).Values.ToArray());
-        Assert.Equal([0, 1, 2], Assert.Single(builder.CreateSnapshot()).Values.ToArray());
+        Assert.Equal(Enumerable.Range(0, initialCount + 2), newerSegment.Values.ToArray());
     }
 
     [Fact]
@@ -101,9 +89,7 @@ public class FixedRateSegmentBuilderTests
         builder.AddValidSample(10, firstMonotonicDeltaUs, 1, rateMhz);
         builder.AddValidSample(11, 1_333_000, 2, rateMhz);
 
-        var expectedEndMonotonicDeltaUs = firstMonotonicDeltaUs +
-            SstV5CompactPayloadDecoder.RoundDurationUs(2, rateMhz);
-        Assert.Equal(expectedEndMonotonicDeltaUs, builder.LatestEndMonotonicDeltaUs);
+        Assert.Equal((ulong)1_666_667, builder.LatestEndMonotonicDeltaUs);
     }
 
     [Fact]

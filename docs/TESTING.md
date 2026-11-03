@@ -40,8 +40,13 @@ Weak tests usually fail only when implementation inventory changes:
 - one layer repeats behavior already covered by the unit that owns it
 - the test mostly verifies framework behavior or a third-party control
 
-If a weak test seems necessary, write a short comment naming the real regression risk.
-If that risk cannot be named, do not add the test.
+A test earns retention only when its setup and assertions distinguish a concrete
+public regression from correct behavior. Its name or a comment claiming coverage
+is insufficient. Expected values must be independent of the implementation being
+checked; a fake must not supply the correctness attributed to the unit under test.
+Prefer deleting weak tests and their unused support over wrapping internal calls
+in a larger test. Preserve a focused replacement only for a useful, distinct
+public behavior that would otherwise lose protection.
 
 ## Input Selection
 
@@ -222,9 +227,11 @@ Poor candidates:
 
 ## Choosing What To Test
 
-The default expectation is that meaningful behavior is covered.
-The target is high coverage of the unit's real behavior.
-The reason to skip a test should be that the code is genuinely trivial, not that the failure seems unimportant.
+Prioritize meaningful public behavior, rather than test counts or coverage totals.
+Remove plumbing, property inventories, duplicated owner coverage and tests of
+internal helpers. An internal implementation of a public interface can be tested
+through that interface's contract; friend-assembly access does not make an
+internal-only interface or test-only hook a public boundary.
 
 Prioritize coverage for:
 

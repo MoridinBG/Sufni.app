@@ -598,11 +598,6 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
         RecalculateHeadAngle();
     }
 
-    internal void HandleLinkagePreviewChangedForTests(LinkagePreviewChangedEventArgs args)
-    {
-        HandleLinkagePreviewChanged(args);
-    }
-
     private void OnLinkageEditorPreviewChanged(object? sender, LinkagePreviewChangedEventArgs e)
     {
         HandleLinkagePreviewChanged(e);

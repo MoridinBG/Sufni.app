@@ -82,6 +82,8 @@ internal static class TestCoordinatorSubstitutes
         coordinator.SavePreferencesAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>()).Returns(new SessionPreferenceSaveResult.Saved());
         coordinator.ReconcileStalenessAsync(Arg.Any<RecordedSessionDomainSnapshot>(), Arg.Any<SessionRecomputeChoice>(),
             Arg.Any<IProgress<SessionRecomputeAllProgress>>()).Returns(new SessionStalenessReconciliation.Current());
+        coordinator.RecomputeAsync(Arg.Any<Guid>())
+            .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
         return coordinator;
     }
 
@@ -96,14 +98,6 @@ internal static class TestCoordinatorSubstitutes
             .Returns(new SessionDetailTrackLoadResult.Loaded(
                 new SessionTrackPresentationData(null, null, null)));
         return loader;
-    }
-
-    public static ISessionRecomputeEngine RecomputeEngine()
-    {
-        var engine = Substitute.For<ISessionRecomputeEngine>();
-        engine.RequestRecomputeAsync(Arg.Any<Guid>())
-            .Returns(new SessionRecomputeResult.NotRecomputable(new SessionStaleness.MissingRawSource()));
-        return engine;
     }
 
     public static ILiveDaqCoordinator LiveDaq()

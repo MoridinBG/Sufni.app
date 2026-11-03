@@ -1,31 +1,30 @@
-using System.Buffers.Binary;
-using System.Security.Cryptography;
-
 namespace Sufni.Telemetry.Tests;
 
 public class TelemetryNormalDistributionTests
 {
-    [Fact]
-    public void CalculateNormalDistribution_PreservesExactFullRangeFingerprint()
+    [Theory]
+    [InlineData(false, -4.5, 6.25, 0.5714285714285714, 14.869047619047619)]
+    [InlineData(true, -3.25, 2.75, 0, 9.1875)]
+    public void CalculateNormalDistribution_UsesOnlyWholeActiveStrokes(
+        bool selectRange, double minimum, double maximum, double mean, double variance)
     {
-        var telemetry = CreateTelemetry();
-
-        var result = TelemetryStatistics.CalculateNormalDistribution(telemetry, SuspensionType.Front);
-
-        Assert.Equal("014c4e5eb453c19588951dde05ab5346043f59213e07f6793c9efb3f63566909", Fingerprint(result));
-    }
-
-    [Fact]
-    public void CalculateNormalDistribution_PreservesExactWholeStrokeRangeFingerprint()
-    {
-        var telemetry = CreateTelemetry();
-
         var result = TelemetryStatistics.CalculateNormalDistribution(
-            telemetry,
-            SuspensionType.Front,
-            new TelemetryTimeRange(0.1, 0.65));
+            CreateTelemetry(), SuspensionType.Front,
+            selectRange ? new TelemetryTimeRange(0.1, 0.65) : null);
 
-        Assert.Equal("f83447f1c7a597d958d4c3306fdfdcde0ec56e854a5d0dc07ce3edfd835a9d18", Fingerprint(result));
+        Assert.NotEmpty(result.Y);
+        Assert.Equal(minimum, result.Y[0], 10);
+        Assert.Equal(maximum, result.Y[^1], 10);
+        Assert.Equal(result.Y.Count, result.Pdf.Count);
+        Assert.All(result.Y.Zip(result.Y.Skip(1)), pair => Assert.True(pair.First < pair.Second));
+        for (var index = 0; index < result.Y.Count; index++)
+        {
+            var velocity = result.Y[index];
+            Assert.InRange(velocity, minimum, maximum);
+            var expected = 10_000 * Math.Exp(-Math.Pow(velocity - mean, 2) / (2 * variance)) /
+                Math.Sqrt(2 * Math.PI * variance);
+            Assert.Equal(expected, result.Pdf[index], 8);
+        }
     }
 
     private static TelemetryData CreateTelemetry()
@@ -61,26 +60,4 @@ public class TelemetryNormalDistributionTests
         };
     }
 
-    private static string Fingerprint(NormalDistributionData value)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(hash, value.Y.Count);
-        foreach (var sample in value.Y)
-        {
-            Append(hash, BitConverter.DoubleToInt64Bits(sample));
-        }
-        Append(hash, value.Pdf.Count);
-        foreach (var sample in value.Pdf)
-        {
-            Append(hash, BitConverter.DoubleToInt64Bits(sample));
-        }
-        return Convert.ToHexStringLower(hash.GetHashAndReset());
-    }
-
-    private static void Append(IncrementalHash hash, long value)
-    {
-        Span<byte> buffer = stackalloc byte[sizeof(long)];
-        BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
-        hash.AppendData(buffer);
-    }
 }

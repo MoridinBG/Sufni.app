@@ -113,22 +113,19 @@ public class InboundSyncCoordinatorTests
     }
 
     [Fact]
-    public async Task ApplyPushAsync_StaleDeleteRetainsCommittedSession_AndLedgerOnlyDeleteRemovesLayer()
+    public async Task ApplyPushAsync_StaleDeleteRetainsCommittedSession()
     {
         await using var fixture = new InboundSyncFixture(new InlineUiThreadDispatcher());
         var coordinator = fixture.CreateCoordinator();
         var session = new Session(Guid.NewGuid(), "current", "", null) { Version = 3, Updated = 8 };
-        var layer = new CustomTileLayer { Name = "Trail" };
-        await coordinator.ApplyPushAsync(new SynchronizationData { Sessions = [session], CustomTileLayers = [layer] });
+        await coordinator.ApplyPushAsync(new SynchronizationData { Sessions = [session] });
 
         Assert.Equal(InboundSyncWriteResult.Applied, await coordinator.ApplyPushAsync(new SynchronizationData
         {
-            Sessions = [new Session { Id = session.Id, Version = 2, Updated = 6, Deleted = 6 }],
-            Deletions = [new SynchronizationDeletion { EntityTable = "custom_tile_layer", Id = layer.Id, Version = 2, Updated = 6, Deleted = 6 }]
+            Sessions = [new Session { Id = session.Id, Version = 2, Updated = 6, Deleted = 6 }]
         }));
 
         Assert.Equal("current", fixture.Sessions.Get(session.Id)!.Name);
-        Assert.Null(fixture.Layers.Get(layer.Id));
     }
 
     [Fact]

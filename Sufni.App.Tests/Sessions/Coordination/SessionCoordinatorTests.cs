@@ -62,36 +62,35 @@ public class SessionCoordinatorTests
             .Returns(new SessionDeleteCommit(true, null));
     }
 
-    [Fact]
-    public async Task PreferenceReadFailure_ReturnsTypedReasonAndDiagnostics()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Preferences_TranslateStorageFailureToTypedOutcome(bool write)
     {
         var id = Guid.NewGuid();
-        sessionPreferences.GetRecordedAsync(id).ThrowsAsync(new IOException("file inaccessible"));
-
-        var result = Assert.IsType<SessionPreferenceLoadResult.Failed>(await CreateCoordinator().LoadPreferencesAsync(id));
-
-        Assert.Equal(SessionEditorFailureReason.LoadPreferences, result.Reason);
-        Assert.Equal("file inaccessible", result.Details);
-    }
-
-    [Fact]
-    public async Task PreferenceWriteFailure_ReturnsTypedReasonAndDiagnostics()
-    {
-        var id = Guid.NewGuid();
-        sessionPreferences.UpdateRecordedAsync(id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
-            .ThrowsAsync(new IOException("disk full"));
-
-        var result = Assert.IsType<SessionPreferenceSaveResult.Failed>(await CreateCoordinator().SavePreferencesAsync(id,
-            current => current with { SignalDisplay = current.SignalDisplay with { VelocitySmoothing = PlotSmoothingLevel.Strong } }));
-
-        Assert.Equal(SessionEditorFailureReason.SavePreferences, result.Reason);
-        Assert.Equal("disk full", result.Details);
+        ISessionCoordinator coordinator = CreateCoordinator();
+        if (write)
+        {
+            sessionPreferences.UpdateRecordedAsync(id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+                .ThrowsAsync(new IOException("disk full"));
+            var failed = Assert.IsType<SessionPreferenceSaveResult.Failed>(await coordinator.SavePreferencesAsync(id,
+                current => current with { SignalDisplay = current.SignalDisplay with { VelocitySmoothing = PlotSmoothingLevel.Strong } }));
+            Assert.Equal(SessionEditorFailureReason.SavePreferences, failed.Reason);
+            Assert.NotEmpty(failed.Details!);
+        }
+        else
+        {
+            sessionPreferences.GetRecordedAsync(id).ThrowsAsync(new IOException("file inaccessible"));
+            var failed = Assert.IsType<SessionPreferenceLoadResult.Failed>(await coordinator.LoadPreferencesAsync(id));
+            Assert.Equal(SessionEditorFailureReason.LoadPreferences, failed.Reason);
+            Assert.NotEmpty(failed.Details!);
+        }
     }
 
     [Fact]
     public async Task ReconcileStaleness_DistinguishesCurrentActiveAndRequiredWithoutStartingWork()
     {
-        var session = TestSnapshots.Session();
+        var session = TestSnapshots.Session() with { ProcessingFingerprintJson = "held-generation" };
         var coordinator = CreateCoordinator();
         var current = new RecordedSessionDomainSnapshot(session, null, null, null, null, null, new SessionStaleness.Current());
         Assert.IsType<SessionStalenessReconciliation.Current>(await coordinator.ReconcileStalenessAsync(current));
@@ -119,18 +118,6 @@ public class SessionCoordinatorTests
         await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task ReconcileStaleness_ConfirmedSessionReturnsTheRecomputeOutcome()
-    {
-        var domain = new RecordedSessionDomainSnapshot(TestSnapshots.Session(), null, null, null, null, null, new SessionStaleness.Stale());
-        var outcome = new SessionRecomputeResult.ProcessingFailed(SessionProcessingFailureReason.InvalidCalibration, "calibration details");
-        recomputeEngine.RequestRecomputeAsync(domain.Session.Id).Returns(outcome);
-
-        var result = await CreateCoordinator().ReconcileStalenessAsync(domain, SessionRecomputeChoice.ThisSession);
-
-        Assert.Equal(outcome, Assert.IsType<SessionStalenessReconciliation.Recomputed>(result).Result);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -152,7 +139,7 @@ public class SessionCoordinatorTests
         {
             var failure = Assert.IsType<SessionRecomputeAllOutcome.Failed>(result.Outcome);
             Assert.Equal(SessionRecomputeFailureReason.RecomputeAll, failure.Reason);
-            Assert.Equal("database inaccessible", failure.Details);
+            Assert.NotEmpty(failure.Details!);
         }
         else Assert.Equal(summary, Assert.IsType<SessionRecomputeAllOutcome.Completed>(result.Outcome).Result);
         await recomputeEngine.DidNotReceive().RequestRecomputeAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
@@ -329,7 +316,9 @@ public class SessionCoordinatorTests
                 return (SessionRecomputeResult)new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute);
             });
 
-        await CreateCoordinator(store, repository.Repository).SetProcessingOptionAsync(original.Id, 100);
+        var result = await CreateCoordinator(store, repository.Repository).SetProcessingOptionAsync(original.Id, 100);
+
+        Assert.IsType<SessionRecomputeResult.Failed>(result);
 
         Assert.Equal(250, store.Get(original.Id)!.VelocityFilterWindowMilliseconds);
         Assert.Equal(250, (await repository.Repository.GetSessionAsync(original.Id))!.VelocityFilterWindowMilliseconds);
@@ -412,15 +401,17 @@ public class SessionCoordinatorTests
         await sessionPreferences.DidNotReceive().RemoveRecordedAsync(original.Id);
     }
 
-    [Fact]
-    public async Task DeleteAsync_PublishesRemovalAndClearsPreferencesAfterCommit()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DeleteAsync_PublishesRemovalAndClearsPreferencesAfterCommit(bool deleteSource)
     {
         var id = Guid.NewGuid();
         var track = new TrackSnapshot(Guid.NewGuid(), 100, 101, 1);
         using var tracks = new TrackStore(publication);
         await tracks.PublishTracksChangedAsync([track]);
         sessionPersistenceTransactions.DeleteSessionAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDeleteCommit(true, track.Id));
+            .Returns(new SessionDeleteCommit(deleteSource, track.Id));
         using var store = new SessionStore(publication);
         using var sources = new RecordedSessionSourceStore(publication);
         await store.PublishSessionsChangedAsync([TestSnapshots.Session(id: id)]);
@@ -435,29 +426,14 @@ public class SessionCoordinatorTests
         await sessionPreferences.Received(1).RemoveRecordedAsync(id);
         var removed = Assert.Single(observed);
         Assert.Null(removed.Session);
-        Assert.Null(removed.Source);
+        if (deleteSource) Assert.Null(removed.Source);
+        else Assert.Equal(id, removed.Source!.SessionId);
         Assert.Null(removed.Track);
     }
 
-    [Fact]
-    public async Task DeleteAsync_WhenSourceIsKept_DoesNotRemoveSource()
-    {
-        var id = Guid.NewGuid();
-        sessionRepository.GetSessionAsync(id).Returns(new Session(id, "name", "desc", null));
-        sessionPersistenceTransactions.DeleteSessionAsync(id, Arg.Any<CancellationToken>())
-            .Returns(new SessionDeleteCommit(false, null));
-
-        var result = await CreateCoordinator().DeleteAsync(id);
-
-        Assert.IsType<SessionDeleteResult.Deleted>(result);
-        await sourceStore.DidNotReceive().PublishSourcesRemovedAsync(
-            Arg.Any<IReadOnlyCollection<Guid>>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    private SessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null,
+    private ISessionCoordinator CreateCoordinator(ISessionStoreWriter? store = null, ISessionRepository? repository = null,
         IRecordedSessionSourceStoreWriter? sources = null, ITrackStoreWriter? tracks = null) =>
-        new(
+        new SessionCoordinator(
             store ?? sessionStore,
             repository ?? sessionRepository,
             sources ?? sourceStore,

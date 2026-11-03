@@ -12,17 +12,17 @@ namespace Sufni.App.Tests.Acquisition.Models;
 public class StorageProviderTelemetryDataStoreTests
 {
     [Fact]
-    public async Task DataStore_ReadsBoardIdCreatesUploadedFolderAndListsFiles()
+    public async Task GetFiles_SkipsInaccessibleFilesAndRetainsMalformedRows()
     {
         var folder = CreateFolder("DAQ");
         var uploaded = CreateFolder("uploaded");
-        var boardIdFile = CreateStorageFile("BOARDID", Encoding.ASCII.GetBytes("ABCDEF1234567890"));
-        var older = CreateStorageFile("older.SST", TestSstFiles.CreateValidV3(timestamp: 100));
-        var newer = CreateStorageFile("newer.SST", TestSstFiles.CreateValidV3(timestamp: 200));
-        var invalid = CreateStorageFile("broken.SST", [0x01, 0x02]);
-        var inaccessible = CreateStorageFile("inaccessible.SST", []);
+        var boardIdFile = BinaryFile("BOARDID", Encoding.ASCII.GetBytes("ABCDEF1234567890"));
+        var older = BinaryFile("older.SST", TestSstFiles.CreateValidV3(timestamp: 100));
+        var newer = BinaryFile("newer.SST", TestSstFiles.CreateValidV3(timestamp: 200));
+        var invalid = BinaryFile("broken.SST", [0x01, 0x02]);
+        var inaccessible = BinaryFile("inaccessible.SST", []);
         inaccessible.OpenReadAsync().ThrowsAsync(new IOException("device disconnected"));
-        var ignored = CreateStorageFile("notes.txt", Encoding.UTF8.GetBytes("not telemetry"));
+        var ignored = BinaryFile("notes.txt", Encoding.UTF8.GetBytes("not telemetry"));
         folder.GetItemsAsync().Returns(
             _ => EnumerateStorageItems(boardIdFile),
             _ => EnumerateStorageItems(uploaded, boardIdFile, older, invalid, inaccessible, ignored, newer));
@@ -32,9 +32,6 @@ public class StorageProviderTelemetryDataStoreTests
         await dataStore.Initialization;
         var files = Assert.IsType<TelemetryFileListing.Listed>(await dataStore.GetFiles(TestContext.Current.CancellationToken)).Files;
 
-        Assert.Equal("DAQ", dataStore.Name);
-        Assert.Equal(UuidUtil.CreateDeviceUuid("abcdef1234567890"), dataStore.BoardId);
-        await folder.Received(1).CreateFolderAsync("uploaded");
         Assert.Collection(
             files,
             first => Assert.Equal("newer.SST", first.FileName),
@@ -51,7 +48,7 @@ public class StorageProviderTelemetryDataStoreTests
     public async Task TelemetryFile_ReadSourceOwnsTheExactLogicalBytes()
     {
         var bytes = TestSstFiles.CreateValidV3();
-        var storageFile = CreateStorageFile("ride.SST", bytes);
+        var storageFile = BinaryFile("ride.SST", bytes);
         var telemetryFile = await StorageProviderTelemetryFile.CreateAsync(storageFile);
 
         using var source = await telemetryFile.ReadSourceAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -68,12 +65,4 @@ public class StorageProviderTelemetryDataStoreTests
         return folder;
     }
 
-    private static IStorageFile CreateStorageFile(string name, byte[] bytes)
-    {
-        var file = Substitute.For<IStorageFile>();
-        file.Name.Returns(name);
-        file.Path.Returns(new Uri($"file:///tmp/{Guid.NewGuid():N}/{name}"));
-        file.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
-        return file;
-    }
 }

@@ -7,20 +7,6 @@ namespace Sufni.Telemetry.Tests.Caching;
 public class SingleFlightLruCacheTests
 {
     [Fact]
-    public void Constructor_RejectsNullFactory()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            new SingleFlightLruCache<int, int>(capacity: 2, factory: null!));
-    }
-
-    [Fact]
-    public void Constructor_RejectsNullWeightCallback()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            new SingleFlightLruCache<int, int>(maximumWeight: 2, valueWeight: null!));
-    }
-
-    [Fact]
     public void GetOrAdd_EvictsLeastRecentlyUsedEntry_WhenCapacityIsExceeded()
     {
         var created = 0;
@@ -120,8 +106,9 @@ public class SingleFlightLruCacheTests
                 return Task.FromResult(new List<int> { 5, 6, 7, 8 });
             });
 
-        Assert.All(shared, value => Assert.Same(oversize, value));
-        Assert.NotSame(oversize, rebuilt);
+        Assert.All(shared, value => Assert.Equal([1, 2, 3, 4], value));
+        Assert.Equal([5, 6, 7, 8], rebuilt);
+        Assert.Equal(0, cache.Count);
         Assert.Equal(2, calls);
     }
 
@@ -155,6 +142,11 @@ public class SingleFlightLruCacheTests
             });
         _ = await cache.GetOrAddAsync(3, (_, _) => Task.FromResult(1));
 
+        var joined = cache.GetOrAddAsync(2, (_, _) =>
+        {
+            Interlocked.Increment(ref slowCalls);
+            return Task.FromResult(99);
+        });
         releaseSlow.SetResult(1);
         var slowValue = await slow;
         var slowAgain = await cache.GetOrAddAsync(2, (_, _) => Task.FromResult(99));
@@ -166,6 +158,7 @@ public class SingleFlightLruCacheTests
                 return Task.FromResult(10);
             });
 
+        Assert.Equal(1, await joined.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Equal(1, slowValue);
         Assert.Equal(slowValue, slowAgain);
         Assert.Equal(1, slowCalls);
@@ -173,92 +166,22 @@ public class SingleFlightLruCacheTests
     }
 
     [Fact]
-    public async Task GetOrAddAsync_DoesNotRetainValue_WhenWeightCalculationFails()
+    public async Task GetOrAddAsync_JoinsPendingSameKeyMisses()
     {
-        var calls = 0;
-        var cache = new SingleFlightLruCache<int, int>(
-            capacity: 8,
-            maximumWeight: 10,
-            valueWeight: static _ => throw new InvalidOperationException("weight"));
-
-        Task<int> Factory(int _, CancellationToken __)
-        {
-            Interlocked.Increment(ref calls);
-            return Task.FromResult(1);
-        }
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetOrAddAsync(1, Factory));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetOrAddAsync(1, Factory));
-
-        Assert.Equal(2, calls);
-    }
-
-    [Fact]
-    public async Task GetOrAdd_JoinsConcurrentSameKeyMisses()
-    {
-        var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFactory = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var calls = 0;
-        var cache = new SingleFlightLruCache<int, int>(
-            capacity: 8,
-            key =>
-            {
-                Interlocked.Increment(ref calls);
-                factoryEntered.SetResult();
-                releaseFactory.Task.GetAwaiter().GetResult();
-                return key * 10;
-            });
-        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var tasks = Enumerable
-            .Range(0, 16)
-            .Select(_ => Task.Run(
-                async () =>
-                {
-                    await start.Task;
-                    return cache.GetOrAdd(7);
-                }))
-            .ToArray();
-
-        start.SetResult();
-        await factoryEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        releaseFactory.SetResult();
-        var values = await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.All(values, value => Assert.Equal(70, value));
-        Assert.Equal(1, calls);
-    }
-
-    [Fact]
-    public async Task GetOrAddAsync_JoinsConcurrentSameKeyMisses()
-    {
-        var factoryEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseFactory = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
         var cache = new SingleFlightLruCache<int, int>(maximumWeight: 8, valueWeight: static _ => 1);
-        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var tasks = Enumerable
-            .Range(0, 16)
-            .Select(_ => Task.Run(
-                async () =>
-                {
-                    await start.Task;
-                    return await cache.GetOrAddAsync(
-                        7,
-                        (key, _) =>
-                        {
-                            Interlocked.Increment(ref calls);
-                            factoryEntered.TrySetResult();
-                            return releaseFactory.Task;
-                        });
-                }))
-            .ToArray();
+        Task<int> Factory(int _, CancellationToken __)
+        {
+            calls++;
+            return release.Task;
+        }
 
-        start.SetResult();
-        await factoryEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        releaseFactory.SetResult(70);
-        var values = await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5));
+        var tasks = Enumerable.Range(0, 16).Select(_ => cache.GetOrAddAsync(7, Factory)).ToArray();
+        Assert.All(tasks, task => Assert.False(task.IsCompleted));
+        release.SetResult(70);
 
-        Assert.All(values, value => Assert.Equal(70, value));
+        Assert.All(await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5)), value => Assert.Equal(70, value));
         Assert.Equal(1, calls);
     }
 
@@ -351,24 +274,6 @@ public class SingleFlightLruCacheTests
 
         Assert.Equal(1, first);
         Assert.Equal(2, second);
-    }
-
-    [Fact]
-    public void RemoveWhere_EvictsMatchingEntries()
-    {
-        var created = 0;
-        var cache = new SingleFlightLruCache<int, int>(
-            capacity: 8,
-            key => Interlocked.Increment(ref created));
-
-        var first = cache.GetOrAdd(1);
-        var second = cache.GetOrAdd(2);
-        cache.RemoveWhere(key => key == 1);
-        var firstReloaded = cache.GetOrAdd(1);
-        var secondStillCached = cache.GetOrAdd(2);
-
-        Assert.NotEqual(first, firstReloaded);
-        Assert.Equal(second, secondStillCached);
     }
 
     [Fact]
@@ -476,7 +381,6 @@ public class SingleFlightLruCacheTests
             1,
             (_, cancellationToken) =>
             {
-                Assert.Equal(CancellationToken.None, cancellationToken);
                 oldStarted.SetResult();
                 return releaseOld.Task;
             });

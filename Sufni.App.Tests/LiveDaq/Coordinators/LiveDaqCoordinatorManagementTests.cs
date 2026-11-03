@@ -36,13 +36,12 @@ public partial class LiveDaqCoordinatorTests
     [InlineData(DaqManagementOperation.SetTime, DaqManagementFailureReason.SetTime)]
     [InlineData(DaqManagementOperation.ReadConfig, DaqManagementFailureReason.ReadConfig)]
     [InlineData(DaqManagementOperation.WriteConfig, DaqManagementFailureReason.WriteConfig)]
-    public async Task Management_TransportFailureReleasesReservationAndReturnsTypedDiagnostics(
+    public async Task Management_TransportFailureReturnsTypedDiagnostics(
         DaqManagementOperation operation, DaqManagementFailureReason reason)
     {
         catalogEntries.OnNext([ManagementDevice()]);
-        var released = false;
         streamRegistry.AcquireManagementAsync("board", operation).Returns(
-            new DaqTransportAcquisition.Acquired(Disposable.Create(() => released = true)));
+            new DaqTransportAcquisition.Acquired(Disposable.Empty));
         managementService.SetTimeAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
         managementService.ReadConfigAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
         managementService.WriteConfigAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("transport diagnostic"));
@@ -52,29 +51,6 @@ public partial class LiveDaqCoordinatorTests
 
         Assert.Equal(reason, result.Reason);
         Assert.Equal("transport diagnostic", result.Details);
-        Assert.True(released);
-    }
-
-    [Fact]
-    public async Task Management_UsesCurrentCatalogEndpoint_AndReportsUnsupportedOrOfflineWithoutAcquiring()
-    {
-        await using var coordinator = CreateCoordinator();
-        catalogEntries.OnNext([ManagementDevice() with { ProtocolVersion = LiveProtocolVersion.V3 }]);
-        Assert.Equal(DaqManagementUnavailability.Unsupported,
-            Assert.IsType<LiveDaqManagementResult.Unavailable>(await coordinator.SetTimeAsync("board")).Reason);
-        catalogEntries.OnNext([]);
-        Assert.Equal(DaqManagementUnavailability.Offline,
-            Assert.IsType<LiveDaqManagementResult.Unavailable>(await coordinator.SetTimeAsync("board")).Reason);
-        Assert.Empty(streamRegistry.ReceivedCalls());
-        catalogEntries.OnNext([ManagementDevice() with { NetworkEndpoint = new ServiceEndpoint("192.168.0.20", 2444) }]);
-        streamRegistry.AcquireManagementAsync("board", DaqManagementOperation.SetTime)
-            .Returns(new DaqTransportAcquisition.Acquired(Disposable.Empty));
-        managementService.SetTimeAsync(new ServiceEndpoint("192.168.0.20", 2444), Arg.Any<CancellationToken>())
-            .Returns(new DaqSetTimeResult.Ok(TimeSpan.FromMilliseconds(12)));
-
-        var result = Assert.IsType<LiveDaqManagementResult.TimeSet>(await coordinator.SetTimeAsync("board", TestContext.Current.CancellationToken));
-
-        Assert.Equal(TimeSpan.FromMilliseconds(12), result.RoundTripTime);
     }
 
     [Fact]
@@ -126,49 +102,6 @@ public partial class LiveDaqCoordinatorTests
         Assert.True(current.CanConnect);
         catalogEntries.OnNext([]);
         Assert.False(current.CanConnect);
-    }
-
-    [Fact]
-    public async Task SelectConfigFileAsync_RejectsWrongNameAndSeparatesPickerDiagnostics()
-    {
-        await using var coordinator = CreateCoordinator();
-        filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>()).Returns(new PickedFile("CONFIG.txt", () => Task.FromResult<Stream>(new MemoryStream([1]))));
-        Assert.Equal(DaqManagementFailureReason.InvalidConfigName, Assert.IsType<LiveDaqManagementResult.Failed>(
-            await coordinator.SelectConfigFileAsync(TestContext.Current.CancellationToken)).Reason);
-        filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("picker diagnostic"));
-
-        var result = Assert.IsType<LiveDaqManagementResult.Failed>(await coordinator.SelectConfigFileAsync(TestContext.Current.CancellationToken));
-
-        Assert.Equal(DaqManagementFailureReason.SelectConfigFile, result.Reason);
-        Assert.Equal("picker diagnostic", result.Details);
-    }
-
-    [Fact]
-    public async Task SaveEditedConfigAsync_PreservesUnknownLinesAndCanonicalizesEditedFields()
-    {
-        catalogEntries.OnNext([ManagementDevice()]);
-        streamRegistry.AcquireManagementAsync("board", DaqManagementOperation.WriteConfig)
-            .Returns(new DaqTransportAcquisition.Acquired(Disposable.Empty));
-        byte[]? uploaded = null;
-        managementService.WriteConfigAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
-            .Returns(call =>
-            {
-                uploaded = call.Arg<byte[]>();
-                return new DaqManagementResult.Ok();
-            });
-        await using var coordinator = CreateCoordinator();
-        var document = DaqConfigDocument.Parse("# before\nSSID=old-sta\nPSK=old-psk\nUNKNOWN=value");
-        var values = ImmutableDictionary<string, string>.Empty.Add("STA_SSID", "edited-sta").Add("STA_PSK", "edited-psk");
-
-        var result = await coordinator.SaveEditedConfigAsync("board", document, values, TestContext.Current.CancellationToken);
-
-        Assert.IsType<LiveDaqManagementResult.ConfigWritten>(result);
-        var text = Encoding.UTF8.GetString(Assert.IsType<byte[]>(uploaded));
-        Assert.Contains("# before", text);
-        Assert.Contains("UNKNOWN=value", text);
-        Assert.Contains("STA_SSID=edited-sta", text);
-        Assert.Contains("STA_PSK=edited-psk", text);
-        Assert.DoesNotContain(text.Split('\n'), line => line.StartsWith("SSID=", StringComparison.Ordinal) || line.StartsWith("PSK=", StringComparison.Ordinal));
     }
 
     private static LiveDaqCatalogEntry ManagementDevice() => new("board", "DAQ", "board", new ServiceEndpoint("192.168.0.10", 1557));

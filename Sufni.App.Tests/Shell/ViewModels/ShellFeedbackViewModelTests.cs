@@ -13,21 +13,26 @@ namespace Sufni.App.Tests.Shell.ViewModels;
 
 public class ShellFeedbackViewModelTests
 {
-    [Fact]
-    public void BulkRecompute_ReportsPartialFailureAndSeparatesExceptionalDiagnostics()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BulkRecompute_ReportsPartialFailureAndSeparatesExceptionalDiagnostics(bool exceptional)
     {
         var sessions = TestCoordinatorSubstitutes.Session();
         using var feedback = TestShellFeedback.Create(sessions: sessions);
-        sessions.RecomputeAllFinished += Raise.Event<EventHandler<SessionRecomputeAllOutcome>>(sessions,
-            new SessionRecomputeAllOutcome.Completed(new SessionRecomputeAllResult(4, 2, 0, 1, 1)));
-        Assert.Single(feedback.ErrorMessages);
-
         const string details = "database inaccessible";
-        sessions.RecomputeAllFinished += Raise.Event<EventHandler<SessionRecomputeAllOutcome>>(sessions,
-            new SessionRecomputeAllOutcome.Failed(SessionRecomputeFailureReason.RecomputeAll, details));
-        var failure = feedback.ErrorMessages.Last();
-        Assert.Equal(details, failure.Details);
-        Assert.DoesNotContain(details, failure.Summary);
+        SessionRecomputeAllOutcome outcome = exceptional
+            ? new SessionRecomputeAllOutcome.Failed(SessionRecomputeFailureReason.RecomputeAll, details)
+            : new SessionRecomputeAllOutcome.Completed(new SessionRecomputeAllResult(4, 2, 0, 1, 1));
+
+        sessions.RecomputeAllFinished += Raise.Event<EventHandler<SessionRecomputeAllOutcome>>(sessions, outcome);
+
+        var failure = Assert.Single(feedback.ErrorMessages);
+        if (exceptional)
+        {
+            Assert.Equal(details, failure.Details);
+            Assert.DoesNotContain(details, failure.Summary);
+        }
     }
 
     [Fact]

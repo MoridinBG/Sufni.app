@@ -54,10 +54,9 @@ public class MainPagesDesktopViewTests
         Assert.NotNull(pairingPanel);
         Assert.True(pairingPanel!.IsVisible);
 
-        var pinText = mounted.View.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .Single(control => control.Name == "DesktopPairingPinText");
-        Assert.True(pinText.Bounds.Height > 24);
+        pairingViewModel.PairingPin = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(pairingPanel.IsVisible);
     }
 
     [AvaloniaFact]
@@ -130,7 +129,6 @@ public class MainPagesDesktopViewTests
 
         Assert.False(viewModel.IsPairedDevicesListOpen);
         Assert.True(buttonSpinner!.IsVisible);
-        Assert.True(buttonSpinner.IsActive);
         Assert.False(panel!.IsVisible);
 
         viewModel.IsPairedDevicesListOpen = true;
@@ -138,11 +136,6 @@ public class MainPagesDesktopViewTests
 
         Assert.True(panel.IsVisible);
         Assert.True(overlay!.IsVisible);
-        Assert.True(overlay.IsActive);
-        Assert.True(overlay.ShowProgress);
-        Assert.False(overlay.IsProgressIndeterminate);
-        Assert.Equal("Serving remote changes", overlay.Message);
-        Assert.Equal(1.0 / 6, overlay.ProgressValue, precision: 6);
 
         syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Completed(runId));
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -178,8 +171,6 @@ public class MainPagesDesktopViewTests
         Assert.True(pairButton!.IsVisible);
         Assert.False(syncButton!.IsVisible);
         Assert.False(unpairButton!.IsVisible);
-        Assert.Same(viewModel.OpenPageCommand, pairButton.Command);
-        Assert.Same(pairingClientPage, pairButton.CommandParameter);
     }
 
     [AvaloniaFact]
@@ -211,9 +202,6 @@ public class MainPagesDesktopViewTests
         Assert.False(pairButton!.IsVisible);
         Assert.True(syncButton!.IsVisible);
         Assert.True(unpairButton!.IsVisible);
-        Assert.Same(viewModel.SyncCommand, syncButton.Command);
-        Assert.Same(viewModel.OpenPageCommand, unpairButton.Command);
-        Assert.Same(pairingClientPage, unpairButton.CommandParameter);
     }
 
     [AvaloniaFact]
@@ -240,10 +228,10 @@ public class MainPagesDesktopViewTests
         Assert.False(mounted.View.FindControl<Button>("OpenVideoButton")!.IsVisible);
     }
 
-    private static async Task<MountedMainPagesDesktopView> MountAsync(MainPagesDesktopView view)
+    private static async Task<MountedView<MainPagesDesktopView>> MountAsync(MainPagesDesktopView view)
     {
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedMainPagesDesktopView(host, view);
+        return new MountedView<MainPagesDesktopView>(host, view);
     }
 
     private static IAppEnvironment CreateClientEnvironment() =>
@@ -271,16 +259,4 @@ public class MainPagesDesktopViewTests
     }
 
 
-}
-
-internal sealed class MountedMainPagesDesktopView(Window host, MainPagesDesktopView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public MainPagesDesktopView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
 }

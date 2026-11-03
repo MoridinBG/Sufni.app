@@ -64,8 +64,7 @@ the track from those points. The picker returns `PickedFile` handles (name and
 read access), so no Avalonia storage object crosses into the coordinator.
 
 Recorded reprocessing calls `GpsTrackPointProjection.ProjectAll` directly and
-returns points to the producing workflow. No parsing or source factory remains
-on the persisted `Track` entity.
+returns points to the producing workflow.
 
 `Track.GenerateSessionTrack(start, end)` extracts the points covering a session's time window and resamples them at 0.1-second intervals; `start` and `end` can be fractional seconds so manual alignment can shift a session window by sub-second offsets. Projected `X`/`Y` coordinates use PCHIP cubic interpolation with a linear fallback when the point count is too low; nullable elevation and speed use nullable linear interpolation. GPS-quality metadata is copied through only for samples that land on an original source timestamp. The resampled list is what `MapView` actually draws; the original `Points` list is the long polyline of the entire ride.
 
@@ -82,7 +81,7 @@ window-origin correction. Trim/split preserve that alignment.
 
 `GpsMetricsCalculator` (`MapsAndTracks/Models/`) derives distance, ascent and
 descent from a projected session window. It converts finite spherical-mercator
-coordinates back to lon/lat for haversine ground distance and applies the existing
+coordinates back to lon/lat for haversine ground distance and applies a
 three-metre elevation hysteresis. Algorithm version 1 participates in the metrics
 key. Duration remains part of processed session metadata; it is normalized by
 `SessionDuration` independently of GPS metrics.
@@ -103,23 +102,16 @@ track ID returned by the same transaction that removed the session.
 
 `SessionTrackReader` caches by `(track id, points revision, timestamp, duration,
 GPS offset, window-origin fraction, projection version)`. Its background job reads exact full-track points
-and applies the shared timeline/window projection. It has no session-store
-subscription, repository read, alignment-validation fallback or latest-revision
-retry. Both point readers keep their independent 64-entry/145,000-point LRU
+and applies the shared timeline/window projection. It reads no session store or
+repository and never retries a later revision. Both point readers have independent 64-entry/145,000-point LRU
 budgets; an oversized value is shared with current waiters without retention.
 A missing exact revision returns no projection. `SessionContentReader` uses the
 same selection rule for catalog tokens, loads only requested payload families,
 and revalidates the token after the load, including a changed track selection.
-`session.track` and `track_projection_revision` are absent from the schema and
-wire. `full_track_id` is also absent: track selection is derived from the committed
-track catalog and session window. The recorded-session domain projection includes
+The session row and sync payload store no track reference: track selection is
+derived from the committed track catalog and session window. The recorded-session domain projection includes
 the selected metadata, so an arrival, removal or points change refreshes an open
 editor without a session write or a draft-discard prompt.
-
-`BuildAnalysisComparisonAsync` also owns background execution of the segment
-analysis comparison builder from captured comparison/detail/settings inputs. The
-editor requests it with its current cancellation token and applies only its current
-result. Comparison failures return a closed reason and separate diagnostics; the coordinator logs the first catch and the editor rejects canceled or superseded results.
 
 `TrackCoordinator` owns the device-local GPS metric materialization. Committed
 session/track publications cause it to capture immutable metadata and evaluate
@@ -161,7 +153,7 @@ Metadata draft saves and processed-generation swaps preserve it.
 built-in providers, `CustomTileLayerStore`, and device-local selected layer ID.
 `Observe()` replays the catalog and selection together. Store arrivals update
 available layers without changing the device selection. A missing selected id falls back to the first built-in
-layer. Publication runs through the required UI dispatcher. The singleton starts its derivation at construction and owns/disposes its input subscription. No startup or editor initialization call is needed.
+layer. Publication runs through the UI dispatcher. The singleton subscribes to its inputs in its constructor and disposes that subscription on disposal, so no initialization call is needed.
 
 `IMapLayerCoordinator` / `MapLayerCoordinator` own `AddAndSelectAsync` and
 `SelectAsync`. They persist custom layers through `ISynchronizableRepository<CustomTileLayer>`,
@@ -175,7 +167,7 @@ selection. `MapLayerWriteResult.Saved | Failed(reason, details)` distinguishes
 `MapLayerFailureReason.Add | Select`. Failures log once with the layer id and
 operation. The coordinator never edits the derived tile state.
 
-There is no in-memory tile cache or persistent disk cache here; tile fetching is the responsibility of Mapsui's `TileLayer` and BruTile's `HttpTileSource` constructed in `MapView` from each `TileLayerConfig`. `TileLayerConfig` (`Sufni.App/Sufni.App/MapsAndTracks/Models/TileLayerConfig.cs`) carries the URL template, attribution metadata, `MaxZoom`, an `IsCustom` flag and a generated `Id`.
+This subsystem keeps no tile cache. Mapsui's `TileLayer` and BruTile's `HttpTileSource`, constructed in `MapView` from each `TileLayerConfig`, fetch tiles. `TileLayerConfig` (`Sufni.App/Sufni.App/MapsAndTracks/Models/TileLayerConfig.cs`) carries the URL template, attribution metadata, `MaxZoom`, an `IsCustom` flag and a generated `Id`.
 
 ## Map View Model
 
@@ -193,12 +185,12 @@ forwards confirmed values to `AddAndSelectAsync`. Fixed failure summaries and op
 diagnostics appear in the map's shared error bar. A failed selection restores
 the selector to the published value.
 
-`FullTrackPoints`, `SessionTrackPoints` and `TimelineContext` remain host-supplied
+`FullTrackPoints`, `SessionTrackPoints` and `TimelineContext` are host-supplied
 map inputs. `MapViewModelFactory` supplies the tile service, coordinator, dialog,
 dispatcher, clock and background geometry factory. The view uses that factory for its
 rendered resources; the view model does not build native geometry. Both recorded and live hosts use it and dispose the map
 view model with their lifetime; disposal releases the tile-state subscription.
-The replayed tile snapshot supplies initial state without a separate initialization method.
+The replayed tile snapshot supplies the initial state.
 
 ## Mapsui Integration
 
@@ -206,9 +198,9 @@ The replayed tile snapshot supplies initial state without a separate initializat
 
 `App.Initialize` sets Mapsui logging-widget policy once during composition.
 After each `MapControl` construction, `MapView` replaces Mapsui's static
-browser-opening callback with a control-independent handler. Inspection of the
-installed Mapsui.UI.Avalonia 5.1.0 assembly confirms `SharedConstructor` still
-assigns the instance-bound callback, so the post-construction workaround remains.
+browser-opening callback with a control-independent handler. Mapsui 5.1.0
+`SharedConstructor` assigns an instance-bound callback, so the replacement runs
+after construction.
 The view creates a fresh control/map on attach, and on detach cancels geometry work,
 unsubscribes its timeline and disposes the map/control and every layer. Mapsui 5.1
 map disposal unsubscribes layers and aborts fetches but does not dispose layers;
@@ -247,9 +239,9 @@ Map owners obtain the map facet from the shared `IAppPreferences` instance. `ISe
 
 Custom definitions live in the synced `custom_tile_layer` table with ordinary
 version/writer/sequence metadata and a deletion ledger. `IsCustom` is derived
-when composing the catalog. The `sync-authority` migration copies the launch
-snapshot's legacy custom layers once; startup rewrites the preference document
-only after that database migration commits. Selection, theme, analysis, plot and
+when composing the catalog. On older installs, the one-time `sync-authority`
+migration copies legacy custom layers from the launch preferences snapshot.
+Startup rewrites the preference document only after that migration commits. Selection, theme, analysis, plot and
 layout settings stay device-local and have no sync payload or clock.
 
 ## Where Maps Are Displayed

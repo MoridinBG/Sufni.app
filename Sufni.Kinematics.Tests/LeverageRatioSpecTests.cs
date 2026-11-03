@@ -34,43 +34,15 @@ public class LeverageRatioSpecTests
     }
 
     [Fact]
-    public void FromJson_RoundTripsPointOrder()
+    public void FromJson_ReadsPersistedPointNamesAndOrder()
     {
-        var leverageRatio = LeverageRatioSpec.FromPoints(
-        [
-            new LeverageRatioPoint(0, 0),
-            new LeverageRatioPoint(10, 30),
-            new LeverageRatioPoint(20, 50)
-        ]);
+        const string json = """{"points":[{"shock_travel_mm":0,"wheel_travel_mm":0},{"shock_travel_mm":10,"wheel_travel_mm":30},{"shock_travel_mm":20,"wheel_travel_mm":50}]}""";
 
-        var parsed = LeverageRatioSpec.FromJson(leverageRatio.ToJson());
+        var parsed = LeverageRatioSpec.FromJson(json);
 
         Assert.NotNull(parsed);
-        Assert.Equal(leverageRatio.Points, parsed.Points);
-    }
-
-    [Fact]
-    public void StructuralEquality_UsesExactPointOrderAndDoubleBits()
-    {
-        var leverageRatio = LeverageRatioSpec.FromPoints(
-        [
-            new LeverageRatioPoint(0.0, 0),
-            new LeverageRatioPoint(10, 30)
-        ]);
-        var same = LeverageRatioSpec.FromPoints(
-        [
-            new LeverageRatioPoint(0.0, 0),
-            new LeverageRatioPoint(10, 30)
-        ]);
-        var negativeZero = LeverageRatioSpec.FromPoints(
-        [
-            new LeverageRatioPoint(-0.0, 0),
-            new LeverageRatioPoint(10, 30)
-        ]);
-
-        Assert.Equal(leverageRatio, same);
-        Assert.Equal(leverageRatio.GetHashCode(), same.GetHashCode());
-        Assert.NotEqual(leverageRatio, negativeZero);
+        Assert.Equal([new LeverageRatioPoint(0, 0), new LeverageRatioPoint(10, 30), new LeverageRatioPoint(20, 50)], parsed.Points);
+        Assert.Equal(json, parsed.ToJson());
     }
 
     [Fact]

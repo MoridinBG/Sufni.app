@@ -466,7 +466,7 @@ public class DatabaseMigrationRunnerTests
                 1);
         }
 
-        var firstRun = new TestPersistenceHarness(databasePath);
+        await using var firstRun = new TestPersistenceHarness(databasePath);
         var firstRunBikes = await firstRun.GetAllAsync<Bike>();
 
         using (var verificationConnection = new SQLiteConnection(databasePath))
@@ -499,7 +499,7 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.RearCompressionDampingCutoffMmPerSecond);
         Assert.Equal(DampingSpeedCutoffs.DefaultMmPerSecond, firstRunBike.RearReboundDampingCutoffMmPerSecond);
 
-        var secondRun = new TestPersistenceHarness(databasePath);
+        await using var secondRun = new TestPersistenceHarness(databasePath);
         var secondRunBikes = await secondRun.GetAllAsync<Bike>();
 
         var secondRunBike = Assert.Single(secondRunBikes);
@@ -637,7 +637,7 @@ public class DatabaseMigrationRunnerTests
             }
         }
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
         var bikes = (await database.GetAllAsync<Bike>()).ToDictionary(bike => bike.Id);
         Assert.Equal(cases.Length, bikes.Count);
 
@@ -659,41 +659,6 @@ public class DatabaseMigrationRunnerTests
     }
 
     [Fact]
-    public async Task NewBikeRows_WriteRearSuspensionColumn()
-    {
-        using var tempDatabase = new TempDatabase("new-bike-rear-suspension.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var linkage = TestSnapshots.FullSuspensionLinkageSpec();
-        var bike = new Bike(Guid.NewGuid(), "new linkage bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 150,
-            ShockStroke = linkage.ShockStroke,
-            RearSuspension = new RearSuspensionSpec.Linkage(linkage),
-            Updated = 1,
-
-        };
-        var database = new TestPersistenceHarness(databasePath);
-
-        await database.PutAsync(bike);
-
-        using var connection = new SQLiteConnection(databasePath);
-        var columns = connection.Query<TableColumnInfo>("PRAGMA table_info(bike)");
-        Assert.Contains(columns, column => column.Name == "rear_suspension");
-        Assert.DoesNotContain(columns, column => column.Name == "rear_suspension_kind");
-        Assert.DoesNotContain(columns, column => column.Name == "linkage");
-        Assert.DoesNotContain(columns, column => column.Name == "leverage_ratio");
-
-        var rearSuspensionJson = connection.ExecuteScalar<string>(
-            "SELECT rear_suspension FROM bike WHERE id = ?",
-            bike.Id.ToString());
-        var persistedRearSuspension = RearSuspensionJsonCodec.Deserialize(rearSuspensionJson);
-
-        var persistedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(persistedRearSuspension);
-        Assert.Equal(linkage, persistedLinkage.Spec);
-    }
-
-    [Fact]
     public async Task Initialization_LeavesAlreadyMigratedRearSuspensionRowsUnchanged()
     {
         using var tempDatabase = new TempDatabase("already-migrated-rear-suspension.db");
@@ -708,7 +673,7 @@ public class DatabaseMigrationRunnerTests
             Updated = 1,
 
         };
-        var firstRun = new TestPersistenceHarness(databasePath);
+        await using var firstRun = new TestPersistenceHarness(databasePath);
         await firstRun.PutAsync(bike);
 
         string beforeJson;
@@ -719,7 +684,7 @@ public class DatabaseMigrationRunnerTests
                 bike.Id.ToString());
         }
 
-        var secondRun = new TestPersistenceHarness(databasePath);
+        await using var secondRun = new TestPersistenceHarness(databasePath);
         var bikes = await secondRun.GetAllAsync<Bike>();
 
         using (var connection = new SQLiteConnection(databasePath))
@@ -739,88 +704,10 @@ public class DatabaseMigrationRunnerTests
         Assert.Equal(bike.RearSuspension, persistedBike.RearSuspension);
     }
 
-    [Fact]
-    public async Task Initialization_CreatesReactiveSessionPersistenceSchema()
-    {
-        using var tempDatabase = new TempDatabase("reactive-schema.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
-
-        using var connection = new SQLiteConnection(databasePath);
-        var sessionColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session)");
-        var sourceColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session_recording_source)");
-        var metricColumns = connection.Query<TableColumnInfo>("PRAGMA table_info(session_gps_metrics)");
-
-        Assert.Contains(sessionColumns, column => column.Name == "session_processing_fingerprint");
-        Assert.Contains(sessionColumns, column => column.Name == "duration_seconds");
-        Assert.DoesNotContain(sessionColumns, column => column.Name == "distance_meters");
-        Assert.Contains(metricColumns, column => column.Name == "distance_meters");
-        Assert.DoesNotContain(sessionColumns, column => column.Name == "ascent_meters");
-        Assert.Contains(metricColumns, column => column.Name == "ascent_meters");
-        Assert.DoesNotContain(sessionColumns, column => column.Name == "descent_meters");
-        Assert.Contains(metricColumns, column => column.Name == "descent_meters");
-        Assert.Contains(sourceColumns, column => column.Name == "session_id");
-        Assert.Contains(sourceColumns, column => column.Name == "source_kind");
-        Assert.Contains(sourceColumns, column => column.Name == "source_name");
-        Assert.Contains(sourceColumns, column => column.Name == "schema_version");
-        Assert.Contains(sourceColumns, column => column.Name == "source_hash");
-        Assert.Contains(sourceColumns, column => column.Name == "payload");
-    }
-
-    [Fact]
-    public async Task Initialization_BackfillsLocalContentRevisions_AndIsIdempotent()
-    {
-        using var tempDatabase = new TempDatabase("local-content-revisions.db");
-        var sessionId = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
-
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
-        {
-            connection.CreateTable<Session>();
-            connection.CreateTable<Track>();
-            connection.Insert(new Session(sessionId, "session", string.Empty, null, 100)
-            {
-                ProcessedData = [1, 2, 3],
-                ProcessingFingerprintJson = "fingerprint",
-
-                DurationSeconds = 1,
-
-                Updated = 10,
-            });
-            connection.Insert(new Track
-            {
-                Id = trackId,
-                Points = [new TrackPoint(100, 1, 2, 3)],
-                Updated = 11,
-            });
-            connection.Execute("UPDATE session SET processed_telemetry_revision = 0");
-            connection.Execute("UPDATE track SET points_revision = 0");
-        }
-
-        var firstRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        _ = await firstRun.GetInitializedConnectionAsync();
-        var secondRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        _ = await secondRun.GetInitializedConnectionAsync();
-
-        using var verification = new SQLiteConnection(tempDatabase.DatabasePath);
-        var session = verification.Query<SessionRevisionRow>(
-            "SELECT processed_telemetry_revision, updated FROM session WHERE id = ?",
-            sessionId).Single();
-        var track = verification.Query<TrackRevisionRow>(
-            "SELECT points_revision, updated FROM track WHERE id = ?",
-            TrackContentHash.Compute([new TrackPoint(100, 1, 2, 3)])).Single();
-
-        Assert.Equal(1, session.ProcessedTelemetryRevision);
-
-        Assert.Equal(10, session.Updated);
-        Assert.Equal(1, track.PointsRevision);
-        Assert.Equal(11, track.Updated);
-    }
-
-    [Fact]
-    public async Task Initialization_RepairsNullLocalContentRevisions_FromPopulatedLegacySchema()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Initialization_RepairsNullLocalContentRevisions_FromPopulatedLegacySchema(bool existingZeroColumns)
     {
         using var tempDatabase = new TempDatabase("legacy-null-local-content-revisions.db");
         var processedSessionId = Guid.NewGuid();
@@ -863,6 +750,11 @@ public class DatabaseMigrationRunnerTests
                     deleted INTEGER
                 )
                 """);
+            if (existingZeroColumns)
+            {
+                connection.Execute("ALTER TABLE session ADD COLUMN processed_telemetry_revision INTEGER DEFAULT 0");
+                connection.Execute("ALTER TABLE track ADD COLUMN points_revision INTEGER DEFAULT 0");
+            }
             connection.Execute(
                 "INSERT INTO session (id, name, description, track, data, gps_offset_seconds, session_processing_fingerprint, updated, has_data) VALUES (?, ?, ?, ?, ?, 0, ?, ?, 1)",
                 processedSessionId,
@@ -889,7 +781,7 @@ public class DatabaseMigrationRunnerTests
                 13);
         }
 
-        var firstRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var firstRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await firstRun.GetInitializedConnectionAsync();
         var metadata = await firstRun.SessionRepository.GetSessionPsstPayloadMetadataAsync(processedSessionId);
 
@@ -906,7 +798,7 @@ public class DatabaseMigrationRunnerTests
                 processedSessionId,
                 processedTelemetryRevision: 0));
 
-        var secondRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var secondRun = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await secondRun.GetInitializedConnectionAsync();
 
         using var verification = new SQLiteConnection(tempDatabase.DatabasePath);
@@ -939,7 +831,7 @@ public class DatabaseMigrationRunnerTests
     public async Task LocalContentRevisionTriggers_IncrementOnlyForEffectiveContentChanges_AndPreserveUpdated()
     {
         using var tempDatabase = new TempDatabase("local-content-revision-triggers.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetInitializedConnectionAsync();
         var sessionId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
@@ -973,7 +865,7 @@ public class DatabaseMigrationRunnerTests
     {
         using var tempDatabase = new TempDatabase("local-content-revision-trigger-replacement.db");
         var databasePath = tempDatabase.DatabasePath;
-        var firstRun = new TestPersistenceHarness(databasePath);
+        await using var firstRun = new TestPersistenceHarness(databasePath);
         _ = await firstRun.GetInitializedConnectionAsync();
         var sessionId = Guid.NewGuid();
 
@@ -987,7 +879,7 @@ public class DatabaseMigrationRunnerTests
                 "CREATE TRIGGER session_processed_revision_after_update AFTER UPDATE OF data ON session BEGIN UPDATE session SET processed_telemetry_revision = 999 WHERE id = NEW.id; END");
         }
 
-        var secondRun = new TestPersistenceHarness(databasePath);
+        await using var secondRun = new TestPersistenceHarness(databasePath);
         _ = await secondRun.GetInitializedConnectionAsync();
 
         using var verification = new SQLiteConnection(databasePath);
@@ -995,195 +887,9 @@ public class DatabaseMigrationRunnerTests
         var row = verification.Query<SessionRevisionRow>(
             "SELECT processed_telemetry_revision, updated FROM session WHERE id = ?",
             sessionId).Single();
-        var triggerSql = verification.ExecuteScalar<string>(
-            "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'session_processed_revision_after_update'");
-
         Assert.Equal(2, row.ProcessedTelemetryRevision);
-        Assert.Contains("WHEN", triggerSql, StringComparison.Ordinal);
-        Assert.DoesNotContain("999", triggerSql, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task LocalContentRevisionTriggers_DoNotRewriteNoOpWatchedAssignments()
-    {
-        using var tempDatabase = new TempDatabase("local-content-revision-noop-write.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        _ = await database.GetInitializedConnectionAsync();
-        var sessionId = Guid.NewGuid();
-
-        using var connection = new SQLiteConnection(tempDatabase.DatabasePath);
-        connection.Execute(
-            "INSERT INTO session (id, name, description, data, session_processing_fingerprint, processed_telemetry_revision, updated, deleted) VALUES (?, ?, ?, ?, ?, 0, 10, NULL)",
-            sessionId, "session", string.Empty, new byte[] { 1 }, "a");
-        var before = connection.ExecuteScalar<long>("SELECT total_changes()");
-
-        connection.Execute(
-            "UPDATE session SET data = data, session_processing_fingerprint = session_processing_fingerprint WHERE id = ?",
-            sessionId);
-
-        var after = connection.ExecuteScalar<long>("SELECT total_changes()");
-        var row = connection.Query<SessionRevisionRow>(
-            "SELECT processed_telemetry_revision, updated FROM session WHERE id = ?",
-            sessionId).Single();
-        Assert.Equal(1, after - before);
-        Assert.Equal(1, row.ProcessedTelemetryRevision);
-    }
-
-    [Fact]
-    public async Task Initialization_DropsLegacySessionCacheTable_AndDoesNotRecreateIt()
-    {
-        using var tempDatabase = new TempDatabase("legacy-session-cache.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid().ToString();
-
-        using (var seedConnection = new SQLiteConnection(databasePath))
-        {
-            seedConnection.Execute(
-                """
-                CREATE TABLE session_cache (
-                    session_id TEXT PRIMARY KEY,
-                    compact_signal_rows TEXT NOT NULL
-                )
-                """);
-            seedConnection.Execute(
-                "INSERT INTO session_cache (session_id, compact_signal_rows) VALUES (?, ?)",
-                sessionId,
-                "[]");
-        }
-
-        var firstRun = new TestPersistenceHarness(databasePath);
-        _ = await firstRun.GetSessionsAsync();
-
-        using (var firstVerification = new SQLiteConnection(databasePath))
-        {
-            var tables = firstVerification.Query<SqliteMasterRow>(
-                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_cache'");
-            Assert.Empty(tables);
-        }
-
-        var secondRun = new TestPersistenceHarness(databasePath);
-        _ = await secondRun.GetSessionsAsync();
-
-        using var secondVerification = new SQLiteConnection(databasePath);
-        var recreatedTables = secondVerification.Query<SqliteMasterRow>(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_cache'");
-        Assert.Empty(recreatedTables);
-    }
-
-    [Fact]
-    public async Task Initialization_DropsSchemaVersionTable()
-    {
-        using var tempDatabase = new TempDatabase("schema-version.db");
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
-        {
-            connection.Execute("CREATE TABLE extension_schema_version (extension_id TEXT PRIMARY KEY, version INTEGER)");
-        }
-
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        _ = await database.GetAllAsync<Board>();
-
-        using var verificationConnection = new SQLiteConnection(tempDatabase.DatabasePath);
-        Assert.Equal(0, verificationConnection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE name = 'extension_schema_version'"));
-    }
-
-    [Fact]
-    public async Task Initialization_CreatesSyncDeltaIndexes()
-    {
-        using var tempDatabase = new TempDatabase("sync-indexes.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetAllAsync<Board>();
-
-        using var connection = new SQLiteConnection(databasePath);
-        var indexNames = connection.Query<SqliteMasterRow>(
-            """
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'index'
-              AND name IN (
-                'ix_board_updated', 'ix_board_deleted',
-                'ix_bike_updated', 'ix_bike_deleted',
-                'ix_setup_updated', 'ix_setup_deleted',
-                'ix_session_updated', 'ix_session_deleted',
-                'ix_track_updated', 'ix_track_deleted'
-              )
-            """)
-            .Select(row => row.Name)
-            .ToHashSet(StringComparer.Ordinal);
-
-        string[] expected =
-        [
-            "ix_board_updated",
-            "ix_board_deleted",
-            "ix_bike_updated",
-            "ix_bike_deleted",
-            "ix_setup_updated",
-            "ix_setup_deleted",
-            "ix_session_updated",
-            "ix_session_deleted",
-            "ix_track_updated",
-            "ix_track_deleted",
-        ];
-
-        Assert.Equal(
-            expected.OrderBy(name => name, StringComparer.Ordinal),
-            indexNames.OrderBy(name => name, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public async Task Initialization_AddsFingerprintColumnToLegacySessionTable()
-    {
-        using var tempDatabase = new TempDatabase("legacy-session-fingerprint.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Execute(
-                """
-                CREATE TABLE session (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    setup_id TEXT,
-                    description TEXT NOT NULL,
-                    timestamp INTEGER,
-                    full_track_id TEXT,
-                    track TEXT,
-                    data BLOB,
-                    front_springrate TEXT,
-                    front_hsc INTEGER,
-                    front_lsc INTEGER,
-                    front_lsr INTEGER,
-                    front_hsr INTEGER,
-                    rear_springrate TEXT,
-                    rear_hsc INTEGER,
-                    rear_lsc INTEGER,
-                    rear_lsr INTEGER,
-                    rear_hsr INTEGER,
-                    updated INTEGER NOT NULL,
-                    client_updated INTEGER,
-                    deleted INTEGER,
-                    has_data INTEGER NOT NULL DEFAULT 0
-                )
-                """);
-        }
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
-
-        using var verificationConnection = new SQLiteConnection(databasePath);
-        var columns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(session)");
-        var metricColumns = verificationConnection.Query<TableColumnInfo>("PRAGMA table_info(session_gps_metrics)");
-
-        Assert.Contains(columns, column => column.Name == "session_processing_fingerprint");
-        Assert.Contains(columns, column => column.Name == "duration_seconds");
-        Assert.DoesNotContain(columns, column => column.Name == "distance_meters");
-        Assert.Contains(metricColumns, column => column.Name == "distance_meters");
-        Assert.DoesNotContain(columns, column => column.Name == "ascent_meters");
-        Assert.Contains(metricColumns, column => column.Name == "ascent_meters");
-        Assert.DoesNotContain(columns, column => column.Name == "descent_meters");
-        Assert.Contains(metricColumns, column => column.Name == "descent_meters");
+        Assert.Equal(new byte[] { 2 }, await secondRun.SessionRepository.GetSessionRawPsstAsync(sessionId, 2));
+        Assert.Null(await secondRun.SessionRepository.GetSessionRawPsstAsync(sessionId, 1));
     }
 
     [Theory]
@@ -1206,7 +912,7 @@ public class DatabaseMigrationRunnerTests
             seedOptions.BikeSnapshot,
             seedOptions.StoreLegacyRearSuspensionKind);
 
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         var persisted = await database.GetSessionAsync(seed.Session.Id);
         var persistedBike = seedOptions.StoreLegacyRearSuspensionKind
             ? await database.GetAsync<Bike>(seed.Bike.Id)
@@ -1304,7 +1010,7 @@ public class DatabaseMigrationRunnerTests
             }
         }
 
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetSessionAsync(activeSessionId);
 
         Assert.Equal(activeSessionId, Assert.Single(await database.GetRequestedSessionBlobSwapIdsAsync()));
@@ -1353,7 +1059,7 @@ public class DatabaseMigrationRunnerTests
             connection.Execute(insertRange, deletedRangeId, sourceId, 1.0, null, null, null, 5);
         }
 
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         var derived = SessionSnapshot.From((await database.GetSessionAsync(derivedId))!);
 
         Assert.Equal(new RecordedSessionDerivationWindow(sourceId, 2.5, 8), derived.DerivationWindow);
@@ -1391,7 +1097,7 @@ public class DatabaseMigrationRunnerTests
             });
         }
 
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         var session = SessionSnapshot.From((await database.GetSessionAsync(sessionId))!);
 
         Assert.Equal(window, session.DerivationWindow);

@@ -8,8 +8,8 @@ namespace Sufni.App.Tests.Acquisition.Services.Management;
 internal sealed class ManagementRequestReader
 {
     private readonly FramedMessageReader reader = new(
-        ManagementProtocolConstants.FrameHeaderSize,
-        static bytes => ManagementProtocolReader.ParseHeader(bytes).TotalFrameLength);
+        16,
+        static bytes => checked(16 + (int)BinaryPrimitives.ReadUInt32LittleEndian(bytes[12..])));
 
     public void Append(ReadOnlySpan<byte> bytes) => reader.Append(bytes);
 
@@ -18,31 +18,36 @@ internal sealed class ManagementRequestReader
 
     private static ManagementProtocolFrame ParseFrame(ReadOnlySpan<byte> bytes)
     {
-        var header = ManagementProtocolReader.ParseHeader(bytes);
-        var payload = bytes[ManagementProtocolConstants.FrameHeaderSize..];
-        return header.FrameType switch
+        Assert.Equal("MGMT"u8.ToArray(), bytes[..4].ToArray());
+        Assert.Equal((ushort)2, BinaryPrimitives.ReadUInt16LittleEndian(bytes[4..]));
+        var header = new ManagementFrameHeader(0x544D474D, 2,
+            (ManagementFrameType)BinaryPrimitives.ReadUInt16LittleEndian(bytes[6..]),
+            BinaryPrimitives.ReadUInt32LittleEndian(bytes[8..]),
+            BinaryPrimitives.ReadUInt32LittleEndian(bytes[12..]));
+        var payload = bytes[16..];
+        return (ushort)header.FrameType switch
         {
-            ManagementFrameType.ListDirectoryRequest => new ManagementListDirectoryRequestFrame(
+            1 => new ManagementListDirectoryRequestFrame(
                 header, (DaqDirectoryId)BinaryPrimitives.ReadUInt16LittleEndian(payload)),
-            ManagementFrameType.GetFileRequest => new ManagementGetFileRequestFrame(
+            2 => new ManagementGetFileRequestFrame(
                 header,
                 (DaqFileClass)BinaryPrimitives.ReadUInt16LittleEndian(payload),
                 BinaryPrimitives.ReadInt32LittleEndian(payload[4..])),
-            ManagementFrameType.TrashFileRequest => new ManagementTrashFileRequestFrame(
+            3 => new ManagementTrashFileRequestFrame(
                 header, BinaryPrimitives.ReadInt32LittleEndian(payload)),
-            ManagementFrameType.MarkSstUploadedRequest => new ManagementMarkSstUploadedRequestFrame(
+            9 => new ManagementMarkSstUploadedRequestFrame(
                 header, BinaryPrimitives.ReadInt32LittleEndian(payload)),
-            ManagementFrameType.PutFileBegin => new ManagementPutFileBeginRequestFrame(
+            4 => new ManagementPutFileBeginRequestFrame(
                 header,
                 (DaqFileClass)BinaryPrimitives.ReadUInt16LittleEndian(payload),
                 BinaryPrimitives.ReadUInt64LittleEndian(payload[4..])),
-            ManagementFrameType.PutFileChunk => new ManagementPutFileChunkFrame(header, payload.ToArray()),
-            ManagementFrameType.PutFileCommit => new ManagementPutFileCommitFrame(header),
-            ManagementFrameType.SetTimeRequest => new ManagementSetTimeRequestFrame(
+            5 => new ManagementPutFileChunkFrame(header, payload.ToArray()),
+            6 => new ManagementPutFileCommitFrame(header),
+            7 => new ManagementSetTimeRequestFrame(
                 header,
                 BinaryPrimitives.ReadUInt32LittleEndian(payload),
                 BinaryPrimitives.ReadUInt32LittleEndian(payload[4..])),
-            ManagementFrameType.Ping => new ManagementPingFrame(header),
+            8 => new ManagementPingFrame(header),
             _ => throw new FormatException($"Unexpected management request {header.FrameType}.")
         };
     }

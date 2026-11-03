@@ -168,14 +168,18 @@ public class VideoCoordinatorTests : IDisposable
     [Fact]
     public async Task ShiftAlignmentAsync_AddsDeltaToCurrentOffset_AndPublishesClip()
     {
-        var clip = new SessionVideoClip { Id = Guid.NewGuid(), AlignmentOffsetSeconds = 3.5 };
-        videoStore.Get(clip.Id).Returns(SessionVideoSnapshot.From(new SessionVideoClip { Id = clip.Id, AlignmentOffsetSeconds = 2 }, true));
-        videoRepository.UpdateAlignmentAsync(clip.Id, 3.5).Returns(SessionVideoSnapshot.From(clip, true));
+        using var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var clip = new SessionVideoSnapshot(Guid.NewGuid(), "source", "/videos/ride.mp4", 0, 60, 2, 1, true);
+        await store.PublishClipsAsync([clip]);
+        videoRepository.UpdateAlignmentAsync(clip.Id, Arg.Any<double>())
+            .Returns(call => clip with { AlignmentOffsetSeconds = call.ArgAt<double>(1) });
+        using var owner = new VideoCoordinator(fileService, sessionRepository, videoRepository,
+            store, new InlineBackgroundTaskRunner(), time, sourceStore, presence, new InlineUiThreadDispatcher());
 
-        var shifted = await coordinator.ShiftAlignmentAsync(clip.Id, 1.5);
+        var shifted = await owner.ShiftAlignmentAsync(clip.Id, 1.5);
 
         Assert.IsType<VideoAlignmentResult.Updated>(shifted);
-        await videoStore.Received(1).PublishClipsAsync(Arg.Is<IReadOnlyCollection<SessionVideoSnapshot>>(clips => clips.Single().Id == clip.Id && clips.Single().AlignmentOffsetSeconds == clip.AlignmentOffsetSeconds));
+        Assert.Equal(3.5, store.Get(clip.Id)!.AlignmentOffsetSeconds);
     }
 
     [Fact]

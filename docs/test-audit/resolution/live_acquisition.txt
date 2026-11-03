@@ -1,0 +1,27 @@
+Resolved all 197 non-KEEP rows in live_acquisition.csv. No deferred rows.
+Actions: {'removed': 129, 'rewritten': 57, 'merged': 9, 'retained_revalidated': 2}.
+
+Owned Acquisition/LiveDaq scope: 56 -> 42 C# files; 408 -> 272 attributed test methods (-136); 15,632 -> 11,354 C# test/support lines (-4278). Baseline includes all audit methods, including timeout attributes. Counts exclude shared support edits and root-owned new helpers.
+
+Deleted weak direct internal tests, record/default inventories, duplicate mock routing, static parent-view inventories, unsupported device-state decoder tests, and unused local support. Important public client, protocol, capture, import checkpoint, cancellation, immutable-state, and transport-ownership owners remain.
+
+Focused replacements and rewrites:
+- Public ILiveSessionService.SignalBatches now checks independent calibrated linear velocities, short-window NaNs, and timestamp-gap scaling; the internal LiveSignalPipeline suite is deleted.
+- Public management listing checks malformed magic/version/fixed-length/oversize and truncated replies with an independent frozen wire vector; internal ManagementClient/ManagementProtocolReader suites are deleted.
+- Network import cleanup now proves a competing Identify request stays Busy until management-session closure, then succeeds.
+- v2 raw/parsed telemetry capacity-loss branches share one event theory, preserving status delivery and explicit drop counters.
+- Supported v3 codec corruption/frame cases are isolated theories; one meaningful marker guard now receives two complete records.
+- Retained plot lifecycle tests assert nonempty front/rear series and actual sample values, including fresh samples after reattach/visibility/zoom.
+- Retained editor bake test releases a noncooperative old completion only after the newer presentation is visible.
+
+Standalone support:
+- ManagementProtocolTestFrames and ManagementRequestReader use frozen envelope/type values rather than production encoders/parsers; directory/file-class codes and key service rejection bytes are independent.
+- ManagementRequestFrames remains only the small typed request boundary consumed by retained fake-device scripts.
+- ManagementTestServer owns linked cancellation, every started session and every accepted socket. Disposal cancels pending accepts, closes all accepted peers, and boundedly observes all sessions without replacing a caller assertion; returned session tasks retain operation failures. Static read/write operations also respect runner cancellation.
+- LiveProtocolTestFrames independently encodes LIVE v2 envelopes, wire sizes, source/IMU/stream masks and result codes.
+- LiveV3ProtocolTestFrames uses frozen field/type/mask values and no production StreamMaskForKind; unused device-state builders are removed.
+- Reused root-added TestStorageItems.BinaryFile and shared MountedView. With parent approval, removed the duplicate byte reader from TestSupport/LiveDaq/LiveDaqClientProtocolHarness; v2/v3 tests use root-added ProtocolStreamIo.ReadExactAsync.
+
+Two findings were retained after revalidation: failed-connect disposal through the injected TCP-resource seam is a real ownership contract; rollover save preparation protects independently implemented raw-channel branches from obsolete-session contamination. Rationales are in the CSV.
+
+Validation: static diff/whitespace checks only. No builds, tests, formatter or production edits were run/made here. Root must build and run focused Acquisition/LiveDaq tests, particularly public signal slope/gap cases, network disposal arbitration, frozen MGMT/LIVE fixtures, editor stale bake, and mounted plot lifecycle cases. Native/device integration is not claimed.

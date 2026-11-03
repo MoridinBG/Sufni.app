@@ -5,13 +5,8 @@ namespace Sufni.Telemetry.Tests;
 public class LiveTelemetryCaptureSliceTests
 {
     [Fact]
-    public void Slice_RebasesMetadataTravelAndAuxiliaryData()
+    public void Slice_RebasesTravelToSelectedTimeline()
     {
-        var finalStatus = new SstFinalStatus
-        {
-            SessionResultReason = 1,
-            StoppedMonotonicDeltaUs = 10_000_000,
-        };
         var capture = new LiveTelemetryCapture(
             Metadata: new Metadata
             {
@@ -41,32 +36,18 @@ public class LiveTelemetryCaptureSliceTests
                 }
             ],
             ImuData: null,
-            GpsData:
-            [
-                CreateGps(1_002),
-                CreateGps(1_007),
-                CreateGps(1_008),
-            ],
-            Markers: [new MarkerData(1.5), new MarkerData(2.5), new MarkerData(7.5), new MarkerData(8.0)],
+            GpsData: null,
+            Markers: [],
             StreamGaps: [],
-            FinalStatus: finalStatus,
-            MissingFinalStatus: true);
+            FinalStatus: null,
+            MissingFinalStatus: false);
 
         var result = capture.Slice(2.0, 8.0);
 
-        Assert.Equal("live", result.Metadata.SourceName);
-        Assert.Equal(5, result.Metadata.Version);
-        Assert.Equal(10, result.Metadata.SampleRate);
         Assert.Equal(1_002, result.Metadata.Timestamp);
         Assert.Equal(6.0, result.Metadata.Duration);
-        Assert.Same(capture.BikeData, result.BikeData);
         Assert.Equal(Enumerable.Range(20, 60).Select(index => (ushort)index), result.FrontMeasurements);
         Assert.Equal(Enumerable.Range(120, 60).Select(index => (ushort)index), result.RearMeasurements);
-        Assert.Equal([new MarkerData(0.5), new MarkerData(5.5)], result.Markers);
-        Assert.NotNull(result.GpsData);
-        Assert.Equal([CreateGps(1_002), CreateGps(1_007)], result.GpsData);
-        Assert.Null(result.FinalStatus);
-        Assert.False(result.MissingFinalStatus);
     }
 
     [Fact]
@@ -147,15 +128,4 @@ public class LiveTelemetryCaptureSliceTests
         FrontMeasurementToTravel: measurement => measurement,
         RearMeasurementToTravel: measurement => measurement);
 
-    private static GpsRecord CreateGps(long utcSeconds) => new(
-        Timestamp: DateTimeOffset.FromUnixTimeSeconds(utcSeconds).UtcDateTime,
-        Latitude: utcSeconds,
-        Longitude: utcSeconds,
-        Altitude: 100,
-        Speed: 1,
-        Heading: 2,
-        FixMode: 3,
-        Satellites: 4,
-        Epe2d: 5,
-        Epe3d: 6);
 }

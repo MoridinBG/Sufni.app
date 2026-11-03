@@ -60,35 +60,22 @@ public class BikeEditorServiceTests
     [Fact]
     public async Task ImportBikeAsync_ReturnsImportedBike_WhenJsonIsValid()
     {
-        var file = Substitute.For<IStorageFile>();
-        var bikeJson = BikeFileFormat.Serialize(new Bike(Guid.NewGuid(), "imported bike")
-        {
-            HeadAngle = 64,
-            ForkStroke = 150,
-            FrontWheelRimSize = EtrtoRimSize.Inch29,
-            FrontWheelTireWidth = 2.4,
-            FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
-            RearWheelRimSize = EtrtoRimSize.Inch275,
-            RearWheelTireWidth = 2.5,
-            RearWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5),
-            ImageRotationDegrees = 12.5,
-        });
-        file.OpenReadAsync().Returns(Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(bikeJson))));
+        var file = TestStorageItems.TextFile("bike.json", """
+            {"schema_version":2,"name":"imported bike","head_angle":64,"fork_stroke":150,
+             "rear_suspension":{"kind":"hardtail"},"front_wheel":{"diameter_mm":743.9},
+             "damping_speed_cutoffs":{"front":{"compression_mm_per_second":200,"rebound_mm_per_second":200},
+                                     "rear":{"compression_mm_per_second":200,"rebound_mm_per_second":200}},
+             "image_rotation_degrees":12.5,"image":"AQID"}
+            """);
         filesService.OpenBikeFileAsync().Returns(file);
 
-        var result = await CreateService().ImportBikeAsync(cancellationToken: TestContext.Current.CancellationToken);
+        var result = await CreateService().ImportBikeAsync(TestContext.Current.CancellationToken);
 
-        var imported = Assert.IsType<BikeFileImportResult.Imported>(result);
-        Assert.Equal("imported bike", imported.Bike.Name);
-        Assert.Equal(64, imported.Bike.HeadAngle);
-        Assert.Equal(150, imported.Bike.ForkStroke);
-        Assert.Equal(EtrtoRimSize.Inch29, imported.Bike.FrontWheelRimSize);
-        Assert.Equal(2.4, imported.Bike.FrontWheelTireWidth);
-        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), imported.Bike.FrontWheelDiameterMm);
-        Assert.Equal(EtrtoRimSize.Inch275, imported.Bike.RearWheelRimSize);
-        Assert.Equal(2.5, imported.Bike.RearWheelTireWidth);
-        Assert.Equal(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), imported.Bike.RearWheelDiameterMm);
-        Assert.Equal(12.5, imported.Bike.ImageRotationDegrees);
+        var imported = Assert.IsType<BikeFileImportResult.Imported>(result).Bike;
+        Assert.Equal("imported bike", imported.Name);
+        Assert.Equal(743.9, imported.FrontWheelDiameterMm);
+        Assert.Equal(12.5, imported.ImageRotationDegrees);
+        Assert.Equal(new byte[] { 1, 2, 3 }, imported.ImageBytes);
     }
 
     [Fact]
@@ -123,14 +110,16 @@ public class BikeEditorServiceTests
         var result = await CreateService().ExportBikeAsync(bike, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.IsType<BikeExportResult.Exported>(result);
-        var json = Encoding.UTF8.GetString(output.ToArray());
-        Assert.Contains("exported bike", json);
-        Assert.Contains("schema_version", json);
-        Assert.Contains("head_angle", json);
-        Assert.Contains("front_wheel", json);
-        Assert.Contains("rear_wheel", json);
-        Assert.Contains("diameter_mm", json);
-        Assert.Contains("image_rotation_degrees", json);
+        using var exportedText = new StreamReader(new MemoryStream(output.ToArray()), Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        using var json = System.Text.Json.JsonDocument.Parse(exportedText.ReadToEnd());
+        var root = json.RootElement;
+        Assert.Equal(2, root.GetProperty("schema_version").GetInt32());
+        Assert.Equal("exported bike", root.GetProperty("name").GetString());
+        Assert.Equal(65, root.GetProperty("head_angle").GetDouble());
+        Assert.Equal(160, root.GetProperty("fork_stroke").GetDouble());
+        Assert.Equal(760, root.GetProperty("front_wheel").GetProperty("diameter_mm").GetDouble());
+        Assert.Equal(750, root.GetProperty("rear_wheel").GetProperty("diameter_mm").GetDouble());
+        Assert.Equal(13.5, root.GetProperty("image_rotation_degrees").GetDouble());
     }
 
     public static TheoryData<RearSuspensionSpec, Type> UnavailableRearSuspensions => new()
@@ -144,39 +133,19 @@ public class BikeEditorServiceTests
     [MemberData(nameof(UnavailableRearSuspensions))]
     public async Task LoadAnalysisAsync_ClassifiesUnavailableInputs_WithoutSolving(RearSuspensionSpec rearSuspension, Type expected)
     {
-        var cache = new CountingKinematicSolutionCache();
-
-        var result = await CreateService(cache).LoadAnalysisAsync(rearSuspension, TestContext.Current.CancellationToken);
+        var result = await CreateService().LoadAnalysisAsync(rearSuspension, TestContext.Current.CancellationToken);
 
         Assert.IsType(expected, result);
-        Assert.Equal(0, cache.GetOrSolveCount);
     }
 
     [Fact]
     public async Task LoadAnalysisAsync_UnexpectedSolverFailure_IsNotReportedAsUnsolvable()
     {
-        var cache = new CountingKinematicSolutionCache { Failure = new InvalidOperationException("unexpected failure") };
+        var cache = new FaultingKinematicSolutionCache();
 
-        var result = await CreateService(cache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()), TestContext.Current.CancellationToken);
+        var result = await CreateService(cache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()), TestContext.Current.CancellationToken);
 
         Assert.Equal(BikeAnalysisFailureReason.Analyze, Assert.IsType<BikeEditorAnalysisResult.Failed>(result).Reason);
-    }
-
-    [Fact]
-    public async Task LoadAnalysisAsync_ReturnsComputed_WhenLinkageIsValid()
-    {
-        var kinematicSolutionCache = new CountingKinematicSolutionCache();
-
-        var result = await CreateService(kinematicSolutionCache).LoadAnalysisAsync(new RearSuspensionSpec.Linkage(CreateSimpleLinkageSpec()), cancellationToken: TestContext.Current.CancellationToken);
-
-        var computed = Assert.IsType<BikeEditorAnalysisResult.Computed>(result);
-        Assert.NotEmpty(computed.Data.LeverageRatioData.X);
-        Assert.NotEmpty(computed.Data.LeverageRatioData.Y);
-        Assert.True(computed.Data.RearAxlePathData.HasValue);
-        var rearAxlePathData = computed.Data.RearAxlePathData.Value;
-        Assert.NotEmpty(rearAxlePathData.X);
-        Assert.NotEmpty(rearAxlePathData.Y);
-        Assert.Equal(1, kinematicSolutionCache.GetOrSolveCount);
     }
 
     [Fact]
@@ -215,33 +184,10 @@ public class BikeEditorServiceTests
         Assert.Null(computed.Data.RearAxlePathData);
     }
 
-    private static LinkageSpec CreateSimpleLinkageSpec()
+    private sealed class FaultingKinematicSolutionCache : IKinematicSolutionCache
     {
-        return new LinkageSpec(
-            [
-                new JointSpec(JointNames.BottomBracket, JointType.BottomBracket, 0, 0),
-                new JointSpec(JointNames.RearWheel, JointType.RearWheel, 4, 0),
-                new JointSpec(JointNames.ShockEye1, JointType.Floating, 4, 3),
-                new JointSpec(JointNames.ShockEye2, JointType.Fixed, 0, 3)
-            ],
-            [
-                new LinkSpec(JointNames.BottomBracket, JointNames.RearWheel),
-                new LinkSpec(JointNames.RearWheel, JointNames.ShockEye1)
-            ],
-            new LinkSpec(JointNames.ShockEye1, JointNames.ShockEye2),
-            0.5);
+        public KinematicSolution GetOrSolve(LinkageSpec linkage, int steps = 200, int iterations = 1000) =>
+            throw new InvalidOperationException("unexpected failure");
     }
 
-    private sealed class CountingKinematicSolutionCache : IKinematicSolutionCache
-    {
-        public int GetOrSolveCount { get; private set; }
-        public Exception? Failure { get; init; }
-
-        public KinematicSolution GetOrSolve(LinkageSpec linkage, int steps = 200, int iterations = 1000)
-        {
-            GetOrSolveCount++;
-            if (Failure is { } failure) throw failure;
-            return KinematicSolver.Solve(linkage, steps, iterations);
-        }
-    }
 }

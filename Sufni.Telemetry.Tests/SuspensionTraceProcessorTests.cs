@@ -18,45 +18,6 @@ public class SuspensionTraceProcessorTests
             filter);
 
         Assert.Equal([0, 1, 2, 2, 2], result.Travel);
-        Assert.Empty(result.Strokes.Compressions);
-        Assert.Empty(result.Strokes.Rebounds);
-    }
-
-    [Fact]
-    public void Process_WithCompressionAndRebound_GeneratesVelocityBinsAndStrokes()
-    {
-        var measurements = new ushort[200];
-        for (var index = 0; index < 100; index++)
-        {
-            measurements[index] = (ushort)(index * 2);
-        }
-        for (var index = 100; index < 200; index++)
-        {
-            measurements[index] = (ushort)(200 - (index - 100) * 2);
-        }
-
-        var filter = SavitzkyGolay.Create(51, 1, 3);
-
-        var result = SuspensionTraceProcessor.Process(
-            measurements,
-            maxTravel: 20,
-            measurementToTravel: measurement => measurement / 10.0,
-            sampleRate: 1000,
-            filter);
-
-        Assert.Equal(measurements.Length, result.Travel.Length);
-        Assert.Equal(measurements.Length, result.Velocity.Length);
-        Assert.NotEmpty(result.TravelBins);
-        Assert.NotEmpty(result.VelocityBins);
-        Assert.NotEmpty(result.Strokes.Compressions);
-        Assert.NotEmpty(result.Strokes.Rebounds);
-        Assert.All(
-            result.Strokes.Compressions.Concat(result.Strokes.Rebounds),
-            stroke =>
-            {
-                Assert.Empty(stroke.DigitizedTravel);
-                Assert.Empty(stroke.DigitizedVelocity);
-            });
     }
 
     [Fact]

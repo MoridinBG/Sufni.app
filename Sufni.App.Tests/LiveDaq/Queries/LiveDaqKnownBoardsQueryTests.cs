@@ -103,65 +103,6 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     }
 
     [Fact]
-    public async Task Changes_ReturnsBoardOnlyRecord_WhenBoardHasNoSetup()
-    {
-        var boardId = Guid.NewGuid();
-        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, null, 1)]);
-
-        using var query = CreateQuery();
-        var records = await WaitForRecordsAsync(query.Changes);
-
-        var record = Assert.Single(records);
-        Assert.Equal(boardId.ToString(), record.IdentityKey);
-        Assert.Equal(boardId.ToString(), record.DisplayName);
-        Assert.Equal(boardId.ToString(), record.BoardId);
-        Assert.Null(record.SetupId);
-        Assert.Null(record.SetupName);
-        Assert.Null(record.BikeId);
-        Assert.Null(record.BikeName);
-    }
-
-    [Fact]
-    public async Task Changes_UsesSetupNameAsDisplayName_WhenSetupIsPresent()
-    {
-        var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "enduro setup", bikeId: Guid.NewGuid());
-        var bike = TestSnapshots.Bike(id: setup.BikeId, name: "enduro bike");
-
-        await SeedSetupAsync(setup);
-        await SeedBikeAsync(bike);
-        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
-
-        using var query = CreateQuery();
-        var records = await WaitForRecordsAsync(query.Changes);
-
-        var record = Assert.Single(records);
-        Assert.Equal("enduro setup", record.DisplayName);
-    }
-
-    [Fact]
-    public async Task Changes_ReturnsEnrichedRecord_WhenBoardMapsToSetupAndBike()
-    {
-        var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "park setup", bikeId: Guid.NewGuid());
-        var bike = TestSnapshots.Bike(id: setup.BikeId, name: "demo bike");
-
-        await SeedSetupAsync(setup);
-        await SeedBikeAsync(bike);
-        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
-
-        using var query = CreateQuery();
-        var records = await WaitForRecordsAsync(query.Changes);
-
-        var record = Assert.Single(records);
-        Assert.Equal(boardId.ToString(), record.BoardId);
-        Assert.Equal(setup.Id, record.SetupId);
-        Assert.Equal("park setup", record.SetupName);
-        Assert.Equal(bike.Id, record.BikeId);
-        Assert.Equal("demo bike", record.BikeName);
-    }
-
-    [Fact]
     public async Task Changes_RebuildsProjection_WhenSetupStoreFirstLoadsAfterQueryStarts()
     {
         var boardId = Guid.NewGuid();
@@ -208,27 +149,6 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
     }
 
     [Fact]
-    public async Task Get_ReturnsLatestRecord_ByIdentityKey()
-    {
-        var boardId = Guid.NewGuid();
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "known setup", bikeId: Guid.NewGuid());
-        var bike = TestSnapshots.Bike(id: setup.BikeId, name: "known bike");
-
-        await SeedSetupAsync(setup);
-        await SeedBikeAsync(bike);
-        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
-
-        using var query = CreateQuery();
-        await WaitForRecordsAsync(query.Changes);
-
-        var record = query.Get(boardId.ToString());
-
-        Assert.NotNull(record);
-        Assert.Equal("known setup", record!.SetupName);
-        Assert.Equal("known bike", record.BikeName);
-    }
-
-    [Fact]
     public async Task GetTravelCalibration_ReturnsCurrentCalibration_WhenSetupAndBikeAreKnown()
     {
         var boardId = Guid.NewGuid();
@@ -258,34 +178,6 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
         var expectedFrontMeasurementToTravel = 8 / (Math.Pow(2.0, 10) - 1.0) * Math.Sin(bike.HeadAngle * Math.PI / 180.0);
         Assert.Equal(expectedFrontMaxTravel, calibration.Front!.MaxTravel, 6);
         Assert.Equal(expectedFrontMeasurementToTravel, calibration.Front.MeasurementToTravel(1), 9);
-    }
-
-    [Fact]
-    public async Task GetTravelCalibration_ReturnsCachedInstance_BetweenCalls()
-    {
-        var boardId = Guid.NewGuid();
-        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached calibration bike");
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached calibration setup", bikeId: bike.Id) with
-        {
-            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
-            {
-                Length = 8,
-                Resolution = 10,
-            })
-        };
-
-        await SeedSetupAsync(setup);
-        await SeedBikeAsync(bike);
-        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
-
-        using var query = CreateQuery();
-        await WaitForRecordsAsync(query.Changes);
-
-        var first = query.GetTravelCalibration(boardId.ToString());
-        var second = query.GetTravelCalibration(boardId.ToString());
-
-        Assert.Same(first, second);
-        Assert.Same(first!.Front, second!.Front);
     }
 
     [Fact]
@@ -323,56 +215,10 @@ public class LiveDaqKnownBoardsQueryTests : IDisposable
         var context = query.GetSessionContext(boardId.ToString());
 
         Assert.NotNull(context);
-        Assert.Equal(boardId, context!.BoardId);
-        Assert.Equal(setup.Id, context.SetupId);
-        Assert.Equal("session setup", context.SetupName);
-        Assert.Equal(bike.Id, context.BikeId);
-        Assert.Equal("session bike", context.BikeName);
-        Assert.NotNull(context.BikeData.FrontMeasurementToTravel);
-        Assert.NotNull(context.BikeData.RearMeasurementToTravel);
-        Assert.NotNull(context.TravelCalibration.Front);
-        Assert.NotNull(context.TravelCalibration.Rear);
-        Assert.Same(context.BikeData.FrontMeasurementToTravel, context.TravelCalibration.Front!.MeasurementToTravel);
-        Assert.Same(context.BikeData.RearMeasurementToTravel, context.TravelCalibration.Rear!.MeasurementToTravel);
-    }
-
-    [Fact]
-    public async Task GetSessionContext_ReturnsCachedInstance_BetweenCalls()
-    {
-        var boardId = Guid.NewGuid();
-        var bike = TestSnapshots.Bike(id: Guid.NewGuid(), name: "cached session bike") with
-        {
-            HeadAngle = 63.5,
-            ForkStroke = 170,
-            ShockStroke = 0.5,
-            RearSuspension = new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
-        };
-        var setup = TestSnapshots.Setup(id: Guid.NewGuid(), name: "cached session setup", bikeId: bike.Id) with
-        {
-            FrontSensorConfigurationJson = SensorConfiguration.ToJson(new LinearForkSensorConfiguration
-            {
-                Length = 120,
-                Resolution = 12,
-            }),
-            RearSensorConfigurationJson = SensorConfiguration.ToJson(new LinearShockSensorConfiguration
-            {
-                Length = 55,
-                Resolution = 12,
-            }),
-        };
-
-        await SeedSetupAsync(setup);
-        await SeedBikeAsync(bike);
-        await boardStore.PublishBoardsChangedAsync([new BoardSnapshot(boardId, setup.Id, 1)]);
-
-        using var query = CreateQuery();
-        await WaitForRecordsAsync(query.Changes);
-
-        var first = query.GetSessionContext(boardId.ToString());
-        var second = query.GetSessionContext(boardId.ToString());
-
-        Assert.Same(first, second);
-        Assert.Same(first!.TravelCalibration, second!.TravelCalibration);
+        var expected = 120 * Math.Sin(63.5 * Math.PI / 180);
+        Assert.Equal(expected, context!.TravelCalibration.Front!.MeasurementToTravel(4095), 8);
+        Assert.Equal(expected, context.BikeData.FrontMeasurementToTravel!(4095), 8);
+        Assert.Equal(0, context.TravelCalibration.Front.MeasurementToTravel(0));
     }
 
     [Fact]

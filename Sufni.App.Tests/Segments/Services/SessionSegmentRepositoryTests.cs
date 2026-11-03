@@ -10,25 +10,24 @@ public class SessionSegmentRepositoryTests
     public async Task GetLiveAsync_HidesOnlyDeletedSegments_AndRetainsAttachmentsAfterSessionDeletion()
     {
         using var tempDatabase = new TempDatabase();
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         var repository = database.SessionSegmentRepository;
-        var liveSession = new Session(Guid.NewGuid(), "live", string.Empty, null);
-        var deletedSession = new Session(Guid.NewGuid(), "deleted", string.Empty, null);
-        await database.PutSessionAsync(liveSession);
-        await database.PutSessionAsync(deletedSession);
-        var kept = new SessionSegment { OwnerKey = "source-hash", Name = "kept", StartSeconds = 0, EndSeconds = 1 };
-        var deleted = new SessionSegment { OwnerKey = "source-hash", Name = "deleted", StartSeconds = 0, EndSeconds = 1 };
+        var session = new Session(Guid.NewGuid(), "ride", string.Empty, null);
+        var source = PersistenceTestData.CreateRecordedSessionSource(session.Id);
+        await database.PutSessionWithRecordedSourceAsync(session, source);
+        var kept = new SessionSegment { OwnerKey = source.SourceHash, Name = "kept", StartSeconds = 0, EndSeconds = 1 };
+        var deleted = new SessionSegment { OwnerKey = source.SourceHash, Name = "deleted", StartSeconds = 0, EndSeconds = 1 };
         await repository.InsertAsync(kept);
         await repository.InsertAsync(deleted);
-        await repository.InsertAsync(new SessionSegment { OwnerKey = "other-source", Name = "hidden", StartSeconds = 0, EndSeconds = 1 });
         await repository.DeleteAsync(deleted.Id);
-        await database.DeleteAsync(deletedSession);
+        Assert.Equal(source.SourceHash, Assert.Single(await repository.GetLiveAsync()).OwnerKey);
 
-        var live = await repository.GetLiveAsync();
+        await database.SessionTransactions.DeleteSessionAsync(session.Id, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, live.Count);
-        Assert.Contains(live, segment => segment.Id == kept.Id);
-        Assert.Contains(live, segment => segment.OwnerKey == "other-source");
+        Assert.Null(await database.GetSessionAsync(session.Id));
+        var retained = Assert.Single(await repository.GetLiveAsync());
+        Assert.Equal(kept.Id, retained.Id);
+        Assert.Equal(source.SourceHash, retained.OwnerKey);
     }
 
     [Fact]

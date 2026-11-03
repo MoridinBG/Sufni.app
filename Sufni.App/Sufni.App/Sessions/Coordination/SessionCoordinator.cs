@@ -102,6 +102,8 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         return new SessionStalenessReconciliation.Bulk(outcome);
     }
 
+    public Task<SessionRecomputeResult> RecomputeAsync(Guid sessionId) => recomputeEngine.RequestRecomputeAsync(sessionId);
+
     public async Task<SessionRecomputeResult> SetProcessingOptionAsync(Guid sessionId, int windowMilliseconds)
     {
         var window = new TelemetryProcessingOptions(windowMilliseconds).ClampedVelocityFilterWindowMilliseconds;

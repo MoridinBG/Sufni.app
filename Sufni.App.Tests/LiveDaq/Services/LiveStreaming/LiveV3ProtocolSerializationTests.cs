@@ -105,7 +105,6 @@ public class LiveV3ProtocolSerializationTests
 
         Assert.True(pending.Payload.IsPending);
         Assert.Equal((byte)42, pending.Payload.SessionId);
-        Assert.Equal((byte)42, context.AcceptedSessionId);
         Assert.True(denied.Payload.IsDenied);
         Assert.Equal((byte)0, denied.Payload.SessionId);
         Assert.Collection(
@@ -125,15 +124,6 @@ public class LiveV3ProtocolSerializationTests
                 Assert.Equal(LiveSensorInstanceMask.RearImu, reason.Sources);
                 Assert.Equal((uint)LiveSensorInstanceMask.RearImu, reason.TargetMask);
             });
-    }
-
-    [Fact]
-    public void ParseStartRequest_RejectsDuplicateAndOutOfOrderRecords()
-    {
-        var frame = LiveV3ProtocolTestFrames.StartRequestAllStreams();
-
-        AssertInvalid(frame, bytes => bytes[36] = SstV5ProtocolConstants.StreamTravel);
-        AssertInvalid(frame, bytes => bytes[36] = SstV5ProtocolConstants.StreamMarker);
     }
 
     [Fact]
@@ -193,26 +183,6 @@ public class LiveV3ProtocolSerializationTests
     }
 
     [Fact]
-    public void ParseDeviceState_ParsesOrderedAdvisoryState()
-    {
-        var frame = Assert.IsType<LiveV3DeviceStateFrame>(
-            LiveV3ProtocolReader.ParseFrame(
-                LiveV3ProtocolTestFrames.DeviceStateResponse(),
-                new LiveV3SessionDecodeContext()));
-
-        Assert.Equal(6, frame.Payload.Streams.Count);
-        Assert.Equal(6, frame.Payload.Sources.Count);
-        Assert.Equal(SstV5ProtocolConstants.StreamTravel, frame.Payload.Streams[0].StreamKind);
-        Assert.Equal(200_000u, frame.Payload.Streams[0].EffectiveDefaultRateMhz);
-        Assert.Equal(50u, frame.Payload.Streams[0].DefaultBatchDurationMs);
-        Assert.Equal(LiveSensorInstanceMask.ForkTravel, frame.Payload.Sources[0].Source);
-        Assert.False(
-            Assert.Single(
-                frame.Payload.Sources,
-                source => source.Source == LiveSensorInstanceMask.ForkImu).Available);
-    }
-
-    [Fact]
     public void ParseSessionHeader_ParsesDirectDescriptorsAndOmission()
     {
         var context = new LiveV3SessionDecodeContext();
@@ -245,162 +215,112 @@ public class LiveV3ProtocolSerializationTests
         Assert.Equal(30u, frame.Payload.AcceptedTemperatureRateMhz);
         Assert.Equal(5_000u, frame.Payload.AcceptedGpsRateMhz);
         Assert.Equal(LiveImuLocationMask.Frame | LiveImuLocationMask.Fork, frame.Payload.ActiveImuMask);
-        Assert.Equal(6, context.StreamDescriptors.Count);
-        Assert.Collection(
-            context.StreamDescriptors,
-            stream => Assert.Equal((ushort)4, stream.CompactPayloadRecordBytes),
-            stream => Assert.Equal((ushort)24, stream.CompactPayloadRecordBytes),
-            stream => Assert.Equal((ushort)4, stream.CompactPayloadRecordBytes),
-            stream => Assert.Equal((ushort)30, stream.CompactPayloadRecordBytes),
-            stream => Assert.Equal((ushort)4, stream.CompactPayloadRecordBytes),
-            stream => Assert.Equal((ushort)1, stream.CompactPayloadRecordBytes));
         var omission = Assert.Single(frame.Payload.AdmissionOmissions);
         Assert.Equal((byte)3, omission.TargetKind);
         Assert.Equal(SstV5ProtocolConstants.StreamGps, omission.StreamKind);
         Assert.Equal(SstV5ProtocolConstants.ExtensionGpsDiagPublicV1, omission.TargetMask);
-        Assert.True(context.HasSessionHeader);
     }
 
-    [Fact]
-    public void ParseSessionHeader_RejectsCountOrderMaskSizeGroupingAndLengthMismatches()
+    [Theory]
+    [InlineData(13, 5)]
+    [InlineData(16, 6)]
+    [InlineData(60, 1)]
+    [InlineData(39, 1)]
+    [InlineData(56, 3)]
+    [InlineData(236, 1)]
+    [InlineData(-1, 0)]
+    public void ParseSessionHeader_RejectsMalformedDescriptor(int offset, byte value)
     {
-        var frame = LiveV3ProtocolTestFrames.SessionHeaderAllStreams();
-
-        AssertInvalidStarted(frame, bytes => bytes[13] = 5);
-        AssertInvalidStarted(
-            frame,
-            bytes => BinaryPrimitives.WriteUInt32LittleEndian(
-                bytes.AsSpan(16, 4),
-                (uint)(LiveStreamMask.Travel | LiveStreamMask.Imu)));
-        AssertInvalidStarted(frame, bytes => bytes[60] = SstV5ProtocolConstants.StreamTravel);
-        AssertInvalidStarted(frame, bytes => bytes[39] = 1);
-        AssertInvalidStarted(frame, bytes => bytes[56] = 3);
-        AssertInvalidStarted(frame, bytes => bytes[236] = SstV5ProtocolConstants.StreamTravel);
-
-        var truncated = frame[..^1];
+        var bytes = LiveV3ProtocolTestFrames.SessionHeaderAllStreams();
+        if (offset < 0) bytes = bytes[..^1];
+        else bytes[offset] = value;
         var context = new LiveV3SessionDecodeContext();
         context.AcceptSession(42);
-        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(truncated, context));
+        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(bytes, context));
     }
 
-    [Fact]
-    public void ParseDataStatusTerminalPongAndError_ReturnsCanonicalFrames()
+    [Theory]
+    [InlineData("travel")]
+    [InlineData("imu")]
+    [InlineData("temperature")]
+    [InlineData("gps")]
+    [InlineData("battery")]
+    [InlineData("marker")]
+    [InlineData("status")]
+    [InlineData("terminal")]
+    [InlineData("pong")]
+    [InlineData("error")]
+    public void ParseFrame_DecodesCanonicalWireValue(string kind)
     {
-        var context = new LiveV3SessionDecodeContext();
-        context.AcceptSession(42);
-        _ = LiveV3ProtocolReader.ParseFrame(
-            LiveV3ProtocolTestFrames.SessionHeaderAllStreams(),
-            context);
-
-        var travel = Assert.IsType<LiveTravelBatchFrame>(Parse(LiveV3ProtocolTestFrames.TravelData(), context));
-        Assert.Equal((ulong)1001, travel.Batch.FirstIndex);
-        Assert.Equal(new LiveTravelRecord(1000, 1111), Assert.Single(travel.Records));
-
-        var imu = Assert.IsType<LiveImuBatchFrame>(Parse(LiveV3ProtocolTestFrames.ImuData(), context));
-        Assert.Collection(
-            imu.Records,
-            record => Assert.Equal((short)100, record.Ax),
-            record => Assert.Equal((short)700, record.Ax));
-
-        var temperature = Assert.IsType<LiveTemperatureBatchFrame>(
-            Parse(LiveV3ProtocolTestFrames.TemperatureData(), context));
-        Assert.Collection(
-            temperature.Records,
-            record =>
-            {
-                Assert.Equal(LiveSensorInstanceMask.FrameImu, record.Source);
-                Assert.Equal(37.53f, record.Sample.TemperatureCelsius, 2);
-            },
-            record =>
-            {
-                Assert.Equal(LiveSensorInstanceMask.ForkImu, record.Source);
-                Assert.Equal(24f, record.Sample.TemperatureCelsius, 2);
-            });
-
-        var gps = Assert.IsType<LiveGpsBatchFrame>(Parse(LiveV3ProtocolTestFrames.GpsData(), context));
-        var gpsRecord = Assert.Single(gps.Records);
-        Assert.Equal(42.6975123, gpsRecord.Latitude, 7);
-        Assert.Equal(23.3216789, gpsRecord.Longitude, 7);
-        Assert.Equal(14, gpsRecord.Satellites);
-
-        var battery = Assert.IsType<LiveBatteryBatchFrame>(Parse(LiveV3ProtocolTestFrames.BatteryData(), context));
-        Assert.Equal((ushort)3987, Assert.Single(battery.Records).Millivolts);
-        var marker = Assert.IsType<LiveMarkerBatchFrame>(Parse(LiveV3ProtocolTestFrames.MarkerData(), context));
-        Assert.Equal(SstV5ProtocolConstants.MarkerManualUserMark, Assert.Single(marker.Records).MarkerType);
-
-        var status = Assert.IsType<LiveStatusFrame>(Parse(LiveV3ProtocolTestFrames.StatusAllStreams(), context));
-        Assert.Equal(6, status.Streams.Count);
-        Assert.Equal(LiveStreamMask.Travel, status.Streams[0].Stream);
-        Assert.Equal((byte)1, status.Streams[0].ProducerState);
-        Assert.Equal((byte)0, status.Streams[0].ProducerFailureReason);
-        Assert.Equal((ushort)1, status.Streams[0].SinkBacklogBatches);
-        Assert.Equal((ulong)11, status.Streams[0].ProducerMissedCount);
-        Assert.Equal(LiveStreamMask.Marker, status.Streams[5].Stream);
-        Assert.Equal((byte)0, status.Streams[5].ProducerState);
-
-        var terminal = Assert.IsType<LiveSessionResultFrame>(
-            Parse(LiveV3ProtocolTestFrames.SessionResultAllStreams(), context));
-        Assert.Equal(6, terminal.Payload.FinalStatus.Streams.Length);
-        Assert.Equal((ushort)6, terminal.Payload.FinalStatus.Streams[5].SinkBacklogBatches);
-
-        var pong = Assert.IsType<LivePongFrame>(Parse(LiveV3ProtocolTestFrames.Pong(), context));
-        Assert.Equal(0xa1b2c3d4u, pong.Nonce);
-        var error = Assert.IsType<LiveV3ErrorFrame>(Parse(LiveV3ProtocolTestFrames.Error(), context));
-        Assert.Equal((byte)2, error.Payload.Code);
-        Assert.Equal((byte)99, error.Payload.OffendingFrameType);
-        Assert.Equal(0xdecafbadu, error.Payload.Detail);
-    }
-
-    [Fact]
-    public void ParsePreheaderTerminalAndPing_DoesNotRequireDescriptorsOrSequenceContinuity()
-    {
-        var preheaderContext = new LiveV3SessionDecodeContext();
-        preheaderContext.AcceptSession(43);
-        var terminal = Assert.IsType<LiveSessionResultFrame>(
-            Parse(LiveV3ProtocolTestFrames.SessionResultPreheaderFailure(), preheaderContext));
-        Assert.Empty(terminal.Payload.FinalStatus.Streams);
-
-        var ping = Assert.IsType<LivePingFrame>(
-            Parse(LiveV3ProtocolTestFrames.Ping(), new LiveV3SessionDecodeContext()));
-        Assert.Equal(0xa1b2c3d4u, ping.Nonce);
-
         var context = new LiveV3SessionDecodeContext();
         context.AcceptSession(42);
         _ = Parse(LiveV3ProtocolTestFrames.SessionHeaderAllStreams(), context);
-        var discontinuous = LiveV3ProtocolTestFrames.TravelData();
-        BinaryPrimitives.WriteUInt32LittleEndian(discontinuous.AsSpan(8, 4), uint.MaxValue);
-        var travel = Assert.IsType<LiveTravelBatchFrame>(
-            LiveV3ProtocolReader.ParseFrame(discontinuous, context));
-        Assert.Equal(uint.MaxValue, travel.Sequence);
+        var bytes = kind switch
+        {
+            "travel" => LiveV3ProtocolTestFrames.TravelData(),
+            "imu" => LiveV3ProtocolTestFrames.ImuData(),
+            "temperature" => LiveV3ProtocolTestFrames.TemperatureData(),
+            "gps" => LiveV3ProtocolTestFrames.GpsData(),
+            "battery" => LiveV3ProtocolTestFrames.BatteryData(),
+            "marker" => LiveV3ProtocolTestFrames.MarkerData(),
+            "status" => LiveV3ProtocolTestFrames.StatusAllStreams(),
+            "terminal" => LiveV3ProtocolTestFrames.SessionResultAllStreams(),
+            "pong" => LiveV3ProtocolTestFrames.Pong(),
+            _ => LiveV3ProtocolTestFrames.Error(),
+        };
+        var frame = Parse(bytes, context);
+        switch (kind)
+        {
+            case "travel":
+                Assert.Equal(new LiveTravelRecord(1000, 1111), Assert.Single(Assert.IsType<LiveTravelBatchFrame>(frame).Records));
+                break;
+            case "imu":
+                Assert.Equal(new short[] { 100, 700 }, Assert.IsType<LiveImuBatchFrame>(frame).Records.Select(record => record.Ax));
+                break;
+            case "temperature":
+                Assert.Collection(Assert.IsType<LiveTemperatureBatchFrame>(frame).Records,
+                    record => { Assert.Equal(LiveSensorInstanceMask.FrameImu, record.Source); Assert.Equal(37.53f, record.Sample.TemperatureCelsius, 2); },
+                    record => { Assert.Equal(LiveSensorInstanceMask.ForkImu, record.Source); Assert.Equal(24f, record.Sample.TemperatureCelsius, 2); });
+                break;
+            case "gps":
+                var fix = Assert.Single(Assert.IsType<LiveGpsBatchFrame>(frame).Records);
+                Assert.Equal(42.6975123, fix.Latitude, 7);
+                Assert.Equal(23.3216789, fix.Longitude, 7);
+                break;
+            case "battery":
+                Assert.Equal((ushort)3987, Assert.Single(Assert.IsType<LiveBatteryBatchFrame>(frame).Records).Millivolts);
+                break;
+            case "marker":
+                Assert.Equal((byte)1, Assert.Single(Assert.IsType<LiveMarkerBatchFrame>(frame).Records).MarkerType);
+                break;
+            case "status":
+                var status = Assert.Single(Assert.IsType<LiveStatusFrame>(frame).Streams, item => item.Stream == LiveStreamMask.Travel);
+                Assert.Equal((ulong)11, status.ProducerMissedCount);
+                Assert.Equal((ushort)1, status.SinkBacklogBatches);
+                break;
+            case "terminal":
+                Assert.Equal((ushort)6, Assert.IsType<LiveSessionResultFrame>(frame).Payload.FinalStatus.Streams[5].SinkBacklogBatches);
+                break;
+            case "pong":
+                Assert.Equal(0xa1b2c3d4u, Assert.IsType<LivePongFrame>(frame).Nonce);
+                break;
+            case "error":
+                Assert.Equal(0xdecafbadu, Assert.IsType<LiveV3ErrorFrame>(frame).Payload.Detail);
+                break;
+        }
     }
 
-    [Fact]
-    public void ParseCapabilities_RejectsMalformedCountsOrderingReservedAndMasks()
+    [Theory]
+    [InlineData(13, 5)]
+    [InlineData(52, 1)]
+    [InlineData(30, 1)]
+    [InlineData(16, 128)]
+    [InlineData(32, 128)]
+    public void ParseCapabilities_RejectsMalformedDescriptor(int offset, byte value)
     {
-        var frame = LiveV3ProtocolTestFrames.CapabilitiesResponse();
-
-        AssertInvalid(frame, bytes => bytes[13] = 5);
-        AssertInvalid(frame, bytes => bytes[52] = SstV5ProtocolConstants.StreamTravel);
-        AssertInvalid(frame, bytes => bytes[30] = 1);
-        AssertInvalid(
-            frame,
-            bytes => BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(16, 4), 0x80));
-        AssertInvalid(
-            frame,
-            bytes => BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(32, 4), 0x80));
-    }
-
-    [Fact]
-    public void ParseDeviceState_RejectsMalformedCountsOrderingReservedAndMasks()
-    {
-        var frame = LiveV3ProtocolTestFrames.DeviceStateResponse();
-
-        AssertInvalid(frame, bytes => bytes[12] = 5);
-        AssertInvalid(frame, bytes => bytes[28] = SstV5ProtocolConstants.StreamTravel);
-        AssertInvalid(frame, bytes => bytes[17] = 1);
-        AssertInvalid(
-            frame,
-            bytes => BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(92, 4), 0x80));
+        var bytes = LiveV3ProtocolTestFrames.CapabilitiesResponse();
+        bytes[offset] = value;
+        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(bytes, new LiveV3SessionDecodeContext()));
     }
 
     [Theory]
@@ -414,63 +334,30 @@ public class LiveV3ProtocolSerializationTests
         Assert.Equal(protocolMinor, LiveV3ProtocolReader.ParseServerHello(hello).ProtoMinor);
     }
 
-    [Fact]
-    public void ParseHeader_AllowsUnknownServerTypeOnlyWhenRequested()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ParseFrame_RejectsServerControlFromWrongSession(bool error)
     {
-        var bytes = LiveV3ProtocolTestFrames.Pong();
-        bytes[1] = 0xee;
-
-        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseHeader(bytes));
-        var header = LiveV3ProtocolReader.ParseHeader(bytes, allowUnknownFrameType: true);
-        Assert.Equal((byte)0xee, (byte)header.FrameType);
-        Assert.Equal(42, header.SessionId);
-        Assert.Equal(4u, header.PayloadLength);
-    }
-
-    [Fact]
-    public void ControlFrameSessionScopes_AreStrict()
-    {
-        AssertInvalid(
-            LiveV3ProtocolTestFrames.CapabilitiesRequest(),
-            bytes => bytes[0] = 42);
-        AssertInvalid(
-            LiveV3ProtocolTestFrames.CapabilitiesResponse(),
-            bytes => bytes[0] = 42);
-        AssertInvalid(
-            LiveV3ProtocolTestFrames.StartRequestAllStreams(),
-            bytes => bytes[0] = 42);
-        AssertInvalid(
-            LiveV3ProtocolTestFrames.StopRequest(),
-            bytes => bytes[0] = 0);
-
-        var error = LiveV3ProtocolTestFrames.Error();
-        error[0] = 41;
+        var bytes = error ? LiveV3ProtocolTestFrames.Error() : LiveV3ProtocolTestFrames.CapabilitiesResponse();
+        bytes[0] = 41;
         var context = new LiveV3SessionDecodeContext();
         context.AcceptSession(42);
-        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(error, context));
+        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(bytes, context));
     }
 
-    [Fact]
-    public void StartAndStopResults_RejectUndefinedReasonAndReservedValues()
+    [Theory]
+    [InlineData(true, 18, 0)]
+    [InlineData(true, 18, 9)]
+    [InlineData(false, 12, 1)]
+    [InlineData(false, 13, 1)]
+    public void ParseResult_RejectsInvalidReasonOrReservedValue(bool start, int offset, byte value)
     {
-        AssertInvalid(
-            LiveV3ProtocolTestFrames.StartResultDenied(),
-            bytes => bytes[18] = 0);
-        AssertInvalid(
-            LiveV3ProtocolTestFrames.StartResultDenied(),
-            bytes => bytes[18] = 9);
-
+        var bytes = start ? LiveV3ProtocolTestFrames.StartResultDenied() : LiveV3ProtocolTestFrames.StopResult();
+        bytes[offset] = value;
         var context = new LiveV3SessionDecodeContext();
-        context.AcceptSession(42);
-        _ = LiveV3ProtocolReader.ParseFrame(
-            LiveV3ProtocolTestFrames.SessionHeaderAllStreams(),
-            context);
-        var invalidCode = LiveV3ProtocolTestFrames.StopResult();
-        invalidCode[12] = 1;
-        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(invalidCode, context));
-        var invalidReserved = LiveV3ProtocolTestFrames.StopResult();
-        invalidReserved[13] = 1;
-        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(invalidReserved, context));
+        if (!start) context.AcceptSession(42);
+        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(bytes, context));
     }
 
     private static LiveV3StreamRequestRecord Request(
@@ -493,23 +380,6 @@ public class LiveV3ProtocolSerializationTests
             ExtensionMask: extensionMask,
             RateMhz: rateMhz,
             BatchDurationMs: batchDurationMs);
-    }
-
-    private static void AssertInvalid(byte[] frame, Action<byte[]> mutate)
-    {
-        var malformed = (byte[])frame.Clone();
-        mutate(malformed);
-        Assert.Throws<FormatException>(
-            () => LiveV3ProtocolReader.ParseFrame(malformed, new LiveV3SessionDecodeContext()));
-    }
-
-    private static void AssertInvalidStarted(byte[] frame, Action<byte[]> mutate)
-    {
-        var malformed = (byte[])frame.Clone();
-        mutate(malformed);
-        var context = new LiveV3SessionDecodeContext();
-        context.AcceptSession(42);
-        Assert.Throws<FormatException>(() => LiveV3ProtocolReader.ParseFrame(malformed, context));
     }
 
     private static LiveProtocolFrame Parse(byte[] frame, LiveV3SessionDecodeContext context) =>

@@ -9,30 +9,21 @@ namespace Sufni.App.Tests.Bikes.Services;
 public class BikeFileFormatTests
 {
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void Parse_NormalizesShockStrokeFromRearSuspension(int mode)
+    [InlineData("{\"kind\":\"hardtail\"}", null)]
+    [InlineData("{\"kind\":\"leverage_ratio\",\"leverage_ratio\":{\"points\":[{\"shock_travel_mm\":0,\"wheel_travel_mm\":0},{\"shock_travel_mm\":20,\"wheel_travel_mm\":50}]}}", 20.0)]
+    public void Parse_NormalizesShockStrokeFromRearSuspension(string rearJson, double? expected)
     {
-        RearSuspensionSpec rear = mode switch
-        {
-            0 => new RearSuspensionSpec.Hardtail(),
-            1 => new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
-            _ => new RearSuspensionSpec.LeverageRatio(TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50))),
-        };
-        var bike = new Bike(Guid.NewGuid(), "import") { RearSuspension = rear, ShockStroke = 999 };
+        var json = """
+            {"schema_version":2,"name":"import","shock_stroke":999,"image":"",
+             "damping_speed_cutoffs":{"front":{"compression_mm_per_second":200,"rebound_mm_per_second":200},
+                                     "rear":{"compression_mm_per_second":200,"rebound_mm_per_second":200}},
+             "rear_suspension":
+            """ + rearJson + "}";
 
-        var imported = BikeFileFormat.Parse(BikeFileFormat.Serialize(bike));
+        var imported = BikeFileFormat.Parse(json);
 
-        var expected = rear switch
-        {
-            RearSuspensionSpec.Linkage linkage => (double?)linkage.Spec.ShockStroke,
-            RearSuspensionSpec.LeverageRatio curve => curve.Spec.MaxShockStroke,
-            _ => null,
-        };
         Assert.NotNull(imported);
         Assert.Equal(expected, imported.ShockStroke);
-        Assert.Equal(rear, imported.RearSuspension);
     }
 
     [Fact]
@@ -47,12 +38,15 @@ public class BikeFileFormatTests
             FrontWheelTireWidth = 2.4,
             FrontWheelDiameterMm = TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4),
             ImageRotationDegrees = 4,
+            Updated = 42, Deleted = 1, Version = 3, LocalSequence = 8, SyncSequence = 9,
         };
 
         var json = BikeFileFormat.Serialize(bike);
         var root = JsonNode.Parse(json)!.AsObject();
 
         Assert.Equal(2, root["schema_version"]!.GetValue<int>());
+        foreach (var key in new[] { "id", "updated", "updated_by", "deleted", "version", "local_seq", "sync_seq" })
+            Assert.False(root.ContainsKey(key));
         Assert.False(root.ContainsKey("front_wheel_diameter"));
         Assert.Equal(bike.FrontWheelDiameterMm, root["front_wheel"]!["diameter_mm"]!.GetValue<double>());
 
@@ -87,9 +81,11 @@ public class BikeFileFormatTests
         Assert.False(root.ContainsKey("leverage_ratio"));
         Assert.Equal("linkage", root["rear_suspension"]!["kind"]!.GetValue<string>());
 
-        var imported = BikeFileFormat.Parse(json);
+        root["shock_stroke"] = 999;
+        var imported = BikeFileFormat.Parse(root.ToJsonString());
 
         Assert.NotNull(imported);
+        Assert.Equal(0.5, imported.ShockStroke);
         var importedLinkage = Assert.IsType<RearSuspensionSpec.Linkage>(imported!.RearSuspension);
         Assert.Equal(linkage, importedLinkage.Spec);
     }

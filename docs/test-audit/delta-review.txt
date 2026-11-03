@@ -1,0 +1,33 @@
+CONCURRENT SOURCE DELTA REVIEW — 2026-11-03
+
+Current domains.csv: 647 methods / 96 test files. Verdicts: {'KEEP': 374, 'REWRITE': 211, 'REMOVE': 30, 'MERGE': 32}. Count-neutral method delta: -2 removed query tests +2 new real SQLite tests; analysis failure test moved without duplication. No test/production edits or test runs by auditor.
+
+1. BikeCoordinatorTests now injects InMemoryBikeTransactions(repository,setups) instead of a dependency query. Renamed DeleteAsync_ReturnsInUse_WhenDependencyQueryReportsInUse to DeleteAsync_ReturnsInUse_WhenPersistedSetupReferencesBike. All three delete assertions remain KEEP for coordinator result/store publication or preservation. They do not prove the active-setup SQLite predicate, atomicity, concurrency or rollback. Other coordinator assertions unchanged.
+2. BikeDependencyQueryTests removed IsBikeInUseAsync_ChecksTheRepositoryForReferencingSetups (old KEEP) and IsBikeInUseAsync_ToleratesNullRepositoryEntries (old REMOVE). Deleted both rows. The two surviving store query/observation tests remain KEEP; evidence now identifies command availability only. Production IBikeDependencyQuery no longer owns an authoritative repository read.
+3. New BikePersistenceTransactionRunnerTests contributes two KEEP rows. Active setup reference must return InUse, preserve Deleted=null and Version=3; only-deleted setup reference must permit Deleted and actual bike tombstone. These are real initialized in-memory SQLite outcomes through public IBikePersistenceTransactionRunner, whose implementation wraps predicate and deletion in one transaction. The tests do not empirically prove interleaving/rollback behavior.
+4. Moved BuildAnalysisComparisonAsync_ReturnsFailureWhenAnalysisCannotRun from MapsAndTracks/Coordinators/TrackCoordinatorTests to Segments/Coordinators/SegmentCoordinatorTests. Same typed Analysis failure and nonempty diagnostics oracle earns KEEP. ISegmentCoordinator is now the public consumer boundary. All source lines in affected CSV rows refreshed from declarations.
+5. SegmentComparisonViewModelTests constructor now uses TestSegmentComparisons.BuildAnalysisComparisons(coordinator). Production VM no longer holds ITrackCoordinator; it asks ISegmentCoordinator.BuildAnalysisComparisonAsync. Assertions in all thirteen VM methods are unchanged, so verdicts remain unchanged. Shared helper still invokes production SegmentAnalysisComparisonBuilder and is not an independent numeric oracle for that builder. Updated helper naming/consumer text in report and CSV.
+6. New TestSupport/Persistence/InMemoryBikeTransactions.cs support disposition: REWRITE. Its setup scan duplicates production eligibility rules. Prefer a small explicit transaction-result/failure fake, optionally capture requested ID, for coordinator publication/result tests. Keep real SQLite active/deleted reference rules in BikePersistenceTransactionRunnerTests. It reuses existing in-memory repositories and does not justify a new broad harness. No invented per-helper test row.
+7. During the first refresh read, docs/architecture/maps-and-tracks.md still attributed BuildAnalysisComparisonAsync to TrackCoordinator. The final check finds that stale paragraph has now been removed by concurrent external edits; docs/architecture/segments.md:97/100 identifies ISegmentCoordinator.BuildAnalysisComparisonAsync. No unresolved owner-document drift remains in that checked path. Auditor did not edit architecture docs; other concurrent doc edits are outside narrow refresh.
+
+Updated artifacts: domains.csv and domains.txt. Parent owns inventory/global-summary refresh. Original assigned support file remains assessed; new shared helper reviewed for its effect on coordinator claims.
+
+Reviewed source snapshot SHA256 (to detect later concurrent changes):
+0ccd982b69caac650f37a8c6db39313acf984ebada56b3675c28a6d920f13faa  Sufni.App.Tests/Bikes/Coordinators/BikeCoordinatorTests.cs
+650384bb44d9f5d7ad1aed8bfb01636a6b54645dbae9f244bf0b672086d1c53a  Sufni.App.Tests/Bikes/Queries/BikeDependencyQueryTests.cs
+04d7aa1b7d675f09477c48769b3979b99a40c53ac4afc9eb2023670647827145  Sufni.App.Tests/MapsAndTracks/Coordinators/TrackCoordinatorTests.cs
+a8647f9cbf728c2656e768716c4fb8e2d9ffe496a3ef2da70f9cc1736f6a72f5  Sufni.App.Tests/Segments/Coordinators/SegmentCoordinatorTests.cs
+b0578918e9ec332b938131d9fbb70381e09e669b807bafeba5841b3c50f50d73  Sufni.App.Tests/Segments/ViewModels/SegmentComparisonViewModelTests.cs
+11f9f41e9821686005648e16031691048066f478dc6ce1b4be465ec8da015404  Sufni.App.Tests/Bikes/Coordinators/BikePersistenceTransactionRunnerTests.cs
+c32c20b106f8c90569b39e34be864c817a16356e81049fb1807cdf57f1dca715  Sufni.App.Tests/TestSupport/Persistence/InMemoryBikeTransactions.cs
+985c477ad92c7a24b30056f23336dbd16af5378985bf5c5325cbacbd605f9ee2  Sufni.App.Tests/TestSupport/Doubles/TestSegmentComparisons.cs
+3fac420553f91c084950ca3bff6c3d5ea4addd09705b809f10739cf87c22eaec  Sufni.App/Sufni.App/Bikes/Coordinators/BikePersistenceTransactionRunner.cs
+14e18cc3ce61ba01322ecd44f1fa5497f2cad2800ba211ee5b0a60fcc7e3af86  Sufni.App/Sufni.App/Bikes/Coordinators/IBikePersistenceTransactionRunner.cs
+9eeb6d00bf208c6c543d6b1669fa9ca1d4c3a6c4b78d69cdb23d391fc79321ac  Sufni.App/Sufni.App/Bikes/Coordinators/BikeCoordinator.cs
+b59f3e8f9aadbcd850936f252645f5460f4fd95fb71d4abec51ec0102c947299  Sufni.App/Sufni.App/Bikes/Queries/BikeDependencyQuery.cs
+bd9b3cb0c846510fe2182c87951f5b7c388526c97093ac2049b439d4dc2dc837  Sufni.App/Sufni.App/Bikes/Queries/IBikeDependencyQuery.cs
+9c6c5d4cd5bfe1b146f4d8c5820a7ce442f5a2c72f8dd29c6368b6ba584a09b4  Sufni.App/Sufni.App/Segments/Coordinators/SegmentCoordinator.cs
+0bd911c0945fe19d1b94237c767cac517ee3625d40e354b40813d066a965ff59  Sufni.App/Sufni.App/MapsAndTracks/Coordinators/TrackCoordinator.cs
+b64168c5e81974ec268e316f6251695fa4b7bd72b241e0997a17e72ae2bae2fe  Sufni.App/Sufni.App/Segments/ViewModels/SegmentComparisonViewModel.cs
+
+Primary final follow-up: InMemorySetupTransactions gained one missing-bike guard before its fake board check/write. Inspected the exact one-line diff; existing REWRITE support verdict remains, because eligibility is still supplied by fake policy. Helper ledger and source hash refreshed.

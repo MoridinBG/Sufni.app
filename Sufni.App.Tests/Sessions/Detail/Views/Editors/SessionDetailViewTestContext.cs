@@ -17,7 +17,6 @@ using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Coordination;
 using Sufni.App.Sessions.Detail.DesktopViews.Editors;
 using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Detail.Views.Editors;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
@@ -38,7 +37,6 @@ internal sealed class SessionDetailViewTestContext
     private readonly ISessionLoader sessionLoader = TestCoordinatorSubstitutes.SessionLoader();
     private readonly ISessionStore sessionStore = Substitute.For<ISessionStore>();
     private readonly IRecordedSessionProjection recordedSessionProjection = Substitute.For<IRecordedSessionProjection>();
-    private readonly ISessionPresentationService sessionPresentationService = Substitute.For<ISessionPresentationService>();
     private readonly ISessionInsightsService sessionAnalysisService = Substitute.For<ISessionInsightsService>();
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>().WithDefaultObserveRecorded();
@@ -50,83 +48,22 @@ internal sealed class SessionDetailViewTestContext
         sessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(SessionPreferences.Default));
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(Task.CompletedTask);
-        sessionPresentationService.CalculateDampingPercentages(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<TelemetryTimeRange?>(),
-                Arg.Any<VelocityAverageMode>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(SessionDampingPercentages.Empty);
         sessionAnalysisService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
-    public SessionSnapshot CreateTelemetryBearingSnapshot(
-        string name = "Recorded Session 01",
-        string description = "Suspension notes",
-        bool hasProcessedData = true)
-    {
-        return TestSnapshots.Session(
-            name: name,
-            description: description,
-            hasProcessedData: hasProcessedData);
-    }
-
-    public SessionSnapshot CreateTelemetryLightSnapshot(
-        string name = "Recorded Session 01",
-        string description = "Suspension notes",
-        bool hasProcessedData = true)
-    {
-        return TestSnapshots.Session(
-            name: name,
-            description: description,
-            hasProcessedData: hasProcessedData);
-    }
-
-    public SessionDetailLoadResult.Loaded CreateLoadedState(
-        bool includeImu = false,
-        bool includeBalance = true)
-    {
-        var telemetry = TestTelemetryData.CreateProcessed(rearPresent: includeBalance);
-        if (includeImu)
-        {
-            telemetry = telemetry with { ImuData = TestTelemetryData.CreateWithImu().ImuData };
-        }
-
-        return new SessionDetailLoadResult.Loaded(new SessionDetailData(
-            new SessionTelemetryPresentationData(
-                telemetry,
-                FullTrackId: null,
-                FullTrackPoints: null,
-                TrackPoints: null)));
-    }
-
-    public async Task<MountedSessionDetailView<SessionDetailView>> MountMobileAsync(
-        SessionSnapshot? snapshot = null,
-        SessionDetailLoadResult? loadResult = null,
-        Task<SessionDetailLoadResult>? loadTask = null)
-    {
-        snapshot ??= CreateTelemetryLightSnapshot();
-        ConfigureStores(snapshot);
-        sessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
-            .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
-
-        ViewTestHelpers.EnsureSessionDetailViewSetup(isDesktop: false);
-
-        var editor = CreateEditor(snapshot, isDesktopLayout: false);
-        var view = new SessionDetailView
-        {
-            DataContext = editor
-        };
-
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedSessionDetailView<SessionDetailView>(host, view, editor);
-    }
+    public SessionDetailLoadResult.Loaded CreateLoadedState() =>
+        new(new SessionDetailData(new SessionTelemetryPresentationData(
+            TestTelemetryData.CreateProcessed(),
+            FullTrackId: null,
+            FullTrackPoints: null,
+            TrackPoints: null)));
 
     public async Task<MountedSessionDetailView<SessionDetailDesktopView>> MountDesktopAsync(
         SessionSnapshot? snapshot = null,
         SessionDetailLoadResult? loadResult = null,
         Task<SessionDetailLoadResult>? loadTask = null)
     {
-        snapshot ??= CreateTelemetryBearingSnapshot();
+        snapshot ??= TestSnapshots.Session();
         ConfigureStores(snapshot);
         sessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(_ => loadTask ?? Task.FromResult(loadResult ?? CreateLoadedState()));
@@ -149,7 +86,7 @@ internal sealed class SessionDetailViewTestContext
         sessionStore.Get(snapshot.Id).Returns(snapshot);
     }
 
-    private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot, bool isDesktopLayout = true)
+    private SessionDetailViewModel CreateEditor(SessionSnapshot snapshot)
     {
         var dispatcher = new InlineUiThreadDispatcher();
         var analysisResultStateFactory = new RecordedSessionAnalysisResultStateFactory(

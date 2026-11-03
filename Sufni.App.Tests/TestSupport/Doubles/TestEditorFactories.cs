@@ -36,16 +36,7 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 
 internal static class TestEditorFactories
 {
-    public static IEditorFactory Create(
-        IBikeStore? bikeStore = null,
-        ISetupBoardQuery? setupQuery = null,
-        ISessionStore? sessionStore = null,
-        ILiveDaqStore? liveDaqStore = null,
-        ILiveDaqKnownBoardsQuery? knownBoards = null,
-        ILiveDaqSharedStreamRegistry? streamRegistry = null,
-        ILiveSessionServiceFactory? liveSessionFactory = null,
-        IImportSessionsCoordinator? importCoordinator = null,
-        IAppEnvironment? appEnvironment = null)
+    public static IEditorFactory Create(ISessionStore? sessionStore = null)
     {
         var sessionPresentationService = Substitute.For<ISessionPresentationService>();
         var sessionAnalysisService = Substitute.For<ISessionInsightsService>();
@@ -59,9 +50,9 @@ internal static class TestEditorFactories
         return new EditorFactory(
             TestCoordinatorSubstitutes.Bike(),
             Substitute.For<IBikeDependencyQuery>(),
-            bikeStore ?? Substitute.For<IBikeStore>(),
+            Substitute.For<IBikeStore>(),
             TestCoordinatorSubstitutes.Setup(),
-            setupQuery ?? Substitute.For<ISetupBoardQuery>(),
+            Substitute.For<ISetupBoardQuery>(),
             TestCoordinatorSubstitutes.Session(),
             TestCoordinatorSubstitutes.LiveDaq(),
             TestCoordinatorSubstitutes.SessionLoader(),
@@ -72,14 +63,14 @@ internal static class TestEditorFactories
             new TestMapViewModelFactory(Substitute.For<ITileLayerService>().WithDefaultLayerState()),
             Substitute.For<ISessionPreferences>(),
             new TestSessionProcessedTelemetryReader(),
-            knownBoards ?? Substitute.For<ILiveDaqKnownBoardsQuery>(),
-            liveDaqStore ?? Substitute.For<ILiveDaqStore>(),
+            Substitute.For<ILiveDaqKnownBoardsQuery>(),
+            Substitute.For<ILiveDaqStore>(),
             Substitute.For<IDialogService>(),
             uiThreadDispatcher,
             backgroundTaskRunner,
-            importCoordinator ?? TestCoordinatorSubstitutes.ImportSessions(),
-            streamRegistry ?? Substitute.For<ILiveDaqSharedStreamRegistry>(),
-            liveSessionFactory ?? Substitute.For<ILiveSessionServiceFactory>(),
+            TestCoordinatorSubstitutes.ImportSessions(),
+            Substitute.For<ILiveDaqSharedStreamRegistry>(),
+            Substitute.For<ILiveSessionServiceFactory>(),
             Substitute.For<IVideoPaneFactory>(),
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(),
@@ -88,7 +79,7 @@ internal static class TestEditorFactories
             new Microsoft.Extensions.Time.Testing.FakeTimeProvider(),
             new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler(),
             Substitute.For<IRecordedSessionDomainQuery>(),
-            appEnvironment ?? TestAppEnvironment.Create(UiLayoutProfile.Workspace));
+            TestAppEnvironment.Create(UiLayoutProfile.Workspace));
     }
 
 }

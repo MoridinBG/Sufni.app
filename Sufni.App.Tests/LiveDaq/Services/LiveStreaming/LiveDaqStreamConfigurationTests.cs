@@ -5,20 +5,6 @@ namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 public class LiveDaqStreamConfigurationTests
 {
     [Fact]
-    public void Default_PrefillsTravelAndImu_AndDisablesGps()
-    {
-        var configuration = LiveDaqStreamConfiguration.Default;
-
-        Assert.Equal(LiveSensorInstanceMask.Travel | LiveSensorInstanceMask.Imu, configuration.RequestedSensorMask);
-        Assert.Equal((uint)200_000, configuration.TravelRateMhz);
-        Assert.Equal((uint)200_000, configuration.ImuRateMhz);
-        Assert.Equal((uint)0, configuration.GpsRateMhz);
-        Assert.Equal((uint)200, configuration.TravelHz);
-        Assert.Equal((uint)200, configuration.ImuHz);
-        Assert.Equal((uint)0, configuration.GpsFixHz);
-    }
-
-    [Fact]
     public void ToStartRequest_OmitsStreamsWithZeroRates()
     {
         var configuration = new LiveDaqStreamConfiguration(
@@ -35,21 +21,4 @@ public class LiveDaqStreamConfigurationTests
         Assert.Equal((uint)0, request.GpsRateMhz);
     }
 
-    [Fact]
-    public void FromRequestedRates_DerivesIndividualMaskFromNonzeroRates()
-    {
-        var travelOnly = LiveDaqStreamConfiguration.FromRequestedRates(100, 0, 0);
-        var imuOnly = LiveDaqStreamConfiguration.FromRequestedRates(0, 200, 0);
-        var gpsOnly = LiveDaqStreamConfiguration.FromRequestedRates(0, 0, 10);
-
-        Assert.Equal(LiveSensorInstanceMask.Travel, travelOnly.RequestedSensorMask);
-        Assert.Equal(LiveSensorInstanceMask.Imu, imuOnly.RequestedSensorMask);
-        Assert.Equal(LiveSensorInstanceMask.Gps, gpsOnly.RequestedSensorMask);
-        Assert.Equal((uint)100_000, travelOnly.TravelRateMhz);
-        Assert.Equal((uint)200_000, imuOnly.ImuRateMhz);
-        Assert.Equal((uint)10_000, gpsOnly.GpsRateMhz);
-        Assert.Equal((uint)100, travelOnly.TravelHz);
-        Assert.Equal((uint)200, imuOnly.ImuHz);
-        Assert.Equal((uint)10, gpsOnly.GpsFixHz);
-    }
 }

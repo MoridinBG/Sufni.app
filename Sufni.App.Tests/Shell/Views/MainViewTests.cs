@@ -23,35 +23,6 @@ namespace Sufni.App.Tests.Shell.Views;
 [Collection("Ui")]
 public class MainViewTests
 {
-    [AvaloniaFact]
-    public void ViewLocator_BuildsCompactShellView_ForCompactShellRoot()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-
-        var root = CreateRoot(MainPagesViewModelTestFactory.Create());
-        var view = new ViewLocator().Build(root.Presentation);
-
-        Assert.IsType<CompactShellView>(view);
-    }
-
-    [AvaloniaFact]
-    public async Task MainView_UsesWorkspaceHost_WhenLoaded()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
-
-        var root = CreateRoot(MainPagesViewModelTestFactory.Create());
-        var view = new MainView
-        {
-            DataContext = root,
-        };
-
-        await using var mounted = await MountAsync(view);
-        var workspaceHost = mounted.View.FindControl<ContentControl>("WorkspaceRootHost");
-
-        Assert.NotNull(workspaceHost);
-        Assert.True(workspaceHost!.IsVisible);
-    }
 
     [AvaloniaFact]
     public async Task MainView_ShowsSyncBusyOverlay_WhenSyncRuns()
@@ -79,23 +50,17 @@ public class MainViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.True(overlay.IsVisible);
-        Assert.True(overlay.IsActive);
-        Assert.True(overlay.ShowProgress);
-        Assert.False(overlay.IsProgressIndeterminate);
-        Assert.Equal("Serving remote changes", overlay.Message);
-        Assert.Equal(1.0 / 6, overlay.ProgressValue, precision: 6);
 
         syncHarness.InboundActivity.OnNext(new PeerSyncActivity.Completed(runId));
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.False(overlay.IsVisible);
-        Assert.False(overlay.IsActive);
     }
 
-    private static async Task<MountedMainView> MountAsync(MainView view)
+    private static async Task<MountedView<MainView>> MountAsync(MainView view)
     {
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedMainView(host, view);
+        return new MountedView<MainView>(host, view);
     }
 
     private static ShellRootViewModel CreateRoot(MainPagesViewModel mainPages)
@@ -124,17 +89,4 @@ public class MainViewTests
             new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
     }
 
-
-}
-
-internal sealed class MountedMainView(Window host, MainView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public MainView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
-    }
 }

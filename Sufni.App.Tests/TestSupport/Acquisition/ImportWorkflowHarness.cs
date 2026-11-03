@@ -36,7 +36,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.TestSupport.Acquisition;
 
-internal sealed class ImportWorkflowHarness
+internal sealed class ImportWorkflowHarness : IDisposable
 {
     public ImportWorkflowHarness()
     {
@@ -161,10 +161,16 @@ internal sealed class ImportWorkflowHarness
             .Returns(callInfo =>
             {
                 var session = callInfo.ArgAt<Session>(0);
-                var track = callInfo.ArgAt<Track?>(1);
                 session.Updated = 10;
                 return Task.FromResult<SessionImportCommitResult>(new SessionImportCommitResult.Inserted(
                     session, RecordedSessionSourceSnapshot.From(callInfo.Arg<RecordedSessionSource>())));
             });
+    }
+    public void Dispose()
+    {
+        SetupQuery.Dispose();
+        SourceIssues.Dispose();
+        ImportState.Dispose();
+        Publication.Dispose();
     }
 }

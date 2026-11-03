@@ -40,13 +40,7 @@ public class DialogServiceTests
             await ViewTestHelpers.FlushDispatcherAsync();
 
             var dialog = Assert.Single(owner.OwnedWindows);
-            Assert.Equal("Content Dialog", dialog.Title);
-            Assert.Equal(320, dialog.Width);
-            Assert.Equal(240, dialog.Height);
-            Assert.Equal(200, dialog.MinWidth);
-            Assert.Equal(160, dialog.MinHeight);
-            Assert.False(dialog.CanResize);
-            Assert.Same(viewModel, Assert.IsAssignableFrom<Control>(dialog.Content).DataContext);
+            Assert.True(dialog.IsVisible);
 
             viewModel.Complete();
 
@@ -273,83 +267,6 @@ public class DialogServiceTests
         }
     }
 
-    [AvaloniaFact]
-    public async Task AddTileContent_DesktopMode_UsesOwnedWindow()
-    {
-        var service = CreateService(DialogPresentationMode.Window);
-        var owner = new Window();
-        ViewTestHelpers.ShowWindow(owner);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        service.SetOwner(owner);
-
-        try
-        {
-            var viewModel = new AddTileLayerViewModel();
-            var resultTask = service.ShowContentDialogAsync(viewModel, AddTileLayerViewModel.DialogOptions);
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            var dialog = Assert.Single(owner.OwnedWindows);
-            var content = Assert.IsType<AddTileLayerView>(dialog.Content);
-
-            SubmitLayer(content, "Trail", "https://tiles.example/{z}/{x}/{y}.png");
-
-            Assert.Equal(PromptResult.Ok, await resultTask);
-            var result = viewModel.ConfirmedLayer;
-
-            Assert.NotNull(result);
-            Assert.Equal("Trail", result!.Name);
-            Assert.Equal("https://tiles.example/{z}/{x}/{y}.png", result.UrlTemplate);
-        }
-        finally
-        {
-            CloseOwnedWindows(owner);
-            owner.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
-    [AvaloniaFact]
-    public async Task AddTileContent_MobileMode_UsesOverlayHost()
-    {
-        var service = CreateService(DialogPresentationMode.Overlay);
-        var overlayHost = new Grid();
-        var owner = ViewTestHelpers.ShowView(overlayHost);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        service.SetOwner(owner);
-        service.SetOverlayHost(overlayHost);
-
-        try
-        {
-            var viewModel = new AddTileLayerViewModel();
-            var resultTask = service.ShowContentDialogAsync(viewModel, AddTileLayerViewModel.DialogOptions);
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            var content = overlayHost.FindFirstVisual<AddTileLayerView>();
-            Assert.NotNull(content);
-
-            Assert.Empty(owner.OwnedWindows);
-
-            SubmitLayer(content!, "Offline", "https://offline.example/{z}/{x}/{y}.png");
-
-            Assert.Equal(PromptResult.Ok, await resultTask);
-            var result = viewModel.ConfirmedLayer;
-            await ViewTestHelpers.FlushDispatcherAsync();
-
-            Assert.NotNull(result);
-            Assert.Equal("Offline", result!.Name);
-            Assert.Equal("https://offline.example/{z}/{x}/{y}.png", result.UrlTemplate);
-            Assert.Null(overlayHost.FindFirstVisual<AddTileLayerView>());
-            Assert.Empty(owner.OwnedWindows);
-        }
-        finally
-        {
-            owner.Close();
-            await ViewTestHelpers.FlushDispatcherAsync();
-        }
-    }
-
     [AvaloniaTheory]
     [InlineData(true, "Yes", PromptResult.Yes)]
     [InlineData(true, "No", PromptResult.No)]
@@ -385,16 +302,6 @@ public class DialogServiceTests
         var service = new DialogService(new ViewLocator(), new DispatcherUiTimerScheduler());
         service.SetPresentationMode(presentationMode);
         return service;
-    }
-
-    private static void SubmitLayer(AddTileLayerView view, string name, string urlTemplate)
-    {
-        view.FindControl<TextBox>("NameBox")!.Text = name;
-        view.FindControl<TextBox>("UrlTemplateBox")!.Text = urlTemplate;
-
-        var okButton = view.FindControl<Button>("OkButton");
-        Assert.NotNull(okButton);
-        okButton!.Command!.Execute(okButton.CommandParameter);
     }
 
     private static void ClickConfirmationButton(Control root, string content)

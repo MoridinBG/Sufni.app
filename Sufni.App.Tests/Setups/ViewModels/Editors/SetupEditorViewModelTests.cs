@@ -38,73 +38,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- Construction -----
 
-    [Fact]
-    public void Construction_PopulatesNameBoardSensorConfigs_FromSnapshot()
-    {
-        var bike = TestSnapshots.Bike();
-        var boardId = Guid.NewGuid();
-        var snapshot = TestSnapshots.Setup(name: "race day", bikeId: bike.Id, updated: 9)
-            with
-        { FrontSensorConfigurationJson = LinearForkConfigurationJson };
-
-        var editor = CreateEditor(snapshot, boardId: boardId);
-
-        Assert.Equal("race day", editor.Name);
-        Assert.Equal(boardId, editor.BoardId);
-        Assert.Equal(SensorType.LinearFork, editor.ForkSensorConfiguration?.Type);
-        Assert.Null(editor.ShockSensorConfiguration);
-        Assert.True(editor.IsInDatabase);
-    }
-
-    [Fact]
-    public void Construction_PopulatesSelectedBike_FromBikeStore()
-    {
-        var bike = TestSnapshots.Bike();
-        bikeStore.Add(bike);
-        var snapshot = TestSnapshots.Setup(bikeId: bike.Id);
-
-        var editor = CreateEditor(snapshot);
-
-        Assert.Single(editor.Bikes);
-        Assert.Equal(bike.Id, editor.SelectedBike?.Id);
-    }
-
     // ----- Sensor type switching -----
-
-    [Fact]
-    public void SettingForkSensorType_RecreatesForkSensorConfigurationViewModel()
-    {
-        var snapshot = TestSnapshots.Setup();
-        var editor = CreateEditor(snapshot);
-
-        editor.ForkSensorType = SensorType.LinearFork;
-
-        Assert.NotNull(editor.ForkSensorConfiguration);
-        Assert.Equal(SensorType.LinearFork, editor.ForkSensorConfiguration!.Type);
-    }
-
-    [Fact]
-    public void ReplacingForkSensorConfiguration_DetachesOldPropertyChangedHandler()
-    {
-        var snapshot = TestSnapshots.Setup() with
-        {
-            FrontSensorConfigurationJson = LinearForkConfigurationJson
-        };
-        var editor = CreateEditor(snapshot);
-        var staleConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
-        var activeConfiguration = Assert.IsType<LinearForkSensorConfigurationViewModel>(
-            SensorConfigurationViewModel.FromDraft(new SensorDraft.LinearFork(100, 12)));
-
-        editor.ForkSensorConfiguration = activeConfiguration;
-
-        var saveCommandStateChanges = 0;
-        editor.SaveCommand.CanExecuteChanged += (_, _) => saveCommandStateChanges++;
-
-        Assert.True(staleConfiguration.Length.HasValue);
-        staleConfiguration.Length = staleConfiguration.Length.Value + 5;
-
-        Assert.Equal(0, saveCommandStateChanges);
-    }
 
     [Fact]
     public void Construction_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
@@ -168,17 +102,6 @@ public class SetupEditorViewModelTests : IDisposable
     }
 
     [Fact]
-    public void SelectedBike_HardtailResolution_ReportsHardtailDescription()
-    {
-        var hardtailBike = TestSnapshots.Bike();
-        bikeStore.Add(hardtailBike);
-
-        var editor = CreateEditor(TestSnapshots.Setup(bikeId: hardtailBike.Id));
-
-        Assert.Equal("Hardtail", editor.RearSuspensionDescription);
-    }
-
-    [Fact]
     public void ChangingBike_ClearsIncompatibleRearSensorConfiguration()
     {
         var linkageBike = TestSnapshots.Bike() with
@@ -207,21 +130,6 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Null(editor.ShockSensorType);
         Assert.Null(editor.ShockSensorConfiguration);
         Assert.NotNull(editor.RearSensorCompatibilityMessage);
-    }
-
-    [Fact]
-    public void SettingShockSensorType_ToLinearShockStroke_OnCurveBike_CreatesMatchingViewModel()
-    {
-        var leverageRatioBike = TestSnapshots.LeverageRatioBike(
-            TestSnapshots.LeverageRatioCurve((0, 0), (10, 25), (20, 50)));
-        bikeStore.Add(leverageRatioBike);
-
-        var editor = CreateEditor(TestSnapshots.Setup(bikeId: leverageRatioBike.Id));
-
-        editor.ShockSensorType = SensorType.LinearShockStroke;
-
-        var configuration = Assert.IsType<LinearShockSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
-        Assert.Equal(SensorType.LinearShockStroke, configuration.Type);
     }
 
     [Fact]
@@ -448,32 +356,6 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- Delete -----
 
-    [Fact]
-    public async Task Delete_OnNewUnsavedSetup_NavigatesBack_WithoutCallingCoordinator()
-    {
-        var snapshot = TestSnapshots.Setup();
-        var editor = CreateEditor(snapshot, isNew: true);
-
-        await editor.DeleteCommand.ExecuteAsync(true);
-
-        await setupCoordinator.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        await shell.Received(1).CloseEditorAsync(new EditorKey.Setup(editor.Id));
-    }
-
-    [Fact]
-    public async Task Delete_HappyPath_NavigatesBack()
-    {
-        var snapshot = TestSnapshots.Setup();
-        var editor = CreateEditor(snapshot);
-        setupCoordinator.DeleteAsync(snapshot.Id)
-            .Returns(new SetupDeleteResult.Deleted());
-
-        await editor.DeleteCommand.ExecuteAsync(true);
-
-        await shell.Received(1).CloseEditorAsync(new EditorKey.Setup(editor.Id));
-        Assert.Empty(editor.ErrorMessages);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -492,15 +374,4 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- EditBike -----
 
-    [Fact]
-    public async Task EditBike_RoutesToBikeCoordinator()
-    {
-        var bike = TestSnapshots.Bike();
-        var snapshot = TestSnapshots.Setup();
-        var editor = CreateEditor(snapshot);
-
-        await editor.EditBikeCommand.ExecuteAsync(bike);
-
-        shell.Received(1).OpenEditor(new EditorKey.Bike(bike.Id));
-    }
 }

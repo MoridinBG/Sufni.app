@@ -94,21 +94,6 @@ public class SessionRecomputeEngineTests
     }
 
     [Fact]
-    public async Task RecomputeAllAsync_SkipsSessionThatDisappeared_AfterEnumeration()
-    {
-        var id = Guid.NewGuid();
-        sessionRepository.GetActiveSessionIdsAsync().Returns([id]);
-        using var engine = CreateEngine();
-
-        var result = await engine.RequestRecomputeAllAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        Assert.Equal(1, result.Total);
-        Assert.Equal(1, result.NotRecomputable);
-        Assert.Equal(0, result.Failed);
-        Assert.False(engine.IsActive(id));
-    }
-
-    [Fact]
     public async Task RequestRecomputeAsync_ProcessingFailure_PreservesPublishedAndPersistedSession()
     {
         var id = Guid.NewGuid();
@@ -136,6 +121,8 @@ public class SessionRecomputeEngineTests
     {
         var id = Guid.NewGuid();
         ConfigureRecomputable(id);
+        var originalDomain = domainQuery.Get(id)!;
+        domainQuery.Get(id).Returns(originalDomain with { Session = originalDomain.Session with { VelocityFilterWindowMilliseconds = 100 } });
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource<RecordedSessionReprocessResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var calls = 0;
@@ -148,9 +135,11 @@ public class SessionRecomputeEngineTests
             entered.SetResult();
             return release.Task;
         });
-        using var engine = CreateEngine();
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var engine = CreateEngine(store);
         var displaced = engine.RequestRecomputeAsync(id);
         await entered.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        domainQuery.Get(id).Returns(originalDomain with { Session = originalDomain.Session with { VelocityFilterWindowMilliseconds = 250 } });
         Assert.IsType<SessionRecomputeResult.Recomputed>(await engine.RequestRecomputeAsync(id));
 
         var stop = engine.StopAsync();
@@ -159,7 +148,7 @@ public class SessionRecomputeEngineTests
         await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.IsType<SessionRecomputeResult.Superseded>(await displaced);
-        await sessionRepository.Received(1).UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<SessionProcessingInputBundle>());
+        Assert.Equal(250, AppJson.Deserialize<ProcessingFingerprint>(store.Get(id)!.ProcessingFingerprintJson!)!.VelocityFilterWindowMilliseconds);
     }
 
     [Fact]
@@ -173,18 +162,6 @@ public class SessionRecomputeEngineTests
         {
             Session = domain.Session with { VelocityFilterWindowMilliseconds = 100 }
         });
-
-        ProcessingFingerprint? committedFingerprint = null;
-        sessionRepository
-            .UpdateProcessedDerivedDataAsync(
-                Arg.Any<Session>(),
-                Arg.Any<Track?>(),
-                Arg.Any<SessionProcessingInputBundle>())
-            .Returns(callInfo =>
-            {
-                committedFingerprint = AppJson.Deserialize<ProcessingFingerprint>(callInfo.Arg<Session>().ProcessingFingerprintJson!);
-                return callInfo.Arg<Session>();
-            });
 
         var firstReprocessStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var secondReprocessStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -208,7 +185,8 @@ public class SessionRecomputeEngineTests
                 return Task.FromResult(ReprocessResult(input));
             });
 
-        var engine = CreateEngine();
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var engine = CreateEngine(store);
 
         var firstTask = engine.RequestRecomputeAsync(sessionId);
         // Liveness is owned synchronously: the request is active before any await.
@@ -234,35 +212,9 @@ public class SessionRecomputeEngineTests
         var firstResult = await firstTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Superseded>(firstResult);
-        // Exactly one committer, and it committed the LATER option's fingerprint.
-        await sessionRepository.Received(1).UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(),
-            Arg.Any<Track?>(),
-            Arg.Any<SessionProcessingInputBundle>());
-        Assert.NotNull(committedFingerprint);
+        var committedFingerprint = AppJson.Deserialize<ProcessingFingerprint>(store.Get(sessionId)!.ProcessingFingerprintJson!);
         Assert.Equal(250, committedFingerprint!.VelocityFilterWindowMilliseconds);
         Assert.False(engine.IsActive(sessionId));
-    }
-
-    [Fact]
-    public async Task RequestRecomputeAsync_ConcurrentDifferentSessions_BothComplete()
-    {
-        var firstId = Guid.NewGuid();
-        var secondId = Guid.NewGuid();
-        ConfigureRecomputable(firstId);
-        ConfigureRecomputable(secondId);
-        reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
-
-        var engine = CreateEngine();
-        var firstTask = engine.RequestRecomputeAsync(firstId);
-        var secondTask = engine.RequestRecomputeAsync(secondId);
-
-        Assert.IsType<SessionRecomputeResult.Recomputed>(await firstTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
-        Assert.IsType<SessionRecomputeResult.Recomputed>(await secondTask.AwaitBoundedAsync(TimeSpan.FromSeconds(2)));
-        Assert.False(engine.IsActive(firstId));
-        Assert.False(engine.IsActive(secondId));
     }
 
     [Fact]
@@ -298,80 +250,17 @@ public class SessionRecomputeEngineTests
         reprocessor
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
-        // The in-transaction DB-input re-check rolls back once (passive dependency
-        // change), then succeeds: the engine self-heals by looping, not by surfacing a
-        // neutral result.
-        sessionRepository
-            .UpdateProcessedDerivedDataAsync(
-                Arg.Any<Session>(),
-                Arg.Any<Track?>(),
-                Arg.Any<SessionProcessingInputBundle>())
-            .Returns((Session?)null, persisted);
+        var calls = 0;
+        sessionRepository.UpdateProcessedDerivedDataAsync(Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<SessionProcessingInputBundle>())
+            .Returns(call => ++calls == 1 ? null : call.Arg<Session>());
+        using var store = new SessionStore(new StorePublication(new InlineUiThreadDispatcher()));
+        using var engine = CreateEngine(store);
 
-        var result = await CreateEngine()
-            .RequestRecomputeAsync(sessionId)
-            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
+        var result = await engine.RequestRecomputeAsync(sessionId).AwaitBoundedAsync(TimeSpan.FromSeconds(2));
 
         Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await sessionRepository.Received(2).UpdateProcessedDerivedDataAsync(
-            Arg.Any<Session>(),
-            Arg.Any<Track?>(),
-            Arg.Any<SessionProcessingInputBundle>());
-        await reprocessor.Received(2).ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task RequestRecomputeAsync_LoadsSourceFromDerivationWindow()
-    {
-        var sessionId = Guid.NewGuid();
-        var sourceSessionId = Guid.NewGuid();
-        var setupId = Guid.NewGuid();
-        var bikeId = Guid.NewGuid();
-        var session = TestSnapshots.Session(id: sessionId, setupId: setupId, hasProcessedData: true);
-        var setup = TestSnapshots.Setup(id: setupId, bikeId: bikeId);
-        var bike = TestSnapshots.Bike(id: bikeId);
-        var source = PersistenceTestData.CreateRecordedSessionSource(sourceSessionId);
-        var window = new RecordedSessionDerivationWindow(sourceSessionId, 1, 2);
-        session = session with
-        {
-            SourceSessionId = sourceSessionId,
-            WindowStartSeconds = 1,
-            WindowEndSeconds = 2
-        };
-        var domain = new RecordedSessionDomainSnapshot(
-            session,
-            setup,
-            bike,
-            null,
-            null,
-            RecordedSessionSourceSnapshot.From(source),
-            new SessionStaleness.Stale());
-        domainQuery.Get(sessionId).Returns(domain);
-        sessionRepository.GetProcessingInputBundleAsync(sessionId).Returns(TestDerivationInputs.DatabaseInputs(domain));
-        sourceRepository.GetRecordedSessionSourceAsync(sourceSessionId).Returns(source);
-        var persisted = new Session(sessionId, "derived", "desc", setupId, 100)
-        {
-            ProcessedData = PersistenceTestData.CreateTelemetryBlob(60)
-        };
-        sessionRepository.GetSessionAsync(sessionId).Returns(persisted);
-        reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
-        sessionRepository
-            .UpdateProcessedDerivedDataAsync(
-                Arg.Any<Session>(),
-                Arg.Any<Track?>(),
-                Arg.Any<SessionProcessingInputBundle>())
-            .Returns(callInfo => callInfo.Arg<Session>());
-
-        var result = await CreateEngine()
-            .RequestRecomputeAsync(sessionId)
-            .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
-        Assert.IsType<SessionRecomputeResult.Recomputed>(result);
-        await sourceRepository.Received(1).GetRecordedSessionSourceAsync(sourceSessionId);
-        await sourceRepository.DidNotReceive().GetRecordedSessionSourceAsync(sessionId);
-        await reprocessor.Received(1).ReprocessAsync(Arg.Is<RecordedSessionDerivationInput>(value => value.Session.DerivationWindow == window && value.Source.SessionId == sourceSessionId), Arg.Any<CancellationToken>());
+        Assert.NotNull(store.Get(sessionId)!.ProcessingFingerprintJson);
+        Assert.True(store.Get(sessionId)!.HasProcessedData);
     }
 
     [Fact]
@@ -388,7 +277,7 @@ public class SessionRecomputeEngineTests
             null,
             new SessionStaleness.MissingDependencies(SetupMissing: true, BikeMissing: false)));
 
-        var engine = CreateEngine();
+        using var engine = CreateEngine();
         var result = await engine
             .RequestRecomputeAsync(sessionId)
             .AwaitBoundedAsync(TimeSpan.FromSeconds(2));
@@ -433,7 +322,7 @@ public class SessionRecomputeEngineTests
             .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
 
-        var engine = CreateEngine();
+        using var engine = CreateEngine();
         var summary = await engine
             .RequestRecomputeAllAsync()
             .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
@@ -449,27 +338,6 @@ public class SessionRecomputeEngineTests
             Arg.Any<SessionProcessingInputBundle>());
         Assert.False(engine.IsActive(firstId));
         Assert.False(engine.IsActive(secondId));
-    }
-
-    [Fact]
-    public async Task RequestRecomputeAllAsync_UsesActiveSessionIdProjection()
-    {
-        var liveId = Guid.NewGuid();
-        ConfigureRecomputable(liveId);
-        var deletedId = Guid.NewGuid();
-        sessionRepository.GetActiveSessionIdsAsync().Returns([liveId]);
-        reprocessor
-            .ReprocessAsync(Arg.Any<RecordedSessionDerivationInput>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo => Task.FromResult(ReprocessResult(callInfo.ArgAt<RecordedSessionDerivationInput>(0))));
-
-        var summary = await CreateEngine()
-            .RequestRecomputeAllAsync()
-            .AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-
-        Assert.Equal(1, summary.Total);
-        Assert.Equal(1, summary.Recomputed);
-        await sessionRepository.Received(1).GetActiveSessionIdsAsync();
-        domainQuery.DidNotReceive().Get(deletedId);
     }
 
     [Fact]

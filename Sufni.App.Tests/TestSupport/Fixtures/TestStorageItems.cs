@@ -7,11 +7,14 @@ namespace Sufni.App.Tests.TestSupport.Fixtures;
 
 public static class TestStorageItems
 {
-    public static IStorageFile TextFile(string name, string contents)
+    public static IStorageFile TextFile(string name, string contents) =>
+        BinaryFile(name, Encoding.UTF8.GetBytes(contents));
+
+    public static IStorageFile BinaryFile(string name, byte[] contents)
     {
         var file = Substitute.For<IStorageFile>();
         file.Name.Returns(name);
-        file.OpenReadAsync().Returns(_ => OpenTextAsync(contents));
+        file.OpenReadAsync().Returns(_ => Task.FromResult<Stream>(new MemoryStream(contents)));
         return file;
     }
 

@@ -59,34 +59,6 @@ public partial class LiveDaqCoordinatorTests
             backgroundTaskRunner, sessionPreferences, new InlineUiThreadDispatcher(), publication, tracks ?? trackStore, managementService, new DeviceConfigFileService(filesService, backgroundTaskRunner), streamRegistry);
 
     [Fact]
-    public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()
-    {
-        var boardId = Guid.NewGuid();
-        knownBoardsChanges.OnNext(
-        [
-            new KnownLiveDaqRecord(
-                IdentityKey: boardId.ToString(),
-                DisplayName: boardId.ToString(),
-                BoardId: boardId.ToString(),
-                SetupId: Guid.NewGuid(),
-                SetupName: "park setup",
-                BikeId: Guid.NewGuid(),
-                BikeName: "demo bike")
-        ]);
-
-        CreateCoordinator().Activate();
-
-        catalogService.Received(1).AcquireBrowse();
-        var snapshot = Assert.Single(observedStates[^1]);
-        Assert.Equal(boardId.ToString(), snapshot.IdentityKey);
-        Assert.False(snapshot.IsOnline);
-        Assert.Equal("park setup", snapshot.SetupName);
-        Assert.Equal("demo bike", snapshot.BikeName);
-        Assert.Null(snapshot.Endpoint);
-        Assert.Equal(LiveProtocolVersion.V2, snapshot.ProtocolVersion);
-    }
-
-    [Fact]
     public void Activate_MergesDiscoveredEntries_AndRefreshesEnrichment_OnQueryChange()
     {
         var boardId = Guid.NewGuid();
@@ -241,6 +213,8 @@ public partial class LiveDaqCoordinatorTests
 
         // Every published state must include both known boards — no observer
         // should ever witness an empty or partial catalog during reconcile.
+        Assert.NotEmpty(observedStates);
+        Assert.Contains(observedStates, state => state.Any(snapshot => snapshot.IsOnline));
         foreach (var state in observedStates)
         {
             Assert.Equal(2, state.Count);

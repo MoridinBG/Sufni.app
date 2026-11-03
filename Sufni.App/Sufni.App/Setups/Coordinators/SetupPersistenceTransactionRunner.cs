@@ -27,6 +27,7 @@ internal sealed class SetupPersistenceTransactionRunner(
         var writer = await localDeviceIdentity.GetIdAsync();
         return await connectionContext.RunInTransactionAsync<SetupWriteResult>(connection =>
         {
+            if (connection.Find<Bike>(setup.BikeId) is not { Deleted: null }) return new SetupWriteResult.BikeMissing();
             if (BoardIsInUse(connection, newBoardId, setup.Id)) return new SetupWriteResult.BoardInUse(newBoardId!.Value);
             var now = timeProvider.GetUtcNow().ToUnixTimeSeconds();
             SynchronizableRepository<Setup>.PutInTransaction(connection, setup, now, writer);

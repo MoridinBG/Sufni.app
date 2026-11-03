@@ -28,7 +28,7 @@ using Sufni.Telemetry;
 using Sufni.App.Video.ViewModels;
 namespace Sufni.App.Tests.TestSupport.Sessions;
 
-internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, INotifyPropertyChanged
+internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, INotifyPropertyChanged, IDisposable
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -108,14 +108,13 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
     public DampingSpeedCutoffs PlotDampingSpeedCutoffs { get; set; } = DampingSpeedCutoffs.Default;
     public bool CanEditDampingSpeedCutoffs { get; set; } = true;
     public SessionInsightsResult SessionInsights { get; set; } = SessionInsightsResult.Hidden;
-    public RequestCounter SessionInsightsRequests { get; } = new();
     public IRelayCommand<TelemetryRangeSelection?> SelectAnalysisRangeCommand { get; } =
         new RelayCommand<TelemetryRangeSelection?>(_ => { });
     public TelemetryRangeSelection? ActiveFrontAnalysisSelection { get; set; }
     public TelemetryRangeSelection? ActiveRearAnalysisSelection { get; set; }
     public PositionVelocityPageViewModel? PositionVelocity { get; set; }
 
-    public void RequestSessionInsights() => SessionInsightsRequests.Increment();
+    public void RequestSessionInsights() { }
     public void PreviewDampingSpeedCutoff(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) { }
     public void CancelDampingSpeedCutoffPreview() { }
     public Task CommitDampingSpeedCutoffAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond) =>
@@ -124,137 +123,24 @@ internal sealed class TestSessionAnalysisWorkspace : ISessionAnalysisWorkspace, 
     public void NotifyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
+    public void Dispose() => SegmentComparison.Dispose();
+
     private static SurfacePresentationState State(bool ready) =>
         ready ? SurfacePresentationState.Ready : SurfacePresentationState.Hidden;
 }
 
-internal sealed class TestRecordedSessionSignalsWorkspace : IRecordedSessionSignalsWorkspace, INotifyPropertyChanged
-{
-    private TelemetryTimeRange? analysisRange;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    public TestRecordedSessionSignalsWorkspace(
-        TelemetryData? telemetryData = null,
-        SurfacePresentationState? travelSignalState = null,
-        SurfacePresentationState? velocitySignalState = null,
-        SurfacePresentationState? imuSignalState = null,
-        SurfacePresentationState? pitchRollSignalState = null,
-        SurfacePresentationState? speedSignalState = null,
-        SurfacePresentationState? elevationSignalState = null,
-        IRecordedSessionAnalysisResultState? analysisResultState = null)
-    {
-        TelemetryData = telemetryData;
-        AnalysisResultState = analysisResultState ?? Substitute.For<IRecordedSessionAnalysisResultState>();
-        TravelSignalState = travelSignalState ?? StateForTravel(telemetryData);
-        VelocitySignalState = velocitySignalState ?? TravelSignalState;
-        ImuSignalState = imuSignalState ?? StateForImu(telemetryData);
-        PitchRollSignalState = pitchRollSignalState ?? SurfacePresentationState.Hidden;
-        SpeedSignalState = speedSignalState ?? SurfacePresentationState.Hidden;
-        ElevationSignalState = elevationSignalState ?? SurfacePresentationState.Hidden;
-    }
-
-    public TelemetryData? TelemetryData { get; }
-    public IRecordedSessionAnalysisResultState AnalysisResultState { get; }
-    public TelemetryTimeRange? AnalysisRange
-    {
-        get => analysisRange;
-        private set
-        {
-            if (analysisRange == value)
-            {
-                return;
-            }
-
-            analysisRange = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AnalysisRange)));
-        }
-    }
-    public IReadOnlyList<TrackPoint>? TrackPoints { get; set; } =
-    [
-        new TrackPoint(0, 0, 0, 100, 5),
-        new TrackPoint(1, 1, 1, 101, 6),
-    ];
-    public TrackTimeRange? TrackTimelineContext { get; set; } = new(0, 1);
-    public SurfacePresentationState TravelSignalState { get; set; }
-    public SurfacePresentationState VelocitySignalState { get; set; }
-    public SurfacePresentationState ImuSignalState { get; set; }
-    public SurfacePresentationState PitchRollSignalState { get; set; }
-    public SurfacePresentationState SpeedSignalState { get; set; }
-    public SurfacePresentationState ElevationSignalState { get; set; }
-    public SignalDisplayPreferences SignalDisplayPreferences { get; set; } = new();
-    public SignalLayoutPreferences SignalLayoutPreferences { get; set; } = SignalLayoutPreferences.Default;
-    public TelemetrySourceVisibilityStore SourceVisibility { get; } = new();
-    public SessionTimelineLinkViewModel Timeline { get; } = new();
-    public SegmentPickerViewModel SegmentPicker { get; } = TestSegmentPickers.Create();
-    public SegmentComparisonViewModel SegmentComparison { get; } = TestSegmentComparisons.Create();
-    public IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; set; } =
-        new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
-    public bool ShowAirtime { get; set; } = true;
-    public bool ShowVelocityAirtime { get; set; }
-    public bool ShowImuAirtime { get; set; }
-    public bool ShowPitchRollAirtime { get; set; }
-    public bool ShowSpeedAirtime { get; set; }
-    public bool ShowElevationAirtime { get; set; }
-    public IReadOnlyList<TelemetryHighlightRange> AnalysisSelectionHighlightRanges { get; set; } = [];
-    public bool HasAnalysisSelection { get; set; }
-    public bool ShowAnalysisSelection { get; set; }
-    public bool ShowVelocityAnalysisSelection { get; set; }
-    public bool ShowImuAnalysisSelection { get; set; }
-    public bool ShowPitchRollAnalysisSelection { get; set; }
-    public bool ShowSpeedAnalysisSelection { get; set; }
-    public bool ShowElevationAnalysisSelection { get; set; }
-    public IReadOnlyList<SignalRowAction> TravelHeaderActions { get; set; } = [];
-    public IReadOnlyList<SignalRowAction> VelocityHeaderActions { get; set; } = [];
-    public IReadOnlyList<SignalRowAction> ImuHeaderActions { get; set; } = [];
-    public IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; set; } = [];
-    public IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; set; } = [];
-    public IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; set; } = [];
-    public RequestCounter AnalysisRangeSetRequests { get; } = new();
-    public RequestCounter AnalysisRangeClearRequests { get; } = new();
-    public RequestCounter AnalysisRangeBoundaryRequests { get; } = new();
-    public double? LastAnalysisRangeBoundary { get; private set; }
-
-    public void SetAnalysisRange(double startSeconds, double endSeconds)
-    {
-        AnalysisRangeSetRequests.Increment();
-        AnalysisRange = TelemetryTimeRange.TryCreate(startSeconds, endSeconds, out var range)
-            ? range
-            : null;
-    }
-
-    public void ClearAnalysisRange()
-    {
-        AnalysisRangeClearRequests.Increment();
-        AnalysisRange = null;
-    }
-
-    public void SetAnalysisRangeBoundary(double boundarySeconds)
-    {
-        AnalysisRangeBoundaryRequests.Increment();
-        LastAnalysisRangeBoundary = boundarySeconds;
-    }
-
-    public void NotifyChanged(string propertyName) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-
-    private static SurfacePresentationState StateForTravel(TelemetryData? telemetryData) =>
-        telemetryData is null ? SurfacePresentationState.Hidden : SurfacePresentationState.Ready;
-
-    private static SurfacePresentationState StateForImu(TelemetryData? telemetryData) =>
-        telemetryData?.ImuData is null ? SurfacePresentationState.Hidden : SurfacePresentationState.Ready;
-}
-
-internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotifyPropertyChanged
+internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotifyPropertyChanged, IDisposable
 {
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    private readonly MapViewModel? ownedMap;
 
     public TestSessionMediaWorkspace(
         IReadOnlyList<TrackPoint>? trackPoints = null,
         VideoPaneViewModel? video = null,
         MapViewModel? mapViewModel = null)
     {
-        MapViewModel = mapViewModel ?? CreateMapViewModel(trackPoints ?? []);
+        MapViewModel = mapViewModel ?? (ownedMap = CreateMapViewModel(trackPoints ?? []));
         Video = video;
     }
 
@@ -270,6 +156,8 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
     public void NotifyChanged(string propertyName) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
+    public void Dispose() => ownedMap?.Dispose();
+
     private static MapViewModel CreateMapViewModel(IReadOnlyList<TrackPoint> trackPoints)
     {
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
@@ -280,11 +168,4 @@ internal sealed class TestSessionMediaWorkspace : ISessionMediaWorkspace, INotif
             FullTrackPoints = [],
         };
     }
-}
-
-internal sealed class RequestCounter
-{
-    public int Count { get; private set; }
-
-    public void Increment() => Count++;
 }

@@ -5,7 +5,6 @@ using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Reactive.Linq;
-using System.Security.Authentication;
 using System.Threading;
 using NSubstitute;
 using Sufni.App.Infrastructure;
@@ -105,14 +104,6 @@ public class HttpApiServiceTests : IAsyncDisposable
     }
 
     [Fact]
-    public void CreateHandler_AllowsTls12AndTls13()
-    {
-        using var handler = SynchronizationPeer.CreateHandler((_, _, _, _) => true);
-
-        Assert.Equal(SslProtocols.Tls12 | SslProtocols.Tls13, handler.SslProtocols);
-    }
-
-    [Fact]
     public async Task GetIncompleteSessionIdsAsync_RefreshesAtThirtySecondBoundary()
     {
         var secureStorage = CreateSecureStorage();
@@ -198,7 +189,6 @@ public class HttpApiServiceTests : IAsyncDisposable
         var exception = await Assert.ThrowsAsync<HttpRequestException>(() => service.GetIncompleteSessionIdsAsync());
 
         Assert.Equal(HttpStatusCode.UpgradeRequired, exception.StatusCode);
-        Assert.Contains("same app version", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -487,10 +477,27 @@ public class HttpApiServiceTests : IAsyncDisposable
         Assert.Equal(hasRefreshToken, await ReadNextPairedStateAsync(service));
     }
 
-    [Fact]
-    public async Task ConfirmPairingAsync_PublishesTrue_AfterCredentialsAndCertificateAreStored()
+    [Theory]
+    [InlineData("RefreshToken")]
+    [InlineData("ServerDatabaseIncarnation")]
+    [InlineData("ServerCertificateThumbprint")]
+    public async Task ConfirmPairingAsync_WaitsForStoredCredentialsBeforePublishingPeer(string gatedKey)
     {
-        var storage = new InMemorySecureStorage();
+        var values = new InMemorySecureStorage();
+        var storage = Substitute.For<ISecureStorage>();
+        storage.GetStringAsync(Arg.Any<string>()).Returns(call => values.GetStringAsync(call.Arg<string>()));
+        storage.RemoveAsync(Arg.Any<string>()).Returns(call => values.RemoveAsync(call.Arg<string>()));
+        var writeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseWrite = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        storage.SetStringAsync(Arg.Any<string>(), Arg.Any<string?>()).Returns(async call =>
+        {
+            if (call.ArgAt<string>(0) == gatedKey)
+            {
+                writeStarted.SetResult();
+                await releaseWrite.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            }
+            await values.SetStringAsync(call.ArgAt<string>(0), call.ArgAt<string?>(1));
+        });
         using var certificate = CreateCertificate();
         var api = CreateApiService(storage, (request, _) => Task.FromResult(
             request.RequestUri!.AbsolutePath == SynchronizationProtocol.EndpointPairRequest
@@ -499,15 +506,29 @@ public class HttpApiServiceTests : IAsyncDisposable
                     SyncTestServerHarness.CreateAccessToken(time.GetUtcNow().AddMinutes(10)),
                     "new-refresh", "new-database"))), certificate);
         var states = new List<bool>();
-        using var observation = api.PeerChanges.Select(peer => peer is not null).Subscribe(states.Add);
+        Task<string?[]>? storedAtPublication = null;
+        using var observation = api.PeerChanges.Subscribe(peer =>
+        {
+            states.Add(peer is not null);
+            if (peer is not null) storedAtPublication = Task.WhenAll(
+                values.GetStringAsync("RefreshToken"), values.GetStringAsync("ServerDatabaseIncarnation"),
+                values.GetStringAsync("ServerCertificateThumbprint"));
+        });
 
         await api.RequestPairingAsync(Endpoint, "device", "phone");
-        await api.ConfirmPairingAsync("device", "phone", "123456");
+        var confirmation = api.ConfirmPairingAsync("device", "phone", "123456");
+        await writeStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            Assert.Equal([false], states);
+            Assert.False(confirmation.IsCompleted);
+        }
+        finally { releaseWrite.TrySetResult(); }
+        await confirmation.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal([false, true], states);
-        Assert.Equal("new-refresh", await storage.GetStringAsync("RefreshToken"));
-        Assert.Equal(certificate.Thumbprint, await storage.GetStringAsync("ServerCertificateThumbprint"));
-        Assert.Null(await storage.GetStringAsync("ServerUrl"));
+        Assert.NotNull(storedAtPublication);
+        Assert.Equal(["new-refresh", "new-database", certificate.Thumbprint], await storedAtPublication);
     }
 
     [Fact]
@@ -687,6 +708,29 @@ public class HttpApiServiceTests : IAsyncDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() => api.GetPeerAsync(Endpoint));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task RequestPairingAsync_ValidatesPresentedCertificateBeforeSending(bool wrongSubject, bool expired)
+    {
+        using var certificate = CreateCertificate(wrongSubject ? "CN=wrong-subject" : null, expired ? -1 : 1);
+        var sent = 0;
+        var api = CreateApiService(new InMemorySecureStorage(), (_, _) =>
+        {
+            sent++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        }, certificate);
+
+        if (wrongSubject || expired)
+            await Assert.ThrowsAsync<HttpRequestException>(() => api.RequestPairingAsync(Endpoint, "device", "phone"));
+        else
+            await api.RequestPairingAsync(Endpoint, "device", "phone");
+
+        Assert.Equal(wrongSubject || expired ? 0 : 1, sent);
+        Assert.Null(api.PairedPeer);
+    }
+
     private async Task<ISynchronizationPeer> CreateService(ISecureStorage storage,
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> sendAsync) =>
         await CreateApiService(storage, sendAsync).GetPeerAsync(Endpoint);
@@ -705,11 +749,11 @@ public class HttpApiServiceTests : IAsyncDisposable
         return api;
     }
 
-    private X509Certificate2 CreateCertificate()
+    private X509Certificate2 CreateCertificate(string? subject = null, int validUntilDay = 1)
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        var request = new CertificateRequest(SynchronizationProtocol.CertificateSubjectName, key, HashAlgorithmName.SHA256);
-        return request.CreateSelfSigned(time.GetUtcNow().AddDays(-1), time.GetUtcNow().AddDays(1));
+        var request = new CertificateRequest(subject ?? SynchronizationProtocol.CertificateSubjectName, key, HashAlgorithmName.SHA256);
+        return request.CreateSelfSigned(time.GetUtcNow().AddDays(-2), time.GetUtcNow().AddDays(validUntilDay));
     }
 
     public async ValueTask DisposeAsync()

@@ -66,9 +66,12 @@ public class TrackTests
 
         var sessionTrack = track.GenerateSessionTrack(start, start + 2);
 
-        Assert.NotEmpty(sessionTrack);
+        Assert.Equal(21, sessionTrack.Count);
         Assert.Equal(start, sessionTrack[0].Time);
-        Assert.True(sessionTrack[^1].Time > start);
+        Assert.Equal(start + 0.5, sessionTrack[5].Time);
+        Assert.Equal(105, sessionTrack[5].Elevation);
+        Assert.Equal(15, sessionTrack[5].Speed);
+        Assert.Equal(5, sessionTrack[5].X, precision: 6);
         Assert.Equal(start + 2, sessionTrack[^1].Time);
         Assert.Equal(100, sessionTrack[0].Elevation);
         Assert.Equal(10, sessionTrack[0].Speed);

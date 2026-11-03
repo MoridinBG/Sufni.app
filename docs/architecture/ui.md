@@ -16,7 +16,7 @@ bindings; shared read state is reactive and uses DynamicData
 
 Focused presentation references:
 
-- [UI State, Read Graphs, and Queries](ui-state.md) — stores, recorded-session read graph, and query patterns.
+- [UI State and Queries](ui-state.md) — stores, the recorded-session projection, and query patterns.
 - [UI Workflows, Composition, and Navigation](ui-workflows.md) — coordinators, DI, and shell navigation.
 - [UI View Models](ui-view-models.md) — shell, page, list, row, editor, and session sub-page view models.
 - [Controls Library](controls.md) — reusable mobile and desktop controls.
@@ -39,23 +39,25 @@ their own lifetimes. A single app-owned `ShellDispatcherExceptionHandler` logs
 unexpected dispatcher exceptions and routes a generic message to the same shell
 feedback owner; ordinary flows retain their own outcomes.
 
-These boundaries are the invariants worth preserving even if type names
-or feature wording evolve:
+The presentation uses the five roles of the
+[architecture manifest](../ARCHITECTURE-MANIFEST.md). A role is semantic: a
+class holds the role that matches its responsibility, whatever its name.
 
-- A view model owns screen state, command flow, and binding-friendly projection.
-- A persisted store owns shared read state for one entity family and publishes
-  prepared snapshots/removals through its writer interface. It does not persist
-  or load repository data. Runtime-only stores own runtime publication for their
-  own data.
-- A read graph owns a joined projection across stores and publishes derived state for screens that need more than one entity family.
-- A query answers a business question that crosses domains or requires derived reasoning; it does not own the shared collection.
-- A coordinator owns workflows with side effects and
-  long-lived event subscriptions. It persists through services and supplies
-  prepared snapshots to store writers without mutating caches directly.
-  Cross-aggregate writes live in workflow transaction runners or command services
-  that publish store state only after the SQLite transaction commits.
-- A service or factory owns infrastructure-facing work such as datastore construction, file-picker lifetime, platform integration, and explicit background execution. Infrastructure-facing contracts stay presentation-neutral: for example, the bike editor service and coordinator return image bytes and neutral result records, while Avalonia image decoding stays in the bike editor's presentation objects.
-- Screen-scoped caches belong to the screen that owns their lifecycle. Recorded-session analysis uses a per-open-session result state for cancellation and cached records, backed by a shared stateless analysis computer.
+| Role | Holders | Rule |
+| --- | --- | --- |
+| Store | Persisted stores and the runtime-only `LiveDaqStore` | Owns shared read state for one entity family. Publishes prepared snapshots and removals through its writer interface. Does not persist or load repository data. |
+| Coordinator | The `*Coordinator` classes, `SessionRecomputeEngine`, `SessionSyncApplier`, `SynchronizationApplier`, `AppDataRefresher` and `RecordedSessionSourceRetentionCleanup` | Owns a workflow with side effects or long-lived event subscriptions. Persists through services. Only coordinators hold store writers, and they publish only after the persistence commit. |
+| Query | The `*Query` classes, `IRecordedSessionProjection`, `IProcessingDependencyHashIndex` and `ISessionLoader` | Derives an answer or a joined projection from facts that stores and services own. Does not own a shared collection. |
+| View model | Shell, page, list, row and editor view models | Owns screen state, command flow and binding-friendly projection. |
+| Service | Repositories, transaction runners, readers, file and platform services, factories | Reaches the world. Transaction runners commit cross-aggregate SQL and do not publish. |
+
+Infrastructure-facing contracts stay presentation-neutral. For example, the
+bike editor service and coordinator return image bytes and neutral result
+records; Avalonia image decoding stays in the bike editor's presentation objects.
+
+Screen-scoped caches belong to the screen that owns their lifecycle.
+Recorded-session analysis uses a per-open-session result state for cancellation
+and cached records, backed by a shared stateless analysis computer.
 
 Persisted stores backed by `SourceCacheStoreBase` refresh full snapshots with
 DynamicData `EditDiff`, using each snapshot's value equality to add/update/remove
@@ -78,8 +80,7 @@ graph TB
     subgraph Application["Application"]
         Coords["Coordinators<br/>(per entity + shell)"]
         Stores["Stores<br/>(IXxxStore / IXxxStoreWriter)"]
-        Graphs["Read Graphs<br/>(IRecordedSessionProjection)"]
-        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)<br/>(IRecordedSessionDomainQuery)"]
+        Queries["Queries<br/>(IBikeDependencyQuery)<br/>(ILiveDaqKnownBoardsQuery)<br/>(IRecordedSessionDomainQuery)<br/>(IRecordedSessionProjection)"]
     end
 
     subgraph Services["Services"]
@@ -93,35 +94,36 @@ graph TB
 
     Shell --> Coords
     Lists --> Stores
-    Lists --> Graphs
     Lists --> Coords
-    Rows --> Coords
+    Lists --> Queries
+    Rows -->|IShellCoordinator| Coords
+    Rows --> Queries
     Editors --> Coords
     Editors --> Stores
-    Editors --> Graphs
+    Editors --> Queries
     Coords --> Stores
     Coords --> Queries
     Coords --> Services
-    Graphs --> Stores
+    Queries --> Stores
     Queries --> Services
 ```
 
 Rules enforced by convention:
 
-- A view model may depend on coordinators, **read-only** stores, read graphs, queries, services, and other shell composition view models. It may not depend on another feature view model or on a store writer. Any remaining direct feature-VM dependency outside shell composition is technical debt, not a pattern to copy.
+- A view model may depend on coordinators, **read-only** stores, queries, services, and other shell composition view models. It may not depend on another feature view model or on a store writer. The only other view-model references are an editor's own sub-page view models, which the editor constructs.
 - Feature coordinators depend on services, **read/write** stores, other coordinators, queries and dialogs. They do not navigate or construct editors. `ShellWorkspaceCoordinator` alone owns `IEditorFactory`; view models send `EditorKey` requests through `IShellCoordinator`. The factory receives the shell in `CreateEditor` rather than its constructor, keeping composition acyclic.
 - The shell owns editor open/focus/restore/close and post-save navigation. Successful editors accept their baseline before requesting `CompleteEdit`; editor deletion closes the matching tab without an extra back step.
 - Dialogs are split across two seams on the same `DialogService` singleton: `IDialogService` is the prompt contract view models and coordinators consume (`Show*` methods only, no Avalonia types), while `IDialogHost` is the wiring contract `App` uses at startup to set the owner window, overlay host, and window-versus-overlay presentation mode.
 - A service or factory may depend on platform or infrastructure APIs and may create concrete datastores, own file-picker lifetime, and own background execution. View models ask services and factories to do this work; they do not `new` concrete infrastructure types.
-- Stores depend on publication infrastructure, not repositories or domain services. A read graph may depend on read-only stores and pure derivation services. A query may depend on services or read-only stores.
+- Stores depend on publication infrastructure, not repositories or domain services. A query may depend on services, read-only stores and pure derivation services.
 - Controls in `Views/Controls/` and `DesktopViews/Controls/` resolve nothing from the DI container — parent views supply everything via bindings or attached behaviours.
 
 ## Threading & Lifecycle
 
 `AppStartup` awaits database initialization and the first coherent store refresh
 before primary pages are created. Both shells render a blocking startup/failure
-surface until readiness. Tile-layer initialization and subscription wiring precede
-server startup; retention work then runs under startup ownership.
+surface until readiness. Eager subscription wiring precedes server startup;
+retention work then runs under startup ownership.
 Database reset archives the closed database and requires a new launch. See
 [Startup and database recovery](ui-workflows.md#startup-and-database-recovery).
 
@@ -135,7 +137,7 @@ Thread ownership is explicit:
 
 - The UI thread is reserved for bound-property updates, `ObservableCollection` mutation, notifications, native picker interaction, and lightweight read-store lookups.
 - Filesystem work, network work, datastore enumeration, SST parsing, PSST generation, and similar slow operations must cross an explicit background boundary (`IBackgroundTaskRunner` or a service-owned equivalent) before they run.
-- Code paths that need a testable UI-thread boundary use `IUiThreadDispatcher`; view/control code and Avalonia UI primitives such as `DispatcherTimer` may still use Avalonia's dispatcher directly. Sync, pairing, session sync application, map layers, themes and list/undo owners require those dependencies. Acquisition requires them as well.
+- Code paths that need a testable UI-thread boundary use `IUiThreadDispatcher`; view/control code and Avalonia UI primitives such as `DispatcherTimer` may use Avalonia's dispatcher directly. Sync, pairing, session sync application, acquisition, map layers, themes and list/undo owners require those dependencies.
 - UI cadence uses `IUiTimerScheduler`, registered as `DispatcherUiTimerScheduler`. View models receive it through constructors; `App` and `DialogService` supply the inherited `UiTimers.Scheduler` property on each window/view root for XAML-created descendants. Plot refresh, gestures and zoom-close completion use that root scheduler. There is no static scheduler override.
 - Acquisition polling uses a clock-driven `PeriodicTimer`; collection snapshots and publication cross its required UI dispatcher. Drive probing and datastore creation run through the background runner.
 - Singleton page view models do not imply always-on work. Browse lifetimes and store subscriptions attach in `Loaded` and tear down in `Unloaded`. In particular, `ItemListViewModelBase` owns this lifecycle for every entity list: concrete lists build their store projection in `AttachSubscriptions`, clear projected rows after detach, ignore duplicate `Loaded` calls while already attached, and rebuild from the store's current state when loaded again.
@@ -213,8 +215,8 @@ after the edit commits, keeping diagnostics separate through the editor gateway.
 
 `LiveSessionSaveResult` is `Saved | Failed | ProcessingFailed`. Generic failures
 carry `LiveSessionSaveFailureReason.Save`; processing failures keep the capture
-available for retry and do not persist a session/source. `Saved` still carries
-its existing publication warning.
+available for retry and do not persist a session/source. `Saved` carries an
+optional publication warning.
 
 `ImportSourceFailureReason.ListFiles | OpenFolder` identifies source-request
 failures; the import coordinator logs them and returns safe summaries with
@@ -264,7 +266,7 @@ without putting exception text in the summary.
 `BikeEditorAnalysisResult` is `Computed | NotApplicable | Unsolvable | Failed`.
 Hardtails are not applicable; incomplete drafts and typed invalid-geometry inputs
 are unsolvable. Unexpected failures carry `BikeAnalysisFailureReason.Analyze`
-with optional details and no longer disappear into the unavailable state.
+with optional details.
 
 `SessionDetailLoadResult` is `Loaded | IncompleteLocalData | Failed`. Read failures
 carry `SessionLoadFailureReason.Read`; the full-screen state uses the fixed summary
@@ -280,7 +282,7 @@ with `BikeDampingCutoffFailureReason.Save`; a missing bike disables cutoff editi
 Deletion returns `BikeDeleteResult.Deleted | InUse | Failed` with
 `BikeDeleteFailureReason.Delete`. These failures use fixed summaries and optional
 technical details. The bike coordinator persists changes and supplies prepared
-snapshots to its store; there are no bike store mutation results.
+snapshots to its store.
 
 Bike file workflows also use closed reasons: `BikeFileImportResult` and
 `BikeImportResult` are `Imported | Canceled | InvalidFile | Failed`,
@@ -419,18 +421,16 @@ if the range, mode, cutoffs, telemetry generation, or editor lifecycle changed
 before completion. The editor cancels analysis when closing and awaits async
 disposal to drain even displaced computations.
 
-The same convention is used for infrastructure-facing service outcomes
-such as `StorageProviderRegistrationResult` (`Added` / `AlreadyOpen`)
-and for small sealed event hierarchies such as `SessionImportEvent`
-(`Imported` / `Failed` / `Progress(Current, Total)`) when a long-running workflow streams
-progress back to the UI.
+Infrastructure-facing service outcomes such as `StorageProviderRegistrationResult`
+use the same convention. Small sealed event hierarchies such as `SessionImportEvent`
+use it when a long-running workflow streams progress back to the UI.
 
 ## Testing Boundaries
 
 The architecture is intended to be tested in layers:
 
 - View model tests assert screen-scoped behavior such as property changes, stale-result guards, `Loaded` / `Unloaded` lifecycle, generated command or local busy-state transitions, and progress-driven notification updates through explicit dispatcher fakes.
-- Read-graph tests assert joined projections and derived-change flags across session, setup, bike, and recorded-source updates.
+- Query tests assert joined projections and derived staleness across session, setup, bike, and recorded-source updates.
 - Coordinator tests assert workflow semantics such as persistence, store writes, branching, result shapes, per-file progress emission, and background-runner usage.
 - Service tests cover infrastructure ownership when the behavior is non-trivial, for example datastore registration or duplicate detection.
 
@@ -438,7 +438,7 @@ The architecture is intended to be tested in layers:
 
 Detailed presentation-layer references live in focused files:
 
-- [UI State, Read Graphs, and Queries](ui-state.md) covers stores, recorded-session read graphs, and query patterns.
+- [UI State and Queries](ui-state.md) covers stores, the recorded-session projection, and query patterns.
 - [UI Workflows, Composition, and Navigation](ui-workflows.md) covers coordinators, dependency injection, and shell navigation.
 - [UI View Models](ui-view-models.md) covers shell, page, list, row, editor, and session sub-page view models.
 - [Controls Library](controls.md) covers reusable mobile and desktop controls.

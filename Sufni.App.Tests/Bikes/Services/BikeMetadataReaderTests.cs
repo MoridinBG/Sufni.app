@@ -28,7 +28,10 @@ public class BikeMetadataReaderTests
         var snapshots = await new BikeMetadataReader(context).GetAllAsync();
 
         Assert.Equal(2, snapshots.Count);
-        Assert.Equal(BikeSnapshot.From(bike), Assert.Single(snapshots, item => item.Id == bike.Id));
+        var pictured = Assert.Single(snapshots, item => item.Id == bike.Id);
+        Assert.True(pictured.HasImage);
+        Assert.Equal("pictured", pictured.Name);
+        Assert.DoesNotContain(snapshots, item => item.Id == deleted.Id);
         Assert.False(Assert.Single(snapshots, item => item.Id == empty.Id).HasImage);
     }
 }

@@ -1,5 +1,3 @@
-using Sufni.App.Bikes.Models;
-using Sufni.App.Segments.Models;
 using Sufni.App.Sessions.Models;
 using System;
 using System.Threading;
@@ -12,12 +10,6 @@ namespace Sufni.App.MapsAndTracks.Coordinators;
 public interface ITrackCoordinator
 {
     Task StopAsync();
-
-    Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
-        SegmentComparison comparison, SegmentComparisonDetail detail,
-        TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
-        DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
-        CancellationToken cancellationToken = default);
 
     Task<GpxImportResult> ImportGpxAsync(CancellationToken cancellationToken = default);
 

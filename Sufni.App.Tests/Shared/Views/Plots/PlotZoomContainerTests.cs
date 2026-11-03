@@ -9,74 +9,6 @@ namespace Sufni.App.Tests.Shared.Views.Plots;
 [Collection("Ui")]
 public class PlotZoomContainerTests
 {
-    [AvaloniaFact]
-    public void BorrowChild_DetachesChildAndPinsInheritedDataContext()
-    {
-        var inheritedDataContext = new object();
-        var child = new Border();
-        var container = new PlotZoomContainer
-        {
-            DataContext = inheritedDataContext,
-            Child = child,
-        };
-
-        var borrowed = container.BorrowChild();
-
-        Assert.Same(child, borrowed);
-        Assert.True(container.IsChildBorrowed);
-        Assert.Null(container.Child);
-        Assert.Same(inheritedDataContext, child.DataContext);
-        Assert.True(child.IsSet(StyledElement.DataContextProperty));
-    }
-
-    [AvaloniaFact]
-    public void ReturnChild_ReattachesChildAndRestoresDataContextInheritance()
-    {
-        var originalDataContext = new object();
-        var returnedDataContext = new object();
-        var child = new Border();
-        var container = new PlotZoomContainer
-        {
-            DataContext = originalDataContext,
-            Child = child,
-        };
-
-        var borrowed = Assert.IsType<Border>(container.BorrowChild());
-        container.DataContext = returnedDataContext;
-
-        container.ReturnChild(borrowed);
-
-        Assert.False(container.IsChildBorrowed);
-        Assert.Same(child, container.Child);
-        Assert.False(child.IsSet(StyledElement.DataContextProperty));
-        Assert.Same(returnedDataContext, child.DataContext);
-    }
-
-    [AvaloniaFact]
-    public void ReturnChild_RestoresExistingLocalDataContext_WhenChildOwnedOne()
-    {
-        var inheritedDataContext = new object();
-        var localDataContext = new object();
-        var child = new Border
-        {
-            DataContext = localDataContext,
-        };
-        var container = new PlotZoomContainer
-        {
-            DataContext = inheritedDataContext,
-            Child = child,
-        };
-
-        var borrowed = Assert.IsType<Border>(container.BorrowChild());
-        child.DataContext = new object();
-
-        container.ReturnChild(borrowed);
-
-        Assert.False(container.IsChildBorrowed);
-        Assert.Same(child, container.Child);
-        Assert.True(child.IsSet(StyledElement.DataContextProperty));
-        Assert.Same(localDataContext, child.DataContext);
-    }
 
     [AvaloniaFact]
     public void DoubleTap_RaisesPlotZoomRequested_AndBubblesToAncestor()
@@ -114,24 +46,6 @@ public class PlotZoomContainerTests
             (_, _) => requestCount++);
 
         RaiseDoubleTapped(button);
-
-        Assert.Equal(0, requestCount);
-    }
-
-    [AvaloniaFact]
-    public void DoubleTap_DoesNotRaise_WhileChildBorrowed()
-    {
-        var container = new PlotZoomContainer
-        {
-            Child = new Border(),
-        };
-        var requestCount = 0;
-        container.AddHandler(
-            PlotZoomContainer.PlotZoomRequestedEvent,
-            (_, _) => requestCount++);
-
-        Assert.NotNull(container.BorrowChild());
-        RaiseDoubleTapped(container);
 
         Assert.Equal(0, requestCount);
     }

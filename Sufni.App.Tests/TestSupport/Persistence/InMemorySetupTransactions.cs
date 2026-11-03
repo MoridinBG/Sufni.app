@@ -19,6 +19,7 @@ internal sealed class InMemorySetupTransactions(
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (Failure is { } failure) throw failure;
+        if (await bikes.GetAsync(setup.BikeId) is null) return new SetupWriteResult.BikeMissing();
         if (await BoardIsInUseAsync(newBoardId, setup.Id)) return new SetupWriteResult.BoardInUse(newBoardId!.Value);
         await setups.PutAsync(setup);
         return new SetupWriteResult.Applied(await ReassignAsync(originalBoardId, newBoardId, setup.Id));

@@ -66,9 +66,6 @@ internal sealed class FakeVideoPlayer : IVideoPlayer
 
     public void RaiseFailure(VideoPlaybackFailure failure) => PlaybackFailed?.Invoke(this, new(failure));
 
-    public void RaiseVideoSizeChanged(double width, double height) =>
-        VideoSizeChanged?.Invoke(this, new VideoSizeChangedEventArgs(width, height));
-
     public void Dispose() => IsDisposed = true;
 }
 
@@ -95,7 +92,7 @@ internal sealed class FakeVideoPlayerFactory : IVideoPlayerFactory
 /// </summary>
 internal sealed class VideoFixture : IDisposable
 {
-    private readonly List<SessionVideoStore> stores = [];
+    private readonly List<(SessionVideoStore Store, StorePublication Publication)> stores = [];
 
     public IVideoCoordinator Coordinator { get; } = Substitute.For<IVideoCoordinator>();
     public FakeVideoPlayerFactory PlayerFactory { get; } = new();
@@ -113,13 +110,11 @@ internal sealed class VideoFixture : IDisposable
             durationSeconds, alignmentOffsetSeconds, added, fileExists);
     }
 
-    public static SessionVideoStore CreateEmptyStore() =>
-        new(new StorePublication(new InlineUiThreadDispatcher()));
-
     public async Task<SessionVideoStore> CreateStoreAsync(params SessionVideoSnapshot[] clips)
     {
-        var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
-        stores.Add(store);
+        var publication = new StorePublication(new InlineUiThreadDispatcher());
+        var store = new SessionVideoStore(publication);
+        stores.Add((store, publication));
         await store.ReplaceAllAsync(clips);
         return store;
     }
@@ -135,6 +130,10 @@ internal sealed class VideoFixture : IDisposable
 
     public void Dispose()
     {
-        foreach (var store in stores) store.Dispose();
+        foreach (var (store, publication) in stores)
+        {
+            store.Dispose();
+            publication.Dispose();
+        }
     }
 }

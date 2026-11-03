@@ -12,39 +12,6 @@ public class ShellRootViewModelTests
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
 
     [Fact]
-    public void Constructor_ExposesSharedShellStateAndEnvironment()
-    {
-        var pages = MainPagesViewModelTestFactory.Create();
-        var workspace = new ShellWorkspaceViewModel(TestDispatcher, timeProvider: new FakeTimeProvider());
-        var environment = new AppEnvironment(
-            LayoutProfile: UiLayoutProfile.Workspace,
-            Capabilities: new AppCapabilities(
-                CanHostSyncServer: true,
-                CanPairAsClient: false,
-                SupportsMassStorageImport: true,
-                SupportsStorageProviderImport: true,
-                CanPickFolder: true,
-                CanPlayVideo: false),
-            Input: new InputCapabilities(
-                HasPointer: true,
-                HasTouch: false,
-                HasKeyboard: true,
-                SupportsLongPressContextMenu: false,
-                CommandModifier: CommandModifier.Control));
-
-        var plotZoomState = Substitute.For<IPlotZoomState>();
-
-        var root = ShellRootViewModelTestFactory.Create(pages, workspace, environment, plotZoomState, TestDispatcher, timeProvider: new FakeTimeProvider());
-
-        Assert.Same(pages, root.Pages);
-        Assert.Same(workspace, root.Workspace);
-        Assert.Equal(UiLayoutProfile.Workspace, root.LayoutProfile);
-        Assert.Same(environment.Capabilities, root.Capabilities);
-        Assert.True(root.HasKeyboardInput);
-        Assert.False(root.HasTouchInput);
-    }
-
-    [Fact]
     public void TryCloseTransientShellSurface_CollapsesPlotZoomFirst()
     {
         var plotZoomState = Substitute.For<IPlotZoomState>();
@@ -69,19 +36,6 @@ public class ShellRootViewModelTests
         var handled = root.TryCloseTransientShellSurface();
 
         Assert.True(handled);
-        Assert.False(root.Pages.IsDrawerOpen);
-        plotZoomState.Received(1).TryCollapse();
-    }
-
-    [Fact]
-    public void TryCloseTransientShellSurface_ReturnsFalseWhenNoTransientSurfaceIsOpen()
-    {
-        var plotZoomState = Substitute.For<IPlotZoomState>();
-        var root = CreateRoot(plotZoomState);
-
-        var handled = root.TryCloseTransientShellSurface();
-
-        Assert.False(handled);
         Assert.False(root.Pages.IsDrawerOpen);
         plotZoomState.Received(1).TryCollapse();
     }

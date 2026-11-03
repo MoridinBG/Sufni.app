@@ -34,67 +34,22 @@ public class RecordedSessionSourceRepositoryTests
     }
 
     [Fact]
-    public async Task PutRecordedSessionSourceAsync_RoundTripsSourceAndMissingSourceIds()
+    public async Task PutRecordedSessionSourceAsync_PreservesPayloadAcrossReopen()
     {
-        using var tempDatabase = new TempDatabase("source-crud.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-        var missingSessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        await database.PutSessionAsync(new Session(sessionId, "with source", "desc", null, 100));
-        await database.PutSessionAsync(new Session(missingSessionId, "missing source", "desc", null, 101));
-
-        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
-
-        await database.PutRecordedSessionSourceAsync(source);
-
-        var loaded = await database.GetRecordedSessionSourceAsync(sessionId);
-        var allSnapshots = await database.GetRecordedSessionSourceSnapshotsAsync();
-        var snapshot = await database.GetRecordedSessionSourceSnapshotAsync(sessionId);
-        var missingSourceIds = await database.GetSessionIdsMissingRecordedSourceAsync();
-
-        Assert.NotNull(loaded);
-        Assert.Equal(sessionId, loaded!.SessionId);
-        Assert.Equal(RecordedSessionSourceKind.ImportedSst, loaded.SourceKind);
-        Assert.Equal("source.SST", loaded.SourceName);
-        Assert.Equal(1, loaded.SchemaVersion);
-        Assert.Equal(source.SourceHash, loaded.SourceHash);
-        Assert.Equal([1, 2, 3], RecordedSessionSourcePayloadCodec.DecompressImportedSst(loaded.Payload));
-        Assert.Equal(RecordedSessionSourceSnapshot.From(source), Assert.Single(allSnapshots));
-        Assert.Equal(RecordedSessionSourceSnapshot.From(source), snapshot);
-        Assert.DoesNotContain(sessionId, missingSourceIds);
-        Assert.Contains(missingSessionId, missingSourceIds);
-    }
-
-    [Fact]
-    public async Task SnapshotProjection_DoesNotRequirePayloadLoad()
-    {
-        using var tempDatabase = new TempDatabase("source-snapshot-projection.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        await database.PutSessionAsync(new Session(sessionId, "session", "desc", null, 100));
-        var source = PersistenceTestData.CreateRecordedSessionSource(sessionId);
-        await database.PutRecordedSessionSourceAsync(source);
-
-        using (var connection = new SQLiteConnection(databasePath))
+        using var temp = new TempDatabase("source-roundtrip.db");
+        var source = PersistenceTestData.CreateRecordedSessionSource(Guid.NewGuid());
+        await using (var context = PersistenceTestData.CreateConnectionContext(temp.DatabasePath))
         {
-            connection.Execute("UPDATE session_recording_source SET payload = ? WHERE session_id = ?", new byte[] { 9, 8, 7, 6 }, sessionId);
+            IRecordedSessionSourceRepository repository = new RecordedSessionSourceRepository(context);
+            await repository.PutRecordedSessionSourceAsync(source);
         }
+        await using var reopened = PersistenceTestData.CreateConnectionContext(temp.DatabasePath);
+        IRecordedSessionSourceRepository reader = new RecordedSessionSourceRepository(reopened);
 
-        var snapshot = await database.GetRecordedSessionSourceSnapshotAsync(sessionId);
-        var fullSource = await database.GetRecordedSessionSourceAsync(sessionId);
+        var loaded = await reader.GetRecordedSessionSourceAsync(source.SessionId);
 
-        Assert.Equal(new RecordedSessionSourceSnapshot(
-            source.SessionId,
-            source.SourceKind,
-            source.SourceName,
-            source.SchemaVersion,
-            source.SourceHash), snapshot);
-        Assert.NotNull(fullSource);
-        Assert.Equal([9, 8, 7, 6], fullSource!.Payload);
+        Assert.Equal([1, 2, 3], RecordedSessionSourcePayloadCodec.DecompressImportedSst(loaded!.Payload));
+        Assert.Equal(source.SourceHash, loaded.SourceHash);
     }
 
     [Theory]

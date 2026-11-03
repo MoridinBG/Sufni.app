@@ -15,7 +15,7 @@ public class SessionTimelineLinkViewModelTests
 
         Assert.Equal(0.45, timeline.VisibleRangeStart, precision: 8);
         Assert.Equal(0.65, timeline.VisibleRangeEnd, precision: 8);
-        Assert.Same(timeline, timeline.VisibleRangeChangeSource);
+        Assert.Equal(0.45, timeline.NormalizedCursorPosition);
     }
 
     [Fact]
@@ -68,5 +68,8 @@ public class SessionTimelineLinkViewModelTests
         timeline.SetCursorPosition(0.3);
 
         Assert.Equal(0, rangeChanges);
+        Assert.Equal(0.2, timeline.VisibleRangeStart, precision: 8);
+        Assert.Equal(0.4, timeline.VisibleRangeEnd, precision: 8);
+        Assert.Equal(0.3, timeline.NormalizedCursorPosition);
     }
 }

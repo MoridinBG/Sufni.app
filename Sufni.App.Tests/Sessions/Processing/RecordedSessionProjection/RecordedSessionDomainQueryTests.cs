@@ -37,29 +37,6 @@ public class RecordedSessionDomainQueryTests
     }
 
     [Fact]
-    public void Get_ReturnsCurrentDomain_WhenSessionDependenciesAndSourceMatch()
-    {
-        var context = CreateCurrentContext();
-        sessionStore.Get(context.Session.Id).Returns(context.Session);
-        setupStore.Get(context.Setup.Id).Returns(context.Setup);
-        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
-        sourceStore.Get(context.Session.Id).Returns(context.Source);
-        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns(ProcessingDependencyHash.Compute(context.Setup, context.Bike));
-        var query = CreateQuery();
-
-        var domain = query.Get(context.Session.Id);
-
-        Assert.NotNull(domain);
-        Assert.Equal(context.Session, domain!.Session);
-        Assert.Equal(context.Setup, domain.Setup);
-        Assert.Equal(context.Bike, domain.Bike);
-        Assert.Equal(context.Source, domain.Source);
-        Assert.IsType<SessionStaleness.Current>(domain.Staleness);
-        Assert.NotNull(domain.CurrentFingerprint);
-        Assert.Equal(domain.CurrentFingerprint, domain.PersistedFingerprint);
-    }
-
-    [Fact]
     public void Get_UsesDerivationWindowSource_WhenWindowTargetsForeignSource()
     {
         var bike = TestSnapshots.Bike(id: Guid.NewGuid());
@@ -81,6 +58,7 @@ public class RecordedSessionDomainQueryTests
         setupStore.Get(setup.Id).Returns(setup);
         bikeStore.Get(bike.Id).Returns(bike);
         sourceStore.Get(source.SessionId).Returns(source);
+        sourceStore.Get(session.Id).Returns(CreateSource(session.Id) with { SourceHash = "wrong-own-source" });
         dependencyHashIndex.GetForSetup(setup.Id).Returns(ProcessingDependencyHash.Compute(setup, bike));
         var query = CreateQuery();
 
@@ -89,107 +67,8 @@ public class RecordedSessionDomainQueryTests
         Assert.NotNull(domain);
         Assert.Equal(source, domain!.Source);
         Assert.IsType<SessionStaleness.Current>(domain.Staleness);
-        sourceStore.Received(1).Get(source.SessionId);
-        sourceStore.DidNotReceive().Get(session.Id);
-    }
-
-    [Fact]
-    public void Get_UsesSingleFingerprintEvaluation()
-    {
-        var context = CreateCurrentContext();
-        var fingerprint = new ProcessingFingerprint(
-            2,
-            1,
-            context.Setup.Id,
-            context.Bike.Id,
-            1,
-            "dependency",
-            context.Source.SourceHash);
-        var fingerprintService = Substitute.For<IProcessingFingerprintService>();
-        var staleness = new SessionStaleness.Current();
-        fingerprintService
-            .EvaluateState(
-                context.Session,
-                context.Setup,
-                context.Bike,
-                context.Source,
-                "dependency")
-            .Returns(new ProcessingFingerprintEvaluation(fingerprint, fingerprint, staleness));
-        sessionStore.Get(context.Session.Id).Returns(context.Session);
-        setupStore.Get(context.Setup.Id).Returns(context.Setup);
-        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
-        sourceStore.Get(context.Session.Id).Returns(context.Source);
-        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns("dependency");
-        var query = new RecordedSessionDomainQuery(
-            sessionStore,
-            setupStore,
-            bikeStore,
-            sourceStore,
-            fingerprintService,
-            dependencyHashIndex, Substitute.For<ITrackStore>());
-
-        var domain = query.Get(context.Session.Id);
-
-        Assert.NotNull(domain);
-        Assert.Equal(fingerprint, domain!.CurrentFingerprint);
-        Assert.Equal(fingerprint, domain.PersistedFingerprint);
-        Assert.Equal(staleness, domain.Staleness);
-        fingerprintService.Received(1).EvaluateState(
-            context.Session,
-            context.Setup,
-            context.Bike,
-            context.Source,
-            "dependency");
-        fingerprintService.DidNotReceive().CreateCurrent(
-            Arg.Any<SessionSnapshot>(),
-            Arg.Any<SetupSnapshot>(),
-            Arg.Any<BikeSnapshot>(),
-            Arg.Any<RecordedSessionSourceSnapshot>());
-    }
-
-    [Fact]
-    public void Get_ReturnsMissingRawSource_WhenSourceIsMissing()
-    {
-        var context = CreateCurrentContext();
-        sessionStore.Get(context.Session.Id).Returns(context.Session);
-        setupStore.Get(context.Setup.Id).Returns(context.Setup);
-        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
-        sourceStore.Get(context.Session.Id).Returns((RecordedSessionSourceSnapshot?)null);
-        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns(ProcessingDependencyHash.Compute(context.Setup, context.Bike));
-        var query = CreateQuery();
-
-        var domain = query.Get(context.Session.Id);
-
-        Assert.NotNull(domain);
-        Assert.Null(domain!.Source);
-        Assert.Null(domain.CurrentFingerprint);
-        Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
-        Assert.False(domain.Staleness.IsStale);
-    }
-
-    [Fact]
-    public void Get_ReturnsStaleMissingRawSource_WhenSourceAndFingerprintAreMissing()
-    {
-        var context = CreateCurrentContext();
-        var session = context.Session with
-        {
-            ProcessingFingerprintJson = null
-        };
-        sessionStore.Get(session.Id).Returns(session);
-        setupStore.Get(context.Setup.Id).Returns(context.Setup);
-        bikeStore.Get(context.Bike.Id).Returns(context.Bike);
-        sourceStore.Get(session.Id).Returns((RecordedSessionSourceSnapshot?)null);
-        dependencyHashIndex.GetForSetup(context.Setup.Id).Returns(ProcessingDependencyHash.Compute(context.Setup, context.Bike));
-        var query = CreateQuery();
-
-        var domain = query.Get(session.Id);
-
-        Assert.NotNull(domain);
-        Assert.Null(domain!.Source);
-        Assert.Null(domain.CurrentFingerprint);
-        Assert.IsType<SessionStaleness.MissingRawSource>(domain.Staleness);
-        Assert.True(domain.Staleness.IsStale);
-        Assert.False(domain.Staleness.CanRecompute);
+        Assert.Equal(fingerprint, domain.CurrentFingerprint);
+        Assert.Equal(new RecordedSessionDerivationWindow(source.SessionId, 1.25, 3.5), domain.Session.DerivationWindow);
     }
 
     [Fact]

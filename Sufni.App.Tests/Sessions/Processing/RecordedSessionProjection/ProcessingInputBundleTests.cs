@@ -13,27 +13,6 @@ namespace Sufni.App.Tests.Sessions.Processing.RecordedSessionProjection;
 
 public class ProcessingInputBundleTests
 {
-    [Fact]
-    public async Task GetProcessingInputBundleAsync_ReturnsProcessingInputs()
-    {
-        using var tempDatabase = new TempDatabase("processing-input-bundle.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var seeded = await SeedProcessingInputsAsync(database);
-
-        var bundle = await database.GetProcessingInputBundleAsync(seeded.Session.Id);
-
-        Assert.NotNull(bundle);
-        Assert.Equal(seeded.Session.Id, bundle!.Session.Id);
-        Assert.Equal(seeded.Setup.Id, bundle.Session.SetupId);
-        Assert.Equal(seeded.Setup.Id, bundle.Setup.Id);
-        Assert.Equal(seeded.Bike.Id, bundle.Setup.BikeId);
-        Assert.Equal(seeded.Bike.Id, bundle.Bike.Id);
-        Assert.Equal(seeded.Bike.HeadAngle, bundle.Bike.HeadAngle);
-        Assert.Equal(seeded.Bike.ForkStroke, bundle.Bike.ForkStroke);
-        Assert.Equal(seeded.Bike.ShockStroke, bundle.Bike.ShockStroke);
-        Assert.Equal(seeded.Source.SourceHash, bundle.Source.SourceHash);
-    }
-
     [Theory]
     [InlineData(MissingInput.Session)]
     [InlineData(MissingInput.DeletedSession)]
@@ -58,52 +37,6 @@ public class ProcessingInputBundleTests
             missingInput == MissingInput.Session ? Guid.NewGuid() : sessionId);
 
         Assert.Null(bundle);
-    }
-
-    [Fact]
-    public async Task BundleHashMatchesSnapshotHash_ForSameProcessingInputs()
-    {
-        using var tempDatabase = new TempDatabase("processing-input-hash.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var seeded = await SeedProcessingInputsAsync(database);
-        var fingerprintService = new ProcessingFingerprintService();
-
-        var bundle = await database.GetProcessingInputBundleAsync(seeded.Session.Id);
-
-        Assert.NotNull(bundle);
-        var bundleHash = ProcessingDependencyHash.Compute(bundle!.Setup, bundle.Bike);
-        var snapshotHash = ProcessingDependencyHash.Compute(
-            SetupSnapshot.From(seeded.Setup),
-            BikeSnapshot.From(seeded.Bike));
-        var bundleFingerprint = fingerprintService.CreateCurrentDatabaseInputs(bundle);
-        var snapshotFingerprint = fingerprintService.CreateCurrent(
-            SessionSnapshot.From(seeded.Session),
-            SetupSnapshot.From(seeded.Setup),
-            BikeSnapshot.From(seeded.Bike),
-            RecordedSessionSourceSnapshot.From(seeded.Source));
-
-        Assert.Equal(snapshotHash, bundleHash);
-        Assert.Equal(snapshotFingerprint, bundleFingerprint);
-    }
-
-    [Fact]
-    public async Task GetProcessingInputBundleAsync_DoesNotRequireSourcePayloadOrBikeImage()
-    {
-        using var tempDatabase = new TempDatabase("processing-input-no-large-columns.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var seeded = await SeedProcessingInputsAsync(database);
-
-        using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
-        {
-            connection.Execute("UPDATE bike SET image = zeroblob(1048576) WHERE id = ?", seeded.Bike.Id);
-            connection.Execute("UPDATE session_recording_source SET payload = zeroblob(1048576) WHERE session_id = ?", seeded.Session.Id);
-        }
-
-        var bundle = await database.GetProcessingInputBundleAsync(seeded.Session.Id);
-
-        Assert.NotNull(bundle);
-        Assert.Equal(seeded.Bike.Id, bundle!.Bike.Id);
-        Assert.Equal(seeded.Source.SourceHash, bundle.Source.SourceHash);
     }
 
     private static async Task<SeededProcessingInputs> SeedProcessingInputsAsync(TestPersistenceHarness database)

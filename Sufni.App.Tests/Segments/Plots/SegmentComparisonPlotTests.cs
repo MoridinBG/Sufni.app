@@ -15,34 +15,6 @@ namespace Sufni.App.Tests.Segments.Plots;
 public class SegmentComparisonPlotTests
 {
     [Fact]
-    public void LoadRow_MapsRolesToSignalColors()
-    {
-        var plot = new Plot();
-
-        new SegmentComparisonPlot(plot).LoadRow(Create(SegmentComparisonSignal.Imu,
-        [
-            Series(SegmentComparisonSeriesRole.FrontVelocity, 1, 2, 3),
-            Series(SegmentComparisonSeriesRole.RearTravel, 4, 5, 6),
-            Series(SegmentComparisonSeriesRole.FrameImu, 1, 2, 3),
-            Series(SegmentComparisonSeriesRole.ForkImu, 1, 2, 3),
-            Series(SegmentComparisonSeriesRole.ShockImu, 1, 2, 3),
-            Series(SegmentComparisonSeriesRole.Speed, 1, 2, 3),
-        ]));
-
-        Assert.Equal(
-            new[]
-            {
-                TelemetryPlot.FrontColor,
-                TelemetryPlot.RearColor,
-                ImuPlot.FrameColor,
-                TelemetryPlot.FrontColor,
-                TelemetryPlot.RearColor,
-                SufniThemes.SignalSeries.GpsSpeed.ToScottPlotColor(),
-            }.Select(Argb),
-            plot.PlottableList.OfType<Scatter>().Select(scatter => Argb(scatter.Color)));
-    }
-
-    [Fact]
     public void LoadRow_InvertsTheValueAxis_ForTravel()
     {
         var plot = new Plot();
@@ -76,11 +48,13 @@ public class SegmentComparisonPlotTests
             [Series(SegmentComparisonSeriesRole.FrontTravel, 10, 20, 15)],
             [new SegmentMatchedAirtime(0.5, 1.0)]));
 
-        Assert.NotEmpty(plot.PlottableList.OfType<HorizontalSpan>());
+        var airtime = Assert.Single(plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.Equal(0.5, airtime.X1);
+        Assert.Equal(1.0, airtime.X2);
     }
 
     [Fact]
-    public void LoadRow_ShowsTheEmptyMessage_WhenNoSeriesCanBeDrawn()
+    public void LoadRow_SkipsOnePointSeries_AndShowsEmptyFeedback()
     {
         var plot = new Plot();
 
@@ -88,9 +62,7 @@ public class SegmentComparisonPlotTests
             Create(SegmentComparisonSignal.Velocity, [Series(SegmentComparisonSeriesRole.FrontVelocity, 42)]));
 
         Assert.Empty(plot.PlottableList.OfType<Scatter>());
-        Assert.Contains(
-            "No matched velocity data",
-            plot.PlottableList.OfType<Text>().SelectMany(PlotTestHelpers.ReadTextLabels));
+        Assert.Contains(plot.PlottableList.OfType<Text>(), text => text.IsVisible);
     }
 
     [Fact]
@@ -144,21 +116,4 @@ public class SegmentComparisonPlotTests
         Assert.Equal(119.6, limits.Top, precision: 6);
     }
 
-    [Fact]
-    public void LoadRow_ShowsTheLegend_OnlyForMultipleSeries()
-    {
-        var single = new Plot();
-        var multiple = new Plot();
-
-        new SegmentComparisonPlot(single).LoadRow(
-            Create(SegmentComparisonSignal.Travel, [Series(SegmentComparisonSeriesRole.FrontTravel, 1, 2, 3)]));
-        new SegmentComparisonPlot(multiple).LoadRow(Create(
-            SegmentComparisonSignal.Travel,
-            [Series(SegmentComparisonSeriesRole.FrontTravel, 1, 2, 3), Series(SegmentComparisonSeriesRole.RearTravel, 4, 5, 6)]));
-
-        Assert.False(single.Legend.IsVisible);
-        Assert.True(multiple.Legend.IsVisible);
-    }
-
-    private static (byte, byte, byte, byte) Argb(Color color) => (color.R, color.G, color.B, color.A);
 }

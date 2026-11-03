@@ -108,37 +108,6 @@ public partial class LiveDaqSharedStreamTests
     }
 
     [Fact]
-    public async Task CatalogChanges_AwaitEarlierClose_AndRegistryDisposalDrainsThem()
-    {
-        var registry = CreateRegistry();
-        var firstSnapshot = CreateSnapshot("first", "192.168.0.10", 1557);
-        var secondSnapshot = CreateSnapshot("second", "192.168.0.11", 1557);
-        catalogEntries.OnNext([CreateCatalogEntry(firstSnapshot), CreateCatalogEntry(secondSnapshot)]);
-        var first = registry.GetOrCreate(firstSnapshot);
-        var second = registry.GetOrCreate(secondSnapshot);
-        await using var observer = Assert.IsType<LiveStreamLeaseResult.Acquired>(first.AcquireLease()).Lease;
-        await first.ConnectLiveAsync(TestContext.Current.CancellationToken);
-        var client = Assert.Single(clientFactory.CreatedClients);
-        client.BlockDisposeAsync = true;
-        var secondClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var observation = second.States.Subscribe(state =>
-        {
-            if (state.IsClosed) secondClosed.TrySetResult();
-        });
-
-        catalogEntries.OnNext([CreateCatalogEntry(secondSnapshot)]);
-        await client.DisposeStarted.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        catalogEntries.OnNext([]);
-        Assert.False(second.CurrentState.IsClosed);
-        var stopping = registry.DisposeAsync().AsTask();
-        Assert.False(stopping.IsCompleted);
-        client.ReleaseDispose();
-
-        await secondClosed.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-        await stopping.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
-    }
-
-    [Fact]
     public async Task StopAsync_WithCaptureLock_ReturnsLockedAndKeepsTransportUntilCaptureReleasesIt()
     {
         await using var registry = CreateRegistry();

@@ -62,18 +62,18 @@ public class SessionVideoRepositoryTests
     public async Task GetAllAsync_RetainsSourceClipsAfterSessionDeletion()
     {
         using var tempDatabase = new TempDatabase();
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
-        var liveSession = new Session(Guid.NewGuid(), "live", string.Empty, null);
-        var deletedSession = new Session(Guid.NewGuid(), "deleted", string.Empty, null);
-        await database.PutSessionAsync(liveSession);
-        await database.PutSessionAsync(deletedSession);
-        await database.SessionVideoRepository.LinkAsync(
-            "/videos/ride.mp4", 1_000, 60, added: 1, [new SessionVideoOwner("first-source", 1_000), new SessionVideoOwner("second-source", 1_000)]);
-        await database.DeleteAsync(deletedSession);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        var session = new Session(Guid.NewGuid(), "ride", string.Empty, null);
+        var source = PersistenceTestData.CreateRecordedSessionSource(session.Id);
+        await database.PutSessionWithRecordedSourceAsync(session, source);
+        var original = Assert.Single(await database.SessionVideoRepository.LinkAsync(
+            "/videos/ride.mp4", 1_000, 60, added: 1, [new SessionVideoOwner(source.SourceHash, 1_000)]));
+        Assert.Equal(source.SourceHash, Assert.Single(await database.SessionVideoRepository.GetAllAsync()).OwnerKey);
 
-        var clips = await database.SessionVideoRepository.GetAllAsync();
+        await database.SessionTransactions.DeleteSessionAsync(session.Id, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, clips.Count);
+        Assert.Null(await database.GetSessionAsync(session.Id));
+        Assert.Equal(original, Assert.Single(await database.SessionVideoRepository.GetAllAsync()));
     }
 
     [Fact]

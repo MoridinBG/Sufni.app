@@ -82,99 +82,6 @@ public class CompactShellViewTests
     }
 
     [AvaloniaFact]
-    public async Task CompactShellView_SelectedPrimaryIndex_UpdatesTabbedPageSelection()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
-
-        var root = CreateRoot();
-        var view = new CompactShellView
-        {
-            DataContext = root,
-        };
-
-        await using var mounted = await MountAsync(view);
-
-        var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage");
-
-        Assert.NotNull(tabbedPage);
-        Assert.Equal(0, tabbedPage!.SelectedIndex);
-
-        root.Pages.SelectedPrimaryIndex = 2;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(2, tabbedPage.SelectedIndex);
-    }
-
-    [AvaloniaFact]
-    public async Task CompactShellView_BindsMainPagesAndPrimaryPageContent()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
-
-        var root = CreateRoot();
-        var view = new CompactShellView
-        {
-            DataContext = root,
-        };
-
-        await using var mounted = await MountAsync(view);
-
-        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel");
-        var tabbedPage = mounted.View.FindControl<TabbedPage>("PagesTabbedPage")
-            ?? throw new InvalidOperationException("Primary tabbed page was not found.");
-        var pages = tabbedPage.Pages
-            ?? throw new InvalidOperationException("Primary pages were not found.");
-        var sessionsPage = pages.Cast<ContentPage>().First();
-
-        Assert.Same(root.Pages, mounted.View.MainPages);
-        Assert.Same(root.Pages, menuPanel!.DataContext);
-        Assert.False(sessionsPage.AutomaticallyApplySafeAreaPadding);
-        Assert.Equal("Sessions", sessionsPage.Header);
-        Assert.Same(root.Pages.SessionsPage, sessionsPage.Content);
-    }
-
-    [AvaloniaFact]
-    public async Task CompactShellView_SidePanel_UsesDirectLayoutProfileAction()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Compact);
-
-        var environment = CreateMobileCompactEnvironment();
-        var shell = Substitute.For<IShellCoordinator>();
-        shell.SwitchLayoutProfileAsync(UiLayoutProfile.Workspace).Returns(_ =>
-        {
-            environment.SetLayoutProfile(UiLayoutProfile.Workspace);
-            return Task.CompletedTask;
-        });
-        var pages = MainPagesViewModelTestFactory.Create(
-            appEnvironment: environment,
-            shell: shell);
-        var root = CreateRoot(pages, environment);
-        var view = new CompactShellView
-        {
-            DataContext = root,
-        };
-
-        await using var mounted = await MountAsync(view);
-
-        var menuPanel = mounted.View.FindControl<SidePanel>("MenuPanel")
-            ?? throw new InvalidOperationException("Side panel was not found.");
-        var menuItem = menuPanel.FindControl<MenuItem>("LayoutProfileMenuItem")
-            ?? throw new InvalidOperationException("Layout profile menu item was not found.");
-
-        Assert.Equal("workspace", menuItem.Header);
-        Assert.Same(pages.ToggleLayoutProfileCommand, menuItem.Command);
-
-        menuItem.Command!.Execute(menuItem.CommandParameter);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(UiLayoutProfile.Workspace, pages.SelectedLayoutProfile);
-        Assert.Equal("compact", menuItem.Header);
-        await shell.Received(1).SwitchLayoutProfileAsync(UiLayoutProfile.Workspace);
-    }
-
-    [AvaloniaFact]
     public async Task CompactShellView_ShowsPairedDevicesPanel_WhenDesktopHostCapabilityIsAvailable()
     {
         ViewTestHelpers.EnsureViewTestResources();
@@ -205,8 +112,9 @@ public class CompactShellViewTests
 
         Assert.True(pages.IsPairedDevicesListOpen);
         Assert.True(pairedDevicesPanel.IsVisible);
-        Assert.IsType<PairedDeviceListDesktopView>(
-            new ViewLocator(environment).Build(pages.PairedDevicesPage));
+        menuItem.Command!.Execute(null);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(pairedDevicesPanel.IsVisible);
     }
 
     [AvaloniaFact]
@@ -242,10 +150,9 @@ public class CompactShellViewTests
 
         Assert.True(pairingRequestPanel.IsVisible);
 
-        var pinText = mounted.View.GetVisualDescendants()
-            .OfType<TextBlock>()
-            .Single(control => control.Name == "CompactPairingPinText");
-        Assert.True(pinText.Bounds.Height > 24);
+        pairingServer.PairingPin = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(pairingRequestPanel.IsVisible);
     }
 
     private static ShellRootViewModel CreateRoot(
@@ -283,21 +190,9 @@ public class CompactShellViewTests
     private static IAppEnvironment CreateDesktopCompactEnvironment() =>
         MainPagesViewModelTestFactory.CreateAppEnvironment(UiLayoutProfile.Compact);
 
-    private static async Task<MountedCompactShellView> MountAsync(CompactShellView view)
+    private static async Task<MountedView<CompactShellView>> MountAsync(CompactShellView view)
     {
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedCompactShellView(host, view);
-    }
-}
-
-internal sealed class MountedCompactShellView(Window host, CompactShellView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public CompactShellView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        return new MountedView<CompactShellView>(host, view);
     }
 }

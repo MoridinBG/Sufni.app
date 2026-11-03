@@ -89,7 +89,8 @@ public class SessionEditTransactionTests : IDisposable
 
         var commit = await runner.UndoTrimAsync(session);
 
-        Assert.Equal("Session has no trim to undo.", Assert.IsType<SessionEditCommit.Rejected>(commit).Message);
+        Assert.IsType<SessionEditCommit.Rejected>(commit);
+        Assert.Equal(session, await GetSnapshotAsync(session.Id));
     }
 
     [Fact]
@@ -167,7 +168,9 @@ public class SessionEditTransactionTests : IDisposable
 
         var commit = await runner.SplitAsync(await GetSnapshotAsync(session.Id), 5);
 
-        Assert.Equal("The position is outside the session.", Assert.IsType<SessionEditCommit.Rejected>(commit).Message);
+        Assert.IsType<SessionEditCommit.Rejected>(commit);
+        Assert.Equal(new RecordedSessionDerivationWindow(session.Id, 0, 4), (await GetSnapshotAsync(session.Id)).DerivationWindow);
+        Assert.Single(await (await context.GetInitializedConnectionAsync()).Table<Session>().ToListAsync());
     }
 
     [Fact]
@@ -178,7 +181,8 @@ public class SessionEditTransactionTests : IDisposable
 
         var commit = await runner.TrimFromBeginningAsync(session, 1);
 
-        Assert.Equal("Session changed while editing.", Assert.IsType<SessionEditCommit.Rejected>(commit).Message);
+        Assert.IsType<SessionEditCommit.Rejected>(commit);
+        Assert.Equal(100, (await GetSnapshotAsync(session.Id)).Timestamp);
         Assert.Equal(
             new RecordedSessionDerivationWindow(session.Id, 0, 4),
             (await GetSnapshotAsync(session.Id)).DerivationWindow);

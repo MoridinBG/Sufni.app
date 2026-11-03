@@ -21,7 +21,7 @@ public class SessionSyncGenerationTests : IDisposable
     private readonly InMemorySessionRepository repository = new(new FakeTimeProvider());
     private readonly StorePublication publication;
     private readonly SessionStore sessions;
-    private readonly SessionSyncApplier applier;
+    private readonly ISessionSyncApplier applier;
     private string targetFingerprint = string.Empty;
 
     public SessionSyncGenerationTests()
@@ -40,6 +40,7 @@ public class SessionSyncGenerationTests : IDisposable
         string fingerprint, bool valid, SessionDataApplyResult expectedResult)
     {
         var session = SeedSession();
+        await sessions.ReplaceAllAsync([SessionSnapshot.From(session)]);
         fingerprint = fingerprint == "target" ? targetFingerprint : fingerprint;
         repository.SeedSwap(new SessionBlobSwap(session.Id, targetFingerprint, new SessionProcessedGeneration(80)));
         var incoming = valid ? PersistenceTestData.CreateTelemetryBlob(80) : new byte[] { 1, 2, 3 };
@@ -57,7 +58,7 @@ public class SessionSyncGenerationTests : IDisposable
         {
             Assert.Equal(targetFingerprint, (await repository.SwapRequests.GetRequestAsync(session.Id))!.TargetFingerprint);
             Assert.Equal(session.ProcessedData, await repository.Repository.GetSessionRawPsstAsync(session.Id));
-            Assert.Null(sessions.Get(session.Id));
+            Assert.Equal(SessionSnapshot.From(session), sessions.Get(session.Id));
         }
     }
 
@@ -66,6 +67,7 @@ public class SessionSyncGenerationTests : IDisposable
     {
         var session = SeedSession();
         var captured = SessionSnapshot.From(session);
+        await sessions.ReplaceAllAsync([captured]);
         var newer = PersistenceTestData.CreateTelemetryBlob(80);
         Assert.True(await repository.Repository.UpdateSessionPsstAsync(session.Id, newer, "held",
             80, SessionProcessedWriteGuard.From(captured)));
@@ -75,7 +77,7 @@ public class SessionSyncGenerationTests : IDisposable
 
         Assert.Equal(SessionDataApplyResult.Pending, result);
         Assert.Equal(newer, await repository.Repository.GetSessionRawPsstAsync(session.Id));
-        Assert.Null(sessions.Get(session.Id));
+        Assert.Equal(captured, sessions.Get(session.Id));
     }
 
     [Fact]
@@ -93,6 +95,8 @@ public class SessionSyncGenerationTests : IDisposable
         Assert.Equal(4, saved.AscentMeters);
         Assert.Equal(2, saved.DescentMeters);
         Assert.Equal(session.Updated, saved.Updated);
+        Assert.Equal(80, (await repository.Repository.GetSessionAsync(session.Id))!.DurationSeconds);
+        Assert.True(saved.HasProcessedData);
     }
 
     [Theory]
@@ -131,6 +135,7 @@ public class SessionSyncGenerationTests : IDisposable
         Assert.Equal(generation.DurationSeconds, saved.DurationSeconds);
         Assert.Equal(session.DistanceMeters, saved.DistanceMeters);
 
+        Assert.Equal(targetFingerprint, saved.ProcessingFingerprintJson);
         Assert.Equal(SessionSnapshot.From(saved), sessions.Get(session.Id));
     }
 

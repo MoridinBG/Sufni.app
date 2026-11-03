@@ -5,36 +5,6 @@ namespace Sufni.App.Tests.Acquisition.Services.Management;
 public class DaqConfigDocumentTests
 {
     [Fact]
-    public void Parse_ReturnsKnownFieldsInFirmwareOrder_WithAliasesAndDefaults()
-    {
-        var document = DaqConfigDocument.Parse("""
-WIFI_MODE=AP
-SSID=legacy-sta
-PSK=legacy-psk
-AP_SSID=trackside
-AP_PSK=trackside-secret
-TRAVEL_SAMPLE_RATE=400
-IMU_SAMPLE_RATE=100
-GPS_SAMPLE_RATE=5
-""");
-
-        var values = document.GetFieldValues();
-
-        Assert.Equal(DaqConfigFields.All.Select(field => field.Key), values.Select(value => value.Definition.Key));
-        Assert.Equal("AP", document.GetValue("WIFI_MODE"));
-        Assert.Equal("legacy-sta", document.GetValue("STA_SSID"));
-        Assert.Equal("legacy-psk", document.GetValue("STA_PSK"));
-        Assert.Equal("trackside", document.GetValue("AP_SSID"));
-        Assert.Equal("trackside-secret", document.GetValue("AP_PSK"));
-        Assert.Equal("pool.ntp.org", document.GetValue("NTP_SERVER"));
-        Assert.Equal("HU", document.GetValue("COUNTRY"));
-        Assert.Equal("UTC0", document.GetValue("TIMEZONE"));
-        Assert.Equal("400", document.GetValue("TRAVEL_SAMPLE_RATE"));
-        Assert.Equal("100", document.GetValue("IMU_SAMPLE_RATE"));
-        Assert.Equal("5", document.GetValue("GPS_SAMPLE_RATE"));
-    }
-
-    [Fact]
     public void Parse_UsesLastKnownAssignmentAsEffectiveValue()
     {
         var document = DaqConfigDocument.Parse("""
@@ -77,33 +47,20 @@ AP_SSID=old-ap
         Assert.Equal(1, lines.Count(line => line.StartsWith("STA_SSID=", StringComparison.Ordinal)));
     }
 
-    [Fact]
-    public void Validate_AcceptsDefaultFieldValues()
+    [Theory]
+    [InlineData("WIFI_MODE", "CLIENT")]
+    [InlineData("COUNTRY", "H")]
+    [InlineData("TRAVEL_SAMPLE_RATE", "0")]
+    [InlineData("IMU_SAMPLE_RATE", "65536")]
+    [InlineData("GPS_SAMPLE_RATE", "abc")]
+    [InlineData("STA_SSID", "sssssssssssssssssssssssssssssssss")]
+    [InlineData("AP_PSK", "abc=defgh")]
+    public void Validate_RejectsInvalidFieldWithoutRejectingValidConfiguration(string key, string invalid)
     {
-        var document = DaqConfigDocument.Parse(string.Empty);
-
-        var errors = DaqConfigValidator.Validate(ToEditableValues(document));
-
-        Assert.Empty(errors);
-    }
-
-    [Fact]
-    public void Validate_RejectsInvalidEnumsCountryAndSampleRates()
-    {
-        var values = ToEditableValues(DaqConfigDocument.Parse(string.Empty));
-        values["WIFI_MODE"] = "CLIENT";
-        values["COUNTRY"] = "H";
-        values["TRAVEL_SAMPLE_RATE"] = "0";
-        values["IMU_SAMPLE_RATE"] = "65536";
-        values["GPS_SAMPLE_RATE"] = "abc";
-
-        var errors = DaqConfigValidator.Validate(values);
-
-        Assert.Contains("WIFI_MODE", errors.Keys);
-        Assert.Contains("COUNTRY", errors.Keys);
-        Assert.Contains("TRAVEL_SAMPLE_RATE", errors.Keys);
-        Assert.Contains("IMU_SAMPLE_RATE", errors.Keys);
-        Assert.Contains("GPS_SAMPLE_RATE", errors.Keys);
+        var values = ToEditableValues(DaqConfigDocument.Parse("WIFI_MODE=AP\nAP_SSID=trail\nAP_PSK=trail-secret"));
+        Assert.Empty(DaqConfigValidator.Validate(values));
+        values[key] = invalid;
+        Assert.Equal(key, Assert.Single(DaqConfigValidator.Validate(values)).Key);
     }
 
     [Fact]
@@ -128,21 +85,6 @@ AP_SSID=old-ap
 
         Assert.Contains("AP_SSID", apErrors.Keys);
         Assert.Contains("AP_PSK", apErrors.Keys);
-    }
-
-    [Fact]
-    public void Validate_RejectsStringValuesThatFirmwareWouldTruncateOrSplit()
-    {
-        var values = ToEditableValues(DaqConfigDocument.Parse(string.Empty));
-        values["STA_SSID"] = new string('s', 33);
-        values["AP_PSK"] = "abc=defgh";
-        values["NTP_SERVER"] = new string('n', 264);
-
-        var errors = DaqConfigValidator.Validate(values);
-
-        Assert.Contains("STA_SSID", errors.Keys);
-        Assert.Contains("AP_PSK", errors.Keys);
-        Assert.Contains("NTP_SERVER", errors.Keys);
     }
 
     private static Dictionary<string, string> ToEditableValues(DaqConfigDocument document) =>

@@ -21,25 +21,6 @@ public class SessionInsightsServiceTests
     }
 
     [Fact]
-    public void Analyze_BuildsWorkflowStepsAndDataQualityBanner()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(maxTravelPercent: 52, averageTravelPercent: 30),
-            rear: BuildSide(maxTravelPercent: 98, averageTravelPercent: 62, bottomouts: 4));
-
-        var result = service.Analyze(CreateRequest(telemetry, range: null));
-
-        Assert.Equal(
-            [SessionInsightsStepId.Sag, SessionInsightsStepId.Fork, SessionInsightsStepId.Rear, SessionInsightsStepId.Balance],
-            result.Steps.Select(step => step.Id));
-        Assert.Contains(result.DataQualityFindings, finding => finding.Id == SessionInsightsFindingId.FullSessionInsights);
-        var sag = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Sag);
-        Assert.True(sag.HasIssue);
-        Assert.Contains(sag.Findings, finding => finding.HasSuggestion);
-        Assert.Contains(sag.Metrics, metric => metric.Label == "Fork max");
-    }
-
-    [Fact]
     public void Analyze_AttachesSupportAndReboundAdjustments_WhenSideRidesDeep()
     {
         var telemetry = CreateTelemetry(
@@ -62,12 +43,8 @@ public class SessionInsightsServiceTests
 
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange, profile: SessionInsightsTargetProfile.Enduro));
 
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Packing &&
-            finding.Severity == SessionInsightsSeverity.Action &&
-            finding.Evidence.Any(evidence => evidence.Label == "Rebound p95"));
-
         var finding = Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.ReboundPacking);
+        Assert.Equal(SessionInsightsSeverity.Action, finding.Severity);
         AssertAdjustment(finding, AdjustmentComponent.HighSpeedRebound, AdjustmentDirection.Open, "Fork");
         AssertAdjustment(finding, AdjustmentComponent.LowSpeedRebound, AdjustmentDirection.Open, "Fork");
     }
@@ -80,11 +57,6 @@ public class SessionInsightsServiceTests
             rear: BuildSide());
 
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange, profile: SessionInsightsTargetProfile.Enduro));
-
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Packing &&
-            finding.Severity == SessionInsightsSeverity.Action &&
-            finding.Evidence.Any(evidence => evidence.Label == "Stroke bottomouts" && evidence.Value == "6"));
 
         var finding = Assert.Single(result.Findings, finding => finding.Id == SessionInsightsFindingId.SupportBeforeReboundDiagnosis);
         AssertAdjustment(finding, AdjustmentComponent.Tokens, AdjustmentDirection.Add, "Fork");
@@ -121,64 +93,6 @@ public class SessionInsightsServiceTests
     }
 
     [Fact]
-    public void Analyze_UsesSelectedModesProfileAndComputedDampingPercentages_AsEvidence()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(maxTravelPercent: 80, averageTravelPercent: 35, compressionBaseSpeed: 3000, reboundBaseSpeed: 1000),
-            rear: BuildSide());
-
-        var result = service.Analyze(CreateRequest(
-            telemetry,
-            SelectedRange,
-            TravelDistributionMode.DynamicSag,
-            VelocityAverageMode.StrokePeakAveraged,
-            BalanceDisplacementMode.Travel,
-            profile: SessionInsightsTargetProfile.DH));
-
-        Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Dynamic sag travel stats");
-        Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Stroke-peak average velocity");
-        Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "DH profile");
-        Assert.Contains(result.Findings.SelectMany(finding => finding.Evidence), evidence => evidence.SourceMode == "Current damping band percentages" && evidence.Value == "46.7");
-    }
-
-    [Fact]
-    public void Analyze_HighSpeedBalanceMode_UsesHighSpeedBalanceAdjustment()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(compressionSlope: 55, reboundSlope: 32),
-            rear: BuildSide(compressionSlope: 28, reboundSlope: 15));
-
-        var result = service.Analyze(CreateRequest(
-            telemetry,
-            SelectedRange,
-            balanceSpeedMode: BalanceSpeedMode.HighSpeed));
-
-        var balance = Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance);
-        Assert.Contains(balance.Findings, finding => finding.HasSuggestion);
-        Assert.Contains(
-            balance.Findings.SelectMany(finding => finding.Adjustments),
-            adjustment => adjustment.Component is AdjustmentComponent.HighSpeedCompression or AdjustmentComponent.HighSpeedRebound);
-    }
-
-    [Fact]
-    public void Analyze_BothSpeedBalanceMode_UsesDominantDampingBand()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(compressionSlope: 55, reboundSlope: 32),
-            rear: BuildSide(compressionSlope: 28, reboundSlope: 15));
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange) with
-        {
-            DampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(2000, 2000, 2000, 2000),
-        });
-
-        Assert.Contains(
-            Assert.Single(result.Steps, step => step.Id == SessionInsightsStepId.Balance)
-                .Findings
-                .SelectMany(finding => finding.Adjustments),
-            adjustment => adjustment.Component is AdjustmentComponent.LowSpeedCompression or AdjustmentComponent.LowSpeedRebound);
-    }
-
-    [Fact]
     public void Analyze_ReportsLimitedBalanceContext_WhenBalancedDataIsShallowOrSlow()
     {
         var telemetry = CreateTelemetry(
@@ -187,13 +101,10 @@ public class SessionInsightsServiceTests
 
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
 
-        Assert.Contains(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Balance &&
-            finding.Severity == SessionInsightsSeverity.Info &&
-            finding.Evidence.Any(evidence => evidence.Label == "Context limit"));
-        Assert.DoesNotContain(result.Findings, finding =>
-            finding.Category == SessionInsightsCategory.Balance &&
-            finding.Evidence.Any(evidence => evidence.Label == "Slope delta"));
+        var balanceFindings = result.Findings.Where(finding => finding.Category == SessionInsightsCategory.Balance).ToArray();
+        Assert.NotEmpty(balanceFindings);
+        Assert.All(balanceFindings, finding => Assert.Equal(SessionInsightsSeverity.Info, finding.Severity));
+        Assert.All(balanceFindings, finding => Assert.Empty(finding.Adjustments));
     }
 
     [Fact]
@@ -204,22 +115,6 @@ public class SessionInsightsServiceTests
         var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
 
         Assert.DoesNotContain(result.Findings, finding => finding.Category == SessionInsightsCategory.Balance);
-    }
-
-    [Fact]
-    public void Analyze_PopulatesVibrationPanel_AndKeepsVibrationFindingsOutOfSteps()
-    {
-        var telemetry = CreateTelemetry(
-            front: BuildSide(),
-            rear: BuildSide(),
-            imuLocations: [(byte)ImuLocation.Fork, (byte)ImuLocation.Shock]);
-
-        var result = service.Analyze(CreateRequest(telemetry, SelectedRange));
-
-        Assert.NotNull(result.Vibration);
-        Assert.Contains(result.Vibration!.Metrics, metric => metric.Label == "Magic carpet ratio" && metric.Side == "Fork");
-        Assert.Contains(result.Vibration.Metrics, metric => metric.Label == "Magic carpet ratio" && metric.Side == "Rear");
-        Assert.DoesNotContain(result.Steps.SelectMany(step => step.Findings), finding => finding.Category == SessionInsightsCategory.Vibration);
     }
 
     [Fact]

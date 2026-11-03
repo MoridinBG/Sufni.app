@@ -5,6 +5,7 @@ using Sufni.Telemetry;
 
 namespace Sufni.App.Tests.LiveDaq.Services.LiveStreaming;
 
+// Frozen firmware v3 field values; these builders must not call production encoders or mask helpers.
 internal static class LiveV3ProtocolTestFrames
 {
     public const byte DefaultSessionId = 42;
@@ -23,10 +24,10 @@ internal static class LiveV3ProtocolTestFrames
         WriteBytes(writer =>
         {
             writer.Write(Encoding.ASCII.GetBytes("LIV3"));
-            writer.Write(LiveV3ProtocolConstants.ProtocolMajor);
+            writer.Write(((byte)3));
             writer.Write(protocolMinor);
             writer.Write((ushort)0);
-            writer.Write((uint)LiveV3ProtocolConstants.MaxPayloadLength);
+            writer.Write((uint)((int)4096));
             writer.Write(uniqueBoardId);
             writer.Write((byte)1);
             writer.Write((byte)0);
@@ -35,26 +36,20 @@ internal static class LiveV3ProtocolTestFrames
         });
 
     public static byte[] CapabilitiesRequest(uint sequence = 0) =>
-        Frame(LiveV3FrameType.CapabilitiesReq, sessionId: 0, sequence, []);
-
-    public static byte[] DeviceStateRequest(uint sequence = 1) =>
-        Frame(LiveV3FrameType.DeviceStateReq, sessionId: 0, sequence, []);
+        Frame(((LiveV3FrameType)1), sessionId: 0, sequence, []);
 
     public static byte[] StopRequest(byte sessionId = 1, uint sequence = 4) =>
-        Frame(LiveV3FrameType.StopReq, sessionId, sequence, []);
-
-    public static byte[] Ping(byte sessionId = 1, uint sequence = 3, uint nonce = 0xa1b2c3d4) =>
-        Frame(LiveV3FrameType.Ping, sessionId, sequence, UInt32Payload(nonce));
+        Frame(((LiveV3FrameType)5), sessionId, sequence, []);
 
     public static byte[] Pong(
         byte sessionId = DefaultSessionId,
         uint sequence = 13,
         uint nonce = 0xa1b2c3d4) =>
-        Frame(LiveV3FrameType.Pong, sessionId, sequence, UInt32Payload(nonce));
+        Frame(((LiveV3FrameType)17), sessionId, sequence, UInt32Payload(nonce));
 
     public static byte[] CapabilitiesResponse() =>
         Frame(
-            LiveV3FrameType.CapabilitiesResp,
+            ((LiveV3FrameType)2),
             sessionId: 0,
             sequence: 0,
             WriteBytes(writer =>
@@ -62,18 +57,18 @@ internal static class LiveV3ProtocolTestFrames
                 writer.Write((byte)2);
                 writer.Write((byte)6);
                 writer.Write((ushort)0);
-                writer.Write((uint)(LiveStreamMask.Travel |
-                                    LiveStreamMask.Imu |
-                                    LiveStreamMask.Temperature |
-                                    LiveStreamMask.Gps |
-                                    LiveStreamMask.Battery |
-                                    LiveStreamMask.Marker));
-                writer.Write((uint)(LiveSensorInstanceMask.Travel |
-                                    LiveSensorInstanceMask.FrameImu |
-                                    LiveSensorInstanceMask.ForkImu |
-                                    LiveSensorInstanceMask.Gps |
-                                    LiveSensorInstanceMask.Battery));
-                writer.Write((uint)LiveV3ProtocolConstants.MaxPayloadLength);
+                writer.Write((uint)(((LiveStreamMask)2) |
+                                    ((LiveStreamMask)4) |
+                                    ((LiveStreamMask)8) |
+                                    ((LiveStreamMask)16) |
+                                    ((LiveStreamMask)32) |
+                                    ((LiveStreamMask)64)));
+                writer.Write((uint)(((LiveSensorInstanceMask)3) |
+                                    ((LiveSensorInstanceMask)4) |
+                                    ((LiveSensorInstanceMask)8) |
+                                    ((LiveSensorInstanceMask)32) |
+                                    ((LiveSensorInstanceMask)64)));
+                writer.Write((uint)((int)4096));
 
                 WriteCapability(writer, TravelStream(), minRateMhz: 1_000, maxRateMhz: 1_000_000, maxBatchDurationMs: 10_000);
                 WriteCapability(writer, ImuStream(), minRateMhz: 1_000, maxRateMhz: 1_000_000, maxBatchDurationMs: 10_000);
@@ -83,52 +78,28 @@ internal static class LiveV3ProtocolTestFrames
                 WriteCapability(writer, MarkerStream(), minRateMhz: 0, maxRateMhz: 0, maxBatchDurationMs: 0);
             }));
 
-    public static byte[] DeviceStateResponse() =>
-        Frame(
-            LiveV3FrameType.DeviceStateResp,
-            sessionId: 0,
-            sequence: 1,
-            WriteBytes(writer =>
-            {
-                writer.Write((byte)6);
-                writer.Write((byte)6);
-                writer.Write((ushort)0);
-                WriteStreamState(writer, SstV5ProtocolConstants.StreamTravel, 200_000, 50);
-                WriteStreamState(writer, SstV5ProtocolConstants.StreamImu, 200_000, 50);
-                WriteStreamState(writer, SstV5ProtocolConstants.StreamTemperature, 30, 0);
-                WriteStreamState(writer, SstV5ProtocolConstants.StreamGps, 5_000, 0);
-                WriteStreamState(writer, SstV5ProtocolConstants.StreamBattery, 30, 0);
-                WriteStreamState(writer, SstV5ProtocolConstants.StreamMarker, 0, 0);
-                WriteSourceState(writer, calibrationStatus: 2, available: true, LiveSensorInstanceMask.ForkTravel);
-                WriteSourceState(writer, calibrationStatus: 2, available: true, LiveSensorInstanceMask.ShockTravel);
-                WriteSourceState(writer, calibrationStatus: 2, available: true, LiveSensorInstanceMask.FrameImu);
-                WriteSourceState(writer, calibrationStatus: 2, available: false, LiveSensorInstanceMask.ForkImu);
-                WriteSourceState(writer, calibrationStatus: 0, available: true, LiveSensorInstanceMask.Gps);
-                WriteSourceState(writer, calibrationStatus: 0, available: true, LiveSensorInstanceMask.Battery);
-            }));
-
     public static byte[] StartRequestAllStreams() =>
         Frame(
-            LiveV3FrameType.StartReq,
+            ((LiveV3FrameType)3),
             sessionId: 0,
             sequence: 2,
             WriteBytes(writer =>
             {
                 writer.Write((byte)6);
                 writer.Write((byte)0);
-                writer.Write((ushort)(LiveV3ProtocolConstants.StartFlagPriority |
-                                      LiveV3ProtocolConstants.StartFlagNoGpsHeaderWait));
-                WriteStartRequest(writer, SstV5ProtocolConstants.StreamTravel, 3, LiveSensorInstanceMask.Travel, 0, 200_000, 50);
-                WriteStartRequest(writer, SstV5ProtocolConstants.StreamImu, 3, LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu, 0, 200_000, 50);
-                WriteStartRequest(writer, SstV5ProtocolConstants.StreamTemperature, 1, LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu, 0, 30, 0);
-                WriteStartRequest(writer, SstV5ProtocolConstants.StreamGps, 1, LiveSensorInstanceMask.Gps, SstV5ProtocolConstants.ExtensionGpsDiagPublicV1, 5_000, 0);
-                WriteStartRequest(writer, SstV5ProtocolConstants.StreamBattery, 0, LiveSensorInstanceMask.Battery, 0, 0, 0);
-                WriteStartRequest(writer, SstV5ProtocolConstants.StreamMarker, 0, LiveSensorInstanceMask.None, 0, 0, 0);
+                writer.Write((ushort)(((ushort)0x0001) |
+                                      ((ushort)0x0002)));
+                WriteStartRequest(writer, ((byte)1), 3, ((LiveSensorInstanceMask)3), 0, 200_000, 50);
+                WriteStartRequest(writer, ((byte)2), 3, ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8), 0, 200_000, 50);
+                WriteStartRequest(writer, ((byte)3), 1, ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8), 0, 30, 0);
+                WriteStartRequest(writer, ((byte)4), 1, ((LiveSensorInstanceMask)32), ((uint)0x00000001), 5_000, 0);
+                WriteStartRequest(writer, ((byte)5), 0, ((LiveSensorInstanceMask)64), 0, 0, 0);
+                WriteStartRequest(writer, ((byte)6), 0, ((LiveSensorInstanceMask)0), 0, 0, 0);
             }));
 
     public static byte[] StartRequestTemperatureOnly() =>
         Frame(
-            LiveV3FrameType.StartReq,
+            ((LiveV3FrameType)3),
             sessionId: 0,
             sequence: 0,
             WriteBytes(writer =>
@@ -138,9 +109,9 @@ internal static class LiveV3ProtocolTestFrames
                 writer.Write((ushort)0);
                 WriteStartRequest(
                     writer,
-                    SstV5ProtocolConstants.StreamTemperature,
-                    LiveV3ProtocolConstants.StreamRequestFlagRateOverride,
-                    LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+                    ((byte)3),
+                    ((ushort)0x0001),
+                    ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8),
                     0,
                     30,
                     0);
@@ -148,14 +119,14 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] StartResultPending(byte sessionId = DefaultSessionId, uint sequence = 2) =>
         Frame(
-            LiveV3FrameType.StartResult,
+            ((LiveV3FrameType)4),
             sessionId,
             sequence,
             [0, 0, 0, 0]);
 
     public static byte[] StartResultDenied() =>
         Frame(
-            LiveV3FrameType.StartResult,
+            ((LiveV3FrameType)4),
             sessionId: 0,
             sequence: 0,
             WriteBytes(writer =>
@@ -163,13 +134,13 @@ internal static class LiveV3ProtocolTestFrames
                 writer.Write((byte)1);
                 writer.Write((byte)0);
                 writer.Write((ushort)2);
-                WriteReason(writer, targetKind: 1, streamKind: 0, reason: 7, (uint)(LiveStreamMask.Travel | LiveStreamMask.Imu));
-                WriteReason(writer, targetKind: 2, SstV5ProtocolConstants.StreamImu, reason: 3, (uint)LiveSensorInstanceMask.RearImu);
+                WriteReason(writer, targetKind: 1, streamKind: 0, reason: 7, (uint)(((LiveStreamMask)2) | ((LiveStreamMask)4)));
+                WriteReason(writer, targetKind: 2, ((byte)2), reason: 3, (uint)((LiveSensorInstanceMask)16));
             }));
 
     public static byte[] StartResultPriorityConflict() =>
         Frame(
-            LiveV3FrameType.StartResult,
+            ((LiveV3FrameType)4),
             sessionId: 0,
             sequence: 3,
             WriteBytes(writer =>
@@ -177,7 +148,7 @@ internal static class LiveV3ProtocolTestFrames
                 writer.Write((byte)1);
                 writer.Write((byte)0);
                 writer.Write((ushort)1);
-                WriteReason(writer, targetKind: 1, streamKind: 0, reason: 5, (uint)LiveStreamMask.Travel);
+                WriteReason(writer, targetKind: 1, streamKind: 0, reason: 5, (uint)((LiveStreamMask)2));
             }));
 
     public static byte[] SessionHeaderTravel(byte sessionId = DefaultSessionId, uint sequence = 7) =>
@@ -194,23 +165,23 @@ internal static class LiveV3ProtocolTestFrames
             DefaultSessionId,
             sequence: 3,
             [TravelStream(), ImuStream(), TemperatureStream(), GpsStream(), BatteryStream(), MarkerStream()],
-            [new OmissionSpec(3, SstV5ProtocolConstants.StreamGps, 3, SstV5ProtocolConstants.ExtensionGpsDiagPublicV1)]);
+            [new OmissionSpec(3, ((byte)4), 3, ((uint)0x00000001))]);
 
     public static byte[] SessionHeaderPartialTravel() =>
         SessionHeader(
             DefaultSessionId,
             sequence: 5,
             [TravelStream()],
-            [new OmissionSpec(1, SstV5ProtocolConstants.StreamImu, 3, 0)]);
+            [new OmissionSpec(1, ((byte)2), 3, 0)]);
 
     public static byte[] TravelData() =>
         DataFrame(
-            LiveV3FrameType.TravelData,
+            ((LiveV3FrameType)9),
             sequence: 4,
             firstIndex: 1001,
             firstMonotonicDeltaUs: 1000,
             sampleCount: 1,
-            validityMask: LiveSensorInstanceMask.Travel,
+            validityMask: ((LiveSensorInstanceMask)3),
             writer =>
             {
                 writer.Write((ushort)1000);
@@ -219,12 +190,12 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] ImuData() =>
         DataFrame(
-            LiveV3FrameType.ImuData,
+            ((LiveV3FrameType)10),
             sequence: 5,
             firstIndex: 1002,
             firstMonotonicDeltaUs: 2000,
             sampleCount: 1,
-            validityMask: LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+            validityMask: ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8),
             writer =>
             {
                 WriteImuRecord(writer, 100, -200, 300, -400, 500, -600);
@@ -233,12 +204,12 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] TemperatureData() =>
         DataFrame(
-            LiveV3FrameType.TemperatureData,
+            ((LiveV3FrameType)11),
             sequence: 6,
             firstIndex: 1003,
             firstMonotonicDeltaUs: 3000,
             sampleCount: 1,
-            validityMask: LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+            validityMask: ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8),
             writer =>
             {
                 writer.Write((short)340);
@@ -247,12 +218,12 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] GpsData() =>
         DataFrame(
-            LiveV3FrameType.GpsData,
+            ((LiveV3FrameType)12),
             sequence: 7,
             firstIndex: 1004,
             firstMonotonicDeltaUs: 4000,
             sampleCount: 1,
-            validityMask: LiveSensorInstanceMask.Gps,
+            validityMask: ((LiveSensorInstanceMask)32),
             writer =>
             {
                 writer.Write((uint)20260710);
@@ -268,12 +239,12 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] BatteryData() =>
         DataFrame(
-            LiveV3FrameType.BatteryData,
+            ((LiveV3FrameType)13),
             sequence: 8,
             firstIndex: 1005,
             firstMonotonicDeltaUs: 5000,
             sampleCount: 1,
-            validityMask: LiveSensorInstanceMask.Battery,
+            validityMask: ((LiveSensorInstanceMask)64),
             writer =>
             {
                 writer.Write((ushort)3987);
@@ -282,17 +253,17 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] MarkerData() =>
         DataFrame(
-            LiveV3FrameType.MarkerData,
+            ((LiveV3FrameType)14),
             sequence: 9,
             firstIndex: 1006,
             firstMonotonicDeltaUs: 6000,
             sampleCount: 1,
-            validityMask: LiveSensorInstanceMask.None,
-            writer => writer.Write(SstV5ProtocolConstants.MarkerManualUserMark));
+            validityMask: ((LiveSensorInstanceMask)0),
+            writer => writer.Write(((byte)1)));
 
     public static byte[] StatusTravelGap() =>
         Frame(
-            LiveV3FrameType.Status,
+            ((LiveV3FrameType)15),
             DefaultSessionId,
             sequence: 10,
             WriteBytes(writer =>
@@ -305,7 +276,7 @@ internal static class LiveV3ProtocolTestFrames
 
     public static byte[] StatusAllStreams() =>
         Frame(
-            LiveV3FrameType.Status,
+            ((LiveV3FrameType)15),
             DefaultSessionId,
             sequence: 10,
             WriteBytes(writer =>
@@ -369,11 +340,11 @@ internal static class LiveV3ProtocolTestFrames
             []);
 
     public static byte[] StopResult(byte sessionId = DefaultSessionId, uint sequence = 11) =>
-        Frame(LiveV3FrameType.StopResult, sessionId, sequence, [0, 0, 0, 0]);
+        Frame(((LiveV3FrameType)6), sessionId, sequence, [0, 0, 0, 0]);
 
     public static byte[] Error() =>
         Frame(
-            LiveV3FrameType.Error,
+            ((LiveV3FrameType)18),
             sessionId: 0,
             sequence: 14,
             WriteBytes(writer =>
@@ -390,12 +361,12 @@ internal static class LiveV3ProtocolTestFrames
         uint sequence,
         ReadOnlySpan<byte> payload)
     {
-        var frame = new byte[LiveV3ProtocolConstants.FrameHeaderSize + payload.Length];
+        var frame = new byte[((int)12) + payload.Length];
         frame[0] = sessionId;
         frame[1] = (byte)frameType;
         BinaryPrimitives.WriteUInt32LittleEndian(frame.AsSpan(4, 4), (uint)payload.Length);
         BinaryPrimitives.WriteUInt32LittleEndian(frame.AsSpan(8, 4), sequence);
-        payload.CopyTo(frame.AsSpan(LiveV3ProtocolConstants.FrameHeaderSize));
+        payload.CopyTo(frame.AsSpan(((int)12)));
         return frame;
     }
 
@@ -405,7 +376,7 @@ internal static class LiveV3ProtocolTestFrames
         TestStreamSpec[] streams,
         OmissionSpec[] omissions) =>
         Frame(
-            LiveV3FrameType.SessionHeader,
+            ((LiveV3FrameType)7),
             sessionId,
             sequence,
             WriteBytes(writer =>
@@ -416,7 +387,7 @@ internal static class LiveV3ProtocolTestFrames
                 writer.Write((byte)orderedStreams.Sum(stream => stream.Sources.Length));
                 writer.Write((byte)omissions.Length);
                 writer.Write(orderedStreams.Aggregate(0u, (mask, stream) =>
-                    mask | SstV5ProtocolConstants.StreamMaskForKind(stream.Kind)));
+                    mask | (stream.Kind switch { 1 => 2u, 2 => 4u, 3 => 8u, 4 => 16u, 5 => 32u, 6 => 64u, _ => throw new ArgumentOutOfRangeException() })));
                 writer.Write(SessionStartUtcMs);
                 writer.Write(SessionStartMonotonicUs);
                 foreach (var stream in orderedStreams)
@@ -447,7 +418,7 @@ internal static class LiveV3ProtocolTestFrames
         ulong stoppedMonotonicDeltaUs,
         StatusSpec[] statuses) =>
         Frame(
-            LiveV3FrameType.SessionResult,
+            ((LiveV3FrameType)8),
             sessionId,
             sequence,
             WriteBytes(writer =>
@@ -493,61 +464,61 @@ internal static class LiveV3ProtocolTestFrames
             }));
 
     private static TestStreamSpec TravelStream() => new(
-        SstV5ProtocolConstants.StreamTravel,
-        SstV5ProtocolConstants.TimingFixedRate,
-        LiveSensorInstanceMask.Travel,
+        ((byte)1),
+        ((byte)1),
+        ((LiveSensorInstanceMask)3),
         0,
         200_000,
         50,
         4,
         [
-            TestSourceSpec.Travel(LiveSensorInstanceMask.ForkTravel, 0),
-            TestSourceSpec.Travel(LiveSensorInstanceMask.ShockTravel, 2),
+            TestSourceSpec.Travel(((LiveSensorInstanceMask)1), 0),
+            TestSourceSpec.Travel(((LiveSensorInstanceMask)2), 2),
         ]);
 
     private static TestStreamSpec ImuStream() => new(
-        SstV5ProtocolConstants.StreamImu,
-        SstV5ProtocolConstants.TimingFixedRate,
-        LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+        ((byte)2),
+        ((byte)1),
+        ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8),
         0,
         200_000,
         50,
         24,
         [
-            TestSourceSpec.Imu(LiveSensorInstanceMask.FrameImu, 0),
-            TestSourceSpec.Imu(LiveSensorInstanceMask.ForkImu, 12),
+            TestSourceSpec.Imu(((LiveSensorInstanceMask)4), 0),
+            TestSourceSpec.Imu(((LiveSensorInstanceMask)8), 12),
         ]);
 
     private static TestStreamSpec TemperatureStream() => new(
-        SstV5ProtocolConstants.StreamTemperature,
-        SstV5ProtocolConstants.TimingMonotonicEventStatus,
-        LiveSensorInstanceMask.FrameImu | LiveSensorInstanceMask.ForkImu,
+        ((byte)3),
+        ((byte)2),
+        ((LiveSensorInstanceMask)4) | ((LiveSensorInstanceMask)8),
         0,
         30,
         0,
         4,
         [
-            TestSourceSpec.Temperature(LiveSensorInstanceMask.FrameImu, 0, 340, 36.53f),
-            TestSourceSpec.Temperature(LiveSensorInstanceMask.ForkImu, 2, 256, 25),
+            TestSourceSpec.Temperature(((LiveSensorInstanceMask)4), 0, 340, 36.53f),
+            TestSourceSpec.Temperature(((LiveSensorInstanceMask)8), 2, 256, 25),
         ]);
 
     private static TestStreamSpec GpsStream() => new(
-        SstV5ProtocolConstants.StreamGps,
-        SstV5ProtocolConstants.TimingGpsReceiverTimed,
-        LiveSensorInstanceMask.Gps,
+        ((byte)4),
+        ((byte)3),
+        ((LiveSensorInstanceMask)32),
         0,
         5_000,
         0,
-        SstV5ProtocolConstants.M8NRecordSize,
+        ((int)30),
         [],
-        GpsDriverId: SstV5ProtocolConstants.GpsDriverM8N,
-        GpsPayloadEncodingId: SstV5ProtocolConstants.EncodingGpsNavFixV1,
-        GpsPayloadRecordBytes: SstV5ProtocolConstants.M8NRecordSize);
+        GpsDriverId: ((byte)2),
+        GpsPayloadEncodingId: ((byte)4),
+        GpsPayloadRecordBytes: ((int)30));
 
     private static TestStreamSpec BatteryStream() => new(
-        SstV5ProtocolConstants.StreamBattery,
-        SstV5ProtocolConstants.TimingMonotonicEventStatus,
-        LiveSensorInstanceMask.Battery,
+        ((byte)5),
+        ((byte)2),
+        ((LiveSensorInstanceMask)64),
         0,
         30,
         0,
@@ -555,9 +526,9 @@ internal static class LiveV3ProtocolTestFrames
         []);
 
     private static TestStreamSpec MarkerStream() => new(
-        SstV5ProtocolConstants.StreamMarker,
-        SstV5ProtocolConstants.TimingMonotonicEventStatus,
-        LiveSensorInstanceMask.None,
+        ((byte)6),
+        ((byte)2),
+        ((LiveSensorInstanceMask)0),
         0,
         0,
         0,
@@ -575,32 +546,12 @@ internal static class LiveV3ProtocolTestFrames
         writer.Write(stream.TimingModelId);
         writer.Write((ushort)0);
         writer.Write((uint)stream.AcceptedSensorMask);
-        writer.Write(stream.Kind == SstV5ProtocolConstants.StreamGps
-            ? SstV5ProtocolConstants.ExtensionGpsDiagPublicV1
+        writer.Write(stream.Kind == ((byte)4)
+            ? ((uint)0x00000001)
             : stream.AcceptedExtensionMask);
         writer.Write(minRateMhz);
         writer.Write(maxRateMhz);
         writer.Write(maxBatchDurationMs);
-    }
-
-    private static void WriteStreamState(BinaryWriter writer, byte streamKind, uint rateMhz, uint batchDurationMs)
-    {
-        writer.Write(streamKind);
-        writer.Write(new byte[3]);
-        writer.Write(rateMhz);
-        writer.Write(batchDurationMs);
-    }
-
-    private static void WriteSourceState(
-        BinaryWriter writer,
-        byte calibrationStatus,
-        bool available,
-        LiveSensorInstanceMask source)
-    {
-        writer.Write(calibrationStatus);
-        writer.Write(available ? (byte)1 : (byte)0);
-        writer.Write((ushort)0);
-        writer.Write((uint)source);
     }
 
     private static void WriteStartRequest(
@@ -647,7 +598,7 @@ internal static class LiveV3ProtocolTestFrames
         writer.Write(stream.AcceptedBatchDurationMs);
         writer.Write(stream.CompactPayloadRecordBytes);
         writer.Write((ushort)0);
-        if (stream.Kind == SstV5ProtocolConstants.StreamGps)
+        if (stream.Kind == ((byte)4))
         {
             writer.Write(stream.GpsDriverId);
             writer.Write(stream.GpsPayloadEncodingId);
@@ -670,20 +621,20 @@ internal static class LiveV3ProtocolTestFrames
         writer.Write((ushort)0);
         switch (source.StreamKind)
         {
-            case SstV5ProtocolConstants.StreamTravel:
+            case ((byte)1):
                 writer.Write((ushort)0);
                 writer.Write((ushort)4095);
                 writer.Write((ushort)4096);
                 writer.Write((byte)1);
                 writer.Write((byte)0);
                 break;
-            case SstV5ProtocolConstants.StreamImu:
+            case ((byte)2):
                 writer.Write(4096f);
                 writer.Write(32.8f);
                 writer.Write((byte)1);
                 writer.Write(new byte[3]);
                 break;
-            case SstV5ProtocolConstants.StreamTemperature:
+            case ((byte)3):
                 writer.Write(source.TemperatureLsbPerCelsius);
                 writer.Write(source.TemperatureCelsiusAtRawZero);
                 break;
@@ -753,10 +704,10 @@ internal static class LiveV3ProtocolTestFrames
         float TemperatureCelsiusAtRawZero = 0)
     {
         public static TestSourceSpec Travel(LiveSensorInstanceMask source, ushort offset) =>
-            new(SstV5ProtocolConstants.StreamTravel, SstV5ProtocolConstants.EncodingTravelAdjustedU16, 1, source, offset, 2);
+            new(((byte)1), ((byte)1), 1, source, offset, 2);
 
         public static TestSourceSpec Imu(LiveSensorInstanceMask source, ushort offset) =>
-            new(SstV5ProtocolConstants.StreamImu, SstV5ProtocolConstants.EncodingImuI16X6CalCounts, 6, source, offset, 12);
+            new(((byte)2), ((byte)2), 6, source, offset, 12);
 
         public static TestSourceSpec Temperature(
             LiveSensorInstanceMask source,
@@ -764,8 +715,8 @@ internal static class LiveV3ProtocolTestFrames
             float lsbPerCelsius,
             float celsiusAtRawZero) =>
             new(
-                SstV5ProtocolConstants.StreamTemperature,
-                SstV5ProtocolConstants.EncodingTemperatureRawI16,
+                ((byte)3),
+                ((byte)3),
                 1,
                 source,
                 offset,

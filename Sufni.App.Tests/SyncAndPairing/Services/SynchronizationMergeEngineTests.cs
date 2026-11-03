@@ -47,7 +47,7 @@ public class SynchronizationMergeEngineTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SessionExchange_RepeatedInBothDirections_DoesNotWrite(bool hasProcessedData)
+    public async Task SessionExchange_RepeatedInBothDirections_ProducesNoNewDeltas(bool hasProcessedData)
     {
         using var hubFile = new TempDatabase();
         using var clientFile = new TempDatabase();
@@ -64,25 +64,32 @@ public class SynchronizationMergeEngineTests
         var clientRows = AppJson.Deserialize<SynchronizationData>(
             AppJson.Serialize(await client.GetSynchronizationDataAsync(0, long.MaxValue)))!;
         await hub.MergeAllAsync(clientRows);
-        var hubConnection = await hub.GetInitializedConnectionAsync();
-        var clientConnection = await client.GetInitializedConnectionAsync();
-        var beforeHub = await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
-        var beforeClient = await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
+        var hubBound = await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
+        var clientBound = await client.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
 
         await hub.MergeAllAsync(clientRows);
         await client.ApplyRemoteSynchronizationDataAsync(hubRows);
 
-        Assert.Equal(beforeHub, await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
-        Assert.Equal(beforeClient, await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
+        Assert.Equal(hubBound, await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull));
+        Assert.Equal(clientBound, await client.GetSequenceUpperBoundAsync(SynchronizationDirection.Push));
+        Assert.Empty((await hub.GetSynchronizationDataAsync(hubBound, long.MaxValue, SynchronizationDirection.Pull)).Sessions);
+        Assert.Empty((await client.GetSynchronizationDataAsync(clientBound, long.MaxValue, SynchronizationDirection.Push)).Sessions);
     }
 
-    [Fact]
-    public async Task CursorIdentity_IsolatedByHubAndDatabase_AndRetainedAcrossRestart()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CursorIdentity_IsolatedByHubAndDatabase_AndRetainedAcrossRestart(bool seedExistingRow)
     {
         using var file = new TempDatabase();
         var peer = new PeerIdentity("certificate", "database");
         await using (var database = new TestPersistenceHarness(file.DatabasePath))
         {
+            if (seedExistingRow)
+            {
+                await database.UpdateLastPushSequenceAsync(peer, 1);
+                await database.UpdateLastPullSequenceAsync(peer, 2);
+            }
             await Task.WhenAll(database.UpdateLastPushSequenceAsync(peer, 11), database.UpdateLastPullSequenceAsync(peer, 12));
         }
         await using var reopened = new TestPersistenceHarness(file.DatabasePath);
@@ -109,9 +116,9 @@ public class SynchronizationMergeEngineTests
         using var secondFile = new TempDatabase();
         var hubClock = PersistenceTestData.CreateTimeProvider();
         var offlineClock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(hubClock.GetUtcNow().AddDays(-1));
-        var hub = new TestPersistenceHarness(hubFile.DatabasePath, hubClock, "hub");
-        var first = new TestPersistenceHarness(firstFile.DatabasePath, hubClock, "first");
-        var second = new TestPersistenceHarness(secondFile.DatabasePath, offlineClock, "second");
+        await using var hub = new TestPersistenceHarness(hubFile.DatabasePath, hubClock, "hub");
+        await using var first = new TestPersistenceHarness(firstFile.DatabasePath, hubClock, "first");
+        await using var second = new TestPersistenceHarness(secondFile.DatabasePath, offlineClock, "second");
         var board = new Board(Guid.NewGuid(), Guid.NewGuid());
         await hub.PutAsync(board);
         var cursor = await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
@@ -139,8 +146,8 @@ public class SynchronizationMergeEngineTests
         using var hubFile = new TempDatabase();
         using var phoneFile = new TempDatabase();
         var clock = PersistenceTestData.CreateTimeProvider();
-        var hub = new TestPersistenceHarness(hubFile.DatabasePath, clock, "hub");
-        var phone = new TestPersistenceHarness(phoneFile.DatabasePath, clock, "phone");
+        await using var hub = new TestPersistenceHarness(hubFile.DatabasePath, clock, "hub");
+        await using var phone = new TestPersistenceHarness(phoneFile.DatabasePath, clock, "phone");
         var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
         await phone.PutAsync(layer);
         clock.Advance(TimeSpan.FromHours(1));
@@ -160,8 +167,8 @@ public class SynchronizationMergeEngineTests
     {
         using var sourceFile = new TempDatabase();
         using var peerFile = new TempDatabase();
-        var source = new TestPersistenceHarness(sourceFile.DatabasePath);
-        var peer = new TestPersistenceHarness(peerFile.DatabasePath);
+        await using var source = new TestPersistenceHarness(sourceFile.DatabasePath);
+        await using var peer = new TestPersistenceHarness(peerFile.DatabasePath);
         var layer = new CustomTileLayer { Name = "Trail", UrlTemplate = "https://tiles/{z}/{x}/{y}" };
         await source.PutAsync(layer);
         var changes = await source.GetSynchronizationDataAsync(0, long.MaxValue);
@@ -177,24 +184,28 @@ public class SynchronizationMergeEngineTests
     }
 
     [Theory]
-    [InlineData(2, 100, "a", null, 1, 200, "z", null, false)]
-    [InlineData(2, 100, "a", null, 2, 101, "a", null, true)]
-    [InlineData(2, 100, "a", null, 2, 100, "z", null, true)]
-    [InlineData(2, 200, "z", null, 2, 100, "a", 100, true)]
-    [InlineData(2, 100, "a", 100, 2, 101, "a", 101, true)]
-    [InlineData(2, 100, "a", 100, 2, 100, "z", 99, true)]
-    [InlineData(3, 1, "a", null, 2, 200, "z", 200, false)]
-    public async Task BothMergeDirections_ConvergeInEitherArrivalOrder_AndRepeatedExchangeWritesNothing(
+    [InlineData(2, 100, "a", null, 1, 200, "z", null, false, true)]
+    [InlineData(2, 100, "a", null, 2, 101, "a", null, true, true)]
+    [InlineData(2, 100, "a", null, 2, 100, "z", null, true, true)]
+    [InlineData(2, 200, "z", null, 2, 100, "a", 100, true, true)]
+    [InlineData(2, 100, "a", 100, 2, 101, "a", 101, true, true)]
+    [InlineData(2, 100, "a", 100, 2, 100, "z", 99, true, true)]
+    [InlineData(3, 1, "a", null, 2, 200, "z", 200, false, true)]
+    [InlineData(2, 100, "a", null, 1, 200, "z", null, false, false)]
+    public async Task BothMergeDirections_ConvergeInEitherArrivalOrder_AndRepeatedExchangeProducesNoDeltas(
         long firstVersion, long firstUpdated, string firstWriter, int? firstDeleted,
-        long secondVersion, long secondUpdated, string secondWriter, int? secondDeleted, bool secondWins)
+        long secondVersion, long secondUpdated, string secondWriter, int? secondDeleted, bool secondWins, bool seedExisting)
     {
         using var hubFile = new TempDatabase();
         using var clientFile = new TempDatabase();
-        var hub = new TestPersistenceHarness(hubFile.DatabasePath);
-        var client = new TestPersistenceHarness(clientFile.DatabasePath);
+        await using var hub = new TestPersistenceHarness(hubFile.DatabasePath);
+        await using var client = new TestPersistenceHarness(clientFile.DatabasePath);
         var id = Guid.NewGuid();
-        await hub.PutAsync(new Board(id, null));
-        await client.PutAsync(new Board(id, null));
+        if (seedExisting)
+        {
+            await hub.PutAsync(new Board(id, null));
+            await client.PutAsync(new Board(id, null));
+        }
         var first = new Board(id, Guid.NewGuid()) { Version = firstVersion, Updated = firstUpdated, UpdatedBy = firstWriter, Deleted = firstDeleted };
         var second = new Board(id, Guid.NewGuid()) { Version = secondVersion, Updated = secondUpdated, UpdatedBy = secondWriter, Deleted = secondDeleted };
         var expected = secondWins ? second : first;
@@ -214,16 +225,16 @@ public class SynchronizationMergeEngineTests
         }
         var hubChanges = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await hub.GetSynchronizationDataAsync(0, long.MaxValue)))!;
         var clientChanges = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await client.GetSynchronizationDataAsync(0, long.MaxValue)))!;
-        var hubConnection = await hub.GetInitializedConnectionAsync();
-        var clientConnection = await client.GetInitializedConnectionAsync();
-        var beforeHub = await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
-        var beforeClient = await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()");
+        var hubBound = await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull);
+        var clientBound = await client.GetSequenceUpperBoundAsync(SynchronizationDirection.Push);
 
         await hub.MergeAllAsync(clientChanges);
         await client.ApplyRemoteSynchronizationDataAsync(hubChanges);
 
-        Assert.Equal(beforeHub, await hubConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
-        Assert.Equal(beforeClient, await clientConnection.ExecuteScalarAsync<long>("SELECT total_changes()"));
+        Assert.Equal(hubBound, await hub.GetSequenceUpperBoundAsync(SynchronizationDirection.Pull));
+        Assert.Equal(clientBound, await client.GetSequenceUpperBoundAsync(SynchronizationDirection.Push));
+        Assert.Empty((await hub.GetSynchronizationDataAsync(hubBound, long.MaxValue, SynchronizationDirection.Pull)).Boards);
+        Assert.Empty((await client.GetSynchronizationDataAsync(clientBound, long.MaxValue, SynchronizationDirection.Push)).Boards);
     }
 
     [Fact]
@@ -232,15 +243,18 @@ public class SynchronizationMergeEngineTests
         using var sourceFile = new TempDatabase();
         using var peerFile = new TempDatabase();
         var clock = PersistenceTestData.CreateTimeProvider();
-        var source = new TestPersistenceHarness(sourceFile.DatabasePath, clock, "source");
-        var peer = new TestPersistenceHarness(peerFile.DatabasePath, clock, "peer");
+        await using var peer = new TestPersistenceHarness(peerFile.DatabasePath, clock, "peer");
         var original = new Board(Guid.NewGuid(), Guid.NewGuid());
-        await source.PutAsync(original);
-        var oldPayload = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await source.GetSynchronizationDataAsync(0, long.MaxValue)))!;
-        await peer.MergeAllAsync(oldPayload);
-        await source.DeleteAsync(original);
+        SynchronizationData oldPayload;
+        await using (var beforeRestart = new TestPersistenceHarness(sourceFile.DatabasePath, clock, "source"))
+        {
+            await beforeRestart.PutAsync(original);
+            oldPayload = AppJson.Deserialize<SynchronizationData>(AppJson.Serialize(await beforeRestart.GetSynchronizationDataAsync(0, long.MaxValue)))!;
+            await peer.MergeAllAsync(oldPayload);
+            await beforeRestart.DeleteAsync(original);
+        }
         clock.Advance(TimeSpan.FromDays(2));
-        source = new TestPersistenceHarness(sourceFile.DatabasePath, clock, "source");
+        await using var source = new TestPersistenceHarness(sourceFile.DatabasePath, clock, "source");
         var deletionPayload = await source.GetSynchronizationDataAsync(0, long.MaxValue);
         Assert.Empty(deletionPayload.Boards);
         Assert.Single(deletionPayload.Deletions);
@@ -258,41 +272,6 @@ public class SynchronizationMergeEngineTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DirectionalCursorUpdates_InsertOrUpdateSingleRow(bool seedExistingRow)
-    {
-        using var tempDatabase = new TempDatabase("sync.db");
-        var databasePath = tempDatabase.DatabasePath;
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetLastPushSequenceAsync(SyncTestServerHarness.Peer);
-        if (seedExistingRow)
-        {
-            using var connection = new SQLiteConnection(databasePath);
-            connection.Insert(new Synchronization
-            {
-                CertificateThumbprint = SyncTestServerHarness.Peer.CertificateThumbprint,
-                DatabaseIncarnation = SyncTestServerHarness.Peer.DatabaseIncarnation,
-                LastPushSequence = 1,
-                LastPullSequence = 2,
-            });
-        }
-
-        await database.UpdateLastPushSequenceAsync(SyncTestServerHarness.Peer, 11);
-        await database.UpdateLastPullSequenceAsync(SyncTestServerHarness.Peer, 12);
-
-        Assert.Equal(11, await database.GetLastPushSequenceAsync(SyncTestServerHarness.Peer));
-        Assert.Equal(12, await database.GetLastPullSequenceAsync(SyncTestServerHarness.Peer));
-
-        using var verificationConnection = new SQLiteConnection(databasePath);
-        var rows = verificationConnection.Table<Synchronization>()
-            .Where(s => s.CertificateThumbprint == SyncTestServerHarness.Peer.CertificateThumbprint && s.DatabaseIncarnation == SyncTestServerHarness.Peer.DatabaseIncarnation)
-            .ToList();
-        Assert.Single(rows);
-    }
-
-    [Theory]
     [InlineData("last_sync_time INTEGER NOT NULL", "123")]
     [InlineData("last_push_time INTEGER NOT NULL, last_pull_time INTEGER NOT NULL", "123, 456")]
     public async Task LegacyTimestampCursor_IsResetForSequenceBaseline(string columns, string values)
@@ -307,7 +286,7 @@ public class SynchronizationMergeEngineTests
                 "https://sync.test");
         }
 
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
 
         Assert.Equal(0, await database.GetLastPushSequenceAsync(SyncTestServerHarness.Peer));
         Assert.Equal(0, await database.GetLastPullSequenceAsync(SyncTestServerHarness.Peer));
@@ -317,7 +296,7 @@ public class SynchronizationMergeEngineTests
     public async Task GetChangedAsync_UsesExclusiveSequenceBounds()
     {
         using var tempDatabase = new TempDatabase("bounded-sync-window.db");
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetSessionsAsync();
 
         var boundaryTrack = new Track
@@ -355,7 +334,7 @@ public class SynchronizationMergeEngineTests
         var sessionId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
         using (var connection = new SQLiteConnection(databasePath))
@@ -392,8 +371,8 @@ public class SynchronizationMergeEngineTests
     {
         using var deviceDatabase = new TempDatabase("segment-device.db");
         using var hubDatabase = new TempDatabase("segment-hub.db");
-        var device = new TestPersistenceHarness(deviceDatabase.DatabasePath);
-        var hub = new TestPersistenceHarness(hubDatabase.DatabasePath);
+        await using var device = new TestPersistenceHarness(deviceDatabase.DatabasePath);
+        await using var hub = new TestPersistenceHarness(hubDatabase.DatabasePath);
         var session = new Session(Guid.NewGuid(), "ride", string.Empty, null);
         await device.PutSessionAsync(session);
         var segment = new SessionSegment { OwnerKey = "source-hash", Name = "climb", StartSeconds = 1, EndSeconds = 4 };
@@ -411,7 +390,7 @@ public class SynchronizationMergeEngineTests
         using var tempDatabase = new TempDatabase("bounded-related-track.db");
         var sessionId = Guid.NewGuid();
         var trackId = Guid.NewGuid();
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         _ = await database.GetSessionsAsync();
 
         using (var connection = new SQLiteConnection(tempDatabase.DatabasePath))
@@ -443,7 +422,7 @@ public class SynchronizationMergeEngineTests
         var databasePath = tempDatabase.DatabasePath;
         var trackId = Guid.NewGuid();
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
 
         await database.ApplyRemoteSynchronizationDataAsync(new SynchronizationData
         {
@@ -474,10 +453,9 @@ public class SynchronizationMergeEngineTests
         var databasePath = tempDatabase.DatabasePath;
         var sessionId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
-        var trackId = Guid.NewGuid();
         byte[] originalPsst = [1, 2, 3, 4];
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
         using (var connection = new SQLiteConnection(databasePath))
@@ -504,30 +482,16 @@ public class SynchronizationMergeEngineTests
 
         };
 
-        var remoteTrack = new Track
-        {
-            Id = trackId,
-            Points =
-            [
-                new TrackPoint(1234, 10, 10, 100),
-                new TrackPoint(1235, 20, 20, 101)
-            ],
-            Updated = 99,
-
-        };
-
         var beforeMerge = await database.GetSessionAsync(sessionId);
 
         await database.ApplyRemoteSynchronizationDataAsync(new SynchronizationData
         {
-            Sessions = [remoteSession],
-            Tracks = [remoteTrack]
+            Sessions = [remoteSession]
         });
 
         var session = await database.GetSessionAsync(sessionId);
 
         var rawPsst = await database.GetSessionRawPsstAsync(sessionId);
-        var fullTrack = await database.GetAsync<Track>(trackId);
 
         Assert.NotNull(session);
         Assert.Equal("remote", session!.Name);
@@ -549,9 +513,6 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(originalPsst, rawPsst);
         Assert.Equal(beforeMerge.ProcessedTelemetryRevision, session.ProcessedTelemetryRevision);
 
-        Assert.NotNull(fullTrack);
-        Assert.Equal(2, fullTrack!.Points.Count);
-        Assert.Equal(1, fullTrack.PointsRevision);
 
     }
 
@@ -565,7 +526,7 @@ public class SynchronizationMergeEngineTests
         var trackId = Guid.NewGuid();
         byte[] originalPsst = [1, 2, 3, 4];
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
         using (var connection = new SQLiteConnection(databasePath))
@@ -619,6 +580,7 @@ public class SynchronizationMergeEngineTests
         Assert.Equal(beforeMerge.DescentMeters, session.DescentMeters);
         Assert.Equal("50", session.FrontSpringRate);
         Assert.Equal("60", session.RearSpringRate);
+        Assert.Equal(99, session.Updated);
         Assert.True(session.HasProcessedData);
         Assert.True(changedSession.HasProcessedData);
         Assert.Equal(originalPsst, rawPsst);
@@ -630,6 +592,8 @@ public class SynchronizationMergeEngineTests
     [InlineData(PushSwapScenario.CurrentInputs, true, false, true)]
     [InlineData(PushSwapScenario.DerivationWindowChanged, true, false, false)]
     [InlineData(PushSwapScenario.DerivationWindowChanged, true, false, true)]
+    [InlineData(PushSwapScenario.DerivedWindowUnchanged, true, false, false)]
+    [InlineData(PushSwapScenario.DerivedWindowUnchanged, true, false, true)]
     [InlineData(PushSwapScenario.MetadataBeforeSource, true, true, false)]
     [InlineData(PushSwapScenario.MetadataBeforeSource, true, true, true)]
     [InlineData(PushSwapScenario.StaleIncoming, false, false, false)]
@@ -653,9 +617,8 @@ public class SynchronizationMergeEngineTests
         var sessionId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
         var bikeId = Guid.NewGuid();
-        var targetTrackId = Guid.NewGuid();
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
         var (heldFingerprint, incomingFingerprint, window) = await SeedPushSwapScenarioAsync(
             database,
@@ -703,12 +666,9 @@ public class SynchronizationMergeEngineTests
             swaps = request is null ? [] : [request];
         }
 
-        using var verify = new SQLiteConnection(databasePath);
         if (expectRecordedSourceMissing)
         {
-            Assert.Equal(0, verify.ExecuteScalar<int>(
-                "SELECT COUNT(*) FROM session_recording_source WHERE session_id = ?",
-                sessionId));
+            Assert.Null(await database.GetRecordedSessionSourceAsync(sessionId));
         }
 
         Assert.Equal(expectSwapRequest ? 1 : 0, swaps.Count);
@@ -720,61 +680,12 @@ public class SynchronizationMergeEngineTests
             Assert.Equal(80, swap.TargetGeneration.DurationSeconds);
         }
 
-        var connectionAfterMerge = await database.GetInitializedConnectionAsync();
-        var changes = await connectionAfterMerge.ExecuteScalarAsync<long>("SELECT total_changes()");
+        var direction = pull ? SynchronizationDirection.Push : SynchronizationDirection.Pull;
+        var bound = await database.GetSequenceUpperBoundAsync(direction);
         if (pull) await database.ApplyRemoteSynchronizationDataAsync(data);
         else await database.MergeAllAsync(data);
-        Assert.Equal(changes, await connectionAfterMerge.ExecuteScalarAsync<long>("SELECT total_changes()"));
-    }
-
-    [Fact]
-    public async Task ApplyRemoteSynchronizationDataAsync_QueuesSwap_WhenDerivedSessionSourceExistsUnderWindowSource()
-    {
-        using var tempDatabase = new TempDatabase("derived-pull-swap.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var sessionId = Guid.NewGuid();
-        var setupId = Guid.NewGuid();
-        var database = new TestPersistenceHarness(databasePath);
-        var (localFingerprint, remoteFingerprint, windows) = await SeedPushSwapScenarioAsync(
-            database, sessionId, setupId, Guid.NewGuid(), PushSwapScenario.DerivationWindowChanged);
-        var window = windows.Incoming;
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(WithWindow(new Session(sessionId, "local", "desc", setupId, 100)
-            {
-                ProcessedData = [1, 2, 3],
-                ProcessingFingerprintJson = localFingerprint,
-                Updated = 1,
-
-            }, window));
-        }
-
-        var swaps = await database.ApplyRemoteSynchronizationDataAndReturnSwapsAsync(new SynchronizationData
-        {
-            Sessions =
-            [
-                WithWindow(new Session(sessionId, "remote", "desc", setupId, 100)
-                {
-                    ProcessingFingerprintJson = remoteFingerprint,
-                    DurationSeconds = 80,
-                    DistanceMeters = 20,
-                    AscentMeters = 8,
-                    DescentMeters = 3,
-
-                    GpsOffsetSeconds = 1.25,
-
-                    Updated = 99,
-
-                }, window)
-            ]
-        });
-
-        var swap = Assert.Single(swaps);
-        Assert.Equal(sessionId, swap.SessionId);
-        Assert.Equal(remoteFingerprint, swap.TargetFingerprint);
-        Assert.NotNull(swap.TargetGeneration);
-        Assert.Equal(80, swap.TargetGeneration!.DurationSeconds);
-
+        Assert.Equal(bound, await database.GetSequenceUpperBoundAsync(direction));
+        Assert.Equal(new byte[] { 1, 2, 3 }, await database.GetSessionRawPsstAsync(sessionId));
     }
 
     [Fact]
@@ -783,7 +694,7 @@ public class SynchronizationMergeEngineTests
         using var tempDatabase = new TempDatabase("pulled-generation-boundary.db");
         var sessionId = Guid.NewGuid();
         var setupId = Guid.NewGuid();
-        var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
+        await using var database = new TestPersistenceHarness(tempDatabase.DatabasePath);
         var (localFingerprint, remoteFingerprint, _) = await SeedPushSwapScenarioAsync(
             database, sessionId, setupId, Guid.NewGuid(), PushSwapScenario.CurrentInputs, 100);
         var heldData = PersistenceTestData.CreateTelemetryBlob(65);
@@ -873,7 +784,7 @@ public class SynchronizationMergeEngineTests
         var sessionId = Guid.NewGuid();
         byte[] originalPsst = [9, 8, 7, 6];
 
-        var database = new TestPersistenceHarness(databasePath);
+        await using var database = new TestPersistenceHarness(databasePath);
         _ = await database.GetSessionsAsync();
 
         using (var connection = new SQLiteConnection(databasePath))
@@ -912,110 +823,22 @@ public class SynchronizationMergeEngineTests
     }
 
     [Fact]
-    public async Task MergeAllAsync_DoesNotMutateIncomingBoardTimestamps_WhenInsertOrUpdateAccepted()
+    public async Task MergeAllAsync_InsertsSessionMetadataWithoutInventingProcessedData()
     {
-        using var tempDatabase = new TempDatabase("merge-board-nonmutating.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var existingBoardId = Guid.NewGuid();
-        var insertedBoardId = Guid.NewGuid();
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetAllAsync<Board>();
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(new Board(existingBoardId, null)
-            {
-                Updated = 1,
-
-            });
-        }
-
-        var updatedBoard = new Board(existingBoardId, Guid.NewGuid())
-        {
-            Updated = 99,
-
-        };
-        var insertedBoard = new Board(insertedBoardId, Guid.NewGuid())
-        {
-            Updated = 199,
-
-        };
+        using var file = new TempDatabase();
+        await using var database = new TestPersistenceHarness(file.DatabasePath);
+        var id = Guid.NewGuid();
 
         await database.MergeAllAsync(new SynchronizationData
         {
-            Boards = [updatedBoard, insertedBoard]
+            Sessions = [new Session(id, "new", "notes", null, 2345) { Updated = 199 }],
         });
 
-        Assert.Equal(99, updatedBoard.Updated);
-
-        Assert.Equal(199, insertedBoard.Updated);
-
-
-        var storedUpdatedBoard = await database.GetAsync<Board>(existingBoardId);
-        var storedInsertedBoard = await database.GetAsync<Board>(insertedBoardId);
-
-        Assert.NotNull(storedUpdatedBoard);
-        Assert.NotNull(storedInsertedBoard);
-        Assert.Equal(99, storedUpdatedBoard!.Updated);
-        Assert.Equal(199, storedInsertedBoard!.Updated);
-
-    }
-
-    [Fact]
-    public async Task MergeAllAsync_DoesNotMutateIncomingSessionTimestamps_WhenInsertOrUpdateAccepted()
-    {
-        using var tempDatabase = new TempDatabase("merge-session-nonmutating.db");
-        var databasePath = tempDatabase.DatabasePath;
-        var existingSessionId = Guid.NewGuid();
-        var insertedSessionId = Guid.NewGuid();
-        byte[] originalPsst = [4, 3, 2, 1];
-
-        var database = new TestPersistenceHarness(databasePath);
-        _ = await database.GetSessionsAsync();
-
-        using (var connection = new SQLiteConnection(databasePath))
-        {
-            connection.Insert(new Session(existingSessionId, "local", "local desc", null, 50)
-            {
-                ProcessedData = originalPsst,
-                Updated = 1,
-
-            });
-        }
-
-        var updatedSession = new Session(existingSessionId, "remote", "remote desc", null, 1234)
-        {
-            Updated = 99,
-
-        };
-        var insertedSession = new Session(insertedSessionId, "new", "new desc", null, 2345)
-        {
-            Updated = 199,
-
-        };
-
-        await database.MergeAllAsync(new SynchronizationData
-        {
-            Sessions = [updatedSession, insertedSession]
-        });
-
-        Assert.Equal(99, updatedSession.Updated);
-
-        Assert.Equal(199, insertedSession.Updated);
-
-
-        using var verificationConnection = new SQLiteConnection(databasePath);
-        var storedUpdatedSession = verificationConnection.Table<Session>().Single(s => s.Id == existingSessionId);
-        var storedInsertedSession = verificationConnection.Table<Session>().Single(s => s.Id == insertedSessionId);
-
-        Assert.NotNull(storedUpdatedSession);
-        Assert.NotNull(storedInsertedSession);
-        Assert.Equal(99, storedUpdatedSession.Updated);
-        Assert.Equal(199, storedInsertedSession.Updated);
-        Assert.Equal(originalPsst, await database.GetSessionRawPsstAsync(existingSessionId));
-        Assert.Null(await database.GetSessionRawPsstAsync(insertedSessionId));
-
+        var session = await database.GetSessionAsync(id);
+        Assert.NotNull(session);
+        Assert.Equal(199, session.Updated);
+        Assert.Equal(2345, session.Timestamp);
+        Assert.Null(await database.GetSessionRawPsstAsync(id));
     }
 
     private static async Task<(string HeldFingerprint, string IncomingFingerprint, (RecordedSessionDerivationWindow? Held, RecordedSessionDerivationWindow? Incoming) Window)> SeedPushSwapScenarioAsync(
@@ -1035,7 +858,7 @@ public class SynchronizationMergeEngineTests
         var setupSnapshot = SetupSnapshot.From(setup);
         var bikeSnapshot = BikeSnapshot.From(bike);
 
-        if (scenario == PushSwapScenario.DerivationWindowChanged)
+        if (scenario is PushSwapScenario.DerivationWindowChanged or PushSwapScenario.DerivedWindowUnchanged)
         {
             var oldSourceSessionId = Guid.NewGuid();
             var newSourceSessionId = Guid.NewGuid();
@@ -1057,7 +880,7 @@ public class SynchronizationMergeEngineTests
                     setupSnapshot,
                     bikeSnapshot,
                     RecordedSessionSourceSnapshot.From(newSource))),
-                (oldWindow, newWindow));
+                (scenario == PushSwapScenario.DerivedWindowUnchanged ? newWindow : oldWindow, newWindow));
         }
 
         var sourceSessionId = scenario == PushSwapScenario.DerivedStaleIncoming
@@ -1108,6 +931,7 @@ public class SynchronizationMergeEngineTests
     {
         CurrentInputs,
         DerivationWindowChanged,
+        DerivedWindowUnchanged,
         MetadataBeforeSource,
         StaleIncoming,
         DerivedStaleIncoming,

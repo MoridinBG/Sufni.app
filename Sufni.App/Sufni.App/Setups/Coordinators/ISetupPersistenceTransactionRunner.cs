@@ -33,6 +33,8 @@ public abstract record SetupWriteResult
     private SetupWriteResult() { }
     public sealed record Applied(ImmutableArray<Guid> ChangedBoardIds) : SetupWriteResult;
     public sealed record BoardInUse(Guid BoardId) : SetupWriteResult;
+    /// <summary>Save only: the setup's bike is missing or deleted. Import writes its own bike.</summary>
+    public sealed record BikeMissing : SetupWriteResult;
 }
 
 public abstract record SetupDeletePersistenceResult

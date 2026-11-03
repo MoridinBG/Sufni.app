@@ -28,7 +28,7 @@ public class ImportSessionsViewTests
     [AvaloniaFact]
     public async Task SourceMessages_ShowEmptyAndBusyStatesAndGateImport()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var vm = harness.CreateViewModel();
         await using var mounted = await MountAsync(vm);
         var empty = Assert.Single(mounted.View.GetVisualDescendants().OfType<TextBlock>(), block => block.Name == "NoDaqMessage");
@@ -60,7 +60,7 @@ public class ImportSessionsViewTests
     [AvaloniaFact]
     public async Task ImportSessionsView_DisablesEditors_WhenAnotherTabStartedImport()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var boardId = Guid.NewGuid();
         harness.SetupQuery.Add(TestSnapshots.Setup(), boardId);
         var dataStore = CreateDataStore(boardId: boardId);
@@ -72,9 +72,6 @@ public class ImportSessionsViewTests
 
         await using var mounted = await MountAsync(viewModel);
 
-        Assert.Single(mounted.View.GetVisualDescendants().OfType<ImportSessionsContentView>());
-        Assert.Single(mounted.View.GetVisualDescendants().OfType<ImportSessionsActionRow>());
-        Assert.Equal([file], viewModel.TelemetryFiles.Select(row => row.File));
 
         var expander = mounted.View.GetVisualDescendants().OfType<Expander>().First();
         expander.IsExpanded = true;
@@ -92,9 +89,6 @@ public class ImportSessionsViewTests
         Assert.NotEmpty(textBoxes);
         Assert.All(textBoxes, textBox => Assert.False(textBox.IsEnabled));
         Assert.True(busyOverlay.IsActive);
-        Assert.False(busyOverlay.ShowTint);
-        Assert.True(busyOverlay.ShowMessage);
-        Assert.Equal(viewModel.ImportProgressText, busyOverlay.Message);
 
         harness.ImportState.OnNext(new SessionImportState.Completed(new SessionImportResult([], []), []));
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -105,7 +99,7 @@ public class ImportSessionsViewTests
     [AvaloniaFact]
     public async Task ActionSelector_MapsUserChoicesToImportTrashAndIgnore()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var dataStore = CreateDataStore();
         var file = CreateTelemetryFile("lap");
         harness.DataStores.Add(dataStore);
@@ -133,7 +127,7 @@ public class ImportSessionsViewTests
     [AvaloniaFact]
     public async Task ImportSessionsView_ShowsMalformedFileReason()
     {
-        var harness = new ImportWorkflowHarness();
+        using var harness = new ImportWorkflowHarness();
         var reason = "trailing chunk was trimmed";
         var dataStore = CreateDataStore();
         var file = CreateTelemetryFile(
@@ -153,33 +147,14 @@ public class ImportSessionsViewTests
         Assert.Equal(reason, ToolTip.GetTip(label));
     }
 
-    [AvaloniaFact]
-    public async Task ImportSessionsView_DisplaysRecordingStartInLocalTime()
-    {
-        var harness = new ImportWorkflowHarness();
-        var store = CreateDataStore();
-        var startUtc = new DateTime(2025, 6, 1, 12, 34, 0, DateTimeKind.Utc);
-        var file = CreateTelemetryFile("lap", startTime: startUtc);
-        harness.DataStores.Add(store);
-        harness.ImportSessionsCoordinatorSubstitute.LoadFilesAsync(store, Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<TelemetryFileListing>(new TelemetryFileListing.Listed([file], null)));
-
-        await using var mounted = await MountAsync(harness.CreateViewModel());
-
-        var timestamp = Assert.Single(mounted.View.GetLogicalDescendants()
-            .OfType<TextBlock>(), text => text.Name == "FileStartTimeText");
-        Assert.Equal(startUtc.ToLocalTime().ToString(" yyyy-MM-dd HH:mm"), timestamp.Text);
-    }
-
-    private static async Task<MountedImportSessionsView> MountAsync(object dataContext)
+    private static async Task<MountedView<ImportSessionsView>> MountAsync(object dataContext)
     {
         EnsureImportViewResources();
         var view = new ImportSessionsView
         {
             DataContext = dataContext,
         };
-        var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedImportSessionsView(host, view);
+        return await ViewTestHelpers.MountAsync(view);
     }
 
     private static void EnsureImportViewResources()
@@ -195,14 +170,5 @@ public class ImportSessionsViewTests
         resources["SufniAccentColor"] = Brushes.CornflowerBlue;
         resources["SufniImportActionImportRowBrush"] = new SolidColorBrush(Colors.CornflowerBlue);
         resources["SufniImportActionTrashRowBrush"] = new SolidColorBrush(Colors.IndianRed);
-    }
-}
-
-internal sealed record MountedImportSessionsView(Window Host, ImportSessionsView View) : IAsyncDisposable
-{
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
     }
 }

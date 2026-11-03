@@ -36,7 +36,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
     private readonly IShellCoordinator shell;
     private readonly IShellActions shellActions;
     private readonly IRecordedSessionProjection recordedSessionProjection;
-    private readonly ISessionRecomputeEngine recomputeEngine;
+    private readonly ISessionCoordinator sessionCoordinator;
     private readonly ObservableCollectionExtended<SessionRowViewModel> sessionRowsSource = [];
     private readonly ReadOnlyObservableCollection<SessionRowViewModel> sessionRows;
     private readonly BehaviorSubject<Func<RecordedSessionSummary, bool>> filterSubject = new(_ => true);
@@ -58,7 +58,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     public SessionListViewModel(
         IRecordedSessionProjection recordedSessionProjection,
-        ISessionRecomputeEngine recomputeEngine,
+        ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
         IPendingDeletes pendingDeletes,
         TimeProvider timeProvider,
@@ -67,7 +67,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
         : base(uiThreadDispatcher, timeProvider: timeProvider)
     {
         this.recordedSessionProjection = recordedSessionProjection;
-        this.recomputeEngine = recomputeEngine;
+        this.sessionCoordinator = sessionCoordinator;
         this.shell = shell;
         this.shellActions = shellActions;
         sessionRows = new ReadOnlyObservableCollection<SessionRowViewModel>(sessionRowsSource);
@@ -171,7 +171,7 @@ public partial class SessionListViewModel : ItemListViewModelBase
 
     private async Task RecalculateSessionAsync(SessionRowViewModel row)
     {
-        var result = await recomputeEngine.RequestRecomputeAsync(row.Id);
+        var result = await sessionCoordinator.RecomputeAsync(row.Id);
 
         switch (result)
         {

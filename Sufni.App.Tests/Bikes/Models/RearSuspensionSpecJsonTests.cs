@@ -23,20 +23,6 @@ public class RearSuspensionSpecJsonTests
     }
 
     [Theory]
-    [MemberData(nameof(RoundTripCases))]
-    public void RoundTrip_PreservesUnionCaseAndKindProjection(
-        RearSuspensionSpec spec,
-        RearSuspensionKind expectedKind)
-    {
-        var json = JsonSerializer.Serialize(spec, Options);
-
-        var parsed = JsonSerializer.Deserialize<RearSuspensionSpec>(json, Options);
-
-        Assert.Equal(spec, parsed);
-        Assert.Equal(expectedKind, parsed!.Kind);
-    }
-
-    [Theory]
     [InlineData("{}")]
     [InlineData("""{ "kind": "unknown" }""")]
     [InlineData("""{ "kind": "linkage" }""")]

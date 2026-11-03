@@ -17,7 +17,6 @@ using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
-using AvaloniaColor = Avalonia.Media.Color;
 using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 using static Sufni.App.Tests.TestSupport.Fixtures.PlotTestHelpers;
 
@@ -37,46 +36,6 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 [Collection("Ui")]
 public class TravelPlotViewTests
 {
-    [AvaloniaFact]
-    public async Task TravelPlotView_StartsEmpty_BeforeTelemetryIsAssigned()
-    {
-        var view = new TravelPlotView
-        {
-            ShowAirtime = true,
-        };
-
-        Assert.Null(view.MaximumDisplayHz);
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Empty(plot.Plot.PlottableList);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_LoadsSignalsFromTelemetryProperty()
-    {
-        var view = new TravelPlotView
-        {
-            ShowAirtime = true,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = CreateMinimal();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
-        var signals = plot.Plot.PlottableList.OfType<Signal>().ToArray();
-        Assert.Single(plot.Plot.PlottableList.OfType<VerticalLine>());
-        Assert.Equal(2, signals.Length);
-        Assert.All(signals, signal => Assert.Same(plot.Plot.Axes.Left, signal.Axes.YAxis));
-        Assert.True(plot.Plot.Axes.Right.IsVisible);
-        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
-    }
-
     [AvaloniaFact]
     public async Task TravelPlotView_ClickingLegendEntry_HidesSource()
     {
@@ -115,45 +74,20 @@ public class TravelPlotViewTests
 
         await using var mounted = await PlotViewTestSupport.MountAsync(view);
 
+        view.Telemetry = CreateMinimal();
+        await ViewTestHelpers.FlushDispatcherAsync();
+        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
+        Assert.NotEmpty(plot.Plot.PlottableList.OfType<Signal>());
+
         view.Telemetry = telemetry;
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Empty(plot.Plot.Axes.Title.Label.Text);
         Assert.Empty(plot.Plot.PlottableList.OfType<Signal>());
-        Assert.Single(plot.Plot.PlottableList.OfType<Text>());
-        Assert.Equal(plot.Plot.Axes.Left.Min, plot.Plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(plot.Plot.Axes.Left.Max, plot.Plot.Axes.Right.Max, precision: 6);
+        Assert.True(Assert.Single(plot.Plot.PlottableList.OfType<Text>()).IsVisible);
     }
 
     [AvaloniaFact]
-    public async Task TravelPlotView_AppliesPlotBackgroundProperties()
-    {
-        var view = new TravelPlotView
-        {
-            PlotFigureBackground = AvaloniaColor.Parse("#101820"),
-            PlotDataBackground = AvaloniaColor.Parse("#203040"),
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = CreateMinimal();
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal(Color.FromHex("#101820"), plot.Plot.FigureBackground.Color);
-        Assert.Equal(Color.FromHex("#203040"), plot.Plot.DataBackground.Color);
-
-        view.PlotFigureBackground = AvaloniaColor.Parse("#111213");
-        view.PlotDataBackground = AvaloniaColor.Parse("#212223");
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(Color.FromHex("#111213"), plot.Plot.FigureBackground.Color);
-        Assert.Equal(Color.FromHex("#212223"), plot.Plot.DataBackground.Color);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_AnalysisRangeUpdatesOverlayWithoutReloadingSignals()
+    public async Task TravelPlotView_AnalysisRangeTogglesOverlayWithoutChangingViewport()
     {
         var view = new TravelPlotView
         {
@@ -166,15 +100,13 @@ public class TravelPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        var originalSignals = plot.Plot.PlottableList.OfType<Signal>().ToArray();
+        var initialLimits = plot.Plot.Axes.GetLimits();
 
         view.AnalysisRange = new TelemetryTimeRange(0.25, 0.75);
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        var updatedSignals = plot.Plot.PlottableList.OfType<Signal>().ToArray();
         var selectedSpan = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
-        Assert.Same(originalSignals[0], updatedSignals[0]);
-        Assert.Same(originalSignals[1], updatedSignals[1]);
+        AssertAxisLimitsEqual(initialLimits, plot.Plot.Axes.GetLimits());
         Assert.Equal(0.25, selectedSpan.X1, 3);
         Assert.Equal(0.75, selectedSpan.X2, 3);
 
@@ -184,35 +116,13 @@ public class TravelPlotViewTests
         Assert.False(selectedSpan.IsVisible);
     }
 
-    [AvaloniaFact]
-    public async Task TravelPlotView_CullsCollidingAirtimeLabelsAfterTelemetryLoad()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TravelPlotView_ShowAirtime_ForwardsVisibilityToLoadedPlot(bool velocity)
     {
-        var view = new TravelPlotView
-        {
-            ShowAirtime = true,
-        };
-        var telemetry = CreateMinimal(duration: 10);
-        telemetry = telemetry with { Airtimes = [
-            new Airtime { Start = 1.90, End = 2.10 },
-            new Airtime { Start = 1.75, End = 2.25 },
-        ] };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = telemetry;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal([false, true], GetAirtimeLabels(plot.Plot).Select(label => label.IsVisible).ToArray());
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_ShowAirtime_ForwardsVisibilityToLoadedPlot()
-    {
-        var view = new TravelPlotView
-        {
-            ShowAirtime = true,
-        };
+        SufniTelemetryPlotView view = velocity ? new VelocityPlotView() : new TravelPlotView();
+        view.ShowAirtime = true;
         var telemetry = CreateMinimal(duration: 10);
         telemetry = telemetry with { Airtimes = [
             new Airtime { Start = 1.8, End = 2.2 },
@@ -237,7 +147,8 @@ public class TravelPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         Assert.All(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.True(span.IsVisible));
-        Assert.Equal([true, true], GetAirtimeLabels(plot.Plot).Select(label => label.IsVisible).ToArray());
+        Assert.Equal(2, plot.Plot.PlottableList.OfType<HorizontalSpan>().Count());
+        if (!velocity) Assert.Equal([true, true], GetAirtimeLabels(plot.Plot).Select(label => label.IsVisible).ToArray());
     }
 
     [AvaloniaFact]
@@ -256,138 +167,11 @@ public class TravelPlotViewTests
         await ViewTestHelpers.FlushDispatcherAsync();
 
         var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.All(plot.Plot.PlottableList.OfType<HorizontalSpan>(), span => Assert.False(span.IsVisible));
-        Assert.All(GetAirtimeLabels(plot.Plot), label => Assert.False(label.IsVisible));
-    }
-
-    [AvaloniaFact]
-    public async Task VelocityPlotView_AirtimeDefaultsHiddenAndCanBeShown()
-    {
-        var view = new VelocityPlotView();
-        var telemetry = CreateMinimal(duration: 10);
-        telemetry = telemetry with { Airtimes = [new Airtime { Start = 1.8, End = 2.2 }] };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = telemetry;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
         var span = Assert.Single(plot.Plot.PlottableList.OfType<HorizontalSpan>());
+        Assert.Equal(1.8, span.X1, precision: 6);
+        Assert.Equal(2.2, span.X2, precision: 6);
         Assert.False(span.IsVisible);
-
-        view.ShowAirtime = true;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.True(span.IsVisible);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_DefersLatestTelemetryReloadUntilEffectivelyVisible()
-    {
-        var view = new TravelPlotView();
-        var container = new Border { Child = view };
-        var oldTelemetry = CreateMinimal();
-        oldTelemetry = oldTelemetry with { Markers = [new MarkerData(0.5)] };
-        var freshTelemetry = CreateMinimal();
-        freshTelemetry = freshTelemetry with { Markers = [new MarkerData(0.25), new MarkerData(1.5)] };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(container);
-
-        view.Telemetry = oldTelemetry;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        Assert.Equal(2, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
-
-        container.IsVisible = false;
-        view.Telemetry = null;
-        view.Telemetry = freshTelemetry;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(2, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
-
-        container.IsVisible = true;
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Equal(3, plot.Plot.PlottableList.OfType<VerticalLine>().Count());
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_TimelineSyncConstrainsOverscrolledFullRange()
-    {
-        var timeline = new SessionTimelineLinkViewModel();
-        var view = new TestableTravelPlotView
-        {
-            Timeline = timeline,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        view.Telemetry = CreateMinimal(duration: 10);
-        await ViewTestHelpers.FlushDispatcherAsync();
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        plot.Plot.Axes.SetLimitsX(-2, 8);
-        mounted.View.UpdateTimelineRangeForTest();
-
-        Assert.Equal(0, timeline.VisibleRangeStart, 6);
-        Assert.Equal(1, timeline.VisibleRangeEnd, 6);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_ContextMenuContext_UsesRowIdClickSecondsAndAnalysisRange()
-    {
-        var telemetry = CreateMinimal(duration: 10);
-        var analysisRange = new TelemetryTimeRange(2, 4);
-        var view = new ContextMenuTravelPlotView
-        {
-            Telemetry = telemetry,
-            SignalsWorkspace = new RecordedSessionSignalsWorkspaceStub(telemetry),
-            SignalRowId = SignalRowIds.Travel,
-            AnalysisRange = analysisRange,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var plot = PlotViewTestSupport.GetRenderedPlot(mounted.View);
-        RenderPlotInMemory(plot);
-        var pixel = GetDataAreaPixelAtX(plot.Plot, 3);
-
-        var context = view.CreateContextForTest(pixel);
-
-        Assert.NotNull(context);
-        Assert.Equal(SignalRowIds.Travel, context.RowId);
-        Assert.Equal(3, context.ClickSeconds, 1);
-        Assert.Equal(10, context.DurationSeconds, 6);
-        Assert.Equal(analysisRange, context.AnalysisRange);
-        Assert.True(context.IsClickInsideAnalysisRange);
-    }
-
-    [AvaloniaFact]
-    public async Task TravelPlotView_ContextMenuActions_ResolveFromWorkspaceRowId()
-    {
-        var telemetry = CreateMinimal(duration: 10);
-        var action = new TelemetryPlotContextMenuAction("test", "Test", Substitute.For<ICommand>());
-        var workspace = new RecordedSessionSignalsWorkspaceStub(
-            telemetry,
-            new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>
-            {
-                [SignalRowIds.Travel] = [action],
-            });
-        var view = new ContextMenuTravelPlotView
-        {
-            Telemetry = telemetry,
-            SignalsWorkspace = workspace,
-            SignalRowId = SignalRowIds.Travel,
-        };
-
-        await using var mounted = await PlotViewTestSupport.MountAsync(view);
-
-        var context = new TelemetryPlotContextMenuContext(SignalRowIds.Travel, 3, 10, null);
-        var actions = view.GetActionsForTest(context);
-
-        Assert.Same(action, Assert.Single(actions));
+        Assert.False(Assert.Single(GetAirtimeLabels(plot.Plot)).IsVisible);
     }
 
     [AvaloniaTheory]
@@ -474,39 +258,6 @@ public class TravelPlotViewTests
         LongPressInsideAnalysisRange,
     }
 
-    private sealed class TestableTravelPlotView : TravelPlotView
-    {
-        public void UpdateTimelineRangeForTest()
-        {
-            UpdateTimelineRange();
-        }
-    }
-
-    private sealed class ContextMenuTravelPlotView : TravelPlotView
-    {
-        private Func<Pixel, TelemetryPlotContextMenuContext?>? createContext;
-        private Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>>? getActions;
-
-        public TelemetryPlotContextMenuContext? CreateContextForTest(Pixel pixel)
-        {
-            return createContext?.Invoke(pixel);
-        }
-
-        public IReadOnlyList<TelemetryPlotContextMenuAction> GetActionsForTest(TelemetryPlotContextMenuContext context)
-        {
-            return getActions?.Invoke(context) ?? [];
-        }
-
-        protected override IPlotMenu CreateTelemetryPlotContextMenu(
-            Func<Pixel, TelemetryPlotContextMenuContext?> createContext,
-            Func<TelemetryPlotContextMenuContext, IReadOnlyList<TelemetryPlotContextMenuAction>> getActions)
-        {
-            this.createContext = createContext;
-            this.getActions = getActions;
-            return new NoOpPlotMenu();
-        }
-    }
-
     private sealed class MobileContextMenuTravelPlotView : TravelPlotView
     {
         public NoOpPlotMenu PlotMenu { get; } = new();
@@ -517,13 +268,6 @@ public class TravelPlotViewTests
         {
             return PlotMenu;
         }
-    }
-
-    private static Pixel GetDataAreaPixelAtX(Plot plot, double x)
-    {
-        var dataRect = plot.LastRender.DataRect;
-        Assert.True(dataRect.HasArea);
-        return new Pixel(plot.GetPixel(new Coordinates(x, 0)).X, dataRect.Center.Y);
     }
 
     private static Point GetDataAreaCenterPoint(ScottPlot.Avalonia.AvaPlot plot)

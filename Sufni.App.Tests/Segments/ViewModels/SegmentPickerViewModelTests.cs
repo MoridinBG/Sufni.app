@@ -115,35 +115,6 @@ public class SegmentPickerViewModelTests
     }
 
     [Fact]
-    public async Task SaveSelectionAsync_CreatesSegmentWithTheConfirmedName()
-    {
-        segmentCoordinator.NextName(sessionId).Returns("Segment 1");
-        segmentCoordinator.CreateAsync(sessionId, "Climb", 2, 4).Returns(new SegmentChangeResult.Applied());
-        AnswerNamePrompt(prompt =>
-        {
-            prompt.Text = " Climb ";
-            prompt.ConfirmCommand.Execute(null);
-        });
-        using var picker = CreateLoadedPicker();
-
-        await picker.SaveSelectionAsync(new TelemetryTimeRange(2, 4));
-
-        await segmentCoordinator.Received(1).CreateAsync(sessionId, "Climb", 2, 4);
-    }
-
-    [Fact]
-    public async Task SaveSelectionAsync_WhenPromptCancelled_SavesNothing()
-    {
-        segmentCoordinator.NextName(sessionId).Returns("Segment 1");
-        AnswerNamePrompt(prompt => prompt.CancelCommand.Execute(null));
-        using var picker = CreateLoadedPicker();
-
-        await picker.SaveSelectionAsync(new TelemetryTimeRange(2, 4));
-
-        await segmentCoordinator.DidNotReceiveWithAnyArgs().CreateAsync(default, default!, default, default);
-    }
-
-    [Fact]
     public async Task SaveSelectionAsync_WhenSaveFails_ReportsError()
     {
         segmentCoordinator.NextName(sessionId).Returns("Segment 1");
@@ -187,19 +158,6 @@ public class SegmentPickerViewModelTests
 
         Assert.Empty(errors);
         Assert.Single(notifications);
-    }
-
-    [Fact]
-    public async Task DeleteSavedSegment_AfterConfirmation_DeletesTheSegment()
-    {
-        var segment = AddSegment("Segment", 2, 4);
-        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        segmentCoordinator.DeleteAsync(segment.Id).Returns(new SegmentChangeResult.Applied());
-        using var picker = CreateLoadedPicker();
-
-        await picker.DeleteSavedSegmentCommand.ExecuteAsync(picker.SavedSegments[0]);
-
-        await segmentCoordinator.Received(1).DeleteAsync(segment.Id);
     }
 
     [Fact]

@@ -16,23 +16,6 @@ public class KinematicSolverTests
     }
 
     [Fact]
-    public void Solve_IsDeterministic_ForSameSpec()
-    {
-        var linkage = TestLinkages.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
-
-        var firstSolution = KinematicSolver.Solve(linkage);
-        var secondSolution = KinematicSolver.Solve(linkage);
-        var firstCharacteristics = new BikeCharacteristics(firstSolution);
-        var secondCharacteristics = new BikeCharacteristics(secondSolution);
-
-        Assert.True(firstSolution.TryGetPath(JointNames.RearWheel, out var firstPath));
-        Assert.True(secondSolution.TryGetPath(JointNames.RearWheel, out var secondPath));
-        Assert.Equal(firstPath.X, secondPath.X);
-        Assert.Equal(firstPath.Y, secondPath.Y);
-        AssertCoordinateListsEqual(firstCharacteristics.LeverageRatioData, secondCharacteristics.LeverageRatioData);
-    }
-
-    [Fact]
     public void Solve_AppliesFullCorrection_WhenOnlyOneEndpointCanMove()
     {
         var linkage = new LinkageSpec(
@@ -65,14 +48,4 @@ public class KinematicSolverTests
         Assert.Equal(15, TravelInterpolation.WheelTravelAt(curve, 5));
     }
 
-    private static void AssertCoordinateListsEqual(CoordinateList expected, CoordinateList actual)
-    {
-        Assert.Equal(expected.Count, actual.Count);
-
-        for (var i = 0; i < expected.Count; i++)
-        {
-            Assert.Equal(expected.X[i], actual.X[i], 6);
-            Assert.Equal(expected.Y[i], actual.Y[i], 6);
-        }
-    }
 }

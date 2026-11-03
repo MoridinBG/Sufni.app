@@ -18,11 +18,11 @@
 
 ## Overview
 
-The live feature lets a user inspect a connected DAQ in a diagnostics tab and optionally open a separate live-session tab on top of the same connection. This file covers the side of the feature that delivers frames to those tabs: discovery, the per-identity shared transport, and the diagnostics tab itself. The recording / capture / save side — `ILiveSessionService`, analysis computation, the live signal pipeline, and the `Session` save path — lives in [Live Session Recording](live-session.md).
+The live feature lets a user inspect a connected DAQ in a diagnostics tab. The user can also open a live-session tab on the same connection. This file covers frame delivery to those tabs: discovery, the per-identity shared transport, and the diagnostics tab. The recording side (`ILiveSessionService`, analysis, the live signal pipeline and the `Session` save path) lives in [Live Session Recording](live-session.md).
 
-It exists as a dedicated feature slice: a primary page lists known and discovered DAQs, selection opens a diagnostics tab, and `Start Session` opens a second tab that subscribes to the same underlying transport. Both desktop and mobile heads expose the Live tab and the diagnostics/live-session tabs.
+The feature is a dedicated slice. A primary page lists known and discovered DAQs. Selection opens a diagnostics tab, and `Start Session` opens a second tab on the same transport. Desktop and mobile heads expose all three surfaces.
 
-The feature is intentionally separate from the import pipeline. It does not reuse `ITelemetryDataStoreService.DataStores` for list state and does not share browse stop/start behavior with the import page. The diagnostics and live-session tabs share a per-identity transport through the live-streaming service layer. The diagnostics tab also exposes v2 management actions (Set Time, Edit CONFIG, and Replace Config) that run through a separate management service and only while the live client is disconnected.
+The feature is separate from the import pipeline. It does not use `ITelemetryDataStoreService.DataStores` for list state or share browse start/stop with the import page. The diagnostics tab also exposes v2 management actions (Set Time, Edit CONFIG, Replace Config). These actions use a separate management service and run only while the live client is disconnected.
 
 ```mermaid
 graph LR
@@ -111,12 +111,13 @@ Tab closes
 Management action on a v2 endpoint while disconnected
   -> LiveDaqDetailViewModel.SetTime / EditConfig / SelectConfigFile / UploadConfig
     -> LiveDaqCoordinator (picker validation + reserved MGMT workflow)
-      -> IDaqManagementService (domain operations), IDialogService (CONFIG editor)
-      -> ViewModelBase.Notifications / ErrorMessages
+      -> IDaqManagementService (domain operations)
+    -> IDialogService (CONFIG editor, opened by the view model)
+    -> ViewModelBase.Notifications / ErrorMessages
 ```
 
 Each LIVE connection resolves its endpoint from the current catalog by identity.
-The tab snapshot supplies presentation only; a stale online snapshot cannot
+The tab snapshot supplies presentation only. A stale online snapshot cannot
 connect after its catalog entry disappears.
 
 The capture, analysis, save, and live-session view-model side of this flow continues in [Live Session Recording](live-session.md#data-flow).
@@ -172,7 +173,7 @@ Capabilities use a 16-byte header followed by ordered 24-byte stream records. Th
 
 `SESSION_HEADER` begins with its own 24-byte LIVE header fields and then carries direct SST v5 stream descriptors, source descriptors, and omission records; it does not contain an SST file metadata envelope. Requested streams and sensors remain client request state. Accepted streams, sensors, rates, extensions, and omissions come from the session header. `LiveV3ProtocolReader` maps the descriptor-owned compact data, status, and final-status records into canonical frames. Status and final records follow accepted descriptor order and preserve producer state/failure, sink backlog, and missed-count/time fields.
 
-Temperature is decoded as its own low-rate canonical stream and is carried separately through capture, persistence, slicing, and recorded-session reprojection. Battery and marker frames are decoded and tolerated by consumers that do not retain them; marker history is saved by live capture. The current UI does not request temperature, battery, or marker streams.
+Temperature is decoded as its own low-rate canonical stream and is carried separately through capture, persistence, slicing, and recorded-session reprojection. Battery and marker frames are decoded and tolerated by consumers that do not retain them; marker history is saved by live capture. The UI does not request temperature, battery, or marker streams.
 
 ### Start Handshakes
 
@@ -204,14 +205,14 @@ successful result; shared connection ownership also supplies `Busy(holder)` and
   interruption or a device-ended startup. Each reason has fixed user text;
   exception and protocol diagnostics remain separate details.
 
-`LiveConnectionState.Disconnected(outcome)` owns the last unsuccessful outcome.
-The shared snapshot derives its error text from that state; there is no separate
-mutable error field. Both live editors display failures with expandable details
-and unavailable actions as notifications. Repeated state refreshes do not append
-the same failure again. Clients log exceptions at their boundary; the shared
-stream logs exceptions escaping connect/start and does not relog typed results.
-V3 capability negotiation carries typed outcomes to its waiters, so a remote
-failure is not rethrown and logged a second time by the start caller.
+- `LiveConnectionState.Disconnected(outcome)` owns the last unsuccessful outcome.
+  The shared snapshot derives its error text from that state.
+- Both live editors show failures with expandable details, and unavailable
+  actions as notifications. Repeated state refreshes do not append the same failure again.
+- Clients log exceptions at their boundary. The shared stream logs exceptions
+  that escape connect/start and does not log typed results again.
+- V3 capability negotiation carries typed outcomes to its waiters. The start
+  caller does not rethrow or log a remote failure a second time.
 
 ## Transport Layer
 
@@ -223,32 +224,43 @@ All transport types live in `Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/
 
 ### Client
 
-`LiveSessionHeader` exposes accepted rates, sensor topology, timing and calibration
-plus `ExpectsFinalStatus`, which capture uses to detect an incomplete ending.
-Protocol version stays with discovery and client selection. Unused v2 session
-flags and SST v5 descriptors are absent from the shared header; v3 descriptors
-remain in the reader's session decode context.
+`LiveSessionHeader` exposes accepted rates, sensor topology, timing, calibration
+and `ExpectsFinalStatus`. Capture uses that flag to detect an incomplete ending.
+Discovery and client selection own the protocol version. V3 descriptors stay in
+the reader's session decode context, not in the shared header.
 
-`ILiveDaqClientFactory` creates `LiveDaqV2Client` or `LiveDaqV3Client` from the current `LiveDaqSnapshot.ProtocolVersion`. The selected client owns the concrete TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`. The v2 client establishes its active session identity from every valid matching session header even when the direct start waiter has been canceled, so a later stop still targets the transport session. A `STOP_LIVE_ACK` that arrives while a newer start is pending completes that start as failed before clearing its control state; no lifecycle waiter is abandoned. The v3 client models awaiting hello, ready, start pending, awaiting session header, active, and stopping phases. A terminal result replaces the session decode context and returns the connection to ready, so denied starts, completed sessions, and session-ID wrap from 255 to 1 all work without reconnecting. Stop waits for `STOP_RESULT` and then `SESSION_RESULT` in that order.
+`ILiveDaqClientFactory` creates `LiveDaqV2Client` or `LiveDaqV3Client` from the current `LiveDaqSnapshot.ProtocolVersion`. The selected client owns the TCP connection lifecycle: `ConnectAsync` -> `StartPreviewAsync` -> streaming -> `StopPreviewAsync` -> `DisconnectAsync`.
 
-Three background tasks run off the UI thread. The receive loop reads exact frame headers and payloads, handles ordinary control frames immediately, and pushes telemetry into a bounded raw channel. A terminal result enters the same pipeline as a non-droppable ordering barrier, so every retained earlier telemetry frame is published before session completion. Each queued telemetry frame retains the descriptor context that owned it, so the terminal reset cannot invalidate already-received data. The parse loop decodes raw telemetry into canonical frames and writes them to a second bounded channel; the publish loop emits them as `LiveDaqClientEvent` values. Telemetry pressure may drop telemetry according to the bounded-channel counters, but cannot lose lifecycle frames. A `SemaphoreSlim` gate serializes lifecycle state mutations, and no-request-ID operations retain one outstanding response slot until the matching response arrives.
+- **V2 session identity.** The v2 client adopts every valid matching session header, even after the start waiter is canceled. A later stop therefore targets the transport session.
+- **V2 stop during start.** A `STOP_LIVE_ACK` that arrives while a newer start is pending completes that start as failed before the client clears its control state.
+- **V3 phases.** The v3 client models awaiting hello, ready, start pending, awaiting session header, active, and stopping phases.
+- **V3 terminal result.** A terminal result replaces the session decode context and returns the connection to ready. Denied starts, completed sessions, and session-ID wrap from 255 to 1 work without a reconnect.
+- **V3 stop.** Stop waits for `STOP_RESULT` and then `SESSION_RESULT`, in that order.
 
-The client is owned by `LiveDaqSharedStream`, which reuses one client per DAQ identity and fans out stream state and frames to both the diagnostics tab and any attached live-session tabs.
+Three background tasks run off the UI thread:
+
+- The receive loop reads exact frame headers and payloads, handles control frames immediately, and pushes telemetry into a bounded raw channel.
+- The parse loop decodes raw telemetry into canonical frames and writes them to a second bounded channel.
+- The publish loop emits those frames as `LiveDaqClientEvent` values.
+
+A terminal result enters the same pipeline as a non-droppable ordering barrier. The client publishes every retained earlier telemetry frame before session completion. Each queued telemetry frame keeps its own descriptor context, so the terminal reset cannot invalidate received data. Pressure can drop telemetry, which the bounded-channel counters record, but never lifecycle frames. A `SemaphoreSlim` gate serializes lifecycle state changes. Operations without a request ID keep one outstanding response slot until the matching response arrives.
+
+`LiveDaqSharedStream` owns the client. It reuses one client per DAQ identity and fans out state and frames to the diagnostics tab and attached live-session tabs.
 
 Clients consume start/stop acknowledgements, capabilities, pongs and error frames
 at the transport boundary. `FrameReceived` publishes accepted session headers and
-session data/status/results. Start and stop return domain outcomes; a v2 `ERROR`
+session data/status/results. Start and stop return domain outcomes. A v2 `ERROR`
 also emits typed `PreviewRejected(reason)` for the shared stream's recoverable
-disconnected state. Shared-stream and presentation code do not interpret wire
+disconnected state. Shared-stream and presentation code never interpret wire
 control frames.
 
-Both protocol clients serialize connect, disconnect and disposal with a connection gate held through pipeline
-drainage. Concurrent callers cannot reuse or dispose the client's lifecycle gate
-while an older receive/parse/publish loop is still running. Unexpected disconnect
-closes the socket and completes pending operations but retains those loop handles
-for cleanup. A v3 ERROR-triggered disconnect is awaited by its pipeline caller;
-there is no detached disconnect task. A reconnect drains the old pipeline before
-replacing its reader context and cancellation source.
+Both protocol clients serialize connect, disconnect and disposal with a connection
+gate that is held through pipeline drainage. Concurrent callers cannot reuse or
+dispose the lifecycle gate while an older loop still runs. Unexpected disconnect
+closes the socket and completes pending operations, but keeps the loop handles
+for cleanup. The pipeline caller awaits a v3 ERROR-triggered disconnect. A
+reconnect drains the old pipeline before it replaces the reader context and
+cancellation source.
 
 ### Drop Counters
 
@@ -256,120 +268,119 @@ replacing its reader context and cancellation source.
 
 ### Shared Stream
 
-`LiveDaqSharedStreamRegistry` owns one `LiveDaqSharedStream` per DAQ identity key. A shared stream keeps the current requested configuration, accepted session header, protocol version, connection state, and frame fan-out for that identity. Observers acquire a generic lease; live-session observers also hold a configuration-lock lease so the diagnostics tab cannot reconfigure rates while a live capture is attached. The lease mechanics on the recording side are described under [Configuration Lock](live-session.md#configuration-lock).
+`LiveDaqSharedStreamRegistry` owns one `LiveDaqSharedStream` per DAQ identity key. A shared stream keeps the requested configuration, accepted session header, protocol version, connection state, and frame fan-out for its identity. Observers acquire a generic lease. Live-session observers also hold a configuration-lock lease, so the diagnostics tab cannot change rates during a capture. See [Configuration Lock](live-session.md#configuration-lock).
 
-`LiveConnectionState` distinguishes disconnected, connecting, connected,
-disconnecting and terminal `Closed(reason, details)` states. Closed reasons are
-offline discovery, protocol change, lost connection, transport failure and
-disposal. `IsClosed` is computed from that state; the closure supplies a safe
-message separately from diagnostic details. Both observer and configuration-lock
-acquisition return `LiveStreamLeaseResult.Acquired` or `Closed`, including after
-disposal. Pending starts and attempts to restart a terminal stream also return
-the typed closure. A disconnected stream can restart; a closed stream requires a
-fresh registry lookup and tab.
+**Connection state.**
 
-Observer leases do not reserve the DAQ's single-client port. The registry owns a
-separate per-identity transport reservation, exposed through `ObserveTransport`:
-null is idle; a holder is `Streaming`, `Identify`, `Management(operation)` or
-`Import(batchId)`. Acquisitions return `Acquired(lease)` or `Busy(holder)`.
-LIVE reserves before creating a client, keeps the reservation through connection,
-reconfiguration and socket cleanup, and releases it after stop/failure/disposal.
-Stop, tab close and disposal join the retained client-cleanup task, so a second
-close cannot release the reservation while an earlier disconnect is pending.
-A second LIVE start joins the existing lifecycle/socket. A replacement tab cannot
-connect while the former stream's client is still closing. Start failure disposes
-its client before releasing the port; retry creates a fresh client.
-`AcquireManagementAsync`, `AcquireImportAsync` and `AcquireIdentifyAsync` expose
-the same arbitration for their callers. Diagnostics management acquires its reservation through `LiveDaqCoordinator`.
-Network sources reserve `Management(ListFiles)` for listing, `Identify` only when
-TXT identity is absent, and `Import(batchId)` through management-session cleanup.
-Busy acquisitions return the current holder without opening a competing socket.
+- `LiveConnectionState` has disconnected, connecting, connected, disconnecting and terminal `Closed(reason, details)` states.
+- Closed reasons are offline discovery, protocol change, lost connection, transport failure and disposal. The closure supplies a safe message separately from diagnostic details. `IsClosed` derives from the state.
+- Observer and configuration-lock acquisition return `LiveStreamLeaseResult.Acquired` or `Closed`, also after disposal. Pending starts and restarts of a terminal stream also return the typed closure.
+- A disconnected stream can restart. A closed stream requires a fresh registry lookup and tab.
 
-Catalog callbacks enqueue immutable entries plus the stream instances that existed
-when the event arrived. One owned worker applies them in order and awaits closes;
-stale disposed targets do not prevent another device from receiving its update.
-Registry disposal ends intake, drains that worker and asynchronously disposes the
-remaining streams. There are no discarded catalog-update tasks or synchronous
-waits during registry disposal.
+**Transport reservation.**
 
-The shared stream, not an individual caller, owns start/stop/reconfiguration lifecycle work. It records the latest desired running state and requested configuration, admits at most one lifecycle operation, and lets concurrent callers await that shared completion. Caller cancellation cancels only that caller's wait and returns a neutral result; transport connect/start/stop/disconnect and cleanup continue with the stream-owned lifetime so another observer cannot be left with a half-canceled connection. A request that arrives while lifecycle work is active updates the desired state, and the single operation converges after the current transport step by stopping or replacing the client as needed. Stop cleanup reacquires the stream gate and rechecks that desired state before publishing disconnected: if a restart arrived during stop/disconnect, the same shared completion remains pending while a fresh client binding and generation start with the latest configuration.
+- Observer leases do not reserve the DAQ's single-client port. The registry owns a separate per-identity reservation and exposes it through `ObserveTransport`.
+- A null holder means idle. A holder is `Streaming`, `Identify`, `Management(operation)` or `Import(batchId)`. Acquisitions return `Acquired(lease)` or `Busy(holder)`.
+- LIVE reserves before it creates a client. It keeps the reservation through connection, reconfiguration and socket cleanup, and releases it after stop, failure or disposal.
+- Stop, tab close and disposal join the retained client-cleanup task. A second close cannot release the reservation while an earlier disconnect is pending.
+- A second LIVE start joins the existing lifecycle and socket. A replacement tab cannot connect while the former client still closes.
+- A failed start disposes its client before it releases the port. A retry creates a fresh client.
+- `AcquireManagementAsync`, `AcquireImportAsync` and `AcquireIdentifyAsync` give other callers the same arbitration. Diagnostics management acquires its reservation through `LiveDaqCoordinator`.
+- Network sources reserve `Management(ListFiles)` for listing, `Identify` only when TXT identity is absent, and `Import(batchId)` through management-session cleanup.
+- A busy acquisition returns the current holder and opens no competing socket.
 
-Subscriber buffers drain asynchronously on the thread pool; they do not reserve a dedicated thread while waiting for frames.
+**Catalog updates.** Catalog callbacks enqueue immutable entries and the stream instances that existed when the event arrived. One owned worker applies them in order and awaits closes. A stale disposed target does not block updates for another device. Registry disposal ends intake, drains the worker and disposes the remaining streams asynchronously.
 
-Each client binding receives a monotonically increasing generation. Lifecycle completions and client events may mutate or close the stream only when both the client reference and generation still match the active binding. Events and late completions from detached/replaced clients are ignored, and detached subscriptions are disposed before transport cleanup. This prevents an old connection from publishing frames, terminal state, or errors into a newer connection.
+**Lifecycle ownership.**
 
-When the last observer releases its lease, the stream clears pending lifecycle ownership, detaches and disposes the client, and marks eviction pending. A lease reacquired before eviction cancels that pending eviction; otherwise the registry evicts and disposes the stream. If the transport drops or discovery loses the DAQ while observers are still attached, the current stream closes immediately, publishes terminal state to those observers, and is evicted for future lookups so the next attachment creates a fresh stream instance. A catalog refresh that changes the protocol version for an existing identity also closes and evicts the stream; callers must reopen the live tab so a fresh client can be created for the new protocol.
+- The shared stream, not a caller, owns start, stop and reconfiguration. It records the latest desired running state and configuration, and admits one lifecycle operation at a time. Concurrent callers await that shared completion.
+- Caller cancellation cancels only that caller's wait and returns a neutral result. Transport work and cleanup continue on the stream-owned lifetime, so no observer gets a half-canceled connection.
+- A request during active lifecycle work updates the desired state. After the current transport step, the operation stops or replaces the client to match it.
+- Stop cleanup reacquires the stream gate and rechecks the desired state before it publishes disconnected. If a restart arrived during stop, the same completion stays pending while a fresh client binding starts with the latest configuration.
+- Subscriber buffers drain asynchronously on the thread pool and hold no dedicated thread.
+
+**Client generations.** Each client binding receives a monotonically increasing generation. Lifecycle completions and client events can change or close the stream only when the client reference and generation match the active binding. The stream ignores events from detached or replaced clients and disposes their subscriptions before transport cleanup. An old connection therefore cannot publish frames, terminal state or errors into a newer connection.
+
+**Release and eviction.**
+
+- When the last observer releases its lease, the stream clears pending lifecycle ownership, detaches and disposes the client, and marks eviction pending.
+- A lease acquired before eviction cancels the pending eviction. Otherwise the registry evicts and disposes the stream.
+- If the transport drops or discovery loses the DAQ while observers are attached, the stream closes immediately and publishes terminal state. The registry evicts it, so the next attachment creates a fresh stream.
+- A catalog refresh that changes the protocol version of an identity also closes and evicts the stream. The user must reopen the live tab to get a client for the new protocol.
 
 ### Session State
 
-`LiveDaqSessionState` is a thread-safe accumulator for decoded sensor values used by the diagnostics tab. It holds one immutable diagnostics record containing latest travel, IMU, GPS and queue values. `ApplyFrame()` reduces a canonical `LiveProtocolFrame` into a replacement record; the IMU map is immutable. One lock serializes record replacement and reset. `CreateSnapshot()` captures the record reference under that lock, then builds the immutable `LiveDaqUiSnapshot` outside it. Connection text and error text derive directly from the typed connection state. The snapshot captures connection state, accepted session parameters, formatted accepted rates, and latest raw protocol values at a single point in time. The diagnostics snapshot contains displayed travel/IMU readings, GPS coordinates/fix time/status, queue depths, and sample freshness. Unbound per-sensor data flags, duplicated whole-Hz rates, requested/accepted masks and the redundant IMU-location list are not exposed in the UI snapshot; stream contracts retain the masks needed for decoding and acceptance. Temperature history, GPS quality/motion fields, dropped-batch counts, and sample offsets are not projected. Travel remains raw measurement data here; calibration and `mm (percent)` formatting are applied later in the detail view model. `LiveTravelUiSnapshot` carries front/rear active flags; when only one travel channel is accepted, the inactive channel is left empty so firmware neutral values are not presented as real measurements.
+`LiveDaqSessionState` is a thread-safe accumulator of decoded sensor values for the diagnostics tab.
 
-The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDaqSharedStream.Frames` directly and accumulates raw samples into its own capture stores — see [Capture Service](live-session.md#capture-service).
+- It holds one immutable diagnostics record with the latest travel, IMU, GPS and queue values.
+- `ApplyFrame()` reduces a canonical `LiveProtocolFrame` into a replacement record. The IMU map is immutable. One lock serializes record replacement and reset.
+- `CreateSnapshot()` captures the record reference under that lock and builds the immutable `LiveDaqUiSnapshot` outside it.
+- The snapshot captures connection state, accepted session parameters, formatted accepted rates and the latest raw values at one point in time. Connection and error text derive from the typed connection state.
+- Displayed values are travel/IMU readings, GPS coordinates, fix time and status, queue depths, and sample freshness. Freshness uses the `TimeProvider` that the editor factory supplies to `LiveDaqSessionState`.
+- Travel stays raw here. The detail view model applies calibration and `mm (percent)` formatting.
+- `LiveTravelUiSnapshot` carries front/rear active flags. When only one travel channel is accepted, the inactive channel stays empty, so firmware neutral values never appear as measurements.
+
+The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDaqSharedStream.Frames` and fills its own capture stores. See [Capture Service](live-session.md#capture-service).
 
 ### GPS Preview State
 
-`GpsPreviewState` interprets GPS fix modes for diagnostics UI display: fix mode 0 is no fix, mode 1 is 2D fix, and mode 2 is 3D fix. `LiveDaqSessionState` publishes it in `LiveDaqUiSnapshot` for the diagnostics tab. Live-session media does not consume this record; it renders map state from accepted GPS capability and projected `TrackPoint[]` values. See [Live Session Recording § GPS Preview State](live-session.md#gps-preview-state).
+`GpsPreviewState` interprets GPS fix modes for the diagnostics UI: mode 0 is no fix, mode 1 is 2D fix, and mode 2 is 3D fix. `LiveDaqSessionState` publishes it in `LiveDaqUiSnapshot`. Live-session media does not use this record. It renders the map from accepted GPS capability and projected `TrackPoint[]` values. See [Live Session Recording § GPS Preview State](live-session.md#gps-preview-state).
 
 ## Discovery & Catalog
 
-The Apple heads link `AppleShared/BonjourBrowseLifecycle.cs`; the neutral shared
+The Apple heads link `AppleShared/BonjourBrowseLifecycle.cs`. The shared
 application does not contain the Bonjour browse implementation.
 
 ### Announcement Metadata
 
-DAQ discovery resolves DNS records without connecting to the single-client port.
-Socket discovery retains Tmds's announced `Addresses`; Apple discovery resolves
-its Bonjour endpoint with `NSNetService`, retaining IPv4, IPv6 and interface
-scope. Incremental address callbacks replace the current candidate set until
-resolution completes. Removal or browse stop cancels the resolver and rejects
-late callbacks. Native Bonjour callbacks use the main run loop; adapter disposal
-drains scheduled native cleanup. The composition root chooses
-`AnnouncedAddresses` for DAQ and `ReachableTcpEndpoint` for sync-peer discovery,
-which retains its existing reachability selection.
+DAQ discovery resolves DNS records without a connection to the single-client port.
 
-Socket discovery reads Tmds's typed `Instance` and `Txt` properties. Bonjour
-keeps the endpoint string as its announcement key and copies native TXT bytes
-before the browse result is released. `ServiceAnnouncementMetadataReader`
-accepts string records or copied key/value bytes; it keeps the first duplicate
-key and uses an empty value for invalid UTF-8. Discovery metadata uses no
-reflection. `ServiceEndpoint` retains normalized, immutable address candidates and
-a port. LIVE, IDENTIFY and management pass the complete candidate set to their
-TCP connection, so an unreachable first address can fall through to another
-resolved address. Host/port labels are projections of that endpoint.
+- Socket discovery keeps Tmds's announced `Addresses`. Apple discovery resolves its Bonjour endpoint with `NSNetService` and keeps IPv4, IPv6 and interface scope.
+- Incremental address callbacks replace the candidate set until resolution completes. Removal or browse stop cancels the resolver and rejects late callbacks.
+- Native Bonjour callbacks use the main run loop. Adapter disposal drains scheduled native cleanup.
+- The composition root selects `AnnouncedAddresses` for DAQ discovery and `ReachableTcpEndpoint` for sync-peer discovery.
+- Socket discovery reads Tmds's typed `Instance` and `Txt` properties. Bonjour uses the endpoint string as its announcement key and copies native TXT bytes before the browse result is released.
+- `ServiceAnnouncementMetadataReader` accepts string records or copied key/value bytes. It keeps the first duplicate key and uses an empty value for invalid UTF-8. Discovery metadata uses no reflection.
+- `ServiceEndpoint` holds normalized, immutable address candidates and a port. LIVE, IDENTIFY and management pass the full candidate set to their TCP connection, so an unreachable first address falls through to the next one. Host/port labels are projections of that endpoint.
 
 ### Browse Ownership
 
-`DaqBrowseOwner` implements reference-counted lease-based browse ownership for `_sufni._tcp`. `AcquireBrowse()` returns a disposable lease; the first lease starts the underlying `IServiceDiscovery` mDNS browse, and the last disposed lease stops it. This keeps live discovery decoupled from the import pipeline — both features can browse concurrently without one clearing the other's state. The lease uses `Interlocked.Exchange` for safe double-dispose. When browsing stops,
-socket and Bonjour adapters emit removals for every retained announcement before
-forgetting them. The catalog becomes empty; active consumers retain known boards
-as offline rows. Restarting browse begins with no stale endpoints. Resolution callbacks from an
-ended browse cannot republish that presence.
+`DaqBrowseOwner` gives reference-counted, lease-based browse ownership for `_sufni._tcp`. `AcquireBrowse()` returns a disposable lease. The first lease starts the `IServiceDiscovery` mDNS browse, and the last disposed lease stops it. Live and import can therefore browse at the same time without clearing each other's state. The lease uses `Interlocked.Exchange` for safe double-dispose.
+
+When browsing stops, the socket and Bonjour adapters emit a removal for each retained announcement and then forget it. The catalog becomes empty, and active consumers show known boards as offline rows. A restarted browse begins with no stale endpoints. Resolution callbacks from an ended browse cannot republish presence.
 
 ### Board-ID Inspector
 
-`LiveDaqBoardIdInspector` is a v2 compatibility helper used by the network import path. It opens a short-lived v2 LIVE connection, sends an `IDENTIFY` frame, and parses the matching `IDENTIFY_ACK` to recover the board GUID for legacy v2 endpoints. The inspector returns `BoardIdInspection.Found | TimedOut | Unreachable`, uses an injected clock for its five-second deadline, and propagates caller cancellation. The live catalog reads TXT `bid` when available. Import listing invokes the inspector only when that identity is absent and the per-identity port reservation is idle.
+`LiveDaqBoardIdInspector` is a v2 compatibility helper for the network import path. It opens a short-lived v2 LIVE connection, sends `IDENTIFY`, and parses the matching `IDENTIFY_ACK` to get the board GUID. It returns `BoardIdInspection.Found | TimedOut | Unreachable`, uses an injected clock for its five-second deadline, and propagates caller cancellation. Import listing calls the inspector only when TXT `bid` is absent and the per-identity port reservation is idle.
 
 ### Catalog Service
 
-`LiveDaqCatalogService` subscribes to `IServiceDiscovery` (keyed `"daq"`) for the shared DAQ mDNS browse owned by `DaqBrowseOwner` (`_sufni._tcp`). Announcements are considered live-capable only when TXT `live_proto` is present and equal to `2` or `3`; missing or unsupported values are ignored. TXT `bid`, when present as exactly 16 hex characters, is converted into the board GUID. Without `bid`, endpoint identity falls back to a protocol-qualified key such as `v3:192.168.0.50:1557`, so v2 and v3 announcements for the same address cannot accidentally share one runtime identity.
+`LiveDaqCatalogService` subscribes to `IServiceDiscovery` (keyed `"daq"`) for the shared DAQ browse that `DaqBrowseOwner` owns (`_sufni._tcp`). An announcement is live-capable only when TXT `live_proto` is `2` or `3`. The service ignores missing or unsupported values. A TXT `bid` of exactly 16 hex characters becomes the board GUID. Without `bid`, identity falls back to a protocol-qualified key such as `v3:192.168.0.50:1557`, so v2 and v3 announcements for one address never share an identity.
 
-Entries are emitted through a `BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>>` — each entry carries an identity key, display name, host, port, optional board ID, and `LiveProtocolVersion`. Announcements are retained internally by service instance name when available, otherwise by endpoint. Before publication they are ordered by that announcement key and grouped by runtime identity, so duplicate announcements for one board produce one deterministic catalog entry regardless of arrival order. If the selected announcement disappears, the retained alternate is promoted under the same identity; removing the last announcement removes the catalog entry.
+A `BehaviorSubject<IReadOnlyList<LiveDaqCatalogEntry>>` emits the entries. Each entry carries an identity key, display name, host, port, optional board ID, and `LiveProtocolVersion`.
+
+- The service keys announcements by service instance name, or by endpoint when no name exists.
+- Before publication, it orders announcements by that key and groups them by identity. Duplicate announcements for one board give one deterministic entry, independent of arrival order.
+- If the selected announcement disappears, the service promotes a retained alternate under the same identity. Removal of the last announcement removes the entry.
 
 ## Known-Board Query
 
-`LiveDaqKnownBoardsQuery` derives enriched board records from `IBoardStore`, `ISetupStore` and `IBikeStore`. The board snapshot's `SetupId` is the association authority; boards without a known setup remain visible. On a relevant `StorePublication.Committed`, the query captures immutable inputs and builds the projection off-thread through `ITelemetryBikeProcessingContextFactory`. The result shares `BikeData` delegates with live-session capture and exposes names, calibration and session contexts through keyed lookups and `Changes`. It publishes on the UI dispatcher, replaces pending computations on newer commits, and cancels observation on disposal. No repository read, per-store refresh loop or setup-snapshot fallback remains; a board-only sync arrival updates the query immediately.
+`LiveDaqKnownBoardsQuery` derives enriched board records from `IBoardStore`, `ISetupStore` and `IBikeStore`.
 
-Diagnostics snapshots timestamp received frames and compute travel/IMU freshness
-using the `TimeProvider` supplied to `LiveDaqSessionState` by the editor factory.
+- The board snapshot's `SetupId` is the association authority. Boards without a known setup stay visible.
+- On a relevant `StorePublication.Committed`, the query captures immutable inputs and builds the projection off-thread through `ITelemetryBikeProcessingContextFactory`.
+- The result shares `BikeData` delegates with live-session capture. It exposes names, calibration and session contexts through keyed lookups and `Changes`.
+- The query publishes on the UI dispatcher, replaces pending computations on newer commits, and cancels observation on disposal.
+- The query reads only stores. A board-only sync arrival updates it immediately.
 
 ## Runtime Store
 
-`LiveDaqStore` is a runtime-only in-memory `SourceCache<LiveDaqSnapshot, string>` keyed by identity key (board ID when known, protocol-qualified endpoint fallback). It does not persist to the database, has no `RefreshAsync()`, and snapshots carry no `Updated` timestamp. The read-only `ILiveDaqStore` is injected into the list view model; the `ILiveDaqStoreWriter` exposes only `ReplaceAll` for coordinator reconciliation.
+`LiveDaqStore` is a runtime-only in-memory `SourceCache<LiveDaqSnapshot, string>` keyed by identity key (board ID when known, else the protocol-qualified endpoint). It does not persist, has no `RefreshAsync()`, and its snapshots carry no `Updated` timestamp. View models receive the read-only `ILiveDaqStore`. `ILiveDaqStoreWriter` adds only `ReplaceAll`, which the coordinator uses for reconciliation.
 
 The store captures each replacement as an array and queues one cache edit through
-`IUiThreadDispatcher`. Every replacement is queued, including UI-thread callers,
-so an earlier discovery update cannot overwrite a later reconciliation. Disposing
-the store releases its cache and prevents queued publication after shutdown.
+`IUiThreadDispatcher`. It queues every replacement, also from UI-thread callers,
+so an earlier discovery update cannot overwrite a later reconciliation. Disposal
+releases the cache and blocks queued publication after shutdown.
 
 `LiveDaqSnapshot` is an immutable sealed record carrying identity key, display name, board ID, host/port, online status, setup name, bike name, and live protocol version.
 
@@ -378,60 +389,70 @@ the store releases its cache and prevents queued publication after shutdown.
 `LiveDaqCoordinator` owns live-catalog store writes, browse lifecycle, and the
 [capture-save workflow](live-session.md#save-flow).
 
-**Activate / Deactivate** — called by `MainPagesViewModel` when the Live page becomes selected or deselected. On activate: acquires a browse lease, subscribes to catalog changes and known-board query changes, seeds the store with offline known boards. On deactivate: disposes all subscriptions and the browse lease, clears online state from the store.
+**Activate / Deactivate** — `MainPagesViewModel` calls `LiveDaqListViewModel.Activate` / `Deactivate` when the Live page becomes selected or deselected. The list view model forwards both calls to the coordinator. Activate acquires a browse lease and subscribes to catalog and known-board query changes. The replayed known-board records seed the store with offline rows. Deactivate disposes the subscriptions and the browse lease, clears the catalog entries and reconciles, so only known boards remain, offline.
 
-**Reconcile** — the core merge logic. Takes current catalog entries and known-board records, builds a dictionary of snapshots. Known boards always appear (offline if not discovered). Discovered DAQs with a board ID matching a known board get enriched with setup and bike names. Unknown discovered DAQs appear with the catalog's protocol-qualified endpoint identity. The coordinator submits one replacement snapshot through the store's dispatcher-owned diff publication.
+**Reconcile** — the merge logic. It combines the current catalog entries and known-board records into one snapshot dictionary.
 
-Diagnostics and live-session opening belong to the shell. It deduplicates by
+- Known boards always appear, offline when not discovered.
+- A discovered DAQ whose identity matches a known board gets its setup and bike names.
+- An unknown discovered DAQ appears with its catalog identity.
+- The coordinator submits one replacement through the store's dispatcher-owned publication.
+
+The shell opens diagnostics and live-session tabs. It deduplicates by
 `EditorKey.LiveDaq` or `EditorKey.LiveSession` before the factory reads the
-snapshot/context and acquires the shared stream or creates a capture service.
-Missing snapshots or session contexts produce no tab. Reselecting a diagnostics
+snapshot or context and acquires the shared stream or creates a capture service.
+A missing snapshot or session context produces no tab. Reselecting a diagnostics
 tab with a closed stream replaces that tab and its stream reference. The shell
-owns cleanup of the detached editor; replacement does not wait for the old socket
-to close, and the registry keeps its port busy until that cleanup finishes.
-Live-capture tabs retain their captured data and are not replaced by reselect.
+owns cleanup of the detached editor. Replacement does not wait for the old socket
+to close, and the registry keeps the port busy until that cleanup finishes.
+Reselect never replaces a live-capture tab, so captured data stays.
 
 ## View Models
 
-**`LiveDaqListViewModel`** projects the store's `Connect()` stream through DynamicData (`Filter` -> `TransformWithInlineUpdate` -> `SortAndBind`) into a `ReadOnlyObservableCollection<LiveDaqRowViewModel>` sorted online-first then by display name. Owns search filtering via `BehaviorSubject`. Delegates activate/deactivate to the coordinator.
+**`LiveDaqListViewModel`** projects the store's `Connect()` stream through DynamicData (`Filter` -> `TransformWithInlineUpdate` -> `SortAndBind`) into a `ReadOnlyObservableCollection<LiveDaqRowViewModel>` sorted online-first, then by display name. It owns search filtering through a `BehaviorSubject`. `MainPagesViewModel` calls its `Activate` / `Deactivate`, which forward to the coordinator.
 
-**`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. Exposes display properties (name, online status, endpoint, setup, bike). Intentionally does not inherit `ListItemRowViewModelBase` — live DAQs are not deletable and need a custom row surface with online/offline presentation.
+**`LiveDaqRowViewModel`** is a lightweight observable wrapper around a `LiveDaqSnapshot`. It exposes name, online status, endpoint, setup and bike. It does not inherit `ListItemRowViewModelBase`, because live DAQs are not deletable and need online/offline presentation.
 
-**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab. It acquires a generic observer lease on the per-identity `ILiveDaqSharedStream` during construction and releases it only when the tab closes. View unload stops foreground observation and timers while retaining the lease. It projects the shared stream frames through `LiveDaqSessionState`, and uses an injected `IUiTimerScheduler` to publish a throttled `LiveDaqUiSnapshot` for raw diagnostics UI binding. It remains the editable surface for connect, disconnect, and requested-rate reconfiguration. Disconnect is disabled while a capture holds the configuration lock; the shared stream also returns `LiveDisconnectResult.Locked` to a direct stop request. A busy start reports the current port holder as a notification. Partial sensor starts add a diagnostics notification for the missing requested sensors instead of populating the error list. It also hosts the management actions, all driven by a single shared `managementOperation` `CancellableOperation` (separate from the connect operation) so any new management action implicitly cancels an in-flight one and the tab lifecycle can cancel them all on unload.
+**`LiveDaqDetailViewModel`** extends `TabPageViewModelBase`, one instance per open diagnostics tab.
+
+- The constructor acquires a generic observer lease on the per-identity `ILiveDaqSharedStream`. Only tab close releases it. View unload stops foreground observation and timers but keeps the lease.
+- It projects shared-stream frames through `LiveDaqSessionState`. An injected `IUiTimerScheduler` publishes a throttled `LiveDaqUiSnapshot` for the diagnostics bindings.
+- It is the editable surface for connect, disconnect and requested-rate reconfiguration.
+- Disconnect is disabled while a capture holds the configuration lock. The shared stream also returns `LiveDisconnectResult.Locked` to a direct stop request.
+- A busy start shows the current port holder as a notification. A partial sensor start adds a notification that lists the missing sensors.
 
 Connect, disconnect, requested-rate editing and capture-start availability are
-computed getters over the shared connection state, configuration lock, current
-management availability and known-board query. State/catalog/setup notifications
-invalidate bindings and command availability; the editor holds no independently
-mutable copies of these flags.
+computed getters over the shared connection state, configuration lock, management
+availability and known-board query. State, catalog and setup notifications
+invalidate bindings and command availability. The editor keeps no mutable copies
+of these flags.
 
-`LiveDaqCoordinator` owns management workflows and retains their active tasks.
+**Management ownership.** The view model runs management commands through one `managementOperation` `CancellableOperation`, separate from the connect operation. A new command cancels the one in flight, and unload or close cancels all of them. `LiveDaqCoordinator` retains the running management tasks and cancels and drains them on asynchronous disposal, before the registry is disposed.
+
 `SetTimeAsync`, `ReadConfigAsync` and `WriteConfigAsync` resolve the current catalog
 entry, reject offline or unsupported devices, reserve the port for the named
 operation, and run the management service off-thread. The reservation ends only
-after the service has disposed its socket. The coordinator's asynchronous disposal
-cancels and drains management calls before the registry is disposed.
+after the service has disposed its socket.
 
-- `SetTimeCommand` forwards the identity and displays the returned round-trip time.
-- `EditConfigCommand` receives a parsed `DaqConfigDocument` and opens the unchanged
-  CONFIG editor. Its save callback requests `WriteConfigAsync`, resolving the
-  endpoint again rather than retaining an address from the earlier read.
-- `SelectConfigFileCommand` asks the coordinator to pick and validate an exact
-  `CONFIG` filename. The view model holds one staged file; its name and presence
-  bindings derive from that value.
-- `UploadConfigCommand` forwards the staged bytes and clears the stage after an
-  attempted upload, retaining the existing interaction behavior.
+- `SetTimeCommand` forwards the identity and shows the returned round-trip time.
+- `EditConfigCommand` receives a parsed `DaqConfigDocument` and opens the CONFIG
+  editor. Its save callback calls `SaveEditedConfigAsync`, which resolves the
+  endpoint again instead of reusing the address from the read.
+- `SelectConfigFileCommand` asks the coordinator to pick a file and validate the
+  exact `CONFIG` filename. The view model holds one staged file, and the name and
+  presence bindings derive from it.
+- `UploadConfigCommand` forwards the staged bytes and clears the stage after the
+  upload attempt.
 
 `ObserveManagementAvailability` combines catalog presence and `SupportsManagement`
-(currently v2) with the registry's transport holder. The view model projects that
-immutable value on its UI dispatcher. There are no copied management host/port/
-protocol fields or fallback to a stale store endpoint. Busy holders disable
-management and Connect and appear in tooltips; an acquisition that becomes busy
-between display and intent returns a typed `Busy` outcome. Unsupported/offline
-outcomes are notifications. Device rejections retain their known protocol messages;
-transport and picker exceptions are logged once by the coordinator and become
-fixed summaries with separate diagnostic details. The CONFIG callback maps those
-outcomes to its existing `DaqManagementResult` contract, with safe summary text.
+(v2 only) with the registry's transport holder. The view model projects that
+immutable value on its UI dispatcher. A busy holder disables management and
+Connect and appears in tooltips. An acquisition that becomes busy between display
+and intent returns a typed `Busy` outcome. Unsupported and offline outcomes are
+notifications. The coordinator logs transport and picker exceptions once and
+returns fixed summaries with separate diagnostic details. Device rejections keep
+the device message as diagnostic details. The CONFIG editor callback receives the
+same `LiveDaqManagementResult` values and shows them through `LiveDaqMessages`.
 
 The live-session tab view model (`LiveSessionDetailViewModel`) is described in [Live Session Recording § Live Session Detail View Model](live-session.md#live-session-detail-view-model).
 
@@ -456,6 +477,5 @@ Both desktop and mobile heads add the Live tab and bind to the same view models.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Protocol-specific clients behind a canonical frame model** — v2 and v3 wire parsing stays inside protocol-specific readers/clients. Everything above `ILiveDaqClientFactory` receives canonical live frames and does not branch on wire layout.
 9. **Reserved v2-only management** — availability derives from catalog capability and port ownership. The coordinator arbitrates management against LIVE through the registry; v3 remains unsupported because MGMT v3 wire bytes are not specified.
-10. **Capture service and save workflow** — `ILiveSessionService` owns capture buffers, analysis and signal batches; `LiveDaqCoordinator.SaveCaptureAsync` owns recording persistence and post-save reset. See [Live Session Recording](live-session.md).
-
-11. **Remaining diagnostics lock** — the immutable diagnostics reducer retains one lock to order frame updates, shared-header changes and reset. Snapshot formatting runs outside the lock over the captured record; UI consumers never share its mutable accumulator state.
+10. **Capture service and save workflow** — `ILiveSessionService` owns capture buffers, analysis and signal batches. `LiveDaqCoordinator.SaveCaptureAsync` owns recording persistence and post-save reset. See [Live Session Recording](live-session.md).
+11. **Diagnostics lock** — the diagnostics reducer uses one lock to order frame updates, shared-header changes and reset. Snapshot formatting runs outside the lock over the captured record. UI consumers never share the accumulator state.

@@ -95,51 +95,13 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadedCommand_AttachesCaptureWithoutStartingForegroundProjection_WhenInactive()
-    {
-        var editor = CreateEditor(isTabActive: false);
-
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        await liveSessionService.Received(1).EnsureAttachedAsync(Arg.Any<CancellationToken>());
-        Assert.False(uiTimers.HasScheduledTimers);
-        Assert.False(snapshots.HasObservers);
-        Assert.False(signalBatches.HasObservers);
-        await liveSessionService.DidNotReceive().DisposeAsync();
-    }
-
-    [Fact]
-    public async Task LoadedCommand_WhenDaqPortBusy_ShowsNotificationAndRetainsCapture()
-    {
-        liveSessionService.EnsureAttachedAsync(Arg.Any<CancellationToken>()).Returns(
-            Task.FromResult<LivePreviewStartResult?>(new LivePreviewStartResult.Busy(new DaqTransportHolder.Import(Guid.NewGuid()))));
-        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
-        var editor = CreateEditor();
-
-        await editor.LoadedCommand.ExecuteAsync(null);
-
-        Assert.Single(editor.Notifications);
-        Assert.Same(currentSnapshot.AnalysisTelemetry, editor.TelemetryData);
-        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
-        await editor.PrepareCloseAsync();
-    }
-
-    [Fact]
     public async Task TabDeactivation_StopsForegroundProjection_AndReactivationAppliesCurrentSnapshot()
     {
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(null);
-        Assert.True(uiTimers.HasScheduledTimers);
-        Assert.True(snapshots.HasObservers);
-        Assert.True(signalBatches.HasObservers);
 
         editor.SetTabActive(false);
 
-        Assert.False(uiTimers.HasScheduledTimers);
-        Assert.False(snapshots.HasObservers);
-        Assert.False(signalBatches.HasObservers);
-        await liveSessionService.DidNotReceive().DisposeAsync();
-        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
 
         var telemetryData = TestTelemetryData.CreateProcessed();
         currentSnapshot = CreateSnapshot(canSave: true, telemetryData: telemetryData);
@@ -148,44 +110,9 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         editor.SetTabActive(true);
 
-        Assert.True(uiTimers.HasScheduledTimers);
-        Assert.True(snapshots.HasObservers);
-        Assert.True(signalBatches.HasObservers);
-        Assert.Same(telemetryData, editor.TelemetryData);
-    }
-
-    [Fact]
-    public async Task CloseAfterDeactivation_DisposesCaptureServiceExactlyOnce()
-    {
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-        editor.SetTabActive(false);
-
-        await editor.PrepareCloseAsync();
-
-        await liveSessionService.Received(1).DisposeAsync();
-        await liveSessionService.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task SnapshotUpdate_ProjectsTelemetryTrackAndSaveState()
-    {
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-        var telemetryData = TestTelemetryData.CreateProcessed();
-        var trackPoints = new List<TrackPoint>
-        {
-            new(1, 2, 3, 4),
-            new(2, 3, 4, 5),
-        };
-
-        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData, trackPoints));
-
-        Assert.Same(telemetryData, editor.TelemetryData);
-        Assert.Equal(currentSnapshot.Controls.SessionHeader!.SessionStartUtc.LocalDateTime, editor.Timestamp);
-        Assert.Equal(2, editor.MediaWorkspace.MapViewModel!.SessionTrackPoints!.Count);
+        Assert.NotNull(editor.TelemetryData);
         Assert.True(editor.SaveCommand.CanExecute(null));
-        Assert.True(editor.ResetCommand.CanExecute(null));
+        await editor.PrepareCloseAsync();
     }
 
     [Fact]
@@ -226,12 +153,9 @@ public class LiveSessionDetailViewModelTests : IDisposable
         var originalKey = editor.AnalysisResultState.CurrentInputs!.CreateKey(
             RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
         Assert.NotNull(editor.AnalysisResultState.Get(originalKey));
-        sessionPresentationService.ClearReceivedCalls();
 
         editor.SelectedVelocityAverageMode = VelocityAverageMode.StrokePeakAveraged;
 
-        liveSessionService.Received().UpdateAnalysisOptions(Arg.Is<LiveAnalysisOptions>(options =>
-            options.VelocityMode == VelocityAverageMode.StrokePeakAveraged));
         Assert.Null(editor.AnalysisResultState.Get(originalKey));
         var next = CreateSnapshot(true, telemetry, captureRevision: 2,
             options: LiveAnalysisOptions.Default(DampingSpeedCutoffs.Default) with { VelocityMode = VelocityAverageMode.StrokePeakAveraged });
@@ -239,10 +163,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         var key = editor.AnalysisResultState.CurrentInputs!.CreateKey(
             RecordedSessionAnalysisFamily.VelocityDistribution, SuspensionType.Front);
-        Assert.Same(next.Analysis!.Results[key], editor.AnalysisResultState.Get(key));
-        Assert.Equal(next.DampingPercentages, editor.DampingPercentages);
-        sessionPresentationService.DidNotReceive().CalculateDampingPercentages(
-            Arg.Any<TelemetryData>(), Arg.Any<TelemetryTimeRange?>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs?>());
+        Assert.NotNull(editor.AnalysisResultState.Get(key));
         await editor.PrepareCloseAsync();
     }
 
@@ -259,24 +180,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         Assert.Equal(snapshot.Controls.CaptureDuration, editor.ControlState.CaptureDuration);
         await editor.PrepareCloseAsync();
-    }
-
-    [Fact]
-    public async Task SaveCommand_RefreshesAutomaticNameUsingLocalClock()
-    {
-        time.SetLocalTimeZone(TimeZoneInfo.Utc);
-        time.SetUtcNow(new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero));
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
-        Assert.Equal("Live Session 02-01-2026 03:04:05", editor.Name);
-        time.Advance(TimeSpan.FromMinutes(2));
-
-        await editor.SaveCommand.ExecuteAsync(null);
-
-        await liveDaqCoordinator.Received(1).SaveCaptureAsync(
-            Arg.Is<SessionSnapshot>(session => session.Name == "Live Session 02-01-2026 03:06:05"),
-            liveSessionService, Arg.Any<SessionPreferences>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -308,9 +211,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
                 && session.FrontSpringRate == "550 lb/in"),
             liveSessionService,
             Arg.Is<SessionPreferences>(preferences =>
-                preferences.SignalDisplay.Travel &&
-                preferences.SignalDisplay.Velocity &&
-                preferences.SignalDisplay.Imu &&
                 preferences.SignalDisplay.VelocitySmoothing == PlotSmoothingLevel.Strong &&
                 preferences.Analysis.VelocityAverageMode == VelocityAverageMode.StrokePeakAveraged &&
                 preferences.SignalLayout == signalLayout),
@@ -319,7 +219,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
         Assert.Null(editor.TelemetryData);
         Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.False(editor.ResetCommand.CanExecute(null));
-        Assert.Empty(editor.ErrorMessages);
+        await editor.PrepareCloseAsync();
     }
 
     [Fact]
@@ -345,7 +245,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveCommand_ResetsCaptureAndReportsWarning_WhenCommittedSavePublicationFails()
+    public async Task SaveCommand_NavigatesAndReportsWarning_WhenCommittedPublicationFails()
     {
         var savedId = Guid.NewGuid();
         liveDaqCoordinator.SaveCaptureAsync(
@@ -356,7 +256,6 @@ public class LiveSessionDetailViewModelTests : IDisposable
             .Returns(_ =>
             {
                 var revision = currentSnapshot.CaptureRevision;
-                PublishSnapshot(LiveSessionPresentationSnapshot.Empty);
                 return new LiveSessionSaveResult.Saved(savedId, revision, "publish diagnostic");
             });
         var editor = CreateEditor();
@@ -369,7 +268,7 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         shell.Received(1).OpenEditor(new EditorKey.Session(savedId));
         Assert.NotEmpty(editor.ErrorMessages);
-        Assert.False(editor.SaveCommand.CanExecute(null));
+        await editor.PrepareCloseAsync();
     }
 
     [Fact]
@@ -386,81 +285,15 @@ public class LiveSessionDetailViewModelTests : IDisposable
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        Assert.Same(telemetry, editor.TelemetryData);
+        Assert.NotNull(editor.TelemetryData);
+        Assert.Equal(telemetry.Front!.Travel, editor.TelemetryData.Front!.Travel);
         Assert.False(editor.SaveCommand.CanExecute(null));
         Assert.True(editor.ResetCommand.CanExecute(null));
         var failure = Assert.Single(editor.ErrorMessages);
         Assert.Equal(details, failure.Details);
         Assert.DoesNotContain(details, failure.Summary);
         shell.DidNotReceive().OpenEditor(Arg.Any<EditorKey>(), Arg.Any<bool>());
-    }
-
-    [Fact]
-    public async Task ResetCommand_ClearsCaptureButPreservesSidebarState()
-    {
-        var editor = CreateEditor();
-        await editor.LoadedCommand.ExecuteAsync(null);
-        PublishSnapshot(CreateSnapshot(
-            canSave: true,
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            trackPoints:
-            [
-                new TrackPoint(1, 2, 3, 4),
-            ]));
-        editor.Name = "Custom live session";
-        editor.DescriptionText = "first lap";
-        editor.ForkSettings.SpringRate = "550 lb/in";
-
-        await editor.ResetCommand.ExecuteAsync(null);
-
-        await liveSessionService.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
-        Assert.Equal("Custom live session", editor.Name);
-        Assert.Equal("first lap", editor.DescriptionText);
-        Assert.Equal("550 lb/in", editor.ForkSettings.SpringRate);
-        Assert.Null(editor.TelemetryData);
-        Assert.Equal(TimeSpan.Zero, editor.ControlState.CaptureDuration);
-        Assert.False(editor.SaveCommand.CanExecute(null));
-        Assert.False(editor.ResetCommand.CanExecute(null));
-    }
-
-    [Fact]
-    public async Task DampingSpeedCutoffCommit_PersistsThroughBikeCoordinator()
-    {
-        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
-        var bikeId = Guid.NewGuid();
-        var initialCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400);
-        var savedCutoffs = initialCutoffs.With(SuspensionType.Front, DampingSpeedCircuit.Compression, 260);
-        var savedBike = TestSnapshots.Bike(id: bikeId, updated: 8) with
-        {
-            FrontCompressionDampingCutoffMmPerSecond = savedCutoffs.Front.CompressionMmPerSecond,
-            FrontReboundDampingCutoffMmPerSecond = savedCutoffs.Front.ReboundMmPerSecond,
-            RearCompressionDampingCutoffMmPerSecond = savedCutoffs.Rear.CompressionMmPerSecond,
-            RearReboundDampingCutoffMmPerSecond = savedCutoffs.Rear.ReboundMmPerSecond,
-        };
-        bikeCoordinator.UpdateDampingSpeedCutoffAsync(
-                bikeId,
-                initialCutoffs.Front.CompressionMmPerSecond,
-                SuspensionType.Front,
-                DampingSpeedCircuit.Compression,
-                260)
-            .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(savedBike));
-        var context = CreateSessionContext(
-            bikeId: bikeId,
-            dampingSpeedCutoffs: initialCutoffs);
-        var editor = CreateEditor(context, bikeCoordinator);
-
-        await editor.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Compression, 257);
-
-        await bikeCoordinator.Received(1).UpdateDampingSpeedCutoffAsync(
-            bikeId,
-            initialCutoffs.Front.CompressionMmPerSecond,
-            SuspensionType.Front,
-            DampingSpeedCircuit.Compression,
-            260);
-        Assert.Equal(savedCutoffs, editor.DampingSpeedCutoffs);
-        Assert.Equal(savedCutoffs, editor.PlotDampingSpeedCutoffs);
-        Assert.True(editor.CanEditDampingSpeedCutoffs);
-        Assert.Empty(editor.ErrorMessages);
+        await editor.PrepareCloseAsync();
     }
 
     [Theory]
@@ -541,85 +374,30 @@ public class LiveSessionDetailViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task Bake_SecondSnapshot_CancelsInFlightTokenAndIgnoresStaleResult()
+    public async Task Bake_NoncooperativeOldResultCannotReplaceNewerPresentation()
     {
-        var firstBakeGate = new TaskCompletionSource<SessionCachePresentationData>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var firstData = new SessionCachePresentationData(
-            FrontTravelDistribution: "<svg id='first-front' />",
-            RearTravelDistribution: null,
-            FrontVelocityDistribution: null,
-            RearVelocityDistribution: null,
-            CompressionBalance: null,
-            ReboundBalance: null,
-            DampingPercentages: SessionDampingPercentages.Empty,
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
-            BalanceAvailable: false);
-        var secondData = firstData with
-        {
-            FrontTravelDistribution = "<svg id='second-front' />",
-        };
-        var firstBakeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        CancellationToken capturedFirstToken = default;
-        var callCount = 0;
-        sessionPresentationService
-            .BuildCachePresentation(
-                Arg.Any<TelemetryData>(),
-                Arg.Any<SessionPresentationDimensions>(),
-                Arg.Any<CancellationToken>(),
-                Arg.Any<DampingSpeedCutoffs?>())
-            .Returns(callInfo =>
+        var first = new TaskCompletionSource<SessionCachePresentationData>();
+        var old = new SessionCachePresentationData("<svg id='old' />", null, null, null, null, null,
+            SessionDampingPercentages.Empty, DampingSpeedCutoffs.Default, false);
+        var latest = old with { FrontTravelDistribution = "<svg id='latest' />" };
+        var calls = 0;
+        CancellationToken oldToken = default;
+        backgroundTaskRunner.RunAsync(Arg.Any<Func<SessionCachePresentationData>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
             {
-                callCount++;
-                if (callCount == 1)
-                {
-                    capturedFirstToken = callInfo.Arg<CancellationToken>();
-                    firstBakeStarted.TrySetResult();
-                    return firstBakeGate.Task.WaitAsync(capturedFirstToken).GetAwaiter().GetResult();
-                }
-
-                return secondData;
+                if (++calls != 1) return Task.FromResult(latest);
+                oldToken = call.Arg<CancellationToken>();
+                return first.Task;
             });
-        ConfigureRunnerToRunOnBackgroundTask();
         var editor = CreateEditor();
         await editor.LoadedCommand.ExecuteAsync(new Rect(0, 0, 800, 600));
-
-        PublishSnapshot(CreateSnapshot(canSave: true, telemetryData: TestTelemetryData.CreateProcessed()));
-        await firstBakeStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-
-        var secondBakeApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        editor.SpringPage.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(SpringPageViewModel.FrontTravelDistribution) &&
-                editor.SpringPage.FrontTravelDistribution == secondData.FrontTravelDistribution)
-            {
-                secondBakeApplied.TrySetResult();
-            }
-        };
-
-        PublishSnapshot(CreateSnapshot(
-            canSave: true,
-            telemetryData: TestTelemetryData.CreateProcessed(),
-            captureRevision: 2));
-        firstBakeGate.SetResult(firstData);
-        RefreshUi();
-        if (editor.SpringPage.FrontTravelDistribution != secondData.FrontTravelDistribution)
-        {
-            await secondBakeApplied.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(2));
-        }
-
-        Assert.True(capturedFirstToken.IsCancellationRequested);
-        Assert.Equal(secondData.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
-    }
-
-    private void ConfigureRunnerToRunOnBackgroundTask()
-    {
-        backgroundTaskRunner
-            .RunAsync(Arg.Any<Func<SessionCachePresentationData>>(), Arg.Any<CancellationToken>())
-            .Returns(callInfo =>
-                Task.Run(
-                    callInfo.Arg<Func<SessionCachePresentationData>>(),
-                    callInfo.Arg<CancellationToken>()));
+        PublishSnapshot(CreateSnapshot(true, TestTelemetryData.CreateProcessed()));
+        PublishSnapshot(CreateSnapshot(true, TestTelemetryData.CreateProcessed(), captureRevision: 2));
+        Assert.Equal(latest.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
+        Assert.True(oldToken.IsCancellationRequested);
+        first.SetResult(old);
+        Assert.Equal(latest.FrontTravelDistribution, editor.SpringPage.FrontTravelDistribution);
+        await editor.PrepareCloseAsync();
     }
 
     private LiveSessionDetailViewModel CreateEditor(

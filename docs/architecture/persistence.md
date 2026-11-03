@@ -121,8 +121,8 @@ erDiagram
     track {
         text id PK
         text points
-        int start_time
-        int end_time
+        real start_time
+        real end_time
         int points_revision
         int updated
         int version
@@ -219,295 +219,190 @@ erDiagram
     }
 ```
 
-`database_identity` has one row (`id = 1`). The `database-incarnation`
-core migration assigns its random `db_incarnation` once, including on existing
-databases. Normal launches preserve it; creating a fresh database assigns a new
-identity. Pairing, refresh and run-start responses carry this identity to distinguish
-database resets in sync cursors. Run-start verifies it before transfers use a cursor.
+`database_identity` has one row (`id = 1`). The `database-incarnation` core migration assigns its random `db_incarnation` once, also on an existing database. Normal launches keep it, and a fresh database gets a new identity. Pairing, refresh and run-start responses carry this identity, so sync cursors detect a database reset. Run-start verifies it before a transfer uses a cursor.
 
-`IStartupDatabase` exposes initialization and the reset file operation on the
-connection context. Reset waits for initialization to settle, closes the
-connection, and moves every remaining database/WAL/SHM file into a timestamped
-sibling archive directory. SQLite may checkpoint and remove its sidecars on
-close. The archive is retained; a separate connection creates the replacement
-through the normal migration path and closes it. The existing context and its
-consumers are not reinitialized; the replacement requires a new launch.
+`IStartupDatabase` exposes initialization and reset on the connection context. Reset waits for initialization to settle and closes the connection. It then moves every remaining database, WAL and SHM file into a timestamped sibling archive directory. SQLite can checkpoint and remove its sidecars on close. The archive is kept. A separate connection creates the replacement through the normal migration path and closes it. The existing context and its consumers stay unchanged; the replacement takes effect at the next launch.
 
-The `sync-authority` migration seeds `version = 1` and an empty unknown-writer
-`updated_by` while preserving authored `updated`, allocates initial `local_seq`
-and `sync_seq` values, and retains current tombstones in `sync_deletion` before
-payload cleanup. `sync_sequence` holds the two transactionally allocated counters. The same migration
-copies legacy custom map layers into `custom_tile_layer` before assigning their
-initial metadata. Startup rewrites the preference document after migration, keeping
-the selected layer and other device-local values while removing custom definitions
-and the old sync clock. The migration marker prevents stale preferences from
-overwriting later layer edits. The same batch hashes legacy paired-device
-refresh tokens and removes the plaintext `token` column. Rotation atomically
-compares the presented hash, updates expiry, and retains the previous hash for
-one recovery use until the new refresh token is used.
-Every local authored write advances its row version above both the payload and
-ledger version, stamps the shared installation identity and advances sequences.
-Derived generation writes advance sequences while preserving version, timestamp
-and writer. GPS metric materializations remain local and do not advance them.
-Deletes write the payload tombstone and ledger atomically. Ledger entries are
-never purged; explicit restoration advances above their versions.
+On an older database, the `sync-authority` migration:
 
-The remote merge uses the same authored-history rule on hub and client;
-`client_updated` is removed from schema and wire. Push selection uses `local_seq`
-and pull selection uses `sync_seq`, including deletion-ledger entries. The same
-migration discards timestamp cursors and recreates the cursor table for a full
-baseline exchange. Cursors are keyed by `(hub_thumbprint, db_incarnation)`.
-Each direction updates its column atomically without overwriting the other.
-An unseen hub or incarnation starts at zero, independent of its network address.
-Explicit pairing clears previous cursors before new credentials are accepted,
-so re-pairing to the same hub also starts a baseline.
+- sets `version = 1` and an empty unknown-writer `updated_by`, keeps authored `updated`, and allocates initial `local_seq` and `sync_seq` values;
+- copies current tombstones into `sync_deletion` before payload cleanup, and creates `sync_sequence`, which holds the two transactionally allocated counters;
+- copies legacy custom map layers from preferences into `custom_tile_layer`;
+- hashes legacy paired-device refresh tokens and drops the plaintext `token` column;
+- drops `client_updated` and recreates the `sync` cursor table, so the next exchange is a full baseline.
+
+After migration, startup rewrites the preference document. It keeps the selected layer and other device-local values, and removes custom definitions and the old sync clock. The migration marker stops stale preferences from overwriting later layer edits. Refresh-token rotation atomically compares the presented hash and updates expiry. It keeps the previous hash for one recovery use until the client uses the new refresh token.
+
+Every local authored write sets its row version above both the payload and ledger versions. It also stamps the shared installation identity and advances sequences. Derived generation writes advance sequences but keep version, timestamp and writer. GPS metric writes stay local and advance nothing. A delete writes the payload tombstone and the ledger entry atomically. Ledger entries are never purged; an explicit restore writes a version above them.
+
+Hub and client use the same authored-history merge rule. Push selects by `local_seq` and pull selects by `sync_seq`, including deletion-ledger entries. Cursors are keyed by `(hub_thumbprint, db_incarnation)`. Each direction updates its own column atomically and leaves the other unchanged. An unseen hub or incarnation starts at zero, independent of its network address. Explicit pairing clears all cursors before it accepts new credentials, so a re-pair to the same hub also starts a baseline.
 
 ## SQLite Persistence Repositories
 
-The composition root supplies `SqliteConnectionContext` with one schema initializer.
-`DatabaseMigrationRunner.cs` sits beside that root and composes the application
-schema across slices. The connection context owns initialization gating, connection
-lifetime and archive/reset; reset invokes the same initializer on a fresh connection.
-`SyncAndPairing/Services/PersistenceGuards` holds synchronized-row persistence
-checks used by repositories and the merge engine.
+The composition root gives `SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) one schema initializer. `DatabaseMigrationRunner.cs` sits beside that root, composes the schema across slices, and is the only schema initializer and migrator. The context owns the single `SQLiteAsyncConnection`, the initialization gate, connection lifetime and archive/reset. Reset runs the same initializer on a fresh connection. `SyncAndPairing/Services/PersistenceGuards` holds the synchronized-row checks that repositories and the merge engine share.
 
-`SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives a `SQLiteConnectionString` composed from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner` through the background runner, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and applies the one-time track content migration.
+The context receives a `SQLiteConnectionString` from the platform root. The heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`. The context starts `DatabaseMigrationRunner` through the background runner. The runner enables WAL mode, creates core tables, applies column backfills and the core migrations, and then runs startup cleanup.
 
-The connection context supplies the injected clock to startup migrations.
-Repositories and transaction runners receive `TimeProvider` for authored writes,
-tombstones, merge timestamps and cleanup cutoffs. Transaction runners pass sampled timestamps into synchronous helpers; those
-helpers do not read the wall clock.
+Startup migrations and cleanup use the injected clock. Repositories and transaction runners receive `TimeProvider` for authored writes, tombstones, merge timestamps and cleanup cutoffs. Transaction runners pass sampled timestamps into synchronous helpers; those helpers never read the wall clock.
 
-The connection context is also the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization, then delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`, so the connection/transaction lock is held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations; raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences are not used.
+The connection context is the only app-owned transaction entry point for multi-statement repository writes. `RunInTransactionAsync(...)` awaits initialization and delegates to sqlite-net's `RunInTransactionAsync(Action<SQLiteConnection>)`. The connection and transaction lock is therefore held for the whole callback. Transaction bodies use synchronous `SQLiteConnection` operations. The app never issues raw `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` statement sequences.
 
-`SetupPersistenceTransactionRunner` checks board ownership before save/import
-writes. An occupied board returns `BoardInUse` without changing the setup, bike or
-board rows. Reassignment and deletion clear the previous board only if its current
-active owner is still the setup being changed; already-correct assignments do not
-advance the board version. Setup deletion checks active session references in the
-same transaction and returns `InUse` without deleting or clearing associations.
-Successful writes return only changed board IDs for coherent store publication.
+`SetupPersistenceTransactionRunner` checks that the setup's bike exists before a save writes; a missing or deleted bike returns `BikeMissing` without writing. Import writes its embedded bike in the same transaction. The runner checks board ownership before save/import writes. An occupied board returns `BoardInUse` without changing the setup, bike or board rows. Reassignment and deletion clear the previous board only if its active owner is still the setup being changed. An already-correct assignment does not advance the board version. Setup deletion checks active session references in the same transaction and returns `InUse` without deleting or clearing associations. Successful writes return only changed board IDs for coherent store publication. `BikePersistenceTransactionRunner` checks active setup references in the bike delete transaction and returns `InUse` without deleting the bike.
 
-Bike rows include presentation-owned damping speed cutoffs for front/rear compression and rebound. These values default to 200 mm/s, are synchronized and exported with the bike, and are backfilled on startup for legacy schemas. They are not session preferences and do not affect telemetry processing fingerprints.
+Bike rows hold presentation-owned damping speed cutoffs for front/rear compression and rebound. They default to 200 mm/s and are synchronized and exported with the bike. Startup fills missing values on older databases. They are not session preferences and do not affect telemetry processing fingerprints.
 
-Startup migration ensures bike rows use the single `rear_suspension` union JSON column. Legacy schemas with `rear_suspension_kind`, `linkage`, and/or `leverage_ratio` are backfilled into `RearSuspensionSpec` JSON, linkage shock stroke is reconciled against the bike-level `shock_stroke` column, draft rows preserve the selected mode when the payload is missing or unparseable, and the legacy columns are dropped after backfill.
+Bike rows store the rear suspension in the single `rear_suspension` union JSON column. On an older database, startup converts `rear_suspension_kind`, `linkage` and `leverage_ratio` into `RearSuspensionSpec` JSON and then drops those columns. It reconciles the linkage shock stroke with the bike-level `shock_stroke` column. A draft row keeps its selected mode when the payload is missing or unparseable.
 
-The `session-domain-ownership` migration copies the launch snapshot's legacy
-processing options into nullable `session.velocity_filter_window_ms`, without
-changing authored timestamps or processed data. Its marker prevents later launches
-from replaying old preferences over a newly authored option. Runtime preferences
-and startup jobs no longer reset or recompute processing options. The same
-migration drops the redundant `has_data` column and rewrites source hashes using
-uncompressed SST content or live content without the setup display name. It preserves payloads, duplicate rows, session
-ids and split references; stored processing fingerprints are left stale.
+On an older database, the `session-domain-ownership` migration:
 
-Startup migration does not repair or currentize stale `session_processing_fingerprint` values. Legacy, missing, malformed, or dependency-mismatched fingerprints remain classified as stale by the recorded-session projection so recompute can surface derived-data changes explicitly instead of silently rewriting fingerprint state at database initialization.
+- copies the legacy processing option from the launch preferences into a null `session.velocity_filter_window_ms`, without changing authored timestamps or processed data; its marker stops later launches from replaying old preferences;
+- drops the redundant `has_data` column;
+- rewrites source hashes from uncompressed SST content, or from live content without the setup display name. Payloads, duplicate rows, session ids and split references stay unchanged, and stored processing fingerprints stay stale.
 
-Persistence consumers inject narrow repository interfaces instead of a single database facade. `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities; `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, `ISessionSegmentRepository`, and `IPairedDeviceRepository` own aggregate-specific operations and intent-specific projections; `ISyncDataStore` / `SynchronizationMergeEngine` owns sync sequences and cursors, delta projection, remote apply, and merge conflict resolution. Read paths that only need ids, source snapshots, track payload metadata, full-track reference checks, or processing fingerprint inputs use those projections instead of loading whole aggregates or BLOB columns. `DatabaseMigrationRunner` is the only schema initializer/migrator, and repositories assume `SqliteConnectionContext` has run initialization before handing out the shared connection.
+Startup never repairs or updates a stale `session_processing_fingerprint`. The recorded-session projection classifies legacy, missing, malformed or dependency-mismatched fingerprints as stale. Recompute then surfaces the derived-data change explicitly.
 
-The `sync-authority` migration creates `local_seq` and `sync_seq` indexes on every
-synced table and the deletion ledger. Delta projection is bounded to
-`(sinceExclusive, upperInclusive]`. `sync.last_push_sequence` and
-`sync.last_pull_sequence` advance independently. The run's push bound is captured
-before any network work; a concurrent edit beyond that bound is selected on the
-next run. Legacy `updated` and `deleted` indexes are still maintained at startup.
+Persistence consumers inject narrow repository interfaces, not one database facade:
 
-Two local-only revision columns identify exact payload generations without using
-the sync-facing `Updated` timestamp: `session.processed_telemetry_revision` changes
-when the processed BLOB or its fingerprint changes, and `track.points_revision`
-changes when the full-track point payload changes. Startup migration normalizes both zero and
-SQL-null legacy revisions to `1` for existing non-null payloads and to `0` when
-the payload is absent, then drops every owned revision trigger and recreates the
-current definitions. Trigger-level `WHEN` predicates avoid nested writes for
-no-op watched assignments; effective content changes advance exactly one step,
-and payload-aware fallback arithmetic prevents nullable legacy state from
-remaining null after a watched write. An incoming revision assignment that
-accompanies a watched write is restored or replaced by the SQLite-owned value.
-These values are excluded from JSON/sync contracts and are not conflict versions.
-Map and comparison readers now derive session windows from the selected full
-track's exact points revision plus the window inputs. The session-window payload and its revision are not persisted or synced.
+- `ISynchronizableRepository<T>` owns generic soft-delete CRUD for `Synchronizable` entities.
+- `ISessionRepository`, `IRecordedSessionSourceRepository`, `ITrackRepository`, `ISessionVideoRepository`, `ISessionSegmentRepository` and `IPairedDeviceRepository` own aggregate operations and intent-specific projections.
+- `ISyncDataStore` / `SynchronizationMergeEngine` owns sync sequences and cursors, delta projection, remote apply and merge conflict resolution.
 
-`ISessionRepository.GetImportCheckpointAsync(sourceHash)` reads source metadata
-and the corresponding session metadata without BLOBs. It lets a restarted import
-republish a committed recording without processing or writing it again.
-`ImportProcessedSessionAsync` still classifies atomically and returns `Inserted`
-or `Exists`, so a checkpoint miss never replaces the transactional duplicate guard.
+Read paths that need only ids, source snapshots, track payload metadata, full-track reference checks or processing inputs use those projections. They do not load whole aggregates or BLOB columns. Repositories assume that `SqliteConnectionContext` has run initialization before it hands out the shared connection.
 
-Repositories do not publish UI state. Workflow owners persist, prepare any
-fresh database-computed snapshot fields, then publish through store writer
-interfaces. Stores do not depend on repositories, perform writes, or classify
-failures. Metadata save, GPS alignment and downloaded processed-data application
-are owned by their session/track/sync workflows. Cross-aggregate SQL still runs
-inside one `RunInTransactionAsync` callback before publication; sync endpoints
-persist first and inbound appliers prepare and publish the resulting snapshots.
+The `sync-authority` migration creates `local_seq` and `sync_seq` indexes on every synced table and on the deletion ledger. Startup also maintains `updated` and `deleted` indexes. Delta projection is bounded to `(sinceExclusive, upperInclusive]`. `sync.last_push_sequence` and `sync.last_pull_sequence` advance independently. A run captures its push bound before any network work. The next run selects a concurrent edit beyond that bound.
+
+Two local-only revision columns identify exact payload generations without the sync-facing `Updated` timestamp:
+
+- `session.processed_telemetry_revision` changes when the processed BLOB or its fingerprint changes.
+- `track.points_revision` changes when the full-track point payload changes.
+
+Startup sets a zero or null revision to `1` when the payload exists and to `0` when it is absent. It then drops every owned revision trigger and recreates the current definitions. Trigger `WHEN` predicates skip no-op watched writes, so an effective content change advances exactly one step. Payload-aware fallback arithmetic stops a null legacy revision from staying null after a watched write. SQLite restores or replaces an incoming revision assignment that comes with a watched write. JSON and sync contracts exclude these values, and they are not conflict versions. Map and comparison readers derive session windows from the selected full track's points revision and the window inputs. The session-window payload and its revision are never persisted or synced.
+
+`ISessionRepository.GetImportCheckpointAsync(sourceHash)` reads source and session metadata without BLOBs. A restarted import uses it to republish a committed recording without processing or writing it again. `ImportProcessedSessionAsync` still classifies atomically, so a checkpoint miss never replaces the transactional duplicate guard.
+
+Repositories do not publish UI state. Workflow owners persist, prepare any fresh database-computed snapshot fields, and then publish through store writer interfaces. Stores do not depend on repositories, perform writes or classify failures. Session, track and sync workflows own metadata save, GPS alignment and downloaded processed-data application. Cross-aggregate SQL runs inside one `RunInTransactionAsync` callback before publication. Sync endpoints persist first; inbound appliers then prepare and publish the resulting snapshots.
 
 `ISynchronizableRepository<T>` operations on any `Synchronizable` subclass:
 
-- `GetAllAsync<T>()` — returns all records where `Deleted == null`
-- `GetChangedAsync(sinceExclusive, upperInclusive)` — returns records whose device-local sequence is in that bounded range, including retained tombstones.
-- `PutAsync(item)` — upsert. Advances the authored version above both the current row and its deletion ledger, stamps the injected clock's UTC seconds and installation writer identity, assigns transport sequences, and clears `Deleted` (restoring a tombstoned or purged identity).
-- `DeleteAsync<T>(id)` — stamps an authored deletion and writes its durable ledger entry when the row exists and is not already tombstoned.
+- `GetAllAsync()` / `GetAsync(id)` — return all records, or one record, where `Deleted == null`.
+- `GetChangedAsync(sinceExclusive, upperInclusive)` — returns records whose `local_seq` is in that bounded range, including retained tombstones.
+- `PutAsync(item)` — upsert. Advances the authored version above both the current row and its deletion ledger, stamps the injected clock's UTC seconds and the installation writer identity, assigns transport sequences, and clears `Deleted`. This restores a tombstoned or purged identity.
+- `DeleteAsync(id)` / `DeleteAsync(item)` — stamps an authored deletion and writes its durable ledger entry when the row exists and is not already tombstoned.
 
-`ISessionRepository` operations split metadata and processed-data handling, and store the values they are given: reprocessing produces a pure `ProcessedGeneration`, and import/live-save/recompute owners prepare the optional content track and session before calling the repository. Incoming synchronized bytes are validated, prepared, committed and published by `SessionSyncApplier`. `session.data` is the authoritative local processed-telemetry cache; there is no separate `has_data` column. Metadata and sync-delta reads use `SessionMetadataRow`, projecting availability from `data IS NOT NULL` without selecting the BLOB. A payload-bearing `Session` derives `HasProcessedData` only from its loaded `ProcessedData`; metadata drafts carry no availability override. Persistence helpers map the declared entity schema, so projection-only fields cannot become writes. Duration remains a derived session column. GPS distance/ascent/descent and their input key live in device-local `session_gps_metrics`; metadata reads join that table without loading point JSON. The corresponding properties on `Session` are ignored by entity writes and JSON, and `SessionSnapshot` carries those joined values plus `GpsMetricsKey`. Metadata draft updates preserve `timestamp` and `gps_offset_seconds`; only creation/window editing sets the timestamp, and the explicit alignment command owns the offset. Split copies the current alignment to its new session; trim and undo preserve it. `gps_offset_seconds` is authored per-session state applied when deriving the session-window GPS track from a reusable full `Track`; it is stored on `session` rather than `track` because the same full ride track can back multiple recorded sessions or segments.
+`ISessionRepository` separates metadata from processed data and stores the values it is given:
 
-- `PutSessionAsync()` — updates user-authored session metadata columns and stamps `Updated`/`Deleted` like `PutAsync`. Existing processing options, GPS alignment, timestamps and derived summary metrics are preserved on metadata updates; their separate commands own those writes. Metadata SQL does not name the multi-megabyte `data` BLOB, so its fingerprint, linkage and local revision remain untouched. Soft-deleted-row reuse still restores the complete supplied aggregate through its dedicated insert/reuse path.
-- `ImportProcessedSessionAsync(session, newFullTrack, source)` — classifies the recording and atomically inserts a new session, full track and source, or adds only the source to existing metadata. Duplicate source hashes preserve the existing recording. The returned session/source snapshots reflect the retained rows. Any failed write rolls back the transaction.
-- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputs)` — the recompute owner first validates its result fingerprint against a captured database input bundle. In one transaction the repository re-reads those scalar inputs and compares them with the expected bundle; a mismatch or missing dependency rolls back the generation and optional track together. On a match it writes only derived columns (`data`, fingerprint and duration), preserving authored metadata and `updated`. The repository has no fingerprint-service dependency.
-- `UpdateSessionPsstAsync(id, data, fingerprintJson, durationSeconds, expected)` — the missing-BLOB fill write path. It atomically replaces the BLOB/fingerprint and supplied duration only while the stored fingerprint and telemetry revision match the captured guard. It preserves authored fields and never advances `updated`.
-- `UpdateSessionProcessedGenerationAsync(id, data, fingerprintJson, generation, expected)` — the complete-generation swap path, with the same transaction guard. It replaces the BLOB, fingerprint and duration together while preserving authored GPS alignment. Both write methods also compare the expected hub swap target and clear a matching request inside the successful write transaction; a replaced request or changed generation returns false without modifying any rows.
-- `UpdateGpsAlignmentAsync(id, gpsOffsetSeconds)` — persists only the authored GPS offset, advancing `updated`; window points remain a read-time derivation.
-- `GetSessionRawPsstAsync(id)` / `GetSessionRawPsstWithFingerprintAsync(id)` — return the latest raw MessagePack blob (sync transfer, consumer-side deserialization); the second also returns the fingerprint of those bytes so the session-data push can carry both. The revision-constrained `GetSessionRawPsstAsync(id, processedTelemetryRevision)` returns bytes only while that exact local payload generation still exists.
-- `GetSessionsAsync()` / `GetSessionAsync(id)` / `GetActiveSessionIdsAsync()` / `GetIncompleteSessionIdsAsync()` / `GetIncompleteSessionIdsWithFingerprintAsync()` — metadata projections, active ids for recompute-all, ids of rows without processed data (the last pairs each id with its stored fingerprint as the session-data pull's download match target).
-- `GetProcessingInputBundleAsync(sessionId)` — a constrained join over session/setup/bike/source columns that builds the database-resident processing input bundle for transaction-time fingerprint checks without loading processed telemetry or source payload bytes
+- Reprocessing produces a pure `ProcessedGeneration`. Import, live-save and recompute owners prepare the optional content track and the session before they call the repository.
+- `SessionSyncApplier` validates, prepares, commits and publishes incoming synchronized bytes.
+- `session.data` is the authoritative local processed-telemetry cache. Metadata and sync-delta reads use `SessionMetadataRow`, which projects availability from `data IS NOT NULL` without selecting the BLOB.
+- A payload-bearing `Session` derives `HasProcessedData` only from its loaded `ProcessedData`. Metadata drafts carry no availability override.
+- Persistence helpers map the declared entity schema, so projection-only fields cannot become writes. Duration is a derived session column.
+- Device-local `session_gps_metrics` holds GPS distance, ascent, descent and their input key. Metadata reads join it without loading point JSON. Entity writes and JSON ignore the matching `Session` properties. `SessionSnapshot` carries the joined values and `GpsMetricsKey`.
+- Metadata draft updates preserve `timestamp` and `gps_offset_seconds`. Only creation and window editing set the timestamp; the explicit alignment command owns the offset. Split copies the current alignment to the new session; trim and undo keep it.
+- `gps_offset_seconds` is authored per-session state. It applies when the session-window GPS track is derived from a reusable full `Track`. It lives on `session`, not `track`, because one full ride track can back several recorded sessions or segments.
 
-There is no `GetSessionPsstAsync` on the repository: consumers that need a `TelemetryData` fetch the raw blob and deserialize it themselves through `ISessionTelemetryProcessor`, so MessagePack knowledge stays out of the persistence layer.
+Operations:
 
-`ISessionSyncApplier` (`Sessions/Coordination/SessionSyncApplier.cs`) owns incoming
-processed generations on hub and client. `ApplyUploadedAsync` and
-`ApplyDownloadedAsync` validate transferred MessagePack, submit the captured
-fingerprint/revision/input guard, and publish the authoritative session after success.
-The shared acceptance rule requires the incoming fingerprint to match the current
-processing inputs and keeps an equivalent current local generation. Missing source
-or dependency inputs defer the transfer. The transaction rechecks the captured
-input bundle so a concurrent calibration or processing-option change rejects it.
-Missing-BLOB fills normalize the incoming duration and preserve the current GPS
-metrics. Replacing a held BLOB requires a complete target generation; a fill whose
-row gained a BLOB in the meantime is superseded. Neither path reconstructs a
-session-window payload.
-A complete generation supplies the accepted duration. Track selection is derived locally.
-Invalid or superseded transfers leave persisted and published data unchanged.
+- `PutSessionAsync()` — updates user-authored metadata columns, stamps the authored write like `PutAsync` and clears `Deleted`. It preserves processing options, GPS alignment, timestamps and derived summary metrics; their own commands own those writes. Metadata SQL never names the `data` BLOB, so fingerprint, linkage and local revision stay untouched. A session id that has no row is inserted with the complete supplied aggregate. A soft-deleted row receives the same metadata update.
+- `SetProcessingOptionAsync(id, windowMilliseconds)` / `RestoreProcessingOptionAsync(id, expectedWindowMilliseconds, previousWindowMilliseconds)` — write only `velocity_filter_window_ms` as an authored change. The restore applies only while the stored value equals the expected value.
+- `ImportProcessedSessionAsync(session, newFullTrack, source)` — classifies by source hash and content id inside the write transaction and returns `Inserted` or `Exists`:
+  - An existing source hash returns `Exists` without changing any rows; the coordinator reports `AlreadyImported`.
+  - A live content-id session without a source receives only the source row. Its authored fields, clock and processed data stay unchanged.
+  - A soft-deleted content-id session is restored with the newly prepared recording. The import clears its old window and deletion state and advances its authored version beyond the ledger. Revision triggers keep payload-generation continuity.
+  - A new recording inserts session, full track and source atomically.
+  - Any failed write rolls back the whole transaction. Concurrent imports therefore converge on one session, and older random ids stay when their source hash already exists.
+- `UpdateProcessedDerivedDataAsync(session, newFullTrack, expectedInputs)` — the recompute owner validates its result fingerprint against a captured database input bundle. In one transaction the repository re-reads those scalar inputs and compares them with the bundle. A mismatch or missing dependency rolls back the generation and the optional track together. On a match it writes only `data`, fingerprint and duration, and preserves authored metadata and `updated`. The repository has no fingerprint-service dependency.
+- `UpdateSessionPsstAsync(id, data, fingerprintJson, durationSeconds, expected)` — the missing-BLOB fill. It atomically replaces the BLOB, fingerprint and supplied duration only while the stored fingerprint and telemetry revision match the captured guard. It preserves authored fields and never advances `updated`.
+- `UpdateSessionProcessedGenerationAsync(id, data, fingerprintJson, generation, expected)` — the complete-generation swap, with the same guard. It replaces BLOB, fingerprint and duration together and preserves authored GPS alignment. Both guarded writes also compare the expected hub swap target and clear a matching request in the same transaction. A replaced request or changed generation returns false without changing any rows.
+- `UpdateGpsAlignmentAsync(id, gpsOffsetSeconds)` — persists only the authored GPS offset and advances `updated`. Window points stay a read-time derivation.
+- `GetSessionRawPsstAsync(id)` / `GetSessionRawPsstWithFingerprintAsync(id)` — return the latest raw MessagePack blob for sync transfer; the second also returns the fingerprint of those bytes. `GetSessionRawPsstAsync(id, processedTelemetryRevision)` returns bytes only while that exact local generation still exists.
+- `GetSessionPsstPayloadMetadataAsync(id)` — returns data availability, telemetry revision and fingerprint without the BLOB.
+- `GetSessionsAsync()` / `GetSessionAsync(id)` / `GetActiveSessionIdsAsync()` / `GetIncompleteSessionIdsAsync()` / `GetIncompleteSessionIdsWithFingerprintAsync()` — metadata projections, active ids for recompute-all, and ids of rows without processed data. The last pairs each id with its stored fingerprint as the download match target of the session-data pull.
+- `GetProcessingInputBundleAsync(sessionId)` — a constrained join over session, setup, bike and source columns. It builds the processing input bundle for transaction-time fingerprint checks without loading processed telemetry or source payload bytes.
 
-`ITrackRepository.TryCommitGpsMetricsAsync` accepts a key and prepared GPS values.
-Its transaction selects the current full track using the common overlap rule and
-compares the complete current key before inserting/updating `session_gps_metrics`.
-A changed window, selected track or deleted session rejects the write. Successful
-metric writes never change `session.updated`. The table is not synchronized.
+The repository has no `TelemetryData` read. Consumers fetch the raw blob and deserialize it through `ISessionTelemetryProcessor`, so MessagePack knowledge stays out of the persistence layer.
 
-`ITrackRepository.GetTrackSnapshotsAsync` loads active metadata without point JSON, optionally filtering IDs in chunks of 500. Full-track display uses `GetTrackPayloadMetadataAsync(trackId)` followed by `GetTrackPayloadAsync(trackId, pointsRevision)`; the exact-reader operation accepts a caller-supplied revision and returns no value when it is unavailable. `DeleteIfUnselectedAsync` checks every active session against the current track catalog using `SessionTrackSelection` and deletes only an unselected candidate in the same transaction. The session-delete transaction uses the same check after deleting its session. There is no persisted session-to-track association or containment lookup.
+`ISessionSyncApplier` (`Sessions/Coordination/SessionSyncApplier.cs`) owns incoming processed generations on hub and client:
+
+- `ApplyUploadedAsync` and `ApplyDownloadedAsync` validate the transferred MessagePack, submit the captured fingerprint/revision/input guard, and publish the authoritative session after success.
+- The shared acceptance rule requires the incoming fingerprint to match the current processing inputs and keeps an equivalent current local generation.
+- Missing source or dependency inputs defer the transfer. The transaction rechecks the captured input bundle, so a concurrent calibration or processing-option change rejects it.
+- A missing-BLOB fill normalizes the incoming duration and keeps the current GPS metrics. A fill whose row gained a BLOB in the meantime is superseded.
+- Replacing a held BLOB requires a complete target generation, which supplies the accepted duration. Neither path reconstructs a session-window payload; track selection is derived locally.
+- Invalid or superseded transfers leave persisted and published data unchanged.
+
+`ITrackRepository.TryCommitGpsMetricsAsync` accepts a key and prepared GPS values. Its transaction selects the current full track with the common overlap rule. It compares the complete current key before it inserts or updates `session_gps_metrics`. A changed window, selected track or deleted session rejects the write. Metric writes never change `session.updated`. The table is not synchronized.
+
+`ITrackRepository.GetTrackSnapshotsAsync` loads active metadata without point JSON and optionally filters IDs in chunks of 500. Full-track display calls `GetTrackPayloadMetadataAsync(trackId)` and then `GetTrackPayloadAsync(trackId, pointsRevision)`. The second returns no value when that revision is unavailable. `DeleteIfUnselectedAsync` checks every active session against the current track catalog with `SessionTrackSelection`. It deletes only an unselected candidate, in the same transaction. The session-delete transaction runs the same check after it deletes its session. Session-to-track association is derived, never persisted.
 
 `IRecordedSessionSourceRepository` owns recorded-source rows:
 
-- `GetRecordedSessionSourceAsync(id)` — load one full source payload
+- `GetRecordedSessionSourceAsync(id)` — loads one full source payload
 - `GetRecordedSessionSourceSnapshotsAsync()` / `GetRecordedSessionSourceSnapshotAsync(id)` — metadata-only source projections for stores and refreshes
 - `GetSessionIdsMissingRecordedSourceAsync()` — returns non-deleted session ids whose recording source (`source_session_id`, or the session's own id) has no source row
-- `GetMissingRecordingSourceIdsAsync()` — the same check, but returns the recording source ids instead of the session ids
+- `GetMissingRecordingSourceIdsAsync()` — the same check, but returns the recording source ids
 - `GetReferencedSourceSessionIdsAsync()` — returns the distinct `source_session_id` values of live sessions that derive from another session's source
-- `GetSourceBackedSessionIdsAsync()` — returns ids that currently own a recorded-source row without loading payload BLOBs; the source-sync query uses it to enumerate locally available source owners
+- `GetSourceBackedSessionIdsAsync()` — returns ids that own a recorded-source row without loading payload BLOBs; the source-sync query uses it to enumerate local source owners
 - `DeleteOrphanedRecordedSessionSourcesAsync()` — in one transaction, removes source rows whose owner session no longer exists and that no live session references through `source_session_id`, and returns their ids
-- `PutRecordedSessionSourceAsync(source)` — validates and inserts a source only when its session key is absent, returning the persisted metadata snapshot in the same transaction. An existing source retains its name, hash and payload. The processed-session transaction uses the same write-once insertion. Source deletion stays inside session transactions and orphan retention cleanup
+- `PutRecordedSessionSourceAsync(source)` — validates the source and inserts it only when its session key is absent. It returns the persisted metadata snapshot from the same transaction. An existing source keeps its name, hash and payload. The processed-session transaction uses the same write-once insert. Source deletion happens only inside session transactions and orphan retention cleanup
 
-`session_blob_swap_request` is local durable coordination state for the desktop
-hub's push-direction processed-generation swaps. Each row stores the session id,
-target fingerprint, and serialized `SessionProcessedGeneration`. The
-`sync-authority` migration removes fingerprint-only requests; their session rows
-and held BLOBs remain intact. New requests require a complete target generation.
-The merge engine inserts, replaces, or clears the request inside the same
-transaction that accepts the corresponding deferred session metadata. Startup
-removes requests for missing or soft-deleted sessions, and recreates delete/soft-delete triggers that remove a
-request with its owner session. Listing pending requests only reads the table; a
-matching request is cleared after the validated generation write succeeds. An
-equivalent or ineligible incoming generation is terminally ignored; its owner
-clears the request only if the target fingerprint still matches. A newer request
-survives completion of the old transfer.
+`session_blob_swap_request` is local durable coordination state for the desktop hub's push-direction processed-generation swaps:
 
-`session_video` links a local file to an immutable recording source through `owner_key`. One source/file pair shares one owner-relative alignment offset. `ISessionVideoRepository.LinkAsync` writes distinct source links in one transaction; re-import retains an existing ID, added time and alignment. Session deletion and startup purge leave links intact. The `track-materializations` migration converts and collapses old session links by the widest-window policy, then drops `session_id`. See [video.md](video.md).
+- Each row stores the session id, the target fingerprint and the serialized `SessionProcessedGeneration`. Every request requires a complete target generation. On an older database, `sync-authority` deletes fingerprint-only requests and keeps their sessions and held BLOBs.
+- The merge engine inserts, replaces or clears the request in the transaction that accepts the deferred session metadata.
+- Startup removes requests for missing or soft-deleted sessions. It also recreates the delete and soft-delete triggers that remove a request with its session.
+- Listing pending requests only reads the table. A matching request is cleared after the validated generation write succeeds.
+- An equivalent or ineligible incoming generation is ignored as terminal. Its owner clears the request only if the target fingerprint still matches, so a newer request survives completion of the old transfer.
 
-`session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash and both anchors are source-relative. Reads return non-deleted segments without joining sessions; the picker derives visibility from the source identity and current session window. Session deletion and physical purge retain these rows. Only explicit segment deletion creates a tombstone. The `track-materializations` migration converts old session-relative anchors and drops `session_id` without changing segment IDs or authored clocks. See [segments.md](segments.md).
+`session_video` links a local file to an immutable recording source through `owner_key`. One source/file pair shares one owner-relative alignment offset. `ISessionVideoRepository.LinkAsync` writes distinct source links in one transaction. Re-import keeps an existing ID, added time and alignment. Session deletion and startup purge leave links intact. On an older database, the `track-materializations` migration converts session links to source links. It collapses duplicates by the widest-window policy and drops `session_id`. See [video.md](video.md).
 
-The session derivation window lives on the session row. `source_session_id`,
-`window_start_seconds`, and `window_end_seconds` describe the window; a null
-`source_session_id` means the session uses its own source in full. The
-`previous_window_*` columns keep the window before the last trim for undo.
-These columns are synchronized with the session. Older builds stored trims and
-splits in `private_session_source_range`. Startup copies them once
-(`core_migration` id `session-derivation-window`): live rows that are not the
-session's own full range are copied, then sessions without a range row take the
-window stored in their processing fingerprint. The copy drops the range table.
+`session_segment` holds source-owned named ranges. `owner_key` is the immutable source hash, and both anchors are source-relative. Reads return non-deleted segments without joining sessions. The picker derives visibility from the source identity and the current session window. Session deletion and physical purge keep these rows. Only explicit segment deletion creates a tombstone. On an older database, the `track-materializations` migration converts session-relative anchors and drops `session_id`. It keeps segment IDs and authored clocks. See [segments.md](segments.md).
 
-After the derivation-window migration, startup drops `extension_schema_version`, the table
-that held the schema versions of the old tables.
+The session derivation window lives on the session row. `source_session_id`, `window_start_seconds` and `window_end_seconds` describe the window. A null `source_session_id` means the session uses its own source in full. The `previous_window_*` columns keep the window before the last trim for undo. These columns are synchronized with the session. On an older database, the `session-derivation-window` migration copies each live, non-full range from `private_session_source_range`. Sessions without a range row take the window stored in their processing fingerprint. The migration then drops the range table. Startup also drops `extension_schema_version`, which held the old tables' schema versions.
 
 ## JSON Serialization
 
-Live-capture source JSON belongs to `Sufni.Telemetry.TelemetryCodec` and its
-source-generated context. The library payload maps legacy dense and current
-segment shapes to captures. Frozen fixtures pin its bytes; source identity clears
-only `Metadata.SourceName` before re-encoding through that same codec.
+Live-capture source JSON belongs to `Sufni.Telemetry.TelemetryCodec` and its source-generated context. The library payload maps legacy dense and current segment shapes to captures. Frozen fixtures pin its bytes. Source identity clears only `Metadata.SourceName` before it re-encodes through the same codec.
 
-`AppJson` (`Sufni.App/Sufni.App/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` at the composition root. It owns the lenient local/client profile:
+`AppJson` (`Sufni.App/Sufni.App/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` at the composition root. It owns one lenient profile (`AppJson.Options` / `AppJson.Context`):
 
-- **Lenient** (`AppJson.Options` / `AppJson.Context`) — all local round-trips (entity and track JSON columns; the processing dependency hash) and the entire sync client. Case-insensitive binding with a snake_case enum converter. Its output is deliberately **byte-stable**: `ProcessingDependencyHash` SHA-256s the `AppJson.Options`-serialized payload, so any change to the lenient options would silently invalidate every stored processing fingerprint. Treat the lenient profile as a wire/hash contract, not a tunable.
-The server's actual request/response options are configured by
-`SynchronizationProtocol.ConfigureJson`: duplicate keys and unmapped members
-are rejected, names are case-sensitive, and non-nullable members and constructor
-parameters are required. The same options retain snake_case enum output and
-ASP.NET's response naming policy. The binary session/source PATCH paths validate
-metadata headers separately. Tests exercise this production configuration; the
-unused AppJson inbound profile has been removed.
+- All local round-trips use it: entity and track JSON columns and the processing dependency hash. The entire sync client uses it too.
+- It binds case-insensitively and uses a snake_case enum converter.
+- Its output is **byte-stable**. `ProcessingDependencyHash` computes SHA-256 over the `AppJson.Options`-serialized payload. Any change to these options silently invalidates every stored processing fingerprint. Treat the profile as a wire and hash contract, not a tunable.
 
-Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values, `LinkageSpec`, `LeverageRatioSpec`, and `WheelSpec`. Sync rows and schema-versioned bike export files require `rear_suspension`; missing unions, malformed unions, and the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` JSON triple are invalid outside the local SQLite startup migration. The pre-refactor mutable linkage classes are not serialization roots.
+`SynchronizationProtocol.ConfigureJson` configures the server's request and response options. It rejects duplicate keys and unmapped members, uses case-sensitive names, and requires non-nullable members and constructor parameters. It keeps snake_case enum output and ASP.NET's response naming policy. The binary session/source PATCH paths validate their metadata headers separately. Tests exercise this production configuration.
 
-`ISessionRepository.ImportProcessedSessionAsync` performs the source-hash and
-content-id classification inside the write transaction. An existing source hash
-returns `Exists` without changing any rows; the coordinator reports `AlreadyImported`. A live content-id session
-with no source receives only the source row; its authored fields, clock and
-processed data are preserved. If that retained row is soft-deleted, explicit
-re-import restores the same id with the newly prepared recording, clears its
-old window/deletion state and advances its authored version beyond the ledger.
-Revision triggers preserve payload-generation continuity. Restoration, source
-insertion and the optional generated track commit or roll back together.
-A new recording inserts those same values atomically. Concurrent imports therefore converge on one session, and
-pre-upgrade random ids are retained when their source hash already exists.
+Bike persistence, sync and export JSON carry `RearSuspensionSpec` union values, `LinkageSpec`, `LeverageRatioSpec` and `WheelSpec`. Sync rows and schema-versioned bike export files require `rear_suspension`. A missing or malformed union, or the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` JSON triple, is invalid outside the local SQLite startup migration.
 
 ## Soft Delete
 
-`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment`, `custom_tile_layer` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence`, and hub `SyncSequence`. `paired_device`, `session_recording_source`, and `sync` are not `Synchronizable` and have their own lifecycles. The one-time `track-materializations` migration groups tracks by complete point
-content, preserves an active row when one exists, and chooses the lowest old ID
-within that state. It rekeys each survivor to its content ID without changing authored session clocks. Distinct points with
-matching start/end times remain separate. Retained deleted rows with points are
-rekeyed too; point-less tombstones keep their old identities. There is no per-launch track deduplication pass. The same migration drops
-`session.track`, `track_projection_revision` and `full_track_id`, removes the retired revision
-trigger, and rewrites queued generation JSON without the cached track or GPS metrics.
-It also removes the fractional window origin formerly folded into GPS alignment,
-without changing session clocks or effective track positioning. Fractional origins
-are explicit read inputs derived from `window_start_seconds`.
-It copies legacy distance/ascent/descent into `session_gps_metrics` with an empty
-key, then drops those columns from `session`. The old values remain visible until
-the coordinator replaces them. Startup removes metric rows after their session
-has been physically purged.
+`Synchronizable` entities (`Sufni.App/Sufni.App/SyncAndPairing/Models/Synchronizable.cs`) — `bike`, `setup`, `session`, `board`, `track`, `session_segment`, `custom_tile_layer` — carry authored `Version`, `Updated`, `UpdatedBy`, nullable `Deleted`, device-local `LocalSequence` and hub `SyncSequence`. `paired_device`, `session_recording_source` and `sync` are not `Synchronizable` and have their own lifecycles.
+
+On an older database, the one-time `track-materializations` migration:
+
+- groups tracks by complete point content and keeps one row per group: an active row when one exists, else the lowest old ID. It rekeys that row to its content ID without changing authored session clocks. Distinct points with matching start and end times stay separate. Deleted rows with points are rekeyed too; point-less tombstones keep their IDs;
+- drops `session.track`, `track_projection_revision` and `full_track_id`, and rewrites queued swap-request generation JSON without the cached track or GPS metrics;
+- removes the fractional window origin from `gps_offset_seconds`, without changing session clocks or effective track positioning. Readers derive the fractional origin from `window_start_seconds`;
+- copies legacy distance, ascent and descent into `session_gps_metrics` with an empty key, then drops those columns from `session`. The old values stay visible until the GPS metrics workflow replaces them.
 
 On database initialization, the `Cleanup()` pass permanently removes:
 
 - `Synchronizable` rows with `Deleted` older than 1 day
-- `paired_device` rows whose `Expires` precedes the injected clock’s UTC time
+- `session_gps_metrics` rows whose session row no longer exists
+- `paired_device` rows whose `Expires` precedes the injected clock's UTC time
 
-Recorded-source orphan cleanup runs after initialization through
-`RecordedSessionSourceRetentionCleanup`, not inside the schema cleanup pass. It
-calls `DeleteOrphanedRecordedSessionSourcesAsync()`, which keeps every source
-row that a live session references, and publishes the removed ids to the
-recorded-source store. This lets a split/trimmed derived session keep using a source row whose
-original owner session has been purged.
+`RecordedSessionSourceRetentionCleanup` runs recorded-source orphan cleanup after initialization, outside the schema cleanup pass. It calls `DeleteOrphanedRecordedSessionSourcesAsync()`, which keeps every source row that a live session references. It publishes the removed ids to the recorded-source store. A split or trimmed session therefore keeps its source row after the original owner session is purged.
 
 ## Conflict Resolution
 
-`SynchronizationMergeEngine.Merge` is used by both push and pull inside one
-transaction. `SynchronizationMergeOrder` compares authored history in this order:
+`SynchronizationMergeEngine.Merge` serves both push and pull inside one transaction. `SynchronizationMergeOrder` compares authored history in this order:
 
 1. Higher `version` wins.
 2. At equal version, deletion beats content.
-3. Between two contents or two deletions, later `updated` wins, then the higher
-   `updated_by` using ordinal string ordering.
+3. Between two contents or two deletions, later `updated` wins, then the higher `updated_by` using ordinal string ordering.
 4. Equal history is a no-op. Neither side re-stamps authored metadata.
 
-Accepted writes allocate a local sequence; the hub additionally allocates its
-acceptance sequence, while a client preserves the received hub sequence. Accepted
-replicas receive a local sequence too, so a later pairing from cursor zero includes
-every locally held fact. Returning a replica to its originating hub is a merge
-no-op; it does not allocate another sequence or perpetually circulate.
-`SynchronizationData.deletions` carries durable ledger entries even after payload
-purge. Content at or below a ledger version is rejected; explicitly restored
-content above it can win. A historical deletion can be retained without hiding
-newer active content. Soft deletion preserves the retained payload. Repeating the
-same exchange changes neither rows nor sequence counters.
+Accepted writes allocate a local sequence. The hub also allocates its acceptance sequence, while a client keeps the received hub sequence. Accepted replicas get a local sequence too, so a later pairing from cursor zero includes every locally held fact. A replica that returns to its originating hub is a merge no-op. It allocates no sequence and does not circulate.
 
-Session merge accepts metadata, processed-generation fields, tuning fields, and `session_processing_fingerprint`, but it does not move the processed telemetry BLOB or raw recording source through `SynchronizationData`. Those payloads use the dedicated endpoints described in [Cross-Device Synchronization](sync.md). When the local row already holds a processed BLOB, both inbound merge paths defer the **whole processed generation** — fingerprint and duration — while applying independent user metadata, including GPS alignment. Matching bytes and the accepted generation then move together through the session-data endpoint's [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).
+`SynchronizationData.deletions` carries durable ledger entries even after payload purge. Content at or below a ledger version is rejected; explicitly restored content above it can win. A historical deletion can stay without hiding newer active content. Soft deletion preserves the retained payload. Repeating the same exchange changes neither rows nor sequence counters.
+
+Session merge accepts metadata, processed-generation fields, tuning fields and `session_processing_fingerprint`. It never moves the processed telemetry BLOB or the raw recording source through `SynchronizationData`; those payloads use the dedicated endpoints in [Cross-Device Synchronization](sync.md). When the local row already holds a processed BLOB, both inbound merge paths defer the **whole processed generation** (fingerprint and duration). They still apply independent user metadata, including GPS alignment. Matching bytes and the accepted generation then move together through the session-data endpoint's [download-then-swap](sync.md#processed-blob-coherence-download-then-swap).

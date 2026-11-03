@@ -1,0 +1,75 @@
+ADVERSARIAL KEEP CHALLENGE — SESSION REVIEWER — 2026-11-03
+
+Selected 18 existing KEEP methods in domains.csv, emphasizing command/property forwarding, menu actions and plot flags. Read each full method, its local fixture/defaults, relevant production implementation and actual consumers. Static review only; no tests/mutation runs. Did not edit domains.csv. Recommendations below require parent reconciliation with the domain auditor.
+
+Results: 10 KEEP justified (one evidence correction); 6 REWRITE; 2 MERGE. REWRITE/MERGE are not retained unchanged.
+
+KEEP (evidence correction): Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:586 — SaveCommand_Disabled_WhenOnlyOneWheelIsConfigured
+The fixture is TestSnapshots.Bike(), whose rear mode is Hardtail, not a linkage bike as the current reason implies. Name changes so IsDirty is true, front diameter becomes 760 while rear stays absent; SaveCommand must be disabled. BikeEditorViewModel.CanSave calls BikeSaveValidator.HasRequiredInputs, which requires matched wheel presence for every non-curve kind. Removing that parity condition would enable an invalid photo/wheel configuration. Keep, but describe actual hardtail fixture rather than linkage-capable behavior.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:597 — SaveCommand_Enabled_WhenOnlyOneWheelIsConfigured_OnLeverageRatioBike
+Curve fixture has exactly one front wheel and dirty name. Public SaveCommand remains enabled because HasRequiredInputs explicitly exempts RearSuspensionKind.LeverageRatio from paired-wheel presence. Removing only that exception breaks this while preceding non-curve negative remains valid; distinct meaningful UI availability, not a generated property copy.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:613 — SaveCommand_Disabled_WhenForkStrokeMissing
+Dirty valid hardtail then ForksStroke=null isolates required fork geometry. CanSave would become true if null-fork guard removed. Actual public command availability prevents user save attempt; useful negative counterpart to valid fork-only case.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:624 — SaveCommand_Enabled_WhenForkOnlyAndChanged
+Dirty name on valid fork-only snapshot with no rear geometry must allow save. A regression requiring rear/shock inputs globally fails this. This is the positive public availability branch paired with missing-fork and partial-wheel cases, not a constructor inventory.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:778 — SetRearSuspensionModeCommand_RejectsChangesWithoutPointerCapability
+Touch-only InputCapabilities gates both CanExecute and command body. Test deliberately ExecuteAsync despite false CanExecute and requires unchanged None mode/disabled curve editing/no destructive prompt. It catches bypassing the capability inside execution, a real difference from only checking property assignment. Extra no-dialog expectation is a user-visible prompt absence rather than arbitrary sequence.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:868 — SetRearSuspensionModeCommand_DoesNotReprompt_AfterOutgoingPayloadAlreadyDiscarded
+After confirmed discard of full linkage, switching through None and back to empty Linkage must permit the next curve switch without another destructive prompt. HasOutgoingPayload checks actual linkage/image/chainstay; ResetOutgoingPayload clears those. The negative ShowConfirmation observation is the user-visible no-repeat prompt contract, not arbitrary collaborator choreography. A regression retaining old image/linkage would prompt again, so unchanged final mode alone is not the sole oracle. Keep; other tests separately cover state clearing.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:1021 — DeleteCommand_Disabled_WhenDependencyQuerySaysInUse
+Known persisted bike with query IsBikeInUse=true must disable DeleteCommand; removing only dependency gate makes destructive intent available. Public command availability is a valid user contract. No unrelated control/static label inventory.
+
+KEEP: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:1272 — Reset_ShowsPlotBusyWhileAnalysisRefreshRuns
+A pending analysis TaskCompletionSource is configured after changing shock stroke; ResetCommand must expose IsPlotBusy until that task settles, then clear it. Production ResetImplementation requests refresh with showPlotBusyOverlay=true and awaits it. Returning immediately or clearing busy before completion fails. Add bounded await/editor close mechanically; useful timing assertion itself earns retention.
+
+REWRITE: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:1336 — ImportLeverageRatio_AppliesImportedCurve_ThroughParentCommand
+Current test asserts Received(1) ImportLeverageRatioAsync, BuildCurrent equality and empty ValidationErrors. BuildCurrent is exactly => Value, while ApplyImportResult directly assigns imported.Value and clears errors. Existing initial errors are already empty, so clearing is not proved. This is parent-to-child forwarding with inert assertion, not proof import becomes authored bike state. Execute import, assert dirty/saveability and captured public SaveAsync draft contains the imported curve; seed an old validation error if claiming it cleared.
+
+REWRITE: Sufni.App.Tests/Bikes/ViewModels/Editors/BikeEditorViewModelTests.cs:1369 — ImportLeverageRatio_SurfacesValidationErrors_ThroughChildState
+Only verifies substitute Invalid([bad csv]) array appears unchanged on child ValidationErrors. It does not assert old curve preserved, editor remains usable, or public save draft unchanged. ApplyImportResult simply assigns ErrorMessages. Retain invalid-import behavior with old Value/dirty/saveability and public feedback assertions rather than one forwarded array equality.
+
+REWRITE: Sufni.App.Tests/Segments/Plots/SegmentComparisonPlotTests.cs:83 — LoadRow_ShowsTheEmptyMessage_WhenNoSeriesCanBeDrawn
+One-point row correctly gives no Scatter, but exact No matched velocity data string is a user-copy assertion and private plottable Text enumeration. Production filters series shorter than two points in MapSeries and then delegates empty-state rendering to RecordedTimeSeriesPlot. Assert no drawable data and a semantic nonempty unavailable presentation through public plot/view boundary; do not pin copy. This is genuinely mixed useful gate plus message inventory, so not KEEP unchanged.
+
+MERGE: Sufni.App.Tests/Segments/Plots/SegmentComparisonPlotTests.cs:148 — LoadRow_ShowsTheLegend_OnlyForMultipleSeries
+The test only checks single.Legend.IsVisible=false and multiple.Legend.IsVisible=true. SegmentComparisonPlot.LoadRow supplies ShowLegendWhenSingleSource=false and delegates rule to RecordedTimeSeriesPlot.LoadTimeSeries. RecordedTimeSeriesPlotTests.LoadTimeSeries_WithMultipleSeries_ShowsSourceLegend plus its single-series test already cover this same generic legend rule. Keep base-owner coverage; if comparison differs, prove its specific series labels/source distinction/interaction instead of flag duplication.
+
+REWRITE: Sufni.App.Tests/Segments/ViewModels/SegmentComparisonRowViewModelTests.cs:16 — TravelRow_TogglesTheAirtimeOfTheMatch
+Header action executes a RelayCommand whose entire body is ShowAirtime=!ShowAirtime plus updating IsChecked/tooltip; assertions observe two booleans only. Public consumer SegmentComparisonPlotView copies ShowAirtime when row PropertyChanged fires and renders overlay. Prove actual airtime overlay visibility changes through public mounted comparison row/plot, including notification wiring; current test passes if PropertyChanged or plot binding breaks. Avoid retaining trivial toggle as standalone business proof.
+
+REWRITE: Sufni.App.Tests/Segments/ViewModels/SegmentComparisonRowViewModelTests.cs:29 — VelocityRow_HasNoAirtimeToggle
+Exact [compare-analysis,remove] HeaderActions sequence is menu inventory. Absence of airtime on velocity is meaningful, but does not justify pinning unrelated compare/remove ordering. Replace sequence equality with absence of airtime action and no airtime overlay for a velocity row containing underlying match airtimes, through public row/view behavior. Mixed method fails unchanged-retention standard.
+
+KEEP: Sufni.App.Tests/Segments/ViewModels/SegmentComparisonViewModelTests.cs:31 — MatchCommand_CannotExecute_WithoutAnAnalysisRange
+CreateComparison first publishes real telemetry, track timeline and selected AnalysisRange through the public state stream; then only AnalysisRange becomes null. CanMatch derives CreateMatchSource, so removing range requirement would enable matching unrelated/unselected data. Focused public command gate has concrete regression.
+
+KEEP: Sufni.App.Tests/Segments/ViewModels/SegmentNamePromptViewModelTests.cs:8 — Confirm_WithInvalidName_ShowsValidationAndStaysOpen
+Validator returns duplicate-name rejection, ConfirmCommand runs, HasValidationMessage becomes true, Completed stays false and ConfirmedName stays null. Actual content-dialog completion boundary controls whether prompt closes; ignoring validator or completing before validation fails. This is behavioral rejection, not forwarding text inventory.
+
+REWRITE: Sufni.App.Tests/Setups/ViewModels/Editors/SetupEditorViewModelTests.cs:213 — SettingShockSensorType_ToLinearShockStroke_OnCurveBike_CreatesMatchingViewModel
+Selecting ShockSensorType only asserts concrete LinearShockSensorConfigurationViewModel class and Type copy. OnShockSensorTypeChanged directly calls SensorConfigurationViewModel.Create. User needs a correct stroke calibration draft persisted for the curve bike, not a particular child CLR class. Set calibration values, save via public editor and assert captured SetupDraft rear sensor type/values plus valid command behavior. Current type inventory would pass with broken subscriptions/draft capture.
+
+MERGE: Sufni.App.Tests/Video/ViewModels/VideoPlaybackViewModelTests.cs:95 — ToggleSyncCommand_TogglesSync_WhenSyncIsAvailable
+ToggleSyncCommand merely IsSyncEnabled=!IsSyncEnabled; test observes bool true then false with no backend/timeline consequence. Existing Sync_SeeksBackendToAlignedVideoTime_WhenTimelineCursorChanges uses direct property assignment, so change that survivor to enable via public command and then disable before another cursor move, asserting aligned seek and suppressed seek. Keep actual sync behavior, eliminate toggle-only property plumbing.
+
+Production/context references
+- Bikes/ViewModels/Editors/BikeEditorViewModel.cs:812 CanSave, 880 CanDelete, 906 ResetImplementation, 929 mode command, 1022 import command.
+- Bikes/Coordinators/BikeSaveValidator.cs:22 HasRequiredInputs.
+- Bikes/ViewModels/Editors/Bike/LeverageRatioEditorViewModel.cs:55 BuildCurrent, 63 ApplyImportResult.
+- TestSupport/Fixtures/TestSnapshots.cs:16 Bike defaults hardtail; local BikeEditorViewModelTests.CreateEditor and FullSuspensionSnapshot inspected.
+- Segments/ViewModels/SegmentComparisonRowViewModel.cs constructor/airtime command; Segments/Views/SegmentComparisonPlotView.cs:57-65 binds ShowAirtime.
+- Segments/Plots/SegmentComparisonPlot.cs LoadRow/MapSeries delegates legend/no-data rendering to RecordedTimeSeriesPlot; Sessions/Plots/RecordedTimeSeriesPlotTests.cs contains generic single/multiple legend assertions.
+- Segments/ViewModels/SegmentComparisonViewModel.cs:174 Match, 208 CanMatch, 426 CreateMatchSource; test CreateComparison publishes valid non-range inputs.
+- Segments/ViewModels/SegmentNamePromptViewModel.cs Confirm validates before completion.
+- Setups/ViewModels/Editors/SetupEditorViewModel.cs:107 sensor selection delegates factory and CaptureDraft captures child configuration.
+- Video/ViewModels/VideoPlaybackViewModel.cs:146 sync side effects, 191 trivial toggle; existing aligned-seek test is merge target.
+- docs/architecture/segments.md, video.md, processing.md, ui.md, ui-state.md and manifest used for boundaries.
+
+Additional infrastructure notes from this sample
+Bike and video helpers do not generally dispose created editors/playback view models, leaving event subscriptions beyond test lifetime. Busy reset test uses an unbounded final await. These are cleanup/test determinism issues and should be fixed in narrow existing fixtures, not converted into a large generic harness. Proposed changes are recommendations only; no test or production code was altered.

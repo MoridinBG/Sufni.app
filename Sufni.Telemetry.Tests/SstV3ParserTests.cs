@@ -25,27 +25,6 @@ public class SstV3ParserTests
     }
 
     [Fact]
-    public void Parse_ValidV3File_ReturnsCorrectData()
-    {
-        using var ms = SstTestFiles.CreateV3ParserStream(samples: [(100, 200), (110, 210)]);
-        using var reader = new BinaryReader(ms);
-
-        var parser = new SstV3Parser();
-
-        // Act
-        var result = parser.Parse(reader, 3);
-
-        // Assert
-        Assert.Equal(3, result.Version);
-        Assert.Equal(1000, result.SampleRate);
-        Assert.Equal(123456789, result.Timestamp);
-        Assert.Equal(2, result.Front.Length);
-        Assert.Equal(2, result.Rear.Length);
-        Assert.Empty(result.Markers);
-        Assert.Null(result.ImuData);
-    }
-
-    [Fact]
     public void Parse_V3FileWithEmptyData_ReturnsEmptyArrays()
     {
         using var ms = SstTestFiles.CreateV3ParserStream(timestamp: 0);

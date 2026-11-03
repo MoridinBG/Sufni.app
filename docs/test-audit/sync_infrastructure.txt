@@ -1,0 +1,176 @@
+SYNC AND INFRASTRUCTURE TEST AUDIT — 2026-11-03
+
+Scope and decision rule
+
+Audited every actual test method in the 37 sources assigned to sync_infrastructure in inventory.json: 252 methods. Theory data rows count as one method. The CSV is the exhaustive ledger, with method declaration lines, specific assertions, a proposed regression and an action. Totals: KEEP 168; REWRITE 48; MERGE 22; REMOVE 14; UNPROVEN 0. Existing retention is 168/252 (66.7%); the remaining 84 do not earn retention unchanged. MERGE is not permission to discard distinct input branches: the named survivor must first absorb any behavior the ledger explicitly identifies.
+
+This is a static audit, not an execution or mutation campaign. No production or test source changed. No tests were run because their TempDatabase/TempDirectory fixtures create files outside the project. Passing builds, green tests, test names and coverage were not used as retention evidence. Counterexamples below are reasoned from assertions and implementation, not empirical mutation results.
+
+Required context read: AGENTS.md; docs/TESTING.md; docs/VIEW-TESTING.md; docs/ARCHITECTURE.md; docs/ARCHITECTURE-MANIFEST.md; docs/architecture/sync.md, persistence.md, ui.md, ui-workflows.md and theming.md. Production boundaries checked include the real sync/pairing coordinators, merge engine and repository implementations, protocol/AppJson declarations, HTTP owner/peer, desktop server route wiring, startup migration/connection ownership, discovery adapters and their consumers, view models, XAML and PIN control. No docs/plans were read.
+
+A concrete implementation being internal did not automatically disqualify it. LocalDeviceIdentity/GetIdAsync, SQLite repositories/ISyncDataStore and AndroidServiceDiscovery/IServiceDiscovery implement real public contracts; observable identity persistence, row histories and native-resource lifetimes can earn KEEP. Direct helper state machines, endpoint caches, certificate predicate helpers and server mapping helpers do not earn retention merely because their methods are callable. Public serializer/migration tests can be retained for genuine compatibility behavior. Static resource inventories, object/task identity requirements, SQLite implementation counters and collaborator sequences need additional public evidence.
+
+Highest-priority findings
+
+1. Several tests claim stronger guarantees than their assertions measure.
+
+   Sufni.App.Tests/SyncAndPairing/Coordinators/SyncCoordinatorClientRunTests.cs:693, SyncAll_PublishesPulledRecordedSourcesInOneBatch, only asserts two repository calls and two final store values. Publishing two separate batches would pass. REWRITE: observe StorePublication.Committed/change sets and assert one coherent notification containing both sources. The production PullIncompleteSessionSources finally block publishes the collected committed snapshots together; the test needs to observe that guarantee.
+
+   Sufni.App.Tests/SyncAndPairing/Services/HttpApiServiceTests.cs:491, ConfirmPairingAsync_PublishesTrue_AfterCredentialsAndCertificateAreStored, observes [false,true] and reads storage only after confirmation returns. Publishing true before persistence then finishing the writes would also pass. REWRITE: gate refresh-token/incarnation/certificate writes, prove no paired notification while pending, then inspect storage at the paired notification. Current code saves tokens and certificate inside SynchronizationPeer.ConfirmPairingAsync before HttpApiService publishes.
+
+   SyncCoordinatorClientRunTests.cs:622, SyncAll_HandlesPulledRecordedSourceOutcome, has useful valid/existing-source/repository-failure branches. Invalid hash/SST/live-JSON branches merely assert no put/no publication; a run incorrectly reporting Completed would pass. REWRITE into focused valid-publication, invalid=>IncompleteData/pending-id, and persistence=>Failed cases. Do not retain the whole theory unchanged because some rows are useful.
+
+   SyncCoordinatorClientRunTests.cs:452, SyncAll_CompletesFillDownloads_BeforeAnySwapDownloadStarts, gates the HTTP fill response and checks request order. Its name and documented contract imply fill commits precede swap processing, but no committed/public state is observed. REWRITE with commit/publication gating and resulting generations.
+
+2. Internal helper suites replace the relevant discovery/HTTP boundary.
+
+   BonjourBrowseLifecycleTests.cs:10..143 contains nine helper tests. Two are outright helper bookkeeping/overlap; useful stale resolution, stop/restart and replacement scenarios should move to IServiceDiscovery.ServiceAdded/ServiceRemoved on the Apple adapter. Eight tracks and a numeric resolution id are not a public contract. The concurrent-stop test also has unbounded awaits and a blocking GetResult cleanup gate.
+
+   SocketServiceDiscoveryEndpointCacheTests.cs:9..83 contains six direct cache probes. They identify real needs—stale address aliases, withdrawing the emitted endpoint, per-instance separation and stopping all presence—but never exercise SocketServiceDiscovery's own generation checks/events. Rewrite the meaningful cases at that boundary and fold empty-cache/empty-address no-ops into those scenarios.
+
+   BonjourSocketAddressTests.cs:9..29 targets the Darwin decoder helper. IPv4, scoped IPv6 and truncated input have useful real native-wire meaning, but the current tests bypass the Apple discovery announcement mapper. Rewrite at that public adapter surface; do not pretend helper accessibility alone is a public API.
+
+   SynchronizationServerServiceTests.cs:22,93,113,130 executes internal IResult mapping helpers in DefaultHttpContext. Useful response-status cases should go through the actual configured HTTP route surface, preserving controlled coordinator completion. Current tests can pass when routing, auth grouping, protocol headers, request metadata or endpoint binding are broken. CreateServiceInstanceNames at line82 is merely a constant/list inventory and is REMOVE.
+
+3. Implementation inventories and incidental constants fail the stated value gate.
+
+   MobileAppBootstrapperTests.cs:13 enumerates registration identities, lifetimes and concrete types. REMOVE; AppCompositionTests.SharedGraph_ValidatesForDesktopAndroidAndIos is a legitimate focused graph-construction smoke test and the video-capability mismatch test catches a separate structural error.
+
+   SufniThemeTests.cs:26 asserts shared object identity for typography/spacing; equivalent immutable values would render identically. Static key checks at lines55/86 cannot detect wrong palette values or failed runtime resolution. Remove identity/key inventories, and replace the useful Fluent palette-isolation scenario with mounted variant switching and resolved appearance. The exact 0.999 remaining-fraction assertion in PairingServerViewModelTests.cs:31 is another incidental implementation constraint; retain dispatch/PIN transitions with a meaningful validity assertion.
+
+   DatabaseMigrationRunnerTests.cs:743/1074/1091 inventories fresh schema columns, obsolete-table absence or ten old timestamp/deletion index names. The index test does not even inspect the sequence indexes used by current sync. Remove these as standalone tests. Populated-schema compatibility and bounded data-selection survivors provide actual user/library behavior. Initialization_AddsFingerprintColumnToLegacySessionTable at line1136 needs populated data and repository outcomes; an empty legacy table plus column-name checks is insufficient.
+
+   SessionExchange_RepeatedInBothDirections_DoesNotWrite and the convergence/eligibility matrix tails inspect SELECT total_changes(). A harmless write strategy could fail them without changing sync behavior; conversely a no-op counter alone does not prove the public watermark/generation remains coherent. REWRITE with unchanged public sequence bounds, empty deltas and retained generations. Initialization_ReplacesExistingLocalRevisionTriggers should assert usable exact reads after upgrade rather than textual WHEN/not999 in sqlite_master.
+
+4. Parent surfaces repeat generic child/owner behavior.
+
+   PairingClientViewTests.cs:128 and :149 only repeat generic ErrorMessagesBar/NotificationsBar visibility after already-covered command outcomes. REMOVE. Keep actual parent-owned locating/paired/PIN transitions and button routing.
+
+   PairedDeviceListViewModelTests.cs:16/:93 create a real PendingDeletes workflow and a fake coordinator, with a local callback manufacturing successful store removal. Rewrite list tests around their own IPendingDeletes state projection; the pending commit lifetime/failure workflow belongs to the shell owner. The real PairedDeviceCoordinator test remains KEEP because it checks repository/store commit facts and failure preservation.
+
+Overlap clusters and designated survivors
+
+- ServiceAnnouncementMetadataReader byte happy path -> ReadTxtRecords_UsesEmptyValueForInvalidUtf8_AndKeepsFirstDuplicate (include a valid board-id row).
+- PairingClientCoordinator successful normalized confirmation / equal-name event plumbing -> ConfirmPairingAsync_HappyPath_FromFallbackName_RaisesDisplayNameChanged (absorb whitespace/name/pin input; event-count-only equal-name variation is not independently needed).
+- PairingClientCoordinator peer arrival -> InitializeAsync_DerivesPairingFromLoadedPeer if post-init external arrival remains a required separate row.
+- Empty full sync result -> SyncAll_ChangedHubIncarnationStartsBaseline_AndPushesExistingLocalFacts (already asserts Completed with durable facts).
+- Certificate pin helper successes/failures -> HttpApiServiceTests.Rediscovery_KeepsThePeerPin_AndRejectsAnotherHubAtTheNewAddress (real traffic accepts original/rejects other cert).
+- Nonzero upper-bound roundtrip -> WriteMetadata_TransmitsAuthorshipAndHubSequence_WithoutLocalSequence.
+- Old suspension triple without required union -> profile-specific missing-rear-suspension survivor. The old test cannot isolate unmapped-member rejection because the union is also absent. To prove strict obsolete-key rejection, send a valid union plus obsolete keys.
+- DirectionalCursorUpdates_InsertOrUpdateSingleRow -> CursorIdentity_IsolatedByHubAndDatabase_AndRetainedAcrossRestart; absorb seeded-existing-row branch before deleting.
+- NewBikeRows_WriteRearSuspensionColumn -> Initialization_LeavesAlreadyMigratedRearSuspensionRowsUnchanged; survivor already writes current linkage and verifies parsed/raw value across restart.
+- Zero revision backfill -> Initialization_RepairsNullLocalContentRevisions_FromPopulatedLegacySchema, preserving a zero-existing-column input alongside missing/nullable predecessor shape.
+- No-op trigger write counter -> LocalContentRevisionTriggers_IncrementOnlyForEffectiveContentChanges_AndPreserveUpdated; keep meaningful unchanged revision semantics, discard write-count-only restriction.
+- Derived-source swap special case -> rewritten MergeDirections_RequestOnlyCurrentOrSourcePendingGenerations. Preserve the distinction between unchanged derived window and changed source/window as separate rows, because current helper inputs are similar but not identical.
+- Board input timestamp nonmutation -> rewritten BothMergeDirections_ConvergeInEitherArrivalOrder_AndRepeatedExchangeWritesNothing with insert/update authored-history cases.
+- Session input timestamp nonmutation -> MergeAllAsync_RetainsHeldProcessedGeneration plus a focused insert/no-BLOB row. Preserve committed authored times, not an unconsumed mutable-input identity rule.
+- Empty desktop paired-device list -> representative PairedDeviceListDesktopView_RendersBoundRows_AndStartsUndoWhenDeleteIsRequested if initial empty state is worth expressing in that flow.
+
+Examples that earned KEEP, with concrete regression counterexamples
+
+- InboundPairingTests.cs:18 ConfirmPairingAsync_RequiresBoundIdentityNameAndUnexpiredPin: changing the name/device binding or allowing t==30 acceptance would produce Issued and durable/public pair where the existing assertions require Rejected/no pair. The happy row independently hashes the issued refresh token, so merely returning tokens without persisting matching credentials fails.
+- InboundPairingTests.cs:93 RefreshPairingAsync_ConcurrentRecoveryAcceptsPreviousTokenOnlyOnce: a non-atomic recovery slot could issue twice for two simultaneous requests; exact one Issued/one Rejected catches it.
+- InboundSyncCoordinatorTests.cs:24 ApplyPushAsync_InvalidDeletionRejectsWholePushWithoutPublication: committing the first valid delete before rejecting a later invalid deletion would remove the existing board or leave a ledger; both durable and published assertions reject that partial failure.
+- SynchronizationApplierTests.cs:24 ApplyAsync_PublishesAllRelatedFamiliesTogether_AndWaitsForDispatcher: per-family publication would expose half-joined bike/setup/board/session/track/layer/segment state and/or multiple commits. The actual observer reads all families on the same Committed notification. Both merge directions are genuine callers.
+- SyncCoordinatorClientRunTests.cs:141 SyncAll_UpgradeBaselinePullsFirst_AndRetainsNewerHubContentOnBothDevices: reversing first baseline order can overwrite newer hub setup; the two actual databases must both finish with hubSetup.
+- SyncCoordinatorClientRunTests.cs:180 SyncAll_EditDuringRun_RemainsOutsideAcknowledgedBound_AndPushesOnNextRun: recapturing the bound after a concurrent edit could acknowledge an unsent edit. Existing assertions demand first bound unchanged, next run's edited SetupId/version2 and a higher bound.
+- SyncCoordinatorTests.cs:169 RePairingTheSameHub_ResetsCursorsBeforeConfirmation_AndPushesEveryLocalFact: keeping previous100/100 cursors would skip the existing board. The callback checks reset before accepted pairing and the captured outbound payload contains the board.
+- HttpApiServiceTests.cs:609 RePair_WaitsForOldRotation_ThenKeepsOnlyNewCredentials: letting old rotation finish after new pairing could overwrite secure-storage credentials or send an old transfer to a new hub; gates and final new-refresh/new-db/no-old-data assertions catch this.
+- StartupDatabaseTests.cs:11 Reset_ArchivesExistingData_AndCreatesANewEmptyDatabaseIdentity: deleting old content or retaining old incarnation breaks independent archive/fresh-database reads.
+- DatabaseMigrationRunnerTests.cs:135 Initialization_SharesVideoAlignmentBySource_KeepingWidestWindowAndOriginalParent: selecting first insertion instead of parent/widest gives wrong retained clip/alignment; both order variants require same intended winner.
+- DatabaseMigrationRunnerTests.cs:823 Initialization_RepairsNullLocalContentRevisions_FromPopulatedLegacySchema: leaving revision0/null on a populated payload breaks exact-generation repository read; the test actually reads old bytes at revision1 and rejects revision0.
+- AndroidServiceDiscoveryTests.cs:28 StartFailure_ReleasesLockAndAllowsRetry: failed browse retaining native multicast lock or browseStarted would leave resource counts wrong and prevent fresh successful browse. Native lifetime effects are meaningful despite being observed through a small fake.
+
+Embedded helper and shared support assessment
+
+No zero-test helper-only source is assigned to this owner in inventory.json. All 37 assigned files are test classes; embedded helpers were inspected as part of their full bodies. Related shared support was also read rather than presumed safe.
+
+Concrete consolidation targets:
+
+A. Mounted view cleanup duplication. PairedDeviceListDesktopViewTests.cs:78 MountedPairedDeviceListDesktopView and PairingClientViewTests.cs:204 MountedPairingClientView are identical Window/View wrappers whose Dispose closes host and flushes dispatcher. PinInputTests repeats the same try/finally close/flush three times. ViewTestHelpers already owns ShowViewAsync and FlushDispatcherAsync; add/reuse only a small disposable mounted-view scope there, leaving feature-specific template/resource setup explicit. Do not create a generic application/DI harness for this.
+
+B. Reuse existing mutable list support. PairedDeviceListViewModelTests repeats SourceCache + substituted Connect/Get setup in all three methods despite TestSupport/Doubles/TestListStores.cs owning PairedDeviceStoreStub. A small Add/Remove and IDisposable completion on that one fixture would eliminate this duplication. Currently PairedDeviceStoreStub itself does not implement IDisposable unlike the bike/setup/session counterparts, so its underlying cache lifetime is never explicitly released by the desktop view fixture.
+
+C. Two source builders. SyncTestServerHarness.CreateRecordedSource and PersistenceTestData.CreateRecordedSessionSource both compress SST fixture bytes and calculate canonical hash for a new source. Consolidate mechanical source creation into the latter with optional session id/payload/name. The current differing default bytes are not business scenarios; keep intentional corrupt/hash mismatch variants explicit at call sites.
+
+D. Certificate fixtures. HttpApiServiceTests.cs:708 and SynchronizationCertificateValidatorTests.cs:96 both construct ECDSA P-256 self-signed certificates. A small TestSupport/Sync certificate factory taking subject/notBefore/notAfter would remove duplicate crypto setup and let all cases use the same fake clock. Validator tests currently sample DateTimeOffset.UtcNow repeatedly; avoid retaining that wall-clock timing when moving cases to real HTTP boundary.
+
+E. Pairing setup duplication. InboundPairingTests has a useful small PairAsync helper that observes the published challenge and confirms through the real coordinator. It belongs locally while only that suite uses it. PairingClientCoordinatorTests.CreateCoordinator/SeedInitDefaults are reasonable fixture wiring; DrainInitializationAsync is a redundant alias for InitializeAsync and should disappear. Its instance BehaviorSubject is never disposed; local ownership cleanup should be explicit.
+
+F. SyncTestServerHarness is already the correct focused coordinator fixture; do not add a second parallel sync harness. Its SyncRunObservation subscribes to the real public SyncCompleted/SyncFailed events and state progress, then detaches in finally; that is sound observation, not an invented production RunSyncAsync result. Name-based wrapper methods in client-run tests are minor convenience only. The harness supplies default empty success paths and an applier substitute that forwards to ISyncDataStore; empty-run tests can pass entirely on these defaults, explaining the MERGE/rewrite verdicts. Override observable facts deliberately in retained workflow cases.
+
+G. InboundSyncFixture centralizes real SQLite repositories and production stores/appliers and disposes its coordinator/store graph. That makes it useful dedicated infrastructure for compatibility/atomic-publication tests. Do not copy its seven-family construction into more local fixtures. It already accepts a manual dispatcher and fake clock; preserve these seams. Creating coordinators registers them for cleanup, unlike most ad hoc local factories.
+
+H. TestPersistenceHarness is real production implementation wiring, not an in-memory repository emulator. Its simple Get/Put/merge/cursor forwarding supports retained persistence tests. However PutProcessedSessionAsync separately writes optional track, prepared session and source; it is not the production atomic import transaction and should never prove atomicity. SeedGpsMetricsAsync injects SQL as fixture setup. SwapSessionPsstAsync delegates to a real SessionSyncApplier, which is why PulledSwap_PublishesAlignmentBeforeReplacingHeldGeneration is broader than a merge-only unit test; it remains valuable as a real two-phase generation boundary scenario. Many migration/merge methods allocate TestPersistenceHarness without await using, including before reopening; use existing IAsyncDisposable ownership rather than new cleanup machinery. This audit did not run them or claim observed leakage.
+
+I. InMemoryPairedDeviceRepository is acceptable for local unpair workflow assertions (dictionary persistence/failure and real store publication). It also implements refresh-token rotation semantics itself; inbound token security tests correctly use real SQLite through InboundSyncFixture, so they do not prove a fake's duplicate rotation algorithm. Do not switch those tests to this fake merely to shorten setup.
+
+J. AppCompositionTests.CreateRoot overlaps TestAppEnvironment capability/root construction but adds real desktop/mobile bootstrap registration required for graph validation. Share a small capability/root factory only if repeated by another composition suite; keep platform registration choice explicit. MobileAppBootstrapperTests.AssertSingletonRegistration should be removed with the registration inventory.
+
+K. DatabaseMigrationRunnerTests local legacy table builders, LegacyRearSuspensionCase, fingerprint seed records and revision projections are meaningful schema-version fixtures, not production-like helper algorithms. Keep historical SQL fixtures explicit. TableColumnInfo/SqliteMasterRow already come from PersistenceTestData; do not add another copy. SeedProcessedSessionDatabase and merge suite SeedPushSwapScenarioAsync both build bike/setup/session/source/fingerprint inputs, but migration needs legacy schema and swap tests need current dependencies; share only basic entity/source creation, not a large conditional scenario engine. The matrix helper currently returns expected fingerprint variants using production fingerprint generation; that is suitable input setup for merge policy, not independent proof of fingerprint math.
+
+L. Android test lock/factory/discovery doubles are small and class-specific. Counters represent acquired/released native resources, and failure flags enable deterministic resource paths; no case warrants promoting them into a global fake framework. Server AssertStatusCodeAsync builds an IServiceProvider per invocation and never disposes it; replacing helper-level tests with public route fixture should own/dispose provider/host explicitly rather than preserving that leak pattern.
+
+M. SynchronizationDataJsonTests.SyncDataJson is a useful handwritten snake_case contract fixture. It cannot be replaced solely by serializing a current Bike because a serializer/deserializer could drift together. CreateBike is small local input setup; leave it local. ServerJsonOptions helper already calls the same SynchronizationProtocol.ConfigureJson as server BuildApplication, so these tests do verify the configured binder policy; they do not verify actual routes invoke it.
+
+N. HttpApiServiceTests.CreateApiService and SyncTestServerHarness.CreateHttpApiService both install StubHttpMessageHandler and collect/dispose the HTTP owner differently. Reuse the existing StubHttpMessageHandler (already done); avoid unifying class lifetime/credential choices into a huge generic HTTP simulator. ReadNextPairedStateAsync is a legitimate bounded replay observer, while several refresh-start awaits in this file still use unbounded .Task and should adopt the repository-wide AwaitBoundedAsync helper.
+
+O. Theme ResolveVariant helper merely supports tests being removed/replaced. Do not promote it. PairingServer VM timer/clock setup is repetitive but small; no duplicated timer implementation exists because ManualUiTimerScheduler is reused. PairingClient VM and view factories duplicate some coordinator setup but target different presentation boundaries; share only typed outcome defaults already supplied by TestCoordinatorSubstitutes.
+
+Files with no embedded custom helper requiring consolidation: BonjourBrowseLifecycleTests; BonjourSocketAddressTests; ServiceAnnouncementMetadataReaderTests; SmokeTests; SocketServiceDiscoveryEndpointCacheTests; StartupDatabaseTests; RawTabShortcutHandlerTests; InboundSyncActivityTests; InboundSyncCoordinatorTests; SyncCoordinatorTests (uses shared harness); SynchronizationApplierTests; LocalDeviceIdentityTests; SessionBlobSwapRequestStoreTests; SynchronizableRepositoryTests; SynchronizationJsonTests; SynchronizationTokenServiceTests; PairedDeviceListViewModelTests (the repeated local async completion is discussed above); PairingServerViewModelTests; PinInputTests; ViewLocatorTests. Combined with named class-specific assessments above, every assigned source's support was considered.
+
+Production architecture contradictions / code observations (not fixed)
+
+1. Service-level stop-during-start contract gap; normal app ownership prevents the direct race. Sufni.App/Sufni.App.Desktop/SyncAndPairing/Services/SynchronizationServerService.cs:532 StartAsync stores StartCoreAsync in startTask at line541. Constructor line236 starts Initialization=Init(); Init at line345 awaits signing credentials. BuildApplication at line394 awaits Initialization. StopAsync at line546 captures only application under startGate; at line556 it returns when application is null, and neither joins/cancels startTask nor Initialization. StartCoreAsync later calls app.StartAsync at line766 and publishes application under the gate at line770. There is no linked cancellation in this service path. A direct service-level sequence can hold GetSigningKeyAsync pending, call StartAsync, await StopAsync while application is null, then release credentials successfully; start can continue building/listening/advertising after stop returned. The gate protects field access rather than completion across asynchronous work. The existing credential-failure test stops only after start already failed and does not exercise this interleaving.
+
+   Caller ordering was checked before treating this as a product defect: Shell/Coordinators/AppStartup.cs:57 awaits backgroundTaskRunner.RunAsync(server.StartAsync, cancellation.Token); its StopAsync (line102 onward) cancels then awaits startupTask. AppShutdown.cs:64 drains startup before invoking server.StopAsync at line66. Infrastructure/BackgroundTaskRunner.cs uses Task.Run(work, token), not a cancelable WaitAsync that abandons started work. Therefore normal application shutdown drains an already-started server start before calling server stop, precluding that direct interleaving in this owner path. This is a service contract/test gap against explicit resource-drain expectations, NOT a verified reachable product race. Constructor-started Initialization before explicit StartAsync remains separately owned by the service task; no claim of runtime failure on that early path was experimentally established.
+
+2. Legacy rear-suspension backfill is multi-statement uncheckpointed work. DatabaseMigrationRunner.cs:532 EnsureBikeRearSuspensionColumnAsync adds a destination column, updates rows, then drops legacy columns one by one outside a RunInTransactionAsync callback/versioned migration. A process interruption between dropping kind and payload columns leaves a different predecessor shape for the next launch; for example a selected missing-payload linkage draft with an orphan leverage payload can be reinterpreted after the kind column is gone. Current idempotence tests model complete launches only. This is a manifest section15 interruption/recovery risk. No migration changes or broader fixes were made.
+
+3. The server constructor starts credential/certificate I/O before explicit StartAsync through Initialization=Init() at line236; StopAsync alone does not await it. This is part of the first service-lifetime observation, not a separate confirmed runtime defect. Construction-only graph validation does not instantiate arbitrary singleton constructors, so its KEEP does not imply this lifecycle is covered.
+
+4. Some test names retain old ownership terminology: GetSynchronizationDataAsync_DoesNotLeakFutureRelatedTrackVersion seeds no current session-track relation; tracks are independent captured facts and session windows derive on read. The bounded future-track assertion remains useful, but the name should stop implying a stored association. Do not revive old relations just to satisfy a historical test name.
+
+Limitations and follow-through
+
+No tests, builds, TLS connections, live mDNS, app startup or mutation experiments were run. Public-boundary rewrites involving Apple/Socket discovery require a suitable native/browser seam; this audit does not authorize exposing internals solely for testing or creating speculative infrastructure. Production observations are narrowly derived from source and require follow-up validation before fixing. Recommended removals/merges are not implemented. Cross-owner shared support changes should be coordinated with the shell_support owner; duplicated-support suggestions above identify small concrete targets rather than a demand for one giant harness. The exhaustive CSV contains every exact method anchor and proposed action; KEEP is earned only by the stated current assertions, while REWRITE/MERGE/REMOVE are not retained as-is.
+
+Per-file method reconciliation (KEEP / REWRITE / MERGE / REMOVE)
+
+Sufni.App.Tests/AppleShared/BonjourBrowseLifecycleTests.cs: 9 methods; 0 / 6 / 2 / 1
+Sufni.App.Tests/DatabaseMigrationRunnerTests.cs: 33 methods; 24 / 2 / 3 / 4
+Sufni.App.Tests/Infrastructure/AndroidServiceDiscoveryTests.cs: 6 methods; 6 / 0 / 0 / 0
+Sufni.App.Tests/Infrastructure/AppCompositionTests.cs: 2 methods; 2 / 0 / 0 / 0
+Sufni.App.Tests/Infrastructure/BonjourSocketAddressTests.cs: 3 methods; 0 / 3 / 0 / 0
+Sufni.App.Tests/Infrastructure/MobileAppBootstrapperTests.cs: 1 methods; 0 / 0 / 0 / 1
+Sufni.App.Tests/Infrastructure/ServiceAnnouncementMetadataReaderTests.cs: 4 methods; 2 / 0 / 1 / 1
+Sufni.App.Tests/Infrastructure/SmokeTests.cs: 2 methods; 1 / 1 / 0 / 0
+Sufni.App.Tests/Infrastructure/SocketServiceDiscoveryEndpointCacheTests.cs: 6 methods; 0 / 4 / 2 / 0
+Sufni.App.Tests/Infrastructure/StartupDatabaseTests.cs: 2 methods; 2 / 0 / 0 / 0
+Sufni.App.Tests/Infrastructure/Theming/SufniThemeTests.cs: 6 methods; 0 / 2 / 0 / 4
+Sufni.App.Tests/Platform/macOS/RawTabShortcutHandlerTests.cs: 2 methods; 0 / 2 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/InboundPairingTests.cs: 7 methods; 7 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/InboundSyncActivityTests.cs: 3 methods; 2 / 1 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/InboundSyncCoordinatorTests.cs: 7 methods; 6 / 1 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/PairedDeviceCoordinatorTests.cs: 1 methods; 1 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/PairingClientCoordinatorTests.cs: 24 methods; 21 / 0 / 3 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/SyncCoordinatorClientRunTests.cs: 21 methods; 13 / 7 / 1 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/SyncCoordinatorTests.cs: 10 methods; 10 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Coordinators/SynchronizationApplierTests.cs: 1 methods; 1 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/DesktopViews/ItemLists/PairedDeviceListDesktopViewTests.cs: 2 methods; 1 / 0 / 1 / 0
+Sufni.App.Tests/SyncAndPairing/Models/SynchronizationDataJsonTests.cs: 12 methods; 9 / 0 / 3 / 0
+Sufni.App.Tests/SyncAndPairing/Services/HttpApiServiceTests.cs: 22 methods; 19 / 3 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Services/LocalDeviceIdentityTests.cs: 3 methods; 3 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Services/SessionBlobSwapRequestStoreTests.cs: 1 methods; 1 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Services/SynchronizableRepositoryTests.cs: 5 methods; 5 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Services/SynchronizationCertificateValidatorTests.cs: 5 methods; 0 / 3 / 2 / 0
+Sufni.App.Tests/SyncAndPairing/Services/SynchronizationJsonTests.cs: 3 methods; 3 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Services/SynchronizationMergeEngineTests.cs: 23 methods; 15 / 4 / 4 / 0
+Sufni.App.Tests/SyncAndPairing/Services/SynchronizationServerServiceTests.cs: 7 methods; 1 / 5 / 0 / 1
+Sufni.App.Tests/SyncAndPairing/Services/SynchronizationTokenServiceTests.cs: 1 methods; 1 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/ViewModels/ItemLists/PairedDeviceListViewModelTests.cs: 3 methods; 1 / 2 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/ViewModels/PairingClientViewModelTests.cs: 3 methods; 3 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/ViewModels/PairingServerViewModelTests.cs: 3 methods; 1 / 2 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Views/Controls/PinInputTests.cs: 3 methods; 3 / 0 / 0 / 0
+Sufni.App.Tests/SyncAndPairing/Views/PairingClientViewTests.cs: 5 methods; 3 / 0 / 0 / 2
+Sufni.App.Tests/ViewLocatorTests.cs: 1 methods; 1 / 0 / 0 / 0

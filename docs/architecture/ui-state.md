@@ -1,15 +1,15 @@
-# UI State, Read Graphs, and Queries
+# UI State and Queries
 
-> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the presentation read-state layer: stores, recorded-session projections, and command-side queries. The UI overview and invariants live in [UI Architecture](ui.md).
+> Part of the [Sufni.App architecture documentation](../ARCHITECTURE.md). This file covers the presentation read-state layer: stores and queries, including the recorded-session projection. The UI overview and invariants live in [UI Architecture](ui.md).
 
 ## Stores
 
 Stores own shared read state. One per entity family, registered as a
 singleton, exposed behind two interfaces: a read-only `IXxxStore`
 injected into list/row/editor view models and queries, and a
-`IXxxStoreWriter` (which extends the read interface) used by coordinators,
-session use-case services behind coordinators, sync appliers, transaction
-runners, and the composition root. View models depend on read-only stores. The
+`IXxxStoreWriter` (which extends the read interface) used only by coordinators
+([role holders](ui.md#architectural-invariants)). The composition root registers
+both interfaces on the same singleton. View models depend on read-only stores. The
 implementation lives in each slice's store folder (e.g. `Bikes/Stores/`,
 `Sessions/Store/`).
 
@@ -38,9 +38,8 @@ Each store keeps its domain-specific lookups and read/write interfaces. Cache
 mutation stays inside stores; persistence, conflict checks and snapshot loading
 belong to the requesting workflow. No store has a repository dependency.
 Startup refresh is coordinated by `IAppDataRefresher`; sync publishes affected
-rows through `SynchronizationApplier`. `LiveDaqStore` remains separate
-because it is runtime-only and publishes `ReplaceAll(...)` rather than
-loading persisted rows.
+rows through `SynchronizationApplier`. `LiveDaqStore` does not use the base
+because it is runtime-only and publishes through `ReplaceAll(...)`.
 
 `StorePublication.BeginBatch()` groups already-prepared cache edits on the UI
 thread. Stores defer their DynamicData notifications until the outer batch ends;
@@ -49,11 +48,14 @@ that emitted changes. An individual publication opens an implicit batch, and an
 unchanged refresh or missing-key removal emits no commit. A batch is a publication
 boundary, not a persistence transaction: load and compute before entering it.
 
-Single-store subscriptions keep working. Joined consumers must derive from all
-current store values on the relevant commit; releasing per-store notifications
-in order does not make `CombineLatest` coherent. Existing projection consumers
-have not migrated to this commit signal yet. The base disposes its cache and
-commit-tracking subscription when its owning graph is disposed.
+Single-store consumers subscribe to the store directly. Joined consumers must
+derive from all current store values on the relevant commit; releasing per-store
+notifications in order does not make `CombineLatest` coherent.
+`RecordedSessionProjection`, `ISetupBoardQuery`, `ILiveDaqKnownBoardsQuery` and
+`TrackCoordinator` derive on the commit. `IProcessingDependencyHashIndex` reacts
+to setup and bike notifications per store; the projection schedules the work it
+queues on the commit. The base disposes its cache and commit-tracking
+subscription when its owning graph is disposed.
 
 Each persisted store read interface exposes:
 
@@ -82,7 +84,7 @@ Each persisted writer interface additionally exposes:
   sync prepares snapshots after applying transferred data. A committed write
   finishes publication without checking cancellation between those steps.
 - Bike save compares authored draft-base fields once after validation, before writing;
-  session metadata save has one check in its command service. Missing sessions
+  `SessionCoordinator.SaveAsync` makes one check for session metadata. Missing sessions
   are workflow outcomes, not store results. Stores have no mutation-result union.
 - The shared sync applier prepares authoritative snapshots off-thread and
   publishes all affected row families in one batch, with removals when a
@@ -125,21 +127,20 @@ staleness state.
 
 `RecordedSessionSourceStore` is the metadata cache for
 `session_recording_source`: source kind, source name, schema version,
-and source hash. The full payload is not kept in the store. Recompute loads it directly through
-`IRecordedSessionSourceRepository`; the store exposes metadata only. Import and
+and source hash. Recompute loads the full payload through
+`IRecordedSessionSourceRepository`. Import and
 live save publish prepared metadata from the persisted source, and client sync
 collects the metadata of committed transfers before publishing once, including
 when another transfer is canceled or fails. `InboundSyncCoordinator` validates
 uploaded sources off-thread, persists them, and publishes the committed metadata
-before the server acknowledges the upload. Stores never read repositories to prepare publication.
+before the server acknowledges the upload.
 
 `SetupStore` holds setup metadata only. Board associations live in `BoardStore`;
 `ISetupBoardQuery` joins them for setup lists, editor creation, and import selection.
 
 `LiveDaqStore` is a runtime-only store that does not persist to the
-database. It has no `RefreshAsync()`, its snapshots carry no `Updated`
-timestamp, and it is populated entirely by `LiveDaqCoordinator` from
-discovery and known-board query results. Its writer interface exposes
+database. Its snapshots carry no `Updated` timestamp. `LiveDaqCoordinator`
+populates it entirely from discovery and known-board query results. Its writer interface exposes
 `ReplaceAll(IEnumerable<LiveDaqSnapshot>)`; `LiveDaqCoordinator.ReconcileLocked` uses
 `ReplaceAll` to publish a fresh reconciled set in one update. See
 [Live DAQ Streaming](live-streaming.md) for the full feature
@@ -148,9 +149,9 @@ architecture.
 ## Recorded Session Projection
 
 `IRecordedSessionProjection` is the read-side projection for recorded
-session screens. It tracks changes in `ISessionStore`, `ISetupStore`,
+session screens. It tracks changes in `ISessionStore`, `ISetupStore`, `IBikeStore`,
 `IRecordedSessionSourceStore`, `ITrackStore`, `ISessionVideoStore` and `IProcessingDependencyHashIndex`, then schedules
-work from `StorePublication.Committed` for those source stores (including bikes).
+work from `StorePublication.Committed` for those stores.
 The dependency hash index owns
 the processing-relevant setup/bike store edge. The projection joins
 current session/setup/bike/source snapshots from stores (the derivation
@@ -169,14 +170,14 @@ window is part of the session snapshot), evaluates processing staleness, and pub
   `RecordedSessionDomainSnapshot` for the recorded detail editor. The
   snapshot carries the session, setup, bike, current fingerprint,
   persisted fingerprint, source metadata (of the session's recording
-  source), selected track metadata, and staleness result. It carries facts, with no emitted-change flags.
+  source), selected track metadata, and staleness result. It carries facts and no change flags.
 
 The recorded detail editor compares each domain against its last handled domain,
 so deferred updates are compared with what the editor actually consumed. Runtime
 session values come from the editor state's domain/load snapshot; no mutable
 session entity or second snapshot is synchronized beside it.
 
-The two reaction axes remain independent. Processed-generation, selected-track,
+The two reaction axes are independent. Processed-generation, selected-track,
 window, timestamp and GPS-offset changes refresh displayed telemetry/track without
 replacing a metadata draft. Changes to fields saved by the editor (name,
 description, setup and suspension tuning) are absorbed when clean, or prompt to
@@ -190,8 +191,8 @@ base and remains dirty if the user made further edits while saving.
 Recompute and GPS-offset adjustment are one-way: they persist and upsert
 the session store, and the refresh reaches the editor through this same
 watch reaction rather than a pushed result.
-`ISessionRecomputeEngine.RequestRecomputeAsync(sessionId)` is
-baseline-free — the `SessionRecomputeEngine` owns serialization and liveness.
+Recompute is baseline-free — the `SessionRecomputeEngine` owns serialization and
+liveness. `SessionCoordinator.RecomputeAsync(sessionId)` recomputes on request.
 `SessionCoordinator.ReconcileStalenessAsync` returns `Current`, `Active`,
 `Required`, or `Unavailable` when inspecting a domain snapshot, and executes
 confirmed single-session or bulk choices. Missing raw sources are unavailable
@@ -224,12 +225,12 @@ marshal their completion back for a single guarded cache/publication step. Calle
 cancellation only stops that caller waiting; supersession or disposal cancels the
 owned work. Async disposal drains all work, including displaced jobs. Calculation
 failures carry a closed reason and separate diagnostics, logged at this boundary.
-The editor has no analysis scheduler or suppression batches. It derives requests
+The editor derives requests
 from current input keys, eagerly requests damping percentages, and retains Insights
 demand after a visible surface requests it. The reducer clears stale percentages
 and Insights with the input change; results arrive as later accepted inputs.
 
-Projection recomputes are coalesced through the existing
+Projection recomputes are coalesced through
 `IRecordedSessionProjectionScheduler`; its UI-background-priority callback captures
 the current session/setup/bike/source snapshots, track/video catalog snapshots and dependency hashes. Fingerprint
 staleness and track selection evaluation runs through `IBackgroundTaskRunner`, outside the UI
@@ -280,8 +281,7 @@ classifies staleness as:
   though the app cannot repair it until the source is restored.
 
 Processing-option changes arrive through the session store and invalidate the
-same projection as other session inputs. There is no preference-backed option
-cache or hydration gate. Startup copies legacy preference values once into the
+same projection as other session inputs. Startup copies legacy preference values once into the
 session row; it does not reset options or automatically recompute old results.
 
 `IRecordedSessionDomainQuery` is the command-side companion. It reads
@@ -309,17 +309,16 @@ Queries answer business questions across entity families without
 going through view models. They are stateless singletons in
 each slice's `Queries/` folder (e.g. `Bikes/Queries/`, `LiveDaq/Queries/`).
 
-`IBikeDependencyQuery.IsBikeInUseAsync(Guid)` (backed by
-`BikeDependencyQuery` over `ISynchronizableRepository<Setup>`) reports whether any
-setup currently references a bike. `BikeCoordinator.DeleteAsync` uses
-it to short-circuit deletes with `BikeDeleteResult.InUse`. That authoritative
-answer comes from the database. For command availability the query delegates to
-`ISetupStore.IsBikeReferenced` and exposes its change stream directly; it owns
-no duplicate setup cache or subscription.
+`IBikeDependencyQuery.IsBikeInUse(Guid)` drives delete-command availability. It
+delegates to `ISetupStore.IsBikeReferenced` and exposes the store's change stream;
+it owns no duplicate setup cache or subscription. The authoritative check is not
+a query: `IBikePersistenceTransactionRunner` checks active setup references inside
+the bike delete transaction, and `BikeCoordinator.DeleteAsync` maps a rejection to
+`BikeDeleteResult.InUse`.
 
-`ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency or fallback through setup snapshots. See [Live DAQ Streaming](live-streaming.md).
+`ILiveDaqKnownBoardsQuery` derives known board rows from `IBoardStore`, `ISetupStore` and `IBikeStore`. It captures committed snapshots, builds names, calibration and live-session contexts off-thread, and publishes on the UI dispatcher. The latest input replaces a pending computation; disposal cancels observation and suppresses late publication. Boards without setups remain visible. It has no repository dependency. See [Live DAQ Streaming](live-streaming.md).
 
-`BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `SetupSnapshot` contains no board ID. `ISetupBoardQuery` emits `SetupDetails` rows only after a relevant publication commits, so setup/board batches are observed coherently. Board-only changes update list rows and subsequent editor creation. Its exact-board lookup resolves import selection through `BoardSnapshot.SetupId`; the displayed association uses the lowest board ID if several boards reference one setup. Its change stream also notifies lookup consumers when a second board changes without changing that displayed association.
+`BoardStore` is refreshed with the startup/full-refresh batch. Setup save, delete and import transactions return affected board IDs; `SetupCoordinator` reads their authoritative snapshots and publishes them with setup/bike changes in one batch. Desktop inbound sync prepares authoritative board snapshots even for board-only arrivals and publishes removals for missing rows. `ISetupBoardQuery` emits `SetupDetails` rows only after a relevant publication commits, so setup/board batches are observed coherently. Board-only changes update list rows and subsequent editor creation. Its exact-board lookup resolves import selection through `BoardSnapshot.SetupId`; the displayed association uses the lowest board ID if several boards reference one setup. Its change stream also notifies lookup consumers when a second board changes without changing that displayed association.
 
 `IRecordedSessionDomainQuery` lives in `RecordedSessionProjection/` rather than
 `Queries/`, but it follows the same command-side rule: it answers one

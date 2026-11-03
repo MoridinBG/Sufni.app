@@ -8,7 +8,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Bikes.Queries;
+using Sufni.App.Setups.Models;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
@@ -20,14 +20,14 @@ public class BikeCoordinatorTests : IDisposable
 {
     private readonly BikeStore bikeStore = new(new StorePublication(new InlineUiThreadDispatcher()));
     private readonly InMemorySynchronizableRepository<Bike> repository = new(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9)));
-    private readonly IBikeDependencyQuery dependencyQuery = Substitute.For<IBikeDependencyQuery>();
+    private readonly InMemorySynchronizableRepository<Setup> setups = new(new FakeTimeProvider(DateTimeOffset.FromUnixTimeSeconds(9)));
     private readonly IBikeEditorService bikeEditorService = Substitute.For<IBikeEditorService>();
     private readonly TestBikeSaveValidator validator = new();
 
     public void Dispose() => bikeStore.Dispose();
 
     private BikeCoordinator CreateCoordinator() =>
-        new(bikeStore, dependencyQuery, bikeEditorService, validator, repository, new InlineBackgroundTaskRunner());
+        new(bikeStore, new InMemoryBikeTransactions(repository, setups), bikeEditorService, validator, repository, new InlineBackgroundTaskRunner());
 
     private async Task SeedAsync(BikeSnapshot snapshot)
     {
@@ -145,20 +145,60 @@ public class BikeCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAsync_NewDraftSeedsImportedCutoffs_ButRemovedExistingBikeIsNotRecreated()
+    public async Task SaveAsync_NewDraftPreservesImportedCutoffs()
     {
         var draft = BikeDraft.From(TestSnapshots.Bike()) with { InitialDampingSpeedCutoffs = DampingSpeedCutoffs.FromValues(100, 200, 300, 400) };
-        var coordinator = CreateCoordinator();
-        var created = Assert.IsType<BikeSaveResult.Saved>(await coordinator.SaveAsync(draft, null));
-        Assert.Equal(draft.InitialDampingSpeedCutoffs, created.Snapshot.DampingSpeedCutoffs);
-        await repository.DeleteAsync(draft.Id);
-        await bikeStore.PublishBikesRemovedAsync([draft.Id]);
 
-        var result = await coordinator.SaveAsync(draft with { Name = "later" }, BikeDraft.From(created.Snapshot));
+        var saved = Assert.IsType<BikeSaveResult.Saved>(await CreateCoordinator().SaveAsync(draft, null));
+
+        Assert.Equal(draft.InitialDampingSpeedCutoffs, saved.Snapshot.DampingSpeedCutoffs);
+        Assert.Equal(draft.InitialDampingSpeedCutoffs, (await repository.GetAsync(draft.Id))!.DampingSpeedCutoffs);
+    }
+
+    [Fact]
+    public async Task SaveAsync_DoesNotRecreateRemovedExistingBike()
+    {
+        var original = TestSnapshots.Bike();
+        await SeedAsync(original);
+        await repository.DeleteAsync(original.Id);
+        await bikeStore.PublishBikesRemovedAsync([original.Id]);
+
+        var result = await CreateCoordinator().SaveAsync(BikeDraft.From(original) with { Name = "later" }, BikeDraft.From(original));
 
         Assert.IsType<BikeSaveResult.Missing>(result);
-        Assert.Null(await repository.GetAsync(draft.Id));
-        Assert.Null(bikeStore.Get(draft.Id));
+        Assert.Null(await repository.GetAsync(original.Id));
+        Assert.Null(bikeStore.Get(original.Id));
+    }
+
+    [Theory]
+    [InlineData("geometry")]
+    [InlineData("wheel")]
+    [InlineData("linkage")]
+    [InlineData("stroke")]
+    public async Task SaveAsync_RealValidationRejectsInvalidDraftWithoutChangingFacts(string invalidInput)
+    {
+        var original = TestSnapshots.Bike();
+        await SeedAsync(original);
+        var draft = BikeDraft.From(original) with { Name = "changed" };
+        draft = invalidInput switch
+        {
+            "geometry" => draft with { HeadAngle = null },
+            "wheel" => draft with { FrontWheel = new WheelSpec(760, null, null) },
+            "linkage" => draft with { RearSuspension = new RearSuspensionSpec.LinkageDraft() },
+            _ => draft with
+            {
+                ShockStroke = 15,
+                RearSuspension = new RearSuspensionSpec.LeverageRatio(TestSnapshots.LeverageRatioCurve((0, 0), (20, 50))),
+            },
+        };
+        IBikeCoordinator coordinator = new BikeCoordinator(bikeStore, new InMemoryBikeTransactions(repository, setups),
+            bikeEditorService, new BikeSaveValidator(new BikeRearSuspensionValidator(), new KinematicSolutionCache(), new InlineBackgroundTaskRunner()),
+            repository, new InlineBackgroundTaskRunner());
+
+        Assert.IsType<BikeSaveResult.Invalid>(await coordinator.SaveAsync(draft, BikeDraft.From(original)));
+
+        Assert.Equal(original, bikeStore.Get(original.Id));
+        Assert.Equal(original, BikeSnapshot.From((await repository.GetAsync(original.Id))!));
     }
 
     // ----- SaveAsync -----
@@ -401,12 +441,12 @@ public class BikeCoordinatorTests : IDisposable
     // ----- DeleteAsync -----
 
     [Fact]
-    public async Task DeleteAsync_ReturnsInUse_WhenDependencyQueryReportsInUse()
+    public async Task DeleteAsync_ReturnsInUse_WhenPersistedSetupReferencesBike()
     {
         var initial = TestSnapshots.Bike(updated: 5);
         await SeedAsync(initial);
         var id = initial.Id;
-        dependencyQuery.IsBikeInUseAsync(id).Returns(true);
+        setups.Seed(new Setup(Guid.NewGuid(), "setup") { BikeId = id });
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.DeleteAsync(id);
@@ -422,7 +462,6 @@ public class BikeCoordinatorTests : IDisposable
         var initial = TestSnapshots.Bike(updated: 5);
         await SeedAsync(initial);
         var id = initial.Id;
-        dependencyQuery.IsBikeInUseAsync(id).Returns(false);
         var coordinator = CreateCoordinator();
 
         var result = await coordinator.DeleteAsync(id);
@@ -438,7 +477,6 @@ public class BikeCoordinatorTests : IDisposable
         var initial = TestSnapshots.Bike(updated: 5);
         await SeedAsync(initial);
         var id = initial.Id;
-        dependencyQuery.IsBikeInUseAsync(id).Returns(false);
         repository.WriteFailure = new IOException("locked");
         var coordinator = CreateCoordinator();
 

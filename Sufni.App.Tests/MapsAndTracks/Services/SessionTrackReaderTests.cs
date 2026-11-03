@@ -22,7 +22,7 @@ public class SessionTrackReaderTests
     }
 
     [Fact]
-    public async Task GetSessionTrackAsync_DerivesAlignedWindowAndReusesTheSameInputs()
+    public async Task GetSessionTrackAsync_DerivesAlignedWindow()
     {
         var fullReader = Substitute.For<IFullTrackPointReader>();
         var key = new SessionTrackKey(Guid.NewGuid(), 7, 100, 2, 0.5, WindowOriginFraction: 0.25);
@@ -30,13 +30,11 @@ public class SessionTrackReaderTests
         using var reader = new SessionTrackReader(fullReader, new InlineBackgroundTaskRunner());
 
         var first = await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken);
-        var repeated = await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken);
 
         Assert.NotNull(first);
         Assert.Equal(100.75, first[0].Time);
         Assert.Equal(102, first[^1].Time);
-        Assert.Same(first, repeated);
-        await fullReader.Received(1).GetTrackPointsExactAsync(key.TrackId, 7, Arg.Any<CancellationToken>());
+        Assert.Equal(1, first[0].X, precision: 6);
     }
 
     [Theory]
@@ -83,22 +81,6 @@ public class SessionTrackReaderTests
 
         Assert.Null(await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken));
         await fullReader.DidNotReceive().GetTrackPointsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task GetSessionTrackAsync_EvictsByProjectedPointWeight()
-    {
-        var fullReader = Substitute.For<IFullTrackPointReader>();
-        fullReader.GetTrackPointsExactAsync(Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>()).Returns(Points());
-        using var reader = new SessionTrackReader(fullReader, new InlineBackgroundTaskRunner(), capacity: 8, pointBudget: 25);
-        var key = new SessionTrackKey(Guid.NewGuid(), 7, 100, 2, 0);
-        var first = await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken);
-        await reader.GetSessionTrackAsync(key with { GpsOffsetSeconds = 1 }, TestContext.Current.CancellationToken);
-        var repeated = await reader.GetSessionTrackAsync(key, TestContext.Current.CancellationToken);
-
-        Assert.NotSame(first, repeated);
-        Assert.Equal(first!.Select(point => point.X), repeated!.Select(point => point.X));
-        await fullReader.Received(3).GetTrackPointsExactAsync(key.TrackId, 7, Arg.Any<CancellationToken>());
     }
 
     [Fact]

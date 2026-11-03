@@ -1,4 +1,3 @@
-using System.Text;
 using MessagePack;
 
 namespace Sufni.Telemetry.Tests;
@@ -60,7 +59,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
     }
 
     [Fact]
-    public void LegacyInterleavedDenseImu_ReadApi_ExposesStridedLocationSegments()
+    public void LegacyInterleavedDenseImu_ReadApi_PreservesPerLocationSampleOrder()
     {
         var imu = new RawImuData
         {
@@ -78,10 +77,8 @@ public class GoldenTelemetryCompatibilityFixtureTests
         Assert.Equal(2, imu.SampleSegments.Count);
         Assert.Equal(1, imu.SampleSegments[0].LocationId);
         Assert.Equal([10, 11], ReadSamples(imu.SampleSegments[0]).Select(sample => (int)sample.Ax));
-        Assert.False(imu.SampleSegments[0].TryGetContiguousRecords(out _));
         Assert.Equal(2, imu.SampleSegments[1].LocationId);
         Assert.Equal([20, 21], ReadSamples(imu.SampleSegments[1]).Select(sample => (int)sample.Ax));
-        Assert.False(imu.SampleSegments[1].TryGetContiguousRecords(out _));
     }
 
     [Fact]
@@ -142,16 +139,13 @@ public class GoldenTelemetryCompatibilityFixtureTests
 
         Assert.Equal(200, imu.SampleRate);
         Assert.Equal([1, 2], imu.ActiveLocations);
-        Assert.Empty(imu.Records);
-        Assert.Equal(2, imu.Segments.Length);
         Assert.Equal(2, imu.SampleSegments.Count);
 
         var first = imu.SampleSegments[0];
         Assert.Equal(1, first.LocationId);
         Assert.Equal((ulong)10, first.FirstIndex);
         Assert.Equal((ulong)100_000, first.FirstMonotonicDeltaUs);
-        Assert.True(first.TryGetContiguousRecords(out var contiguous));
-        Assert.Equal(2, contiguous.Length);
+        Assert.Equal(2, first.Count);
         Assert.Equal(new ImuRecord(short.MinValue, -1, 0, 1, short.MaxValue, 42), first[0]);
         Assert.Equal(new ImuRecord(7, 8, 9, 10, 11, 12), first[1]);
 
@@ -228,51 +222,6 @@ public class GoldenTelemetryCompatibilityFixtureTests
     }
 
     [Fact]
-    public void V4SstFixture_Parse_UsesCanonicalImuSegmentAndPreservesMarker()
-    {
-        var telemetry = RawTelemetryData.FromByteArray(GoldenTelemetryCompatibilityFixtures.SstV4.GetBytes());
-
-        Assert.Single(telemetry.Markers);
-        Assert.NotNull(telemetry.ImuData);
-        Assert.Empty(telemetry.ImuData.Records);
-        var segment = Assert.Single(telemetry.ImuData.Segments);
-        Assert.Equal(1, segment.LocationId);
-        Assert.Single(segment.Records);
-        Assert.Equal(3, segment.Records[0].Az);
-    }
-
-    [Fact]
-    public void V5SstFixture_Parse_PreservesCanonicalImuSegments()
-    {
-        var telemetry = RawTelemetryData.FromByteArray(GoldenTelemetryCompatibilityFixtures.SstV5.GetBytes());
-
-        Assert.NotNull(telemetry.ImuData);
-        Assert.Empty(telemetry.ImuData.Records);
-        Assert.Equal(2, telemetry.ImuData.Segments.Length);
-        Assert.False(telemetry.ImuData.HasGaps);
-        Assert.NotNull(telemetry.FinalStatus);
-    }
-
-    [Theory]
-    [InlineData("dense", 2, 0)]
-    [InlineData("segment", 0, 1)]
-    [InlineData("dense-plus-segment", 2, 1)]
-    public void ProcessedImuFixture_FromBinary_PreservesLegacyRepresentation(
-        string shape,
-        int expectedDenseCount,
-        int expectedSegmentCount)
-    {
-        var fixture = ProcessedImuFixture(shape);
-
-        var telemetry = TelemetryData.FromBinary(fixture.GetBytes());
-
-        Assert.NotNull(telemetry.ImuData);
-        Assert.Equal(expectedDenseCount, telemetry.ImuData.Records.Length);
-        Assert.Equal(expectedSegmentCount, telemetry.ImuData.Segments.Length);
-        Assert.Equal(100, telemetry.ImuData.SampleRate);
-    }
-
-    [Fact]
     public void CurrentStrokeWriter_OmitsAllDigitizationFields()
     {
         var stroke = new Stroke
@@ -337,29 +286,6 @@ public class GoldenTelemetryCompatibilityFixtureTests
         var stroke = Assert.Single(telemetry.Front.Strokes.Compressions);
         Assert.Equal([2, 4], stroke.DigitizedTravel);
         Assert.Equal([5, 6], stroke.DigitizedVelocity);
-    }
-
-    [Fact]
-    public void OldStrokeDigitizationFixture_RewriteOmitsAllDigitizationFields()
-    {
-        var telemetry = TelemetryData.FromBinary(
-            GoldenTelemetryCompatibilityFixtures.ProcessedOldStrokeDigitization.GetBytes());
-
-        var rewrittenBytes = telemetry.BinaryForm;
-        var rewritten = TelemetryData.FromBinary(rewrittenBytes);
-
-        Assert.Equal(
-            -1,
-            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.DigitizedTravel))));
-        Assert.Equal(
-            -1,
-            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(nameof(Stroke.DigitizedVelocity))));
-        Assert.Equal(
-            -1,
-            rewrittenBytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes("FineDigitizedVelocity")));
-        var stroke = Assert.Single(rewritten.Front.Strokes.Compressions);
-        Assert.Empty(stroke.DigitizedTravel);
-        Assert.Empty(stroke.DigitizedVelocity);
     }
 
     [Fact]

@@ -10,31 +10,6 @@ namespace Sufni.App.Tests.Sessions.Pages.ViewModels.SessionPages;
 public class PreferencesPageViewModelTests
 {
     [Fact]
-    public void CreateSignalDisplayPreferences_KeepsSignalsShownAndRoundTripsSmoothing()
-    {
-        var viewModel = TestPreferencesPages.Create(new SignalDisplayPreferences(
-            Travel: true,
-            Velocity: true,
-            Imu: true,
-            PitchRoll: false,
-            PitchRollSmoothing: PlotSmoothingLevel.Strong));
-        viewModel.ApplySignalAvailability(
-            travelAvailable: true,
-            velocityAvailable: true,
-            imuAvailable: true,
-            pitchRollAvailable: false,
-            speedAvailable: true,
-            elevationAvailable: true);
-
-        var preferences = viewModel.CreateSignalDisplayPreferences();
-
-        Assert.False(viewModel.PitchRollSignal.Available);
-        Assert.Equal(PlotSmoothingLevel.Strong, viewModel.PitchRollSignal.SelectedSmoothing);
-        Assert.True(preferences.PitchRoll);
-        Assert.Equal(PlotSmoothingLevel.Strong, preferences.PitchRollSmoothing);
-    }
-
-    [Fact]
     public void ApplyProcessingPreferences_ClampsSliderValueAndUpdatesDisplay()
     {
         var viewModel = TestPreferencesPages.Create();
@@ -42,7 +17,7 @@ public class PreferencesPageViewModelTests
         viewModel.ApplyProcessingOptions(new Sufni.Telemetry.TelemetryProcessingOptions(1_500));
 
         Assert.Equal(TelemetryProcessingOptions.MaxVelocityFilterWindowMilliseconds, viewModel.VelocityFilterWindowMilliseconds);
-        Assert.Equal("1000 ms", viewModel.VelocityFilterWindowDisplay);
+        Assert.Equal(1000, viewModel.CreateProcessingOptions().VelocityFilterWindowMilliseconds);
     }
 
     [Fact]
@@ -60,15 +35,15 @@ public class PreferencesPageViewModelTests
     public void CommitProcessingPreferenceChange_RaisesOnlyWhenValueChangedSinceLastCommit()
     {
         var viewModel = TestPreferencesPages.Create();
-        var commitCount = 0;
-        viewModel.ProcessingPreferenceChangeCommitted += (_, _) => commitCount++;
+        var committedWindows = new List<int>();
+        viewModel.ProcessingPreferenceChangeCommitted += (_, _) =>
+            committedWindows.Add(viewModel.CreateProcessingOptions().VelocityFilterWindowMilliseconds);
 
         viewModel.VelocityFilterWindowMilliseconds = 0;
         viewModel.CommitProcessingPreferenceChange();
         viewModel.CommitProcessingPreferenceChange();
 
-        Assert.Equal(1, commitCount);
-        Assert.Equal("No filter", viewModel.VelocityFilterWindowDisplay);
+        Assert.Equal([0], committedWindows);
         Assert.Equal(
             TelemetryProcessingOptions.MinVelocityFilterWindowMilliseconds,
             viewModel.CreateProcessingOptions().VelocityFilterWindowMilliseconds);

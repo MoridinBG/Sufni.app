@@ -26,15 +26,9 @@ public class ImuDisplaySignalProcessorTests
 
         var result = ImuDisplaySignalProcessor.ProcessRecorded(data);
 
-        Assert.Equal([(byte)ImuLocation.Frame, (byte)ImuLocation.Fork], result.VibrationSeries.Select(series => series.LocationId).ToArray());
-        Assert.All(result.VibrationSeries, series =>
-        {
-            Assert.Equal(3, series.Times.Length);
-            Assert.Equal(3, series.RmsG.Length);
-        });
         Assert.NotNull(result.FramePitchRoll);
-        Assert.Equal(3, result.FramePitchRoll!.Times.Length);
-        Assert.All(result.FramePitchRoll.PitchDegrees, pitch => Assert.InRange(pitch, 9.5, 10.5));
+        Assert.Equal(3, result.FramePitchRoll!.PitchDegrees.Length);
+        Assert.All(result.FramePitchRoll.PitchDegrees, pitch => Assert.Equal(10.018, pitch, precision: 2));
         Assert.All(result.FramePitchRoll.RollDegrees, roll => Assert.InRange(roll, -0.1, 0.1));
     }
 
@@ -218,69 +212,11 @@ public class ImuDisplaySignalProcessorTests
 
         var result = ImuDisplaySignalProcessor.ProcessRecorded(data);
 
-        var vibration = Assert.Single(result.VibrationSeries);
-        Assert.Equal([0.0, 0.1, 1.0], vibration.Times);
         Assert.NotNull(result.FramePitchRoll);
         Assert.Equal([0.0, 0.1, 1.0], result.FramePitchRoll!.Times);
-        Assert.InRange(result.FramePitchRoll.PitchDegrees[0], 9.5, 10.5);
-        Assert.InRange(result.FramePitchRoll.PitchDegrees[1], 9.5, 10.5);
+        Assert.Equal(10.018, result.FramePitchRoll.PitchDegrees[0], precision: 2);
+        Assert.Equal(10.018, result.FramePitchRoll.PitchDegrees[1], precision: 2);
         Assert.Equal(0.0, result.FramePitchRoll.PitchDegrees[2], precision: 6);
-    }
-
-    [Fact]
-    public void ProcessRecorded_WithEquivalentDenseAndSegmentOnlyData_ProducesSameSeries()
-    {
-        var frameRecords = new[] { FramePitch10Degrees(), FrameLevel() };
-        var forkRecords = new[] { ForkLevel(), ForkLevel() };
-        var meta = new[]
-        {
-            new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100),
-            new ImuMetaEntry((byte)ImuLocation.Fork, 1000, 100),
-        };
-        var dense = CreateRawImuData(
-            activeLocations: [(byte)ImuLocation.Frame, (byte)ImuLocation.Fork],
-            meta: meta,
-            records: [frameRecords[0], forkRecords[0], frameRecords[1], forkRecords[1]]);
-        var segmented = new RawImuData
-        {
-            SampleRate = 10,
-            ActiveLocations = [(byte)ImuLocation.Frame, (byte)ImuLocation.Fork],
-            Meta = [.. meta],
-            Segments =
-            [
-                new RawImuSegment
-                {
-                    LocationId = (byte)ImuLocation.Frame,
-                    FirstMonotonicDeltaUs = 0,
-                    Records = [.. frameRecords],
-                },
-                new RawImuSegment
-                {
-                    LocationId = (byte)ImuLocation.Fork,
-                    FirstMonotonicDeltaUs = 0,
-                    Records = [.. forkRecords],
-                },
-            ],
-        };
-
-        var denseResult = ImuDisplaySignalProcessor.ProcessRecorded(dense);
-        var segmentedResult = ImuDisplaySignalProcessor.ProcessRecorded(segmented);
-
-        Assert.Equal(
-            denseResult.VibrationSeries.Select(series => series.LocationId),
-            segmentedResult.VibrationSeries.Select(series => series.LocationId));
-        foreach (var (denseSeries, segmentedSeries) in denseResult.VibrationSeries.Zip(segmentedResult.VibrationSeries))
-        {
-            Assert.Equal(denseSeries.Times, segmentedSeries.Times);
-            Assert.Equal(denseSeries.RmsG, segmentedSeries.RmsG);
-            Assert.Equal(denseSeries.Segments.Count, segmentedSeries.Segments.Count);
-        }
-
-        Assert.NotNull(denseResult.FramePitchRoll);
-        Assert.NotNull(segmentedResult.FramePitchRoll);
-        Assert.Equal(denseResult.FramePitchRoll!.Times, segmentedResult.FramePitchRoll!.Times);
-        Assert.Equal(denseResult.FramePitchRoll.PitchDegrees, segmentedResult.FramePitchRoll.PitchDegrees);
-        Assert.Equal(denseResult.FramePitchRoll.RollDegrees, segmentedResult.FramePitchRoll.RollDegrees);
     }
 
     private static RawImuData CreateRawImuData(

@@ -1,13 +1,10 @@
 using Microsoft.Extensions.Time.Testing;
 using Avalonia;
-using Avalonia.Automation.Peers;
-using Avalonia.Automation.Provider;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using NSubstitute;
 
 using Sufni.App.Infrastructure;
-using Sufni.App.macOS;
 using Sufni.App.Shell.DesktopViews;
 using Sufni.App.Shell.KeyboardShortcuts;
 using Sufni.App.Shell.ViewModels;
@@ -16,40 +13,11 @@ using Sufni.App.Tests.TestSupport.Doubles;
 using Sufni.App.Tests.TestSupport.Harness;
 namespace Sufni.App.Tests.Shell.DesktopViews;
 
-// Mounted windows and automation peers require Avalonia resources.
+// Mounted windows require Avalonia resources.
 [Collection("Ui")]
 public class MainWindowTests
 {
     private static readonly InlineUiThreadDispatcher TestDispatcher = new();
-
-    [AvaloniaTheory]
-    [InlineData(CommandModifier.Control, KeyModifiers.Control)]
-    [InlineData(CommandModifier.Meta, KeyModifiers.Meta)]
-    public async Task MainWindow_BindsNavigationShortcutFromInputCapability(CommandModifier modifier, KeyModifiers expected)
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
-        var root = CreateRoot();
-        var first = new TestTabPageViewModel();
-        root.Workspace.OpenOrFocus(first);
-        root.Workspace.OpenOrFocus(new TestTabPageViewModel());
-        var input = TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input with { CommandModifier = modifier };
-        Application.Current!.Resources[typeof(KeyboardShortcutRegistry)] = new KeyboardShortcutRegistry(input);
-
-        await using var mounted = await MountAsync(new MainWindow
-        {
-            DataContext = root,
-            Width = 900,
-            Height = 700,
-        });
-
-        var binding = Assert.Single(mounted.Window.KeyBindings, binding =>
-            binding.Gesture is { Key: Key.OemCloseBrackets } gesture &&
-            gesture.KeyModifiers == (expected | KeyModifiers.Shift));
-        binding.Command!.Execute(binding.CommandParameter);
-
-        Assert.Same(first, root.Workspace.CurrentTab);
-    }
 
     [AvaloniaFact]
     public async Task MainWindow_HandlesRegisteredTabShortcutsBeforeFocusNavigation()
@@ -75,7 +43,7 @@ public class MainWindowTests
         var next = Shortcut(
             KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
             KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab);
-        var handledNext = RaiseKey(mounted.Window, next.Key, next.KeyModifiers);
+        var handledNext = RaiseKey(mounted.View, next.Key, next.KeyModifiers);
 
         Assert.True(handledNext);
         Assert.Same(first, root.Workspace.CurrentTab);
@@ -83,7 +51,7 @@ public class MainWindowTests
         var previous = Shortcut(
             KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
             KeyboardShortcutRegistry.ShortcutConfiguration.SelectPreviousTab);
-        var handledPrevious = RaiseKey(mounted.Window, previous.Key, previous.KeyModifiers);
+        var handledPrevious = RaiseKey(mounted.View, previous.Key, previous.KeyModifiers);
 
         Assert.True(handledPrevious);
         Assert.Same(third, root.Workspace.CurrentTab);
@@ -114,13 +82,13 @@ public class MainWindowTests
         var args = new KeyEventArgs
         {
             RoutedEvent = InputElement.KeyDownEvent,
-            Source = mounted.Window,
+            Source = mounted.View,
             Key = next.Key,
             KeyModifiers = next.KeyModifiers,
             Handled = true,
         };
 
-        mounted.Window.RaiseEvent(args);
+        mounted.View.RaiseEvent(args);
 
         Assert.True(args.Handled);
         Assert.Same(first, root.Workspace.CurrentTab);
@@ -155,70 +123,11 @@ public class MainWindowTests
         Assert.True(handle!(Key.Tab, KeyModifiers.Control));
         Assert.Same(first, root.Workspace.CurrentTab);
         attachment.DidNotReceive().Dispose();
-        mounted.Window.Close();
+        mounted.View.Close();
         attachment.Received(1).Dispose();
     }
 
-    [AvaloniaFact]
-    public async Task MainWindow_DoesNotInterceptRegisteredNonTabShortcuts()
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
-
-        var root = CreateRoot();
-        var first = new TestTabPageViewModel();
-        root.Workspace.OpenOrFocus(first);
-
-        await using var mounted = await MountAsync(new MainWindow
-        {
-            DataContext = root,
-            Width = 900,
-            Height = 700,
-        });
-
-        var bracketShortcut = Shortcut(
-            KeyboardShortcutRegistry.ShortcutConfiguration.MainWindow,
-            KeyboardShortcutRegistry.ShortcutConfiguration.SelectNextTab,
-            index: 1);
-
-        Assert.False(RaiseKey(mounted.Window,
-            bracketShortcut.Key,
-            bracketShortcut.KeyModifiers));
-        Assert.Same(first, root.Workspace.CurrentTab);
-    }
-
-    [AvaloniaTheory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task MainWindow_AutomationPeer_FollowsPlatformBehavior(bool useMacBehavior)
-    {
-        ViewTestHelpers.EnsureViewTestResources();
-        ViewTestHelpers.EnsureViewTestDataTemplates(UiLayoutProfile.Workspace);
-
-        var behavior = Substitute.For<IWindowBehavior>();
-        behavior.CreateAutomationPeer(Arg.Any<Avalonia.Controls.Window>())
-            .Returns(call => new InertWindowAutomationPeer(call.Arg<Avalonia.Controls.Window>()));
-        await using var mounted = await MountAsync(new MainWindow(useMacBehavior ? behavior : null)
-        {
-            DataContext = CreateRoot(),
-            Width = 900,
-            Height = 700,
-        });
-
-        var peer = ControlAutomationPeer.CreatePeerForElement(mounted.Window);
-
-        if (useMacBehavior)
-        {
-            Assert.Empty(peer.GetChildren());
-            Assert.Null(peer.GetProvider<IRootProvider>());
-        }
-        else
-        {
-            Assert.NotNull(peer.GetProvider<IRootProvider>());
-        }
-    }
-
-    private static async Task<MountedMainWindow> MountAsync(MainWindow window)
+    private static async Task<MountedView<MainWindow>> MountAsync(MainWindow window)
     {
         ViewTestHelpers.ShowWindow(window);
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -227,7 +136,7 @@ public class MainWindowTests
         window.Arrange(new Rect(0, 0, window.Width, window.Height));
         await ViewTestHelpers.FlushDispatcherAsync();
 
-        return new MountedMainWindow(window);
+        return new MountedView<MainWindow>(window, window);
     }
 
     private static bool RaiseKey(MainWindow window, Key key, KeyModifiers modifiers)
@@ -271,16 +180,5 @@ public class MainWindowTests
             Substitute.For<IPlotZoomState>(),
             TestDispatcher,
             timeProvider: new FakeTimeProvider());
-    }
-}
-
-internal sealed class MountedMainWindow(MainWindow window) : IAsyncDisposable
-{
-    public MainWindow Window { get; } = window;
-
-    public async ValueTask DisposeAsync()
-    {
-        Window.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
     }
 }

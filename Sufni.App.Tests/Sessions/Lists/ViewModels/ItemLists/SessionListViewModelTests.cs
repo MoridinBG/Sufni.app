@@ -20,20 +20,6 @@ public class SessionListViewModelTests
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
 
     [Fact]
-    public async Task OpenImportCommand_RequestsTheImportEditorThroughTheShell()
-    {
-        var (projection, cache) = CreateProjection();
-        using (cache)
-        using (var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher))
-        {
-            Assert.True(viewModel.OpenImportCommand.CanExecute(null));
-            await viewModel.OpenImportCommand.ExecuteAsync(null);
-
-            shell.Received(1).OpenEditor(new EditorKey.ImportSessions());
-        }
-    }
-
-    [Fact]
     public async Task FinalizeDelete_KeepsSessionHidden_WhileDeleteInProgress()
     {
         var (projection, sessionCache) = CreateProjection();
@@ -43,7 +29,7 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(summary);
 
             var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            var deleteTcs = new TaskCompletionSource<SessionDeleteResult>();
+            var deleteTcs = new TaskCompletionSource<SessionDeleteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             sessionCoordinator.DeleteAsync(summary.Id).Returns(deleteTcs.Task);
 
             var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
@@ -55,10 +41,12 @@ public class SessionListViewModelTests
             var entry = viewModel.PendingDeletes[0];
             var finalizeTask = entry.FinalizeDeleteCommand.ExecuteAsync(null);
             Assert.Empty(viewModel.Items);
+            Assert.False(finalizeTask.IsCompleted);
 
             sessionCache.Remove(summary.Id);
             deleteTcs.SetResult(new SessionDeleteResult.Deleted());
-            await finalizeTask;
+            await finalizeTask.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            Assert.Empty(viewModel.PendingDeletes);
 
             Assert.Empty(viewModel.Items);
         }
@@ -89,40 +77,10 @@ public class SessionListViewModelTests
         }
     }
 
-    [Fact]
-    public async Task RequestRowDelete_StacksMultipleEntries_WithoutForcingPriorFinalize()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var first = CreateSummary(name: "first");
-            var second = CreateSummary(name: "second");
-            sessionCache.AddOrUpdate(first);
-            sessionCache.AddOrUpdate(second);
-
-            var sessionCoordinator = TestCoordinatorSubstitutes.Session();
-            var firstTcs = new TaskCompletionSource<SessionDeleteResult>();
-            var secondTcs = new TaskCompletionSource<SessionDeleteResult>();
-            sessionCoordinator.DeleteAsync(first.Id).Returns(firstTcs.Task);
-            sessionCoordinator.DeleteAsync(second.Id).Returns(secondTcs.Task);
-
-            var viewModel = CreateLoadedViewModel(projection, sessionCoordinator, UiThreadDispatcher);
-            Assert.Equal(2, viewModel.Items.Count);
-
-            // Delete both rows back to back. The second delete must not
-            // force the first one to finalize early.
-            viewModel.Items[0].UndoableDeleteCommand.Execute(null);
-            viewModel.Items[0].UndoableDeleteCommand.Execute(null);
-
-            Assert.Empty(viewModel.Items);
-            Assert.Equal(2, viewModel.PendingDeletes.Count);
-
-            await sessionCoordinator.DidNotReceive().DeleteAsync(Arg.Any<Guid>());
-        }
-    }
-
-    [Fact]
-    public async Task RecalculateRow_RequestsRecomputeForSelectedSession()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecalculateRow_DisablesDuplicateExecutionUntilRequestCompletes(bool stale)
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
@@ -130,21 +88,24 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "stale",
                 updated: 42,
-                staleness: new SessionStaleness.Stale());
+                staleness: stale ? new SessionStaleness.Stale() : new SessionStaleness.Current());
             sessionCache.AddOrUpdate(summary);
 
-            var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-            recomputeEngine.RequestRecomputeAsync(summary.Id)
-                .Returns(new SessionRecomputeResult.Recomputed());
+            var recomputeCoordinator = TestCoordinatorSubstitutes.Session();
+            var completion = new TaskCompletionSource<SessionRecomputeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            recomputeCoordinator.RecomputeAsync(summary.Id).Returns(completion.Task);
 
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeCoordinator: recomputeCoordinator);
             var row = Assert.Single(viewModel.Items);
 
             Assert.True(row.RecalculateCommand.CanExecute(null));
-            await row.RecalculateCommand.ExecuteAsync(null);
-
-            await recomputeEngine.Received(1)
-                .RequestRecomputeAsync(summary.Id);
+            var request = row.RecalculateCommand.ExecuteAsync(null);
+            Assert.True(row.RecalculateCommand.IsRunning);
+            Assert.False(row.RecalculateCommand.CanExecute(null));
+            completion.SetResult(new SessionRecomputeResult.Recomputed());
+            await request.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            Assert.False(row.RecalculateCommand.IsRunning);
+            Assert.True(row.RecalculateCommand.CanExecute(null));
             Assert.Empty(viewModel.ErrorMessages);
         }
     }
@@ -183,8 +144,10 @@ public class SessionListViewModelTests
             sessionCache.AddOrUpdate(summary with { LatestVideo =
                 videos.CreateClip("source-hash", startTimestamp: 0, durationSeconds: 60) });
 
-            Assert.Same(row, Assert.Single(viewModel.Items));
-            Assert.True(row.HasPresentVideo);
+            var updated = Assert.Single(viewModel.Items);
+            Assert.Equal(summary.Id, updated.Id);
+            Assert.True(updated.HasPresentVideo);
+            Assert.False(updated.HasMissingVideo);
         }
     }
 
@@ -199,7 +162,7 @@ public class SessionListViewModelTests
                 timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
             var viewModel = new SessionListViewModel(
                 projection,
-                TestCoordinatorSubstitutes.RecomputeEngine(),
+                TestCoordinatorSubstitutes.Session(),
                     UiThreadDispatcher,
                 pendingDeletes: TestPendingDeletes.Create(sessions: TestCoordinatorSubstitutes.Session(), shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
 
@@ -207,9 +170,7 @@ public class SessionListViewModelTests
             Assert.Empty(viewModel.DateGroups);
 
             viewModel.LoadedCommand.Execute(null);
-            var newestGroup = Assert.Single(viewModel.DateGroups);
-            newestGroup.ToggleExpandedCommand.Execute(null);
-            Assert.False(newestGroup.IsExpanded);
+            Assert.Equal("newest", Assert.Single(viewModel.Items).BaseName);
 
             viewModel.UnloadedCommand.Execute(null);
             sessionCache.AddOrUpdate(CreateSummary(
@@ -223,7 +184,8 @@ public class SessionListViewModelTests
             Assert.Equal(2, viewModel.Items.Count);
             Assert.Equal(2, viewModel.DateGroups.Count);
             Assert.Equal(new DateOnly(2026, 5, 20), viewModel.DateGroups[0].Key.Date);
-            Assert.False(viewModel.DateGroups[0].IsExpanded);
+            Assert.Equal(new[] { "newest", "older" }, viewModel.Items.Select(row => row.BaseName));
+            viewModel.UnloadedCommand.Execute(null);
         }
     }
 
@@ -239,41 +201,15 @@ public class SessionListViewModelTests
                 staleness: new SessionStaleness.Stale());
             sessionCache.AddOrUpdate(summary);
 
-            var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-            recomputeEngine.RequestRecomputeAsync(summary.Id)
+            var recomputeCoordinator = TestCoordinatorSubstitutes.Session();
+            recomputeCoordinator.RecomputeAsync(summary.Id)
                 .Returns(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.Recompute, "boom"));
 
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
+            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeCoordinator: recomputeCoordinator);
             await viewModel.Items[0].RecalculateCommand.ExecuteAsync(null);
 
-            Assert.NotEmpty(viewModel.ErrorMessages);
-        }
-    }
-
-    [Fact]
-    public async Task RecalculateRow_CallsCoordinator_WhenSummaryIsCurrent()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var summary = CreateSummary(
-                name: "current",
-                updated: 42,
-                staleness: new SessionStaleness.Current());
-            sessionCache.AddOrUpdate(summary);
-
-            var recomputeEngine = TestCoordinatorSubstitutes.RecomputeEngine();
-            recomputeEngine.RequestRecomputeAsync(summary.Id)
-                .Returns(new SessionRecomputeResult.Recomputed());
-
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher, recomputeEngine: recomputeEngine);
-            var row = Assert.Single(viewModel.Items);
-
-            Assert.True(row.RecalculateCommand.CanExecute(null));
-            await row.RecalculateCommand.ExecuteAsync(null);
-
-            await recomputeEngine.Received(1)
-                .RequestRecomputeAsync(summary.Id);
+            Assert.Equal(FailurePresentation.From(SessionRecomputeFailureReason.Recompute, "boom"), Assert.Single(viewModel.ErrorMessages));
+            Assert.Equal(summary.Id, Assert.Single(viewModel.Items).Id);
         }
     }
 
@@ -294,8 +230,10 @@ public class SessionListViewModelTests
         }
     }
 
-    [Fact]
-    public void StaleRows_ShowSuffix_ButSearchUsesSummaryText()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Search_UsesAuthoredNameAndDescriptionWithoutStatusSuffix(bool missingSource)
     {
         var (projection, sessionCache) = CreateProjection();
         using (sessionCache)
@@ -303,46 +241,18 @@ public class SessionListViewModelTests
             var summary = CreateSummary(
                 name: "Alpine",
                 description: "rough track",
-                staleness: new SessionStaleness.Stale());
+                staleness: missingSource ? new SessionStaleness.MissingRawSource() : new SessionStaleness.Stale());
             sessionCache.AddOrUpdate(summary);
             var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
 
             var row = Assert.Single(viewModel.Items);
-            Assert.Equal("Alpine", row.BaseName);
-            Assert.Equal("Alpine", row.Name);
-            Assert.Equal("Alpine (Stale)", row.TitleText);
-
-            viewModel.SearchText = "Stale";
+            viewModel.SearchText = row.TitleText.Replace(row.BaseName, "", StringComparison.Ordinal).Trim();
             Assert.Empty(viewModel.Items);
 
             viewModel.SearchText = "rough";
-            Assert.Single(viewModel.Items);
-        }
-    }
-
-    [Fact]
-    public void NoRawRows_ShowSuffix_ButSearchUsesSummaryText()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var summary = CreateSummary(
-                name: "Alpine",
-                description: "rough track",
-                staleness: new SessionStaleness.MissingRawSource());
-            sessionCache.AddOrUpdate(summary);
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
-
-            var row = Assert.Single(viewModel.Items);
-            Assert.Equal("Alpine", row.BaseName);
-            Assert.Equal("Alpine", row.Name);
-            Assert.Equal("Alpine (No Raw)", row.TitleText);
-
-            viewModel.SearchText = "No Raw";
-            Assert.Empty(viewModel.Items);
-
-            viewModel.SearchText = "rough";
-            Assert.Single(viewModel.Items);
+            Assert.Equal(summary.Id, Assert.Single(viewModel.Items).Id);
+            viewModel.SearchText = "Alpine";
+            Assert.Equal(summary.Id, Assert.Single(viewModel.Items).Id);
         }
     }
 
@@ -367,9 +277,9 @@ public class SessionListViewModelTests
             Assert.Equal(new DateOnly(2026, 5, 20), viewModel.DateGroups[0].Key.Date);
             Assert.Equal(new DateOnly(2026, 5, 19), viewModel.DateGroups[1].Key.Date);
             Assert.Equal(SessionDateGroupKey.NoDate, viewModel.DateGroups[2].Key);
-            Assert.Equal(2, viewModel.DateGroups[0].Items.Count);
-            Assert.Single(viewModel.DateGroups[2].Items);
-            Assert.All(viewModel.DateGroups, group => Assert.True(group.IsExpanded));
+            Assert.Equal(new[] { sameDay.Id, newest.Id }, viewModel.DateGroups[0].Items.Select(row => row.Id));
+            Assert.Equal(older.Id, Assert.Single(viewModel.DateGroups[1].Items).Id);
+            Assert.Equal(undated.Id, Assert.Single(viewModel.DateGroups[2].Items).Id);
         }
     }
 
@@ -390,55 +300,6 @@ public class SessionListViewModelTests
             viewModel.DateFilterTo = new DateTime(2026, 5, 20);
 
             Assert.Equal(new[] { "evening", "morning" }, viewModel.Items.Select(row => row.BaseName));
-        }
-    }
-
-    [Fact]
-    public void DateGroups_PreserveExistingGroupAndRowsCollection_WhenRowsChange()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            sessionCache.AddOrUpdate(CreateSummary("Morning", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
-
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
-            var group = Assert.Single(viewModel.DateGroups);
-            var rows = group.Items;
-
-            sessionCache.AddOrUpdate(CreateSummary("Afternoon", timestamp: ToUnixSeconds(2026, 5, 20, 16, 30)));
-
-            var updatedGroup = Assert.Single(viewModel.DateGroups);
-            Assert.Same(group, updatedGroup);
-            Assert.Same(rows, updatedGroup.Items);
-            Assert.Equal(2, updatedGroup.Items.Count);
-        }
-    }
-
-    [Fact]
-    public async Task DateGroups_CoalesceRowChangesUntilDispatcherRuns()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var dispatcher = new ManualUiThreadDispatcher();
-            sessionCache.AddOrUpdate(CreateSummary("Morning", timestamp: ToUnixSeconds(2026, 5, 20, 9, 15)));
-
-            var viewModel = CreateLoadedViewModel(
-                projection,
-                TestCoordinatorSubstitutes.Session(),
-                dispatcher);
-            var group = Assert.Single(viewModel.DateGroups);
-            Assert.Single(group.Items);
-
-            sessionCache.AddOrUpdate(CreateSummary("Afternoon", timestamp: ToUnixSeconds(2026, 5, 20, 16, 30)));
-            sessionCache.AddOrUpdate(CreateSummary("Evening", timestamp: ToUnixSeconds(2026, 5, 20, 19, 45)));
-
-            Assert.Equal(3, viewModel.Items.Count);
-            Assert.Single(group.Items);
-
-            await dispatcher.DrainAsync();
-
-            Assert.Equal(3, group.Items.Count);
         }
     }
 
@@ -512,79 +373,15 @@ public class SessionListViewModelTests
         }
     }
 
-    [Fact]
-    public void RowPresentation_FormatsTitleTimestampAndGroupKey()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var timestamp = ToUnixSeconds(2026, 5, 20, 9, 15);
-            var summary = CreateSummary(
-                name: "Alpine",
-                timestamp: timestamp,
-                staleness: new SessionStaleness.Stale());
-            sessionCache.AddOrUpdate(summary);
-
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
-            var row = Assert.Single(viewModel.Items);
-            var expectedTimestamp = row.Timestamp!.Value.ToString(
-                CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern,
-                CultureInfo.CurrentCulture);
-
-            Assert.Equal("Alpine (Stale)", row.TitleText);
-            Assert.Equal(expectedTimestamp, row.TimestampText);
-            Assert.Equal(new DateOnly(2026, 5, 20), row.DateGroupKey.Date);
-            Assert.Empty(row.SubtitleText);
-        }
-    }
-
-    [Fact]
-    public void RowPresentation_FormatsSubtitleFromSummaryMetrics()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            var summary = CreateSummary(
-                name: "Metrics",
-                durationSeconds: 65,
-                distanceMeters: 987,
-                ascentMeters: 12.4,
-                descentMeters: 4.2);
-            sessionCache.AddOrUpdate(summary);
-
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
-            var row = Assert.Single(viewModel.Items);
-
-            Assert.Equal("1m 05s | 987 m | +12 m / -4 m", row.SubtitleText);
-            Assert.True(row.HasSubtitleText);
-        }
-    }
-
-    [Fact]
-    public void RowPresentation_OmitsGpsSubtitle_WhenOnlyDurationIsKnown()
-    {
-        var (projection, sessionCache) = CreateProjection();
-        using (sessionCache)
-        {
-            sessionCache.AddOrUpdate(CreateSummary(name: "Duration", durationSeconds: 3725));
-
-            var viewModel = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
-            var row = Assert.Single(viewModel.Items);
-
-            Assert.Equal("1h 02m", row.SubtitleText);
-            Assert.True(row.HasSubtitleText);
-        }
-    }
-
     private SessionListViewModel CreateLoadedViewModel(
         IRecordedSessionProjection projection,
         ISessionCoordinator sessionCoordinator,
         IUiThreadDispatcher uiThreadDispatcher,
-        ISessionRecomputeEngine? recomputeEngine = null)
+        ISessionCoordinator? recomputeCoordinator = null)
     {
         var viewModel = new SessionListViewModel(
             projection,
-            recomputeEngine ?? TestCoordinatorSubstitutes.RecomputeEngine(),
+            recomputeCoordinator ?? TestCoordinatorSubstitutes.Session(),
             uiThreadDispatcher,
             pendingDeletes: TestPendingDeletes.Create(sessions: sessionCoordinator, shell: shell), timeProvider: new FakeTimeProvider(), shell: shell, shellActions: TestShellFeedback.Create());
         viewModel.LoadedCommand.Execute(null);

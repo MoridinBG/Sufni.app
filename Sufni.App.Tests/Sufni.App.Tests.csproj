@@ -24,13 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\Sufni.App\AppleShared\BonjourSocketAddress.cs" Link="AppleShared/BonjourSocketAddress.cs" />
-    <Compile Include="..\Sufni.App\AppleShared\BonjourBrowseLifecycle.cs" Link="AppleShared/BonjourBrowseLifecycle.cs" />
-    <Compile Include="..\Sufni.App\Sufni.App.macOS\RawTabShortcutHandler.cs" Link="Platform/macOS/RawTabShortcutHandler.cs" />
-    <Compile Include="..\Sufni.App\Sufni.App.macOS\InertWindowAutomationPeer.cs" Link="Platform/macOS/InertWindowAutomationPeer.cs" />
     <Compile Include="..\Sufni.App\Sufni.App.Android\AndroidServiceDiscovery.cs" Link="Infrastructure\AndroidServiceDiscovery.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\TelemetryCodecFixtureData.cs" Link="TestSupport\Fixtures\TelemetryCodecFixtureData.cs" />
     <Compile Include="..\Sufni.Telemetry.Tests\GoldenTelemetryCompatibilityFixtures.cs" Link="TestSupport\Fixtures\GoldenTelemetryCompatibilityFixtures.cs" />
+    <Compile Include="..\Sufni.Telemetry.Tests\SstTestFiles.cs" Link="TestSupport\Fixtures\SstTestFiles.cs" />
+    <Compile Include="..\Sufni.Kinematics.Tests\TestLinkages.cs" Link="TestSupport\Fixtures\TestLinkages.cs" />
   </ItemGroup>
 
   <ItemGroup>

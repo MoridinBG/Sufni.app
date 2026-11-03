@@ -78,10 +78,12 @@ public class SearchBarWithDateFilterTests
         Assert.True(clearToButton!.IsVisible);
 
         clearFromButton.Command!.Execute(clearFromButton.CommandParameter);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Null(viewModel.DateFilterFrom);
+        Assert.Equal(new DateTime(2024, 1, 31), viewModel.DateFilterTo);
+
         clearToButton.Command!.Execute(clearToButton.CommandParameter);
         await ViewTestHelpers.FlushDispatcherAsync();
-
-        Assert.Null(viewModel.DateFilterFrom);
         Assert.Null(viewModel.DateFilterTo);
     }
 }

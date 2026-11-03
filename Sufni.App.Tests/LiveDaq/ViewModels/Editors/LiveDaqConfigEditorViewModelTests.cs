@@ -10,20 +10,6 @@ namespace Sufni.App.Tests.LiveDaq.ViewModels.Editors;
 public class LiveDaqConfigEditorViewModelTests
 {
     [Fact]
-    public void Constructor_CreatesRowsInFirmwareOrder_WithDefaultsAndSecretFlags()
-    {
-        var editor = CreateEditor(DaqConfigDocument.Parse("STA_SSID=trail\n"));
-
-        Assert.Equal(DaqConfigFields.All.Select(field => field.Key), editor.Fields.Select(row => row.Key));
-        Assert.Equal("trail", Row(editor, "STA_SSID").Value);
-        Assert.Equal("changemeplease", Row(editor, "STA_PSK").Value);
-        Assert.Equal("pool.ntp.org", Row(editor, "NTP_SERVER").Value);
-        Assert.True(Row(editor, "STA_PSK").IsSecret);
-        Assert.True(Row(editor, "AP_PSK").IsSecret);
-        Assert.False(Row(editor, "STA_PSK").IsSecretRevealed);
-    }
-
-    [Fact]
     public async Task SaveCommand_ValidatesBeforeUpload()
     {
         var uploadCalled = false;

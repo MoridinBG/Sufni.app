@@ -24,16 +24,9 @@ public class TrackSignalPlotTests
             telemetryData: null,
             TrackSignalKind.Speed);
 
-        Assert.NotNull(sut.CursorLine);
-        Assert.Empty(plot.Axes.Title.Label.Text);
-        Assert.Empty(plot.Axes.Bottom.Label.Text);
-        Assert.Empty(plot.Axes.Left.Label.Text);
-        Assert.Single(plot.PlottableList.OfType<Scatter>());
-        Assert.True(plot.Axes.Left.Min < 36);
-        Assert.True(plot.Axes.Left.Max > 72);
-        Assert.True(plot.Axes.Right.IsVisible);
-        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
+        var trace = Assert.Single(plot.PlottableList.OfType<Scatter>());
+        Assert.Equal([0.0, 1.0], trace.Data.GetScatterPoints().Select(point => point.X));
+        Assert.Equal([36.0, 72.0], trace.Data.GetScatterPoints().Select(point => point.Y));
     }
 
     [Fact]
@@ -51,16 +44,9 @@ public class TrackSignalPlotTests
             telemetryData: null,
             TrackSignalKind.Elevation);
 
-        Assert.NotNull(sut.CursorLine);
-        Assert.Empty(plot.Axes.Title.Label.Text);
-        Assert.Empty(plot.Axes.Bottom.Label.Text);
-        Assert.Empty(plot.Axes.Left.Label.Text);
-        Assert.Single(plot.PlottableList.OfType<Scatter>());
-        Assert.True(plot.Axes.Left.Min < 500);
-        Assert.True(plot.Axes.Left.Max > 510);
-        Assert.True(plot.Axes.Right.IsVisible);
-        Assert.Equal(plot.Axes.Left.Min, plot.Axes.Right.Min, precision: 6);
-        Assert.Equal(plot.Axes.Left.Max, plot.Axes.Right.Max, precision: 6);
+        var trace = Assert.Single(plot.PlottableList.OfType<Scatter>());
+        Assert.Equal([0.0, 1.0], trace.Data.GetScatterPoints().Select(point => point.X));
+        Assert.Equal([500.0, 510.0], trace.Data.GetScatterPoints().Select(point => point.Y));
     }
 
     [Fact]
@@ -79,7 +65,9 @@ public class TrackSignalPlotTests
             telemetryData: null,
             TrackSignalKind.Elevation);
 
-        Assert.Single(plot.PlottableList.OfType<Scatter>());
+        var trace = Assert.Single(plot.PlottableList.OfType<Scatter>());
+        Assert.Equal([-1.0, 0.5, 2.0], trace.Data.GetScatterPoints().Select(point => point.X));
+        Assert.Equal([490.0, 500.0, 510.0], trace.Data.GetScatterPoints().Select(point => point.Y));
         var limits = plot.Axes.GetLimits();
         Assert.Equal(0, limits.Left);
         Assert.Equal(1, limits.Right);

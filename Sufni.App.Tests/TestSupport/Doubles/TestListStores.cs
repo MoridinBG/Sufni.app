@@ -1,11 +1,6 @@
 using Sufni.App.Setups.Queries;
 using System.Reactive;
 using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Store;
 using System.Linq;
 using System.Reactive.Linq;
 using DynamicData;
@@ -38,34 +33,7 @@ internal sealed class BikeStoreStub : IBikeStore, IDisposable
 
 }
 
-internal sealed class SetupStoreStub : ISetupStore, IDisposable
-{
-    private readonly SourceCache<SetupSnapshot, Guid> cache = new(snapshot => snapshot.Id);
-
-    public SetupStoreStub(params SetupSnapshot[] snapshots)
-    {
-        cache.AddOrUpdate(snapshots);
-    }
-
-    public IObservable<IChangeSet<SetupSnapshot, Guid>> Connect() => cache.Connect();
-
-    public void Add(SetupSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-    public void Dispose() => cache.Dispose();
-
-    public SetupSnapshot? Get(Guid id)
-    {
-        var result = cache.Lookup(id);
-        return result.HasValue ? result.Value : null;
-    }
-
-    public IReadOnlyList<SetupSnapshot> GetAll() => cache.Items.ToArray();
-
-    public bool IsBikeReferenced(Guid bikeId) => cache.Items.Any(setup => setup.BikeId == bikeId);
-
-}
-
-internal sealed class PairedDeviceStoreStub : IPairedDeviceStore
+internal sealed class PairedDeviceStoreStub : IPairedDeviceStore, IDisposable
 {
     private readonly SourceCache<PairedDeviceSnapshot, string> cache = new(snapshot => snapshot.DeviceId);
 
@@ -80,55 +48,14 @@ internal sealed class PairedDeviceStoreStub : IPairedDeviceStore
 
     public IObservable<IChangeSet<PairedDeviceSnapshot, string>> Connect() => cache.Connect();
 
+    public void Dispose() => cache.Dispose();
+
     public PairedDeviceSnapshot? Get(string deviceId)
     {
         var result = cache.Lookup(deviceId);
         return result.HasValue ? result.Value : null;
     }
 
-}
-
-internal sealed class SessionStoreStub : ISessionStore, IDisposable
-{
-    public IReadOnlyList<SessionSnapshot> GetAll() => cache.Items.ToArray();
-
-    private readonly SourceCache<SessionSnapshot, Guid> cache = new(snapshot => snapshot.Id);
-
-    public IObservable<IChangeSet<SessionSnapshot, Guid>> Connect() => cache.Connect();
-
-    public IObservable<SessionSnapshot> Watch(Guid id) => Observable.Empty<SessionSnapshot>();
-
-    public SessionSnapshot? Get(Guid id)
-    {
-        var result = cache.Lookup(id);
-        return result.HasValue ? result.Value : null;
-    }
-
-    public void Add(SessionSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-    public void RefreshWith(SessionSnapshot snapshot) =>
-        cache.EditDiff([snapshot], EqualityComparer<SessionSnapshot>.Default);
-
-    public void Remove(Guid id) => cache.RemoveKey(id);
-
-    public void Dispose() => cache.Dispose();
-}
-
-internal sealed class RecordedSourceStoreStub : IRecordedSessionSourceStore, IDisposable
-{
-    private readonly SourceCache<RecordedSessionSourceSnapshot, Guid> cache = new(snapshot => snapshot.SessionId);
-
-    public IObservable<IChangeSet<RecordedSessionSourceSnapshot, Guid>> Connect() => cache.Connect();
-
-    public RecordedSessionSourceSnapshot? Get(Guid sessionId)
-    {
-        var result = cache.Lookup(sessionId);
-        return result.HasValue ? result.Value : null;
-    }
-
-    public void Add(RecordedSessionSourceSnapshot snapshot) => cache.AddOrUpdate(snapshot);
-
-    public void Dispose() => cache.Dispose();
 }
 
 internal sealed class SetupBoardQueryStub : ISetupBoardQuery, IDisposable

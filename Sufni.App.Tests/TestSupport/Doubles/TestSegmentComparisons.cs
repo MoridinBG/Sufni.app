@@ -1,4 +1,3 @@
-using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Segments.Models;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Models;
@@ -17,13 +16,13 @@ namespace Sufni.App.Tests.TestSupport.Doubles;
 internal static class TestSegmentComparisons
 {
     public static ISegmentComparisonFactory CreateFactory(ISegmentCoordinator? segmentCoordinator = null) =>
-        new SegmentComparisonFactory(
-            segmentCoordinator ?? Substitute.For<ISegmentCoordinator>(),
-            CreateTrackCoordinator());
+        new SegmentComparisonFactory(BuildAnalysisComparisons(segmentCoordinator ?? Substitute.For<ISegmentCoordinator>()));
 
-    public static ITrackCoordinator CreateTrackCoordinator()
+    /// <summary>
+    /// Makes the substitute build analysis comparisons with the real builder.
+    /// </summary>
+    public static ISegmentCoordinator BuildAnalysisComparisons(ISegmentCoordinator coordinator)
     {
-        var coordinator = Substitute.For<ITrackCoordinator>();
         coordinator.BuildAnalysisComparisonAsync(Arg.Any<SegmentComparison>(), Arg.Any<SegmentComparisonDetail>(),
                 Arg.Any<TravelDistributionMode>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs>(),
                 Arg.Any<SessionDampingPercentages>(), Arg.Any<CancellationToken>())

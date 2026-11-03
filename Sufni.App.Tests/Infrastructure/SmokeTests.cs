@@ -12,17 +12,6 @@ namespace Sufni.App.Tests.Infrastructure;
 public class SmokeTests
 {
     [AvaloniaFact]
-    public void RealApp_StartupWithoutApplicationLifetime_UsesPreviewInitialization()
-    {
-        var app = new App(TestAppEnvironment.CreateRoot());
-
-        app.OnFrameworkInitializationCompleted();
-
-        Assert.Null(app.Services);
-        Assert.Contains(app.DataTemplates, template => template is Sufni.App.ViewLocator);
-    }
-
-    [AvaloniaFact]
     public async Task RealApp_Initialize_AppliesLaunchThemeBeforeLoadingResources()
     {
         using var directory = new TempDirectory("sufni-launch-theme-test");

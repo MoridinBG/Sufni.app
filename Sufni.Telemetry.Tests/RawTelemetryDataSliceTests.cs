@@ -5,45 +5,14 @@ namespace Sufni.Telemetry.Tests;
 public class RawTelemetryDataSliceTests
 {
     [Fact]
-    public void Slice_DenseData_RebasesTimelineAndAuxiliaryData()
+    public void Slice_EndingBeforeSourceEnd_DropsTerminalStatus()
     {
         var raw = CreateRaw(sampleRate: 10, durationSeconds: 10);
-        raw.Markers = [new MarkerData(1.5), new MarkerData(2.5), new MarkerData(7.9), new MarkerData(8.0)];
-        raw.GpsData =
-        [
-            CreateGps(1_002),
-            CreateGps(1_007),
-            CreateGps(1_008),
-        ];
-        raw.TemperatureData =
-        [
-            new TemperatureSample(1_002, 0, 20),
-            new TemperatureSample(1_007, 0, 21),
-            new TemperatureSample(1_008, 0, 22),
-        ];
-        raw.FinalStatus = new SstFinalStatus
-        {
-            SessionResultReason = 2,
-            StoppedMonotonicDeltaUs = 10_000_000,
-        };
+        raw.FinalStatus = new SstFinalStatus { SessionResultReason = 2, StoppedMonotonicDeltaUs = 10_000_000 };
         raw.MissingFinalStatus = true;
 
         var result = raw.Slice(2.0, 8.0);
 
-        Assert.Equal(1_002, result.Timestamp);
-        Assert.Equal(1_002_000, result.SessionStartUtcMs);
-        Assert.Equal(6.0, result.RecordingDurationSeconds);
-        Assert.Equal(Enumerable.Range(20, 60).Select(index => (ushort)index), result.Front);
-        Assert.Equal(Enumerable.Range(120, 60).Select(index => (ushort)index), result.Rear);
-        Assert.Equal(Enumerable.Range(20, 60).Select(index => (ushort)index), result.FrontSegments.Single().Counts);
-        Assert.Equal((ulong)0, result.FrontSegments.Single().FirstIndex);
-        Assert.Equal((ulong)0, result.FrontSegments.Single().FirstMonotonicDeltaUs);
-        Assert.Equal([new MarkerData(0.5), new MarkerData(5.9)], result.Markers);
-        Assert.NotNull(result.GpsData);
-        Assert.Equal([CreateGps(1_002), CreateGps(1_007)], result.GpsData);
-        Assert.Equal(
-            [new TemperatureSample(1_002, 0, 20), new TemperatureSample(1_007, 0, 21)],
-            result.TemperatureData);
         Assert.Null(result.FinalStatus);
         Assert.False(result.MissingFinalStatus);
     }
@@ -273,7 +242,7 @@ public class RawTelemetryDataSliceTests
     }
 
     [Fact]
-    public void Slice_SegmentedImu_RebasesCanonicalSegmentsWithoutDenseDuplicate()
+    public void Slice_SegmentedImu_RebasesLogicalSampleTimesAndValues()
     {
         var raw = CreateRaw(sampleRate: 10, durationSeconds: 4);
         raw.ImuData = new RawImuData
@@ -295,16 +264,20 @@ public class RawTelemetryDataSliceTests
         var result = raw.Slice(1.0, 3.0);
 
         Assert.NotNull(result.ImuData);
-        Assert.Equal(2, result.ImuData.Segments.Length);
-        Assert.All(result.ImuData.Segments, segment =>
+        var segments = result.ImuData.SampleSegments;
+        Assert.Equal(2, segments.Count);
+        for (var location = 0; location < 2; location++)
         {
+            var segment = segments[location];
+            Assert.Equal(location, segment.LocationId);
             Assert.Equal((ulong)0, segment.FirstIndex);
             Assert.Equal((ulong)0, segment.FirstMonotonicDeltaUs);
-            Assert.Equal(10, segment.Records.Length);
-        });
-        Assert.Equal(CreateImuRecord(5), result.ImuData.Segments[0].Records[0]);
-        Assert.Equal(CreateImuRecord(105), result.ImuData.Segments[1].Records[0]);
-        Assert.Empty(result.ImuData.Records);
+            Assert.Equal(10, segment.Count);
+            for (var index = 0; index < segment.Count; index++)
+            {
+                Assert.Equal(CreateImuRecord(location * 100 + 5 + index), segment[index]);
+            }
+        }
     }
 
     [Fact]

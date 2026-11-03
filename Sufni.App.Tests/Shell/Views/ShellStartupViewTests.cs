@@ -49,7 +49,8 @@ public class ShellStartupViewTests
             var reset = failure.FindControl<Button>("ResetDatabase")!;
             Assert.True(reset.IsVisible);
             Assert.True(reset.Command!.CanExecute(null));
-            await root.ResetDatabaseCommand.ExecuteAsync(null);
+            reset.Command.Execute(reset.CommandParameter);
+            await (root.ResetDatabaseCommand.ExecutionTask ?? Task.CompletedTask).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
             await ViewTestHelpers.FlushDispatcherAsync();
 
             Assert.False(reset.IsVisible);

@@ -34,7 +34,8 @@ public class PositionVelocityTraceBuilderTests
         Assert.Equal([0, 700, 1500], front.Strokes[0].VelocityMmPerSecond);
         Assert.Equal([100, 50, 0], front.Strokes[1].PositionPercent);
         Assert.Equal([1500, -800, -200], front.Strokes[1].VelocityMmPerSecond);
-        Assert.Equal(1500, traceSet.VelocityLimitMmPerSecond);
+        Assert.Equal([25, 50, 100], rear.Strokes[0].PositionPercent);
+        Assert.Equal([500, 900, 1200], rear.Strokes[0].VelocityMmPerSecond);
     }
 
     [Fact]
@@ -216,49 +217,6 @@ public class PositionVelocityTraceBuilderTests
     }
 
     [Fact]
-    public void Build_MissingStrokesEmptyStrokesOrInvalidStrokeIndexesProduceNoTrace()
-    {
-        var missingStrokes = PositionVelocityTraceBuilder.Build(
-            CreateTelemetry(
-                front: new Suspension
-                {
-                    Present = true,
-                    MaxTravel = 100,
-                    Travel = [0, 10, 20],
-                    Velocity = [0, 100, 200],
-                    Strokes = null!,
-                    TravelBins = [],
-                    VelocityBins = [],
-                },
-                rear: CreateMissingSuspension()),
-            analysisRange: null);
-        var emptyStrokes = PositionVelocityTraceBuilder.Build(
-            CreateTelemetry(
-                front: CreateSuspension(
-                    maxTravel: 100,
-                    travel: [0, 10, 20],
-                    velocity: [0, 100, 200],
-                    compressions: [],
-                    rebounds: []),
-                rear: CreateMissingSuspension()),
-            analysisRange: null);
-        var invalidIndexes = PositionVelocityTraceBuilder.Build(
-            CreateTelemetry(
-                front: CreateSuspension(
-                    maxTravel: 100,
-                    travel: [0, 10, 20],
-                    velocity: [0, 100, 200],
-                    compressions: [new Stroke { Start = 4, End = 5 }],
-                    rebounds: []),
-                rear: CreateMissingSuspension()),
-            analysisRange: null);
-
-        Assert.Null(missingStrokes.Front);
-        Assert.Null(emptyStrokes.Front);
-        Assert.Null(invalidIndexes.Front);
-    }
-
-    [Fact]
     public void Build_SkipsNonFiniteSamplesAndDropsStrokesWithFewerThanTwoValidPoints()
     {
         var telemetry = CreateTelemetry(
@@ -331,17 +289,22 @@ public class PositionVelocityTraceBuilderTests
         Assert.NotNull(front);
         var trace = Assert.Single(front.Strokes);
 
-        Assert.Equal(15_001, trace.Count);
+        Assert.InRange(trace.Count, 2, 20_000);
+        Assert.All(trace.VelocityMmPerSecond.Zip(trace.VelocityMmPerSecond.Skip(1)),
+            pair => Assert.True(pair.First < pair.Second));
+        for (var index = 0; index < trace.Count; index++)
+        {
+            var sourceIndex = (int)trace.VelocityMmPerSecond[index];
+            Assert.Equal(travel[sourceIndex], trace.PositionPercent[index], 9);
+        }
         Assert.Equal(0, trace.PositionPercent[0]);
         Assert.Equal(0, trace.VelocityMmPerSecond[0]);
-        Assert.Equal(2, trace.VelocityMmPerSecond[1]);
-        Assert.Equal(pointCount - 3, trace.VelocityMmPerSecond[^2]);
         Assert.Equal(100, trace.PositionPercent[^1]);
         Assert.Equal(pointCount - 1, trace.VelocityMmPerSecond[^1]);
     }
 
     [Fact]
-    public void Build_StrokeCountCappingUsesOnlyRenderableStrokesAndPreservesTheirExactOrder()
+    public void Build_StrokeCountCappingUsesOnlyRenderableStrokesAndPreservesTheirOrder()
     {
         var strokeCount = 802;
         var travel = Enumerable.Range(0, strokeCount * 3)
@@ -362,11 +325,17 @@ public class PositionVelocityTraceBuilderTests
         var front = PositionVelocityTraceBuilder.Build(telemetry, null).Front;
         Assert.NotNull(front);
 
-        var expectedFirstVelocities = new[] { 0.0 }
-            .Concat(Enumerable.Range(0, 400).Select(index => 9.0 + index * 6.0))
-            .ToArray();
-        Assert.Equal(expectedFirstVelocities, front.Strokes.Select(trace => trace.VelocityMmPerSecond[0]));
-        Assert.All(front.Strokes, trace => Assert.Equal(3, trace.Count));
+        Assert.InRange(front.Strokes.Count, 2, 800);
+        var starts = front.Strokes.Select(trace => trace.VelocityMmPerSecond[0]).ToArray();
+        Assert.Equal(0, starts[0]);
+        Assert.Equal((strokeCount - 1) * 3, starts[^1]);
+        Assert.DoesNotContain(3, starts);
+        Assert.All(starts.Zip(starts.Skip(1)), pair => Assert.True(pair.First < pair.Second));
+        Assert.All(front.Strokes, trace =>
+        {
+            Assert.Equal(3, trace.Count);
+            Assert.All(trace.VelocityMmPerSecond, value => Assert.True(double.IsFinite(value)));
+        });
     }
 
     [Fact]

@@ -1,6 +1,5 @@
 using Sufni.App.Shared.Models;
 using System;
-using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.Segments.Coordinators;
 
 namespace Sufni.App.Segments.ViewModels;
@@ -22,8 +21,7 @@ public interface ISegmentComparisonFactory
 }
 
 internal sealed class SegmentComparisonFactory(
-    ISegmentCoordinator segmentCoordinator,
-    ITrackCoordinator trackCoordinator) : ISegmentComparisonFactory
+    ISegmentCoordinator segmentCoordinator) : ISegmentComparisonFactory
 {
     public SegmentComparisonViewModel Create(
         Guid sessionId,
@@ -31,5 +29,5 @@ internal sealed class SegmentComparisonFactory(
         Action<double, double> setTimelineVisibleRange,
         Action<FailurePresentation> reportError,
         Action<string> reportNotification) =>
-        new(sessionId, sessionState, segmentCoordinator, trackCoordinator, setTimelineVisibleRange, reportError, reportNotification);
+        new(sessionId, sessionState, segmentCoordinator, setTimelineVisibleRange, reportError, reportNotification);
 }

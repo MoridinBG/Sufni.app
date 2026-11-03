@@ -17,18 +17,7 @@ public class PreferencesPageViewTests
     public async Task PreferencesPageView_BindsSmoothingAndAvailability()
     {
         var viewModel = TestPreferencesPages.Create(new SignalDisplayPreferences(
-            Travel: false,
-            Velocity: true,
-            Imu: false,
-            PitchRoll: false,
-            Speed: true,
-            Elevation: false,
-            TravelSmoothing: PlotSmoothingLevel.Light,
-            VelocitySmoothing: PlotSmoothingLevel.Strong,
-            ImuSmoothing: PlotSmoothingLevel.Off,
-            PitchRollSmoothing: PlotSmoothingLevel.Light,
-            SpeedSmoothing: PlotSmoothingLevel.Strong,
-            ElevationSmoothing: PlotSmoothingLevel.Light));
+            TravelSmoothing: PlotSmoothingLevel.Light));
         viewModel.ApplySignalAvailability(
             travelAvailable: true,
             velocityAvailable: false,
@@ -39,14 +28,12 @@ public class PreferencesPageViewTests
 
         await using var mounted = await MountAsync(viewModel);
 
-        var travelLabel = mounted.View.FindControl<TextBlock>("TravelSignalLabel");
         var travelSmoothingComboBox = mounted.View.FindControl<ComboBox>("TravelSignalSmoothingComboBox");
 
-        Assert.NotNull(travelLabel);
         Assert.NotNull(travelSmoothingComboBox);
-        Assert.True(travelLabel!.IsEnabled);
         Assert.Equal(PlotSmoothingLevel.Light, travelSmoothingComboBox!.SelectedValue);
         Assert.True(travelSmoothingComboBox.IsEnabled);
+        Assert.False(mounted.View.FindControl<ComboBox>("VelocitySignalSmoothingComboBox")!.IsEnabled);
 
         travelSmoothingComboBox.SelectedValue = PlotSmoothingLevel.Strong;
         await ViewTestHelpers.FlushDispatcherAsync();
@@ -56,7 +43,7 @@ public class PreferencesPageViewTests
         Assert.Equal(PlotSmoothingLevel.Strong, preferences.TravelSmoothing);
     }
 
-    private static async Task<MountedPreferencesPageView> MountAsync(PreferencesPageViewModel viewModel)
+    private static async Task<MountedView<PreferencesPageView>> MountAsync(PreferencesPageViewModel viewModel)
     {
         ViewTestHelpers.EnsureViewTestResources();
 
@@ -66,18 +53,6 @@ public class PreferencesPageViewTests
         };
 
         var host = await ViewTestHelpers.ShowViewAsync(view);
-        return new MountedPreferencesPageView(host, view);
-    }
-}
-
-internal sealed class MountedPreferencesPageView(Window host, PreferencesPageView view) : IAsyncDisposable
-{
-    public Window Host { get; } = host;
-    public PreferencesPageView View { get; } = view;
-
-    public async ValueTask DisposeAsync()
-    {
-        Host.Close();
-        await ViewTestHelpers.FlushDispatcherAsync();
+        return new MountedView<PreferencesPageView>(host, view);
     }
 }

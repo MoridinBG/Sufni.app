@@ -13,7 +13,7 @@ public class PositionVelocityPageViewModelTests
     [InlineData(true, true, PositionVelocitySideMode.Rear)]
     public void SideMode_FollowsTheSidesWithData(bool frontReady, bool rearReady, PositionVelocitySideMode expected)
     {
-        var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: frontReady, hasRearAnalysis: rearReady);
+        using var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: frontReady, hasRearAnalysis: rearReady);
         var viewModel = new PositionVelocityPageViewModel(workspace)
         {
             SelectedSideMode = PositionVelocitySideMode.Rear,
@@ -26,7 +26,7 @@ public class PositionVelocityPageViewModelTests
     [Fact]
     public void SideMode_ReturnsToSelection_WhenSecondSideGainsData()
     {
-        var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: true, hasRearAnalysis: false);
+        using var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: true, hasRearAnalysis: false);
         var viewModel = new PositionVelocityPageViewModel(workspace)
         {
             SelectedSideMode = PositionVelocitySideMode.Both,
@@ -44,7 +44,7 @@ public class PositionVelocityPageViewModelTests
     [Fact]
     public void PresentationState_IsReady_WhenEitherSideHasData()
     {
-        var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: false, hasRearAnalysis: true);
+        using var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: false, hasRearAnalysis: true);
 
         var viewModel = new PositionVelocityPageViewModel(workspace);
 
@@ -55,7 +55,7 @@ public class PositionVelocityPageViewModelTests
     public void PresentationState_ShowsTheSideState_WhenNoSideHasData()
     {
         var noData = SurfacePresentationState.NoData("No analysis data for the selected range.");
-        var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: false, hasRearAnalysis: false)
+        using var workspace = new TestSessionAnalysisWorkspace(hasFrontAnalysis: false, hasRearAnalysis: false)
         {
             FrontAnalysisState = noData,
         };

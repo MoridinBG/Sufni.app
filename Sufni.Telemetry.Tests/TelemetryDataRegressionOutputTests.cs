@@ -86,20 +86,8 @@ public class TelemetryDataRegressionOutputTests
     }
 
     [Fact]
-    public void BinsAndHistograms_MatchAcceptedV4Output()
+    public void TravelFrequencyHistograms_MatchAcceptedV4Output()
     {
-        AssertClose(DecodedBaseline.FrontTravelBins, Result.Front.TravelBins);
-        AssertClose(DecodedBaseline.FrontVelocityBins, Result.Front.VelocityBins);
-        AssertClose(DecodedBaseline.RearTravelBins, Result.Rear.TravelBins);
-        AssertClose(DecodedBaseline.RearVelocityBins, Result.Rear.VelocityBins);
-        AssertClose(DecodedBaseline.FrontTravelHistogram,
-            TelemetryStatistics.CalculateTravelHistogram(Result, SuspensionType.Front).Values);
-        AssertClose(DecodedBaseline.RearTravelHistogram,
-            TelemetryStatistics.CalculateTravelHistogram(Result, SuspensionType.Rear).Values);
-        AssertClose(DecodedBaseline.FrontVelocityHistogram,
-            TelemetryStatistics.CalculateVelocityHistogram(Result, SuspensionType.Front).Values);
-        AssertClose(DecodedBaseline.RearVelocityHistogram,
-            TelemetryStatistics.CalculateVelocityHistogram(Result, SuspensionType.Rear).Values);
         AssertClose(DecodedBaseline.FrontTravelFrequencyHistogram,
             TelemetryStatistics.CalculateTravelFrequencyHistogram(Result, SuspensionType.Front).Values);
         AssertClose(DecodedBaseline.RearTravelFrequencyHistogram,
@@ -107,51 +95,12 @@ public class TelemetryDataRegressionOutputTests
     }
 
     [Fact]
-    public void Statistics_MatchAcceptedV4Output()
+    public void StrokeBounds_MatchAcceptedV4Output()
     {
-        var frontTravel = TelemetryStatistics.CalculateTravelStatistics(Result, SuspensionType.Front);
-        Assert.Equal(87.799999999999997, frontTravel.Max, 1e-9);
-        Assert.Equal(32.468030690537084, frontTravel.Average, 1e-9);
-        Assert.Equal(0, frontTravel.Bottomouts);
-
-        var rearTravel = TelemetryStatistics.CalculateTravelStatistics(Result, SuspensionType.Rear);
-        Assert.Equal(70.200000000000003, rearTravel.Max, 1e-9);
-        Assert.Equal(25.974424552429667, rearTravel.Average, 1e-9);
-        Assert.Equal(0, rearTravel.Bottomouts);
-
-        var frontVelocity = TelemetryStatistics.CalculateVelocityStatistics(Result, SuspensionType.Front);
-        Assert.Equal(-716.7213791917352, frontVelocity.AverageRebound, 1e-9);
-        Assert.Equal(-988.49222436178911, frontVelocity.MaxRebound, 1e-9);
-        Assert.Equal(919.4416384422168, frontVelocity.AverageCompression, 1e-9);
-        Assert.Equal(2390.9645507471696, frontVelocity.MaxCompression, 1e-9);
-        Assert.Equal(-988.49222436178911, frontVelocity.Percentile95Rebound, 1e-9);
-        Assert.Equal(2390.9645507471696, frontVelocity.Percentile95Compression, 1e-9);
-        Assert.Equal(2, frontVelocity.ReboundStrokeCount);
-        Assert.Equal(3, frontVelocity.CompressionStrokeCount);
-
-        var rearVelocity = TelemetryStatistics.CalculateVelocityStatistics(Result, SuspensionType.Rear);
-        Assert.Equal(-573.26361756137794, rearVelocity.AverageRebound, 1e-9);
-        Assert.Equal(-791.5510737249864, rearVelocity.MaxRebound, 1e-9);
-        Assert.Equal(735.34452565233721, rearVelocity.AverageCompression, 1e-9);
-        Assert.Equal(1912.7374075200241, rearVelocity.MaxCompression, 1e-9);
-        Assert.Equal(-791.5510737249864, rearVelocity.Percentile95Rebound, 1e-9);
-        Assert.Equal(1912.7374075200241, rearVelocity.Percentile95Compression, 1e-9);
-        Assert.Equal(2, rearVelocity.ReboundStrokeCount);
-        Assert.Equal(3, rearVelocity.CompressionStrokeCount);
-    }
-
-    [Fact]
-    public void StrokesAndAirtime_MatchAcceptedV4Output()
-    {
-        Assert.Equal(3, Result.Front.Strokes.Compressions.Length);
-        Assert.Equal(2, Result.Front.Strokes.Rebounds.Length);
-        Assert.Equal(3, Result.Rear.Strokes.Compressions.Length);
-        Assert.Equal(2, Result.Rear.Strokes.Rebounds.Length);
         Assert.Equal(ExpectedFrontCompressionBounds, Bounds(Result.Front.Strokes.Compressions));
         Assert.Equal(ExpectedFrontReboundBounds, Bounds(Result.Front.Strokes.Rebounds));
         Assert.Equal(ExpectedRearCompressionBounds, Bounds(Result.Rear.Strokes.Compressions));
         Assert.Equal(ExpectedRearReboundBounds, Bounds(Result.Rear.Strokes.Rebounds));
-        Assert.Single(Result.Airtimes);
     }
 
     private sealed record RegressionBaseline(

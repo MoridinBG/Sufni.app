@@ -12,6 +12,8 @@ public class TelemetryTimeRangeTests
         Assert.Equal(1.0, range.StartSeconds);
         Assert.Equal(2.5, range.EndSeconds);
         Assert.Equal(1.5, range.DurationSeconds);
+        Assert.True(TelemetryTimeRange.TryCreate(2.5, 1.0, out var created));
+        Assert.Equal(range, created);
     }
 
     [Theory]
@@ -21,16 +23,6 @@ public class TelemetryTimeRangeTests
     public void Constructor_RejectsInvalidRanges(double startSeconds, double endSeconds)
     {
         Assert.Throws<ArgumentException>(() => new TelemetryTimeRange(startSeconds, endSeconds));
-    }
-
-    [Fact]
-    public void TryCreate_NormalizesValidRange()
-    {
-        var created = TelemetryTimeRange.TryCreate(3.0, 1.0, out var range);
-
-        Assert.True(created);
-        Assert.Equal(1.0, range.StartSeconds);
-        Assert.Equal(3.0, range.EndSeconds);
     }
 
     [Theory]

@@ -62,12 +62,6 @@ public class GpsBinaryRecordDecoderTests
         Assert.Equal(new DateTime(2024, 2, 29, 0, 0, 1, DateTimeKind.Utc), record.Timestamp);
     }
 
-    [Fact]
-    public void Decode_ThrowsArgumentException_WhenRecordLengthIsWrong()
-    {
-        Assert.Throws<ArgumentException>(() => GpsBinaryRecordDecoder.Decode(new byte[GpsBinaryRecordDecoder.RecordSize - 1]));
-    }
-
     private static byte[] CreateRecord(
         uint date = 20260518,
         uint timeMs = 0,

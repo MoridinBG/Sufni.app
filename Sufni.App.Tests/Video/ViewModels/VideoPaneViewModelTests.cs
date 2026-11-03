@@ -105,40 +105,5 @@ public class VideoPaneViewModelTests : IDisposable
         Assert.Equal(new Uri(second.Path).AbsoluteUri, pane.VideoUri);
     }
 
-    [Fact]
-    public async Task Playback_CannotSync_UntilTelemetryDurationIsKnown()
-    {
-        var clip = fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60);
-        using var timing = new Subject<VideoSessionTiming>();
-        using var pane = await fixture.CreatePaneAsync(timeline, timing, clip);
-
-        var canSyncBeforeTiming = pane.Playback.CanSync;
-        timing.OnNext(new VideoSessionTiming("source-hash", 0, DurationSeconds: 30));
-
-        Assert.False(canSyncBeforeTiming);
-        Assert.True(pane.Playback.CanSync);
-    }
-
-    [Fact]
-    public async Task TimelinePlayback_WithSync_DoesNotSeekWhileTheCursorFollowsTheVideo()
-    {
-        var clip = fixture.CreateClip("source-hash", SessionTimestamp, durationSeconds: 60);
-        using var pane = await fixture.CreatePaneAsync(
-            timeline,
-            Observable.Return(new VideoSessionTiming("source-hash", 0, DurationSeconds: 30)),
-            clip);
-        var backend = new FakeVideoPlaybackBackend();
-        timeline.SetCursorPosition(0);
-        pane.Playback.SetBackend(backend);
-        pane.Playback.IsSyncEnabled = true;
-        timeline.RequestPlaybackToggle();
-        backend.SeekedPositions.Clear();
-
-        backend.RaisePositionChanged(TimeSpan.FromSeconds(10));
-        backend.RaisePositionChanged(TimeSpan.FromSeconds(11));
-
-        Assert.Empty(backend.SeekedPositions);
-    }
-
     public void Dispose() => fixture.Dispose();
 }

@@ -64,7 +64,7 @@ internal sealed class InMemorySessionRepository
         Repository.UpdateSessionPsstAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
                 Arg.Any<double?>(), Arg.Any<SessionProcessedWriteGuard>())
             .Returns(call => CommitTransferred(call.Arg<Guid>(), call.Arg<byte[]>(), call.Arg<string?>(),
-                call.Arg<double?>(), call.Arg<SessionProcessedWriteGuard>(), null));
+                call.Arg<double?>(), call.Arg<SessionProcessedWriteGuard>()));
         Repository.UpdateSessionProcessedGenerationAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<string?>(),
                 Arg.Any<SessionProcessedGeneration>(), Arg.Any<SessionProcessedWriteGuard>())
             .Returns(call =>
@@ -72,11 +72,11 @@ internal sealed class InMemorySessionRepository
                 var generation = call.Arg<SessionProcessedGeneration>();
                 return CommitTransferred(call.Arg<Guid>(), call.Arg<byte[]>(), call.Arg<string?>(),
                     generation.DurationSeconds,
-                    call.Arg<SessionProcessedWriteGuard>(), generation);
+                    call.Arg<SessionProcessedWriteGuard>());
             });
 
         Task<bool> CommitTransferred(Guid id, byte[] bytes, string? fingerprint, double? duration,
-            SessionProcessedWriteGuard expected, SessionProcessedGeneration? generation)
+            SessionProcessedWriteGuard expected)
         {
             if (WriteFailure is { } failure) return Task.FromException<bool>(failure);
             if (!snapshots.TryGetValue(id, out var current) || current.ProcessingFingerprintJson != expected.Fingerprint ||

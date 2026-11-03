@@ -305,11 +305,7 @@ public sealed class CollapsibleSplitView : UserControl
         set => SetValue(CollapsedHeaderThicknessProperty, value);
     }
 
-    internal bool IsFirstPaneCollapsed => isFirstPaneCollapsed;
-    internal bool IsSecondPaneCollapsed => isSecondPaneCollapsed;
-    internal bool IsDragging => isDragging;
 
-    internal void ResetToDefaultsForTests() => ResetToDefaultsAndPublish();
 
     internal SessionPaneGroupPreferences? CaptureCurrentPreferences()
     {
@@ -325,30 +321,6 @@ public sealed class CollapsibleSplitView : UserControl
         }
 
         return panes.Count > 0 ? new SessionPaneGroupPreferences(panes) : null;
-    }
-
-    internal void BeginDragForTests()
-    {
-        isDragging = true;
-        dragStartFirstRatio = currentFirstRatio;
-        dragStartSecondRatio = currentSecondRatio;
-    }
-
-    internal void DragToFirstRatioForTests(double firstRatio)
-    {
-        var firstDelta = firstRatio - currentFirstRatio;
-        ApplyDragCandidate(firstRatio, 1 - firstRatio, firstDelta);
-    }
-
-    internal void CompleteDragForTests()
-    {
-        if (!isDragging)
-        {
-            return;
-        }
-
-        isDragging = false;
-        PublishCurrentState();
     }
 
     private static Button CreateCollapsedHeader(string name)
