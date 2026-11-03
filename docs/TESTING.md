@@ -91,6 +91,12 @@ Do not bombard the SUT with random junk just to create more cases. Prefer inputs
 - `TestAppPreferences.Load` supplies isolated launch preferences and inline background/dispatcher seams for file-backed preference tests. `TestPersistenceHarness` and `PersistenceTestData.CreateConnectionContext` share a fixed test clock by default and accept an explicit clock for expiry and timestamp scenarios.
 - Keep shared helpers small and mechanical. They should reduce repetition, not hide the behavior the test is asserting.
 
+`Persistence/InMemorySessionRepository`, `InMemorySynchronizableRepository`,
+`InMemorySetupTransactions` and `InMemoryPairedDeviceRepository` keep coordinator
+tests on observable facts without SQLite. `TestSupport/Doubles/TestCoordinatorSubstitutes`
+provides default typed outcomes; `TestSupport/Fixtures/TestSnapshots` supplies small
+immutable entity inputs. The screenshot project references these same fixtures.
+
 `RecordingProgress<T>` collects reports synchronously and safely across worker tasks.
 `TestListStores` supplies shared mutable read-store fixtures; projection and list
 tests use `ManualUiThreadDispatcher` for queued publication.
@@ -110,8 +116,8 @@ probing the machine's mounts.
 
 ## Parallelization Tiers
 
-- Assembly-level serialization remains enabled while architecture adoption removes shared test state. Removing it is a final verification gate.
-- The **UI tier** is the one named collection: `[Collection("Ui")]` (defined in `TestSupport/Harness/UiCollection.cs`, `DisableParallelization = true`). It serializes tests that share process-global state: anything touching `TestApp`, `Application.Current` resources, `ViewTestHelpers`, `[AvaloniaFact]`/`[AvaloniaTheory]` bodies on the headless dispatcher, or anything that creates an Avalonia object or a `DispatcherTimer` (controls, resource dictionaries, services that own a `DispatcherTimer`). When assembly serialization is removed, the UI collection must remain isolated from tests that create Avalonia state. Each headless test resets the Avalonia dispatcher, and a parallel test that creates an Avalonia object in that window takes the UI dispatcher to its own thread, which stops the headless session and hangs the run.
+- Pure and isolated persistence tests run in parallel. Only the `Ui` collection disables parallel execution.
+- The **UI tier** is the one named collection: `[Collection("Ui")]` (defined in `TestSupport/Harness/UiCollection.cs`, `DisableParallelization = true`). It serializes tests that share process-global state: anything touching `TestApp`, `Application.Current` resources, `ViewTestHelpers`, `[AvaloniaFact]`/`[AvaloniaTheory]` bodies on the headless dispatcher, or anything that creates an Avalonia object or a `DispatcherTimer` (controls, resource dictionaries, services that own a `DispatcherTimer`). The UI collection remains isolated from all other tests. Avalonia objects must be created on the headless dispatcher, using `[AvaloniaFact]` or `[AvaloniaTheory]`, even within this collection. Each headless test resets the Avalonia dispatcher, and a parallel test that creates an Avalonia object in that window takes the UI dispatcher to its own thread, which stops the headless session and hangs the run.
 - **A new test that touches any of those must carry `[Collection("Ui")]`.** Persistence-tier tests (isolated per test by `TempDatabase`/`TempDirectory`) and pure unit tests stay in the default parallel collections — do not add them to the Ui collection.
 - Composition tests build fresh collections from typed platform roots and fake platform services. Timer and dispatcher fakes are per-test instances. `ManualUiTimerScheduler` controls UI cadence without Avalonia; `ViewTestHelpers.ShowWindow` supplies the inherited scheduler on mounted roots and accepts a manual scheduler for gesture/animation tests.
 
@@ -152,11 +158,11 @@ The SUT is the coordinator's workflow contract.
 They should cover:
 
 - branching between `Saved`, `Conflict`, `Failed`, `Canceled`, and similar result shapes
-- database calls and store writes
-- shell navigation or open/focus behavior
-- orchestration between services, stores, and dialogs
+- persisted facts and coherent published store snapshots, using the shared in-memory repositories and real stores
+- conflict, cancellation and failure outcomes that preserve the previous facts
+- shell navigation and open/focus behavior only when the shell coordinator is the unit under test
 - progress-event emission and consumption when the workflow owns it
-- background-runner usage when the coordinator owns the off-thread work
+- pending background work, stale-result rejection and cleanup through deterministic completion gates
 
 They should not cover:
 

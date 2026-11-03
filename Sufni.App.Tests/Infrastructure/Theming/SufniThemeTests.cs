@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 using Avalonia.Controls;
 using Avalonia.Styling;
 
@@ -8,7 +9,7 @@ namespace Sufni.App.Tests.Infrastructure.Theming;
 [Collection("Ui")]
 public class SufniThemeTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void SufniDarkTheme_SignalRowByDepth_UsesRootHostedLevelsAndClamp()
     {
         var signalRow = SufniDarkTheme.Instance.SignalRow;
@@ -21,7 +22,7 @@ public class SufniThemeTests
         Assert.Equal(signalRow.HostedLevel3Plus, signalRow.ByDepth(10));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SufniThemes_TypographyAndSpacing_AreSharedAcrossVariants()
     {
         // Typography and spacing are variant-invariant; both themes must draw
@@ -33,7 +34,7 @@ public class SufniThemeTests
         Assert.Same(SufniThemes.Spacing, SufniThemes.Light.Spacing);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SufniThemes_ToVariant_MapsSystemModeToAvaloniaDefault()
     {
         Assert.Equal(ThemeVariant.Dark, SufniThemes.ToVariant(SufniThemeMode.Dark));
@@ -41,7 +42,7 @@ public class SufniThemeTests
         Assert.Equal(ThemeVariant.Default, SufniThemes.ToVariant(SufniThemeMode.System));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SufniThemes_EffectiveModeFromVariant_UsesDarkForUnknownOrDefault()
     {
         Assert.Equal(SufniThemeMode.Light, SufniThemes.EffectiveModeFromVariant(ThemeVariant.Light));
@@ -50,7 +51,7 @@ public class SufniThemeTests
         Assert.Equal(SufniThemeMode.Dark, SufniThemes.EffectiveModeFromVariant(null));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SufniThemeResourceDictionary_FluentOverrides_ExistInBothVariantDictionaries()
     {
         var resources = new SufniThemeResourceDictionary();
@@ -81,7 +82,7 @@ public class SufniThemeTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SufniThemeResourceDictionary_AppBrushes_ExistInBothVariantDictionaries()
     {
         var resources = new SufniThemeResourceDictionary();

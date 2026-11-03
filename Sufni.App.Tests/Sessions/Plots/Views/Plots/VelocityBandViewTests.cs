@@ -27,7 +27,7 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 [Collection("Ui")]
 public class VelocityBandViewTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void ZoneLengths_AlignToVelocityThresholds()
     {
         var sut = new VelocityBandView();
@@ -43,7 +43,7 @@ public class VelocityBandViewTests
             sut.LowSpeedZoneLength.Value);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ZoneLengths_ReflectCompressionAndReboundCutoffsIndependently()
     {
         var cutoffs = DampingSpeedCutoffs.FromValues(
