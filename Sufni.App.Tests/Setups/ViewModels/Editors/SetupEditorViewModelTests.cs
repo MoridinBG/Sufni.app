@@ -1,6 +1,5 @@
 using Sufni.Kinematics;
 using Sufni.App.Shared.Models;
-using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using DynamicData;
@@ -39,7 +38,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- Construction -----
 
-    [AvaloniaFact]
+    [Fact]
     public void Construction_PopulatesNameBoardSensorConfigs_FromSnapshot()
     {
         var bike = TestSnapshots.Bike();
@@ -57,7 +56,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.True(editor.IsInDatabase);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void Loaded_PopulatesSelectedBike_FromBikeStore()
     {
         var bike = TestSnapshots.Bike();
@@ -73,7 +72,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- Sensor type switching -----
 
-    [AvaloniaFact]
+    [Fact]
     public void SettingForkSensorType_RecreatesForkSensorConfigurationViewModel()
     {
         var snapshot = TestSnapshots.Setup();
@@ -85,7 +84,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal(SensorType.LinearFork, editor.ForkSensorConfiguration!.Type);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void ReplacingForkSensorConfiguration_DetachesOldPropertyChangedHandler()
     {
         var snapshot = TestSnapshots.Setup() with
@@ -108,7 +107,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal(0, saveCommandStateChanges);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void Loaded_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
     {
         var bike = TestSnapshots.Bike() with
@@ -133,7 +132,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal(SensorType.LinearShock, editor.ShockSensorType);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SelectedBike_UpdatesAllowedShockSensorTypes_FromRearSuspensionKind()
     {
         var linkageBike = TestSnapshots.Bike() with
@@ -157,7 +156,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal(new SensorType?[] { null, SensorType.LinearShockStroke }, editor.ShockSensorTypes);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SelectedBike_DraftRearSuspension_RestrictsSensorTypes()
     {
         var draftBike = TestSnapshots.Bike() with
@@ -172,7 +171,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SelectedBike_HardtailResolution_ReportsHardtailDescription()
     {
         var hardtailBike = TestSnapshots.Bike();
@@ -184,7 +183,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal("Hardtail", editor.RearSuspensionDescription);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void ChangingBike_ClearsIncompatibleRearSensorConfiguration()
     {
         var linkageBike = TestSnapshots.Bike() with
@@ -216,7 +215,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.NotNull(editor.RearSensorCompatibilityMessage);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SettingShockSensorType_ToLinearShockStroke_OnCurveBike_CreatesMatchingViewModel()
     {
         var leverageRatioBike = TestSnapshots.LeverageRatioBike(
@@ -232,7 +231,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal(SensorType.LinearShockStroke, configuration.Type);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SettingShockSensorType_ToRotationalShock_UsesLinkageSpecJointsWithoutBikeImage()
     {
         var linkage = TestSnapshots.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
@@ -257,7 +256,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- CanSave -----
 
-    [AvaloniaFact]
+    [Fact]
     public void SaveCommand_Disabled_WhenNoSensorConfiguration()
     {
         var bike = TestSnapshots.Bike();
@@ -272,7 +271,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.False(editor.SaveCommand.CanExecute(null));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void SaveCommand_Enabled_WhenForkConfigurationValid_AndDirty()
     {
         var bike = TestSnapshots.Bike();
@@ -291,7 +290,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- Save -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Save_HappyPath_RoutesThroughCoordinator_AndUpdatesBaseline()
     {
         var bike = TestSnapshots.Bike();
@@ -320,7 +319,7 @@ public class SetupEditorViewModelTests : IDisposable
         shell.DidNotReceive().GoBack();
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Save_PreservesSensorEditsMadeWhilePersistenceIsPending()
     {
         var bike = TestSnapshots.Bike();
@@ -349,7 +348,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.False(editor.IsDirty);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Save_OnConflict_PromptsUser_AndReloadsWhenAccepted()
     {
         var bike = TestSnapshots.Bike();
@@ -374,7 +373,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal("remote-updated", editor.Name);
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Save_OnConflict_DoesNothing_WhenUserDeclinesReload()
     {
         var bike = TestSnapshots.Bike();
@@ -399,7 +398,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Equal("renamed", editor.Name);
     }
 
-    [AvaloniaTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Save_RejectedOrFailed_AppendsErrorAndKeepsDraft(bool boardInUse)
@@ -427,7 +426,7 @@ public class SetupEditorViewModelTests : IDisposable
         shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
     }
 
-    [AvaloniaTheory]
+    [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
@@ -464,7 +463,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- Delete -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Delete_OnNewUnsavedSetup_NavigatesBack_WithoutCallingCoordinator()
     {
         var snapshot = TestSnapshots.Setup();
@@ -476,7 +475,7 @@ public class SetupEditorViewModelTests : IDisposable
         await shell.Received(1).CloseEditorAsync(new EditorKey.Setup(editor.Id));
     }
 
-    [AvaloniaFact]
+    [Fact]
     public async Task Delete_HappyPath_NavigatesBack()
     {
         var snapshot = TestSnapshots.Setup();
@@ -490,7 +489,7 @@ public class SetupEditorViewModelTests : IDisposable
         Assert.Empty(editor.ErrorMessages);
     }
 
-    [AvaloniaTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Delete_InUseOrFailed_KeepsEditorOpen(bool inUse)
@@ -508,7 +507,7 @@ public class SetupEditorViewModelTests : IDisposable
 
     // ----- EditBike -----
 
-    [AvaloniaFact]
+    [Fact]
     public async Task EditBike_RoutesToBikeCoordinator()
     {
         var bike = TestSnapshots.Bike();

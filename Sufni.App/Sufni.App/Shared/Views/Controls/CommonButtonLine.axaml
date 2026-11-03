@@ -1,4 +1,5 @@
 <UserControl
+    xmlns:shellBase="using:Sufni.App.Shell.ViewModels.Base"
 x:Class="Sufni.App.Shared.Views.Controls.CommonButtonLine"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -7,7 +8,7 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:vm="clr-namespace:Sufni.App.Shared.Base"
 d:DesignHeight="50"
 d:DesignWidth="500"
-x:DataType="vm:TabPageViewModelBase"
+x:DataType="shellBase:TabPageViewModelBase"
 mc:Ignorable="d">
     <Grid
     Margin="0,15,0,5"

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Base;
 using System;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -5,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
-namespace Sufni.App.Shared.Base;
+namespace Sufni.App.Shell.ViewModels.Base;
 
 public partial class TabPageViewModelBase : ViewModelBase
 {

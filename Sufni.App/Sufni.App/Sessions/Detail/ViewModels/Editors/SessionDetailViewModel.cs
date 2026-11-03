@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shared.Plots;

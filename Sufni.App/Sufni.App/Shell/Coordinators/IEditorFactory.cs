@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Shared.Base;
 
 namespace Sufni.App.Shell.Coordinators;

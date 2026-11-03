@@ -1,9 +1,10 @@
+using Sufni.App.Shared.Base;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Shell.Coordinators;
 
-namespace Sufni.App.Shared.Base;
+namespace Sufni.App.Shell.ViewModels.Base;
 
 /// <summary>An undo-bar projection of a shell-owned pending delete.</summary>
 public partial class PendingDeleteEntryViewModel(PendingDelete pending, IPendingDeletes owner) : ObservableObject

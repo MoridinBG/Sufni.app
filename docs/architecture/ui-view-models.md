@@ -48,6 +48,9 @@ classDiagram
     ItemListViewModelBase <|-- ListVM
 ```
 
+Shell list, row, tab and pending-delete bases live in `Shell/ViewModels/Base`.
+`Shared/Base/ViewModelBase` retains generic notifications and subscription scopes.
+
 There are five kinds of view model in the presentation layer:
 
 - **Shell view models** — `ShellRootViewModel`, `ShellWorkspaceViewModel`,
@@ -418,7 +421,7 @@ The desktop session shell declares the media pane's 400-pixel default in XAML;
 saved layout preferences still override it. No media-width value travels through
 track loading, recorded editor state, or live/recorded workspace contracts.
 
-`TabPageViewModelBase` (`Shared/Base/TabPageViewModelBase.cs`) is the
+`TabPageViewModelBase` (`Shell/ViewModels/Base/TabPageViewModelBase.cs`) is the
 shared base for everything that opens as a top-level tab or stacked
 view (editors and the import view). It takes
 `IShellCoordinator` and `IDialogService` via its constructor and

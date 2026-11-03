@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Sessions.Store;

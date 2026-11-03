@@ -4,7 +4,7 @@ using Sufni.App.Sessions.Coordination;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Tests.TestSupport.Doubles;
 
-namespace Sufni.App.Tests.Shared.Base;
+namespace Sufni.App.Tests.Shell.ViewModels.Base;
 
 public class ItemListViewModelBaseTests
 {

@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Shell.Coordinators;
 using System;
 using System.Collections.Generic;

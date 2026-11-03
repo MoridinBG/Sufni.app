@@ -1,10 +1,11 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shell.Coordinators;
 using Sufni.App.Shared.Base;
-namespace Sufni.App.Tests.Shared.Base;
+namespace Sufni.App.Tests.Shell.ViewModels.Base;
 
 public class TabPageViewModelBaseTests
 {

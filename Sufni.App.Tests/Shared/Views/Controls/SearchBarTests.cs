@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Microsoft.Extensions.Time.Testing;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;

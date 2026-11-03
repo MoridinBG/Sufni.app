@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Setups.Queries;
 using Sufni.App.LiveDaq.ViewModels;
 using Sufni.App.LiveDaq.Services.LiveStreaming;

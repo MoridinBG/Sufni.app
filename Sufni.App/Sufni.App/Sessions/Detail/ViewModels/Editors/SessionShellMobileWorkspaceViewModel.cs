@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;

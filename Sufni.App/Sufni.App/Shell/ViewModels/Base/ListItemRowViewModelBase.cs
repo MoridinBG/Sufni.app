@@ -1,9 +1,10 @@
+using Sufni.App.Shared.Base;
 using System;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Sufni.App.Shared.Base;
+namespace Sufni.App.Shell.ViewModels.Base;
 
 public class ListItemRowViewModelBase : ObservableObject
 {

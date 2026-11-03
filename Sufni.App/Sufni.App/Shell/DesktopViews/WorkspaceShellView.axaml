@@ -1,4 +1,5 @@
 <UserControl
+    xmlns:shellBase="using:Sufni.App.Shell.ViewModels.Base"
     x:Class="Sufni.App.Shell.DesktopViews.WorkspaceShellView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -120,7 +121,7 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="baseVm:TabPageViewModelBase">
+                        <DataTemplate DataType="shellBase:TabPageViewModelBase">
                             <ContentControl Margin="0,20,0,0" Content="{Binding}">
                                 <ContentControl.IsVisible>
                                     <MultiBinding Converter="{StaticResource IsEqualConverter}">

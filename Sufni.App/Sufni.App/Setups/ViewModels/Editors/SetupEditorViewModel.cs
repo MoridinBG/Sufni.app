@@ -1,3 +1,4 @@
+using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Setups.Services;
 using Sufni.App.Shared.Models;
 using System;

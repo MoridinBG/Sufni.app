@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.ObjectModel;
@@ -10,7 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Sufni.App.Shell.ViewModels;
 using Sufni.App.Infrastructure;
-namespace Sufni.App.Shared.Base;
+namespace Sufni.App.Shell.ViewModels.Base;
 
 /// <summary>Shared list filtering, menu state, and pending-delete presentation.</summary>
 public partial class ItemListViewModelBase : ViewModelBase, IDisposable
