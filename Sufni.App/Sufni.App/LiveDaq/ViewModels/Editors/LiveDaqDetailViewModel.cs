@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.Shared.Models;
@@ -314,32 +315,19 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
             PresentManagementOutcome(result);
             return;
         }
-        var editor = new LiveDaqConfigEditorViewModel(read.Document, UploadEditedConfigAsync);
+        var editor = new LiveDaqConfigEditorViewModel(read.Document, (values, token) => UploadEditedConfigAsync(read.Document, values, token));
         await dialogService.ShowContentDialogAsync(editor, new DialogOptions(
             Title: "Edit CONFIG", Width: 640, Height: 720, MinWidth: 420, MinHeight: 520,
             CanResize: true, OverlayMaxWidth: 680, OverlayMaxHeight: 760));
     }
 
-    private async Task<DaqManagementResult> UploadEditedConfigAsync(byte[] configBytes, CancellationToken cancellationToken)
+    private async Task<LiveDaqManagementResult> UploadEditedConfigAsync(DaqConfigDocument document,
+        ImmutableDictionary<string, string> values, CancellationToken cancellationToken)
     {
-        var result = await coordinator.WriteConfigAsync(IdentityKey, configBytes, cancellationToken);
-        switch (result)
-        {
-            case LiveDaqManagementResult.ConfigWritten:
-                Notifications.Add("CONFIG uploaded.");
-                return new DaqManagementResult.Ok();
-            case LiveDaqManagementResult.Rejected rejected:
-                return new DaqManagementResult.Error(rejected.ErrorCode, rejected.Message);
-            case LiveDaqManagementResult.Busy busy:
-                return new DaqManagementResult.Error(DaqManagementErrorCode.Busy, LiveDaqMessages.Busy(busy.Holder));
-            case LiveDaqManagementResult.Unavailable unavailable:
-                return new DaqManagementResult.Error(DaqManagementErrorCode.UnsupportedTarget, UnavailableMessage(unavailable.Reason));
-            case LiveDaqManagementResult.Failed failed:
-                var presentation = FailurePresentation.From(failed.Reason, failed.Details);
-                ErrorMessages.Add(presentation);
-                return new DaqManagementResult.Error(DaqManagementErrorCode.InternalError, presentation.Summary);
-            default: throw new InvalidOperationException("Unexpected CONFIG write outcome.");
-        }
+        var result = await coordinator.SaveEditedConfigAsync(IdentityKey, document, values, cancellationToken);
+        if (!cancellationToken.IsCancellationRequested && result is LiveDaqManagementResult.ConfigWritten)
+            Notifications.Add("CONFIG uploaded.");
+        return result;
     }
 
     private void PresentManagementOutcome(LiveDaqManagementResult result)
@@ -350,23 +338,16 @@ public sealed partial class LiveDaqDetailViewModel : TabPageViewModelBase
                 ErrorMessages.Add(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
             case LiveDaqManagementResult.Rejected rejected:
-                ErrorMessages.Add(new FailurePresentation(rejected.Message));
+                ErrorMessages.Add(LiveDaqMessages.ManagementFailure(rejected)!);
                 break;
             case LiveDaqManagementResult.Busy busy:
                 Notifications.Add(LiveDaqMessages.Busy(busy.Holder));
                 break;
             case LiveDaqManagementResult.Unavailable unavailable:
-                Notifications.Add(UnavailableMessage(unavailable.Reason));
+                Notifications.Add(LiveDaqMessages.Unavailable(unavailable.Reason));
                 break;
         }
     }
-
-    private static string UnavailableMessage(DaqManagementUnavailability reason) => reason switch
-    {
-        DaqManagementUnavailability.Offline => "DAQ is offline.",
-        DaqManagementUnavailability.Unsupported => "Management is not supported by this DAQ.",
-        _ => throw new ArgumentOutOfRangeException(nameof(reason))
-    };
 
     private async Task ConnectImplementationAsync()
     {

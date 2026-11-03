@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.LiveDaq.Services;
 using System.Reactive.Subjects;
@@ -40,6 +41,8 @@ internal sealed class LiveDaqDetailHarness
         LiveDaqCoordinator.SetTimeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new LiveDaqManagementResult.TimeSet(TimeSpan.FromMilliseconds(30)));
         LiveDaqCoordinator.WriteConfigAsync(Arg.Any<string>(), Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<CancellationToken>())
+            .Returns(new LiveDaqManagementResult.ConfigWritten());
+        LiveDaqCoordinator.SaveEditedConfigAsync(Arg.Any<string>(), Arg.Any<DaqConfigDocument>(), Arg.Any<ImmutableDictionary<string, string>>(), Arg.Any<CancellationToken>())
             .Returns(new LiveDaqManagementResult.ConfigWritten());
         LiveDaqCoordinator.ReadConfigAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new LiveDaqManagementResult.ConfigRead(DaqConfigDocument.Parse(Encoding.UTF8.GetBytes("STA_SSID=trail\n"))));

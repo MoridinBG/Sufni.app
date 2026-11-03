@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.Shared.Models;
 using System.Text;
 
 using Sufni.App.Acquisition.Services.Management;
@@ -29,7 +32,7 @@ public class LiveDaqConfigEditorViewModelTests
             (_, _) =>
             {
                 uploadCalled = true;
-                return Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok());
+                return Task.FromResult<LiveDaqManagementResult>(new LiveDaqManagementResult.ConfigWritten());
             });
         Row(editor, "TRAVEL_SAMPLE_RATE").Value = "0";
 
@@ -42,9 +45,9 @@ public class LiveDaqConfigEditorViewModelTests
     }
 
     [Fact]
-    public async Task SaveCommand_UploadsCanonicalConfigBytes_AndCompletesOnSuccess()
+    public async Task SaveCommand_SubmitsEditedValues_AndCompletesOnSuccess()
     {
-        byte[]? uploadedBytes = null;
+        ImmutableDictionary<string, string>? submitted = null;
         var editor = CreateEditor(
             DaqConfigDocument.Parse("""
 # before
@@ -52,10 +55,10 @@ SSID=old-sta
 PSK=old-psk
 UNKNOWN=value
 """),
-            (bytes, _) =>
+            (values, _) =>
             {
-                uploadedBytes = bytes;
-                return Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok());
+                submitted = values;
+                return Task.FromResult<LiveDaqManagementResult>(new LiveDaqManagementResult.ConfigWritten());
             });
         var completions = 0;
         editor.Completed += (_, _) => completions++;
@@ -64,15 +67,9 @@ UNKNOWN=value
 
         await editor.SaveCommand.ExecuteAsync(null);
 
-        Assert.NotNull(uploadedBytes);
-        var uploadedText = Encoding.UTF8.GetString(uploadedBytes);
-        Assert.Contains("# before", uploadedText);
-        Assert.Contains("UNKNOWN=value", uploadedText);
-        Assert.Contains("STA_SSID=edited-sta", uploadedText);
-        Assert.Contains("STA_PSK=edited-psk", uploadedText);
-        var uploadedLines = uploadedText.Split('\n');
-        Assert.DoesNotContain(uploadedLines, line => line.StartsWith("SSID=", StringComparison.Ordinal));
-        Assert.DoesNotContain(uploadedLines, line => line.StartsWith("PSK=", StringComparison.Ordinal));
+        Assert.NotNull(submitted);
+        Assert.Equal("edited-sta", submitted["STA_SSID"]);
+        Assert.Equal("edited-psk", submitted["STA_PSK"]);
         Assert.True(editor.IsCompleted);
         Assert.Equal(1, completions);
     }
@@ -83,14 +80,15 @@ UNKNOWN=value
         const string uploadFailureMessage = "upload failure sentinel";
         var editor = CreateEditor(
             DaqConfigDocument.Parse(string.Empty),
-            (_, _) => Task.FromResult<DaqManagementResult>(
-                new DaqManagementResult.Error(DaqManagementErrorCode.ValidationError, uploadFailureMessage)));
+            (_, _) => Task.FromResult<LiveDaqManagementResult>(
+                new LiveDaqManagementResult.Rejected(DaqManagementErrorCode.ValidationError, uploadFailureMessage)));
 
         await editor.SaveCommand.ExecuteAsync(null);
 
         Assert.False(editor.IsCompleted);
         Assert.True(editor.HasSaveError);
-        Assert.Equal(uploadFailureMessage, editor.SaveErrorMessage);
+        Assert.Equal(uploadFailureMessage, editor.SaveError!.Details);
+        Assert.DoesNotContain(uploadFailureMessage, editor.SaveError.Summary);
     }
 
     [Fact]
@@ -102,7 +100,7 @@ UNKNOWN=value
             (_, _) =>
             {
                 uploadCalled = true;
-                return Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok());
+                return Task.FromResult<LiveDaqManagementResult>(new LiveDaqManagementResult.ConfigWritten());
             });
         var completions = 0;
         editor.Completed += (_, _) => completions++;
@@ -114,10 +112,34 @@ UNKNOWN=value
         Assert.Equal(1, completions);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Close_CancelsUploadAndRejectsLateFailure(bool cancelCommand)
+    {
+        var completion = new TaskCompletionSource<LiveDaqManagementResult>();
+        CancellationToken token = default;
+        using var editor = CreateEditor(DaqConfigDocument.Parse(string.Empty), (_, cancellation) =>
+        {
+            token = cancellation;
+            return completion.Task;
+        });
+        var saving = editor.SaveCommand.ExecuteAsync(null);
+
+        if (cancelCommand) editor.CancelCommand.Execute(null);
+        else editor.Dispose();
+        Assert.True(token.IsCancellationRequested);
+        completion.SetResult(new LiveDaqManagementResult.Failed(DaqManagementFailureReason.WriteConfig, "late diagnostic"));
+        await saving.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(editor.HasSaveError);
+        Assert.False(editor.IsSaving);
+    }
+
     private static LiveDaqConfigEditorViewModel CreateEditor(
         DaqConfigDocument document,
-        Func<byte[], CancellationToken, Task<DaqManagementResult>>? uploadAsync = null) =>
-        new(document, uploadAsync ?? ((_, _) => Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok())));
+        Func<ImmutableDictionary<string, string>, CancellationToken, Task<LiveDaqManagementResult>>? uploadAsync = null) =>
+        new(document, uploadAsync ?? ((_, _) => Task.FromResult<LiveDaqManagementResult>(new LiveDaqManagementResult.ConfigWritten())));
 
     private static LiveDaqConfigFieldRowViewModel Row(LiveDaqConfigEditorViewModel editor, string key) =>
         editor.Fields.Single(row => row.Key == key);

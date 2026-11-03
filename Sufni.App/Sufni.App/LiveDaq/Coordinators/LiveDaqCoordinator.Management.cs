@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -45,8 +46,15 @@ public partial class LiveDaqCoordinator
             }, cancellationToken);
 
     public Task<LiveDaqManagementResult> WriteConfigAsync(string identityKey, ReadOnlyMemory<byte> config, CancellationToken cancellationToken = default) =>
+        WriteConfigCoreAsync(identityKey, () => config.ToArray(), cancellationToken);
+
+    public Task<LiveDaqManagementResult> SaveEditedConfigAsync(string identityKey, DaqConfigDocument document,
+        ImmutableDictionary<string, string> values, CancellationToken cancellationToken = default) =>
+        WriteConfigCoreAsync(identityKey, () => document.BuildBytes(values), cancellationToken);
+
+    private Task<LiveDaqManagementResult> WriteConfigCoreAsync(string identityKey, Func<byte[]> buildConfig, CancellationToken cancellationToken) =>
         RunManagementAsync(identityKey, DaqManagementOperation.WriteConfig, DaqManagementFailureReason.WriteConfig, async (device, token) =>
-            await managementService.WriteConfigAsync(device.NetworkEndpoint, config.ToArray(), token) switch
+            await managementService.WriteConfigAsync(device.NetworkEndpoint, buildConfig(), token) switch
             {
                 DaqManagementResult.Ok => new LiveDaqManagementResult.ConfigWritten(),
                 DaqManagementResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),

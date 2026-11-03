@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using Sufni.App.Shared.Models;
+using Sufni.App.LiveDaq.Coordinators;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -11,10 +14,9 @@ using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Infrastructure;
 namespace Sufni.App.LiveDaq.ViewModels.Editors;
 
-public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, IContentDialogCompletionSource
+public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, IContentDialogCompletionSource, IDisposable
 {
-    private readonly DaqConfigDocument document;
-    private readonly Func<byte[], CancellationToken, Task<DaqManagementResult>> uploadAsync;
+    private readonly Func<ImmutableDictionary<string, string>, CancellationToken, Task<LiveDaqManagementResult>> uploadAsync;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
@@ -26,13 +28,12 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSaveError))]
-    public partial string? SaveErrorMessage { get; set; }
+    public partial FailurePresentation? SaveError { get; set; }
 
     public LiveDaqConfigEditorViewModel(
         DaqConfigDocument document,
-        Func<byte[], CancellationToken, Task<DaqManagementResult>> uploadAsync)
+        Func<ImmutableDictionary<string, string>, CancellationToken, Task<LiveDaqManagementResult>> uploadAsync)
     {
-        this.document = document;
         this.uploadAsync = uploadAsync;
 
         foreach (var fieldValue in document.GetFieldValues())
@@ -45,7 +46,7 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
 
     public ObservableCollection<LiveDaqConfigFieldRowViewModel> Fields { get; } = [];
 
-    public bool HasSaveError => !string.IsNullOrWhiteSpace(SaveErrorMessage);
+    public bool HasSaveError => SaveError is not null;
 
     public bool HasValidationErrors => Fields.Any(row => row.HasValidationMessage);
 
@@ -60,7 +61,7 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
     [RelayCommand(CanExecute = nameof(CanSave))]
     private async Task Save(CancellationToken cancellationToken)
     {
-        SaveErrorMessage = null;
+        SaveError = null;
         if (!ValidateCurrentValues())
         {
             return;
@@ -69,28 +70,17 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
         IsSaving = true;
         try
         {
-            var result = await uploadAsync(document.BuildBytes(GetEditableValues()), cancellationToken);
-            if (cancellationToken.IsCancellationRequested)
+            var result = await uploadAsync(GetEditableValues(), cancellationToken);
+            if (cancellationToken.IsCancellationRequested || IsCompleted)
             {
                 return;
             }
 
-            switch (result)
-            {
-                case DaqManagementResult.Ok:
-                    Complete();
-                    break;
-                case DaqManagementResult.Error error:
-                    SaveErrorMessage = error.Message;
-                    break;
-            }
+            if (result is LiveDaqManagementResult.ConfigWritten) Complete();
+            else SaveError = LiveDaqMessages.ManagementFailure(result);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-        }
-        catch (Exception ex)
-        {
-            SaveErrorMessage = ex.Message;
         }
         finally
         {
@@ -102,7 +92,7 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
 
     private void OnFieldValueChanged()
     {
-        SaveErrorMessage = null;
+        SaveError = null;
         ValidateCurrentValues();
     }
 
@@ -118,8 +108,10 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
         return errors.Count == 0;
     }
 
-    private IReadOnlyDictionary<string, string> GetEditableValues() =>
-        Fields.ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
+    private ImmutableDictionary<string, string> GetEditableValues() =>
+        Fields.ToImmutableDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
+
+    public void Dispose() => SaveCommand.Cancel();
 
     private void Complete()
     {
@@ -129,6 +121,7 @@ public sealed partial class LiveDaqConfigEditorViewModel : ObservableObject, ICo
         }
 
         IsCompleted = true;
+        SaveCommand.Cancel();
         Completed?.Invoke(this, EventArgs.Empty);
     }
 }

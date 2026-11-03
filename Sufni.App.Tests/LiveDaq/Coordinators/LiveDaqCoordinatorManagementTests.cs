@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Text;
 using System.Reactive.Disposables;
 using System.Reactive.Subjects;
 using NSubstitute;
@@ -139,6 +141,34 @@ public partial class LiveDaqCoordinatorTests
 
         Assert.Equal(DaqManagementFailureReason.SelectConfigFile, result.Reason);
         Assert.Equal("picker diagnostic", result.Details);
+    }
+
+    [Fact]
+    public async Task SaveEditedConfigAsync_PreservesUnknownLinesAndCanonicalizesEditedFields()
+    {
+        catalogEntries.OnNext([ManagementDevice()]);
+        streamRegistry.AcquireManagementAsync("board", DaqManagementOperation.WriteConfig)
+            .Returns(new DaqTransportAcquisition.Acquired(Disposable.Empty));
+        byte[]? uploaded = null;
+        managementService.WriteConfigAsync(Arg.Any<ServiceEndpoint>(), Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                uploaded = call.Arg<byte[]>();
+                return new DaqManagementResult.Ok();
+            });
+        await using var coordinator = CreateCoordinator();
+        var document = DaqConfigDocument.Parse("# before\nSSID=old-sta\nPSK=old-psk\nUNKNOWN=value");
+        var values = ImmutableDictionary<string, string>.Empty.Add("STA_SSID", "edited-sta").Add("STA_PSK", "edited-psk");
+
+        var result = await coordinator.SaveEditedConfigAsync("board", document, values, TestContext.Current.CancellationToken);
+
+        Assert.IsType<LiveDaqManagementResult.ConfigWritten>(result);
+        var text = Encoding.UTF8.GetString(Assert.IsType<byte[]>(uploaded));
+        Assert.Contains("# before", text);
+        Assert.Contains("UNKNOWN=value", text);
+        Assert.Contains("STA_SSID=edited-sta", text);
+        Assert.Contains("STA_PSK=edited-psk", text);
+        Assert.DoesNotContain(text.Split('\n'), line => line.StartsWith("SSID=", StringComparison.Ordinal) || line.StartsWith("PSK=", StringComparison.Ordinal));
     }
 
     private static LiveDaqCatalogEntry ManagementDevice() => new("board", "DAQ", "board", new ServiceEndpoint("192.168.0.10", 1557));

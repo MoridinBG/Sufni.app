@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Coordinators;
@@ -245,9 +246,9 @@ public class LiveDaqDetailViewModelTests
 
         await configEditor.SaveCommand.ExecuteAsync(null);
 
-        await harness.LiveDaqCoordinator.Received(1).WriteConfigAsync(
-            "board-1",
-            Arg.Is<ReadOnlyMemory<byte>>(bytes => Encoding.UTF8.GetString(bytes.ToArray()).Contains("STA_SSID=edited", StringComparison.Ordinal)),
+        await harness.LiveDaqCoordinator.Received(1).SaveEditedConfigAsync(
+            "board-1", Arg.Any<DaqConfigDocument>(),
+            Arg.Is<ImmutableDictionary<string, string>>(values => values["STA_SSID"] == "edited"),
             Arg.Any<CancellationToken>());
         Assert.Single(editor.Notifications);
         Assert.False(editor.IsManagementBusy);

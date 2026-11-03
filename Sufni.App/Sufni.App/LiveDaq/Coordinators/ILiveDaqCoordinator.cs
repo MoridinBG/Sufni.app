@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Sessions.Models;
 using System;
 using System.Threading;
@@ -17,6 +19,7 @@ public interface ILiveDaqCoordinator
     Task<LiveDaqManagementResult> SetTimeAsync(string identityKey, CancellationToken cancellationToken = default);
     Task<LiveDaqManagementResult> ReadConfigAsync(string identityKey, CancellationToken cancellationToken = default);
     Task<LiveDaqManagementResult> WriteConfigAsync(string identityKey, ReadOnlyMemory<byte> config, CancellationToken cancellationToken = default);
+    Task<LiveDaqManagementResult> SaveEditedConfigAsync(string identityKey, DaqConfigDocument document, ImmutableDictionary<string, string> values, CancellationToken cancellationToken = default);
     Task<LiveDaqManagementResult> SelectConfigFileAsync(CancellationToken cancellationToken = default);
 
     void Activate();

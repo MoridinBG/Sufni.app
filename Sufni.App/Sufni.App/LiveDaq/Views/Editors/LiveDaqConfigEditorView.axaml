@@ -90,13 +90,16 @@ mc:Ignorable="d">
         Padding="16,12"
         Background="{DynamicResource SufniBackgroundDisabled}">
             <Grid RowDefinitions="auto auto" RowSpacing="10">
-                <TextBlock
-                Name="SaveErrorTextBlock"
-                Grid.Row="0"
-                Foreground="{DynamicResource SufniDangerColor}"
-                IsVisible="{Binding HasSaveError}"
-                Text="{Binding SaveErrorMessage}"
-                TextWrapping="Wrap" />
+                <StackPanel Grid.Row="0" Spacing="4" IsVisible="{Binding HasSaveError}">
+                    <TextBlock
+                    Name="SaveErrorTextBlock"
+                    Foreground="{DynamicResource SufniDangerColor}"
+                    Text="{Binding SaveError.Summary}"
+                    TextWrapping="Wrap" />
+                    <Expander Name="SaveErrorDetailsExpander" Header="Details" IsVisible="{Binding SaveError.HasDetails}">
+                        <SelectableTextBlock Text="{Binding SaveError.Details}" TextWrapping="Wrap" />
+                    </Expander>
+                </StackPanel>
                 <StackPanel
                 Grid.Row="1"
                 HorizontalAlignment="Right"

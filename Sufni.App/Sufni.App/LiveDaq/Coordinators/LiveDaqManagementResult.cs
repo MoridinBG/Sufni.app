@@ -25,6 +25,6 @@ public abstract record LiveDaqManagementResult
     public sealed record Canceled : LiveDaqManagementResult;
     public sealed record Busy(DaqTransportHolder Holder) : LiveDaqManagementResult;
     public sealed record Unavailable(DaqManagementUnavailability Reason) : LiveDaqManagementResult;
-    public sealed record Rejected(DaqManagementErrorCode ErrorCode, string Message) : LiveDaqManagementResult;
+    public sealed record Rejected(DaqManagementErrorCode ErrorCode, string Details) : LiveDaqManagementResult;
     public sealed record Failed(DaqManagementFailureReason Reason, string? Details = null) : LiveDaqManagementResult;
 }

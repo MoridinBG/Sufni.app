@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using Sufni.App.LiveDaq.Coordinators;
+using Sufni.App.Shared.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -73,8 +76,8 @@ public class LiveDaqConfigEditorViewTests
             validationMount.View.GetVisualDescendants().OfType<TextBlock>(),
             textBlock => textBlock.Text == validationMessage && textBlock.IsVisible);
 
-        var uploadEditor = CreateEditor((_, _) => Task.FromResult<DaqManagementResult>(
-            new DaqManagementResult.Error(DaqManagementErrorCode.ValidationError, "invalid config")));
+        var uploadEditor = CreateEditor((_, _) => Task.FromResult<LiveDaqManagementResult>(
+            new LiveDaqManagementResult.Rejected(DaqManagementErrorCode.ValidationError, "invalid config")));
         await using var uploadMount = await MountAsync(uploadEditor);
 
         await uploadEditor.SaveCommand.ExecuteAsync(null);
@@ -82,7 +85,14 @@ public class LiveDaqConfigEditorViewTests
 
         var saveError = uploadMount.View.FindControl<TextBlock>("SaveErrorTextBlock")!;
         Assert.True(saveError.IsVisible);
-        Assert.Equal("invalid config", saveError.Text);
+        Assert.Equal(uploadEditor.SaveError!.Summary, saveError.Text);
+        Assert.DoesNotContain("invalid config", saveError.Text);
+        var details = uploadMount.View.FindControl<Expander>("SaveErrorDetailsExpander")!;
+        Assert.True(details.IsVisible);
+        Assert.False(details.IsExpanded);
+        details.IsExpanded = true;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Contains(uploadMount.View.GetVisualDescendants().OfType<SelectableTextBlock>(), text => text.Text == "invalid config" && text.IsVisible);
     }
 
     [AvaloniaFact]
@@ -101,14 +111,14 @@ public class LiveDaqConfigEditorViewTests
     }
 
     private static LiveDaqConfigEditorViewModel CreateEditor(
-        Func<byte[], CancellationToken, Task<DaqManagementResult>>? uploadAsync = null) =>
+        Func<ImmutableDictionary<string, string>, CancellationToken, Task<LiveDaqManagementResult>>? uploadAsync = null) =>
         new(
             DaqConfigDocument.Parse("""
 STA_SSID=trail
 STA_PSK=changemeplease
 AP_PSK=changemeplease
 """),
-            uploadAsync ?? ((_, _) => Task.FromResult<DaqManagementResult>(new DaqManagementResult.Ok())));
+            uploadAsync ?? ((_, _) => Task.FromResult<LiveDaqManagementResult>(new LiveDaqManagementResult.ConfigWritten())));
 
     private static async Task<MountedLiveDaqConfigEditorView> MountAsync(
         LiveDaqConfigEditorViewModel editor,
