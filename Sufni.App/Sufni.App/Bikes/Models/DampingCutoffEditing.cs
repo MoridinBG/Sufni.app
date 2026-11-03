@@ -1,7 +1,6 @@
 using System;
-using Sufni.App.Bikes.Models;
 
-namespace Sufni.App.Sessions.Processing.SessionDetails;
+namespace Sufni.App.Bikes.Models;
 
 /// <summary>
 /// Value policy for damping-cutoff editing: the drag step and the

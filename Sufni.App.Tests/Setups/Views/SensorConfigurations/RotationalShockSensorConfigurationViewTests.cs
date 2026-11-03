@@ -6,7 +6,6 @@ using Avalonia.Headless.XUnit;
 using Sufni.Kinematics;
 
 using Sufni.App.Setups.Views.SensorConfigurations;
-using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -32,9 +31,9 @@ public class RotationalShockSensorConfigurationViewTests
             Assert.NotNull(adjacentJoint1);
             Assert.NotNull(adjacentJoint2);
 
-            Assert.Equal("Shock eye 1", Assert.IsType<JointViewModel>(sensorJoint!.SelectedItem).Name);
-            Assert.Equal("Main pivot", Assert.IsType<JointViewModel>(adjacentJoint1!.SelectedItem).Name);
-            Assert.Equal("Shock eye 2", Assert.IsType<JointViewModel>(adjacentJoint2!.SelectedItem).Name);
+            Assert.Equal("Shock eye 1", Assert.IsType<JointSpec>(sensorJoint!.SelectedItem).Name);
+            Assert.Equal("Main pivot", Assert.IsType<JointSpec>(adjacentJoint1!.SelectedItem).Name);
+            Assert.Equal("Shock eye 2", Assert.IsType<JointSpec>(adjacentJoint2!.SelectedItem).Name);
         }
         finally
         {
@@ -77,10 +76,10 @@ public class RotationalShockSensorConfigurationViewTests
             DataContext = new RotationalShockSensorConfigurationViewModel(
                 new SensorDraft.RotationalShock("Shock eye 1", "Main pivot", "Shock eye 2"),
                 [
-                    new JointViewModel("Main pivot", JointType.Fixed, 0, 0),
-                    new JointViewModel("Shock eye 1", JointType.Floating, 10, 5),
-                    new JointViewModel("Shock eye 2", JointType.Floating, 20, 8),
-                    new JointViewModel("Seatstay", JointType.Floating, 30, 13)
+                    new JointSpec("Main pivot", JointType.Fixed, 0, 0),
+                    new JointSpec("Shock eye 1", JointType.Floating, 10, 5),
+                    new JointSpec("Shock eye 2", JointType.Floating, 20, 8),
+                    new JointSpec("Seatstay", JointType.Floating, 30, 13)
                 ])
         };
     }

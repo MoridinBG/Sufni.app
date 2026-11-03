@@ -9,7 +9,6 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Models;
 using Sufni.App.SyncAndPairing.Services;
 namespace Sufni.App.Bikes.Coordinators;

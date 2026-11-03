@@ -1,6 +1,6 @@
+using Sufni.Kinematics;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models.SensorConfigurations;
 
@@ -11,7 +11,7 @@ public abstract partial class SensorConfigurationViewModel : ObservableObject
     public SensorType Type { get; protected set; }
     public abstract SensorDraft CaptureDraft();
 
-    public static SensorConfigurationViewModel? Create(SensorType? type, IReadOnlyList<JointViewModel>? joints = null) =>
+    public static SensorConfigurationViewModel? Create(SensorType? type, IReadOnlyList<JointSpec>? joints = null) =>
         FromDraft(type switch
         {
             SensorType.LinearFork => new SensorDraft.LinearFork(0, 0),
@@ -22,7 +22,7 @@ public abstract partial class SensorConfigurationViewModel : ObservableObject
             _ => null,
         }, joints);
 
-    public static SensorConfigurationViewModel? FromDraft(SensorDraft? draft, IReadOnlyList<JointViewModel>? joints = null) => draft switch
+    public static SensorConfigurationViewModel? FromDraft(SensorDraft? draft, IReadOnlyList<JointSpec>? joints = null) => draft switch
     {
         SensorDraft.LinearFork value => new LinearForkSensorConfigurationViewModel(value),
         SensorDraft.LinearShock value => new LinearShockSensorConfigurationViewModel(value),

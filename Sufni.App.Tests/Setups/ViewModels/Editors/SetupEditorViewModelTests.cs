@@ -1,3 +1,4 @@
+using Sufni.Kinematics;
 using Sufni.App.Shared.Models;
 using Avalonia.Headless.XUnit;
 using Microsoft.Extensions.Time.Testing;
@@ -20,8 +21,6 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Doubles;
 namespace Sufni.App.Tests.Setups.ViewModels.Editors;
 
-// Setup linkage previews currently construct JointViewModel's shared Avalonia brushes.
-[Collection("Ui")]
 public class SetupEditorViewModelTests : IDisposable
 {
     private readonly ISetupCoordinator setupCoordinator = TestCoordinatorSubstitutes.Setup();
@@ -253,7 +252,7 @@ public class SetupEditorViewModelTests : IDisposable
         var configuration = Assert.IsType<RotationalShockSensorConfigurationViewModel>(editor.ShockSensorConfiguration);
         Assert.Equal(
             linkage.Joints.Select(joint => joint.Name),
-            configuration.JointViewModels.Select(joint => joint.Name));
+            configuration.Joints.Select(joint => joint.Name));
     }
 
     // ----- CanSave -----

@@ -152,7 +152,8 @@ There are five kinds of view model in the presentation layer:
   through `IShellCoordinator`. Coordinators return domain results.
   Persisted editors hold one immutable draft base for authored-field comparisons.
   Bike/setup dirtiness is established in the constructor, and successful saves
-  keep any later edits dirty. Setup sensor sub-editors expose immutable `SensorDraft`
+  keep any later edits dirty. Setup linkage selectors use immutable `JointSpec` values from the bike snapshot;
+  they do not construct bike editor view models. Setup sensor sub-editors expose immutable `SensorDraft`
   inputs without their own saved baselines or JSON serialization. `SetupCoordinator`
   builds the persisted row and sensor JSON after applying shared `SetupSaveRules`.
   Imported bikes enter the factory as a validated `BikeDraft` on `EditorKey.NewBike`;

@@ -18,7 +18,6 @@ using BikeModel = Sufni.App.Bikes.Models.Bike;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
-using Sufni.App.Bikes.ViewModels.LinkageParts;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
 using Sufni.App.Setups.Models;
@@ -92,7 +91,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
         if (ShockSensorConfiguration is RotationalShockSensorConfigurationViewModel sensorConfiguration)
         {
-            sensorConfiguration.JointViewModels = JointsFromSnapshot(value);
+            sensorConfiguration.Joints = JointsFromSnapshot(value);
         }
     }
 
@@ -164,13 +163,8 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #region Private methods
 
-    private static ObservableCollection<JointViewModel> JointsFromSnapshot(BikeSnapshot? snapshot)
-    {
-        if (snapshot?.RearSuspension is not RearSuspensionSpec.Linkage linkage) return [];
-
-        return [.. linkage.Spec.Joints.Select(joint =>
-            new JointViewModel(joint.Name, joint.Type, joint.X, joint.Y))];
-    }
+    private static IReadOnlyList<JointSpec> JointsFromSnapshot(BikeSnapshot? snapshot) =>
+        snapshot?.RearSuspension is RearSuspensionSpec.Linkage linkage ? linkage.Spec.Joints : [];
 
     private static IReadOnlyList<SensorType?> AllowedShockSensorTypes(BikeSnapshot? bike) => bike?.RearSuspension switch
     {
