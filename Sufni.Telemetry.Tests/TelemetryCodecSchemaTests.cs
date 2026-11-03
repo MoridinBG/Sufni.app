@@ -40,6 +40,24 @@ public class TelemetryCodecSchemaTests
             TelemetryData.FromLiveCapture(payload.ToCapture(capture.BikeData)).BinaryForm);
     }
 
+    [Fact]
+    public void LegacyLiveSource_WithoutSegmentFields_PreservesDenseImuWhenReencoded()
+    {
+        var payload = TelemetryCodec.DecodeLiveSource("""
+            {"schema_version":1,"metadata":{"SourceName":"live","Version":4,"SampleRate":100,"Timestamp":1700000000,"Duration":0.01},
+             "imu_data":{"Meta":[{"LocationId":1,"AccelLsbPerG":4096,"GyroLsbPerDps":32.8}],"SampleRate":100,
+             "Records":[{"Ax":1,"Ay":2,"Az":3,"Gx":4,"Gy":5,"Gz":6}],"ActiveLocations":[1]}}
+            """u8.ToArray());
+
+        var encoded = TelemetryCodec.EncodeLiveSource(payload);
+        var reread = TelemetryCodec.DecodeLiveSource(encoded);
+
+        Assert.Empty(reread.ImuData!.Segments);
+        Assert.Equal(new ImuRecord(1, 2, 3, 4, 5, 6), Assert.Single(reread.ImuData.Records));
+        Assert.Equal((byte)1, reread.ImuData.SampleSegments[0].LocationId);
+        Assert.Equal(1, reread.ImuData.SampleSegments.Count);
+    }
+
     private static Task<byte[]> ReadFixtureAsync(string name) =>
         File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Codec", name + ".msgpack"),
             TestContext.Current.CancellationToken);

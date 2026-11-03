@@ -15,9 +15,25 @@ public static class TelemetryCodec
     public static byte[] EncodeLiveSource(RecordedLiveCaptureSourcePayload source) =>
         JsonSerializer.SerializeToUtf8Bytes(source, JsonContext.RecordedLiveCaptureSourcePayload);
 
-    public static RecordedLiveCaptureSourcePayload DecodeLiveSource(ReadOnlyMemory<byte> bytes) =>
-        JsonSerializer.Deserialize(bytes.Span, JsonContext.RecordedLiveCaptureSourcePayload)
-        ?? throw new JsonException("Recorded live-capture source payload is invalid.");
+    public static RecordedLiveCaptureSourcePayload DecodeLiveSource(ReadOnlyMemory<byte> bytes)
+    {
+        var source = JsonSerializer.Deserialize(bytes.Span, JsonContext.RecordedLiveCaptureSourcePayload)
+            ?? throw new JsonException("Recorded live-capture source payload is invalid.");
+        if (source.ImuData is not { } imu) return source;
+
+        // Source-generated init setters receive default arrays for fields absent in older payloads.
+        return source with
+        {
+            ImuData = imu with
+            {
+                Meta = imu.Meta.IsDefault ? [] : imu.Meta,
+                Records = imu.Records.IsDefault ? [] : imu.Records,
+                ActiveLocations = imu.ActiveLocations.IsDefault ? [] : imu.ActiveLocations,
+                Segments = imu.Segments.IsDefault ? [] : [.. imu.Segments.Select(segment =>
+                    segment.Records.IsDefault ? segment with { Records = [] } : segment)],
+            },
+        };
+    }
 
     public static byte[] Encode(TelemetryData telemetry) => MessagePackSerializer.Serialize(telemetry);
 
