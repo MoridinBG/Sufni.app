@@ -9,11 +9,9 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 
-using Sufni.App.MapsAndTracks.Models;
-using Sufni.App.MapsAndTracks.Views;
-using Sufni.App.Shared.Views.Dialogs;
+using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.Infrastructure;
+namespace Sufni.App.Shared.Views.Dialogs;
 
 public class DialogService : IDialogService, IDialogHost
 {
@@ -80,13 +78,6 @@ public class DialogService : IDialogService, IDialogHost
         return await dialog.ShowDialogAsync(owner);
     }
 
-    public Task<TileLayerConfig?> ShowAddTileLayerDialogAsync()
-    {
-        return presentationMode == DialogPresentationMode.Window
-            ? ShowAddTileLayerWindowAsync()
-            : ShowAddTileLayerOverlayAsync();
-    }
-
     public Task<PromptResult> ShowContentDialogAsync(object contentViewModel, DialogOptions options)
     {
         ArgumentNullException.ThrowIfNull(contentViewModel);
@@ -95,55 +86,6 @@ public class DialogService : IDialogService, IDialogHost
         return presentationMode == DialogPresentationMode.Window
             ? ShowContentDialogWindowAsync(contentViewModel, options)
             : ShowContentDialogOverlayAsync(contentViewModel, options);
-    }
-
-    private Task<TileLayerConfig?> ShowAddTileLayerWindowAsync()
-    {
-        Debug.Assert(owner != null, nameof(owner) + " != null");
-
-        var dialogOwner = owner ?? throw new InvalidOperationException("Dialog owner has not been set.");
-        var tcs = new TaskCompletionSource<TileLayerConfig?>();
-        var window = new Window
-        {
-            Title = "Add Custom Layer",
-            Width = 400,
-            Height = 350,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            CanResize = false
-        };
-
-        var content = new AddTileLayerView();
-        content.Finished += (s, result) =>
-        {
-            tcs.TrySetResult(result);
-            window.Close();
-        };
-
-        window.Closed += (_, _) => tcs.TrySetResult(null);
-
-        window.Content = content;
-
-        UiTimers.SetScheduler(window, uiTimerScheduler);
-        window.ShowDialog(dialogOwner);
-        return tcs.Task;
-    }
-
-    private Task<TileLayerConfig?> ShowAddTileLayerOverlayAsync()
-    {
-        var panel = GetOverlayPanel();
-
-        var tcs = new TaskCompletionSource<TileLayerConfig?>();
-        var content = new AddTileLayerView();
-        var overlay = CreateAddTileLayerOverlay(content);
-
-        content.Finished += (_, result) =>
-        {
-            panel.Children.Remove(overlay);
-            tcs.TrySetResult(result);
-        };
-
-        panel.Children.Add(overlay);
-        return tcs.Task;
     }
 
     private Task<PromptResult> ShowContentDialogWindowAsync(object contentViewModel, DialogOptions options)
@@ -255,32 +197,6 @@ public class DialogService : IDialogService, IDialogHost
         _ => throw new InvalidOperationException("Dialog overlay host does not expose a panel surface.")
     };
 
-    private static Control CreateAddTileLayerOverlay(AddTileLayerView content)
-    {
-        return new Grid
-        {
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
-            Children =
-            {
-                new Border
-                {
-                    Background = SufniBrushes.OverlayScrim()
-                },
-                new Border
-                {
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                    Margin = new Thickness(16),
-                    MaxWidth = 420,
-                    Background = SufniBrushes.DialogSurface(),
-                    CornerRadius = new CornerRadius(6),
-                    Child = content
-                }
-            }
-        };
-    }
-
     private Control CreateContentDialogContent(object contentViewModel)
     {
         var content = viewLocator.Build(contentViewModel) ?? new TextBlock
@@ -307,7 +223,7 @@ public class DialogService : IDialogService, IDialogHost
                 {
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(12),
+                    Margin = new Thickness(options.OverlayMargin),
                     MaxWidth = options.OverlayMaxWidth ?? options.Width,
                     MaxHeight = options.OverlayMaxHeight ?? options.Height,
                     Background = SufniBrushes.DialogSurface(),

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;
 using Sufni.App.Shared.Stores;

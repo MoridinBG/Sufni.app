@@ -21,7 +21,8 @@ public sealed record DialogOptions(
     double MinHeight,
     bool CanResize,
     double? OverlayMaxWidth = null,
-    double? OverlayMaxHeight = null);
+    double? OverlayMaxHeight = null,
+    double OverlayMargin = 12);
 
 public interface IContentDialogCompletionSource
 {

@@ -77,8 +77,9 @@ public partial class MapViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task AddCustomLayer()
     {
-        var config = await dialogService.ShowAddTileLayerDialogAsync();
-        if (config != null)
+        var draft = new AddTileLayerViewModel();
+        await dialogService.ShowContentDialogAsync(draft, AddTileLayerViewModel.DialogOptions);
+        if (draft.ConfirmedLayer is { } config)
         {
             var result = await coordinator.AddAndSelectAsync(config);
             if (result is MapLayerWriteResult.Failed failed)

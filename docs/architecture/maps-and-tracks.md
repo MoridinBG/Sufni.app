@@ -179,6 +179,12 @@ There is no in-memory tile cache or persistent disk cache here; tile fetching is
 
 ## Map View Model
 
+`AddTileLayerViewModel` owns the custom-layer draft and confirmation. The map
+opens it through `IDialogService.ShowContentDialogAsync`; generic window/overlay
+hosting lives in `Shared/Views/Dialogs/DialogService`. Cancel and window dismissal
+leave the draft unaccepted. Existing window dimensions and overlay spacing stay
+with the dialog options.
+
 `MapViewModel` is a reusable presentation over the tile service's current
 `TileLayerState`; `AvailableLayers` and `SelectedLayer` derive from that one
 snapshot. `SelectLayerAsync` forwards the id to the map-layer coordinator.

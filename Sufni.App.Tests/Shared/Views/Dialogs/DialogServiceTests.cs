@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Dialogs;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -6,8 +7,9 @@ using Avalonia.VisualTree;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Views;
+using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.Tests.TestSupport.Harness;
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.Shared.Views.Dialogs;
 
 // Opens real headless windows and overlays.
 [Collection("Ui")]
@@ -272,7 +274,7 @@ public class DialogServiceTests
     }
 
     [AvaloniaFact]
-    public async Task ShowAddTileLayerDialogAsync_DesktopMode_UsesOwnedWindow()
+    public async Task AddTileContent_DesktopMode_UsesOwnedWindow()
     {
         var service = CreateService(DialogPresentationMode.Window);
         var owner = new Window();
@@ -283,7 +285,8 @@ public class DialogServiceTests
 
         try
         {
-            var resultTask = service.ShowAddTileLayerDialogAsync();
+            var viewModel = new AddTileLayerViewModel();
+            var resultTask = service.ShowContentDialogAsync(viewModel, AddTileLayerViewModel.DialogOptions);
             await ViewTestHelpers.FlushDispatcherAsync();
 
             var dialog = Assert.Single(owner.OwnedWindows);
@@ -291,7 +294,8 @@ public class DialogServiceTests
 
             SubmitLayer(content, "Trail", "https://tiles.example/{z}/{x}/{y}.png");
 
-            var result = await resultTask;
+            Assert.Equal(PromptResult.Ok, await resultTask);
+            var result = viewModel.ConfirmedLayer;
 
             Assert.NotNull(result);
             Assert.Equal("Trail", result!.Name);
@@ -306,7 +310,7 @@ public class DialogServiceTests
     }
 
     [AvaloniaFact]
-    public async Task ShowAddTileLayerDialogAsync_MobileMode_UsesOverlayHost()
+    public async Task AddTileContent_MobileMode_UsesOverlayHost()
     {
         var service = CreateService(DialogPresentationMode.Overlay);
         var overlayHost = new Grid();
@@ -318,7 +322,8 @@ public class DialogServiceTests
 
         try
         {
-            var resultTask = service.ShowAddTileLayerDialogAsync();
+            var viewModel = new AddTileLayerViewModel();
+            var resultTask = service.ShowContentDialogAsync(viewModel, AddTileLayerViewModel.DialogOptions);
             await ViewTestHelpers.FlushDispatcherAsync();
 
             var content = overlayHost.FindFirstVisual<AddTileLayerView>();
@@ -328,7 +333,8 @@ public class DialogServiceTests
 
             SubmitLayer(content!, "Offline", "https://offline.example/{z}/{x}/{y}.png");
 
-            var result = await resultTask;
+            Assert.Equal(PromptResult.Ok, await resultTask);
+            var result = viewModel.ConfirmedLayer;
             await ViewTestHelpers.FlushDispatcherAsync();
 
             Assert.NotNull(result);
@@ -388,7 +394,7 @@ public class DialogServiceTests
 
         var okButton = view.FindControl<Button>("OkButton");
         Assert.NotNull(okButton);
-        okButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        okButton!.Command!.Execute(okButton.CommandParameter);
     }
 
     private static void ClickConfirmationButton(Control root, string content)

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;

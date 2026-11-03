@@ -38,20 +38,20 @@ public class MapViewModelTests
     public async Task AddCommand_ForwardsDraft_AndWaitsForPublishedState()
     {
         var original = new TileLayerConfig { Name = "Original" };
-        var added = new TileLayerConfig { Name = "Added" };
+        var added = new TileLayerConfig { Name = "Added", UrlTemplate = "https://example/{z}/{x}/{y}" };
         using var state = new BehaviorSubject<TileLayerState>(new([original], original));
         var service = Substitute.For<ITileLayerService>();
         service.Observe().Returns(state);
         var coordinator = Substitute.For<IMapLayerCoordinator>();
-        coordinator.AddAndSelectAsync(added).Returns(new MapLayerWriteResult.Saved());
+        coordinator.AddAndSelectAsync(Arg.Any<TileLayerConfig>()).Returns(new MapLayerWriteResult.Saved());
         var dialog = Substitute.For<IDialogService>();
-        dialog.ShowAddTileLayerDialogAsync().Returns(added);
+        MapLayerFixture.ConfirmAddDialog(dialog, added);
         using var vm = new MapViewModel(service, coordinator, dialog, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), new FakeTimeProvider());
 
         await vm.AddCustomLayerCommand.ExecuteAsync(null);
         Assert.Equal([original], vm.AvailableLayers);
         Assert.Same(original, vm.SelectedLayer);
-        await coordinator.Received(1).AddAndSelectAsync(added);
+        await coordinator.Received(1).AddAndSelectAsync(Arg.Is<TileLayerConfig>(value => value.Name == added.Name && value.UrlTemplate == added.UrlTemplate));
 
         state.OnNext(new([original, added], added));
         Assert.Equal([original, added], vm.AvailableLayers);

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.MapsAndTracks.Stores;
 using System.Reactive.Subjects;
 using System.Reactive.Linq;

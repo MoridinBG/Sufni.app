@@ -2,6 +2,7 @@ using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
+using Sufni.App.MapsAndTracks.ViewModels;
 using Sufni.App.MapsAndTracks.Services;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Stores;
@@ -25,6 +26,20 @@ internal sealed class MapLayerFixture : IDisposable
         Publication = new(this.dispatcher);
         Store = new(Publication);
         preferences.Map.Returns(Map);
+    }
+
+    public static void ConfirmAddDialog(IDialogService dialog, TileLayerConfig config)
+    {
+        dialog.ShowContentDialogAsync(Arg.Any<AddTileLayerViewModel>(), Arg.Any<DialogOptions>()).Returns(call =>
+        {
+            var draft = call.Arg<AddTileLayerViewModel>();
+            draft.Name = config.Name;
+            draft.UrlTemplate = config.UrlTemplate;
+            draft.AttributionText = config.AttributionText;
+            draft.AttributionUrl = config.AttributionUrl;
+            draft.ConfirmCommand.Execute(null);
+            return PromptResult.Ok;
+        });
     }
 
     public MapLayerCoordinator CreateCoordinator() => new(preferences, new InlineBackgroundTaskRunner(), Repository, Store);

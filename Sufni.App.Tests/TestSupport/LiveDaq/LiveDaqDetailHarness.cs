@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.LiveDaq.Services;
 using System.Reactive.Subjects;
 using Sufni.App.Tests.TestSupport.Async;

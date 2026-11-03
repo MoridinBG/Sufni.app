@@ -82,14 +82,14 @@ public class MapViewTests
         var tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
         tileLayerService.Observe().Returns(state);
         var coordinator = Substitute.For<IMapLayerCoordinator>();
-        coordinator.AddAndSelectAsync(customLayer).Returns(_ =>
+        coordinator.AddAndSelectAsync(Arg.Any<TileLayerConfig>()).Returns(_ =>
         {
             state.OnNext(new TileLayerState([initialLayer, customLayer], customLayer));
             return new MapLayerWriteResult.Saved();
         });
 
         var dialogService = Substitute.For<IDialogService>();
-        dialogService.ShowAddTileLayerDialogAsync().Returns(Task.FromResult<TileLayerConfig?>(customLayer));
+        MapLayerFixture.ConfirmAddDialog(dialogService, customLayer);
 
         var viewModel = new MapViewModel(tileLayerService, coordinator, dialogService, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider());
         var view = new MapView
@@ -132,9 +132,9 @@ public class MapViewTests
         var service = Substitute.For<ITileLayerService>();
         service.Observe().Returns(Observable.Return(new TileLayerState([original], original)));
         var coordinator = Substitute.For<IMapLayerCoordinator>();
-        coordinator.AddAndSelectAsync(added).Returns(new MapLayerWriteResult.Failed(MapLayerFailureReason.Add, "disk diagnostic"));
+        coordinator.AddAndSelectAsync(Arg.Any<TileLayerConfig>()).Returns(new MapLayerWriteResult.Failed(MapLayerFailureReason.Add, "disk diagnostic"));
         var dialog = Substitute.For<IDialogService>();
-        dialog.ShowAddTileLayerDialogAsync().Returns(added);
+        MapLayerFixture.ConfirmAddDialog(dialog, added);
         using var vm = new MapViewModel(service, coordinator, dialog, new MapGeometryFactory(new InlineBackgroundTaskRunner()), new InlineUiThreadDispatcher(), new FakeTimeProvider());
         var view = new MapView { DataContext = vm };
         var host = await ViewTestHelpers.ShowViewAsync(view);
