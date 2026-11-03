@@ -427,10 +427,16 @@ source-generated context. The library payload maps legacy dense and current
 segment shapes to captures. Frozen fixtures pin its bytes; source identity clears
 only `Metadata.SourceName` before re-encoding through that same codec.
 
-`AppJson` (`Sufni.App/Sufni.App/Infrastructure/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` and exposes two profiles:
+`AppJson` (`Sufni.App/Sufni.App/AppJson.cs`) centralizes System.Text.Json configuration behind a source-generated `AppJsonContext` at the composition root. It owns the lenient local/client profile:
 
 - **Lenient** (`AppJson.Options` / `AppJson.Context`) — all local round-trips (entity and track JSON columns; the processing dependency hash) and the entire sync client. Case-insensitive binding with a snake_case enum converter. Its output is deliberately **byte-stable**: `ProcessingDependencyHash` SHA-256s the `AppJson.Options`-serialized payload, so any change to the lenient options would silently invalidate every stored processing fingerprint. Treat the lenient profile as a wire/hash contract, not a tunable.
-- **Hardened** (`AppJson.InboundOptions` / `AppJson.InboundContext`) — network-inbound deserialization for strict JSON deserialization. Built from the .NET 10 `Strict` preset — reject duplicate keys and unmapped members, case-sensitive binding, required non-nullable members and constructor parameters — plus the same snake_case enum converter. Because the client always emits every snake_case key explicitly (including explicit nulls for optional members), well-formed first-party traffic is unaffected while malformed or truncated bodies are rejected at the trust boundary. The desktop server configures the same strict rules for JSON request binding. The session/source `PATCH` endpoints use binary bodies and validated metadata headers instead of JSON. See [Cross-Device Sync § Server](sync.md#server).
+The server's actual request/response options are configured by
+`SynchronizationProtocol.ConfigureJson`: duplicate keys and unmapped members
+are rejected, names are case-sensitive, and non-nullable members and constructor
+parameters are required. The same options retain snake_case enum output and
+ASP.NET's response naming policy. The binary session/source PATCH paths validate
+metadata headers separately. Tests exercise this production configuration; the
+unused AppJson inbound profile has been removed.
 
 Bike persistence, sync, and export JSON carry `RearSuspensionSpec` union values, `LinkageSpec`, `LeverageRatioSpec`, and `WheelSpec`. Sync rows and schema-versioned bike export files require `rear_suspension`; missing unions, malformed unions, and the legacy `rear_suspension_kind` / `linkage` / `leverage_ratio` JSON triple are invalid outside the local SQLite startup migration. The pre-refactor mutable linkage classes are not serialization roots.
 

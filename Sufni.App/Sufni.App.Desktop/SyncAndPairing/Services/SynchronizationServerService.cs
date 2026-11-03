@@ -412,21 +412,8 @@ public class SynchronizationServerService : ISynchronizationServerService
             });
         });
 
-        // Keeps the client's AppJsonContext snake_case enum strings while hardening
-        // inbound [FromBody] binding. These five fields mirror the .NET 10 Strict
-        // preset exactly; they are set individually rather than assigning the preset
-        // because this same options instance also serializes every Results.Ok(...)
-        // response.
         builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(jsonOptions =>
-        {
-            var o = jsonOptions.SerializerOptions;
-            o.AllowDuplicateProperties = false;                    // reject duplicate JSON keys
-            o.RespectNullableAnnotations = true;                   // non-nullable members required
-            o.RespectRequiredConstructorParameters = true;         // non-nullable positional-record ctor params required
-            o.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
-            o.PropertyNameCaseInsensitive = false;                 // case-sensitive binding
-            o.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-        });
+            SynchronizationProtocol.ConfigureJson(jsonOptions.SerializerOptions));
 
         var key = await tokens.GetSigningKeyAsync();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>

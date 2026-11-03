@@ -23,6 +23,13 @@ namespace Sufni.App.Tests.TestSupport.Sync;
 
 internal sealed class SyncTestServerHarness : IDisposable
 {
+    public static JsonSerializerOptions CreateServerJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        SynchronizationProtocol.ConfigureJson(options);
+        return options;
+    }
+
     public static readonly PeerIdentity Peer = new("hub-certificate", "hub-database");
     public SyncTestServerHarness()
     {

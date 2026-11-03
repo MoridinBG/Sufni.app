@@ -9,7 +9,6 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Sufni.Kinematics;
-using Sufni.Telemetry;
 
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -19,7 +18,7 @@ using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.SyncAndPairing.Models;
-namespace Sufni.App.Infrastructure;
+namespace Sufni.App;
 
 internal static class AppJson
 {
@@ -28,11 +27,6 @@ internal static class AppJson
     public static JsonSerializerOptions Options { get; } = CreateLenientOptions();
 
     public static AppJsonContext Context { get; } = new(CreateLenientOptions());
-
-    // HARDENED — network-inbound deserialization on the sync server only.
-    public static JsonSerializerOptions InboundOptions { get; } = CreateInboundOptions();
-
-    public static AppJsonContext InboundContext { get; } = new(CreateInboundOptions());
 
     public static string Serialize<T>(T? value)
     {
@@ -73,16 +67,6 @@ internal static class AppJson
         return options;
     }
 
-    private static JsonSerializerOptions CreateInboundOptions()
-    {
-        // .NET 10 Strict preset enables: JsonUnmappedMemberHandling.Disallow,
-        // AllowDuplicateProperties=false, case-sensitive binding,
-        // RespectNullableAnnotations=true, RespectRequiredConstructorParameters=true.
-        // Keep the snake_case enum converter (Strict does not add it).
-        JsonSerializerOptions options = new(JsonSerializerDefaults.Strict);
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
-        return options;
-    }
 
 
 }
@@ -100,19 +84,6 @@ internal static class AppJson
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
 [JsonSerializable(typeof(ProcessingFingerprint))]
 [JsonSerializable(typeof(RecordedSessionDerivationWindow))]
-[JsonSerializable(typeof(Metadata))]
-[JsonSerializable(typeof(RawImuData))]
-[JsonSerializable(typeof(RawImuSegment))]
-[JsonSerializable(typeof(RawCountSegment))]
-[JsonSerializable(typeof(RawStreamGap))]
-[JsonSerializable(typeof(SstFinalStatus))]
-[JsonSerializable(typeof(SstStreamFinalStatus))]
-[JsonSerializable(typeof(ProcessedSuspensionSegment))]
-[JsonSerializable(typeof(ImuMetaEntry))]
-[JsonSerializable(typeof(ImuRecord))]
-[JsonSerializable(typeof(GpsRecord))]
-[JsonSerializable(typeof(MarkerData))]
-[JsonSerializable(typeof(ushort[]))]
 [JsonSerializable(typeof(byte[]))]
 [JsonSerializable(typeof(List<Guid>))]
 [JsonSerializable(typeof(List<TrackPoint>))]

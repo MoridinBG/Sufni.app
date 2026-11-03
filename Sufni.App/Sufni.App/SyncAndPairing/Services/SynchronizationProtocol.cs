@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Sufni.App.SyncAndPairing.Services;
 
 public static class SynchronizationProtocol
@@ -27,5 +30,14 @@ public static class SynchronizationProtocol
     public const string EndpointSessionData = "/session/data/";
     public const string EndpointSessionSourceIncomplete = "/session/source/incomplete";
     public const string EndpointSessionSourceData = "/session/source/data/";
-
+    /// <summary>Applies the server's request contract without changing its response naming policy.</summary>
+    public static void ConfigureJson(JsonSerializerOptions options)
+    {
+        options.AllowDuplicateProperties = false;
+        options.RespectNullableAnnotations = true;
+        options.RespectRequiredConstructorParameters = true;
+        options.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+        options.PropertyNameCaseInsensitive = false;
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+    }
 }
