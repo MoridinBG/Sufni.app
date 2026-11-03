@@ -367,7 +367,7 @@ public class RecordedSessionReprocessorTests
             .GetProperty(nameof(RawImuData.Records));
         Assert.Equal(0, sourceImuRecords.GetArrayLength());
         var telemetryData = result.Generation.ProcessedTelemetry.TelemetryData;
-        Assert.Equal(5, telemetryData.Metadata.Version);
+        Assert.Equal(4, telemetryData.Metadata.Version);
         Assert.True(telemetryData.Front.HasGaps);
         var persistedTelemetry = TelemetryData.FromBinary(result.Generation.ProcessedTelemetry.Data);
         Assert.NotNull(persistedTelemetry.ImuData);

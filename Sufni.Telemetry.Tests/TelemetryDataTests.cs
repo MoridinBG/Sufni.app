@@ -643,8 +643,11 @@ public class TelemetryDataTests
         Assert.Equal(22.0, result.TemperatureAverages[1].TemperatureCelsius);
     }
 
-    [Fact]
-    public void FromRecording_WithV5TravelGap_ProcessesSegmentsWithoutCrossingGap()
+    [Theory]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void FromRecording_WithTravelGap_ProcessesSegmentsWithoutCrossingGap(byte version)
     {
         var rawData = CreateSegmentedRaw(
             new RawCountSegment
@@ -660,7 +663,10 @@ public class TelemetryDataTests
                 Counts = Enumerable.Range(0, 50).Select(index => (ushort)(50 - index)).ToArray(),
             });
 
-        var result = ProcessV5Segments(1.5, rawData.FrontSegments);
+        rawData.Version = version;
+        var result = TelemetryData.FromRecording(rawData,
+            new Metadata { Version = version, SampleRate = 100, Duration = 1.5 },
+            new BikeData(100, null, value => value, null), new TelemetryProcessingOptions(0));
 
         Assert.True(result.Front.HasGaps);
         Assert.Equal(2, result.Front.Segments.Length);

@@ -221,10 +221,9 @@ public sealed record TelemetryData
     }
 
     private static bool UsesSegmentAwareTravel(RawTelemetryData rawData) =>
-        rawData.Version == SstV5ProtocolConstants.Version &&
-        (rawData.FrontSegments.Length > 1 ||
+        rawData.FrontSegments.Length > 1 ||
          rawData.RearSegments.Length > 1 ||
-         rawData.StreamGaps.Any(gap => gap.StreamKind == SstV5ProtocolConstants.StreamTravel));
+         rawData.StreamGaps.Any(gap => gap.StreamKind == SstV5ProtocolConstants.StreamTravel);
 
     // A travel gap tagged with a side's sensor bit belongs only to that side. A travel gap with
     // no location (e.g. a stream-level final-status counter) is not side-attributable, so it is
@@ -508,22 +507,11 @@ public sealed record TelemetryData
         LiveTelemetryCapture capture,
         TelemetryProcessingOptions processingOptions)
     {
-        var version = UsesSegmentAwareLiveCapture(capture)
-            ? SstV5ProtocolConstants.Version
-            : capture.Metadata.Version;
-        var metadata = new Metadata
-        {
-            SourceName = capture.Metadata.SourceName,
-            Version = version,
-            SampleRate = capture.Metadata.SampleRate,
-            Timestamp = capture.Metadata.Timestamp,
-            Duration = capture.Metadata.Duration,
-        };
         var front = capture.FrontMeasurements;
         var rear = capture.RearMeasurements;
         var rawData = new RawTelemetryData
         {
-            Version = (byte)Math.Clamp(version, byte.MinValue, byte.MaxValue),
+            Version = (byte)Math.Clamp(capture.Metadata.Version, byte.MinValue, byte.MaxValue),
             SampleRate = (ushort)Math.Clamp(capture.Metadata.SampleRate, 0, ushort.MaxValue),
             Timestamp = capture.Metadata.Timestamp,
             Front = front,
@@ -541,20 +529,8 @@ public sealed record TelemetryData
             TemperatureData = capture.TemperatureData,
         };
 
-        return FromRecording(rawData, metadata, capture.BikeData, processingOptions);
+        return FromRecording(rawData, capture.Metadata, capture.BikeData, processingOptions);
     }
-
-    private static bool UsesSegmentAwareLiveCapture(LiveTelemetryCapture capture) =>
-        capture.StreamGaps.Length > 0 ||
-        capture.FinalStatus is not null ||
-        capture.MissingFinalStatus ||
-        HasNonDenseSegments(capture.FrontSegments) ||
-        HasNonDenseSegments(capture.RearSegments) ||
-        capture.ImuData?.HasGaps == true;
-
-    private static bool HasNonDenseSegments(RawCountSegment[] segments) =>
-        segments.Length > 1 ||
-        segments.Any(segment => segment.FirstIndex != 0 || segment.FirstMonotonicDeltaUs != 0);
 
     #endregion
 }

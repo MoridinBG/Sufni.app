@@ -204,6 +204,9 @@ graph TD
 
 Channel classification uses all samples: all-zero or all-`0xFFFF` channels are absent during processing, as are channels without calibration. V4 parsing preserves these raw sentinel samples; mixed channels remain available for processing.
 
+After parsing, processing selects its path from travel segments, gaps and channel
+presence, independently of the file-version field.
+
 Spike elimination is **not** part of the SST parser. The parsers populate the raw `Front` / `Rear` arrays directly; the [Spike Elimination](#spike-elimination) cleanup runs later in `TelemetryData.FromRecording()` via `MeasurementPreprocessor.Process(...)`, once the bike's sensor calibration is known.
 
 ### SST V3 Format

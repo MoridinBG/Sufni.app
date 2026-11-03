@@ -163,7 +163,7 @@ public class TelemetryDataLiveCaptureTests
 
         var result = TelemetryData.FromLiveCapture(capture);
 
-        Assert.Equal(5, result.Metadata.Version);
+        Assert.Equal(4, result.Metadata.Version);
         Assert.True(result.Front.Present);
         Assert.True(result.Front.HasGaps);
         Assert.False(result.Rear.Present);

@@ -263,9 +263,11 @@ Stroke and histogram defaults live in `Sufni.Telemetry/Parameters.cs`;
 spike thresholds live in `SpikeElimination`, and velocity-filter defaults
 live in `TelemetryProcessingOptions`.
 
-Front/rear processing runs in parallel when both sides are present. The result
-is a `TelemetryData` object serialized with MessagePack and stored as a BLOB on
-the session row.
+Front/rear processing runs in parallel when both sides are present. Processing
+selects dense/segmented paths from data, not file version; live captures preserve
+their metadata. The published `TelemetryData` graph is immutable, including IMU
+samples. `TelemetryCodec` owns its MessagePack and live-source JSON formats with
+frozen schema fixtures. Processed telemetry is stored as a BLOB on the session row.
 
 Full details: [docs/architecture/processing.md § Signal Processing Pipeline](docs/architecture/processing.md#signal-processing-pipeline),
 including [Travel Calculation](docs/architecture/processing.md#travel-calculation),
