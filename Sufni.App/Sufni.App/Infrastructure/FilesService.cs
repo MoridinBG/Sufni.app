@@ -8,10 +8,9 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 
-using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Infrastructure;
 
-public class FilesService(IBackgroundTaskRunner backgroundTaskRunner, IUiThreadDispatcher dispatcher) : IFilesService
+public class FilesService(IUiThreadDispatcher dispatcher) : IFilesService
 {
     private TopLevel? target;
     private readonly TaskCompletionSource<IStorageProvider> storageReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -185,7 +184,7 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner, IUiThreadD
         return string.IsNullOrEmpty(sanitized) ? "untitled" : sanitized;
     }
 
-    public async Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default)
+    public async Task<PickedFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default)
     {
         Debug.Assert(target != null, nameof(target) + " != null");
 
@@ -203,12 +202,6 @@ public class FilesService(IBackgroundTaskRunner backgroundTaskRunner, IUiThreadD
         }
 
         var file = files[0];
-        return await backgroundTaskRunner.RunAsync(async () =>
-        {
-            await using var stream = await file.OpenReadAsync();
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream, cancellationToken);
-            return new SelectedDeviceConfigFile(file.Name, memoryStream.ToArray());
-        }, cancellationToken);
+        return new PickedFile(file.Name, file.OpenReadAsync);
     }
 }

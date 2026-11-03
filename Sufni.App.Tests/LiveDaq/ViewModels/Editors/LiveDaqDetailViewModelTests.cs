@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Services;
 using Sufni.App.LiveDaq.Coordinators;
 using System.Text;
 using NSubstitute;

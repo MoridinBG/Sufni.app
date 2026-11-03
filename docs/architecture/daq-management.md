@@ -120,4 +120,8 @@ The known field set is enumerated in `DaqConfigFields` (`DaqConfigFieldDefinitio
 
 `DaqConfigValidator.Validate(values)` produces a per-key error dictionary used by the editor before re-uploading: max-length and `=`-free values for length-constrained fields, valid `WIFI_MODE` (`STA` / `AP`), `COUNTRY` length, sample-rate parseability (1..65535), and conditional WiFi-mode requirements (STA needs SSID + PSK; AP needs SSID + PSK ≥ 8 chars). Validation runs in the editor view model, not in the service.
 
-`SelectedDeviceConfigFile` (`SelectedDeviceConfigFile.cs`) is the small record `IFilesService` returns when the user picks a CONFIG file from disk for direct upload through the Replace Config flow, bypassing the in-app editor.
+`LiveDaq/Services/SelectedDeviceConfigFile` (`SelectedDeviceConfigFile.cs`) is the small record `IFilesService` returns when the user picks a CONFIG file from disk for direct upload through the Replace Config flow, bypassing the in-app editor.
+
+Device CONFIG selection uses the generic `PickedFile` boundary.
+`LiveDaq/Services/DeviceConfigFileService` reads its bytes off-thread; the live
+coordinator owns name validation, cancellation, and the final typed outcome.

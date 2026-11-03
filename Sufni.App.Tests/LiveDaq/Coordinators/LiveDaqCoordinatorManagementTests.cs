@@ -130,7 +130,7 @@ public partial class LiveDaqCoordinatorTests
     public async Task SelectConfigFileAsync_RejectsWrongNameAndSeparatesPickerDiagnostics()
     {
         await using var coordinator = CreateCoordinator();
-        filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>()).Returns(new SelectedDeviceConfigFile("CONFIG.txt", [1]));
+        filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>()).Returns(new PickedFile("CONFIG.txt", () => Task.FromResult<Stream>(new MemoryStream([1]))));
         Assert.Equal(DaqManagementFailureReason.InvalidConfigName, Assert.IsType<LiveDaqManagementResult.Failed>(
             await coordinator.SelectConfigFileAsync(TestContext.Current.CancellationToken)).Reason);
         filesService.OpenDeviceConfigFileAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new IOException("picker diagnostic"));

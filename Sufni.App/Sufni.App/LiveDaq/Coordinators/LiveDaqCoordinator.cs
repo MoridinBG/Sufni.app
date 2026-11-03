@@ -27,7 +27,7 @@ public partial class LiveDaqCoordinator : ILiveDaqCoordinator, IAsyncDisposable
     private static readonly ILogger logger = Log.ForContext<LiveDaqCoordinator>();
 
     private readonly IDaqManagementService managementService;
-    private readonly IFilesService filesService;
+    private readonly DeviceConfigFileService configFiles;
     private readonly ILiveDaqSharedStreamRegistry streamRegistry;
     private readonly ILiveDaqStoreWriter liveDaqStore;
     private readonly ILiveDaqKnownBoardsQuery knownBoardsQuery;
@@ -68,7 +68,7 @@ public partial class LiveDaqCoordinator : ILiveDaqCoordinator, IAsyncDisposable
         StorePublication publication,
         ITrackStoreWriter trackStore,
         IDaqManagementService managementService,
-        IFilesService filesService,
+        DeviceConfigFileService configFiles,
         ILiveDaqSharedStreamRegistry streamRegistry)
     {
         this.liveDaqStore = liveDaqStore;
@@ -87,7 +87,7 @@ public partial class LiveDaqCoordinator : ILiveDaqCoordinator, IAsyncDisposable
         this.publication = publication;
         this.trackStore = trackStore;
         this.managementService = managementService;
-        this.filesService = filesService;
+        this.configFiles = configFiles;
         this.streamRegistry = streamRegistry;
     }
 

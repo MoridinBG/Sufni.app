@@ -56,7 +56,7 @@ public partial class LiveDaqCoordinatorTests
             knownBoardsQuery,
             catalogService, store ?? sessionStore, repository ?? sessionRepository,
             trackQueries, setupRepository, bikeRepository, sources ?? sourceStore, reprocessor,
-            backgroundTaskRunner, sessionPreferences, new InlineUiThreadDispatcher(), publication, tracks ?? trackStore, managementService, filesService, streamRegistry);
+            backgroundTaskRunner, sessionPreferences, new InlineUiThreadDispatcher(), publication, tracks ?? trackStore, managementService, new DeviceConfigFileService(filesService, backgroundTaskRunner), streamRegistry);
 
     [Fact]
     public void Activate_SeedsOfflineKnownBoards_AndAcquiresBrowse()

@@ -58,7 +58,7 @@ public partial class LiveDaqCoordinator
         {
             try
             {
-                var file = await filesService.OpenDeviceConfigFileAsync(token);
+                var file = await configFiles.SelectAsync(token);
                 if (file is null) return new LiveDaqManagementResult.Canceled();
                 if (!string.Equals(file.FileName, "CONFIG", StringComparison.Ordinal))
                 {

@@ -130,6 +130,7 @@ public static class AppComposition
         services.AddSingleton<IMapViewModelFactory, MapViewModelFactory>();
         services.AddSingleton<IMapGeometryFactory, MapGeometryFactory>();
         services.AddSingleton<FilesService>();
+        services.AddSingleton<DeviceConfigFileService>();
         services.AddSingleton<IFilesService>(sp => sp.GetRequiredService<FilesService>());
         services.AddSingleton<DialogService>();
         services.AddSingleton<IDialogService>(sp => sp.GetRequiredService<DialogService>());

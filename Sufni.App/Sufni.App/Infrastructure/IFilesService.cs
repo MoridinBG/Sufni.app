@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 
-using Sufni.App.Acquisition.Services.Management;
 namespace Sufni.App.Infrastructure;
 
 public interface IFilesService
@@ -20,5 +19,5 @@ public interface IFilesService
     public Task<IReadOnlyList<PickedFile>> OpenGpxFilesAsync();
     public Task<IStorageFile?> OpenVideoFileAsync();
     public Task<IStorageBookmarkFile?> OpenBookmarkedVideoAsync(string bookmark, CancellationToken cancellationToken = default);
-    public Task<SelectedDeviceConfigFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default);
+    public Task<PickedFile?> OpenDeviceConfigFileAsync(CancellationToken cancellationToken = default);
 }
