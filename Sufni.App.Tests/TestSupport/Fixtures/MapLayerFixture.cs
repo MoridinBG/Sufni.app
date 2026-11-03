@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using NSubstitute;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;

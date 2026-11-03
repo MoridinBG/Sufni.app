@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Services.Preferences;
+using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Setups.Services;
 using Sufni.App.Setups.Queries;

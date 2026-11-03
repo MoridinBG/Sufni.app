@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Subjects;
 using NSubstitute;

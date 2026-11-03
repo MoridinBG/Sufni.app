@@ -1,4 +1,6 @@
 <UserControl
+    xmlns:sessionPreferences="using:Sufni.App.Sessions.Models"
+    xmlns:sessionPanes="using:Sufni.App.Sessions.Detail.DesktopViews.Controls"
 x:Class="Sufni.App.Sessions.Detail.DesktopViews.Editors.SessionShellDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,54 +16,54 @@ x:DataType="editors:SessionShellDesktopView"
 Background="{DynamicResource SufniSurfacePage}"
 mc:Ignorable="d">
 
-    <desktopControls:CollapsibleSplitView
+    <sessionPanes:CollapsibleSplitView
         x:Name="ShellRowsSplit"
-        FirstPaneId="{x:Static models:SessionLayoutPaneIds.SignalsMediaArea}"
+        FirstPaneId="{x:Static sessionPreferences:SessionLayoutPaneIds.SignalsMediaArea}"
         FirstPaneLabel="signals and media"
         Orientation="Vertical"
-        SecondPaneId="{x:Static models:SessionLayoutPaneIds.AnalysisSidebarArea}"
+        SecondPaneId="{x:Static sessionPreferences:SessionLayoutPaneIds.AnalysisSidebarArea}"
         SecondPaneLabel="analysis and sidebar">
 
-        <desktopControls:CollapsibleSplitView.FirstContent>
-            <desktopControls:CollapsibleSplitView
+        <sessionPanes:CollapsibleSplitView.FirstContent>
+            <sessionPanes:CollapsibleSplitView
                 x:Name="SignalsMediaSplit"
                 DefaultFirstLength="*"
                 DefaultSecondLength="400"
-                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Signals}"
+                FirstPaneId="{x:Static sessionPreferences:SessionLayoutPaneIds.Signals}"
                 FirstPaneLabel="signals"
                 HasSecondPane="{Binding #Root.HasMediaContent}"
                 Orientation="Horizontal"
-                SecondPaneId="{x:Static models:SessionLayoutPaneIds.Media}"
+                SecondPaneId="{x:Static sessionPreferences:SessionLayoutPaneIds.Media}"
                 SecondPaneLabel="media">
 
-                <desktopControls:CollapsibleSplitView.FirstContent>
+                <sessionPanes:CollapsibleSplitView.FirstContent>
                     <ContentControl Name="SignalsHost" Content="{Binding #Root.SignalsContent}" />
-                </desktopControls:CollapsibleSplitView.FirstContent>
+                </sessionPanes:CollapsibleSplitView.FirstContent>
 
-                <desktopControls:CollapsibleSplitView.SecondContent>
+                <sessionPanes:CollapsibleSplitView.SecondContent>
                     <ContentControl
                         Name="MediaHost"
                         Content="{Binding #Root.MediaContent}" />
-                </desktopControls:CollapsibleSplitView.SecondContent>
-            </desktopControls:CollapsibleSplitView>
-        </desktopControls:CollapsibleSplitView.FirstContent>
+                </sessionPanes:CollapsibleSplitView.SecondContent>
+            </sessionPanes:CollapsibleSplitView>
+        </sessionPanes:CollapsibleSplitView.FirstContent>
 
-        <desktopControls:CollapsibleSplitView.SecondContent>
-            <desktopControls:CollapsibleSplitView
+        <sessionPanes:CollapsibleSplitView.SecondContent>
+            <sessionPanes:CollapsibleSplitView
                 x:Name="AnalysisSidebarSplit"
                 DefaultFirstLength="*"
                 DefaultSecondLength="400"
-                FirstPaneId="{x:Static models:SessionLayoutPaneIds.Analysis}"
+                FirstPaneId="{x:Static sessionPreferences:SessionLayoutPaneIds.Analysis}"
                 FirstPaneLabel="analysis"
                 Orientation="Horizontal"
-                SecondPaneId="{x:Static models:SessionLayoutPaneIds.Sidebar}"
+                SecondPaneId="{x:Static sessionPreferences:SessionLayoutPaneIds.Sidebar}"
                 SecondPaneLabel="sidebar">
 
-                <desktopControls:CollapsibleSplitView.FirstContent>
+                <sessionPanes:CollapsibleSplitView.FirstContent>
                     <ContentControl Name="AnalysisHost" Content="{Binding #Root.AnalysisContent}" />
-                </desktopControls:CollapsibleSplitView.FirstContent>
+                </sessionPanes:CollapsibleSplitView.FirstContent>
 
-                <desktopControls:CollapsibleSplitView.SecondContent>
+                <sessionPanes:CollapsibleSplitView.SecondContent>
                     <Grid RowDefinitions="auto auto *">
                 <ContentControl Name="ControlHost" Grid.Row="0" Content="{Binding #Root.ControlContent}" />
 
@@ -74,8 +76,8 @@ mc:Ignorable="d">
 
                 <ContentControl Name="SidebarHost" Grid.Row="2" Content="{Binding #Root.SidebarContent}" />
                     </Grid>
-                </desktopControls:CollapsibleSplitView.SecondContent>
-            </desktopControls:CollapsibleSplitView>
-        </desktopControls:CollapsibleSplitView.SecondContent>
-    </desktopControls:CollapsibleSplitView>
+                </sessionPanes:CollapsibleSplitView.SecondContent>
+            </sessionPanes:CollapsibleSplitView>
+        </sessionPanes:CollapsibleSplitView.SecondContent>
+    </sessionPanes:CollapsibleSplitView>
 </UserControl>

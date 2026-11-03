@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Shared.Plots;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Microsoft.Extensions.Time.Testing;

@@ -67,9 +67,9 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
 | **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
 | **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
-| **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts |
+| **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts, installation preferences |
 | **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
-| **Infrastructure** | `Infrastructure/` | Infra services, app JSON/preferences, theme model and bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `ISecureStorage`, `IHapticFeedback`, `IFriendlyNameProvider`) |
+| **Infrastructure** | `Infrastructure/` | Infra services, app JSON, theme model and bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `ISecureStorage`, `IHapticFeedback`, `IFriendlyNameProvider`) |
 
 `App.axaml(.cs)`, `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
 

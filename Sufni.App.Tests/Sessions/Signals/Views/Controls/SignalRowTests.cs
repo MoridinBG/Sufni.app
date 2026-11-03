@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Signals.Views.Controls;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -14,7 +15,7 @@ using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Infrastructure;
 using Sufni.App.Tests.TestSupport.Harness;
-namespace Sufni.App.Tests.Shared.Views.Controls;
+namespace Sufni.App.Tests.Sessions.Signals.Views.Controls;
 
 [Collection("Ui")]
 public class SignalRowTests

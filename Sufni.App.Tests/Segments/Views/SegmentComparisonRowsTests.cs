@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Signals.Views.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Segments.Models;
 using Sufni.App.Segments.ViewModels;

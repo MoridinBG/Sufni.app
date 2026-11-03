@@ -1,4 +1,6 @@
 <UserControl
+    xmlns:sessionPreferences="using:Sufni.App.Sessions.Models"
+    xmlns:sessionSignals="using:Sufni.App.Sessions.Signals.Views.Controls"
 x:Name="Root"
 x:Class="Sufni.App.LiveDaq.Views.Controls.LiveSignalRowsView"
 xmlns="https://github.com/avaloniaui"
@@ -17,13 +19,13 @@ d:DesignWidth="800"
 x:DataType="vm:ILiveSessionSignalsWorkspace"
 mc:Ignorable="d">
 
-    <controls:SignalRowsRoot x:Name="SignalRowsRoot" SignalLayoutPreferences="{Binding SignalLayoutPreferences, Mode=TwoWay}">
-        <controls:SignalRowsRoot.Rows>
-            <controls:SignalRow
-            RowId="{x:Static models:SignalRowIds.Travel}"
+    <sessionSignals:SignalRowsRoot x:Name="SignalRowsRoot" SignalLayoutPreferences="{Binding SignalLayoutPreferences, Mode=TwoWay}">
+        <sessionSignals:SignalRowsRoot.Rows>
+            <sessionSignals:SignalRow
+            RowId="{x:Static sessionPreferences:SignalRowIds.Travel}"
             Title="Travel (mm)"
             PresentationState="{Binding TravelSignalState}">
-                <controls:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlotContent>
                     <plots:LiveTravelPlotView
                     x:Name="TravelPlot"
                     SignalBatches="{Binding SignalBatches}"
@@ -32,16 +34,16 @@ mc:Ignorable="d">
                     SourceVisibility="{Binding SourceVisibility}"
                     SmoothingLevel="{Binding SignalDisplayPreferences.TravelSmoothing}"
                     Timeline="{Binding Timeline}" />
-                </controls:SignalRow.PlotContent>
-                <controls:SignalRow.PlaceholderContent>
+                </sessionSignals:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlaceholderContent>
                     <overlays:SurfacePlaceholderCard Title="Travel" />
-                </controls:SignalRow.PlaceholderContent>
-                <controls:SignalRow.ChildRows>
-                    <controls:SignalRow
-                    RowId="{x:Static models:SignalRowIds.Velocity}"
+                </sessionSignals:SignalRow.PlaceholderContent>
+                <sessionSignals:SignalRow.ChildRows>
+                    <sessionSignals:SignalRow
+                    RowId="{x:Static sessionPreferences:SignalRowIds.Velocity}"
                     Title="Velocity (m/s)"
                     PresentationState="{Binding VelocitySignalState}">
-                        <controls:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlotContent>
                             <plots:LiveVelocityPlotView
                             x:Name="VelocityPlot"
                             SignalBatches="{Binding SignalBatches}"
@@ -51,19 +53,19 @@ mc:Ignorable="d">
                             SourceVisibility="{Binding SourceVisibility}"
                             SmoothingLevel="{Binding SignalDisplayPreferences.VelocitySmoothing}"
                             Timeline="{Binding Timeline}" />
-                        </controls:SignalRow.PlotContent>
-                        <controls:SignalRow.PlaceholderContent>
+                        </sessionSignals:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlaceholderContent>
                             <overlays:SurfacePlaceholderCard Title="Velocity" />
-                        </controls:SignalRow.PlaceholderContent>
-                    </controls:SignalRow>
-                </controls:SignalRow.ChildRows>
-            </controls:SignalRow>
+                        </sessionSignals:SignalRow.PlaceholderContent>
+                    </sessionSignals:SignalRow>
+                </sessionSignals:SignalRow.ChildRows>
+            </sessionSignals:SignalRow>
 
-            <controls:SignalRow
-            RowId="{x:Static models:SignalRowIds.Imu}"
+            <sessionSignals:SignalRow
+            RowId="{x:Static sessionPreferences:SignalRowIds.Imu}"
             Title="Vibration RMS (g)"
             PresentationState="{Binding ImuSignalState}">
-                <controls:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlotContent>
                     <plots:LiveImuPlotView
                     x:Name="ImuPlot"
                     SignalBatches="{Binding SignalBatches}"
@@ -72,16 +74,16 @@ mc:Ignorable="d">
                     SourceVisibility="{Binding SourceVisibility}"
                     SmoothingLevel="{Binding SignalDisplayPreferences.ImuSmoothing}"
                     Timeline="{Binding Timeline}" />
-                </controls:SignalRow.PlotContent>
-                <controls:SignalRow.PlaceholderContent>
+                </sessionSignals:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlaceholderContent>
                     <overlays:SurfacePlaceholderCard Title="IMU" />
-                </controls:SignalRow.PlaceholderContent>
-                <controls:SignalRow.ChildRows>
-                    <controls:SignalRow
-                    RowId="{x:Static models:SignalRowIds.PitchRoll}"
+                </sessionSignals:SignalRow.PlaceholderContent>
+                <sessionSignals:SignalRow.ChildRows>
+                    <sessionSignals:SignalRow
+                    RowId="{x:Static sessionPreferences:SignalRowIds.PitchRoll}"
                     Title="Frame pitch/roll (deg)"
                     PresentationState="{Binding PitchRollSignalState}">
-                        <controls:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlotContent>
                             <plots:LiveFramePitchRollPlotView
                             x:Name="PitchRollPlot"
                             SignalBatches="{Binding SignalBatches}"
@@ -90,19 +92,19 @@ mc:Ignorable="d">
                             MinimumY="{Binding PlotRanges.PitchRollMinimum}"
                             SmoothingLevel="{Binding SignalDisplayPreferences.PitchRollSmoothing}"
                             Timeline="{Binding Timeline}" />
-                        </controls:SignalRow.PlotContent>
-                        <controls:SignalRow.PlaceholderContent>
+                        </sessionSignals:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlaceholderContent>
                             <overlays:SurfacePlaceholderCard Title="Pitch/roll" />
-                        </controls:SignalRow.PlaceholderContent>
-                    </controls:SignalRow>
-                </controls:SignalRow.ChildRows>
-            </controls:SignalRow>
+                        </sessionSignals:SignalRow.PlaceholderContent>
+                    </sessionSignals:SignalRow>
+                </sessionSignals:SignalRow.ChildRows>
+            </sessionSignals:SignalRow>
 
-            <controls:SignalRow
-            RowId="{x:Static models:SignalRowIds.Speed}"
+            <sessionSignals:SignalRow
+            RowId="{x:Static sessionPreferences:SignalRowIds.Speed}"
             Title="GPS speed (km/h)"
             PresentationState="{Binding SpeedSignalState}">
-                <controls:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlotContent>
                     <plots2:TrackSignalPlotView
                     x:Name="SpeedPlot"
                     HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -111,16 +113,16 @@ mc:Ignorable="d">
                     Timeline="{Binding Timeline}"
                     TimelineContext="{Binding TrackTimelineContext}"
                     TrackPoints="{Binding TrackPoints}" />
-                </controls:SignalRow.PlotContent>
-                <controls:SignalRow.PlaceholderContent>
+                </sessionSignals:SignalRow.PlotContent>
+                <sessionSignals:SignalRow.PlaceholderContent>
                     <overlays:SurfacePlaceholderCard Title="Speed" />
-                </controls:SignalRow.PlaceholderContent>
-                <controls:SignalRow.ChildRows>
-                    <controls:SignalRow
-                    RowId="{x:Static models:SignalRowIds.Elevation}"
+                </sessionSignals:SignalRow.PlaceholderContent>
+                <sessionSignals:SignalRow.ChildRows>
+                    <sessionSignals:SignalRow
+                    RowId="{x:Static sessionPreferences:SignalRowIds.Elevation}"
                     Title="Elevation (m)"
                     PresentationState="{Binding ElevationSignalState}">
-                        <controls:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlotContent>
                             <plots2:TrackSignalPlotView
                             x:Name="ElevationPlot"
                             HideRightAxis="{Binding #Root.HideRightAxis}"
@@ -129,13 +131,13 @@ mc:Ignorable="d">
                             Timeline="{Binding Timeline}"
                             TimelineContext="{Binding TrackTimelineContext}"
                             TrackPoints="{Binding TrackPoints}" />
-                        </controls:SignalRow.PlotContent>
-                        <controls:SignalRow.PlaceholderContent>
+                        </sessionSignals:SignalRow.PlotContent>
+                        <sessionSignals:SignalRow.PlaceholderContent>
                             <overlays:SurfacePlaceholderCard Title="Elevation" />
-                        </controls:SignalRow.PlaceholderContent>
-                    </controls:SignalRow>
-                </controls:SignalRow.ChildRows>
-            </controls:SignalRow>
-        </controls:SignalRowsRoot.Rows>
-    </controls:SignalRowsRoot>
+                        </sessionSignals:SignalRow.PlaceholderContent>
+                    </sessionSignals:SignalRow>
+                </sessionSignals:SignalRow.ChildRows>
+            </sessionSignals:SignalRow>
+        </sessionSignals:SignalRowsRoot.Rows>
+    </sessionSignals:SignalRowsRoot>
 </UserControl>

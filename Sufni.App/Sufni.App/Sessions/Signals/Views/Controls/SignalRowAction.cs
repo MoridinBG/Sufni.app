@@ -1,7 +1,8 @@
+using Sufni.App.Shared.Views.Controls;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace Sufni.App.Shared.Views.Controls;
+namespace Sufni.App.Sessions.Signals.Views.Controls;
 
 public enum SignalRowActionKind
 {

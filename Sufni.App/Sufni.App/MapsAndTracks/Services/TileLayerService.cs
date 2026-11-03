@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using DynamicData;
 using Sufni.App.MapsAndTracks.Stores;
 using System.Collections.Generic;

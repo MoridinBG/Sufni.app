@@ -1,3 +1,5 @@
+using Sufni.App.Shared.Plots;
+using Sufni.App.Infrastructure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,14 +7,7 @@ using System.Text.Json.Serialization;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Models;
-namespace Sufni.App.Infrastructure;
-
-public enum PlotSmoothingLevel
-{
-    Off,
-    Light,
-    Strong,
-}
+namespace Sufni.App.Sessions.Models;
 
 public sealed record SessionPreferences
 {

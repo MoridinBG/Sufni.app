@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;

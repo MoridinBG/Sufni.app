@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Detail.DesktopViews.Controls;
+using Sufni.App.Sessions.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;

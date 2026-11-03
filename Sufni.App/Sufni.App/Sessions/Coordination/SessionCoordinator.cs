@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Services.Preferences;
 using System;
 using System.Linq;
 using Sufni.App.MapsAndTracks.Services;

@@ -1,4 +1,5 @@
 global using Sufni.App.Tests.TestSupport;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Setups.Services;
 using System.Reactive.Linq;
 using Sufni.App.Setups.Queries;

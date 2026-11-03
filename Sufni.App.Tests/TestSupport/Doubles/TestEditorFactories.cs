@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Tests.TestSupport.Harness;
 using NSubstitute;

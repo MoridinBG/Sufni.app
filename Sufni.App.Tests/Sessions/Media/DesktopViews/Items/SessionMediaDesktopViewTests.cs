@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Detail.DesktopViews.Controls;
+using Sufni.App.Sessions.Models;
 using Sufni.App.Video.Models;
 using System.Reactive.Linq;
 using Avalonia.Controls;

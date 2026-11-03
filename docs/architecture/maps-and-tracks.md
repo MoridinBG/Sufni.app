@@ -236,7 +236,7 @@ comparison of the segment comparison state (see
 
 ## Map Preferences
 
-`IMapPreferences` (`Sufni.App/Sufni.App/Infrastructure/IAppPreferences.cs`) is a facet of `IAppPreferences`. The concrete implementation in `AppPreferences` (`Sufni.App/Sufni.App/Infrastructure/AppPreferences.cs`) writes a single JSON document — `app-preferences.json` next to the SQLite database — under a `maps` key. Reads and writes are serialized through a `SemaphoreSlim`, and writes go through a temp-file rename so a crashed write does not corrupt the document.
+`IMapPreferences` (`Sufni.App/Sufni.App/Shell/Services/Preferences/IAppPreferences.cs`) is a facet of `IAppPreferences`. The concrete implementation in `AppPreferences` (`Sufni.App/Sufni.App/Shell/Services/Preferences/AppPreferences.cs`) writes a single JSON document — `app-preferences.json` next to the SQLite database — under a `maps` key. Reads and writes are serialized through a `SemaphoreSlim`, and writes go through a temp-file rename so a crashed write does not corrupt the document.
 
 The facet exposes the map coordinator’s writes and tile service’s observation:
 

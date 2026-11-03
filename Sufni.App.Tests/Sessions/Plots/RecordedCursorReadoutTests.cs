@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Plots;
 using ScottPlot;
 using ScottPlot.Plottables;

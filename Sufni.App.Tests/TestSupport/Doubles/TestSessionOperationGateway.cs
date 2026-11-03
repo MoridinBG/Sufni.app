@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using NSubstitute;
 using Sufni.App.Shared.Models;
 using Sufni.App.Bikes.Models;

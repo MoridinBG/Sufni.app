@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using System;
 using System.Threading.Tasks;
 using Avalonia;

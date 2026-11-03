@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Services.Preferences;
+using Sufni.App.Shared.Plots;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;

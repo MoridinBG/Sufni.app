@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Sufni.App.Desktop;

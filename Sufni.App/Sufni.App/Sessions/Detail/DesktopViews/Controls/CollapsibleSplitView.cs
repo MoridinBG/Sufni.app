@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.DesktopViews.Controls;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +13,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 
 using Sufni.App.Infrastructure;
-namespace Sufni.App.Shared.DesktopViews.Controls;
+namespace Sufni.App.Sessions.Detail.DesktopViews.Controls;
 
 public sealed class CollapsibleSplitView : UserControl
 {

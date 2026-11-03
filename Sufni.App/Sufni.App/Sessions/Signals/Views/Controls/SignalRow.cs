@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -18,7 +19,7 @@ using Sufni.App.Shared.Views.Overlays;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.App.Shared.Views.Input;
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.Shared.Views.Controls;
+namespace Sufni.App.Sessions.Signals.Views.Controls;
 
 public sealed class SignalRow : UserControl
 {

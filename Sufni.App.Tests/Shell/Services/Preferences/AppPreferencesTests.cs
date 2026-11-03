@@ -1,3 +1,5 @@
+using Sufni.App.Shell.Services.Preferences;
+using Sufni.App.Shared.Plots;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
 using System.Reactive.Threading.Tasks;
@@ -9,7 +11,7 @@ using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Sessions.Models;
 using Sufni.App.SyncAndPairing.Models;
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests.Shell.Services.Preferences;
 
 public class AppPreferencesTests
 {

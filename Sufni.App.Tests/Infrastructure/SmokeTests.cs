@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
 using Sufni.App.Infrastructure;

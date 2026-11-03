@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Detail.DesktopViews.Controls;
+using Sufni.App.Sessions.Models;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Layout;
@@ -6,7 +8,7 @@ using Avalonia.VisualTree;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.DesktopViews.Controls;
 using Sufni.App.Tests.TestSupport.Harness;
-namespace Sufni.App.Tests.Shared.DesktopViews.Controls;
+namespace Sufni.App.Tests.Sessions.Detail.DesktopViews.Controls;
 
 [Collection("Ui")]
 public class CollapsibleSplitViewTests

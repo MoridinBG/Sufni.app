@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.MapsAndTracks.Coordinators;
 using Sufni.App.SyncAndPairing.Services;
 using Sufni.App.Shared.Views;

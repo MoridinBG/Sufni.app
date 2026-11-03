@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Infrastructure;
 using Sufni.App.Tests.TestSupport.Async;
 

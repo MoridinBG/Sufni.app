@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Models;
+using Sufni.App.Shared.Plots;
 using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;

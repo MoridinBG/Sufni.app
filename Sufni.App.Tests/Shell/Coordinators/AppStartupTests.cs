@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Shared.Models;
 using System.Reactive.Linq;
 using NSubstitute;

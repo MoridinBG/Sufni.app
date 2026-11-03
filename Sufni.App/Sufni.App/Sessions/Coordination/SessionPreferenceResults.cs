@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Shared.Models;
 

@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Detail.DesktopViews.Controls;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Sufni.App.Sessions.Detail.DesktopViews.Editors;

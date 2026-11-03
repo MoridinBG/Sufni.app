@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.Time.Testing;
@@ -40,8 +41,8 @@ internal sealed class SessionDetailHarness
     public SessionDetailHarness()
     {
         SessionPreferences.WithDefaultObserveRecorded();
-        SessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(global::Sufni.App.Infrastructure.SessionPreferences.Default));
-        SessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<global::Sufni.App.Infrastructure.SessionPreferences, global::Sufni.App.Infrastructure.SessionPreferences>>())
+        SessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(global::Sufni.App.Sessions.Models.SessionPreferences.Default));
+        SessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<global::Sufni.App.Sessions.Models.SessionPreferences, global::Sufni.App.Sessions.Models.SessionPreferences>>())
             .Returns(Task.CompletedTask);
         SessionPresentationService.CalculateDampingPercentages(
                 Arg.Any<TelemetryData>(),

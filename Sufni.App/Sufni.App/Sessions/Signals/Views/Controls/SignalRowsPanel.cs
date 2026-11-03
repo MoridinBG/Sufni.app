@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Controls;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,7 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.Shared.Views.Controls;
+namespace Sufni.App.Sessions.Signals.Views.Controls;
 
 internal sealed class SignalRowsPanel : Panel
 {

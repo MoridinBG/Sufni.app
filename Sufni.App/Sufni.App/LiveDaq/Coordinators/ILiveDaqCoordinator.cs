@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using System;
 using System.Threading;
 using Sufni.App.Infrastructure;

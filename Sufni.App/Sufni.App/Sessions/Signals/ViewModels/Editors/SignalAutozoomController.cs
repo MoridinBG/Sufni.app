@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using System;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.Input;

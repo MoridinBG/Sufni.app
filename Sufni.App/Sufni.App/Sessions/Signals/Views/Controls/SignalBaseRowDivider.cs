@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Controls;
 using System;
 using Avalonia;
 using Avalonia.Controls;
@@ -6,7 +7,7 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.Shared.Views.Controls;
+namespace Sufni.App.Sessions.Signals.Views.Controls;
 
 internal sealed class SignalBaseRowDivider : Control
 {

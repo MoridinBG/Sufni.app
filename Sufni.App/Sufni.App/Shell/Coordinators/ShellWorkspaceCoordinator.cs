@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Acquisition.ViewModels;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Setups.ViewModels.Editors;

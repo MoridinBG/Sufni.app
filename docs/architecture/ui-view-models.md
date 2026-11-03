@@ -453,6 +453,13 @@ callers cannot supply percentages from a different range or previous result.
 
 ## Device-local preferences
 
+`Sessions/Models/SessionPreferences.cs` owns session preference values;
+`Sessions/Services/Preferences` owns their persisted-document conversion and read/
+write contract. `Shell/Services/Preferences` owns the composite installation
+preference file and the launch snapshot. Generic smoothing levels live beside
+shared plot processing. The session signal hierarchy and collapsible pane controls
+live under `Sessions`, beside the layout values they render.
+
 Session analysis options, signal visibility/smoothing, signal layout, pane ratios,
 theme, layout profile and selected map layer belong to this installation. They do
 not travel during sync. `AppPreferences` serializes documents through the background

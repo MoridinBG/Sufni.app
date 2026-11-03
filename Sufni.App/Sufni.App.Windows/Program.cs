@@ -1,3 +1,4 @@
+using Sufni.App.Shell.Services.Preferences;
 using Avalonia;
 using Microsoft.Extensions.DependencyInjection;
 using System;

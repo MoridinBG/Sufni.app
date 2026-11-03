@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;

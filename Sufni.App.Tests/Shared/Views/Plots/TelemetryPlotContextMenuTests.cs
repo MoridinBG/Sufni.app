@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using System.Windows.Input;
 using ScottPlot;
 using Sufni.Telemetry;

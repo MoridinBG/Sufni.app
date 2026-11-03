@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using System.Linq;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.MapsAndTracks.Stores;
@@ -7,7 +8,7 @@ using System.Collections.Frozen;
 using Sufni.Telemetry;
 using Sufni.App.Infrastructure.Theming;
 
-namespace Sufni.App.Infrastructure;
+namespace Sufni.App.Shell.Services.Preferences;
 
 /// <summary>The preferences snapshot used for the first frame and runtime initialization.</summary>
 public sealed class LaunchPreferences

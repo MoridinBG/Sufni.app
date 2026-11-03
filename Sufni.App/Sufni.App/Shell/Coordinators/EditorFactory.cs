@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.LiveDaq.Coordinators;
 using Sufni.App.Setups.Queries;
 using Sufni.App.Acquisition.Coordinators;

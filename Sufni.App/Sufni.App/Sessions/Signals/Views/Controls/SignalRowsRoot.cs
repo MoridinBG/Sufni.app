@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Views.Controls;
 using System;
 using System.Collections.Specialized;
 using System.Collections.Generic;
@@ -15,7 +16,7 @@ using Avalonia.VisualTree;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.Shared.Views.Controls;
+namespace Sufni.App.Sessions.Signals.Views.Controls;
 
 public sealed class SignalRowsRoot : UserControl
 {

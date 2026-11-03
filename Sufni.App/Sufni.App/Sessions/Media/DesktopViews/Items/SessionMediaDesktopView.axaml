@@ -1,4 +1,5 @@
 <UserControl
+    xmlns:sessionPanes="using:Sufni.App.Sessions.Detail.DesktopViews.Controls"
 x:Class="Sufni.App.Sessions.Media.DesktopViews.Items.SessionMediaDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -20,13 +21,13 @@ mc:Ignorable="d">
         x:Name="MediaContentRoot"
         IsVisible="{Binding HasMediaContent}">
 
-        <desktopControls:CollapsibleSplitView
+        <sessionPanes:CollapsibleSplitView
             x:Name="MediaSplit"
             FirstPaneLabel="map"
             Orientation="Vertical"
             SecondPaneLabel="video">
 
-            <desktopControls:CollapsibleSplitView.FirstContent>
+            <sessionPanes:CollapsibleSplitView.FirstContent>
                 <controls:PlaceholderOverlayContainer
                     x:Name="MapHost"
                     IsVisible="{Binding MapState.ReservesLayout}"
@@ -41,9 +42,9 @@ mc:Ignorable="d">
                         <controls:SurfacePlaceholderCard Title="Map" />
                     </controls:PlaceholderOverlayContainer.PlaceholderContent>
                 </controls:PlaceholderOverlayContainer>
-            </desktopControls:CollapsibleSplitView.FirstContent>
+            </sessionPanes:CollapsibleSplitView.FirstContent>
 
-            <desktopControls:CollapsibleSplitView.SecondContent>
+            <sessionPanes:CollapsibleSplitView.SecondContent>
                 <ContentControl x:Name="VideoHost" Content="{Binding Video}">
                     <ContentControl.ContentTemplate>
                         <DataTemplate x:DataType="videoVm:VideoPaneViewModel">
@@ -51,7 +52,7 @@ mc:Ignorable="d">
                         </DataTemplate>
                     </ContentControl.ContentTemplate>
                 </ContentControl>
-            </desktopControls:CollapsibleSplitView.SecondContent>
-        </desktopControls:CollapsibleSplitView>
+            </sessionPanes:CollapsibleSplitView.SecondContent>
+        </sessionPanes:CollapsibleSplitView>
     </Grid>
 </UserControl>

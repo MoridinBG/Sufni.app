@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;

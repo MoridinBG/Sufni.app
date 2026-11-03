@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Models;
 using System;
 using Sufni.App.Shared.Models;
 using System.Threading.Tasks;
