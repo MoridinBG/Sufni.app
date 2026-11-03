@@ -2,64 +2,25 @@ using Sufni.Kinematics;
 
 namespace Sufni.Kinematics.Tests;
 
-public class LinkageResolverTests
+public class KinematicValidationTests
 {
     [Fact]
-    public void Resolve_ResolvesValidSpec()
-    {
-        var spec = ValidSpec();
-
-        var resolved = LinkageResolver.Resolve(spec);
-
-        Assert.Same(spec, resolved.Spec);
-        Assert.Equal(3, resolved.Joints.Count);
-        var link = Assert.Single(resolved.Links);
-        Assert.Equal("A", link.AName);
-        Assert.Equal("B", link.BName);
-        Assert.Same(resolved.Joints[0], link.A);
-        Assert.Same(resolved.Joints[1], link.B);
-        Assert.Same(resolved.Joints[1], resolved.Shock.A);
-        Assert.Same(resolved.Joints[2], resolved.Shock.B);
-        Assert.Equal(5, link.Length, 6);
-        Assert.Equal(4, resolved.Shock.Length, 6);
-    }
-
-    [Fact]
-    public void Resolve_CopiesCoordinatesIntoFreshMutableRuntimeState()
-    {
-        var spec = ValidSpec();
-
-        var first = LinkageResolver.Resolve(spec);
-        var second = LinkageResolver.Resolve(spec);
-        first.Joints[0].X = 100;
-
-        Assert.NotSame(first.Joints[0], second.Joints[0]);
-        Assert.Equal(0, spec.Joints[0].X);
-        Assert.Equal(0, second.Joints[0].X);
-    }
-
-    [Fact]
-    public void Resolve_TreatsNullTypedJointAsNonFixed()
+    public void Solve_MovesUntypedJointAndKeepsBottomBracketFixed()
     {
         var spec = new LinkageSpec(
-            [
-                new JointSpec("A", null, 0, 0),
-                new JointSpec("B", JointType.Fixed, 3, 4),
-                new JointSpec("C", JointType.BottomBracket, 3, 8)
-            ],
-            [new LinkSpec("A", "B")],
-            new LinkSpec("B", "C"),
-            10);
+            [new JointSpec("fixed", JointType.BottomBracket, 0, 0), new JointSpec("moving", null, 2, 0)],
+            [], new LinkSpec("fixed", "moving"), 1);
 
-        var resolved = LinkageResolver.Resolve(spec);
+        var solution = KinematicSolver.Solve(spec, steps: 2, iterations: 1);
 
-        Assert.False(resolved.Joints[0].IsFixed);
-        Assert.True(resolved.Joints[1].IsFixed);
-        Assert.True(resolved.Joints[2].IsFixed);
+        Assert.True(solution.TryGetPath("fixed", out var fixedPath));
+        Assert.True(solution.TryGetPath("moving", out var movingPath));
+        Assert.Equal([0.0, 0.0], fixedPath.X);
+        Assert.Equal([2.0, 1.0], movingPath.X);
     }
 
     [Fact]
-    public void Resolve_ThrowsDuplicateJointName()
+    public void Solve_ThrowsDuplicateJointName()
     {
         var spec = new LinkageSpec(
             [
@@ -75,7 +36,7 @@ public class LinkageResolverTests
     }
 
     [Fact]
-    public void Resolve_ThrowsMissingLinkJoint()
+    public void Solve_ThrowsMissingLinkJoint()
     {
         var spec = new LinkageSpec(
             [
@@ -91,7 +52,7 @@ public class LinkageResolverTests
     }
 
     [Fact]
-    public void Resolve_ThrowsMissingShockJoint()
+    public void Solve_ThrowsMissingShockJoint()
     {
         var spec = new LinkageSpec(
             [
@@ -106,7 +67,7 @@ public class LinkageResolverTests
     }
 
     [Fact]
-    public void Resolve_ThrowsDuplicateLink_ForReversedEndpointPair()
+    public void Solve_ThrowsDuplicateLink_ForReversedEndpointPair()
     {
         var spec = new LinkageSpec(
             [
@@ -125,7 +86,7 @@ public class LinkageResolverTests
     }
 
     [Fact]
-    public void Resolve_ThrowsDegenerateLink()
+    public void Solve_ThrowsDegenerateLink()
     {
         var spec = new LinkageSpec(
             [
@@ -141,7 +102,7 @@ public class LinkageResolverTests
     }
 
     [Fact]
-    public void Resolve_ThrowsDegenerateShock()
+    public void Solve_ThrowsDegenerateShock()
     {
         var spec = new LinkageSpec(
             [
@@ -157,7 +118,7 @@ public class LinkageResolverTests
     }
 
     [Fact]
-    public void Resolve_ThrowsMissingRequiredJointName()
+    public void Solve_ThrowsMissingRequiredJointName()
     {
         var spec = new LinkageSpec(
             [
@@ -174,17 +135,8 @@ public class LinkageResolverTests
 
     private static void AssertValidationCode(LinkageValidationErrorCode expectedCode, LinkageSpec spec)
     {
-        var exception = Assert.Throws<LinkageValidationException>(() => LinkageResolver.Resolve(spec));
+        var exception = Assert.Throws<LinkageValidationException>(() => KinematicSolver.Solve(spec));
         Assert.Equal(expectedCode, exception.Code);
     }
 
-    private static LinkageSpec ValidSpec() => new(
-        [
-            new JointSpec("A", JointType.Fixed, 0, 0),
-            new JointSpec("B", JointType.Floating, 3, 4),
-            new JointSpec("C", JointType.Floating, 3, 8)
-        ],
-        [new LinkSpec("A", "B")],
-        new LinkSpec("B", "C"),
-        10);
 }

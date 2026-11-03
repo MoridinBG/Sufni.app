@@ -229,8 +229,7 @@ internal sealed class BikeEditorService(
     {
         var solution = kinematicSolutionCache.GetOrSolve(linkage);
         var characteristics = new BikeCharacteristics(solution);
-        var mapping = new JointNameMapping();
-        var rearAxlePathData = solution.TryGetPath(mapping.RearWheel, out var path)
+        var rearAxlePathData = solution.TryGetPath(JointNames.RearWheel, out var path)
             ? new CoordinateList([.. path.X], [.. path.Y])
             : new CoordinateList([], []);
 

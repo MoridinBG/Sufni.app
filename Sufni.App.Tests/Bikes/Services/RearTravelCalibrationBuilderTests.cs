@@ -211,15 +211,14 @@ public class RearTravelCalibrationBuilderTests
             ShockStroke = linkage.ShockStroke,
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
-        var mapping = new JointNameMapping();
         var setup = new Setup(Guid.NewGuid(), "rotational setup")
         {
             BikeId = bike.Id,
             RearSensorConfigurationJson = SensorConfiguration.ToJson(new RotationalShockSensorConfiguration
             {
-                CentralJoint = mapping.RearWheel,
-                AdjacentJoint1 = mapping.BottomBracket,
-                AdjacentJoint2 = mapping.ShockEye1,
+                CentralJoint = JointNames.RearWheel,
+                AdjacentJoint1 = JointNames.BottomBracket,
+                AdjacentJoint2 = JointNames.ShockEye1,
             })
         };
         var kinematicSolutionCache = new TrackingKinematicSolutionCache();
@@ -300,15 +299,14 @@ public class RearTravelCalibrationBuilderTests
             ShockStroke = linkage.ShockStroke,
             RearSuspension = new RearSuspensionSpec.Linkage(linkage),
         };
-        var mapping = new JointNameMapping();
         var setup = new Setup(Guid.NewGuid(), "degenerate rotational setup")
         {
             BikeId = bike.Id,
             RearSensorConfigurationJson = SensorConfiguration.ToJson(new RotationalShockSensorConfiguration
             {
-                CentralJoint = mapping.RearWheel,
-                AdjacentJoint1 = mapping.RearWheel,
-                AdjacentJoint2 = mapping.ShockEye1,
+                CentralJoint = JointNames.RearWheel,
+                AdjacentJoint1 = JointNames.RearWheel,
+                AdjacentJoint2 = JointNames.ShockEye1,
             })
         };
 
@@ -368,7 +366,7 @@ public class RearTravelCalibrationBuilderTests
         {
             GetOrSolveCount++;
             if (Failure is { } failure) throw failure;
-            return new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion();
+            return KinematicSolver.Solve(linkage, steps, iterations);
         }
     }
 }

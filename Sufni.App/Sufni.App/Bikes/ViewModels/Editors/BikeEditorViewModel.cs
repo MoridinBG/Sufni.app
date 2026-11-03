@@ -450,9 +450,8 @@ public partial class BikeEditorViewModel : TabPageViewModelBase
     {
         if (ImageCanvas.Image is null) return;
 
-        var mapping = new JointNameMapping();
-        var headTube1 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube1);
-        var headTube2 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == mapping.HeadTube2);
+        var headTube1 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == JointNames.HeadTube1);
+        var headTube2 = LinkageEditor.JointViewModels.FirstOrDefault(joint => joint.Name == JointNames.HeadTube2);
         var frontWheel = GetFrontWheelJoint();
         var rearWheel = GetRearWheelJoint();
 

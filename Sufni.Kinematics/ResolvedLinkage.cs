@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace Sufni.Kinematics;
 
-public sealed class ResolvedLinkage
+internal sealed class ResolvedLinkage
 {
     private readonly ResolvedJoint[] joints;
     private readonly ResolvedLink[] links;
@@ -37,7 +37,7 @@ public sealed class ResolvedLinkage
     public ResolvedLink Shock { get; }
 }
 
-public sealed class ResolvedJoint
+internal sealed class ResolvedJoint
 {
     internal ResolvedJoint(string name, JointType? type, double x, double y)
     {
@@ -58,7 +58,7 @@ public sealed class ResolvedJoint
     public bool IsFixed => Type is JointType.Fixed or JointType.BottomBracket;
 }
 
-public sealed class ResolvedLink
+internal sealed class ResolvedLink
 {
     internal ResolvedLink(string aName, string bName, ResolvedJoint a, ResolvedJoint b)
     {

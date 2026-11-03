@@ -431,11 +431,10 @@ public class BikeEditorViewModelTests
             updated: 7);
         var baselineEditor = CreateEditor(snapshot);
         var affectedEditor = CreateEditor(snapshot);
-        var mapping = new JointNameMapping();
 
-        var baselineHeadTube1 = Assert.Single(baselineEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.HeadTube1);
-        var affectedHeadTube1 = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.HeadTube1);
-        var extraHeadTube = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == mapping.ShockEye1);
+        var baselineHeadTube1 = Assert.Single(baselineEditor.LinkageEditor.JointViewModels, joint => joint.Name == JointNames.HeadTube1);
+        var affectedHeadTube1 = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == JointNames.HeadTube1);
+        var extraHeadTube = Assert.Single(affectedEditor.LinkageEditor.JointViewModels, joint => joint.Name == JointNames.ShockEye1);
 
         var baselineHeadAngle = baselineEditor.HeadAngle;
         baselineHeadTube1.Y += 10;

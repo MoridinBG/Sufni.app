@@ -2,75 +2,41 @@ using System.Diagnostics;
 
 namespace Sufni.Kinematics;
 
-public readonly record struct CoordinateList(List<double> X, List<double> Y)
+/// <summary>Solves a linkage using private scratch state and returns immutable joint paths.</summary>
+public static class KinematicSolver
 {
-    public int Count => X.Count;
-}
-
-public sealed class KinematicSolver
-{
-    private readonly double shockMaxLength;
-    private readonly ResolvedLinkage linkage;
-    private readonly int steps;
-    private readonly int iterations;
-
-    public KinematicSolver(LinkageSpec linkage, int steps = 200, int iterations = 1000)
+    public static KinematicSolution Solve(LinkageSpec spec, int steps = 200, int iterations = 1000)
     {
-        this.linkage = LinkageResolver.Resolve(linkage);
-
-        this.steps = steps;
-        this.iterations = iterations;
-        shockMaxLength = this.linkage.Shock.Length;
-    }
-
-    #region Public methods
-
-    public KinematicSolution SolveSuspensionMotion()
-    {
-
-        var solutions = new Dictionary<string, CoordinateList>();
+        var linkage = LinkageResolver.Resolve(spec);
+        var shockMaxLength = linkage.Shock.Length;
+        var solutions = new Dictionary<string, (List<double> X, List<double> Y)>();
 
         for (var i = 0; i < steps; i++)
         {
             var compression = linkage.Spec.ShockStroke * i / (steps - 1);
-
             for (var it = 0; it < iterations; it++)
             {
-                SolveConstraints(compression);
+                EnforceLength(linkage.Shock, shockMaxLength - compression);
+                foreach (var link in linkage.Links)
+                {
+                    EnforceLength(link, link.Length);
+                }
             }
 
             foreach (var joint in linkage.Joints)
             {
-                var name = joint.Name!;
-                if (!solutions.TryGetValue(name, out var value))
+                if (!solutions.TryGetValue(joint.Name, out var value))
                 {
-                    value = new CoordinateList([], []);
-                    solutions.Add(name, value);
+                    value = ([], []);
+                    solutions.Add(joint.Name, value);
                 }
-
                 value.X.Add(joint.X);
                 value.Y.Add(joint.Y);
             }
         }
 
-
         return new KinematicSolution(
             [.. solutions.Select(solution => new JointPath(solution.Key, solution.Value.X, solution.Value.Y))]);
-    }
-
-    #endregion Public methods
-
-    #region Private methods
-
-    private void SolveConstraints(double shockCompression)
-    {
-        var targetShockLength = shockMaxLength - shockCompression;
-        EnforceLength(linkage.Shock, targetShockLength);
-
-        foreach (var link in linkage.Links)
-        {
-            EnforceLength(link, link.Length);
-        }
     }
 
     private static void EnforceLength(ResolvedLink link, double targetLength)
@@ -105,6 +71,4 @@ public sealed class KinematicSolver
             link.B.Y -= correctionY;
         }
     }
-
-    #endregion Private methods
 }

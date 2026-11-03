@@ -8,10 +8,9 @@ public class BikeCharacteristicsRearMappingTests
     public void AngleToShockStrokeDataset_WhenSensorJointIsMissing_ReportsMissingJointPath()
     {
         var characteristics = CreateCharacteristics();
-        var names = new JointNameMapping();
 
         var failure = Assert.Throws<KinematicCalculationException>(() =>
-            characteristics.AngleToShockStrokeDataset("removed sensor joint", names.BottomBracket, names.ShockEye1));
+            characteristics.AngleToShockStrokeDataset("removed sensor joint", JointNames.BottomBracket, JointNames.ShockEye1));
 
         Assert.Equal(KinematicCalculationFailureReason.MissingJointPath, failure.Reason);
     }
@@ -34,9 +33,8 @@ public class BikeCharacteristicsRearMappingTests
     public void AngleToShockStrokeDataset_UsesTheSameTravelSteps_AsShockStrokeMapping()
     {
         var characteristics = CreateCharacteristics();
-        var mapping = new JointNameMapping();
 
-        var angleDataset = characteristics.AngleToShockStrokeDataset(mapping.RearWheel, mapping.BottomBracket, mapping.ShockEye1);
+        var angleDataset = characteristics.AngleToShockStrokeDataset(JointNames.RearWheel, JointNames.BottomBracket, JointNames.ShockEye1);
         var strokeDataset = characteristics.ShockStrokeToWheelTravelDataset();
 
         Assert.Equal(strokeDataset.X.Count, angleDataset.X.Count);
@@ -86,8 +84,7 @@ public class BikeCharacteristicsRearMappingTests
 
     private static BikeCharacteristics CreateCharacteristics()
     {
-        var solution = new KinematicSolver(TestLinkages.FullSuspensionLinkageSpec(includeHeadTubeJoints: true))
-            .SolveSuspensionMotion();
+        var solution = KinematicSolver.Solve(TestLinkages.FullSuspensionLinkageSpec(includeHeadTubeJoints: true));
 
         return new BikeCharacteristics(solution);
     }

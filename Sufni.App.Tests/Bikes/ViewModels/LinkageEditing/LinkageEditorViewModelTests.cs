@@ -55,20 +55,19 @@ public class LinkageEditorViewModelTests
     public void AddInitialJoints_AddsMandatoryJoints_AndDoesNotDuplicateShock()
     {
         var viewModel = new LinkageEditorViewModel();
-        var mapping = new JointNameMapping();
 
         viewModel.AddInitialJoints();
         viewModel.AddInitialJoints();
 
         Assert.Equal(7, viewModel.JointViewModels.Count);
         Assert.Single(viewModel.LinkViewModels);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.FrontWheel);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.BottomBracket);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.RearWheel);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.HeadTube1);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.HeadTube2);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.ShockEye1);
-        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == mapping.ShockEye2);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.FrontWheel);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.BottomBracket);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.RearWheel);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.HeadTube1);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.HeadTube2);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.ShockEye1);
+        Assert.Contains(viewModel.JointViewModels, joint => joint.Name == JointNames.ShockEye2);
         Assert.Equal("Shock", viewModel.LinkViewModels[0].Name);
     }
 

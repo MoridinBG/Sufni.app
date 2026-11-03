@@ -249,15 +249,17 @@ A linkage is stored as an immutable `LinkageSpec` (`Sufni.Kinematics/LinkageSpec
 | `RearWheel`     | Rear axle position           |
 | `FrontWheel`    | Front axle position          |
 
-Each `LinkSpec` connects two joints by name. `LinkageResolver.Resolve(LinkageSpec)` validates referenced joint names, duplicate joints/links, the shock endpoints, and degenerate link lengths, then produces a fresh mutable `ResolvedLinkage` runtime graph for the solver. `ResolvedLink` stores the Euclidean length constraint. The shock link is special — its length is varied during solving to simulate compression.
+Each `LinkSpec` connects two joints by name. The internal `LinkageResolver` validates referenced joint names, duplicate joints/links, the shock endpoints, and degenerate link lengths, then produces a fresh mutable `ResolvedLinkage` runtime graph for the solver. `ResolvedLink` stores the Euclidean length constraint. The shock link is special — its length is varied during solving to simulate compression.
 
-Linkages are stored inside the `bike.rear_suspension` union JSON. The persisted JSON is pure spec data; deserialization has no side effects and does not resolve object references until the solver or validation explicitly asks the resolver to do so.
+Linkages are stored inside the `bike.rear_suspension` union JSON. The persisted JSON is pure spec data; deserialization has no side effects and does not resolve object references until the public solver validates and resolves them.
 
 ### Kinematic Solver
 
 `KinematicSolver` (`Sufni.Kinematics/KinematicSolver.cs`) uses iterative constraint satisfaction (Gauss-Seidel relaxation) to find valid joint positions through the full range of shock compression.
 
-Constructor: `KinematicSolver(LinkageSpec, steps=200, iterations=1000)` — resolves the spec into fresh mutable runtime state for that solver instance. The immutable spec is never mutated.
+Entry point: static `KinematicSolver.Solve(LinkageSpec, steps=200, iterations=1000)`.
+Each call resolves fresh internal runtime state; the immutable spec is never
+mutated and no reusable solver instance retains coordinates.
 
 For each of the 200 steps (0% to 100% shock compression):
 
@@ -268,7 +270,10 @@ For each of the 200 steps (0% to 100% shock compression):
 
 Output: `KinematicSolution`, a deeply immutable set of `JointPath` values mapping each joint name to its X,Y positions across all steps. Consumers read the paths through `JointPaths` or `TryGetPath`.
 
-The app layer wraps solver construction in `IKinematicSolutionCache` (`Sufni.App/Sufni.App/Bikes/Services/KinematicSolutionCache.cs`), a capacity-64 single-flight LRU keyed by `(LinkageSpec, steps, iterations)`. Editor analysis, save validation, rear calibration, and telemetry bike-processing context creation all request immutable solutions through this cache instead of constructing independent solvers for the same linkage.
+The app layer wraps solving in `IKinematicSolutionCache` (`Sufni.App/Sufni.App/Bikes/Services/KinematicSolutionCache.cs`), a capacity-64 single-flight LRU keyed by `(LinkageSpec, steps, iterations)`. Editor analysis, save validation, rear calibration, and telemetry bike-processing context creation all request immutable solutions through this cache instead of independently solving the same linkage.
+
+`CoordinateList` publishes copied read-only coordinate series. Standard editor
+joint names are constants in `JointNames`; there is no mutable name mapping.
 
 Invalid calculation inputs raise `KinematicCalculationException` with
 `MissingJointPath` or `DegenerateGeometry`; linkage and leverage-ratio validation

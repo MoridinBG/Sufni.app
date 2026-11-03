@@ -5,36 +5,35 @@ namespace Sufni.Kinematics.Tests;
 public class KinematicSolverTests
 {
     [Fact]
-    public void SolveSuspensionMotion_DoesNotMutateInputSpec()
+    public void Solve_DoesNotMutateInputSpec()
     {
         var linkage = TestLinkages.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
         var original = LinkageSpec.FromJson(linkage.ToJson());
 
-        _ = new KinematicSolver(linkage).SolveSuspensionMotion();
+        _ = KinematicSolver.Solve(linkage);
 
         Assert.Equal(original, linkage);
     }
 
     [Fact]
-    public void SolveSuspensionMotion_IsDeterministic_ForSameSpec()
+    public void Solve_IsDeterministic_ForSameSpec()
     {
         var linkage = TestLinkages.FullSuspensionLinkageSpec(includeHeadTubeJoints: true);
 
-        var firstSolution = new KinematicSolver(linkage).SolveSuspensionMotion();
-        var secondSolution = new KinematicSolver(linkage).SolveSuspensionMotion();
-        var mapping = new JointNameMapping();
+        var firstSolution = KinematicSolver.Solve(linkage);
+        var secondSolution = KinematicSolver.Solve(linkage);
         var firstCharacteristics = new BikeCharacteristics(firstSolution);
         var secondCharacteristics = new BikeCharacteristics(secondSolution);
 
-        Assert.True(firstSolution.TryGetPath(mapping.RearWheel, out var firstPath));
-        Assert.True(secondSolution.TryGetPath(mapping.RearWheel, out var secondPath));
+        Assert.True(firstSolution.TryGetPath(JointNames.RearWheel, out var firstPath));
+        Assert.True(secondSolution.TryGetPath(JointNames.RearWheel, out var secondPath));
         Assert.Equal(firstPath.X, secondPath.X);
         Assert.Equal(firstPath.Y, secondPath.Y);
         AssertCoordinateListsEqual(firstCharacteristics.LeverageRatioData, secondCharacteristics.LeverageRatioData);
     }
 
     [Fact]
-    public void SolveSuspensionMotion_AppliesFullCorrection_WhenOnlyOneEndpointCanMove()
+    public void Solve_AppliesFullCorrection_WhenOnlyOneEndpointCanMove()
     {
         var linkage = new LinkageSpec(
             joints:
@@ -46,7 +45,7 @@ public class KinematicSolverTests
             shock: new LinkSpec("fixed", "moving"),
             shockStroke: 1);
 
-        var solution = new KinematicSolver(linkage, steps: 2, iterations: 1).SolveSuspensionMotion();
+        var solution = KinematicSolver.Solve(linkage, steps: 2, iterations: 1);
         Assert.True(solution.TryGetPath("moving", out var path));
 
         Assert.Equal(1.0, path.X[1], 6);
@@ -54,17 +53,16 @@ public class KinematicSolverTests
     }
 
     [Fact]
-    public void BikeCharacteristics_ReturnsCoordinateCopies()
+    public void CoordinateList_KeepsInterpolationStableAfterInputChanges()
     {
-        var linkage = TestLinkages.FullSuspensionLinkageSpec();
-        var solution = new KinematicSolver(linkage).SolveSuspensionMotion();
-        var characteristics = new BikeCharacteristics(solution);
+        double[] shock = [0, 10, 20];
+        double[] wheel = [0, 30, 50];
+        var curve = new CoordinateList(shock, wheel);
 
-        var first = characteristics.LeverageRatioData;
-        first.X[0] = 1000;
-        var second = characteristics.LeverageRatioData;
+        shock[1] = 100;
+        wheel[1] = 1000;
 
-        Assert.NotEqual(1000, second.X[0]);
+        Assert.Equal(15, TravelInterpolation.WheelTravelAt(curve, 5));
     }
 
     private static void AssertCoordinateListsEqual(CoordinateList expected, CoordinateList actual)

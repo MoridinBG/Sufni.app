@@ -24,7 +24,7 @@ internal sealed class KinematicSolutionCache : IKinematicSolutionCache
     private readonly Func<LinkageSpec, int, int, KinematicSolution> solve;
 
     public KinematicSolutionCache()
-        : this(static (linkage, steps, iterations) => new KinematicSolver(linkage, steps, iterations).SolveSuspensionMotion())
+        : this(static (linkage, steps, iterations) => KinematicSolver.Solve(linkage, steps, iterations))
     {
     }
 

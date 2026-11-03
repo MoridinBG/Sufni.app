@@ -1,16 +1,5 @@
 namespace Sufni.Kinematics;
 
-public class JointNameMapping
-{
-    public string RearWheel = "Rear wheel";
-    public string FrontWheel = "Front wheel";
-    public string BottomBracket = "Bottom bracket";
-    public string ShockEye1 = "Shock eye 1";
-    public string ShockEye2 = "Shock eye 2";
-    public string HeadTube1 = "Head tube 1";
-    public string HeadTube2 = "Head tube 2";
-}
-
 public sealed class BikeCharacteristics
 {
     #region Public properties
@@ -28,16 +17,14 @@ public sealed class BikeCharacteristics
     #region Private fields
 
     private readonly KinematicSolution solution;
-    private readonly JointNameMapping mapping;
 
     #endregion Private fields
 
     #region Constructors
 
-    public BikeCharacteristics(KinematicSolution solution, JointNameMapping? mapping = null)
+    public BikeCharacteristics(KinematicSolution solution)
     {
         this.solution = solution;
-        this.mapping = mapping ?? new JointNameMapping();
     }
 
     #endregion Constructors
@@ -95,7 +82,7 @@ public sealed class BikeCharacteristics
 
     private List<double> CalculateRearWheelTravel()
     {
-        var rearWheel = GetPath(mapping.RearWheel);
+        var rearWheel = GetPath(JointNames.RearWheel);
         var x0 = rearWheel.X[0];
         var y0 = rearWheel.Y[0];
         return rearWheel.X
@@ -106,8 +93,8 @@ public sealed class BikeCharacteristics
 
     private List<double> CalculateShockStroke()
     {
-        var shockEye1 = GetPath(mapping.ShockEye1);
-        var shockEye2 = GetPath(mapping.ShockEye2);
+        var shockEye1 = GetPath(JointNames.ShockEye1);
+        var shockEye2 = GetPath(JointNames.ShockEye2);
         IEnumerable<double> dx = [];
         IEnumerable<double> dy = [];
 

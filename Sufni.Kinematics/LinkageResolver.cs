@@ -1,6 +1,6 @@
 namespace Sufni.Kinematics;
 
-public static class LinkageResolver
+internal static class LinkageResolver
 {
     private const double DegenerateLengthTolerance = 1e-12;
 

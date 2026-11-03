@@ -103,20 +103,19 @@ public class BikeRestorationTests
 
     private static LinkageSpec LinkageWithChainstay(double chainstay)
     {
-        var mapping = new JointNameMapping();
 
         return new LinkageSpec(
             [
-                new JointSpec(mapping.BottomBracket, JointType.BottomBracket, 0, 0),
-                new JointSpec(mapping.RearWheel, JointType.RearWheel, chainstay, 0),
-                new JointSpec(mapping.ShockEye1, JointType.Floating, chainstay, 3),
-                new JointSpec(mapping.ShockEye2, JointType.Fixed, 0, 3)
+                new JointSpec(JointNames.BottomBracket, JointType.BottomBracket, 0, 0),
+                new JointSpec(JointNames.RearWheel, JointType.RearWheel, chainstay, 0),
+                new JointSpec(JointNames.ShockEye1, JointType.Floating, chainstay, 3),
+                new JointSpec(JointNames.ShockEye2, JointType.Fixed, 0, 3)
             ],
             [
-                new LinkSpec(mapping.BottomBracket, mapping.RearWheel),
-                new LinkSpec(mapping.RearWheel, mapping.ShockEye1)
+                new LinkSpec(JointNames.BottomBracket, JointNames.RearWheel),
+                new LinkSpec(JointNames.RearWheel, JointNames.ShockEye1)
             ],
-            new LinkSpec(mapping.ShockEye1, mapping.ShockEye2),
+            new LinkSpec(JointNames.ShockEye1, JointNames.ShockEye2),
             10);
     }
 }

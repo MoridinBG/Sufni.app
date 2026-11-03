@@ -103,7 +103,6 @@ public partial class LinkageEditorViewModel : ObservableObject
 
     public void AddInitialJoints()
     {
-        var mapping = new JointNameMapping();
 
         JointViewModel EnsureJoint(string name, JointType type, double x, double y)
         {
@@ -115,14 +114,14 @@ public partial class LinkageEditorViewModel : ObservableObject
             return jointViewModel;
         }
 
-        EnsureJoint(mapping.FrontWheel, JointType.FrontWheel, 100, 150);
-        EnsureJoint(mapping.BottomBracket, JointType.BottomBracket, 100, 200);
-        EnsureJoint(mapping.RearWheel, JointType.RearWheel, 100, 100);
-        EnsureJoint(mapping.HeadTube1, JointType.HeadTube, 100, 50);
-        EnsureJoint(mapping.HeadTube2, JointType.HeadTube, 100, 120);
+        EnsureJoint(JointNames.FrontWheel, JointType.FrontWheel, 100, 150);
+        EnsureJoint(JointNames.BottomBracket, JointType.BottomBracket, 100, 200);
+        EnsureJoint(JointNames.RearWheel, JointType.RearWheel, 100, 100);
+        EnsureJoint(JointNames.HeadTube1, JointType.HeadTube, 100, 50);
+        EnsureJoint(JointNames.HeadTube2, JointType.HeadTube, 100, 120);
 
-        var shockEye1 = EnsureJoint(mapping.ShockEye1, JointType.Floating, 100, 250);
-        var shockEye2 = EnsureJoint(mapping.ShockEye2, JointType.Floating, 100, 300);
+        var shockEye1 = EnsureJoint(JointNames.ShockEye1, JointType.Floating, 100, 250);
+        var shockEye2 = EnsureJoint(JointNames.ShockEye2, JointType.Floating, 100, 300);
         shockViewModel ??= LinkViewModels.FirstOrDefault(link => link.Name == "Shock");
         if (shockViewModel is null)
         {

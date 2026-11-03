@@ -29,7 +29,7 @@ public class LeverageRatioPlot(Plot plot, SufniTheme? theme = null) : SufniPlot(
             0, travelMax, leverageRatioMin, leverageRatioMax));
         Plot.Axes.Bottom.TickGenerator = new NumericFixedInterval(20);
 
-        var scatter = Plot.Add.Scatter(leverageRatioData.X, leverageRatioData.Y);
+        var scatter = Plot.Add.Scatter(leverageRatioData.X.ToArray(), leverageRatioData.Y.ToArray());
         scatter.LineWidth = 2.0f;
         scatter.LineStyle.Color = Color.FromHex("#ffffbf"); // Spectral11 #5
         scatter.MarkerStyle.IsVisible = false;
