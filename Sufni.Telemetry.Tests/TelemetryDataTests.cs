@@ -1431,17 +1431,16 @@ public class TelemetryDataTests
         var segmentedImu = CreateImuData(ImuLocation.Fork, sampleRate: 1000, sampleCount: 2000, vibrationG: 1);
         // A real SST4 import carries dense interleaved Records plus one dense segment per location
         // with HasGaps = false; that must keep the dense vibration result unchanged.
-        segmentedImu.Segments =
-        [
+        segmentedImu = segmentedImu with { Segments = [
             new RawImuSegment
             {
                 LocationId = (byte)ImuLocation.Fork,
                 FirstIndex = 0,
                 FirstMonotonicDeltaUs = 0,
-                Records = segmentedImu.Records.ToArray(),
+                Records = segmentedImu.Records,
             },
-        ];
-        segmentedImu.HasGaps = false;
+        ] };
+        segmentedImu = segmentedImu with { HasGaps = false };
 
         var denseStats = TelemetryStatistics.CalculateVibration(
             CreateTelemetry(travel, maxTravel: 100, sampleRate: 200, compressions: [CreateStroke(0, 99)], rebounds: [CreateStroke(100, 199)], imuData: denseImu),
@@ -1585,16 +1584,15 @@ public class TelemetryDataTests
         rebound = rebound with { StartSeconds = 0.1 };
         rebound = rebound with { EndSeconds = 0.3 };
         var imuData = CreateImuData(ImuLocation.Fork, sampleRate: 10, sampleCount: 4, vibrationG: 1);
-        imuData.Segments =
-        [
+        imuData = imuData with { Segments = [
             new RawImuSegment
             {
                 LocationId = (byte)ImuLocation.Fork,
                 FirstMonotonicDeltaUs = 0,
-                Records = imuData.Records.ToArray(),
+                Records = imuData.Records,
             },
-        ];
-        imuData.HasGaps = true;
+        ] };
+        imuData = imuData with { HasGaps = true };
         var telemetry = CreateTelemetry(
             travel: [10, 20, 30, 40],
             maxTravel: 100,
@@ -2021,16 +2019,16 @@ public class TelemetryDataTests
             case VibrationNullCase.InactiveLocation:
                 return (telemetry, ImuLocation.Frame);
             case VibrationNullCase.InvalidScale:
-                telemetry.ImuData!.Meta[0] = new ImuMetaEntry((byte)ImuLocation.Fork, 0, 1.0f);
+                telemetry = telemetry with { ImuData = telemetry.ImuData! with { Meta = [new ImuMetaEntry((byte)ImuLocation.Fork, 0, 1.0f)] } };
                 break;
             case VibrationNullCase.MissingMeta:
-                telemetry.ImuData!.Meta.Clear();
+                telemetry = telemetry with { ImuData = telemetry.ImuData! with { Meta = [] } };
                 break;
             case VibrationNullCase.ZeroTelemetrySampleRate:
                 telemetry = telemetry with { Metadata = telemetry.Metadata with { SampleRate = 0 } };
                 break;
             case VibrationNullCase.ZeroImuSampleRate:
-                telemetry.ImuData!.SampleRate = 0;
+                telemetry = telemetry with { ImuData = telemetry.ImuData! with { SampleRate = 0 } };
                 break;
         }
 
@@ -2046,9 +2044,9 @@ public class TelemetryDataTests
             SampleRate = sampleRate,
             ActiveLocations = [(byte)location],
             Meta = [new ImuMetaEntry((byte)location, accelScale, 1.0f)],
-            Records = Enumerable.Range(0, sampleCount)
+            Records = [.. (Enumerable.Range(0, sampleCount)
                 .Select(_ => new ImuRecord(0, 0, az, 0, 0, 0))
-                .ToList(),
+                .ToList())],
         };
     }
 

@@ -291,8 +291,8 @@ public class SstV5ParserTests
 
         Assert.NotNull(result.ImuData);
         Assert.Equal([0, 1], result.ImuData.ActiveLocations);
-        Assert.Equal(2, result.ImuData.Meta.Count);
-        Assert.Equal(2, result.ImuData.Segments.Count);
+        Assert.Equal(2, result.ImuData.Meta.Length);
+        Assert.Equal(2, result.ImuData.Segments.Length);
         Assert.Empty(result.ImuData.Records);
         Assert.False(result.ImuData.HasGaps);
         Assert.Equal(1, result.ImuData.Segments[0].Records[0].Ax);

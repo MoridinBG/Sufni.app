@@ -313,15 +313,21 @@ public class SstV4TlvParser : ISstParser
                     if (length != requiredImuMetaLength && !bounds.IsTrimmed)
                         throw new FormatException("SST v4 IMU metadata chunk length is invalid.");
 
-                    imuData.SampleRate = rates.GetValueOrDefault(TlvChunkType.Imu, (ushort)0);
+                    var metaEntries = imuData.Meta.ToBuilder();
+                    var activeLocations = imuData.ActiveLocations.ToBuilder();
                     for (int i = 0; i < imuMetaCount; i++)
                     {
                         var locId = payloadReader.ReadByte();
                         var accelLsb = payloadReader.ReadSingle();
                         var gyroLsb = payloadReader.ReadSingle();
-                        imuData.Meta.Add(new ImuMetaEntry(locId, accelLsb, gyroLsb));
-                        imuData.ActiveLocations.Add(locId);
+                        metaEntries.Add(new ImuMetaEntry(locId, accelLsb, gyroLsb));
+                        activeLocations.Add(locId);
                     }
+                    imuData = imuData with
+                    {
+                        SampleRate = rates.GetValueOrDefault(TlvChunkType.Imu, (ushort)0),
+                        Meta = metaEntries.ToImmutable(), ActiveLocations = activeLocations.ToImmutable(),
+                    };
                     break;
 
                 case TlvChunkType.Imu:
@@ -388,9 +394,9 @@ public class SstV4TlvParser : ISstParser
         if (front.Length == 0 && rear.Length == 0)
             throw new FormatException("SST v4 telemetry data is missing.");
 
-        if (imuData is { Meta.Count: > 0 })
+        if (imuData is { Meta.Length: > 0 })
         {
-            PopulateImuSegments(imuData, imuRecords);
+            imuData = PopulateImuSegments(imuData, imuRecords);
         }
 
         var rtd = new RawTelemetryData
@@ -399,7 +405,7 @@ public class SstV4TlvParser : ISstParser
             SampleRate = sampleRate,
             Timestamp = timestamp,
             Markers = markers.ToArray(),
-            ImuData = imuData is { Meta.Count: > 0 } ? imuData : null,
+            ImuData = imuData is { Meta.Length: > 0 } ? imuData : null,
             GpsData = gpsRecords.Count > 0 ? gpsRecords.ToArray() : null,
             TemperatureData = temperatureSamples.ToArray(),
             SessionStartUtcMs = checked(timestamp * 1000),
@@ -428,32 +434,32 @@ public class SstV4TlvParser : ISstParser
         Counts = counts,
     };
 
-    private static void PopulateImuSegments(RawImuData imuData, IReadOnlyList<ImuRecord> interleavedRecords)
+    private static RawImuData PopulateImuSegments(RawImuData imuData, IReadOnlyList<ImuRecord> interleavedRecords)
     {
-        imuData.Segments.Clear();
-        imuData.HasGaps = false;
+        var segments = new List<RawImuSegment>();
 
-        if (imuData.ActiveLocations.Count == 0 || interleavedRecords.Count == 0)
+        if (imuData.ActiveLocations.Length == 0 || interleavedRecords.Count == 0)
         {
-            return;
+            return imuData with { Segments = [], HasGaps = false };
         }
 
-        for (var locationIndex = 0; locationIndex < imuData.ActiveLocations.Count; locationIndex++)
+        for (var locationIndex = 0; locationIndex < imuData.ActiveLocations.Length; locationIndex++)
         {
             var records = new List<ImuRecord>();
-            for (var recordIndex = locationIndex; recordIndex < interleavedRecords.Count; recordIndex += imuData.ActiveLocations.Count)
+            for (var recordIndex = locationIndex; recordIndex < interleavedRecords.Count; recordIndex += imuData.ActiveLocations.Length)
             {
                 records.Add(interleavedRecords[recordIndex]);
             }
 
-            imuData.Segments.Add(new RawImuSegment
+            segments.Add(new RawImuSegment
             {
                 LocationId = imuData.ActiveLocations[locationIndex],
                 FirstIndex = 0,
                 FirstMonotonicDeltaUs = 0,
-                Records = records.ToArray(),
+                Records = [.. records],
             });
         }
+        return imuData with { Segments = [.. segments], HasGaps = false };
     }
 
     private static ChunkBounds ResolveChunkBounds(int dataLength, int chunkStart, ushort declaredPayloadLength)

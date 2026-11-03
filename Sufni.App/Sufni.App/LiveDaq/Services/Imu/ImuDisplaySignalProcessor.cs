@@ -77,7 +77,7 @@ public static class ImuDisplaySignalProcessor
         RawImuData imuData,
         AttitudeCorrectionContext attitudeCorrectionContext)
     {
-        if (imuData.SampleRate <= 0 || !imuData.HasSamples || imuData.ActiveLocations.Count == 0)
+        if (imuData.SampleRate <= 0 || !imuData.HasSamples || imuData.ActiveLocations.Length == 0)
         {
             return new RecordedImuDisplaySeries([], null);
         }

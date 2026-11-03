@@ -108,7 +108,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Empty(decoded.Records);
-        Assert.Equal(2, decoded.Segments.Count);
+        Assert.Equal(2, decoded.Segments.Length);
         Assert.Equal([10, 11], decoded.Segments[0].Records.Select(sample => (int)sample.Ax));
         Assert.Equal([20, 21], decoded.Segments[1].Records.Select(sample => (int)sample.Ax));
     }
@@ -117,7 +117,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
     public void CurrentImuWriter_PrefersCanonicalSegmentsOverDenseCompatibilityData()
     {
         var imu = CreatePerf04GoldenImu();
-        imu.Records = [new ImuRecord(999, 0, 0, 0, 0, 0)];
+        imu = imu with { Records = [new ImuRecord(999, 0, 0, 0, 0, 0)] };
 
         var bytes = MessagePackSerializer.Serialize(
             imu,
@@ -127,7 +127,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
             cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Empty(decoded.Records);
-        Assert.Equal(2, decoded.Segments.Count);
+        Assert.Equal(2, decoded.Segments.Length);
         Assert.Equal(short.MinValue, decoded.Segments[0].Records[0].Ax);
     }
 
@@ -143,7 +143,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
         Assert.Equal(200, imu.SampleRate);
         Assert.Equal([1, 2], imu.ActiveLocations);
         Assert.Empty(imu.Records);
-        Assert.Equal(2, imu.Segments.Count);
+        Assert.Equal(2, imu.Segments.Length);
         Assert.Equal(2, imu.SampleSegments.Count);
 
         var first = imu.SampleSegments[0];
@@ -248,7 +248,7 @@ public class GoldenTelemetryCompatibilityFixtureTests
 
         Assert.NotNull(telemetry.ImuData);
         Assert.Empty(telemetry.ImuData.Records);
-        Assert.Equal(2, telemetry.ImuData.Segments.Count);
+        Assert.Equal(2, telemetry.ImuData.Segments.Length);
         Assert.False(telemetry.ImuData.HasGaps);
         Assert.NotNull(telemetry.FinalStatus);
     }
@@ -267,8 +267,8 @@ public class GoldenTelemetryCompatibilityFixtureTests
         var telemetry = TelemetryData.FromBinary(fixture.GetBytes());
 
         Assert.NotNull(telemetry.ImuData);
-        Assert.Equal(expectedDenseCount, telemetry.ImuData.Records.Count);
-        Assert.Equal(expectedSegmentCount, telemetry.ImuData.Segments.Count);
+        Assert.Equal(expectedDenseCount, telemetry.ImuData.Records.Length);
+        Assert.Equal(expectedSegmentCount, telemetry.ImuData.Segments.Length);
         Assert.Equal(100, telemetry.ImuData.SampleRate);
     }
 
@@ -312,6 +312,20 @@ public class GoldenTelemetryCompatibilityFixtureTests
             fields);
         Assert.Empty(rewritten.DigitizedTravel);
         Assert.Empty(rewritten.DigitizedVelocity);
+    }
+
+    [Fact]
+    public void LegacyStroke_WithNullDigitization_ReadsWithoutCoarseIndexes()
+    {
+        var bytes = MessagePackSerializer.ConvertFromJson(
+            """{"Start":0,"End":1,"Stat":{"Count":2},"DigitizedTravel":null,"DigitizedVelocity":null}""");
+
+        var stroke = MessagePackSerializer.Deserialize<Stroke>(bytes,
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, stroke.Stat.Count);
+        Assert.Empty(stroke.DigitizedTravel);
+        Assert.Empty(stroke.DigitizedVelocity);
     }
 
     [Fact]

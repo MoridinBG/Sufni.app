@@ -1,5 +1,5 @@
 using System.Buffers;
-using System.Runtime.InteropServices;
+using System.Collections.Immutable;
 using MessagePack;
 using MessagePack.Formatters;
 
@@ -32,7 +32,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
 
     private static void WriteCompactMeta(
         ref MessagePackWriter writer,
-        List<ImuMetaEntry> meta)
+        IReadOnlyList<ImuMetaEntry> meta)
     {
         writer.WriteArrayHeader(meta.Count);
         foreach (var entry in meta)
@@ -46,12 +46,12 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
 
     private static void WriteCompactActiveLocations(
         ref MessagePackWriter writer,
-        List<byte> activeLocations,
+        ImmutableArray<byte> activeLocations,
         ImuSampleSegmentCollection segments)
     {
-        if (activeLocations.Count > 0)
+        if (activeLocations.Length > 0)
         {
-            writer.Write(CollectionsMarshal.AsSpan(activeLocations));
+            writer.Write(activeLocations.AsSpan());
             return;
         }
 
@@ -122,7 +122,12 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
         ref MessagePackReader reader,
         MessagePackSerializerOptions options)
     {
-        var result = new RawImuData();
+        ImmutableArray<ImuMetaEntry> meta = [];
+        ImmutableArray<ImuRecord> records = [];
+        ImmutableArray<byte> activeLocations = [];
+        ImmutableArray<RawImuSegment> segments = [];
+        var sampleRate = 0;
+        var hasGaps = false;
         var fieldCount = reader.ReadMapHeader();
         for (var fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++)
         {
@@ -130,26 +135,26 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
             switch (fieldName)
             {
                 case nameof(RawImuData.Meta):
-                    result.Meta = options.Resolver.GetFormatterWithVerify<List<ImuMetaEntry>>()
+                    meta = options.Resolver.GetFormatterWithVerify<ImmutableArray<ImuMetaEntry>>()
                         .Deserialize(ref reader, options)!;
                     break;
                 case nameof(RawImuData.SampleRate):
-                    result.SampleRate = reader.ReadInt32();
+                    sampleRate = reader.ReadInt32();
                     break;
                 case nameof(RawImuData.Records):
-                    result.Records = options.Resolver.GetFormatterWithVerify<List<ImuRecord>>()
+                    records = options.Resolver.GetFormatterWithVerify<ImmutableArray<ImuRecord>>()
                         .Deserialize(ref reader, options)!;
                     break;
                 case nameof(RawImuData.ActiveLocations):
-                    result.ActiveLocations = options.Resolver.GetFormatterWithVerify<List<byte>>()
+                    activeLocations = options.Resolver.GetFormatterWithVerify<ImmutableArray<byte>>()
                         .Deserialize(ref reader, options)!;
                     break;
                 case nameof(RawImuData.Segments):
-                    result.Segments = options.Resolver.GetFormatterWithVerify<List<RawImuSegment>>()
+                    segments = options.Resolver.GetFormatterWithVerify<ImmutableArray<RawImuSegment>>()
                         .Deserialize(ref reader, options)!;
                     break;
                 case nameof(RawImuData.HasGaps):
-                    result.HasGaps = reader.ReadBoolean();
+                    hasGaps = reader.ReadBoolean();
                     break;
                 default:
                     reader.Skip();
@@ -157,7 +162,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
             }
         }
 
-        return result;
+        return new RawImuData { Meta = meta, Records = records, ActiveLocations = activeLocations, Segments = segments, SampleRate = sampleRate, HasGaps = hasGaps };
     }
 
     private static RawImuData DeserializeCompact(ref MessagePackReader reader)
@@ -177,9 +182,9 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
         var result = new RawImuData
         {
             SampleRate = reader.ReadInt32(),
-            Meta = ReadCompactMeta(ref reader),
-            ActiveLocations = ReadCompactActiveLocations(ref reader),
-            Segments = ReadCompactSegments(ref reader),
+            Meta = [.. ReadCompactMeta(ref reader)],
+            ActiveLocations = [.. ReadCompactActiveLocations(ref reader)],
+            Segments = [.. ReadCompactSegments(ref reader)],
             HasGaps = reader.ReadBoolean(),
         };
 
@@ -258,7 +263,7 @@ public sealed class RawImuDataFormatter : IMessagePackFormatter<RawImuData?>
                 LocationId = reader.ReadByte(),
                 FirstIndex = reader.ReadUInt64(),
                 FirstMonotonicDeltaUs = reader.ReadUInt64(),
-                Records = ReadCompactSamples(ref reader),
+                Records = [.. ReadCompactSamples(ref reader)],
             });
             SkipRemaining(ref reader, fieldCount, 4);
         }

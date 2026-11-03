@@ -600,25 +600,25 @@ public class SstV5Parser : ISstParser
 
     private static RawImuData? BuildImuData(V5ParseContext context)
     {
-        if (context.ImuData.Meta.Count == 0 && context.ImuBuilders.Count == 0)
+        if (context.ImuData.Meta.Length == 0 && context.ImuBuilders.Count == 0)
         {
             return null;
         }
 
+        var segments = new List<RawImuSegment>();
         foreach (var builder in context.ImuBuilders.Values)
         {
             builder.Finish();
-            context.ImuData.Segments.AddRange(builder.Segments.Select(segment => new RawImuSegment
+            segments.AddRange(builder.Segments.Select(segment => new RawImuSegment
             {
                 LocationId = builder.LocationId!.Value,
                 FirstIndex = segment.FirstIndex,
                 FirstMonotonicDeltaUs = segment.FirstMonotonicDeltaUs,
-                Records = segment.Values.ToArray(),
+                Records = [.. segment.Values],
             }));
         }
 
-        RawImuDataSegmentHelper.FinalizeCanonicalSegments(context.ImuData, context.Gaps);
-        return context.ImuData;
+        return RawImuDataSegmentHelper.FinalizeCanonicalSegments(context.ImuData with { Segments = [.. segments] }, context.Gaps);
     }
 
     private static ulong? OptionalMissingTime(ulong missingTimeUs) => missingTimeUs == 0 ? null : missingTimeUs;
@@ -735,7 +735,7 @@ public class SstV5Parser : ISstParser
     {
         public List<RawStreamGap> Gaps { get; } = [];
         public List<MarkerData> Markers { get; } = [];
-        public RawImuData ImuData { get; } = new();
+        public RawImuData ImuData { get; private set; } = new();
         public List<GpsRecord> GpsRecords { get; } = [];
         public List<TemperatureSample> TemperatureSamples { get; } = [];
         public FixedRateSegmentBuilder<ushort> FrontBuilder { get; }
@@ -757,17 +757,21 @@ public class SstV5Parser : ISstParser
                 return;
             }
 
+            var meta = ImuData.Meta.ToBuilder();
+            var locations = ImuData.ActiveLocations.ToBuilder();
             foreach (var source in imuDescriptor.Sources.OrderBy(source => source.SourceBitMask))
             {
                 var location = SstV5ProtocolConstants.GetImuLocationId(source.SourceBitMask);
-                ImuData.Meta.Add(new ImuMetaEntry(location, source.AccelLsbPerG, source.GyroLsbPerDps));
-                ImuData.ActiveLocations.Add(location);
+                meta.Add(new ImuMetaEntry(location, source.AccelLsbPerG, source.GyroLsbPerDps));
+                locations.Add(location);
                 ImuBuilders[location] = new FixedRateSegmentBuilder<ImuRecord>(SstV5ProtocolConstants.StreamImu, location, AddGap);
             }
 
-            ImuData.SampleRate = imuDescriptor.AcceptedRateMhz % 1000 == 0
-                ? checked((int)(imuDescriptor.AcceptedRateMhz / 1000))
-                : 0;
+            ImuData = ImuData with
+            {
+                Meta = meta.ToImmutable(), ActiveLocations = locations.ToImmutable(),
+                SampleRate = imuDescriptor.AcceptedRateMhz % 1000 == 0 ? checked((int)(imuDescriptor.AcceptedRateMhz / 1000)) : 0,
+            };
         }
 
         public RawTelemetryData BuildRaw()

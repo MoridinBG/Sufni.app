@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using MessagePack;
 
 namespace Sufni.Telemetry;
@@ -11,12 +12,12 @@ public class RawCountSegment
 }
 
 [MessagePackObject(keyAsPropertyName: true)]
-public class RawImuSegment
+public sealed record RawImuSegment
 {
-    public byte LocationId { get; set; }
-    public ulong FirstIndex { get; set; }
-    public ulong FirstMonotonicDeltaUs { get; set; }
-    public ImuRecord[] Records { get; set; } = [];
+    public byte LocationId { get; init; }
+    public ulong FirstIndex { get; init; }
+    public ulong FirstMonotonicDeltaUs { get; init; }
+    public ImmutableArray<ImuRecord> Records { get; init; } = [];
 }
 
 [MessagePackObject(keyAsPropertyName: true)]

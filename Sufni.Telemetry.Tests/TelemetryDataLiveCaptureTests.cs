@@ -4,17 +4,21 @@ namespace Sufni.Telemetry.Tests;
 
 public class TelemetryDataLiveCaptureTests
 {
-    [Fact]
-    public void FromLiveCapture_PreservesAuxiliaryData_AndReportsDetectedAnomalies()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FromLiveCapture_PreservesAuxiliaryData_AndReportsDetectedAnomalies(bool segmentedImu)
     {
         var front = BuildSignalWithSpike(1200, 80, spikeIndex: 32, spikeValue: 5000);
         var rear = BuildSignalWithSpike(1300, 80, spikeIndex: 48, spikeValue: 4800);
+        ImuRecord[] imuSamples = [new ImuRecord(0, 0, 16384, 0, 0, 0)];
         var imuData = new RawImuData
         {
             SampleRate = 100,
             ActiveLocations = [0],
             Meta = [new ImuMetaEntry(0, 16384f, 131f)],
-            Records = [new ImuRecord(0, 0, 16384, 0, 0, 0)],
+            Records = segmentedImu ? [] : [.. imuSamples],
+            Segments = segmentedImu ? [new RawImuSegment { LocationId = 0, Records = [.. imuSamples] }] : [],
         };
         GpsRecord[] gpsData =
         [
@@ -65,6 +69,7 @@ public class TelemetryDataLiveCaptureTests
         markers[0] = new MarkerData(99);
         front[0] = 0;
         rear[0] = 0;
+        imuSamples[0] = new ImuRecord(999, 0, 0, 0, 0, 0);
         Assert.Equal(frozen, result.BinaryForm);
     }
 

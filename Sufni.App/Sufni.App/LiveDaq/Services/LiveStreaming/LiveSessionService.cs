@@ -1292,7 +1292,7 @@ internal sealed class LiveSessionService : ILiveSessionService
         var imuData = new RawImuData
         {
             SampleRate = (int)snapshot.SessionHeader.AcceptedImuHz,
-            ActiveLocations = activeLocations.Select(location => (byte)location).ToList(),
+            ActiveLocations = [.. activeLocations.Select(location => (byte)location)],
             Meta =
             [
                 .. activeLocations.Select(location => new ImuMetaEntry(
@@ -1302,6 +1302,7 @@ internal sealed class LiveSessionService : ILiveSessionService
             ],
         };
 
+        var capturedSegments = new List<RawImuSegment>();
         foreach (var location in activeLocations)
         {
             if (!snapshot.ImuSegmentsByLocation.TryGetValue(location, out var segments))
@@ -1309,22 +1310,21 @@ internal sealed class LiveSessionService : ILiveSessionService
                 continue;
             }
 
-            imuData.Segments.AddRange(segments.Select(segment => new RawImuSegment
+            capturedSegments.AddRange(segments.Select(segment => new RawImuSegment
             {
                 LocationId = (byte)location,
                 FirstIndex = segment.FirstIndex,
                 FirstMonotonicDeltaUs = segment.FirstMonotonicDeltaUs,
-                Records = segment.Values.ToArray(),
+                Records = [.. segment.Values],
             }));
         }
 
-        if (imuData.Segments.Count == 0)
+        if (capturedSegments.Count == 0)
         {
             return null;
         }
 
-        RawImuDataSegmentHelper.FinalizeCanonicalSegments(imuData, snapshot.StreamGaps);
-        return imuData;
+        return RawImuDataSegmentHelper.FinalizeCanonicalSegments(imuData with { Segments = [.. capturedSegments] }, snapshot.StreamGaps);
     }
 
     private static RawCountSegment[] ToRawCountSegments(FixedRateSegment<ushort>[] segments) =>

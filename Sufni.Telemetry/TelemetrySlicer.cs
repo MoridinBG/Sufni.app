@@ -112,7 +112,7 @@ internal static class TelemetrySlicer
         return checked((int)Math.Min(max, int.MaxValue));
     }
 
-    private static int MaxSegmentEndIndex(List<RawImuSegment> segments)
+    private static int MaxSegmentEndIndex(IReadOnlyList<RawImuSegment> segments)
     {
         ulong max = 0;
         foreach (var segment in segments)
@@ -265,29 +265,28 @@ internal static class TelemetrySlicer
             HasGaps = imuData.HasGaps,
         };
 
-        if (imuData.Segments.Count > 0 && imuData.SampleRate > 0)
+        if (imuData.Segments.Length > 0 && imuData.SampleRate > 0)
         {
-            result.Segments = SliceImuSegments(imuData.Segments, window, imuData.SampleRate);
-            RawImuDataSegmentHelper.FinalizeCanonicalSegments(result, streamGaps);
-            return result;
+            return RawImuDataSegmentHelper.FinalizeCanonicalSegments(
+                result with { Segments = [.. SliceImuSegments(imuData.Segments, window, imuData.SampleRate)] }, streamGaps);
         }
 
-        if (imuData.Records.Count > 0 && imuData.SampleRate > 0 && imuData.ActiveLocations.Count > 0)
+        if (imuData.Records.Length > 0 && imuData.SampleRate > 0 && imuData.ActiveLocations.Length > 0)
         {
-            var locations = imuData.ActiveLocations.Count;
-            var sampleCount = imuData.Records.Count / locations;
+            var locations = imuData.ActiveLocations.Length;
+            var sampleCount = imuData.Records.Length / locations;
             var startSample = Math.Clamp(StartSampleIndex(window.StartSeconds, imuData.SampleRate), 0, sampleCount);
             var endSample = EndSampleIndexExclusive(window, imuData.SampleRate, sampleCount);
             endSample = Math.Clamp(endSample, startSample, sampleCount);
             var startRecord = startSample * locations;
             var endRecord = endSample * locations;
-            result.Records = imuData.Records.GetRange(startRecord, endRecord - startRecord);
+            result = result with { Records = imuData.Records.Slice(startRecord, endRecord - startRecord) };
         }
 
         return result;
     }
 
-    private static List<RawImuSegment> SliceImuSegments(List<RawImuSegment> segments, SliceWindow window, int sampleRate)
+    private static List<RawImuSegment> SliceImuSegments(IReadOnlyList<RawImuSegment> segments, SliceWindow window, int sampleRate)
     {
         var startIndex = Math.Clamp(StartSampleIndex(window.StartSeconds, sampleRate), 0, MaxSegmentEndIndex(segments));
         var endIndexExclusive = EndSampleIndexExclusive(window, sampleRate, MaxSegmentEndIndex(segments));

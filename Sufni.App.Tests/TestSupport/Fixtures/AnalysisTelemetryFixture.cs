@@ -187,11 +187,9 @@ public static class AnalysisTelemetryFixture
         return new RawImuData
         {
             SampleRate = 20,
-            ActiveLocations = activeLocations.ToList(),
-            Meta = activeLocations.Select(location => new ImuMetaEntry(location, 1.0f, 1.0f)).ToList(),
-            Records = Enumerable.Range(0, 32)
-                .Select(_ => new ImuRecord(0, 0, 2, 0, 0, 0))
-                .ToList(),
+            ActiveLocations = [.. activeLocations],
+            Meta = [.. activeLocations.Select(location => new ImuMetaEntry(location, 1.0f, 1.0f))],
+            Records = [.. Enumerable.Range(0, 32).Select(_ => new ImuRecord(0, 0, 2, 0, 0, 0))],
         };
     }
 }

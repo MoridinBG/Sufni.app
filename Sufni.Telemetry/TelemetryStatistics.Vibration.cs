@@ -7,7 +7,7 @@ public static partial class TelemetryStatistics
 {
     public static bool HasVibrationData(TelemetryData telemetryData, ImuLocation location)
     {
-        return telemetryData.ImuData is { ActiveLocations.Count: > 0 } &&
+        return telemetryData.ImuData is { ActiveLocations.Length: > 0 } &&
             telemetryData.ImuData.HasSamples &&
             telemetryData.ImuData.ActiveLocations.Contains((byte)location);
     }

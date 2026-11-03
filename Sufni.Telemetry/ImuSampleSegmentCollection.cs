@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+using System.Collections.Immutable;
 
 namespace Sufni.Telemetry;
 
@@ -11,15 +11,15 @@ public readonly struct ImuSampleSegmentCollection
         this.imuData = imuData;
     }
 
-    public int Count => imuData.Segments.Count > 0
-        ? imuData.Segments.Count
+    public int Count => imuData.Segments.Length > 0
+        ? imuData.Segments.Length
         : DenseLocationCount;
 
     public ImuSampleSegment this[int index]
     {
         get
         {
-            if (imuData.Segments.Count > 0)
+            if (imuData.Segments.Length > 0)
             {
                 return new ImuSampleSegment(imuData.Segments[index]);
             }
@@ -30,7 +30,7 @@ public readonly struct ImuSampleSegmentCollection
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            var locationId = imuData.ActiveLocations.Count > 0
+            var locationId = imuData.ActiveLocations.Length > 0
                 ? imuData.ActiveLocations[index]
                 : imuData.Meta[index].LocationId;
             return new ImuSampleSegment(imuData.Records, index, locationCount, locationId);
@@ -39,11 +39,11 @@ public readonly struct ImuSampleSegmentCollection
 
     public Enumerator GetEnumerator() => new(this);
 
-    private int DenseLocationCount => imuData.Records.Count == 0
+    private int DenseLocationCount => imuData.Records.Length == 0
         ? 0
-        : imuData.ActiveLocations.Count > 0
-            ? imuData.ActiveLocations.Count
-            : imuData.Meta.Count;
+        : imuData.ActiveLocations.Length > 0
+            ? imuData.ActiveLocations.Length
+            : imuData.Meta.Length;
 
     public struct Enumerator
     {
@@ -64,8 +64,8 @@ public readonly struct ImuSampleSegmentCollection
 
 public readonly struct ImuSampleSegment
 {
-    private readonly ImuRecord[]? records;
-    private readonly List<ImuRecord>? denseRecords;
+    private readonly ImmutableArray<ImuRecord> records;
+    private readonly ImmutableArray<ImuRecord> denseRecords;
     private readonly int denseOffset;
     private readonly int denseStride;
 
@@ -75,14 +75,14 @@ public readonly struct ImuSampleSegment
         FirstIndex = segment.FirstIndex;
         FirstMonotonicDeltaUs = segment.FirstMonotonicDeltaUs;
         records = segment.Records;
-        denseRecords = null;
+        denseRecords = default;
         denseOffset = 0;
         denseStride = 1;
         Count = segment.Records.Length;
     }
 
     internal ImuSampleSegment(
-        List<ImuRecord> denseRecords,
+        ImmutableArray<ImuRecord> denseRecords,
         int denseOffset,
         int denseStride,
         byte locationId)
@@ -90,13 +90,13 @@ public readonly struct ImuSampleSegment
         LocationId = locationId;
         FirstIndex = 0;
         FirstMonotonicDeltaUs = 0;
-        records = null;
+        records = default;
         this.denseRecords = denseRecords;
         this.denseOffset = denseOffset;
         this.denseStride = denseStride;
-        Count = denseOffset >= denseRecords.Count
+        Count = denseOffset >= denseRecords.Length
             ? 0
-            : (denseRecords.Count - 1 - denseOffset) / denseStride + 1;
+            : (denseRecords.Length - 1 - denseOffset) / denseStride + 1;
     }
 
     public byte LocationId { get; }
@@ -113,23 +113,23 @@ public readonly struct ImuSampleSegment
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            return records is not null
+            return !records.IsDefault
                 ? records[index]
-                : denseRecords![denseOffset + index * denseStride];
+                : denseRecords[denseOffset + index * denseStride];
         }
     }
 
     public bool TryGetContiguousRecords(out ReadOnlySpan<ImuRecord> contiguousRecords)
     {
-        if (records is not null)
+        if (!records.IsDefault)
         {
-            contiguousRecords = records;
+            contiguousRecords = records.AsSpan();
             return true;
         }
 
-        if (denseRecords is not null && denseStride == 1)
+        if (!denseRecords.IsDefault && denseStride == 1)
         {
-            contiguousRecords = CollectionsMarshal.AsSpan(denseRecords).Slice(denseOffset, Count);
+            contiguousRecords = denseRecords.AsSpan(denseOffset, Count);
             return true;
         }
 

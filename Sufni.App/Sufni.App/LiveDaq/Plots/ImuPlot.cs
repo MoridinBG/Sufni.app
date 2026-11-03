@@ -19,7 +19,7 @@ public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPl
 
     public void LoadProjection(TelemetryData telemetryData, RecordedImuDisplaySeries displaySeries)
     {
-        if (telemetryData.ImuData == null || !telemetryData.ImuData.HasSamples || telemetryData.ImuData.ActiveLocations.Count == 0)
+        if (telemetryData.ImuData == null || !telemetryData.ImuData.HasSamples || telemetryData.ImuData.ActiveLocations.Length == 0)
         {
             ShowEmptyState(telemetryData.Metadata.Duration);
             return;

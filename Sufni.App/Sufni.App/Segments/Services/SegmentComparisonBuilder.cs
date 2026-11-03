@@ -176,7 +176,7 @@ internal static class SegmentComparisonBuilder
         if (imuData is null ||
             imuData.SampleRate <= 0 ||
             !imuData.HasSamples ||
-            imuData.ActiveLocations.Count == 0)
+            imuData.ActiveLocations.Length == 0)
         {
             return [];
         }

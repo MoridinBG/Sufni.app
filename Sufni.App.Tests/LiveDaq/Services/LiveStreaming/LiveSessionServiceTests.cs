@@ -338,7 +338,7 @@ public class LiveSessionServiceTests
         Assert.Equal(new byte[] { (byte)LiveImuLocation.Frame, (byte)LiveImuLocation.Fork }, imuData!.ActiveLocations);
         Assert.False(imuData.HasGaps);
         Assert.Empty(imuData.Records);
-        Assert.Equal(2, imuData.Segments.Count);
+        Assert.Equal(2, imuData.Segments.Length);
         Assert.All(imuData.Segments, segment =>
         {
             Assert.Equal((ulong)0, segment.FirstIndex);

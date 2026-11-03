@@ -20,7 +20,7 @@ internal static class RecordedSessionPresentationDeriver
     {
         return telemetry?.ImuData is { } imuData &&
                imuData.HasSamples &&
-               imuData.ActiveLocations.Count > 0;
+               imuData.ActiveLocations.Length > 0;
     }
 
     public static bool HasFramePitchRollTelemetry(TelemetryData? telemetry)

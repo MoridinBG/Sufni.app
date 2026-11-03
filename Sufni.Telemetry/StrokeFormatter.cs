@@ -70,11 +70,11 @@ public sealed class StrokeFormatter : IMessagePackFormatter<Stroke?>
                         break;
                     case nameof(Stroke.DigitizedTravel):
                         digitizedTravel = options.Resolver.GetFormatterWithVerify<int[]>()
-                            .Deserialize(ref reader, options)!;
+                            .Deserialize(ref reader, options) ?? [];
                         break;
                     case nameof(Stroke.DigitizedVelocity):
                         digitizedVelocity = options.Resolver.GetFormatterWithVerify<int[]>()
-                            .Deserialize(ref reader, options)!;
+                            .Deserialize(ref reader, options) ?? [];
                         break;
                     case nameof(Stroke.StartSeconds):
                         startSeconds = reader.ReadDouble();

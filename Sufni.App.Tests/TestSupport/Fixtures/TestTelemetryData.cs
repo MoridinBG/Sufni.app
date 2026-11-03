@@ -74,13 +74,13 @@ public static class TestTelemetryData
             ImuData = new RawImuData
             {
                 SampleRate = sampleRate,
-                ActiveLocations = activeLocations?.ToList() ?? [0, 1],
-                Meta = meta?.ToList() ??
+                ActiveLocations = activeLocations is null ? [0, 1] : [.. activeLocations],
+                Meta = meta is not null ? [.. meta] :
                 [
                     new ImuMetaEntry(0, 1.0f, 1.0f),
                     new ImuMetaEntry(1, 1.0f, 1.0f)
                 ],
-                Records = records?.ToList() ??
+                Records = records is not null ? [.. records] :
                 [
                     new ImuRecord(1, 0, 1, 0, 0, 0),
                     new ImuRecord(2, 0, 1, 0, 0, 0),

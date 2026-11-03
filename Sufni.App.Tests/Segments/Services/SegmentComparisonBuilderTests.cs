@@ -206,7 +206,7 @@ public class SegmentComparisonBuilderTests
                     {
                         LocationId = (byte)ImuLocation.Frame,
                         FirstMonotonicDeltaUs = 0,
-                        Records = records,
+                        Records = [.. records],
                     },
                 ]
                 : [],

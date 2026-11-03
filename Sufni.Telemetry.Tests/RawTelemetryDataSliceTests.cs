@@ -295,7 +295,7 @@ public class RawTelemetryDataSliceTests
         var result = raw.Slice(1.0, 3.0);
 
         Assert.NotNull(result.ImuData);
-        Assert.Equal(2, result.ImuData.Segments.Count);
+        Assert.Equal(2, result.ImuData.Segments.Length);
         Assert.All(result.ImuData.Segments, segment =>
         {
             Assert.Equal((ulong)0, segment.FirstIndex);
@@ -368,7 +368,7 @@ public class RawTelemetryDataSliceTests
         LocationId = locationId,
         FirstIndex = firstIndex,
         FirstMonotonicDeltaUs = firstMonotonicDeltaUs,
-        Records = Enumerable.Range(firstValue, count).Select(CreateImuRecord).ToArray(),
+        Records = [.. (Enumerable.Range(firstValue, count).Select(CreateImuRecord).ToArray())],
     };
 
     private static ImuRecord CreateImuRecord(int value) => new(

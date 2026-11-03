@@ -235,13 +235,13 @@ public class ImuDisplaySignalProcessorTests
                 {
                     LocationId = (byte)ImuLocation.Frame,
                     FirstMonotonicDeltaUs = 0,
-                    Records = frameRecords,
+                    Records = [.. frameRecords],
                 },
                 new RawImuSegment
                 {
                     LocationId = (byte)ImuLocation.Fork,
                     FirstMonotonicDeltaUs = 0,
-                    Records = forkRecords,
+                    Records = [.. forkRecords],
                 },
             ],
         };
@@ -312,13 +312,13 @@ public class ImuDisplaySignalProcessorTests
         return new RawImuData
         {
             SampleRate = 10,
-            ActiveLocations = activeLocations.ToList(),
-            Meta = meta?.ToList() ??
+            ActiveLocations = [.. activeLocations],
+            Meta = meta is not null ? [.. meta] :
             [
                 new ImuMetaEntry((byte)ImuLocation.Frame, 10, 100),
                 new ImuMetaEntry((byte)ImuLocation.Fork, 10, 100),
             ],
-            Records = records.ToList(),
+            Records = [.. records],
         };
     }
 

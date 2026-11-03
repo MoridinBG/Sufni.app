@@ -102,8 +102,10 @@ before publishing the graph. Replacing a telemetry value creates its own lazy
 coarse-index cache. Travel, velocity, bin, stroke, segment, airtime, marker, GPS and temperature
 collections use `ImmutableArray`; processing copies mutable raw-source arrays at
 publication. Statistics consume read-only spans/lists without copying entire
-traces. Travel rendering takes its own mutable buffer at the plot boundary. IMU
-still uses its raw-data representation; that branch has a separate sample graph.
+traces. Travel rendering takes its own mutable buffer at the plot boundary.
+IMU metadata, locations, legacy dense samples and segment samples also use
+immutable arrays in init-only records. Parsers and capture builders assemble
+these values before publication; canonicalization returns a replacement value.
 
 The persisted graph is:
 
