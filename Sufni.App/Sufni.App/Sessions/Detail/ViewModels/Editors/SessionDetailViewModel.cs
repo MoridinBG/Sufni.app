@@ -717,7 +717,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         catch (Exception exception)
         {
             logger.Error(exception, "Session editor reconciliation failed for {SessionId}", Id);
-            if (IsLoaded) ErrorMessages.Add(FailurePresentation.From(SessionEditorFailureReason.Reconcile, exception.Message));
+            if (IsLoaded) ErrorMessages.Add(FailurePresentation.From(SessionEditorFailureReason.Reconcile));
         }
     }
 
