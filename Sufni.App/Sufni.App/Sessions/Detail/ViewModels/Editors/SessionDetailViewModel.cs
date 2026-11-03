@@ -1293,7 +1293,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                 state.Intent.DampingSpeedCutoffs,
                 state.Presentation.DampingPercentages)),
             (start, end) => Timeline.SetVisibleRange(start, end, this),
-            message => ErrorMessages.Add(new FailurePresentation(message)),
+            ErrorMessages.Add,
             Notifications.Add);
         this.sessionEditingCoordinator = sessionEditingCoordinator;
         signalAutozoomController = new SignalAutozoomController(Timeline);
@@ -1840,7 +1840,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
         DisposeWorkspace(MediaWorkspace);
         videoPane?.Dispose();
         segmentPicker.Dispose();
-        segmentComparison.Dispose();
+        await segmentComparison.DisposeAsync();
         DisposeWorkspace(AnalysisWorkspace);
         editorEffects.Dispose();
         editorStateSubscription.Dispose();

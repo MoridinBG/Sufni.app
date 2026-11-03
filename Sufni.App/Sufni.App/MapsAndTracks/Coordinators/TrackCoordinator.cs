@@ -26,13 +26,25 @@ namespace Sufni.App.MapsAndTracks.Coordinators;
 
 public class TrackCoordinator : ITrackCoordinator, IDisposable
 {
-    public Task<SegmentAnalysisComparison> BuildAnalysisComparisonAsync(
+    public async Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
         DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,
-        CancellationToken cancellationToken = default) => backgroundTaskRunner.RunAsync(
-            () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
-            cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return new SegmentAnalysisComparisonResult.Built(await backgroundTaskRunner.RunAsync(
+                () => SegmentAnalysisComparisonBuilder.Build(comparison, detail, travelMode, velocityMode, cutoffs, currentPercentages),
+                cancellationToken));
+        }
+        catch (Exception e)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            logger.Error(e, "Segment analysis comparison failed for {SessionId}", comparison.Match.SessionId);
+            return new SegmentAnalysisComparisonResult.Failed(SegmentComparisonFailureReason.Analysis, e.Message);
+        }
+    }
 
     private readonly ITrackRepository trackRepository;
     private readonly ISynchronizableRepository<Track> trackEntityRepository;

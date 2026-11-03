@@ -1,5 +1,6 @@
 using Sufni.App.Sessions.Signals.Views.Controls;
 using System;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -29,7 +30,7 @@ public sealed partial class SegmentComparisonRowViewModel : ObservableObject
     public SegmentComparisonRowViewModel(
         SegmentComparison comparison,
         SegmentComparisonSignal signal,
-        Action<SegmentComparison> toggleAnalysisComparison,
+        Func<SegmentComparison, Task> toggleAnalysisComparison,
         Action<SegmentComparisonRowViewModel> remove)
     {
         Comparison = comparison;
@@ -63,7 +64,7 @@ public sealed partial class SegmentComparisonRowViewModel : ObservableObject
                 Id = "compare-analysis",
                 Kind = SignalRowActionKind.Toggle,
                 IconPathData = CompareAnalysisIconPathData,
-                Command = new RelayCommand(() => toggleAnalysisComparison(comparison)),
+                Command = new AsyncRelayCommand(() => toggleAnalysisComparison(comparison)),
             };
             SetAnalysisCompared(false);
             actions.Add(compareAnalysisAction);

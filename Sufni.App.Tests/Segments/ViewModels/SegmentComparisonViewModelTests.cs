@@ -1,3 +1,5 @@
+using Sufni.App.Shared.Models;
+using CommunityToolkit.Mvvm.Input;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Tests.TestSupport.Doubles;
 using System.Reactive.Subjects;
@@ -21,7 +23,7 @@ public class SegmentComparisonViewModelTests
     private readonly ISegmentCoordinator coordinator = Substitute.For<ISegmentCoordinator>();
     private readonly TelemetryData telemetry = TestSegmentMatches.Telemetry();
     private readonly List<(double Start, double End)> visibleRanges = [];
-    private readonly List<string> errors = [];
+    private readonly List<FailurePresentation> errors = [];
     private readonly List<string> notifications = [];
     private readonly Subject<SegmentComparisonSessionState> sessionState = new();
 
@@ -55,11 +57,11 @@ public class SegmentComparisonViewModelTests
     public async Task Match_WithoutTrackPoints_ReportsAnError()
     {
         using var comparison = CreateComparison();
-        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>()).Returns(new SegmentMatchResult.NoTrack());
+        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(new SegmentMatchResult.NoTrack());
 
         await comparison.MatchCommand.ExecuteAsync(null);
 
-        Assert.Equal(["Segment matching needs a selected range with at least two track points."], errors);
+        Assert.Single(errors);
         Assert.Empty(comparison.TravelRows);
     }
 
@@ -85,14 +87,14 @@ public class SegmentComparisonViewModelTests
             .ToArray();
         var last = matches[^1];
         var next = Comparison(last);
-        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>()).Returns(new SegmentMatchResult.Matched(
+        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(new SegmentMatchResult.Matched(
             matches,
             new SegmentComparisonPage(matches.Take(SegmentComparisonPage.Size).Select(Comparison).ToArray(), [])));
         coordinator.LoadComparisonPageAsync(
                 Arg.Is<IReadOnlyList<SegmentMatch>>(page => page.SequenceEqual(new[] { last })),
                 Arg.Any<double>(),
                 Arg.Any<CancellationToken>())
-            .Returns(new SegmentComparisonPage([next], []));
+            .Returns(new SegmentComparisonPageResult.Loaded(new SegmentComparisonPage([next], [])));
         await comparison.MatchCommand.ExecuteAsync(null);
 
         await comparison.NextPageCommand.ExecuteAsync(null);
@@ -132,7 +134,7 @@ public class SegmentComparisonViewModelTests
         Assert.Empty(comparison.TravelRows);
         Assert.Empty(comparison.VelocityRows);
         Assert.Equal(0, comparison.MatchCount);
-        Assert.Equal(["The matched session telemetry is not available."], errors);
+        Assert.Single(errors);
     }
 
     [Fact]
@@ -189,8 +191,77 @@ public class SegmentComparisonViewModelTests
         Assert.Equal(0, comparison.MatchCount);
     }
 
+    [Fact]
+    public async Task CompareAnalysis_FailureKeepsDiagnosticsSeparateFromSummary()
+    {
+        await using var comparison = CreateComparison();
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        coordinator.LoadComparisonDetailAsync(compared, Arg.Any<CancellationToken>())
+            .Returns(new SegmentComparisonDetailResult.Failed(SegmentComparisonFailureReason.Detail, "reader diagnostic"));
+        await comparison.MatchCommand.ExecuteAsync(null);
+
+        await ((IAsyncRelayCommand)CompareAction(comparison.TravelRows[0]).Command!).ExecuteAsync(null);
+
+        var failure = Assert.Single(errors);
+        Assert.Equal("reader diagnostic", failure.Details);
+        Assert.DoesNotContain(failure.Details!, failure.Summary);
+        Assert.False(comparison.HasAnalysisComparison);
+        Assert.Single(comparison.TravelRows);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_CancelsAndDrainsDetailLoadWithoutPublishingLateFailure()
+    {
+        var comparison = CreateComparison();
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        var completion = new TaskCompletionSource<SegmentComparisonDetailResult>();
+        CancellationToken token = default;
+        coordinator.LoadComparisonDetailAsync(compared, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            token = call.Arg<CancellationToken>();
+            return completion.Task;
+        });
+        await comparison.MatchCommand.ExecuteAsync(null);
+        var loading = ((IAsyncRelayCommand)CompareAction(comparison.TravelRows[0]).Command!).ExecuteAsync(null);
+
+        var closing = comparison.DisposeAsync().AsTask();
+        Assert.True(token.IsCancellationRequested);
+        Assert.False(closing.IsCompleted);
+        completion.SetResult(new SegmentComparisonDetailResult.Failed(SegmentComparisonFailureReason.Detail, "late failure"));
+        await closing.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        await loading.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(errors);
+        Assert.False(comparison.HasAnalysisComparison);
+    }
+
+    [Fact]
+    public async Task ChangedRange_RejectsPendingComparisonPage()
+    {
+        await using var comparison = CreateComparison();
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>())
+            .Returns(new SegmentMatchResult.Matched(Enumerable.Repeat(compared.Match, 11).ToArray(), new SegmentComparisonPage([compared], [])));
+        var completion = new TaskCompletionSource<SegmentComparisonPageResult>();
+        coordinator.LoadComparisonPageAsync(Arg.Any<IReadOnlyList<SegmentMatch>>(), Arg.Any<double>(), Arg.Any<CancellationToken>())
+            .Returns(completion.Task);
+        await comparison.MatchCommand.ExecuteAsync(null);
+        var loading = comparison.NextPageCommand.ExecuteAsync(null);
+
+        sessionState.OnNext(State() with { AnalysisRange = new TelemetryTimeRange(3, 6) });
+        completion.SetResult(new SegmentComparisonPageResult.Loaded(new SegmentComparisonPage([compared], [])));
+        await loading.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(comparison.TravelRows);
+        Assert.Equal(0, comparison.MatchCount);
+    }
+
     private SegmentComparisonViewModel CreateComparison()
     {
+        coordinator.LoadComparisonDetailAsync(Arg.Any<SegmentComparison>(), Arg.Any<CancellationToken>())
+            .Returns(new SegmentComparisonDetailResult.Unavailable());
         var comparison = new SegmentComparisonViewModel(
             Guid.NewGuid(),
             sessionState,
@@ -214,13 +285,13 @@ public class SegmentComparisonViewModelTests
         SegmentComparisonBuilder.Build(match, TestSegmentMatches.Telemetry(), telemetry.Metadata.Duration)!;
 
     private void MatchReturns(SegmentComparison comparison) =>
-        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>()).Returns(new SegmentMatchResult.Matched(
+        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(new SegmentMatchResult.Matched(
             [comparison.Match],
             new SegmentComparisonPage([comparison], [])));
 
     private void DetailReturns(SegmentComparison comparison) =>
         coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>())
-            .Returns(SegmentComparisonBuilder.BuildDetail(TestSegmentMatches.Telemetry(), matchedTrackPoints: null));
+            .Returns(new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(TestSegmentMatches.Telemetry(), matchedTrackPoints: null)));
 
     private static SignalRowAction CompareAction(SegmentComparisonRowViewModel row) =>
         row.HeaderActions.Single(action => action.Id == "compare-analysis");

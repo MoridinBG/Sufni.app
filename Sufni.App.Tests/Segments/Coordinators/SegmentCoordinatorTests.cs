@@ -202,20 +202,55 @@ public class SegmentCoordinatorTests
             .Select(index => TestSegmentMatches.Match(index, index + 2, matchedId))
             .ToArray();
 
-        var page = await CreateCoordinator().LoadComparisonPageAsync(matches, 30, CancellationToken.None);
+        var page = Assert.IsType<SegmentComparisonPageResult.Loaded>(await CreateCoordinator().LoadComparisonPageAsync(matches, 30, CancellationToken.None)).Page;
 
         Assert.Equal(matches.Take(SegmentComparisonPage.Size), page.Comparisons.Select(comparison => comparison.Match));
     }
 
     [Fact]
-    public async Task LoadComparisonDetailAsync_WhenTheSessionChanged_ReturnsNull()
+    public async Task LoadComparisonDetailAsync_WhenTheSessionChanged_ReturnsUnavailable()
     {
         var matchedId = AddMatchedSession();
-        var comparison = (await CreateCoordinator().LoadComparisonPageAsync(
-            [TestSegmentMatches.Match(10, 12, matchedId)], 30, CancellationToken.None)).Comparisons.Single();
+        var comparison = Assert.IsType<SegmentComparisonPageResult.Loaded>(await CreateCoordinator().LoadComparisonPageAsync(
+            [TestSegmentMatches.Match(10, 12, matchedId)], 30, CancellationToken.None)).Page.Comparisons.Single();
         contentReader.Sessions = [CatalogItem(matchedId, TestSegmentMatches.Token with { FullTrackPointsRevision = 2 })];
 
-        Assert.Null(await CreateCoordinator().LoadComparisonDetailAsync(comparison, CancellationToken.None));
+        Assert.IsType<SegmentComparisonDetailResult.Unavailable>(await CreateCoordinator().LoadComparisonDetailAsync(comparison, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(SegmentComparisonFailureReason.Match)]
+    [InlineData(SegmentComparisonFailureReason.Page)]
+    [InlineData(SegmentComparisonFailureReason.Detail)]
+    public async Task ComparisonReadFailure_ReturnsTypedFailure(SegmentComparisonFailureReason reason)
+    {
+        AddSession(sourceId, SourceTrack());
+        var matchedId = AddMatchedSession();
+        var match = TestSegmentMatches.Match(10, 12, matchedId);
+        var comparison = SegmentComparisonBuilder.Build(match, TestSegmentMatches.Telemetry(), 30)!;
+        contentReader.TrackLoader = (_, _) => throw new IOException("unreadable track");
+        var coordinator = CreateCoordinator();
+
+        var (actualReason, details) = reason switch
+        {
+            SegmentComparisonFailureReason.Match => Assert.IsType<SegmentMatchResult.Failed>(await coordinator.MatchAsync(Source(), TestContext.Current.CancellationToken)),
+            SegmentComparisonFailureReason.Page => PageFailure(await coordinator.LoadComparisonPageAsync([match], 30, TestContext.Current.CancellationToken)),
+            SegmentComparisonFailureReason.Detail => DetailFailure(await coordinator.LoadComparisonDetailAsync(comparison, TestContext.Current.CancellationToken)),
+            _ => throw new ArgumentOutOfRangeException(nameof(reason))
+        };
+        Assert.Equal(reason, actualReason);
+        Assert.NotEmpty(details!);
+
+        static SegmentMatchResult.Failed PageFailure(SegmentComparisonPageResult result)
+        {
+            var failed = Assert.IsType<SegmentComparisonPageResult.Failed>(result);
+            return new(failed.Reason, failed.Details);
+        }
+        static SegmentMatchResult.Failed DetailFailure(SegmentComparisonDetailResult result)
+        {
+            var failed = Assert.IsType<SegmentComparisonDetailResult.Failed>(result);
+            return new(failed.Reason, failed.Details);
+        }
     }
 
     private SegmentMatchSource Source() =>

@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -46,7 +47,7 @@ public sealed record SegmentComparisonSessionState(
 /// analysis. A change of the analysis range, telemetry, or track discards the
 /// matches; a change of the analysis settings rebuilds only the comparison.
 /// </summary>
-public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisposable
+public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisposable, IAsyncDisposable
 {
     private const double TimelinePaddingFraction = 0.05;
 
@@ -54,7 +55,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private readonly ISegmentCoordinator segmentCoordinator;
     private readonly ITrackCoordinator trackCoordinator;
     private readonly Action<double, double> setTimelineVisibleRange;
-    private readonly Action<string> reportError;
+    private readonly Action<FailurePresentation> reportError;
     private readonly Action<string> reportNotification;
     private readonly IDisposable sessionStateSubscription;
     private SegmentComparisonSessionState state = SegmentComparisonSessionState.Empty;
@@ -62,6 +63,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private int pageIndex;
     private SegmentComparison? comparedMatch;
     private SegmentComparisonDetail? comparedDetail;
+    private readonly HashSet<Task> pending = [];
+    private readonly CancellationTokenSource shutdown = new();
+    private bool disposed;
     private CancellationTokenSource? pageLoad;
     private CancellationTokenSource? analysisLoad;
 
@@ -85,7 +89,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         ISegmentCoordinator segmentCoordinator,
         ITrackCoordinator trackCoordinator,
         Action<double, double> setTimelineVisibleRange,
-        Action<string> reportError,
+        Action<FailurePresentation> reportError,
         Action<string> reportNotification)
     {
         this.sessionId = sessionId;
@@ -128,7 +132,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
              previous.DampingSpeedCutoffs != next.DampingSpeedCutoffs ||
              previous.DampingPercentages != next.DampingPercentages))
         {
-            _ = BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false);
+            _ = TrackAsync(BuildAnalysisComparisonAsync(comparedMatch, comparedDetail, zoomTimeline: false));
         }
     }
 
@@ -145,21 +149,40 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     public void Dispose()
     {
+        if (disposed) return;
+        disposed = true;
         sessionStateSubscription.Dispose();
+        shutdown.Cancel();
         Cancel(ref pageLoad);
         Cancel(ref analysisLoad);
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        await Task.WhenAll(pending.ToArray());
+        shutdown.Dispose();
+    }
+
+    private async Task TrackAsync(Task task)
+    {
+        pending.Add(task);
+        try { await task; }
+        finally { pending.Remove(task); }
+    }
+
     [RelayCommand(CanExecute = nameof(CanMatch))]
-    private async Task Match()
+    private Task Match() => TrackAsync(MatchAsync());
+
+    private async Task MatchAsync()
     {
         if (CreateMatchSource() is not { } source)
         {
             return;
         }
 
-        var result = await segmentCoordinator.MatchAsync(source);
-        if (CreateMatchSource() != source)
+        var result = await segmentCoordinator.MatchAsync(source, shutdown.Token);
+        if (disposed || CreateMatchSource() != source)
         {
             return;
         }
@@ -174,23 +197,23 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
                 reportNotification(matches.Count == 1 ? "Found 1 segment match." : $"Found {matches.Count} segment matches.");
                 break;
             case SegmentMatchResult.NoTrack:
-                reportError("Segment matching needs a selected range with at least two track points.");
+                reportError(new FailurePresentation("Segment matching needs a selected range with at least two track points."));
                 break;
             case SegmentMatchResult.Failed failed:
-                reportError(failed.ErrorMessage);
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 break;
         }
     }
 
-    private bool CanMatch() => CreateMatchSource() is not null;
+    private bool CanMatch() => !disposed && CreateMatchSource() is not null;
 
     [RelayCommand(CanExecute = nameof(CanMoveToPreviousPage))]
-    private Task PreviousPage() => MoveToPageAsync(pageIndex - 1);
+    private Task PreviousPage() => TrackAsync(MoveToPageAsync(pageIndex - 1));
 
     private bool CanMoveToPreviousPage() => pageIndex > 0;
 
     [RelayCommand(CanExecute = nameof(CanMoveToNextPage))]
-    private Task NextPage() => MoveToPageAsync(pageIndex + 1);
+    private Task NextPage() => TrackAsync(MoveToPageAsync(pageIndex + 1));
 
     private bool CanMoveToNextPage() => (pageIndex + 1) * SegmentComparisonPage.Size < MatchCount;
 
@@ -207,10 +230,10 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     private async Task MoveToPageAsync(int index)
     {
         var loadedMatches = matches;
-        var cancellation = Replace(ref pageLoad);
+        using var cancellation = Replace(ref pageLoad);
         try
         {
-            var page = await segmentCoordinator.LoadComparisonPageAsync(
+            var result = await segmentCoordinator.LoadComparisonPageAsync(
                 loadedMatches.Skip(index * SegmentComparisonPage.Size).ToArray(),
                 state.Telemetry?.Metadata.Duration ?? 0,
                 cancellation.Token);
@@ -219,6 +242,13 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
                 return;
             }
 
+            if (result is SegmentComparisonPageResult.Failed failed)
+            {
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
+                return;
+            }
+
+            var page = ((SegmentComparisonPageResult.Loaded)result).Page;
             matches = matches.Except(page.UnavailableMatches).ToArray();
             MatchCount = matches.Count;
             SetPageIndex(index);
@@ -227,9 +257,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (Exception e)
+        finally
         {
-            reportError($"Comparison page could not be loaded: {e.Message}");
+            if (ReferenceEquals(pageLoad, cancellation)) pageLoad = null;
         }
     }
 
@@ -244,41 +274,48 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         ClearAnalysisComparison();
         comparedMatch = comparison;
         UpdateComparedRows();
-        var cancellation = Replace(ref analysisLoad);
+        using var cancellation = Replace(ref analysisLoad);
         try
         {
-            var detail = await segmentCoordinator.LoadComparisonDetailAsync(comparison, cancellation.Token);
+            var result = await segmentCoordinator.LoadComparisonDetailAsync(comparison, cancellation.Token);
             if (cancellation.IsCancellationRequested)
             {
                 return;
             }
 
-            if (detail is null)
+            if (result is SegmentComparisonDetailResult.Failed failed)
             {
-                RemoveComparison(comparison);
-                reportError("The matched session telemetry is not available.");
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
                 return;
             }
 
+            if (result is SegmentComparisonDetailResult.Unavailable)
+            {
+                RemoveComparison(comparison);
+                reportError(new FailurePresentation("The matched session telemetry is not available."));
+                return;
+            }
+
+            var detail = ((SegmentComparisonDetailResult.Loaded)result).Detail;
             comparedDetail = detail;
             await BuildAnalysisComparisonAsync(comparison, detail, zoomTimeline: true);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (Exception e)
+        finally
         {
-            reportError($"Analysis comparison could not be loaded: {e.Message}");
+            if (ReferenceEquals(analysisLoad, cancellation)) analysisLoad = null;
         }
     }
 
     private async Task BuildAnalysisComparisonAsync(SegmentComparison comparison, SegmentComparisonDetail detail, bool zoomTimeline)
     {
         var settings = state;
-        var cancellation = Replace(ref analysisLoad);
+        using var cancellation = Replace(ref analysisLoad);
         try
         {
-            var analysis = await trackCoordinator.BuildAnalysisComparisonAsync(
+            var result = await trackCoordinator.BuildAnalysisComparisonAsync(
                 comparison, detail, settings.TravelDistributionMode, settings.VelocityAverageMode,
                 settings.DampingSpeedCutoffs, settings.DampingPercentages, cancellation.Token);
             if (cancellation.IsCancellationRequested || !ReferenceEquals(comparedMatch, comparison))
@@ -286,7 +323,13 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
                 return;
             }
 
-            AnalysisComparison = analysis;
+            if (result is SegmentAnalysisComparisonResult.Failed failed)
+            {
+                reportError(FailurePresentation.From(failed.Reason, failed.Details));
+                return;
+            }
+
+            AnalysisComparison = ((SegmentAnalysisComparisonResult.Built)result).Comparison;
             if (zoomTimeline)
             {
                 ZoomTimeline(comparison);
@@ -295,9 +338,9 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (Exception e)
+        finally
         {
-            reportError($"Analysis comparison could not be prepared: {e.Message}");
+            if (ReferenceEquals(analysisLoad, cancellation)) analysisLoad = null;
         }
     }
 
@@ -345,7 +388,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
             .Select(comparison => new SegmentComparisonRowViewModel(
                 comparison,
                 signal,
-                item => _ = ToggleAnalysisComparisonAsync(item),
+                item => TrackAsync(ToggleAnalysisComparisonAsync(item)),
                 Remove))
             .ToArray();
 

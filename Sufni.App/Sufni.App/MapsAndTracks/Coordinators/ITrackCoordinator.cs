@@ -13,7 +13,7 @@ public interface ITrackCoordinator
 {
     Task StopAsync();
 
-    Task<SegmentAnalysisComparison> BuildAnalysisComparisonAsync(
+    Task<SegmentAnalysisComparisonResult> BuildAnalysisComparisonAsync(
         SegmentComparison comparison, SegmentComparisonDetail detail,
         TravelDistributionMode travelMode, VelocityAverageMode velocityMode,
         DampingSpeedCutoffs cutoffs, SessionDampingPercentages currentPercentages,

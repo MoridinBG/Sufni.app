@@ -27,8 +27,8 @@ internal static class TestSegmentComparisons
         coordinator.BuildAnalysisComparisonAsync(Arg.Any<SegmentComparison>(), Arg.Any<SegmentComparisonDetail>(),
                 Arg.Any<TravelDistributionMode>(), Arg.Any<VelocityAverageMode>(), Arg.Any<DampingSpeedCutoffs>(),
                 Arg.Any<SessionDampingPercentages>(), Arg.Any<CancellationToken>())
-            .Returns(call => SegmentAnalysisComparisonBuilder.Build(call.Arg<SegmentComparison>(), call.Arg<SegmentComparisonDetail>(),
-                call.Arg<TravelDistributionMode>(), call.Arg<VelocityAverageMode>(), call.Arg<DampingSpeedCutoffs>(), call.Arg<SessionDampingPercentages>()));
+            .Returns(call => new SegmentAnalysisComparisonResult.Built(SegmentAnalysisComparisonBuilder.Build(call.Arg<SegmentComparison>(), call.Arg<SegmentComparisonDetail>(),
+                call.Arg<TravelDistributionMode>(), call.Arg<VelocityAverageMode>(), call.Arg<DampingSpeedCutoffs>(), call.Arg<SessionDampingPercentages>())));
         return coordinator;
     }
 
@@ -44,11 +44,11 @@ internal static class TestSegmentComparisons
         var coordinator = Substitute.For<ISegmentCoordinator>();
         var telemetry = TestSegmentMatches.Telemetry();
         var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, telemetry.Metadata.Duration)!;
-        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>()).Returns(new SegmentMatchResult.Matched(
+        coordinator.MatchAsync(Arg.Any<SegmentMatchSource>(), Arg.Any<CancellationToken>()).Returns(new SegmentMatchResult.Matched(
             [comparison.Match],
             new SegmentComparisonPage([comparison], [])));
         coordinator.LoadComparisonDetailAsync(comparison, Arg.Any<CancellationToken>())
-            .Returns(SegmentComparisonBuilder.BuildDetail(telemetry, [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 1, 1, null)]));
+            .Returns(new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, [new TrackPoint(0, 0, 0, null), new TrackPoint(1, 1, 1, null)])));
         var sessionState = SegmentComparisonSessionState.Empty with
         {
             AnalysisRange = new TelemetryTimeRange(2, 5),

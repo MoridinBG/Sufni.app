@@ -293,4 +293,12 @@ public sealed record FailurePresentation
         SegmentWriteFailureReason.Delete => "The segment could not be deleted. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SegmentComparisonFailureReason reason, string? details = null) => new(reason switch
+    {
+        SegmentComparisonFailureReason.Match => "Segment matching failed. Try again.",
+        SegmentComparisonFailureReason.Page => "The comparison page could not be loaded. Try again.",
+        SegmentComparisonFailureReason.Detail => "The analysis comparison could not be loaded. Try again.",
+        SegmentComparisonFailureReason.Analysis => "The analysis comparison could not be prepared. Try again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

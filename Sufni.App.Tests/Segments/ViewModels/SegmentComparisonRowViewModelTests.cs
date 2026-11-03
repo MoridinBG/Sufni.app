@@ -35,5 +35,5 @@ public class SegmentComparisonRowViewModelTests
     }
 
     private SegmentComparisonRowViewModel CreateRow(SegmentComparisonSignal signal) =>
-        new(comparison, signal, _ => { }, _ => { });
+        new(comparison, signal, _ => Task.CompletedTask, _ => { });
 }

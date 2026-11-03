@@ -23,7 +23,7 @@ internal static class TestSegmentComparisonRows
             airtimes: airtimes ?? [],
             matchedSegmentTrackPoints: [],
             analysisRange: null);
-        return new SegmentComparisonRowViewModel(comparison, signal, _ => { }, _ => { });
+        return new SegmentComparisonRowViewModel(comparison, signal, _ => Task.CompletedTask, _ => { });
     }
 
     /// <summary>A series with one value per second from zero.</summary>

@@ -1,3 +1,6 @@
+using Sufni.App.Bikes.Models;
+using Sufni.App.Segments.Models;
+using Sufni.App.Segments.Services;
 using Sufni.App.MapsAndTracks.Stores;
 using System.IO;
 using NSubstitute;
@@ -33,16 +36,36 @@ public class TrackCoordinatorTests
     private readonly ISessionStoreWriter sessionStore = Substitute.For<ISessionStoreWriter>();
     private readonly ITrackStoreWriter trackStore = Substitute.For<ITrackStoreWriter>();
 
-    private TrackCoordinator CreateCoordinator(ITrackStoreWriter? tracks = null) => new(
+    private TrackCoordinator CreateCoordinator(ITrackStoreWriter? tracks = null, IBackgroundTaskRunner? runner = null) => new(
         trackRepository,
         trackEntityRepository,
         sessionRepository,
         filesService,
-        backgroundTaskRunner,
+        runner ?? backgroundTaskRunner,
         sessionTrackReader,
         fullTrackPointReader,
         new GpxTrackReader(),
         tracks ?? trackStore, sessionStore, new InlineUiThreadDispatcher(), publication);
+
+    [Fact]
+    public async Task BuildAnalysisComparisonAsync_ReturnsFailureWhenAnalysisCannotRun()
+    {
+        var runner = Substitute.For<IBackgroundTaskRunner>();
+        runner.RunAsync(Arg.Any<Func<SegmentAnalysisComparison>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<SegmentAnalysisComparison>(new InvalidOperationException("analysis failed")));
+        using var coordinator = CreateCoordinator(runner: runner);
+        var telemetry = TestSegmentMatches.Telemetry();
+        var comparison = SegmentComparisonBuilder.Build(TestSegmentMatches.Match(10, 13), telemetry, 30)!;
+        var detail = SegmentComparisonBuilder.BuildDetail(telemetry, null);
+
+        var result = await coordinator.BuildAnalysisComparisonAsync(comparison, detail,
+            TravelDistributionMode.ActiveSuspension, VelocityAverageMode.SampleAveraged,
+            DampingSpeedCutoffs.Default, SessionDampingPercentages.Empty, TestContext.Current.CancellationToken);
+
+        var failure = Assert.IsType<SegmentAnalysisComparisonResult.Failed>(result);
+        Assert.Equal(SegmentComparisonFailureReason.Analysis, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
+    }
 
     [Fact]
     public async Task ImportGpxAsync_IndependentInstallationsChooseTheSameContentIdentity()

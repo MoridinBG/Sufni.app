@@ -119,7 +119,7 @@ editor without a session write or a draft-discard prompt.
 `BuildAnalysisComparisonAsync` also owns background execution of the segment
 analysis comparison builder from captured comparison/detail/settings inputs. The
 editor requests it with its current cancellation token and applies only its current
-result. Comparison runtime failure handling remains in its planned runtime migration.
+result. Comparison failures return a closed reason and separate diagnostics; the coordinator logs the first catch and the editor rejects canceled or superseded results.
 
 `TrackCoordinator` owns the device-local GPS metric materialization. Committed
 session/track publications cause it to capture immutable metadata and evaluate

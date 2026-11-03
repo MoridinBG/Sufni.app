@@ -49,7 +49,7 @@ public abstract record SegmentMatchResult
     public sealed record Matched(IReadOnlyList<SegmentMatch> Matches, SegmentComparisonPage FirstPage) : SegmentMatchResult;
     public sealed record NoTrack : SegmentMatchResult;
     public sealed record Cancelled : SegmentMatchResult;
-    public sealed record Failed(string ErrorMessage) : SegmentMatchResult;
+    public sealed record Failed(SegmentComparisonFailureReason Reason, string? Details) : SegmentMatchResult;
 }
 
 /// <summary>
@@ -91,19 +91,18 @@ public interface ISegmentCoordinator
     /// Matches the source range against every session as the session's operation,
     /// and builds the first comparison page. A newer operation of the session cancels it.
     /// </summary>
-    Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source);
+    Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source, CancellationToken cancellationToken = default);
 
     /// <summary>Builds the comparisons of the first available matches.</summary>
-    Task<SegmentComparisonPage> LoadComparisonPageAsync(
+    Task<SegmentComparisonPageResult> LoadComparisonPageAsync(
         IReadOnlyList<SegmentMatch> matches,
         double sourceDurationSeconds,
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// Loads the analysis input of a comparison, or null when its session changed
-    /// or is gone.
+    /// Loads the analysis input of a comparison, distinguishing unavailable content from failure.
     /// </summary>
-    Task<SegmentComparisonDetail?> LoadComparisonDetailAsync(
+    Task<SegmentComparisonDetailResult> LoadComparisonDetailAsync(
         SegmentComparison comparison,
         CancellationToken cancellationToken);
 
@@ -236,10 +235,11 @@ internal sealed class SegmentCoordinator(
     private string? OwnerKeyForSession(Guid sessionId) => sessionStore.Get(sessionId) is { } session
         ? sourceStore.Get(session.RecordingSourceSessionId)?.SourceHash : null;
 
-    public async Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source)
+    public async Task<SegmentMatchResult> MatchAsync(SegmentMatchSource source, CancellationToken cancellationToken = default)
     {
         using var operation = operationRunner.Start(source.SessionId, "matching segment");
-        var cancellationToken = operation.CancellationToken;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.CancellationToken, cancellationToken);
+        cancellationToken = cancellation.Token;
         try
         {
             if (await LoadSourceAsync(source, cancellationToken) is not var (points, contentToken))
@@ -264,7 +264,7 @@ internal sealed class SegmentCoordinator(
                 .ThenBy(match => match.SessionName, StringComparer.CurrentCulture)
                 .ToArray();
             operation.Report("building comparison rows", 85);
-            var firstPage = await LoadComparisonPageAsync(sorted, source.DurationSeconds, cancellationToken);
+            var firstPage = await BuildComparisonPageAsync(sorted, source.DurationSeconds, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return operation.IsCurrent
                 ? new SegmentMatchResult.Matched(sorted.Except(firstPage.UnavailableMatches).ToArray(), firstPage)
@@ -277,11 +277,29 @@ internal sealed class SegmentCoordinator(
         catch (Exception e)
         {
             logger.Error(e, "Segment matching failed");
-            return new SegmentMatchResult.Failed($"Segment matching failed: {e.Message}");
+            return new SegmentMatchResult.Failed(SegmentComparisonFailureReason.Match, e.Message);
         }
     }
 
-    public async Task<SegmentComparisonPage> LoadComparisonPageAsync(
+    public async Task<SegmentComparisonPageResult> LoadComparisonPageAsync(
+        IReadOnlyList<SegmentMatch> matches,
+        double sourceDurationSeconds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return new SegmentComparisonPageResult.Loaded(
+                await BuildComparisonPageAsync(matches, sourceDurationSeconds, cancellationToken));
+        }
+        catch (Exception e)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            logger.Error(e, "Segment comparison page could not be loaded");
+            return new SegmentComparisonPageResult.Failed(SegmentComparisonFailureReason.Page, e.Message);
+        }
+    }
+
+    private async Task<SegmentComparisonPage> BuildComparisonPageAsync(
         IReadOnlyList<SegmentMatch> matches,
         double sourceDurationSeconds,
         CancellationToken cancellationToken)
@@ -330,18 +348,27 @@ internal sealed class SegmentCoordinator(
         return new SegmentComparisonPage(comparisons, unavailable);
     }
 
-    public async Task<SegmentComparisonDetail?> LoadComparisonDetailAsync(
+    public async Task<SegmentComparisonDetailResult> LoadComparisonDetailAsync(
         SegmentComparison comparison,
         CancellationToken cancellationToken)
     {
-        var snapshot = await contentReader.GetExactSnapshotAsync(
-            comparison.Match.SessionId,
-            comparison.Match.ContentToken,
-            SessionContentSelection.All,
-            cancellationToken);
-        return snapshot is SessionContentSnapshotResult.Available { Snapshot.ProcessedTelemetry: { } telemetry } available
-            ? SegmentComparisonBuilder.BuildDetail(telemetry, available.Snapshot.Track)
-            : null;
+        try
+        {
+            var snapshot = await contentReader.GetExactSnapshotAsync(
+                comparison.Match.SessionId,
+                comparison.Match.ContentToken,
+                SessionContentSelection.All,
+                cancellationToken);
+            return snapshot is SessionContentSnapshotResult.Available { Snapshot.ProcessedTelemetry: { } telemetry } available
+                ? new SegmentComparisonDetailResult.Loaded(SegmentComparisonBuilder.BuildDetail(telemetry, available.Snapshot.Track))
+                : new SegmentComparisonDetailResult.Unavailable();
+        }
+        catch (Exception e)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            logger.Error(e, "Segment comparison detail could not be loaded for {SessionId}", comparison.Match.SessionId);
+            return new SegmentComparisonDetailResult.Failed(SegmentComparisonFailureReason.Detail, e.Message);
+        }
     }
 
     public Task<StravaConnectionSnapshot> GetStravaConnectionAsync() => stravaService.GetConnectionSnapshotAsync();
