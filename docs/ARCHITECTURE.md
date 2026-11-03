@@ -4,6 +4,14 @@ Sufni.App is a cross-platform application for analyzing mountain bike suspension
 
 This document is the catalog. Each subsystem is summarized here and the deep details live in `architecture/`.
 
+## Adoption status
+
+The [Architecture Adoption Plan](../ARCHITECTURE-ADOPTION.md) is complete as of
+2026-11-03, including library immutability, ownership cleanup, typed failure
+boundaries, parallel test isolation and platform validation. The manifest
+exceptions explicitly accepted in the plan's section 5 remain; the subsystem
+documents describe the implemented state.
+
 ---
 
 ## Table of Contents
@@ -67,11 +75,12 @@ layering rules are unchanged — only the folder grouping is slice-first instead
 | **MapsAndTracks** | `MapsAndTracks/` | Map view + interaction/viewport controllers, track geometry, track signal plot |
 | **Video** | `Video/` | Session video: clip links, store, import/alignment coordinator, video pane and playback, player contracts |
 | **Segments** | `Segments/` | Saved segments of recorded sessions: model, repository, store, coordinator, segments picker, Strava segment efforts |
-| **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts, installation preferences |
-| **Shared** | `Shared/` | Cross-slice bases (`Base/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
+| **Shell** | `Shell/` | App shell: `ShellRootViewModel`, `ShellWorkspaceViewModel`, `MainPagesViewModel`, shell coordinator, profile shell views, navigation behaviors, keyboard shortcuts, installation preferences and shell-dependent list/editor bases |
+| **Shared** | `Shared/` | View/store bases (`Base/`), framing (`IO/`), common helpers, formatting, shared plot bases, shared `Views/` + `DesktopViews/` controls/dialogs/overlays/converters |
 | **Infrastructure** | `Infrastructure/` | Infra services, theme model and bridge (`Theming/`), and platform-service abstractions (`IServiceDiscovery`, `ISecureStorage`, `IHapticFeedback`, `IFriendlyNameProvider`) |
 
-`App.axaml(.cs)`, `AppComposition.cs`, the application serialization catalog `AppJson.cs`,
+`App.axaml(.cs)`, `AppComposition.cs`, the schema composition `DatabaseMigrationRunner.cs`,
+the application serialization catalog `AppJson.cs`,
 `ViewLocator.cs`, and `MobileAppBootstrapper.cs` stay at the project root.
 
 ---
@@ -112,7 +121,7 @@ Topics in [architecture/desktop-vs-mobile.md](architecture/desktop-vs-mobile.md)
 - [Desktop-Capable Surface](architecture/desktop-vs-mobile.md#desktop-capable-surface) — sync server, inbound sync, pairing server
 - [Mobile-Capable Surface](architecture/desktop-vs-mobile.md#mobile-capable-surface) — pairing client, haptics, friendly-name
 - [DI Composition](architecture/desktop-vs-mobile.md#di-composition) — typed platform roots, launch preferences and validated registrations
-- [Solution Scoping](architecture/desktop-vs-mobile.md#solution-scoping) — `Sufni.Desktop.sln` / `Android.sln` / `iOS.sln`
+- [Solution Scoping](architecture/desktop-vs-mobile.md#solution-scoping) — `Sufni.Desktop.sln` / `Sufni.Android.sln` / `Sufni.iOS.sln`
 - [Testing](architecture/desktop-vs-mobile.md#testing) — explicit profile/capability setup
 - [Behavioral Differences](architecture/desktop-vs-mobile.md#behavioral-differences) — workflow-level divergences
 
@@ -366,7 +375,7 @@ Topics in [architecture/live-session.md](architecture/live-session.md):
 - [Capture Stores](architecture/live-session.md#capture-stores) — fixed-rate travel/IMU segments, GPS append buffer, and duration-bounded recent display context
 - [Live Signal Pipeline](architecture/live-session.md#live-signal-pipeline) — `ILiveSignalPipeline`, `LiveSignalPipelineFactory`, per-row batches
 - [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
-- [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentation`, `LiveSessionControlState`
+- [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentationSnapshot`, `LiveSessionControlState`
 - [Live Session Detail View Model](architecture/live-session.md#live-session-detail-view-model) — tab lifecycle and preferences forwarding
 - [GPS Preview State](architecture/live-session.md#gps-preview-state) — diagnostics fix-mode interpretation; live maps use projected track points
 - [Save Flow](architecture/live-session.md#save-flow) — `LiveDaqCoordinator.SaveCaptureAsync` integration

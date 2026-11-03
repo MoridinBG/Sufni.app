@@ -113,7 +113,7 @@ The layer roles are consistent across slices:
   - `ItemLists/` — one list view model per entity, projects a store
     into row view models.
   - `Rows/` — cheap, non-editable wrappers around a single store
-    snapshot. Implement `IListItemRow` so list controls bind against a
+    snapshot. Inherit `ListItemRowViewModelBase` so list controls bind against a
     single shared `x:DataType`.
   - `Editors/` — `BikeEditorViewModel` (`Bikes/ViewModels/Editors/`),
     `SetupEditorViewModel` (`Setups/ViewModels/Editors/`), `SessionDetailViewModel`
@@ -124,9 +124,10 @@ The layer roles are consistent across slices:
     the `TabPageViewModelBase` command surface used by `CommonButtonLine`.
   - The shell view models (`ShellRootViewModel`, `ShellWorkspaceViewModel`,
     `MainPagesViewModel`) live in `Shell/ViewModels/`.
-    The base classes `ViewModelBase`, `ItemListViewModelBase`, and
-    `TabPageViewModelBase` live in `Shared/Base/` — look at them before adding
-    new view models.
+    `ViewModelBase` lives in `Shared/Base/`; `ItemListViewModelBase`,
+    `ListItemRowViewModelBase`, `PendingDeleteEntryViewModel` and
+    `TabPageViewModelBase` live in `Shell/ViewModels/Base/`. Read the relevant base
+    before adding a view model.
 - `<Slice>/Coordinators/` — feature workflow owners: `BikeCoordinator` (`Bikes/`),
   `SetupCoordinator` (`Setups/`), `SessionCoordinator` and the trim/split
   `SessionEditingCoordinator` (`Sessions/Coordination/`),
@@ -134,7 +135,7 @@ The layer roles are consistent across slices:
   `PairedDeviceCoordinator` / `SyncCoordinator` plus the desktop-only
   `IInboundSyncCoordinator` and the mobile-only
   `IPairingClientCoordinator` (`SyncAndPairing/`), and the `IShellCoordinator`
-  desktop/mobile pair (`Shell/Coordinators/`). View models depend on read-only
+  implemented by the shared `ShellWorkspaceCoordinator` (`Shell/Coordinators/`). View models depend on read-only
   stores. Persisted write workflows live in coordinators or session use-case
   services behind coordinators; sync appliers and transaction runners may use
   writer interfaces for publish-only post-persistence updates. Stores remain
@@ -156,9 +157,11 @@ The layer roles are consistent across slices:
   `ILiveDaqKnownBoardsQuery` in `LiveDaq/`). Backed by services and read-only
   stores, never by view models.
 - Services are split across slices and `Infrastructure/`:
-  - SQLite persistence (`SqliteConnectionContext`, `DatabaseMigrationRunner`),
+  - SQLite connection lifetime (`SqliteConnectionContext`),
     `IDialogService` (view models' prompt contract; its `IDialogHost` wiring facet is
     used only by `App`), and `IFilesService` → `Infrastructure/`.
+    Schema composition (`DatabaseMigrationRunner`) lives at the app root; generic
+    dialog rendering (`DialogService`) lives in `Shared/Views/Dialogs/`.
   - `ISessionSyncApplier` (incoming sync generation validation, guarded writes and
     publication) → `Sessions/Coordination/`; `ISessionRepository` → `Sessions/Services/`.
   - `ITelemetryDataStoreService` → `Acquisition/Services/`.
@@ -281,7 +284,7 @@ geometry lives under [§ Suspension Kinematics](docs/architecture/processing.md#
 
 # Persistence
 
-SQLite via `sqlite-net-pcl`, async, WAL enabled. `SqliteConnectionContext`
+SQLite via `sqlite-net-e`, async, WAL enabled. `SqliteConnectionContext`
 owns the shared connection and initialization gate; `DatabaseMigrationRunner`
 owns startup schema work and cleanup; aggregate repositories expose the
 persistence operations and store the values they are given.
@@ -405,6 +408,8 @@ Service or factory: owns infrastructure-facing work such as picker integration, 
 
 # Testing
 
+Pure and isolated persistence tests run in parallel; tests that create Avalonia objects use the `Ui` collection and headless dispatcher attributes.
+
 When writing new code, write unit tests for it. When changing code verify and update the existing tests.
 When adding or changing unit tests, `docs/TESTING.md` is required reading before writing the tests.
 When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading before writing the view tests.
@@ -418,7 +423,7 @@ When adding or changing view tests, `docs/VIEW-TESTING.md` is required reading b
 # Key Dependencies
 
 Avalonia, CommunityToolkit.Mvvm, ScottPlot(.Avalonia), Mapsui(.Avalonia),
-sqlite-net-pcl, MessagePack, MathNet.Numerics, Microsoft.AspNetCore,
+sqlite-net-e, MessagePack, MathNet.Numerics, Microsoft.AspNetCore,
 Microsoft.Extensions.DependencyInjection, DynamicData, System.Reactive,
 Makaretu.Dns (mDNS), System.IdentityModel.Tokens.Jwt.
 

@@ -166,7 +166,7 @@ There are five kinds of view model in the presentation layer:
   gestures into point coordinates and selection commands before calling its editor.
   Editors derive editable state from the snapshot in `ResetImplementation`,
   and call back into the coordinator's `SaveAsync` / `DeleteAsync`. On
-  `SaveResult.Conflict` they prompt the user via
+  a typed `Conflict` result they prompt the user via
   `IDialogService.ShowConfirmationAsync` and rebuild from the
   conflict's current snapshot. After accepting a successful save baseline,
   editors call `IShellCoordinator.CompleteEdit`; the shell returns to the
@@ -382,8 +382,8 @@ Two pages diverge from that pattern:
   resized root-row height ratios are stored in
   `SessionPreferences.SignalLayout` as stable row IDs plus normalized ratios.
   For recorded
-  sessions, `SessionDetailViewModel.SignalLayoutPreferences` loads and writes
-  that signal layout preference through `ISessionPreferences`; live captures
+  sessions, `SessionDetailViewModel.SignalLayoutPreferences` projects the value
+  loaded and saved through `ISessionCoordinator` preference workflows; live captures
   carry the current live signal layout preference into
   `LiveDaqCoordinator.SaveCaptureAsync(...)` so the newly saved
   session opens with the same row layout. The pure
@@ -396,7 +396,7 @@ Two pages diverge from that pattern:
   falls back to default sizing so new or unknown panes do not inherit a
   partial old layout. Hidden rows are not
   duplicated in the signal hierarchy preference: plot visibility remains
-  the existing `SessionPlotPreferences` contract, so hidden rows keep
+  the existing `SignalDisplayPreferences` contract, so hidden rows keep
   their saved hierarchy position and reappear there when re-enabled.
 - **`PreferencesPageViewModel`** exposes each signal's availability and smoothing,
   plus the velocity-filter slider and its commit event. Signal display preferences

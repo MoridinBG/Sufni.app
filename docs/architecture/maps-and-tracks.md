@@ -188,8 +188,8 @@ with the dialog options.
 `MapViewModel` is a reusable presentation over the tile service's current
 `TileLayerState`; `AvailableLayers` and `SelectedLayer` derive from that one
 snapshot. `SelectLayerAsync` forwards the id to the map-layer coordinator.
-`AddCustomLayerCommand` opens `IDialogService.ShowAddTileLayerDialogAsync` and
-forwards the draft to `AddAndSelectAsync`. Fixed failure summaries and optional
+`AddCustomLayerCommand` opens the draft through the generic content dialog and
+forwards confirmed values to `AddAndSelectAsync`. Fixed failure summaries and optional
 diagnostics appear in the map's shared error bar. A failed selection restores
 the selector to the published value.
 
