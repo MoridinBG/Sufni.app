@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using SQLite;
 
-using static Sufni.App.Infrastructure.PersistenceGuards;
+using static Sufni.App.SyncAndPairing.Services.PersistenceGuards;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Services;

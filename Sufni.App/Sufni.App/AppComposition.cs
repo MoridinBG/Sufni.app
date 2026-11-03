@@ -108,7 +108,9 @@ public static class AppComposition
             new SqliteConnectionContext(
                 new SQLite.SQLiteConnectionString(root.Paths.DatabasePath, storeDateTimeAsTicks: true),
                 sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<IBackgroundTaskRunner>(),
-                root.LaunchPreferences.LegacyProcessingWindows, root.LaunchPreferences.LegacyCustomLayers));
+                connection => new DatabaseMigrationRunner(root.Paths.DatabasePath, connection,
+                    sp.GetRequiredService<TimeProvider>(), root.LaunchPreferences.LegacyProcessingWindows,
+                    root.LaunchPreferences.LegacyCustomLayers).RunAsync()));
         services.AddSingleton<IStartupDatabase>(sp => sp.GetRequiredService<SqliteConnectionContext>());
         services.AddSingleton(typeof(ISynchronizableRepository<>), typeof(SynchronizableRepository<>));
         services.AddSingleton<IPairedDeviceRepository, PairedDeviceRepository>();

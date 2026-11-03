@@ -1,3 +1,4 @@
+using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.SyncAndPairing.Services;
 using System;
@@ -18,7 +19,7 @@ using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Services;
 using Sufni.App.Video.Models;
-namespace Sufni.App.Infrastructure;
+namespace Sufni.App;
 
 internal sealed class DatabaseMigrationRunner(
     string databasePath,

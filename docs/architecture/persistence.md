@@ -264,6 +264,13 @@ so re-pairing to the same hub also starts a baseline.
 
 ## SQLite Persistence Repositories
 
+The composition root supplies `SqliteConnectionContext` with one schema initializer.
+`DatabaseMigrationRunner.cs` sits beside that root and composes the application
+schema across slices. The connection context owns initialization gating, connection
+lifetime and archive/reset; reset invokes the same initializer on a fresh connection.
+`SyncAndPairing/Services/PersistenceGuards` holds synchronized-row persistence
+checks used by repositories and the merge engine.
+
 `SqliteConnectionContext` (`Sufni.App/Sufni.App/Infrastructure/SqliteConnectionContext.cs`) owns the single `SQLiteAsyncConnection` and the initialization gate. It receives a `SQLiteConnectionString` composed from the platform root (heads select `Environment.SpecialFolder.LocalApplicationData` + `Sufni.App/sst.db`) and starts `DatabaseMigrationRunner` through the background runner, which enables WAL mode, creates core tables, applies compatibility migrations/backfills and the derivation-window migration, performs startup cleanup, and applies the one-time track content migration.
 
 The connection context supplies the injected clock to startup migrations.

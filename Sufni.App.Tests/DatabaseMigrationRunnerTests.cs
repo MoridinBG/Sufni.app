@@ -20,7 +20,7 @@ using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Video.Models;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Tests.TestSupport.Fixtures;
-namespace Sufni.App.Tests.Infrastructure;
+namespace Sufni.App.Tests;
 
 public class DatabaseMigrationRunnerTests
 {

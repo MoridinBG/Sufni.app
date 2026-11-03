@@ -1,5 +1,3 @@
-using Sufni.App.MapsAndTracks.Stores;
-using System.Collections.Generic;
 using System;
 using System.IO;
 using System.Threading;
@@ -13,17 +11,15 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
     private readonly SQLiteConnectionString connectionString;
     private string DatabasePath => connectionString.DatabasePath;
     private readonly TimeProvider timeProvider;
-    private readonly IReadOnlyDictionary<Guid, int> legacyProcessingWindows;
-    private readonly IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers;
+    private readonly Func<SQLiteAsyncConnection, Task> initializeSchema;
     private readonly IBackgroundTaskRunner backgroundTaskRunner;
 
     internal SqliteConnectionContext(
         SQLiteConnectionString connectionString, TimeProvider timeProvider, IBackgroundTaskRunner backgroundTaskRunner,
-        IReadOnlyDictionary<Guid, int> legacyProcessingWindows, IReadOnlyList<CustomTileLayerSnapshot> legacyCustomLayers)
+        Func<SQLiteAsyncConnection, Task> initializeSchema)
     {
         this.connectionString = connectionString;
-        this.legacyProcessingWindows = legacyProcessingWindows;
-        this.legacyCustomLayers = legacyCustomLayers;
+        this.initializeSchema = initializeSchema;
         this.timeProvider = timeProvider;
         this.backgroundTaskRunner = backgroundTaskRunner;
         Connection = new SQLiteAsyncConnection(connectionString);
@@ -35,7 +31,7 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
                 Directory.CreateDirectory(directory);
             }
 
-            await new DatabaseMigrationRunner(DatabasePath, Connection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
+            await initializeSchema(Connection);
         });
     }
 
@@ -59,7 +55,7 @@ internal sealed class SqliteConnectionContext : IStartupDatabase, IAsyncDisposab
         var freshConnection = new SQLiteAsyncConnection(connectionString);
         try
         {
-            await new DatabaseMigrationRunner(DatabasePath, freshConnection, timeProvider, legacyProcessingWindows, legacyCustomLayers).RunAsync();
+            await initializeSchema(freshConnection);
         }
         finally
         {

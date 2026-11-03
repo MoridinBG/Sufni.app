@@ -1,15 +1,14 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using System.Threading.Tasks;
 using SQLite;
 
 using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.MapsAndTracks.Models;
-namespace Sufni.App.Infrastructure;
+namespace Sufni.App.SyncAndPairing.Services;
 
 /// <summary>
-/// Shared persistence helpers for the SQLite repositories and the merge
+/// Synchronized-row persistence helpers for repositories and the merge
 /// engine: table-name resolution, existence checks, and validated
 /// insert/update entry points. Writes use the declared entity schema, excluding
 /// columns that exist only on a read projection.
@@ -22,15 +21,6 @@ internal static class PersistenceGuards
                ?? throw new InvalidOperationException($"Type {typeof(T).Name} is missing a SQLite table attribute.");
     }
 
-    public static async Task<bool> EntityExistsAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        Guid id) where T : Synchronizable, new()
-    {
-        var tableName = GetTableName<T>();
-        return await connection.ExecuteScalarAsync<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id) > 0;
-    }
-
     public static bool EntityExists<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteConnection connection,
@@ -38,16 +28,6 @@ internal static class PersistenceGuards
     {
         var tableName = GetTableName<T>();
         return connection.ExecuteScalar<int>($"SELECT COUNT(1) FROM {tableName} WHERE id = ?", id) > 0;
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    public static Task<int> InsertEntityAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        T entity) where T : new()
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.InsertAsync(entity, typeof(T));
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
@@ -61,16 +41,6 @@ internal static class PersistenceGuards
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
-    public static Task<int> UpdateEntityAsync<
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
-        SQLiteAsyncConnection connection,
-        T entity) where T : new()
-    {
-        ValidateEntityForPersistence(entity);
-        return connection.UpdateAsync(entity, typeof(T));
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "T is annotated to preserve SQLite-mapped members.")]
     public static int UpdateEntity<
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
         SQLiteConnection connection,
@@ -80,7 +50,7 @@ internal static class PersistenceGuards
         return connection.Update(entity, typeof(T));
     }
 
-    public static void ValidateEntityForPersistence<T>(T entity) where T : new()
+    private static void ValidateEntityForPersistence<T>(T entity) where T : new()
     {
         if (entity is Track { HasPoints: false } track && track.Deleted is null)
         {
