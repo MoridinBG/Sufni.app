@@ -4,8 +4,7 @@ public static class TestImages
 {
     // 1x1 transparent PNG.
     private static readonly byte[] OnePixelPng = Convert.FromBase64String(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63N" +
-        "kAAAAASUVORK5CYII=");
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgAAIAAAUAAen63NgAAAAASUVORK5CYII=");
 
     public static byte[] SmallPngBytes() => [.. OnePixelPng];
 }

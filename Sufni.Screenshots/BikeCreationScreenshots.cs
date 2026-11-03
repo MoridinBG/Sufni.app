@@ -1,3 +1,4 @@
+using Sufni.App.Tests.TestSupport.Fixtures;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.App.Tests.TestSupport.Async;
@@ -96,10 +97,10 @@ public class BikeCreationScreenshots
             HeadAngle: 64.5,
             ForkStroke: 170,
             ShockStroke: 57.5,
-            RearSuspension: new RearSuspensionSpec.Hardtail(),
+            RearSuspension: new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             Chainstay: 440,
-            PixelsToMillimeters: 0,
+            PixelsToMillimeters: 1,
             FrontWheel: null,
             RearWheel: null,
             ImageRotationDegrees: 0,
@@ -119,12 +120,12 @@ public class BikeCreationScreenshots
             HeadAngle: 64.5,
             ForkStroke: 170,
             ShockStroke: 57.5,
-            RearSuspension: new RearSuspensionSpec.Hardtail(),
+            RearSuspension: new RearSuspensionSpec.Linkage(TestSnapshots.FullSuspensionLinkageSpec()),
             DampingSpeedCutoffs: DampingSpeedCutoffs.Default,
             Chainstay: 440,
-            PixelsToMillimeters: 0,
-            FrontWheel: new WheelSpec(WheelDiameter(EtrtoRimSize.Inch29, 2.4), EtrtoRimSize.Inch29, 2.4),
-            RearWheel: new WheelSpec(WheelDiameter(EtrtoRimSize.Inch275, 2.5), EtrtoRimSize.Inch275, 2.5),
+            PixelsToMillimeters: 1,
+            FrontWheel: new WheelSpec(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch29, 2.4), EtrtoRimSize.Inch29, 2.4),
+            RearWheel: new WheelSpec(TestSnapshots.WheelDiameter(EtrtoRimSize.Inch275, 2.5), EtrtoRimSize.Inch275, 2.5),
             ImageRotationDegrees: 0,
             HasImage: true,
             Updated: 1);
@@ -149,7 +150,8 @@ public class BikeCreationScreenshots
         await FlushAsync();
         await FlushAsync();
 
-        var bitmap = window.CaptureRenderedFrame();
+        Assert.Empty(vm.ErrorMessages);
+        using var bitmap = window.CaptureRenderedFrame();
         Assert.NotNull(bitmap);
 
         Directory.CreateDirectory(OutputDir);
@@ -180,17 +182,11 @@ public class BikeCreationScreenshots
             TestAppEnvironment.Create(UiLayoutProfile.Workspace).Input,
             new InlineBackgroundTaskRunner(),
             new FakeTimeProvider(),
-            BikeDraft.From(snapshot, snapshot.HasImage ? SmallTestImageBytes() : []));
+            BikeDraft.From(snapshot, snapshot.HasImage ? TestImages.SmallPngBytes() : []));
     }
 
     private static async Task FlushAsync() =>
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-
-    private static byte[] SmallTestImageBytes() => Convert.FromBase64String(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lX+SQwAAAABJRU5ErkJggg==");
-
-    private static double WheelDiameter(EtrtoRimSize rimSize, double tireWidth) =>
-        Math.Round(rimSize.CalculateTotalDiameterMm(tireWidth), 1);
 
     #endregion
 }
