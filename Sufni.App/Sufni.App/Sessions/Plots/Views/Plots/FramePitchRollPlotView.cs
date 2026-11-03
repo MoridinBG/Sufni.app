@@ -1,15 +1,16 @@
+using Sufni.App.Sessions.Plots;
 using Sufni.App.LiveDaq.Plots;
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.Shared.Plots;
 using Sufni.Telemetry;
 
-namespace Sufni.App.LiveDaq.Views.Plots;
+namespace Sufni.App.Sessions.Plots.Views.Plots;
 
-public class ImuPlotView : RecordedImuPlotViewBase
+public class FramePitchRollPlotView : RecordedImuPlotViewBase
 {
     protected override void CreatePlot()
     {
-        SetPlotModel(new ImuPlot(PlotControl.Plot, CurrentTheme));
+        SetPlotModel(new FramePitchRollPlot(PlotControl.Plot, CurrentTheme));
         InitializeCursorReadoutInteractions();
     }
 
@@ -18,6 +19,6 @@ public class ImuPlotView : RecordedImuPlotViewBase
         TelemetryData telemetry,
         RecordedImuDisplaySeries projection)
     {
-        ((ImuPlot)plotModel).LoadProjection(telemetry, projection);
+        ((FramePitchRollPlot)plotModel).LoadProjection(telemetry, projection);
     }
 }

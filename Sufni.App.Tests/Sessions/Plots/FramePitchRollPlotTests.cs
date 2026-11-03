@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Plots;
 using System.Linq;
 using ScottPlot;
 using ScottPlot.Plottables;
@@ -6,7 +7,7 @@ using static Sufni.App.Tests.TestSupport.Fixtures.TestTelemetryData;
 
 using Sufni.App.LiveDaq.Plots;
 using Sufni.App.LiveDaq.Services.Imu;
-namespace Sufni.App.Tests.LiveDaq.Plots;
+namespace Sufni.App.Tests.Sessions.Plots;
 
 public class FramePitchRollPlotTests
 {

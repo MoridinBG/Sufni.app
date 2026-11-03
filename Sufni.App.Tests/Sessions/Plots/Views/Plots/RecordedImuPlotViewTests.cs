@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Plots.Views.Plots;
+using Sufni.App.Sessions.Plots;
 using System.Reactive.Subjects;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -14,7 +16,7 @@ using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Tests.TestSupport.Harness;
 using Sufni.Telemetry;
 
-namespace Sufni.App.Tests.LiveDaq.Views.Plots;
+namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 
 [Collection("Ui")]
 public class RecordedImuPlotViewTests

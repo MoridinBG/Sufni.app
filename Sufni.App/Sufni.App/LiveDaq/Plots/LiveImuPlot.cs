@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Plots;
 using Sufni.App.Sessions.Models;
 using System;
 using System.Collections.Generic;

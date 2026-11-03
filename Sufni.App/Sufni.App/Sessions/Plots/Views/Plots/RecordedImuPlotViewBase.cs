@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Plots;
 using System;
 using Avalonia;
 using Sufni.App.LiveDaq.Services.Imu;
@@ -6,7 +7,7 @@ using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 
-namespace Sufni.App.LiveDaq.Views.Plots;
+namespace Sufni.App.Sessions.Plots.Views.Plots;
 
 public abstract class RecordedImuPlotViewBase : SufniTelemetryPlotView
 {

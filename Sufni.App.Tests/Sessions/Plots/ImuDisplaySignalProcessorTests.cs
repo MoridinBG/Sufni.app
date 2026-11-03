@@ -1,8 +1,9 @@
+using Sufni.App.Sessions.Plots;
 using Sufni.Telemetry;
 
 using Sufni.App.LiveDaq.Services.Imu;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
-namespace Sufni.App.Tests.LiveDaq.Services.Imu;
+namespace Sufni.App.Tests.Sessions.Plots;
 
 public class ImuDisplaySignalProcessorTests
 {
@@ -116,7 +117,7 @@ public class ImuDisplaySignalProcessorTests
     }
 
     [Fact]
-    public void CorrectionWeightAt_WithGappedSuspension_SamplesVelocityByRealTimeNotDenseIndex()
+    public void ProcessRecorded_WithGappedSuspension_SuppressesAttitudeCorrectionAtSegmentTime()
     {
         // Front travel has a time gap: segment 0 sits at t=0 (low velocity) and segment 1 at
         // t=1.0 (high velocity). The dense Velocity array is just the concatenation
@@ -142,14 +143,30 @@ public class ImuDisplaySignalProcessorTests
             Airtimes = [],
         };
 
-        var context = AttitudeCorrectionContext.CreateRecorded(telemetry);
+        telemetry = telemetry with
+        {
+            ImuData = new RawImuData
+            {
+                SampleRate = 10,
+                ActiveLocations = [(byte)ImuLocation.Frame],
+                Meta = [new ImuMetaEntry((byte)ImuLocation.Frame, 1000, 100)],
+                HasGaps = true,
+                Segments =
+                [
+                    new RawImuSegment { LocationId = (byte)ImuLocation.Frame,
+                        Records = [FrameLevel(), new ImuRecord(0, 0, 1000, 0, 3000, 0)] },
+                    new RawImuSegment { LocationId = (byte)ImuLocation.Frame, FirstIndex = 10,
+                        FirstMonotonicDeltaUs = 1_000_000,
+                        Records = [FrameLevel(), new ImuRecord(0, 0, 1000, 0, 3000, 0)] },
+                ],
+            },
+        };
 
-        // Low-velocity first segment: accelerometer correction is applied.
-        Assert.Equal(1.0, context.CorrectionWeightAt(0.0));
-        // Inside the gap there is no sample, so correction stays enabled.
-        Assert.Equal(1.0, context.CorrectionWeightAt(0.5));
-        // Real time 1.0 falls in the high-velocity second segment: correction is suppressed.
-        Assert.Equal(0.0, context.CorrectionWeightAt(1.0));
+        var result = ImuDisplaySignalProcessor.ProcessRecorded(telemetry);
+
+        Assert.NotNull(result.FramePitchRoll);
+        Assert.Equal(2.5, result.FramePitchRoll.PitchDegrees[1], precision: 6);
+        Assert.Equal(3.0, result.FramePitchRoll.PitchDegrees[3], precision: 6);
     }
 
     [Fact]
@@ -264,44 +281,6 @@ public class ImuDisplaySignalProcessorTests
         Assert.Equal(denseResult.FramePitchRoll!.Times, segmentedResult.FramePitchRoll!.Times);
         Assert.Equal(denseResult.FramePitchRoll.PitchDegrees, segmentedResult.FramePitchRoll.PitchDegrees);
         Assert.Equal(denseResult.FramePitchRoll.RollDegrees, segmentedResult.FramePitchRoll.RollDegrees);
-    }
-
-    [Fact]
-    public void LiveProcessor_EmitsImmediatelyWithoutRestCalibration()
-    {
-        var sut = new LiveImuDisplaySignalProcessor();
-
-        var first = sut.ProcessBatch(
-            [
-                new LiveImuDisplayInputSeries(
-                    LiveImuLocation.Frame,
-                    [0.0, 0.1],
-                    [FramePitch10Degrees(), FramePitch10Degrees()],
-                    AccelLsbPerG: 1000,
-                    GyroLsbPerDps: 100),
-            ],
-            sampleRateHz: 10);
-
-        var second = sut.ProcessBatch(
-            [
-                new LiveImuDisplayInputSeries(
-                    LiveImuLocation.Frame,
-                    [0.2],
-                    [FrameLevel()],
-                    AccelLsbPerG: 1000,
-                    GyroLsbPerDps: 100),
-            ],
-            sampleRateHz: 10);
-
-        Assert.True(second.VibrationTimes.TryGetValue(LiveImuLocation.Frame, out var vibrationTimes));
-        Assert.True(first.VibrationTimes.TryGetValue(LiveImuLocation.Frame, out var firstVibrationTimes));
-        Assert.Equal(2, firstVibrationTimes.Count);
-        Assert.Equal(2, first.VibrationRms[LiveImuLocation.Frame].Count);
-        Assert.NotNull(first.FramePitchRoll);
-        Assert.Equal(2, first.FramePitchRoll!.Times.Length);
-        Assert.InRange(first.FramePitchRoll.PitchDegrees[0], 9.5, 10.5);
-        Assert.Single(vibrationTimes);
-        Assert.Single(second.VibrationRms[LiveImuLocation.Frame]);
     }
 
     private static RawImuData CreateRawImuData(

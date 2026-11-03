@@ -1,4 +1,5 @@
 <UserControl
+    xmlns:recordedImuPlots="using:Sufni.App.Sessions.Plots.Views.Plots"
     xmlns:sessionPreferences="using:Sufni.App.Sessions.Models"
     xmlns:sessionSignals="using:Sufni.App.Sessions.Signals.Views.Controls"
 x:Name="Root"
@@ -91,7 +92,7 @@ mc:Ignorable="d">
             TitleToolTip="Root-mean-square frame vibration — higher means rougher terrain or more chatter."
             PresentationState="{Binding ImuSignalState}">
                 <sessionSignals:SignalRow.PlotContent>
-                    <plots:ImuPlotView
+                    <recordedImuPlots:ImuPlotView
                     Name="Imu"
                     AnalysisRange="{Binding AnalysisRange}"
                     AnalysisResultState="{Binding AnalysisResultState}"
@@ -118,7 +119,7 @@ mc:Ignorable="d">
                     TitleToolTip="Frame tilt from the IMU — pitch is nose up/down, roll is lean side to side."
                     PresentationState="{Binding PitchRollSignalState}">
                         <sessionSignals:SignalRow.PlotContent>
-                            <plots:FramePitchRollPlotView
+                            <recordedImuPlots:FramePitchRollPlotView
                             Name="PitchRoll"
                             AnalysisRange="{Binding AnalysisRange}"
                             AnalysisResultState="{Binding AnalysisResultState}"

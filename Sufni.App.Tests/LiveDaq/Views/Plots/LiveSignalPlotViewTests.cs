@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Plots;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Plots;
 using System;

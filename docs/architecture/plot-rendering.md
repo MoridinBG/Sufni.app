@@ -102,6 +102,11 @@ Telemetry Signals plots run the display-time signal pipeline before rendering sa
 
 ## Concrete Plots
 
+Recorded IMU/pitch-roll models and `ImuDisplaySignalProcessor` live in
+`Sessions/Plots`, with their hosts in `Sessions/Plots/Views/Plots`. Live IMU
+accumulation remains in `LiveDaq/Services/Imu/LiveImuDisplaySignalProcessor`;
+it reuses the recorded processor’s numerical helpers without owning its state.
+
 `AnalysisPlotView` (`Sufni.App/Sufni.App/Sessions/Plots/Views/Plots/AnalysisPlotView.cs`) constructs every histogram / balance / vibration plot from a `PlotKind` enum, so the same Avalonia control hosts the whole analysis family. It creates a `RecordedSessionAnalysisKey` from its plot kind, side/type/location, and the current workspace analysis inputs; if a matching result is cached it loads that record directly into the plot model, otherwise it requests the result and reloads when the state publishes it. It also owns the visible analysis-plot title in Avalonia and suppresses the plot model's ScottPlot title, giving page-level controls a measured header slot beside the title without overlaying the data area. Header controls take their measured width on the right; the title remains centered over the plot when space allows, then shifts left only enough to clear those controls and trims once it reaches the plot edge. Direct plot-class rendering can still emit ScottPlot titles for cached SVG/static output. The time-series plots (`TravelPlot`, `VelocityPlot`, `ImuPlot`, `FramePitchRollPlot`) and `LeverageRatioPlot` have dedicated views.
 
 Travel and velocity distribution plots also draw the overlay of a compared

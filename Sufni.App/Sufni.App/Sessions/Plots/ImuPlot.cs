@@ -11,7 +11,7 @@ using Sufni.App.Sessions.Plots;
 using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.LiveDaq.Plots;
+namespace Sufni.App.Sessions.Plots;
 
 public class ImuPlot(Plot plot, SufniTheme? theme = null) : RecordedTimeSeriesPlot(plot, theme)
 {

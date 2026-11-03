@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Plots;
 using System.Collections.Immutable;
 using Sufni.App.Shared.Models;
 using System;
