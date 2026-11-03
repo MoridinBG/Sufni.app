@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Shared.Stores;
 using Avalonia.Controls;
 using NSubstitute;
@@ -124,7 +125,7 @@ internal sealed class VideoFixture : IDisposable
     }
 
     public async Task<VideoPaneViewModel> CreatePaneAsync(
-        IRecordedSessionTimeline timeline,
+        IPlotTimeline timeline,
         IObservable<VideoSessionTiming> sessionTiming,
         params SessionVideoSnapshot[] clips)
     {

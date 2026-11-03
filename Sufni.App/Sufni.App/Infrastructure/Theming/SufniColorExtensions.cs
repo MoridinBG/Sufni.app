@@ -1,7 +1,7 @@
+using Sufni.App.Shared.Plots;
 using Avalonia.Media;
 using AvaloniaColor = Avalonia.Media.Color;
 using ScottPlotColor = ScottPlot.Color;
-using Sufni.App.Sessions.Plots;
 
 namespace Sufni.App.Infrastructure.Theming;
 

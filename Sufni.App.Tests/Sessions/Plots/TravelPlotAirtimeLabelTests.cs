@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using ScottPlot;
 using ScottPlot.Plottables;
 using Sufni.Telemetry;

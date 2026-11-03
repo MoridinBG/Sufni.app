@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using ScottPlot;
 
-using Sufni.App.Shared.Plots;
-namespace Sufni.App.Sessions.Plots;
+namespace Sufni.App.Shared.Plots;
 
 internal sealed class AnalysisBarReadout : IPointerReadoutTarget
 {

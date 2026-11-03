@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,8 +22,8 @@ public static class SegmentComparisonRows
             "Rows",
             typeof(SegmentComparisonRows));
 
-    public static readonly AttachedProperty<IRecordedSessionTimeline?> TimelineProperty =
-        AvaloniaProperty.RegisterAttached<SignalRow, IRecordedSessionTimeline?>(
+    public static readonly AttachedProperty<IPlotTimeline?> TimelineProperty =
+        AvaloniaProperty.RegisterAttached<SignalRow, IPlotTimeline?>(
             "Timeline",
             typeof(SegmentComparisonRows));
 
@@ -38,10 +39,10 @@ public static class SegmentComparisonRows
     public static IReadOnlyList<SegmentComparisonRowViewModel>? GetRows(SignalRow row) =>
         row.GetValue(RowsProperty);
 
-    public static void SetTimeline(SignalRow row, IRecordedSessionTimeline? value) =>
+    public static void SetTimeline(SignalRow row, IPlotTimeline? value) =>
         row.SetValue(TimelineProperty, value);
 
-    public static IRecordedSessionTimeline? GetTimeline(SignalRow row) =>
+    public static IPlotTimeline? GetTimeline(SignalRow row) =>
         row.GetValue(TimelineProperty);
 
     private static void UpdateRows(SignalRow row)
@@ -75,7 +76,7 @@ public static class SegmentComparisonRows
         }
     }
 
-    private static SignalRow CreateRow(SegmentComparisonRowViewModel comparisonRow, IRecordedSessionTimeline? timeline) =>
+    private static SignalRow CreateRow(SegmentComparisonRowViewModel comparisonRow, IPlotTimeline? timeline) =>
         new()
         {
             Title = comparisonRow.Title,

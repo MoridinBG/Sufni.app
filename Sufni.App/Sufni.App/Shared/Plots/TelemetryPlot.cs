@@ -7,7 +7,6 @@ using ScottPlot.Plottables;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Plots;
 using Sufni.App.Infrastructure.Theming;
 namespace Sufni.App.Shared.Plots;
 
@@ -61,6 +60,13 @@ internal class FixedAutoScaler(double? minX = null, double? maxX = null, double?
 
 public class TelemetryPlot : SufniPlot
 {
+    public virtual bool SupportsRangeOverlays => false;
+    public virtual void SetRangeOverlaySet(string id, RecordedTimeRangeOverlaySet set) { }
+    public virtual void ClearRangeOverlaySet(string id) { }
+    public virtual void SetRangeOverlayVisibility(string id, bool isVisible) { }
+    public virtual void UpdateRangeOverlayLabelVisibility(string id, double visibleMinimumSeconds,
+        double visibleMaximumSeconds, double dataAreaWidthPixels) { }
+
     // Series colours are invariant across themes by design — front/rear/etc.
     // encode meaning and must not change with depth or theme variant.
     public static readonly Color FrontColor = SufniThemes.SignalSeries.SuspensionFront.ToScottPlotColor();

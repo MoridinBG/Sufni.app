@@ -1,7 +1,6 @@
 using System;
 using System.ComponentModel;
 using Avalonia;
-using Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 using Sufni.App.Shared.Plots;
 namespace Sufni.App.Shared.Views.Plots;
@@ -10,13 +9,13 @@ public abstract class SufniTimelinePlotView : SufniPlotView
 {
     private bool applyingTimelineRange;
 
-    public static readonly StyledProperty<IRecordedSessionTimeline?> TimelineProperty =
-        AvaloniaProperty.Register<SufniTimelinePlotView, IRecordedSessionTimeline?>(nameof(Timeline));
+    public static readonly StyledProperty<IPlotTimeline?> TimelineProperty =
+        AvaloniaProperty.Register<SufniTimelinePlotView, IPlotTimeline?>(nameof(Timeline));
 
     protected abstract TelemetryPlot? TimelinePlot { get; }
     protected abstract double? TimelineDurationSeconds { get; }
 
-    public IRecordedSessionTimeline? Timeline
+    public IPlotTimeline? Timeline
     {
         get => GetValue(TimelineProperty);
         set => SetValue(TimelineProperty, value);
@@ -31,13 +30,13 @@ public abstract class SufniTimelinePlotView : SufniPlotView
                 return;
             }
 
-            if (e.OldValue is IRecordedSessionTimeline oldTimeline)
+            if (e.OldValue is IPlotTimeline oldTimeline)
             {
                 oldTimeline.PropertyChanged -= OnTimelinePropertyChanged;
                 oldTimeline.VisibleRangeChanged -= OnTimelineVisibleRangeChanged;
             }
 
-            if (e.NewValue is IRecordedSessionTimeline newTimeline)
+            if (e.NewValue is IPlotTimeline newTimeline)
             {
                 newTimeline.PropertyChanged += OnTimelinePropertyChanged;
                 newTimeline.VisibleRangeChanged += OnTimelineVisibleRangeChanged;
@@ -110,7 +109,7 @@ public abstract class SufniTimelinePlotView : SufniPlotView
 
     private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IRecordedSessionTimeline.NormalizedCursorPosition))
+        if (e.PropertyName == nameof(IPlotTimeline.NormalizedCursorPosition))
         {
             ApplyTimelineCursor();
         }

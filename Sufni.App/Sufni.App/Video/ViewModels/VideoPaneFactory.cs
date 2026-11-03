@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using System;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 
@@ -12,7 +13,7 @@ namespace Sufni.App.Video.ViewModels;
 /// </summary>
 public interface IVideoPaneFactory
 {
-    VideoPaneViewModel? Create(IRecordedSessionTimeline timeline, IObservable<VideoSessionTiming> sessionTiming);
+    VideoPaneViewModel? Create(IPlotTimeline timeline, IObservable<VideoSessionTiming> sessionTiming);
 }
 
 internal sealed class VideoPaneFactory(
@@ -20,7 +21,7 @@ internal sealed class VideoPaneFactory(
     IVideoCoordinator videoCoordinator,
     IVideoPlayerFactory? playerFactory = null) : IVideoPaneFactory
 {
-    public VideoPaneViewModel? Create(IRecordedSessionTimeline timeline, IObservable<VideoSessionTiming> sessionTiming) =>
+    public VideoPaneViewModel? Create(IPlotTimeline timeline, IObservable<VideoSessionTiming> sessionTiming) =>
         playerFactory is null
             ? null
             : new VideoPaneViewModel(timeline, sessionTiming, videoStore, videoCoordinator, playerFactory);

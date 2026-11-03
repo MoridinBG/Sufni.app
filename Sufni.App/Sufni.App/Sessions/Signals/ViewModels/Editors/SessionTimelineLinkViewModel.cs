@@ -1,9 +1,10 @@
+using Sufni.App.Shared.Plots;
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
 
-public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IRecordedSessionTimeline
+public sealed partial class SessionTimelineLinkViewModel : ObservableObject, IPlotTimeline
 {
     private const double Epsilon = 0.000001;
 

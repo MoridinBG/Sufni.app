@@ -6,7 +6,7 @@ using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
-namespace Sufni.App.Tests.Sessions.Plots;
+namespace Sufni.App.Tests.Shared.Plots;
 
 public class AnalysisBarReadoutTests
 {

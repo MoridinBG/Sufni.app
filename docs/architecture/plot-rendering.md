@@ -27,6 +27,13 @@ Analysis-only signal batches leave the live time-series traces intact.
 
 ## Shared Hosting And Input
 
+Shared plot hosts accept `Shared/Plots/IPlotTimeline` and the narrow
+`ITimeSeriesPlotInteractions` selection/menu contract. The recorded workspace
+implements that contract. Overlay values and factories live in `Shared/Plots`;
+`TelemetryPlot` exposes virtual overlay hooks and `RecordedTimeSeriesPlot`
+implements them. Shared hosts never downcast to the recorded plot or depend on
+the full session workspace.
+
 Plot views are controls under `Sufni.App/Sufni.App/Shared/Views/Plots/` and the per-slice `Views/Plots/` folders. Compact and workspace session pages host the same plot controls inside different surrounding layouts: workspace pages provide side-by-side panels and richer chrome, while compact pages use stacked signal rows and touch-oriented controls. Gesture decisions read `IAppEnvironment.Input` through the shared `PointerGesture` helper rather than branching on platform or layout profile. Plot model classes (under `Sufni.App/Sufni.App/Shared/Plots/` and each slice's `Plots/` folder) stay platform-neutral.
 
 ## Zoomed Plot Modal

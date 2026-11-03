@@ -4,7 +4,7 @@ using System.Linq;
 using Sufni.Telemetry;
 
 using Sufni.App.Infrastructure.Theming;
-namespace Sufni.App.Sessions.Plots;
+namespace Sufni.App.Shared.Plots;
 
 public static class RecordedTimeRangeOverlayFactory
 {

@@ -52,6 +52,8 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
     private readonly Dictionary<string, RangeOverlayRenderState> rangeOverlayStates = [];
     private double cursorDurationSeconds;
 
+    public override bool SupportsRangeOverlays => true;
+
     public VerticalLine? CursorLine { get; protected set; }
 
     public override void Clear()
@@ -60,14 +62,14 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         base.Clear();
     }
 
-    public void SetRangeOverlaySet(string id, RecordedTimeRangeOverlaySet set)
+    public override void SetRangeOverlaySet(string id, RecordedTimeRangeOverlaySet set)
     {
         var state = GetOrCreateRangeOverlayState(id);
         state.Set = set;
         ApplyRangeOverlaySet(state);
     }
 
-    public void ClearRangeOverlaySet(string id)
+    public override void ClearRangeOverlaySet(string id)
     {
         if (!rangeOverlayStates.TryGetValue(id, out var state))
         {
@@ -88,7 +90,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         }
     }
 
-    public void SetRangeOverlayVisibility(string id, bool isVisible)
+    public override void SetRangeOverlayVisibility(string id, bool isVisible)
     {
         if (!rangeOverlayStates.TryGetValue(id, out var state))
         {
@@ -104,7 +106,7 @@ public abstract class RecordedTimeSeriesPlot(Plot plot, SufniTheme? theme = null
         UpdateRangeOverlayLabelsForVisibility(state);
     }
 
-    public void UpdateRangeOverlayLabelVisibility(
+    public override void UpdateRangeOverlayLabelVisibility(
         string id,
         double visibleMinimumSeconds,
         double visibleMaximumSeconds,

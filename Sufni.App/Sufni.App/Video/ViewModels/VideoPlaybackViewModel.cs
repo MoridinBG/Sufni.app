@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using System;
 using Sufni.App.Shared.Models;
 using System.ComponentModel;
@@ -16,7 +17,7 @@ namespace Sufni.App.Video.ViewModels;
 /// </summary>
 public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposable
 {
-    private readonly IRecordedSessionTimeline timeline;
+    private readonly IPlotTimeline timeline;
     private IVideoPlaybackBackend? backend;
     private VideoPlaybackContext? playbackContext;
 
@@ -41,7 +42,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
     [ObservableProperty] public partial double VideoWidth { get; set; } = 16;
     [ObservableProperty] public partial double VideoHeight { get; set; } = 9;
 
-    public VideoPlaybackViewModel(IRecordedSessionTimeline timeline)
+    public VideoPlaybackViewModel(IPlotTimeline timeline)
     {
         this.timeline = timeline;
         timeline.PropertyChanged += OnTimelinePropertyChanged;
@@ -249,7 +250,7 @@ public sealed partial class VideoPlaybackViewModel : ObservableObject, IDisposab
 
     private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IRecordedSessionTimeline.NormalizedCursorPosition) &&
+        if (e.PropertyName == nameof(IPlotTimeline.NormalizedCursorPosition) &&
             IsSyncEnabled &&
             !IsTimelinePlaybackActive &&
             !IsPlaying)

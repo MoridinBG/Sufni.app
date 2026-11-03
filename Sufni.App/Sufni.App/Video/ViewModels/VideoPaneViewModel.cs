@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Plots;
 using Sufni.App.Sessions.Models;
 using System;
 using System.Collections.Generic;
@@ -21,7 +22,7 @@ namespace Sufni.App.Video.ViewModels;
 /// </summary>
 public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
 {
-    private readonly IRecordedSessionTimeline timeline;
+    private readonly IPlotTimeline timeline;
     private readonly IVideoCoordinator videoCoordinator;
     private readonly IDisposable clipsSubscription;
     private readonly IDisposable timingSubscription;
@@ -34,7 +35,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string? VideoUri { get; private set; }
 
     public VideoPaneViewModel(
-        IRecordedSessionTimeline timeline,
+        IPlotTimeline timeline,
         IObservable<VideoSessionTiming> sessionTiming,
         ISessionVideoStore videoStore,
         IVideoCoordinator videoCoordinator,
@@ -84,7 +85,7 @@ public sealed partial class VideoPaneViewModel : ObservableObject, IDisposable
 
     private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IRecordedSessionTimeline.NormalizedCursorPosition))
+        if (e.PropertyName == nameof(IPlotTimeline.NormalizedCursorPosition))
         {
             RefreshActiveClip();
         }

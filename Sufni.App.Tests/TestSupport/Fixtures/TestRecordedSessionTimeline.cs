@@ -1,9 +1,10 @@
+using Sufni.App.Shared.Plots;
 using System.ComponentModel;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
 
 namespace Sufni.App.Tests.TestSupport.Fixtures;
 
-public sealed class TestRecordedSessionTimeline : IRecordedSessionTimeline
+public sealed class TestRecordedSessionTimeline : IPlotTimeline
 {
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler? VisibleRangeChanged;

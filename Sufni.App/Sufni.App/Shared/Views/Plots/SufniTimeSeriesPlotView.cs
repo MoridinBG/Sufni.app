@@ -9,12 +9,8 @@ using Avalonia.Threading;
 using Sufni.Telemetry;
 using ScottPlotPixel = ScottPlot.Pixel;
 
-using Sufni.App.Acquisition.Models;
 using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
-using Sufni.App.Sessions.Plots;
 using Sufni.App.Shared.Plots;
-using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shared.Views;
 using Sufni.App.Shared.Views.Input;
@@ -123,10 +119,10 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         set => SetValue(AdditionalContextMenuActionsProperty, value);
     }
 
-    public static readonly StyledProperty<IRecordedSessionSignalsWorkspace?> SignalsWorkspaceProperty =
-        AvaloniaProperty.Register<SufniTimeSeriesPlotView, IRecordedSessionSignalsWorkspace?>(nameof(SignalsWorkspace));
+    public static readonly StyledProperty<ITimeSeriesPlotInteractions?> SignalsWorkspaceProperty =
+        AvaloniaProperty.Register<SufniTimeSeriesPlotView, ITimeSeriesPlotInteractions?>(nameof(SignalsWorkspace));
 
-    public IRecordedSessionSignalsWorkspace? SignalsWorkspace
+    public ITimeSeriesPlotInteractions? SignalsWorkspace
     {
         get => GetValue(SignalsWorkspaceProperty);
         set => SetValue(SignalsWorkspaceProperty, value);
@@ -557,7 +553,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected virtual void OnAnalysisRangeChanged()
     {
-        if (plot is RecordedTimeSeriesPlot recordedPlot && IsPlotReady)
+        if (plot is { SupportsRangeOverlays: true } recordedPlot && IsPlotReady)
         {
             ApplyAnalysisRange(recordedPlot);
             RefreshPlot(PlotInvalidation.Overlay);
@@ -576,7 +572,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         bool refresh,
         PlotInvalidation invalidation = PlotInvalidation.Overlay)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
+        if (plot is not { SupportsRangeOverlays: true } recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -603,7 +599,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyAnalysisSelectionVisibility(bool refresh)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
+        if (plot is not { SupportsRangeOverlays: true } recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -617,7 +613,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void ApplyAnalysisSelectionRanges(bool refresh)
     {
-        if (plot is not RecordedTimeSeriesPlot recordedPlot || !IsPlotReady)
+        if (plot is not { SupportsRangeOverlays: true } recordedPlot || !IsPlotReady)
         {
             return;
         }
@@ -889,7 +885,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     private void SetPreviewRange(double? startSeconds, double? endSeconds)
     {
-        if (plot is RecordedTimeSeriesPlot recordedPlot)
+        if (plot is { SupportsRangeOverlays: true } recordedPlot)
         {
             if (startSeconds is null || endSeconds is null)
             {
@@ -1058,7 +1054,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
 
     protected virtual void OnPlotDataLoaded()
     {
-        if (plot is RecordedTimeSeriesPlot recordedPlot)
+        if (plot is { SupportsRangeOverlays: true } recordedPlot)
         {
             ApplyAnalysisRange(recordedPlot);
         }
@@ -1068,7 +1064,7 @@ public abstract class SufniTimeSeriesPlotView : SufniTimelinePlotView
         ApplyAirtimeVisibility(refresh: false);
     }
 
-    private void ApplyAnalysisRange(RecordedTimeSeriesPlot recordedPlot)
+    private void ApplyAnalysisRange(TelemetryPlot recordedPlot)
     {
         if (AnalysisRange is not { } range)
         {

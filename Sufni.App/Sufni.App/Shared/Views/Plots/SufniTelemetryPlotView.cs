@@ -2,7 +2,6 @@ using Avalonia;
 using Sufni.Telemetry;
 
 using Sufni.App.Shared.Plots;
-using Sufni.App.Sessions.Plots;
 namespace Sufni.App.Shared.Views.Plots;
 
 public abstract class SufniTelemetryPlotView : SufniTimeSeriesPlotView
@@ -56,7 +55,7 @@ public abstract class SufniTelemetryPlotView : SufniTimeSeriesPlotView
 
     protected override void OnAnalysisRangeChanged()
     {
-        if (HasPlotModel && PlotModel is RecordedTimeSeriesPlot)
+        if (HasPlotModel && PlotModel.SupportsRangeOverlays)
         {
             base.OnAnalysisRangeChanged();
             return;

@@ -50,7 +50,7 @@ public interface ISessionShellMobileWorkspace
     SessionOperationPresentationState SessionOperationState { get; }
 }
 
-public interface IRecordedSessionSignalsWorkspace
+public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
 {
     TelemetryData? TelemetryData { get; }
     IRecordedSessionAnalysisResultState AnalysisResultState { get; }
@@ -69,7 +69,6 @@ public interface IRecordedSessionSignalsWorkspace
     SessionTimelineLinkViewModel Timeline { get; }
     SegmentPickerViewModel SegmentPicker { get; }
     SegmentComparisonViewModel SegmentComparison { get; }
-    IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId { get; }
     bool ShowAirtime { get; }
     bool ShowVelocityAirtime { get; }
     bool ShowImuAirtime { get; }
@@ -90,9 +89,6 @@ public interface IRecordedSessionSignalsWorkspace
     IReadOnlyList<SignalRowAction> PitchRollHeaderActions { get; }
     IReadOnlyList<SignalRowAction> SpeedHeaderActions { get; }
     IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; }
-    void SetAnalysisRange(double startSeconds, double endSeconds);
-    void ClearAnalysisRange();
-    void SetAnalysisRangeBoundary(double boundarySeconds);
 }
 
 public interface ISessionMediaWorkspace

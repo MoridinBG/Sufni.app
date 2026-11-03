@@ -1,9 +1,9 @@
 using System;
 using System.ComponentModel;
 
-namespace Sufni.App.Sessions.Signals.ViewModels.Editors;
+namespace Sufni.App.Shared.Plots;
 
-public interface IRecordedSessionTimeline : INotifyPropertyChanged
+public interface IPlotTimeline : INotifyPropertyChanged
 {
     event EventHandler? VisibleRangeChanged;
     event EventHandler? PlaybackToggleRequested;

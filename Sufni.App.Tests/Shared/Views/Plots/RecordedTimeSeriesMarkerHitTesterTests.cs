@@ -1,8 +1,9 @@
+using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 
 using Sufni.App.Sessions.Plots.Views.Plots;
 using Sufni.App.Tests.TestSupport.Fixtures;
-namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
+namespace Sufni.App.Tests.Shared.Views.Plots;
 
 public class RecordedTimeSeriesMarkerHitTesterTests
 {
