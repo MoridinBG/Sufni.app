@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using System.Collections.Generic;
 using Sufni.App.Bikes.Models;
@@ -92,7 +93,7 @@ internal abstract record RecordedSessionLoadPresentation
         SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 
     public sealed record Failed(
-        string ErrorMessage,
+        FailurePresentation Failure,
         SessionSnapshot? Session = null) : RecordedSessionLoadPresentation;
 }
 

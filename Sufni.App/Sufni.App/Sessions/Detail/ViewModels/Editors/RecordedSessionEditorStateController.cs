@@ -337,7 +337,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
                 SessionScreenPresentationState.IncompleteLocalData(
                     FormatIncompleteLocalDataMessage(incomplete.Missing)),
             RecordedSessionLoadPresentation.Failed failed =>
-                SessionScreenPresentationState.Error($"Could not load session data: {failed.ErrorMessage}"),
+                SessionScreenPresentationState.Error(failed.Failure.Summary),
             _ => SessionScreenPresentationState.Ready,
         };
     }

@@ -537,6 +537,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
             var loadPresentation = CreateLoadPresentation(result, sessionStore.Get(Id) ?? currentSnapshot);
             PublishLoadPresentation(loadPresentation);
             presentationApplier.ApplyLoadResult(result);
+            if (loadPresentation is RecordedSessionLoadPresentation.Failed failed)
+                ErrorMessages.Add(failed.Failure);
 
             if (result is not SessionDetailLoadResult.Loaded loaded)
             {
@@ -689,7 +691,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase, ISess
                     incomplete.Missing,
                     snapshot),
             SessionDetailLoadResult.Failed failed => new RecordedSessionLoadPresentation.Failed(
-                failed.ErrorMessage,
+                FailurePresentation.From(failed.Reason, failed.Details),
                 snapshot),
             _ => new RecordedSessionLoadPresentation.Empty(snapshot),
         };

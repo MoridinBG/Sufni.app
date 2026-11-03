@@ -9,6 +9,8 @@ internal sealed class TestSessionProcessedTelemetryReader : ISessionProcessedTel
     private readonly Dictionary<Guid, TelemetryData?> telemetryBySession = [];
     private readonly Dictionary<Guid, int> getCallCounts = [];
 
+    public Exception? ReadFailure { get; set; }
+
     public List<Guid> RetainedSessionIds { get; } = [];
 
     public List<Guid> ReleasedSessionIds { get; } = [];
@@ -32,6 +34,7 @@ internal sealed class TestSessionProcessedTelemetryReader : ISessionProcessedTel
     public Task<TelemetryData?> GetAsync(Guid sessionId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (ReadFailure is { } failure) return Task.FromException<TelemetryData?>(failure);
         getCallCounts[sessionId] = GetCallCount(sessionId) + 1;
         telemetryBySession.TryGetValue(sessionId, out var telemetry);
         return Task.FromResult(telemetry);

@@ -102,7 +102,7 @@ public sealed class SessionLoader : ISessionLoader
         catch (Exception e)
         {
             logger.Error(e, "Session detail load failed for {SessionId}", sessionId);
-            return new SessionDetailLoadResult.Failed(e.Message);
+            return new SessionDetailLoadResult.Failed(SessionLoadFailureReason.Read, e.Message);
         }
     }
 

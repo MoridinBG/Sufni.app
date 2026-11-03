@@ -115,7 +115,7 @@ public abstract record SessionDetailLoadResult
 
     public sealed record Loaded(SessionDetailData Data) : SessionDetailLoadResult;
     public sealed record IncompleteLocalData(Guid SessionId, MissingSessionData Missing) : SessionDetailLoadResult;
-    public sealed record Failed(string ErrorMessage) : SessionDetailLoadResult;
+    public sealed record Failed(SessionLoadFailureReason Reason, string? Details = null) : SessionDetailLoadResult;
 }
 
 public abstract record SessionDetailTrackLoadResult

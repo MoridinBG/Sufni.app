@@ -41,6 +41,27 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 public class SessionDetailViewModelTests
 {
     [AvaloniaFact]
+    public async Task LoadFailure_ShowsSafeScreenStateAndSeparateDiagnostics()
+    {
+        var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var editor = harness.CreateLoadedRecordedSession(snapshot);
+        harness.SessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
+            .Returns(new SessionDetailLoadResult.Failed(SessionLoadFailureReason.Read, "payload diagnostic"));
+
+        await harness.LoadAsync(editor);
+
+        Assert.True(editor.ScreenState.IsError);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.SignalsWorkspace.TravelSignalState.Kind);
+        Assert.Equal(SurfaceStateKind.Hidden, editor.AnalysisWorkspace.FrontAnalysisState.Kind);
+        Assert.DoesNotContain("payload diagnostic", editor.ScreenState.Message);
+        var failure = Assert.Single(editor.ErrorMessages);
+        Assert.Equal("payload diagnostic", failure.Details);
+        Assert.Equal(editor.ScreenState.Message, failure.Summary);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
     public async Task PreferenceReadFailure_ShowsDefaultsAndSeparateDiagnostics()
     {
         var harness = new SessionDetailHarness();

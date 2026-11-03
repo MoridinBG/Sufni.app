@@ -301,4 +301,9 @@ public sealed record FailurePresentation
         SegmentComparisonFailureReason.Analysis => "The analysis comparison could not be prepared. Try again.",
         _ => throw new ArgumentOutOfRangeException(nameof(reason))
     }, details);
+    public static FailurePresentation From(SessionLoadFailureReason reason, string? details = null) => new(reason switch
+    {
+        SessionLoadFailureReason.Read => "The session data could not be loaded. Close the session and open it again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(reason))
+    }, details);
 }

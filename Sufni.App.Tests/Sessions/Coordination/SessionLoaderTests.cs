@@ -170,6 +170,29 @@ public class SessionLoaderTests
             Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task LoadDetailAsync_SeparatesReadFailureReasonFromDiagnostics()
+    {
+        processedTelemetryReader.ReadFailure = new IOException("corrupt payload");
+
+        var result = await CreateLoader().LoadDetailAsync(Guid.NewGuid(),
+            new RecordingProgress<SessionDetailLoadProgress>(), TestContext.Current.CancellationToken);
+
+        var failure = Assert.IsType<SessionDetailLoadResult.Failed>(result);
+        Assert.Equal(SessionLoadFailureReason.Read, failure.Reason);
+        Assert.NotEmpty(failure.Details!);
+    }
+
+    [Fact]
+    public async Task LoadDetailAsync_PropagatesCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CreateLoader().LoadDetailAsync(
+            Guid.NewGuid(), new RecordingProgress<SessionDetailLoadProgress>(), cancellation.Token));
+    }
+
     private ISessionLoader CreateLoader() =>
         new SessionLoader(sessionStore, processedTelemetryReader, trackCoordinator, domainQuery, trackStore);
 }

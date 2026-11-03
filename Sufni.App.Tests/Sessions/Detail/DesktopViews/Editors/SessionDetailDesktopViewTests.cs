@@ -1,3 +1,4 @@
+using Sufni.App.Shared.Models;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -89,12 +90,13 @@ public class SessionDetailDesktopViewTests
         var context = new SessionDetailViewTestContext();
 
         await using var mounted = await context.MountDesktopAsync(
-            loadResult: new SessionDetailLoadResult.Failed("boom"));
+            loadResult: new SessionDetailLoadResult.Failed(SessionLoadFailureReason.Read, "boom"));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
         var errorText = mounted.View.FindControl<TextBlock>("ScreenErrorText");
 
         Assert.NotNull(errorText);
+        Assert.DoesNotContain("boom", errorText.Text);
         Assert.False(shell.IsVisible);
     }
 

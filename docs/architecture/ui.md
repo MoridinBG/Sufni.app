@@ -154,10 +154,10 @@ Thread ownership is explicit:
 - ScottPlot draws on Avalonia's render thread while holding `Plot.Sync`.
   Time-series plot views rebuild their plottables under the same lock, so a
   frame never reads a half-cleared plot.
-- Recorded-session maps initialize lazily. `SessionDetailViewModel.ApplyEditorState`
-  calls `MapViewModel.InitializeAsync()` only the first time the map state
-  reserves layout (`SurfacePresentationState.ReservesLayout`); `Hidden` map
-  state does not initialize the map.
+- Recorded-session maps receive prepared track inputs through `ApplyMapMediaSync`.
+  `MapViewModel` observes the replayed tile catalog from construction; the attached
+  view owns geometry requests and native map resources. Hidden/detached views hold
+  no native map instance.
 - `MainWindow` accepts an optional `IWindowBehavior`, owns its attachment until
   close, and delegates automation-peer creation to it. Only the macOS head
   registers an implementation. It owns the raw Control+Tab key-up workaround
@@ -245,10 +245,9 @@ counts and failures. Caller cancellation propagates.
 
 `BoardIdInspection` is `Found(BoardId) | TimedOut | Unreachable`; caller
 cancellation propagates. Network import admits only identified datastores.
-`DataStoreDiscoveryIssue` is `DaqUnavailable | Failed(reason, details)`;
-`DataStoreDiscoveryFailureReason.Scan | Connect` supplies fixed summaries.
-The import page renders unavailability as a notification and failure diagnostics
-in the error expander.
+`DataStoreDiscoveryIssue` carries `DataStoreDiscoveryFailureReason.Scan | Browse`
+and optional diagnostics. The import page renders a fixed summary and expandable
+details; source-level unavailability is represented separately by listing/import outcomes.
 
 Mobile pairing returns `RequestPairingResult.Sent | ServerUnavailable | Failed`,
 `ConfirmPairingResult.Paired | PinRejected | Failed`, and
@@ -267,7 +266,10 @@ Hardtails are not applicable; incomplete drafts and typed invalid-geometry input
 are unsolvable. Unexpected failures carry `BikeAnalysisFailureReason.Analyze`
 with optional details and no longer disappear into the unavailable state.
 
-`SessionDetailLoadResult.Loaded` may carry a typed `TrackFailure` on its data.
+`SessionDetailLoadResult` is `Loaded | IncompleteLocalData | Failed`. Read failures
+carry `SessionLoadFailureReason.Read`; the full-screen state uses the fixed summary
+and the editor error bar exposes separate diagnostics.
+`Loaded` may carry a typed `TrackFailure` on its data.
 The session remains ready with telemetry and analysis, while the map renders a
 fixed unavailable summary; track diagnostics appear separately in error feedback.
 
@@ -343,10 +345,19 @@ Reset`; its blocking screen and shared error bars expose details through a
 collapsed expander. Cancellation remains neutral, and outer layers do not log
 an already-classified failure again.
 
-Failure-policy migration is incomplete in the current code: session/track loading,
-video-pane operations and segment comparison still have presentation-owned catches
-or string failure payloads. Their current
-ownership is described in the corresponding subsystem documents.
+`SegmentMatchResult` is `Matched | NoTrack | Cancelled | Failed`;
+`SegmentComparisonPageResult` is `Loaded | Failed`, detail loading returns
+`SegmentComparisonDetailResult.Loaded | Unavailable | Failed`, and analysis returns
+`SegmentAnalysisComparisonResult.Built | Failed`. Failures carry
+`SegmentComparisonFailureReason.Match | Page | Detail | Analysis` with separate
+diagnostics. Coordinators own their first catch; canceled and superseded editor
+requests publish no failure.
+
+`LiveDaqManagementResult` is `TimeSet | ConfigRead | ConfigWritten | ConfigSelected |
+Canceled | Busy | Unavailable | Rejected | Failed`. Rejections retain the device
+code and diagnostic details, failures carry `DaqManagementFailureReason`, and
+presentation maps both to fixed summaries. CONFIG dialogs consume the typed
+outcome directly.
 
 Operations with multiple semantically distinct outcomes return a sealed
 record hierarchy with a private constructor so callers must
