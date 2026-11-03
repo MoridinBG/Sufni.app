@@ -7,14 +7,11 @@ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 xmlns:shared="clr-namespace:Sufni.App.Setups.Views.Shared"
 xmlns:v="clr-namespace:Sufni.App.Shared.Views.Controls"
 xmlns:vm="clr-namespace:Sufni.App.Setups.ViewModels.Editors"
-xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:SetupEditorViewModel"
 Background="{DynamicResource SufniRegion}"
 Focusable="True"
-lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
-lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
 
     <Grid

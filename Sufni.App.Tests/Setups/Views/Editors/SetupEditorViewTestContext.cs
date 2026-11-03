@@ -40,6 +40,8 @@ internal sealed class SetupEditorViewTestContext : IDisposable
         return bike;
     }
 
+    public void UpdateBike(BikeSnapshot bike) => bikeStore.Add(bike);
+
     public SetupEditorViewModel CreateEditor(SetupSnapshot snapshot, bool isNew = false)
     {
         return new SetupEditorViewModel(snapshot, isNew, bikeStore, setupCoordinator, shell, dialogService, new InlineUiThreadDispatcher(), timeProvider: new FakeTimeProvider(), boardId: Guid.NewGuid());
@@ -109,6 +111,7 @@ internal sealed class MountedSetupEditorView<TView>(Window host, TView view, Set
 
     public async ValueTask DisposeAsync()
     {
+        await Editor.PrepareCloseAsync();
         Host.Close();
         await ViewTestHelpers.FlushDispatcherAsync();
     }

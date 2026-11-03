@@ -57,14 +57,13 @@ public class SetupEditorViewModelTests : IDisposable
     }
 
     [Fact]
-    public void Loaded_PopulatesSelectedBike_FromBikeStore()
+    public void Construction_PopulatesSelectedBike_FromBikeStore()
     {
         var bike = TestSnapshots.Bike();
         bikeStore.Add(bike);
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id);
 
         var editor = CreateEditor(snapshot);
-        editor.LoadedCommand.Execute(null);
 
         Assert.Single(editor.Bikes);
         Assert.Equal(bike.Id, editor.SelectedBike?.Id);
@@ -108,7 +107,7 @@ public class SetupEditorViewModelTests : IDisposable
     }
 
     [Fact]
-    public void Loaded_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
+    public void Construction_PreservesCompatibleShockSensorType_WhenRearBikeOptionsPopulate()
     {
         var bike = TestSnapshots.Bike() with
         {
@@ -127,7 +126,6 @@ public class SetupEditorViewModelTests : IDisposable
         };
 
         var editor = CreateEditor(snapshot);
-        editor.LoadedCommand.Execute(null);
 
         Assert.Equal(SensorType.LinearShock, editor.ShockSensorType);
     }
@@ -147,11 +145,10 @@ public class SetupEditorViewModelTests : IDisposable
         bikeStore.Add(leverageRatioBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: linkageBike.Id));
-        editor.LoadedCommand.Execute(null);
 
         Assert.Equal(new SensorType?[] { null, SensorType.LinearShock, SensorType.RotationalShock }, editor.ShockSensorTypes);
 
-        editor.SelectedBike = leverageRatioBike;
+        editor.SelectedBikeId = leverageRatioBike.Id;
 
         Assert.Equal(new SensorType?[] { null, SensorType.LinearShockStroke }, editor.ShockSensorTypes);
     }
@@ -166,7 +163,6 @@ public class SetupEditorViewModelTests : IDisposable
         bikeStore.Add(draftBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: draftBike.Id));
-        editor.LoadedCommand.Execute(null);
 
         Assert.Equal(new SensorType?[] { null }, editor.ShockSensorTypes);
     }
@@ -178,7 +174,6 @@ public class SetupEditorViewModelTests : IDisposable
         bikeStore.Add(hardtailBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: hardtailBike.Id));
-        editor.LoadedCommand.Execute(null);
 
         Assert.Equal("Hardtail", editor.RearSuspensionDescription);
     }
@@ -206,9 +201,8 @@ public class SetupEditorViewModelTests : IDisposable
         };
 
         var editor = CreateEditor(snapshot);
-        editor.LoadedCommand.Execute(null);
 
-        editor.SelectedBike = leverageRatioBike;
+        editor.SelectedBikeId = leverageRatioBike.Id;
 
         Assert.Null(editor.ShockSensorType);
         Assert.Null(editor.ShockSensorConfiguration);
@@ -223,7 +217,6 @@ public class SetupEditorViewModelTests : IDisposable
         bikeStore.Add(leverageRatioBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: leverageRatioBike.Id));
-        editor.LoadedCommand.Execute(null);
 
         editor.ShockSensorType = SensorType.LinearShockStroke;
 
@@ -244,7 +237,6 @@ public class SetupEditorViewModelTests : IDisposable
         bikeStore.Add(linkageBike);
 
         var editor = CreateEditor(TestSnapshots.Setup(bikeId: linkageBike.Id));
-        editor.LoadedCommand.Execute(null);
 
         editor.ShockSensorType = SensorType.RotationalShock;
 
@@ -265,7 +257,6 @@ public class SetupEditorViewModelTests : IDisposable
         var snapshot = TestSnapshots.Setup(bikeId: bike.Id);
 
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         Assert.False(editor.SaveCommand.CanExecute(null));
@@ -282,7 +273,6 @@ public class SetupEditorViewModelTests : IDisposable
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
 
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         Assert.True(editor.SaveCommand.CanExecute(null));
@@ -300,7 +290,6 @@ public class SetupEditorViewModelTests : IDisposable
             with
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
         var sensor = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
         sensor.Length = 150;
@@ -358,7 +347,6 @@ public class SetupEditorViewModelTests : IDisposable
             with
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Setup(id: snapshot.Id, name: "remote-updated", bikeId: bike.Id, updated: 12)
@@ -383,7 +371,6 @@ public class SetupEditorViewModelTests : IDisposable
             with
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         var fresh = TestSnapshots.Setup(id: snapshot.Id, name: "remote-updated", bikeId: bike.Id, updated: 12)
@@ -410,7 +397,6 @@ public class SetupEditorViewModelTests : IDisposable
             with
         { FrontSensorConfigurationJson = LinearForkConfigurationJson };
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         editor.Name = "renamed";
 
         setupCoordinator.SaveAsync(Arg.Any<SetupDraft>(), SetupDraft.From(snapshot, boardId))
@@ -443,7 +429,6 @@ public class SetupEditorViewModelTests : IDisposable
             FrontSensorConfigurationJson = LinearForkConfigurationJson
         };
         var editor = CreateEditor(snapshot, boardId: boardId);
-        editor.LoadedCommand.Execute(null);
         var sensor = Assert.IsType<LinearForkSensorConfigurationViewModel>(editor.ForkSensorConfiguration);
         if (sensorOnly) sensor.Length = 150;
         else editor.Name = "Changed setup";

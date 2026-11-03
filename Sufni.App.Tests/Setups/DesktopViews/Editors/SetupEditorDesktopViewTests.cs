@@ -7,6 +7,8 @@ using Avalonia.LogicalTree;
 using NSubstitute;
 
 using Sufni.App.Bikes.Stores;
+using Sufni.App.Setups.Models.SensorConfigurations;
+using Sufni.Kinematics;
 using Sufni.App.Setups.Views.Shared;
 using Sufni.App.Tests.Setups.Views.Editors;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -15,6 +17,62 @@ namespace Sufni.App.Tests.Setups.DesktopViews.Editors;
 [Collection("Ui")]
 public class SetupEditorDesktopViewTests
 {
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BikeMetadataUpdate_PreservesTheSetupSelection(bool rotationalSensor)
+    {
+        using var context = new SetupEditorViewTestContext();
+        var bike = context.AddBike();
+        var setup = SetupEditorViewTestContext.CreateSetupSnapshot(bike);
+        if (rotationalSensor)
+        {
+            setup = setup with
+            {
+                RearSensorConfigurationJson = SensorConfiguration.ToJson(new RotationalShockSensorConfiguration
+                {
+                    CentralJoint = JointNames.RearWheel,
+                    AdjacentJoint1 = JointNames.BottomBracket,
+                    AdjacentJoint2 = JointNames.ShockEye1,
+                }),
+            };
+        }
+        await using var mounted = await context.MountDesktopAsync(setup);
+        Assert.False(mounted.Editor.IsDirty);
+        var rearSensor = mounted.Editor.ShockSensorConfiguration?.CaptureDraft();
+        var updated = bike with { Name = "Renamed bike", Updated = bike.Updated + 1 };
+
+        context.UpdateBike(updated);
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        var selector = mounted.View.FindFirstVisual<SetupEditorCommonFields>()!.FindControl<ComboBox>("BikeComboBox")!;
+        Assert.Equal(updated, Assert.IsType<BikeSnapshot>(selector.SelectedItem));
+        Assert.Equal(updated, mounted.Editor.SelectedBike);
+        Assert.Equal(rearSensor, mounted.Editor.ShockSensorConfiguration?.CaptureDraft());
+        Assert.False(mounted.Editor.IsDirty);
+    }
+
+    [AvaloniaFact]
+    public async Task ReattachingView_PreservesAnUnsavedBikeSelection()
+    {
+        using var context = new SetupEditorViewTestContext();
+        var original = context.AddBike();
+        var selected = context.AddBike("Chosen bike");
+        await using var mounted = await context.MountDesktopAsync(SetupEditorViewTestContext.CreateSetupSnapshot(original));
+        var selector = mounted.View.FindFirstVisual<SetupEditorCommonFields>()!.FindControl<ComboBox>("BikeComboBox")!;
+        selector.SelectedItem = selected;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        mounted.Host.Content = null;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        mounted.Host.Content = mounted.View;
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        Assert.Equal(selected.Id, Assert.IsType<BikeSnapshot>(selector.SelectedItem).Id);
+        Assert.Equal(selected.Id, mounted.Editor.SelectedBike?.Id);
+        Assert.True(mounted.Editor.IsDirty);
+    }
+
     [AvaloniaFact]
     public async Task SetupEditorDesktopView_NameTextBox_DisplaysBoundValue()
     {

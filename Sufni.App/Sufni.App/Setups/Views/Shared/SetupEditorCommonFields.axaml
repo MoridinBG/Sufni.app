@@ -40,7 +40,8 @@
                 Margin="2"
                 HorizontalAlignment="Stretch"
                 ItemsSource="{Binding Bikes}"
-                SelectedItem="{Binding SelectedBike}">
+                SelectedValue="{Binding SelectedBikeId, Mode=TwoWay}"
+                SelectedValueBinding="{Binding Id, DataType=s:BikeSnapshot}">
 
                 <ComboBox.DataTemplates>
                     <DataTemplate DataType="s:BikeSnapshot">

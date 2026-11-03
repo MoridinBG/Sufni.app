@@ -5,30 +5,23 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using DynamicData.Binding;
 using Sufni.Kinematics;
-using BikeModel = Sufni.App.Bikes.Models.Bike;
 
-using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Infrastructure;
 using Sufni.App.Setups.Coordinators;
-using Sufni.App.Setups.Models;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.Stores;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
-using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Common;
 using Sufni.App.Shell.Coordinators;
-using Sufni.App.Bikes.ViewModels.Editors.BikeEditorParts;
 namespace Sufni.App.Setups.ViewModels.Editors;
 
 /// <summary>
@@ -45,6 +38,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private readonly ISetupCoordinator setupCoordinator;
     private readonly IBikeStore bikeStore;
     private readonly ObservableCollectionExtended<BikeSnapshot> bikesSource = new();
+    private readonly IDisposable bikeSubscription;
     private SetupDraft draftBase;
 
     #endregion Private fields
@@ -59,7 +53,10 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
-    public partial BikeSnapshot? SelectedBike { get; set; }
+    [NotifyPropertyChangedFor(nameof(SelectedBike))]
+    public partial Guid SelectedBikeId { get; set; }
+
+    public BikeSnapshot? SelectedBike => bikeStore.Get(SelectedBikeId);
 
     [ObservableProperty] public partial SensorType? ForkSensorType { get; set; }
     [ObservableProperty] public partial SensorType? ShockSensorType { get; set; }
@@ -84,15 +81,20 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #region Property change handlers
 
-    // RotationalShockSensorConfigurationViewModel needs a list of Joints, so that sensor position
-    // can be defined.
-    partial void OnSelectedBikeChanged(BikeSnapshot? value)
+    partial void OnSelectedBikeIdChanged(Guid value) => UpdateSelectedBike();
+
+    private void UpdateSelectedBike()
     {
+        var value = SelectedBike;
         UpdateShockSensorCapabilities(value);
 
         if (ShockSensorConfiguration is RotationalShockSensorConfigurationViewModel sensorConfiguration)
         {
-            sensorConfiguration.Joints = JointsFromSnapshot(value);
+            var joints = JointsFromSnapshot(value);
+            if (!sensorConfiguration.Joints.SequenceEqual(joints))
+            {
+                sensorConfiguration.Joints = joints;
+            }
         }
     }
 
@@ -157,6 +159,16 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         draftBase = SetupDraft.From(snapshot, boardId);
 
         ResetImplementation();
+        // Choices belong to the editor draft, including while its view is detached.
+        bikeSubscription = bikeStore.Connect()
+            .Bind(bikesSource)
+            .Subscribe(_ =>
+            {
+                // Replaced snapshots can clear the selector while its key stays unchanged.
+                OnPropertyChanged(nameof(SelectedBikeId));
+                OnPropertyChanged(nameof(SelectedBike));
+                UpdateSelectedBike();
+            });
         EvaluateDirtiness();
     }
 
@@ -184,7 +196,11 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     private void UpdateShockSensorCapabilities(BikeSnapshot? bike)
     {
         RearSuspensionDescription = RearSuspensionDescriptionFor(bike);
-        ShockSensorTypes = AllowedShockSensorTypes(bike);
+        var allowedTypes = AllowedShockSensorTypes(bike);
+        if (!ShockSensorTypes.SequenceEqual(allowedTypes))
+        {
+            ShockSensorTypes = allowedTypes;
+        }
 
         if (ShockSensorConfiguration is not null &&
             ShockSensorTypes.Contains(ShockSensorConfiguration.Type))
@@ -221,7 +237,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
 
     #region TabPageViewModelBase overrides
 
-    private SetupDraft CaptureDraft() => new(Id, Name, SelectedBike?.Id ?? Guid.Empty, BoardId,
+    private SetupDraft CaptureDraft() => new(Id, Name, SelectedBikeId, BoardId,
         ForkSensorConfiguration?.CaptureDraft(), ShockSensorConfiguration?.CaptureDraft());
 
     protected override void EvaluateDirtiness() => IsDirty = !IsInDatabase || CaptureDraft() != draftBase;
@@ -278,7 +294,7 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
     {
         Name = draftBase.Name;
         BoardId = draftBase.BoardId;
-        SelectedBike = bikeStore.Get(draftBase.BikeId);
+        SelectedBikeId = draftBase.BikeId;
         ForkSensorConfiguration = SensorConfigurationViewModel.FromDraft(draftBase.FrontSensor);
         ShockSensorConfiguration = SensorConfigurationViewModel.FromDraft(draftBase.RearSensor, JointsFromSnapshot(SelectedBike));
         ForkSensorType = ForkSensorConfiguration?.Type;
@@ -331,25 +347,10 @@ public partial class SetupEditorViewModel : TabPageViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void Loaded()
+    protected override Task CloseImplementation()
     {
-        EnsureScopedSubscription(s => s.Add(
-            bikeStore.Connect()
-                .Bind(bikesSource)
-                .Subscribe()));
-
-        // Re-resolve SelectedBike now the bikesSource is populated.
-        SelectedBike = Bikes.FirstOrDefault(b => b.Id == draftBase.BikeId);
-    }
-
-    [RelayCommand]
-    private void Unloaded()
-    {
-        DisposeScopedSubscriptions();
-
-        // Clear the source so a subsequent Loaded rebuilds from scratch.
-        bikesSource.Clear();
+        bikeSubscription.Dispose();
+        return Task.CompletedTask;
     }
 
     #endregion Commands

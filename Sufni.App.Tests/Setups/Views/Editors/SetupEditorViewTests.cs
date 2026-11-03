@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Setups.Models.SensorConfigurations;
 using Sufni.App.Setups.ViewModels.SensorConfigurations;
 using Sufni.App.Setups.Views.SensorConfigurations;
@@ -12,6 +13,20 @@ namespace Sufni.App.Tests.Setups.Views.Editors;
 [Collection("Ui")]
 public class SetupEditorViewTests
 {
+    [AvaloniaFact]
+    public async Task OpeningSetup_SelectsItsStoredBike()
+    {
+        using var context = new SetupEditorViewTestContext();
+        context.AddBike("Another bike");
+        var bike = context.AddBike("Linked bike");
+        await using var mounted = await context.MountMobileAsync(SetupEditorViewTestContext.CreateSetupSnapshot(bike));
+        var selector = mounted.View.FindFirstVisual<SetupEditorCommonFields>()!.FindControl<ComboBox>("BikeComboBox")!;
+
+        Assert.Equal(bike.Id, Assert.IsType<BikeSnapshot>(selector.SelectedItem).Id);
+        Assert.Equal(bike.Id, mounted.Editor.SelectedBike?.Id);
+        Assert.False(mounted.Editor.IsDirty);
+    }
+
     [AvaloniaFact]
     public async Task SetupEditorView_ChangingForkSensorType_ReplacesRenderedForkSensorView()
     {
