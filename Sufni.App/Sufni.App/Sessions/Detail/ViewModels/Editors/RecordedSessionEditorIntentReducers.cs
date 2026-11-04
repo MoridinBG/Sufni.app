@@ -45,9 +45,4 @@ internal static class RecordedSessionEditorIntentReducers
             _ => null,
         };
     }
-
-    public static bool IsPreferencePersistenceIntent(RecordedSessionEditorIntent intent)
-    {
-        return CreatePreferenceUpdate(intent) is not null;
-    }
 }

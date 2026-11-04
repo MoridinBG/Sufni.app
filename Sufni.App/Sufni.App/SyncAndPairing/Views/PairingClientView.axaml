@@ -12,7 +12,7 @@ xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:PairingClientViewModel"
-Background="{DynamicResource SufniRegion}"
+Background="{DynamicResource SufniSurfacePage}"
 lifecycle:ViewLifecycle.AttachedToVisualTreeCommand="{Binding LoadedCommand}"
 lifecycle:ViewLifecycle.DetachedFromVisualTreeCommand="{Binding UnloadedCommand}"
 mc:Ignorable="d">
@@ -55,7 +55,7 @@ mc:Ignorable="d">
             Margin="0,0,0,25"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            Foreground="{DynamicResource SufniAccentColor}">
+            Foreground="{DynamicResource SufniAccentPrimary}">
                 <progRing:ProgressRing.IsActive>
                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                         <Binding Converter="{x:Static ObjectConverters.IsNull}" Path="ServerUrl" />

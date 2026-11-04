@@ -13,37 +13,37 @@
 
     <StackPanel>
         <StackPanel
-            IsVisible="{Binding ControlState.HasSessionHeader}"
+            IsVisible="{Binding HasSessionHeader}"
             Spacing="{Binding #Root.FieldSpacing}">
             <TextBlock
                 x:Name="LiveSessionIdTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.SessionIdText}" />
+                Text="{Binding SessionIdText}" />
             <TextBlock
                 x:Name="LiveAcceptedTravelRateTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.AcceptedTravelRateText}"
+                Text="{Binding AcceptedTravelRateText}"
                 ToolTip.Tip="The rates the board granted for this recording, which can be lower than requested." />
             <TextBlock
                 x:Name="LiveAcceptedImuRateTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.AcceptedImuRateText}"
+                Text="{Binding AcceptedImuRateText}"
                 ToolTip.Tip="The rates the board granted for this recording, which can be lower than requested." />
             <TextBlock
                 x:Name="LiveAcceptedGpsRateTextBlock"
                 FontSize="{Binding #Root.FieldFontSize}"
                 Opacity="{Binding #Root.FieldOpacity}"
-                Text="{Binding ControlState.AcceptedGpsRateText}"
+                Text="{Binding AcceptedGpsRateText}"
                 ToolTip.Tip="The rates the board granted for this recording, which can be lower than requested." />
         </StackPanel>
 
         <TextBlock
             x:Name="LiveWaitingForHeaderTextBlock"
             FontSize="{Binding #Root.FieldFontSize}"
-            IsVisible="{Binding !ControlState.HasSessionHeader}"
+            IsVisible="{Binding !HasSessionHeader}"
             Opacity="{Binding #Root.WaitingOpacity}"
             Text="Waiting for the accepted live session header." />
     </StackPanel>

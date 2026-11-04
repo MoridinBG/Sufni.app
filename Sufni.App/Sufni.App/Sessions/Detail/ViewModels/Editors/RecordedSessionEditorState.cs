@@ -1,10 +1,7 @@
 using Sufni.App.Shared.Models;
-using Sufni.App.Sessions.Signals.Views.Controls;
 using System.Collections.Generic;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Shared.Common;
-using Sufni.App.Shared.Views.Controls;
-using Sufni.App.Shared.Views.Plots;
 using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
@@ -30,6 +27,11 @@ internal sealed record RecordedSessionEditorState(
     RecordedSessionEditorPresentationState Presentation,
     AnalysisSelectionState AnalysisSelection)
 {
+    public RecordedProcessingDraft? ProcessingDraft { get; init; }
+    public TelemetryProcessingOptions ProcessingOptions => ProcessingDraft is { } draft
+        ? new TelemetryProcessingOptions(draft.WindowMilliseconds)
+        : Session?.ProcessingOptions ?? new TelemetryProcessingOptions();
+
     public static RecordedSessionEditorState CreateInitial()
     {
         var preferences = SessionPreferences.Default;
@@ -50,13 +52,12 @@ internal sealed record RecordedSessionEditorState(
             Presentation: new RecordedSessionEditorPresentationState(
                 MapState: SurfacePresentationState.Hidden,
                 SignalAvailability: RecordedSessionPresentationDeriver.CreateHiddenSignalAvailabilityState(),
-                Signals: RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState(),
+                Signals: RecordedSessionPresentationDeriver.CreateHiddenSignalPresentationState() with { ShowAirtime = true },
                 Analysis: RecordedSessionPresentationDeriver.CreateHiddenAnalysisPresentationState(),
                 DampingPercentages: SessionDampingPercentages.Empty,
                 PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
                 CanEditDampingSpeedCutoffs: false,
                 SessionInsights: SessionInsightsResult.Hidden,
-                SignalPlotContextMenuActionsBySignalRowId: new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>(),
                 ScreenState: SessionScreenPresentationState.Ready,
                 OperationState: SessionOperationPresentationState.Hidden),
             AnalysisSelection: new AnalysisSelectionState(
@@ -112,7 +113,6 @@ internal sealed record RecordedSessionEditorPresentationState(
     DampingSpeedCutoffs PlotDampingSpeedCutoffs,
     bool CanEditDampingSpeedCutoffs,
     SessionInsightsResult SessionInsights,
-    IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> SignalPlotContextMenuActionsBySignalRowId,
     SessionScreenPresentationState ScreenState,
     SessionOperationPresentationState OperationState);
 
@@ -142,13 +142,7 @@ internal sealed record RecordedSignalPresentationState(
     bool ShowImuAnalysisSelection,
     bool ShowPitchRollAnalysisSelection,
     bool ShowSpeedAnalysisSelection,
-    bool ShowElevationAnalysisSelection,
-    IReadOnlyList<SignalRowAction> TravelHeaderActions,
-    IReadOnlyList<SignalRowAction> VelocityHeaderActions,
-    IReadOnlyList<SignalRowAction> ImuHeaderActions,
-    IReadOnlyList<SignalRowAction> PitchRollHeaderActions,
-    IReadOnlyList<SignalRowAction> SpeedHeaderActions,
-    IReadOnlyList<SignalRowAction> ElevationHeaderActions);
+    bool ShowElevationAnalysisSelection);
 
 internal sealed record RecordedAnalysisPresentationState(
     SurfacePresentationState FrontAnalysis,
@@ -158,9 +152,17 @@ internal sealed record RecordedAnalysisPresentationState(
     SurfacePresentationState FrontForkVibration,
     SurfacePresentationState FrontFrameVibration,
     SurfacePresentationState RearForkVibration,
-    SurfacePresentationState RearFrameVibration);
+    SurfacePresentationState RearFrameVibration)
+{
+    public bool FullSessionBalanceAvailable { get; init; }
+}
 
 internal sealed record AnalysisSelectionState(
     TelemetryRangeSelection? ActiveFront,
     TelemetryRangeSelection? ActiveRear,
     IReadOnlyList<TelemetryHighlightRange> HighlightRanges);
+
+internal sealed record RecordedProcessingDraft(int WindowMilliseconds)
+{
+    public bool IsSubmitted { get; init; }
+}

@@ -11,13 +11,13 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:PairedDeviceListViewModel"
-    Background="{DynamicResource SufniRegion}"
+    Background="{DynamicResource SufniSurfacePage}"
     lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
     lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
     mc:Ignorable="d">
 
     <Grid
-        Background="{DynamicResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniSurfaceInputDisabled}"
         ColumnDefinitions="*"
         RowDefinitions="40 * auto auto">
 

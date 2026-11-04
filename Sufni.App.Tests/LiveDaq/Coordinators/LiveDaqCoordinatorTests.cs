@@ -232,8 +232,7 @@ public partial class LiveDaqCoordinatorTests
             BikeId: Guid.NewGuid(),
             BikeName: "bike",
             BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
-            TravelCalibration: new LiveDaqTravelCalibration(null, null),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default);
+            TravelCalibration: new LiveDaqTravelCalibration(null, null));
     }
 
     private void RecordObservedState(IChangeSet<LiveDaqSnapshot, string> changes)

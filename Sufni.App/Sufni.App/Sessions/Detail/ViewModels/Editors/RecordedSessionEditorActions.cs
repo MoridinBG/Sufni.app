@@ -5,11 +5,16 @@ using Sufni.App.Bikes.Models;
 using Sufni.Telemetry;
 using Sufni.App.Infrastructure;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Store;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal abstract record RecordedSessionEditorIntent
 {
+    public sealed record PreviewProcessingOption(int WindowMilliseconds) : RecordedSessionEditorIntent;
+    public sealed record CommitProcessingOption : RecordedSessionEditorIntent;
+    public sealed record CompleteProcessingOption(RecordedProcessingDraft Draft, SessionSnapshot Session) : RecordedSessionEditorIntent;
+
     public sealed record SelectPageIndex(int PageIndex) : RecordedSessionEditorIntent;
 
     public sealed record SetAnalysisRange(TelemetryTimeRange? Range) : RecordedSessionEditorIntent;
@@ -56,6 +61,14 @@ internal sealed class RecordedSessionEditorActions : IDisposable
     private bool disposed;
 
     public IObservable<RecordedSessionEditorIntent> Intents => intents.AsObservable();
+
+    public void PreviewProcessingOption(int windowMilliseconds) =>
+        Emit(new RecordedSessionEditorIntent.PreviewProcessingOption(windowMilliseconds));
+
+    public void CommitProcessingOption() => Emit(new RecordedSessionEditorIntent.CommitProcessingOption());
+
+    public void CompleteProcessingOption(RecordedProcessingDraft draft, SessionSnapshot session) =>
+        Emit(new RecordedSessionEditorIntent.CompleteProcessingOption(draft, session));
 
     public void SelectPageIndex(int pageIndex) =>
         Emit(new RecordedSessionEditorIntent.SelectPageIndex(Math.Max(0, pageIndex)));

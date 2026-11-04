@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ public partial class LiveDaqCoordinator
 {
     public async Task<LiveSessionSaveResult> SaveCaptureAsync(
         SessionSnapshot draft,
-        ILiveSessionService captureService,
+        ILiveCaptureCoordinator captureCoordinator,
         SessionPreferences preferences,
         CancellationToken cancellationToken = default)
     {
@@ -31,7 +32,7 @@ public partial class LiveDaqCoordinator
         {
             return await backgroundTaskRunner.RunAsync<LiveSessionSaveResult>(async () =>
             {
-                var capture = await captureService.PrepareCaptureForSaveAsync(cancellationToken);
+                var capture = await captureCoordinator.PrepareForSaveAsync(cancellationToken);
                 var source = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture);
                 var setup = await setupRepository.GetAsync(capture.Context.SetupId)
                             ?? throw new InvalidOperationException("Setup is missing.");
@@ -90,7 +91,7 @@ public partial class LiveDaqCoordinator
                 }
 
                 string? cleanupFailure = null;
-                try { await captureService.ResetCaptureAsync(); }
+                try { await captureCoordinator.ResetAsync(); }
                 catch (Exception e)
                 {
                     cleanupFailure = e.Message;

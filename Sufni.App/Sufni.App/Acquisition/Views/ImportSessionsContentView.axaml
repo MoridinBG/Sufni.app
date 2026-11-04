@@ -21,17 +21,17 @@ mc:Ignorable="d">
 
     <UserControl.Styles>
         <Style Selector="Expander.importactionrow">
-            <Setter Property="Background" Value="{DynamicResource SufniRegion}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SufniSurfacePage}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
             <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="Expander.importactionrow /template/ ToggleButton">
-            <Setter Property="Background" Value="{DynamicResource SufniRegion}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SufniSurfacePage}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
         </Style>
         <Style Selector="Expander.importactionrow:pointerover /template/ ToggleButton">
-            <Setter Property="Background" Value="{DynamicResource SufniRegion}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SufniSurfacePage}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
         </Style>
         <Style Selector="Expander.importactionrow.import">
             <Setter Property="Background" Value="Transparent" />
@@ -41,11 +41,11 @@ mc:Ignorable="d">
         </Style>
         <Style Selector="Expander.importactionrow.import /template/ ToggleButton">
             <Setter Property="Background" Value="{DynamicResource SufniImportActionImportRowBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
         </Style>
         <Style Selector="Expander.importactionrow.import:pointerover /template/ ToggleButton">
             <Setter Property="Background" Value="{DynamicResource SufniImportActionImportRowBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
         </Style>
         <Style Selector="Grid.importactionrowheader.import">
             <Setter Property="Background" Value="Transparent" />
@@ -58,11 +58,11 @@ mc:Ignorable="d">
         </Style>
         <Style Selector="Expander.importactionrow.trash /template/ ToggleButton">
             <Setter Property="Background" Value="{DynamicResource SufniImportActionTrashRowBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
         </Style>
         <Style Selector="Expander.importactionrow.trash:pointerover /template/ ToggleButton">
             <Setter Property="Background" Value="{DynamicResource SufniImportActionTrashRowBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SufniBorderBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SufniLineInput}" />
         </Style>
         <Style Selector="Grid.importactionrowheader.trash">
             <Setter Property="Background" Value="Transparent" />
@@ -138,7 +138,7 @@ mc:Ignorable="d">
         Width="39"
         Height="39"
         HorizontalContentAlignment="Center"
-        BorderBrush="{DynamicResource SufniBorderBrush}"
+        BorderBrush="{DynamicResource SufniLineInput}"
         Command="{Binding OpenDataStoreCommand}"
         Content="..." />
 
@@ -362,9 +362,9 @@ mc:Ignorable="d">
         Grid.Column="0"
         Grid.ColumnSpan="3"
         BusyMessageFontWeight="Bold"
-        IndicatorForeground="{DynamicResource SufniAccentColor}"
+        IndicatorForeground="{DynamicResource SufniAccentPrimary}"
         Message="{Binding ImportProgressText}"
-        MessageForeground="{DynamicResource SufniAccentColor}"
+        MessageForeground="{DynamicResource SufniAccentPrimary}"
         MessageMargin="0,60,0,0"
         SecondaryMessage="Fetching sessions list">
             <overlays:BusyOverlay.IsActive>

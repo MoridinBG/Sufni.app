@@ -9,7 +9,7 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vm:SessionDetailViewModel"
-    Background="{DynamicResource SufniRegion}"
+    Background="{DynamicResource SufniSurfacePage}"
     Focusable="True"
     mc:Ignorable="d">
 

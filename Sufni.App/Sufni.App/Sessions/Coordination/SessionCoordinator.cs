@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Sufni.App.Sessions.Services.Preferences;
 using System;
 using System.Linq;
@@ -29,6 +30,22 @@ namespace Sufni.App.Sessions.Coordination;
 internal sealed class SessionCoordinator : ISessionCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionCoordinator>();
+    private readonly object activeTasksGate = new();
+    private readonly HashSet<Task> activeTasks = [];
+
+    public async Task StopAsync()
+    {
+        Task[] tasks;
+        lock (activeTasksGate) tasks = activeTasks.ToArray();
+        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
+    private async Task ReleaseAsync(Task task)
+    {
+        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        lock (activeTasksGate) activeTasks.Remove(task);
+    }
+
 
     private readonly IUiThreadDispatcher dispatcher;
     private readonly ISessionProcessedTelemetryReader processedTelemetryReader;
@@ -171,7 +188,18 @@ internal sealed class SessionCoordinator : ISessionCoordinator
         }
     }
 
-    public async Task<GpsOffsetResult> ShiftGpsOffsetAsync(
+    public Task<GpsOffsetResult> ShiftGpsOffsetAsync(Guid sessionId, double deltaSeconds, CancellationToken cancellationToken = default)
+    {
+        lock (activeTasksGate)
+        {
+            var task = ShiftGpsOffsetCoreAsync(sessionId, deltaSeconds, cancellationToken);
+            activeTasks.Add(task);
+            _ = ReleaseAsync(task);
+            return task;
+        }
+    }
+
+    private async Task<GpsOffsetResult> ShiftGpsOffsetCoreAsync(
         Guid sessionId,
         double deltaSeconds,
         CancellationToken cancellationToken = default)

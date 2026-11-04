@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Plots;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Plots;
@@ -32,7 +33,7 @@ namespace Sufni.App.Tests.LiveDaq.Views.Plots;
 public class LiveSignalPlotViewTests
 {
     [AvaloniaFact]
-    public async Task AnalysisOnlyBatch_DoesNotClearVisibleLiveSamples()
+    public async Task SignalBatches_ClearVisibleSamplesOnlyOnExplicitReset()
     {
         ViewTestHelpers.EnsurePlotViewStyle();
         using var batches = new Subject<LiveSignalBatch>();
@@ -47,14 +48,11 @@ public class LiveSignalPlotViewTests
         var plot = GetRenderedPlot(travel);
         AssertTravelSamples(plot, [10, 11, 12]);
 
-        var analysis = LiveSessionAnalysis.Compute(1,
-            LiveAnalysisOptions.Default(Sufni.App.Bikes.Models.DampingSpeedCutoffs.Default),
-            TestTelemetryData.CreateProcessed(), Sufni.App.Sessions.Models.SessionDampingPercentages.Empty, true, true);
-        batches.OnNext(LiveSignalBatch.Empty with { Revision = 2, Analysis = analysis });
+        batches.OnNext(LiveSignalBatch.Empty with { Revision = 2 });
         await FlushSignalBatchesAsync(travel);
         AssertTravelSamples(plot, [10, 11, 12]);
 
-        batches.OnNext(LiveSignalBatch.Empty with { Revision = 3 });
+        batches.OnNext(LiveSignalBatch.Empty with { Revision = 3, Kind = LiveSignalBatchKind.Reset });
         await FlushSignalBatchesAsync(travel);
         AssertTravelSamples(plot, []);
     }

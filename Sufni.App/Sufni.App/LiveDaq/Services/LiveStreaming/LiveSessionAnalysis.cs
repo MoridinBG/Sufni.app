@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Models;
-using Sufni.App.Sessions.Presentation;
-using Sufni.App.Shared.Common;
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.Telemetry;
 
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
@@ -23,20 +22,19 @@ public sealed record LiveAnalysisOptions(
 }
 
 public sealed record LiveSessionAnalysis(
-    long Revision,
-    LiveAnalysisOptions Options,
+    LiveAnalysisKey Key,
+    TelemetryData Telemetry,
     RecordedSessionAnalysisInputs Inputs,
     SessionDampingPercentages DampingPercentages,
-    FrozenDictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> Results,
-    SurfacePresentationState FrontState,
-    SurfacePresentationState RearState,
-    SurfacePresentationState CompressionState,
-    SurfacePresentationState ReboundState)
+    FrozenDictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult> Results)
 {
-    internal static LiveSessionAnalysis Compute(long revision, LiveAnalysisOptions options,
-        TelemetryData telemetry, SessionDampingPercentages percentages, bool frontExpected, bool rearExpected)
+    public LiveAnalysisOptions Options => Key.Options;
+
+    internal static LiveSessionAnalysis Compute(LiveAnalysisKey key,
+        TelemetryData telemetry, SessionDampingPercentages percentages)
     {
-        var inputs = new RecordedSessionAnalysisInputs(revision, null, options.TravelMode, options.VelocityMode,
+        var options = key.Options;
+        var inputs = new RecordedSessionAnalysisInputs(key.CaptureRevision, null, options.TravelMode, options.VelocityMode,
             options.BalanceDisplacementMode, options.BalanceSpeedMode, options.DampingCutoffs, options.PlotDampingCutoffs,
             SessionInsightsTargetProfile.Trail);
         var results = new Dictionary<RecordedSessionAnalysisKey, RecordedSessionAnalysisResult>();
@@ -54,24 +52,12 @@ public sealed record LiveSessionAnalysis(
         }
         Add(inputs.CreateKey(RecordedSessionAnalysisFamily.Balance, balanceType: BalanceType.Compression));
         Add(inputs.CreateKey(RecordedSessionAnalysisFamily.Balance, balanceType: BalanceType.Rebound));
-        return new LiveSessionAnalysis(revision, options, inputs, percentages, results.ToFrozenDictionary(),
-            AnalysisSurfaceState.ForSuspension(frontExpected, telemetry, SuspensionType.Front),
-            AnalysisSurfaceState.ForSuspension(rearExpected, telemetry, SuspensionType.Rear),
-            AnalysisSurfaceState.ForBalance(frontExpected && rearExpected, telemetry, BalanceType.Compression),
-            AnalysisSurfaceState.ForBalance(frontExpected && rearExpected, telemetry, BalanceType.Rebound));
+        return new LiveSessionAnalysis(key, telemetry, inputs, percentages, results.ToFrozenDictionary());
 
         void Add(RecordedSessionAnalysisKey key) => results.Add(key, RecordedSessionAnalysisComputer.ComputePlot(key, telemetry));
     }
 }
 
-public enum LiveAnalysisFailureReason { Calculation, Rendering }
+public enum LiveAnalysisFailureReason { Calculation }
 
-public sealed record LiveAnalysisFailure(LiveAnalysisFailureReason Reason, string Details)
-{
-    public string Message => Reason switch
-    {
-        LiveAnalysisFailureReason.Calculation => "Live analysis could not be calculated. Capture continues; new samples will retry analysis.",
-        LiveAnalysisFailureReason.Rendering => "Live analysis could not be rendered. Capture continues.",
-        _ => throw new System.ArgumentOutOfRangeException(nameof(Reason))
-    };
-}
+public sealed record LiveAnalysisFailure(LiveAnalysisFailureReason Reason, string Details);

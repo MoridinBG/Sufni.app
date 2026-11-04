@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using System.Collections.Immutable;
 using Sufni.App.Acquisition.Services.Management;
 using Sufni.App.Sessions.Models;
@@ -12,7 +13,7 @@ namespace Sufni.App.LiveDaq.Coordinators;
 
 public interface ILiveDaqCoordinator
 {
-    Task<LiveSessionSaveResult> SaveCaptureAsync(SessionSnapshot draft, ILiveSessionService captureService,
+    Task<LiveSessionSaveResult> SaveCaptureAsync(SessionSnapshot draft, ILiveCaptureCoordinator captureCoordinator,
         SessionPreferences preferences, CancellationToken cancellationToken = default);
 
     IObservable<LiveDaqManagementAvailability> ObserveManagementAvailability(string identityKey);

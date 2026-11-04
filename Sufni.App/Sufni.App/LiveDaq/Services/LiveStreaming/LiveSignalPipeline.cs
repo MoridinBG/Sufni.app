@@ -33,6 +33,8 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
     private CancellationTokenSource? flushCts;
     private Task? flushLoopTask;
     private long signalRevision;
+    private long epoch;
+    private long? pendingResetRevision;
     private bool isStarted;
     private bool isDisposed;
 
@@ -61,7 +63,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         }
     }
 
-    public void AppendTravelSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> frontTravel, ReadOnlySpan<double> rearTravel)
+    public void AppendTravelSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> frontTravel, ReadOnlySpan<double> rearTravel)
     {
         if (times.Length == 0)
         {
@@ -70,7 +72,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
         lock (gate)
         {
-            if (isDisposed)
+            if (isDisposed || epoch != this.epoch)
             {
                 return;
             }
@@ -89,7 +91,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         }
     }
 
-    public void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> vibrationRms)
+    public void AppendImuSamples(long epoch, LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> vibrationRms)
     {
         if (times.Length == 0)
         {
@@ -98,7 +100,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
         lock (gate)
         {
-            if (isDisposed)
+            if (isDisposed || epoch != this.epoch)
             {
                 return;
             }
@@ -123,7 +125,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         }
     }
 
-    public void AppendFramePitchRollSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
+    public void AppendFramePitchRollSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees)
     {
         if (times.Length == 0)
         {
@@ -138,7 +140,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
         lock (gate)
         {
-            if (isDisposed)
+            if (isDisposed || epoch != this.epoch)
             {
                 return;
             }
@@ -152,33 +154,18 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         }
     }
 
-    public void SetAnalysis(LiveSessionAnalysis analysis)
+    public void BeginEpoch(long epoch)
     {
         lock (gate)
         {
-            if (!isDisposed) pendingSignalBatch.Analysis = analysis;
-        }
-    }
-
-    public void Reset()
-    {
-        long resetRevision;
-        lock (gate)
-        {
-            if (isDisposed)
-            {
-                return;
-            }
-
-            pendingSignalBatch.Clear();
+            if (isDisposed) return;
+            this.epoch = epoch;
+            pendingSignalBatch = new PendingSignalBatch();
             recentTravelTimes.Clear();
             recentFrontTravel.Clear();
             recentRearTravel.Clear();
-            signalRevision++;
-            resetRevision = signalRevision;
+            pendingResetRevision = ++signalRevision;
         }
-
-        signalBatchesSubject.OnNext(LiveSignalBatch.Empty with { Revision = resetRevision });
     }
 
     public async ValueTask DisposeAsync()
@@ -260,17 +247,17 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         double[]? velocityRearSnap = null;
         int batchCount;
         long batchRevision;
-        LiveSessionAnalysis? analysis;
+        long? resetRevision;
+        bool hasContent;
 
         lock (gate)
         {
-            if (!pendingSignalBatch.HasContent)
-            {
-                return;
-            }
+            hasContent = pendingSignalBatch.HasContent;
+            if (!hasContent && pendingResetRevision is null) return;
+            resetRevision = pendingResetRevision;
+            pendingResetRevision = null;
 
             var batchToFlush = pendingSignalBatch;
-            analysis = batchToFlush.Analysis;
             pendingSignalBatch = new PendingSignalBatch();
 
             batchCount = batchToFlush.TravelTimes.Count;
@@ -305,6 +292,10 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             batchRevision = signalRevision;
         }
 
+        if (resetRevision is { } reset)
+            signalBatchesSubject.OnNext(LiveSignalBatch.Empty with { Revision = reset, Kind = LiveSignalBatchKind.Reset });
+        if (!hasContent) return;
+
         double[] frontVelocity;
         double[] rearVelocity;
         if (batchCount > 0)
@@ -330,7 +321,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             ImuVibrationRms: imuVibrationRmsDict,
             FramePitchRollTimes: framePitchRollTimesArr,
             FramePitchDegrees: framePitchArr,
-            FrameRollDegrees: frameRollArr) { Analysis = analysis };
+            FrameRollDegrees: frameRollArr);
 
         signalBatchesSubject.OnNext(batch);
     }
@@ -444,7 +435,6 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
 
     private sealed class PendingSignalBatch
     {
-        public LiveSessionAnalysis? Analysis { get; set; }
         public List<double> TravelTimes { get; } = new();
         public List<double> FrontTravel { get; } = new();
         public List<double> RearTravel { get; } = new();
@@ -458,7 +448,7 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
         {
             get
             {
-                if (Analysis is not null || TravelTimes.Count > 0)
+                if (TravelTimes.Count > 0)
                 {
                     return true;
                 }
@@ -485,25 +475,5 @@ internal sealed class LiveSignalPipeline : ILiveSignalPipeline
             }
         }
 
-        public void Clear()
-        {
-            Analysis = null;
-            TravelTimes.Clear();
-            FrontTravel.Clear();
-            RearTravel.Clear();
-            foreach (var entry in ImuTimes)
-            {
-                entry.Value.Clear();
-            }
-
-            foreach (var entry in ImuVibrationRms)
-            {
-                entry.Value.Clear();
-            }
-
-            FramePitchRollTimes.Clear();
-            FramePitchDegrees.Clear();
-            FrameRollDegrees.Clear();
-        }
     }
 }

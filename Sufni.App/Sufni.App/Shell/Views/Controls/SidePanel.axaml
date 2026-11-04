@@ -15,7 +15,7 @@ mc:Ignorable="d">
     <UserControl.Styles>
         <Style Selector="MenuItem">
             <Setter Property="Margin" Value="5,10,0,10" />
-            <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
             <Setter Property="Height" Value="30" />
         </Style>
         <Style Selector="MenuItem:pointerover /template/ ContentPresenter">

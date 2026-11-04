@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shell.Services.Preferences;
 using Sufni.App.Shared.Views.Dialogs;
@@ -235,7 +236,7 @@ public static class AppComposition
         services.AddSingleton<ILiveDaqClientFactory, LiveDaqClientFactory>();
         services.AddSingleton<ILiveDaqSharedStreamRegistry, LiveDaqSharedStreamRegistry>();
         services.AddSingleton<LiveSignalPipelineFactory>();
-        services.AddSingleton<ILiveSessionServiceFactory, LiveSessionServiceFactory>();
+        services.AddSingleton<ILiveCaptureCoordinatorFactory, LiveCaptureCoordinatorFactory>();
         services.AddSingleton<LiveDaqCoordinator>();
         services.AddSingleton<ILiveDaqCoordinator>(sp => sp.GetRequiredService<LiveDaqCoordinator>());
         services.AddSingleton<CustomTileLayerStore>();

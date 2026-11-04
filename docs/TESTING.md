@@ -10,9 +10,9 @@ For Avalonia headless view tests and view-specific testing guidance, see [VIEW-T
 ## Core Standard
 
 - A test targets one unit under test.
-- A unit test exercises that unit through its public interface.
-- Assertions should be about externally visible behavior: returned results, public state, public commands, published notifications, and observable side effects on collaborators.
-- Do not target private helpers, internal sequencing, or implementation details directly. They can still inform which public-interface cases should be covered.
+- A unit is a public or internal type with its own contract. Test it through the members the test assembly can reach.
+- Assertions should be about observable behavior: returned results, accessible state and commands, published notifications, and observable side effects on collaborators.
+- Do not target private members, test-only hooks, internal sequencing, or implementation details directly. They can still inform which contract cases should be covered.
 - Keep one primary reason for failure per test.
 
 In this repository, that means the SUT is usually one view model, one coordinator, one service, one view, or one utility with real logic.
@@ -227,11 +227,11 @@ Poor candidates:
 
 ## Choosing What To Test
 
-Prioritize meaningful public behavior, rather than test counts or coverage totals.
+Prioritize meaningful contract behavior, rather than test counts or coverage totals.
 Remove plumbing, property inventories, duplicated owner coverage and tests of
-internal helpers. An internal implementation of a public interface can be tested
-through that interface's contract; friend-assembly access does not make an
-internal-only interface or test-only hook a public boundary.
+private helpers. An internal type with its own contract is a valid unit; moving
+code into a new internal type does not by itself justify a new test class. Do not
+repeat a contract that the composing unit already tests, or expose test-only hooks.
 
 Prioritize coverage for:
 
@@ -338,7 +338,7 @@ When changing production code:
 
 Before finishing a change, ask:
 
-- Did I test one unit through its public interface?
+- Did I test one unit through its accessible interface?
 - Did I choose the unit that owns the behavior?
 - Is the same behavior already covered in that unit or a smaller child unit?
 - Did I cover the expected case and a plausible unexpected case where that adds value?

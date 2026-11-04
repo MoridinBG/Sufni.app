@@ -10,15 +10,16 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vm:LiveSessionDetailViewModel"
-    Background="{DynamicResource SufniRegion}"
+    Background="{DynamicResource SufniSurfacePage}"
     Focusable="True"
     mc:Ignorable="d">
 
     <v:SessionShellMobileView
-        LoadedCommand="{Binding LoadedCommand}"
-        UnloadedCommand="{Binding UnloadedCommand}">
+        DataContext="{Binding ShellMobileWorkspace}"
+        LoadedCommand="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).LoadedCommand}"
+        UnloadedCommand="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).UnloadedCommand}">
         <v:SessionShellMobileView.ControlContent>
-            <editors:LiveSessionControlsMobileView DataContext="{Binding}" />
+            <editors:LiveSessionControlsMobileView DataContext="{Binding $parent[v:SessionShellMobileView].((vm:LiveSessionShellMobileWorkspaceViewModel)DataContext).Editor}" />
         </v:SessionShellMobileView.ControlContent>
     </v:SessionShellMobileView>
 </UserControl>

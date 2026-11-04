@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
@@ -41,8 +42,8 @@ public partial class LiveDaqCoordinatorTests
     [Fact]
     public async Task SaveCaptureAsync_PreparationFailureRetainsCaptureWithoutPersistence()
     {
-        var service = Substitute.For<ILiveSessionService>();
-        service.PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>())
+        var service = Substitute.For<ILiveCaptureCoordinator>();
+        service.PrepareForSaveAsync(Arg.Any<CancellationToken>())
             .ThrowsAsync(new IOException("capture diagnostic"));
         var draft = SessionSnapshot.From(new Session(Guid.NewGuid(), "ride", "", null));
 
@@ -52,7 +53,7 @@ public partial class LiveDaqCoordinatorTests
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
         await sessionRepository.DidNotReceive().ImportProcessedSessionAsync(
             Arg.Any<Session>(), Arg.Any<Track?>(), Arg.Any<RecordedSessionSource>());
-        await service.DidNotReceive().ResetCaptureAsync(Arg.Any<CancellationToken>());
+        await service.DidNotReceive().ResetAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -60,7 +61,7 @@ public partial class LiveDaqCoordinatorTests
     {
         var capture = CreateLiveCapturePackage(false);
         SeedLiveCaptureDependencies(capture);
-        var service = CreateCaptureService(capture);
+        var service = CreateCaptureCoordinator(capture);
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         using var sessions = new SessionStore(publication);
         sessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
@@ -73,7 +74,7 @@ public partial class LiveDaqCoordinatorTests
         Assert.Equal("preference diagnostic", saved.PreferenceWarning);
         Assert.NotNull(sessions.Get(saved.SessionId));
         Assert.NotNull(await repository.Repository.GetSessionAsync(saved.SessionId));
-        await service.Received(1).ResetCaptureAsync(Arg.Any<CancellationToken>());
+        await service.Received(1).ResetAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -81,10 +82,10 @@ public partial class LiveDaqCoordinatorTests
     {
         var capture = CreateLiveCapturePackage(false) with { CaptureRevision = 17 };
         SeedLiveCaptureDependencies(capture);
-        var service = CreateCaptureService(capture);
+        var service = CreateCaptureCoordinator(capture);
         var resetStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reset = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        service.ResetCaptureAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        service.ResetAsync(Arg.Any<CancellationToken>()).Returns(_ =>
         {
             resetStarted.SetResult();
             return reset.Task;
@@ -121,10 +122,10 @@ public partial class LiveDaqCoordinatorTests
     private readonly IBackgroundTaskRunner backgroundTaskRunner = new InlineBackgroundTaskRunner();
     private readonly ISessionPreferences sessionPreferences = Substitute.For<ISessionPreferences>();
 
-    private static ILiveSessionService CreateCaptureService(LiveSessionCapturePackage capture)
+    private static ILiveCaptureCoordinator CreateCaptureCoordinator(LiveSessionCapturePackage capture)
     {
-        var service = Substitute.For<ILiveSessionService>();
-        service.PrepareCaptureForSaveAsync(Arg.Any<CancellationToken>()).Returns(capture);
+        var service = Substitute.For<ILiveCaptureCoordinator>();
+        service.PrepareForSaveAsync(Arg.Any<CancellationToken>()).Returns(capture);
         return service;
     }
 
@@ -139,7 +140,7 @@ public partial class LiveDaqCoordinatorTests
         var repository = new InMemorySessionRepository(new FakeTimeProvider());
         var session = new Session(Guid.NewGuid(), "capture", "", capture.Context.SetupId);
 
-        var result = await CreateCoordinator(store, repository.Repository).SaveCaptureAsync(SessionSnapshot.From(session), CreateCaptureService(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator(store, repository.Repository).SaveCaptureAsync(SessionSnapshot.From(session), CreateCaptureCoordinator(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         Assert.Equal(SessionProcessingFailureReason.NoTravelData, Assert.IsType<LiveSessionSaveResult.ProcessingFailed>(result).Reason);
         Assert.Empty(await repository.Repository.GetSessionsAsync());
@@ -156,7 +157,7 @@ public partial class LiveDaqCoordinatorTests
         using var store = new SessionStore(publication);
         var session = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, timestamp);
 
-        var result = await CreateCoordinator(store, repository.Repository).SaveCaptureAsync(SessionSnapshot.From(session), CreateCaptureService(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator(store, repository.Repository).SaveCaptureAsync(SessionSnapshot.From(session), CreateCaptureCoordinator(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
         var persisted = (await repository.Repository.GetSessionAsync(saved.SessionId))!;
@@ -188,7 +189,7 @@ public partial class LiveDaqCoordinatorTests
         using var subscription = publication.Committed.Subscribe(_ => observed.Add((sessions.Get(id), sources.Get(id),
             tracks.GetAll().SingleOrDefault())));
 
-        var result = await coordinator.SaveCaptureAsync(SessionSnapshot.From(new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId)), CreateCaptureService(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
+        var result = await coordinator.SaveCaptureAsync(SessionSnapshot.From(new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId)), CreateCaptureCoordinator(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         Assert.IsType<LiveSessionSaveResult.Saved>(result);
         var committed = Assert.Single(observed);
@@ -208,11 +209,11 @@ public partial class LiveDaqCoordinatorTests
         using var sources = new RecordedSessionSourceStore(publication);
         var coordinator = CreateCoordinator(store, repository.Repository, sources);
         var original = new Session(Guid.NewGuid(), "original", "notes", capture.Context.SetupId);
-        var saved = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveCaptureAsync(SessionSnapshot.From(original), CreateCaptureService(capture), SessionPreferences.Default));
+        var saved = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveCaptureAsync(SessionSnapshot.From(original), CreateCaptureCoordinator(capture), SessionPreferences.Default));
         var before = store.Get(saved.SessionId);
         capture = capture with { TelemetryCapture = capture.TelemetryCapture with { Metadata = capture.TelemetryCapture.Metadata with { SourceName = "renamed setup" } } };
 
-        var repeated = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveCaptureAsync(SessionSnapshot.From(new Session(Guid.NewGuid(), "replacement", "other notes", capture.Context.SetupId)), CreateCaptureService(capture), SessionPreferences.Default));
+        var repeated = Assert.IsType<LiveSessionSaveResult.Saved>(await coordinator.SaveCaptureAsync(SessionSnapshot.From(new Session(Guid.NewGuid(), "replacement", "other notes", capture.Context.SetupId)), CreateCaptureCoordinator(capture), SessionPreferences.Default));
 
         Assert.Equal(saved.SessionId, repeated.SessionId);
         Assert.Equal(before, store.Get(repeated.SessionId));
@@ -231,7 +232,7 @@ public partial class LiveDaqCoordinatorTests
         var expectedSource = RecordedSessionSourceFactory.CreateLiveCapture(capture.TelemetryCapture);
         var draft = new Session(Guid.NewGuid(), "live session", "notes", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
 
-        var result = await CreateCoordinator(sessions, repository.Repository, sources).SaveCaptureAsync(SessionSnapshot.From(draft), CreateCaptureService(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator(sessions, repository.Repository, sources).SaveCaptureAsync(SessionSnapshot.From(draft), CreateCaptureCoordinator(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
         Assert.Equal(expectedSource.SessionId, saved.SessionId);
@@ -265,7 +266,7 @@ public partial class LiveDaqCoordinatorTests
             sourcePublicationFails ? sourceStore : sources);
         var draft = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
 
-        var result = await coordinator.SaveCaptureAsync(SessionSnapshot.From(draft), CreateCaptureService(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
+        var result = await coordinator.SaveCaptureAsync(SessionSnapshot.From(draft), CreateCaptureCoordinator(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         var saved = Assert.IsType<LiveSessionSaveResult.Saved>(result);
         Assert.NotNull(saved.PublicationWarning);
@@ -283,7 +284,7 @@ public partial class LiveDaqCoordinatorTests
         using var sources = new RecordedSessionSourceStore(publication);
         var draft = new Session(Guid.NewGuid(), "ride", "notes", capture.Context.SetupId, capture.TelemetryCapture.Metadata.Timestamp);
 
-        var result = await CreateCoordinator(sessions, repository.Repository, sources).SaveCaptureAsync(SessionSnapshot.From(draft), CreateCaptureService(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
+        var result = await CreateCoordinator(sessions, repository.Repository, sources).SaveCaptureAsync(SessionSnapshot.From(draft), CreateCaptureCoordinator(capture), SessionPreferences.Default, TestContext.Current.CancellationToken);
 
         Assert.IsType<LiveSessionSaveResult.Failed>(result);
         Assert.Empty(await repository.Repository.GetSessionsAsync());
@@ -303,8 +304,7 @@ public partial class LiveDaqCoordinatorTests
             BikeId: Guid.NewGuid(),
             BikeName: "demo",
             BikeData: new BikeData(180, 170, measurement => measurement / 10.0, measurement => measurement / 10.0),
-            TravelCalibration: new LiveDaqTravelCalibration(null, null),
-            DampingSpeedCutoffs: DampingSpeedCutoffs.Default);
+            TravelCalibration: new LiveDaqTravelCalibration(null, null));
 
         return new LiveSessionCapturePackage(
             context,

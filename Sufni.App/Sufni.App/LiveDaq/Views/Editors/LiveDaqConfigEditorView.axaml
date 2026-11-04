@@ -8,7 +8,7 @@ xmlns:vm="clr-namespace:Sufni.App.LiveDaq.ViewModels.Editors"
 d:DesignHeight="720"
 d:DesignWidth="640"
 x:DataType="vm:LiveDaqConfigEditorViewModel"
-Background="{DynamicResource SufniBackgroundDisabled}"
+Background="{DynamicResource SufniSurfaceInputDisabled}"
 mc:Ignorable="d">
 
     <Grid RowDefinitions="auto * auto">
@@ -26,7 +26,7 @@ mc:Ignorable="d">
                         <Border
                         Margin="0,0,0,10"
                         Padding="10"
-                        Background="{DynamicResource SufniRegion}"
+                        Background="{DynamicResource SufniSurfacePage}"
                         CornerRadius="6">
                             <Grid
                             ColumnDefinitions="150,*"
@@ -74,7 +74,7 @@ mc:Ignorable="d">
                                 Grid.Row="1"
                                 Grid.Column="1"
                                 Margin="0,4,0,0"
-                                Foreground="{DynamicResource SufniDangerColor}"
+                                Foreground="{DynamicResource SufniDanger}"
                                 IsVisible="{Binding HasValidationMessage}"
                                 Text="{Binding ValidationMessage}"
                                 TextWrapping="Wrap" />
@@ -88,12 +88,12 @@ mc:Ignorable="d">
         <Border
         Grid.Row="2"
         Padding="16,12"
-        Background="{DynamicResource SufniBackgroundDisabled}">
+        Background="{DynamicResource SufniSurfaceInputDisabled}">
             <Grid RowDefinitions="auto auto" RowSpacing="10">
                 <StackPanel Grid.Row="0" Spacing="4" IsVisible="{Binding HasSaveError}">
                     <TextBlock
                     Name="SaveErrorTextBlock"
-                    Foreground="{DynamicResource SufniDangerColor}"
+                    Foreground="{DynamicResource SufniDanger}"
                     Text="{Binding SaveError.Summary}"
                     TextWrapping="Wrap" />
                     <Expander Name="SaveErrorDetailsExpander" Header="Details" IsVisible="{Binding SaveError.HasDetails}">

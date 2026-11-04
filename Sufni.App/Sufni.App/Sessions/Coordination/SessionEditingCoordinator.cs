@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,6 +18,8 @@ namespace Sufni.App.Sessions.Coordination;
 /// </summary>
 public interface ISessionEditingCoordinator
 {
+    Task StopAsync();
+
     Task<SessionEditResult> TrimUntilEndAsync(Guid sessionId, double clickSeconds);
 
     Task<SessionEditResult> TrimFromBeginningAsync(Guid sessionId, double clickSeconds);
@@ -53,6 +56,22 @@ internal sealed class SessionEditingCoordinator(
     StorePublication publication) : ISessionEditingCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<SessionEditingCoordinator>();
+    private readonly object activeTasksGate = new();
+    private readonly HashSet<Task> activeTasks = [];
+
+    public async Task StopAsync()
+    {
+        Task[] tasks;
+        lock (activeTasksGate) tasks = activeTasks.ToArray();
+        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
+    private async Task ReleaseAsync(Task task)
+    {
+        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        lock (activeTasksGate) activeTasks.Remove(task);
+    }
+
 
     public Task<SessionEditResult> TrimUntilEndAsync(Guid sessionId, double clickSeconds) =>
         RunAsync(sessionId, session => transactions.TrimUntilEndAsync(session, clickSeconds));
@@ -66,7 +85,18 @@ internal sealed class SessionEditingCoordinator(
     public Task<SessionEditResult> SplitAsync(Guid sessionId, double clickSeconds, IProgress<SessionEditProgress>? progress = null) =>
         RunAsync(sessionId, session => transactions.SplitAsync(session, clickSeconds), progress);
 
-    private async Task<SessionEditResult> RunAsync(
+    private Task<SessionEditResult> RunAsync(Guid sessionId, Func<SessionSnapshot, Task<SessionEditCommit>> commit, IProgress<SessionEditProgress>? progress = null)
+    {
+        lock (activeTasksGate)
+        {
+            var task = RunCoreAsync(sessionId, commit, progress);
+            activeTasks.Add(task);
+            _ = ReleaseAsync(task);
+            return task;
+        }
+    }
+
+    private async Task<SessionEditResult> RunCoreAsync(
         Guid sessionId,
         Func<SessionSnapshot, Task<SessionEditCommit>> commit,
         IProgress<SessionEditProgress>? progress = null)

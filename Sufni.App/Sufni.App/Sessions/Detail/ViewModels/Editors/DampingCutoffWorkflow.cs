@@ -1,8 +1,9 @@
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Bikes.Models;
-using Sufni.App.Sessions.Processing.RecordedSessionProjection;
+using Sufni.App.Bikes.Stores;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Shared.Models;
 using Sufni.Telemetry;
@@ -11,27 +12,31 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 /// <summary>Edits a cutoff preview against the current projected bike.</summary>
 internal sealed class DampingCutoffWorkflow(
-    Func<RecordedSessionDomainSnapshot?> currentDomain,
+    Func<BikeSnapshot?> currentBike,
     Func<DampingSpeedCutoffs> currentCutoffs,
     Action<DampingSpeedCutoffs, bool> setCutoffs,
     IBikeCoordinator bikeCoordinator,
-    Action<FailurePresentation> reportError)
+    Action<FailurePresentation> reportError,
+    CancellationToken lifetime)
 {
     public void Preview(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
     {
-        if (currentDomain()?.Bike is null) return;
+        if (lifetime.IsCancellationRequested || currentBike() is null) return;
         setCutoffs(currentCutoffs().With(side, circuit, DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond)), false);
     }
 
-    public void CancelPreview() => RestoreCutoffs(updatePlots: false);
+    public void CancelPreview()
+    {
+        if (!lifetime.IsCancellationRequested) RestoreCutoffs(updatePlots: false);
+    }
 
     public async Task CommitAsync(SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
     {
-        if (currentDomain()?.Bike is not { } bike) return;
+        if (lifetime.IsCancellationRequested || currentBike() is not { } bike) return;
         var committed = currentCutoffs().With(side, circuit, DampingCutoffEditing.RoundDragValue(cutoffMmPerSecond));
         setCutoffs(committed, true);
         var result = await bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, bike.DampingSpeedCutoffs.Get(side, circuit), side, circuit, committed.Get(side, circuit));
-        if (currentDomain()?.Bike?.Id != bike.Id) return;
+        if (lifetime.IsCancellationRequested || currentBike()?.Id != bike.Id) return;
         switch (result)
         {
             case BikeDampingSpeedCutoffUpdateResult.Saved:
@@ -51,5 +56,5 @@ internal sealed class DampingCutoffWorkflow(
     }
 
     private void RestoreCutoffs(bool updatePlots) =>
-        setCutoffs(currentDomain()?.Bike?.DampingSpeedCutoffs ?? DampingSpeedCutoffs.Default, updatePlots);
+        setCutoffs(currentBike()?.DampingSpeedCutoffs ?? DampingSpeedCutoffs.Default, updatePlots);
 }

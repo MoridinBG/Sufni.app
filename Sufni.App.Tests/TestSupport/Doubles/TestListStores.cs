@@ -22,6 +22,7 @@ internal sealed class BikeStoreStub : IBikeStore, IDisposable
     public IObservable<IChangeSet<BikeSnapshot, Guid>> Connect() => cache.Connect();
 
     public void Add(BikeSnapshot snapshot) => cache.AddOrUpdate(snapshot);
+    public void Remove(Guid id) => cache.RemoveKey(id);
 
     public void Dispose() => cache.Dispose();
 

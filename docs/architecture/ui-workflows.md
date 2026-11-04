@@ -246,11 +246,17 @@ each tab's `TryPrepareCloseAsync`. Dirty editors and unsaved captures keep their
 save/discard/cancel policy. Cancel stops the shutdown before work is canceled.
 After the tabs close, the shell:
 
-1. Cancels and awaits startup jobs, import, sync, recompute and track work.
-2. Finalizes pending deletes.
-3. Stops the sync server.
-4. Disposes the application provider.
-5. Flushes and closes logging.
+1. Awaits `StopAsync` on `SessionEditingCoordinator`, `SessionCoordinator`,
+   `VideoCoordinator` and `BikeCoordinator` together. They retain window edits,
+   GPS-offset writes, video-alignment writes and damping-cutoff commits respectively.
+   Window edits stay retained until their recomputes complete, so recompute remains
+   available throughout this drain. These owners accept writes normally; closed
+   tabs no longer initiate them.
+2. Cancels and awaits startup jobs, import, sync, recompute and track work.
+3. Finalizes pending deletes.
+4. Stops the sync server.
+5. Disposes the application provider.
+6. Flushes and closes logging.
 
 Concurrent quit requests join the same shutdown. The normal shell surface is
 disabled during the request.
@@ -267,9 +273,13 @@ iOS head requests a background execution window for that drain.
 option through `ISessionRepository`. It publishes the snapshot and starts
 recompute before queued projection work can prompt. On failure, it restores the
 previous option only when no newer option replaced it. Supersession leaves the
-newer request in charge. `ProcessingPreferenceWorkflow` forwards the slider
-commit and projects the typed result. The option lives on the session row, not
-in device-local preferences. Live-save metadata and split children carry the
+newer request in charge. `RecordedSessionPreferencesController` forwards the slider
+commit and reports the typed result. A non-superseded completion returns its
+captured processing draft and current store snapshot to the editor reducer.
+Only that same draft can be settled; later unsubmitted edits survive both store
+publication and completion. `RecordedPagePresentationApplier` observes the
+resulting editor state, and the page reads its draft or committed option. The
+option lives on the session row, not in device-local preferences. Live-save metadata and split children carry the
 session option.
 
 ### Pending deletes
@@ -322,9 +332,11 @@ need no lock. After the commit, the coordinator:
 
 An applied edit retains a typed recompute failure when rebuilding cannot
 finish. The editor presents the reason and separate diagnostics; the committed
-edit is not a failure. The editor routes the progress to
+edit is not a failure. The editor-scoped `SessionWindowEditController` routes progress to
 `shell.OpenEditor(new EditorKey.Session(id), background: true)` before the
-coordinator completes. Until its recompute completes, a session shows as stale
+coordinator completes, provided the editor lifetime has not ended. Late progress
+and result feedback are dropped after close. The coordinator retains the edit
+through recompute for application shutdown. Until its recompute completes, a session shows as stale
 and then reloads. Edits do not use the operation overlay. The editor allows one
 edit at a time. It enables a command only when every remaining part keeps at
 least five samples and a trim removes at least one.
@@ -398,8 +410,13 @@ Shared registrations in `AppComposition`:
 - **Live DAQ**: `LiveDaqStore` (singleton behind both `ILiveDaqStore` and
   `ILiveDaqStoreWriter`), `IDaqBrowseOwner`, `ILiveDaqBoardIdInspector`,
   `ILiveDaqCatalogService`, `ILiveDaqClientFactory`,
-  `ILiveDaqSharedStreamRegistry`, `ILiveSessionServiceFactory`,
-  `LiveDaqCoordinator`, `LiveDaqListViewModel`. All are registered
+  `ILiveDaqSharedStreamRegistry`, `ILiveCaptureCoordinatorFactory`,
+  `LiveDaqCoordinator`, `LiveDaqListViewModel`. The capture factory supplies the
+  UI dispatcher and clock and creates a coordinator only after shell deduplication.
+  Its tab-lifetime recorder/projectors, display feed, analysis scheduler and state
+  publisher are privately composed; capture owns no navigation or persistence.
+  `LiveDaqCoordinator.SaveCaptureAsync` calls `PrepareForSaveAsync`, commits and
+  publishes the recording, then awaits `ResetAsync`. All registrations are
   unconditionally. `MainPagesViewModel` requires `LiveDaqListViewModel` on both
   shells.
 - **Global feedback/actions**: `ShellFeedbackViewModel` is a singleton that the

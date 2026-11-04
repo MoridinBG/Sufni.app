@@ -1,4 +1,6 @@
 using System;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Video.Coordinators;
 using System.Linq;
 using System.Threading.Tasks;
 using Sufni.App.Acquisition.Coordinators;
@@ -28,6 +30,10 @@ public sealed class AppShutdown(
     IPendingDeletes pendingDeletes,
     IBackgroundTaskRunner backgroundTaskRunner,
     ITrackCoordinator tracks,
+    ISessionEditingCoordinator sessionEdits,
+    ISessionCoordinator sessions,
+    IVideoCoordinator videos,
+    IBikeCoordinator bikes,
     ISynchronizationServerService? server = null) : IAppShutdown
 {
     private Task<bool>? request;
@@ -61,6 +67,7 @@ public sealed class AppShutdown(
             workspace.CloseTab(tab, rememberForRestore: false);
         }
 
+        await Task.WhenAll(sessionEdits.StopAsync(), sessions.StopAsync(), videos.StopAsync(), bikes.StopAsync());
         await Task.WhenAll(startup.StopAsync(), imports.StopAsync(), sync.StopAsync(), recompute.StopAsync(), tracks.StopAsync());
         await pendingDeletes.FinalizeAllAsync();
         if (server is not null) await backgroundTaskRunner.RunAsync(server.StopAsync);

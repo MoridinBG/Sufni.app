@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Acquisition.Coordinators;
 using Sufni.App.Tests.TestSupport.Harness;
@@ -70,7 +71,7 @@ internal static class TestEditorFactories
             backgroundTaskRunner,
             TestCoordinatorSubstitutes.ImportSessions(),
             Substitute.For<ILiveDaqSharedStreamRegistry>(),
-            Substitute.For<ILiveSessionServiceFactory>(),
+            Substitute.For<ILiveCaptureCoordinatorFactory>(),
             Substitute.For<IVideoPaneFactory>(),
             Substitute.For<ISessionEditingCoordinator>(),
             TestSegmentPickers.CreateFactory(),

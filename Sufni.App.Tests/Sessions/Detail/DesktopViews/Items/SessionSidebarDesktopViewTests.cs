@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Presentation;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using System;
 using System.Threading.Tasks;

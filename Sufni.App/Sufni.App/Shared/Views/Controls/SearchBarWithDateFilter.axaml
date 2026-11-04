@@ -17,7 +17,7 @@ mc:Ignorable="d">
     SearchBoxBorderThickness="0"
     SearchBoxCornerRadius="5"
     ShowDrawerButton="{Binding #Root.ShowDrawerButton}"
-    SyncIndicatorForeground="{DynamicResource SufniAccentColor}">
+    SyncIndicatorForeground="{DynamicResource SufniAccentPrimary}">
         <controls:SearchBarCore.CloseButtonVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
                 <Binding Path="DateFilterVisible" />
@@ -30,7 +30,7 @@ mc:Ignorable="d">
             <!--  Date pickers  -->
             <Border
             Name="DatePickers"
-            Background="{DynamicResource SufniRegion}"
+            Background="{DynamicResource SufniSurfacePage}"
             IsVisible="{Binding DateFilterVisible}">
                 <Grid
                 Margin="1,0,1,0"

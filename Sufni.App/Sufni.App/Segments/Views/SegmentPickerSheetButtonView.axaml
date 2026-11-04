@@ -31,8 +31,8 @@
             WindowManagerAddShadowHint="False">
             <Border
                 x:Name="SheetFrame"
-                Background="{DynamicResource SufniBackgroundDisabled}"
-                BorderBrush="{DynamicResource SufniBorderBrush}"
+                Background="{DynamicResource SufniSurfaceInputDisabled}"
+                BorderBrush="{DynamicResource SufniLineInput}"
                 BorderThickness="1,1,1,0"
                 CornerRadius="12,12,0,0">
                 <views:SegmentPickerPanelView />

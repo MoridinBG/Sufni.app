@@ -1,3 +1,11 @@
+using Sufni.App.Sessions.Presentation;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.LiveDaq.Coordinators.Capture;
+using Sufni.App.LiveDaq.ViewModels.Editors;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using Sufni.App.Sessions.Pages.Views.SessionPages;
+using Sufni.App.Tests.TestSupport.Doubles;
+using Sufni.App.Tests.TestSupport.LiveDaq;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -29,6 +37,56 @@ namespace Sufni.App.Tests.Sessions.Plots.Views.Plots;
 [Collection("Ui")]
 public class VelocityBandViewTests
 {
+    [AvaloniaFact]
+    public async Task LiveCutoffDrag_KeepsTheDampingSurfaceVisibleUntilRelease()
+    {
+        EnsureVelocityBandStyle();
+        ViewTestHelpers.EnsurePlotViewStyle();
+        var context = LiveCaptureTestData.Context();
+        var bike = TestSnapshots.Bike(context.BikeId);
+        using var bikes = new BikeStoreStub(bike);
+        var bikeCoordinator = TestCoordinatorSubstitutes.Bike();
+        bikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, Arg.Any<double>(),
+                SuspensionType.Front, DampingSpeedCircuit.Compression, Arg.Any<double>())
+            .Returns(new BikeDampingSpeedCutoffUpdateResult.Saved(bike));
+        using var workspace = new LiveSessionAnalysisWorkspaceViewModel(context,
+            Substitute.For<ILiveCaptureCoordinator>(), bikes, bikeCoordinator, _ => { });
+        workspace.Apply(LiveCaptureTestData.State(true, TestTelemetryData.CreateProcessed()));
+        var view = new DampingPageView { DataContext = new DampingPageViewModel(workspace), Width = 800, Height = 900 };
+        PointerGesture.SetSupportsTouchLongPressContextMenu(view, false);
+        await using var mounted = new MountedView<DampingPageView>(await ViewTestHelpers.ShowViewAsync(view), view);
+        var dampingHost = view.FindControl<DampingAnalysisHost>("FrontDampingAnalysisHost")!;
+        var band = dampingHost.FindControl<VelocityBandView>("VelocityBand")!;
+        var plot = Assert.Single(dampingHost.GetVisualDescendants().OfType<AnalysisPlotView>());
+        var start = Translate(FindHandle(band, "PART_CompressionHandle"), mounted.Host);
+        var firstTarget = start + new Vector(0, 25);
+        var secondTarget = start + new Vector(0, 50);
+        Assert.True(plot.IsEffectivelyVisible);
+
+        mounted.Host.MouseDown(start, MouseButton.Left, RawInputModifiers.None);
+        try
+        {
+            mounted.Host.MouseMove(firstTarget, RawInputModifiers.LeftMouseButton);
+            await ViewTestHelpers.FlushDispatcherAsync();
+            Assert.True(band.IsEffectivelyVisible);
+            Assert.True(plot.IsEffectivelyVisible);
+            Assert.True(band.IsDampingGuideVisible);
+            var firstCutoff = workspace.DampingSpeedCutoffs.Front.CompressionMmPerSecond;
+            Assert.NotEqual(bike.DampingSpeedCutoffs.Front.CompressionMmPerSecond, firstCutoff);
+
+            mounted.Host.MouseMove(secondTarget, RawInputModifiers.LeftMouseButton);
+            await ViewTestHelpers.FlushDispatcherAsync();
+            Assert.True(band.IsDampingGuideVisible);
+            Assert.NotEqual(firstCutoff, workspace.DampingSpeedCutoffs.Front.CompressionMmPerSecond);
+        }
+        finally { mounted.Host.MouseUp(secondTarget, MouseButton.Left, RawInputModifiers.None); }
+        await ViewTestHelpers.FlushDispatcherAsync();
+
+        await bikeCoordinator.Received(1).UpdateDampingSpeedCutoffAsync(bike.Id,
+            bike.DampingSpeedCutoffs.Front.CompressionMmPerSecond,
+            SuspensionType.Front, DampingSpeedCircuit.Compression, Arg.Any<double>());
+    }
+
     [AvaloniaFact]
     public async Task DesktopDrag_PreviewsCommitsAndDoesNotRequestHapticFeedback()
     {

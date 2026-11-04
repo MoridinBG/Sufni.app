@@ -13,7 +13,7 @@
 
     <Border
         Padding="{Binding #Root.CardPadding}"
-        Background="{DynamicResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniSurfaceInputDisabled}"
         CornerRadius="8">
         <StackPanel Spacing="10">
             <TextBlock

@@ -9,6 +9,8 @@ namespace Sufni.App.Bikes.Coordinators;
 
 public interface IBikeCoordinator
 {
+    Task StopAsync();
+
     Task<BikeDraftLoadResult> LoadDraftAsync(Guid bikeId, CancellationToken cancellationToken = default);
 
     Task<BikeEditorAnalysisResult> LoadAnalysisAsync(

@@ -88,26 +88,8 @@ public static class SufniThemeResourceBridge
     // Populates color and brush resources for a single Avalonia theme variant.
     public static void PopulateVariant(ResourceDictionary resources, SufniTheme theme)
     {
-        AddLegacyColors(resources, theme);
         AddFluentOverrides(resources, theme);
         AddRoleColors(resources, theme);
-    }
-
-    private static void AddLegacyColors(ResourceDictionary resources, SufniTheme theme)
-    {
-        SetColor(resources, "SufniForeground", theme.Text.Secondary);
-        SetColor(resources, "SufniForegroundPointerOver", theme.Text.Hover);
-        SetColor(resources, "SufniRegion", theme.Surface.Page);
-        SetColor(resources, "SufniBackground", theme.Surface.Input);
-        SetColor(resources, "SufniForegroundDisabled", theme.Text.Disabled);
-        SetColor(resources, "SufniBackgroundDisabled", theme.Surface.InputDisabled);
-        SetColor(resources, "SufniBackgroundPointerOver", theme.Surface.InputHover);
-        SetColor(resources, "SufniItemBackgroundPointerOver", theme.Surface.ItemHover);
-        SetColor(resources, "SufniBorderBrush", theme.Line.Input);
-        SetColor(resources, "SufniDangerColor", theme.Action.Danger);
-        SetColor(resources, "SufniDangerColorDark", theme.Action.DangerDark);
-        SetColor(resources, "SufniAccentColor", theme.Action.AccentPrimary);
-        SetColor(resources, "SufniGridSplitter", theme.Splitter.Surface);
     }
 
     private static void AddFluentOverrides(ResourceDictionary resources, SufniTheme theme)

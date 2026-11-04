@@ -36,6 +36,27 @@ public class BikeCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task StopAsync_WaitsForCutoffPersistenceAndPublication()
+    {
+        var snapshot = TestSnapshots.Bike();
+        await SeedAsync(snapshot);
+        var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        repository.BeforeWrite = () => write.Task;
+        IBikeCoordinator coordinator = CreateCoordinator();
+        var operation = coordinator.UpdateDampingSpeedCutoffAsync(snapshot.Id, 200,
+            SuspensionType.Front, DampingSpeedCircuit.Compression, 300);
+
+        var stop = coordinator.StopAsync();
+        Assert.False(stop.IsCompleted);
+        Assert.Equal(200, bikeStore.Get(snapshot.Id)!.DampingSpeedCutoffs.Front.CompressionMmPerSecond);
+        write.SetResult();
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(300, bikeStore.Get(snapshot.Id)!.DampingSpeedCutoffs.Front.CompressionMmPerSecond);
+        Assert.IsType<BikeDampingSpeedCutoffUpdateResult.Saved>(await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public async Task LoadedDraft_PreservesImageThroughMetadataAndCutoffSaves()
     {
         var bike = new Bike(Guid.NewGuid(), "pictured") { ImageBytes = [1, 2, 3], HeadAngle = 65, ForkStroke = 160 };

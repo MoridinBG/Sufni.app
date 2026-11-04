@@ -109,7 +109,7 @@ Camera clocks drift, so a clip may need an offset. Alignment uses three built-in
 2. "Mark telemetry event here" ends the flow and calls `ShiftAlignmentAsync(clipId, marked seconds - clicked seconds)`.
 3. "Cancel video alignment" drops the pending mark.
 
-The editor keeps one pending `TimelineAlignmentMark` (`GpsTrack` or `VideoClip`), so only one alignment flow (GPS or video) can be active at a time.
+The editor-scoped `TimelineAlignmentController` keeps one pending `TimelineAlignmentMark` (`GpsTrack` or `VideoClip`), so only one alignment flow (GPS or video) can be active at a time. Closing the editor discards the mark and drops late feedback. Accepted alignment writes complete in `VideoCoordinator`; its `StopAsync` drains them at application shutdown before services are disposed.
 
 Trim and split change only session windows; video rows and their alignment stay fixed. Each window derives its visible clips and playback offset from the source timeline. This also applies to a split received from a peer. See [Trim and split](ui-workflows.md#trim-and-split).
 

@@ -156,7 +156,7 @@ Thread ownership is explicit:
 - ScottPlot draws on Avalonia's render thread while holding `Plot.Sync`.
   Time-series plot views rebuild their plottables under the same lock, so a
   frame never reads a half-cleared plot.
-- Recorded-session maps receive prepared track inputs through `ApplyMapMediaSync`.
+- Recorded-session maps receive prepared track inputs through the state subscription of `SessionMediaWorkspaceViewModel`.
   `MapViewModel` observes the replayed tile catalog from construction; the attached
   view owns geometry requests and native map resources. Hidden/detached views hold
   no native map instance.
@@ -211,7 +211,7 @@ Typed failures are forwarded without another log or persistence attempt.
 Failed | ProcessingFailed`. Generic failures carry `SessionRecomputeFailureReason.Recompute | ProcessingOption`;
 processing failures retain the processing reason. Missing sessions are skipped in
 bulk recompute. `SessionEditResult.Applied` can carry the typed recompute failure
-after the edit commits, keeping diagnostics separate through the editor gateway.
+after the edit commits, keeping diagnostics separate through `SessionWindowEditController`.
 
 `LiveSessionSaveResult` is `Saved | Failed | ProcessingFailed`. Generic failures
 carry `LiveSessionSaveFailureReason.Save`; processing failures keep the capture
@@ -392,7 +392,7 @@ timestamp changes and separately owned cutoff/alignment/processing-option edits
 do not conflict. Bike saves preserve current damping cutoffs, while new imports
 seed their cutoffs from the file. Cutoff commits compare only the selected
 side/circuit’s expected value; unrelated metadata and other cutoff changes are
-preserved. Live editors keep the persisted cutoff values as the next commit base. Missing persisted bikes are not recreated by
+preserved. Live editors observe the current bike store; the shared cutoff workflow reads that bike for the expected value and restores current store cutoffs after conflict/failure. Missing persisted bikes are not recreated by
 an existing editor. A saved baseline retains edits made during persistence as
 dirty. Setup conflicts compare sensor values rather than serialized JSON formatting.
 Plot analysis is requested independently and never carried by the bike save result.

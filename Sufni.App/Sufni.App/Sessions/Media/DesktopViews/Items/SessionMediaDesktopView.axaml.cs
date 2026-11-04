@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Detail.DesktopViews.Controls;
 using Sufni.App.Sessions.Models;
 using System.ComponentModel;
@@ -6,7 +7,6 @@ using Avalonia;
 using Avalonia.Controls;
 
 using Sufni.App.Infrastructure;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Shared.DesktopViews.Controls;
 namespace Sufni.App.Sessions.Media.DesktopViews.Items;
 

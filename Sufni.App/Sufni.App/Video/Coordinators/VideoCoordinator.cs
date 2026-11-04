@@ -45,6 +45,8 @@ public abstract record VideoAlignmentResult
 /// </summary>
 public interface IVideoCoordinator
 {
+    Task StopAsync();
+
     Task<VideoImportResult> ImportAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -66,6 +68,22 @@ internal sealed class VideoCoordinator(
     IUiThreadDispatcher dispatcher) : IVideoCoordinator, IDisposable
 {
     private static readonly ILogger logger = Log.ForContext<VideoCoordinator>();
+    private readonly object activeTasksGate = new();
+    private readonly HashSet<Task> activeTasks = [];
+
+    public async Task StopAsync()
+    {
+        Task[] tasks;
+        lock (activeTasksGate) tasks = activeTasks.ToArray();
+        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
+    private async Task ReleaseAsync(Task task)
+    {
+        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        lock (activeTasksGate) activeTasks.Remove(task);
+    }
+
     private readonly IDisposable presenceSubscription = ObservePresence(videoStore, filePresence, dispatcher);
 
     private static IDisposable ObservePresence(ISessionVideoStoreWriter store, IVideoFilePresence presence, IUiThreadDispatcher dispatcher) =>
@@ -112,7 +130,18 @@ internal sealed class VideoCoordinator(
         }
     }
 
-    public async Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds)
+    public Task<VideoAlignmentResult> ShiftAlignmentAsync(Guid clipId, double deltaSeconds)
+    {
+        lock (activeTasksGate)
+        {
+            var task = ShiftAlignmentCoreAsync(clipId, deltaSeconds);
+            activeTasks.Add(task);
+            _ = ReleaseAsync(task);
+            return task;
+        }
+    }
+
+    private async Task<VideoAlignmentResult> ShiftAlignmentCoreAsync(Guid clipId, double deltaSeconds)
     {
         if (videoStore.Get(clipId) is not { } clip)
         {

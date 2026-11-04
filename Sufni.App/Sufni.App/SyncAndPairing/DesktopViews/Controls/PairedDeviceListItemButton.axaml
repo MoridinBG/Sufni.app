@@ -17,7 +17,7 @@
             Padding="10,0,10,0"
             HorizontalAlignment="Stretch"
             VerticalContentAlignment="Center"
-            Background="{DynamicResource SufniBackgroundDisabled}"
+            Background="{DynamicResource SufniSurfaceInputDisabled}"
             Classes="item"
             CornerRadius="0">
             <Grid HorizontalAlignment="Stretch" ColumnDefinitions="* auto 25">
@@ -41,6 +41,6 @@
         <Separator
             Height="1"
             Margin="0"
-            Background="{DynamicResource SufniBackground}" />
+            Background="{DynamicResource SufniSurfaceInput}" />
     </StackPanel>
 </UserControl>

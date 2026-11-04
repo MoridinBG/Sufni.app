@@ -2,6 +2,7 @@
 x:Class="Sufni.App.Sessions.Detail.DesktopViews.Editors.SessionDetailDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:presentation="clr-namespace:Sufni.App.Sessions.Presentation.Views"
     xmlns:items2="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Items"
     xmlns:items3="clr-namespace:Sufni.App.Sessions.Signals.DesktopViews.Items"
     xmlns:items4="clr-namespace:Sufni.App.Sessions.Media.DesktopViews.Items"
@@ -76,22 +77,10 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.SidebarContent>
         </editors:SessionShellDesktopView>
 
-        <overlays:BusyOverlay
-            Name="ScreenBusyOverlay"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            IndicatorForeground="{DynamicResource SufniAccentSpinner}"
-            IsActive="{Binding ScreenState.IsLoading}"
-            IsVisible="{Binding ScreenState.IsLoading}"
-            Message="{Binding ScreenState.Message}"
-            MessageForeground="{DynamicResource SufniForeground}"
-            ProgressValue="{Binding ScreenState.ProgressFraction}"
-            ShowIndicator="False"
-            ShowProgress="{Binding ScreenState.IsLoading}"
-            UseStackLayout="True" />
+        <presentation:SessionScreenStateOverlay Name="ScreenOverlay" ScreenState="{Binding ScreenState}" />
 
         <Border
-            Background="{DynamicResource SufniRegion}"
+            Background="{DynamicResource SufniSurfacePage}"
             IsHitTestVisible="False"
             IsVisible="{Binding SessionOperationState.IsVisible}"
             Opacity="0.35" />
@@ -125,19 +114,7 @@ mc:Ignorable="d">
             </StackPanel>
         </Border>
 
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
-            <StackPanel Spacing="12">
-                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
-                <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
 
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsIncompleteLocalData}">
-            <StackPanel Spacing="12">
-                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Session data incomplete" />
-                <TextBlock Name="ScreenIncompleteText" HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
 
         <controls:ErrorMessagesBar
             Name="SessionErrorMessagesBar"

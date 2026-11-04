@@ -386,18 +386,18 @@ Topics in [architecture/live-streaming.md](architecture/live-streaming.md):
 
 ## Live Session Recording
 
-The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveSessionService` attaches to the shared transport (acquiring the configuration lock), accumulates fixed-rate travel/IMU samples into segment builders plus GPS into an append-only buffer, feeds duration-bounded display context through `LiveSignalPipeline`, and computes mode-specific analysis results off the UI thread. The pipeline carries those immutable results with display batches; live plots render them through the common analysis result-source contract. On save, `LiveDaqCoordinator.SaveCaptureAsync` creates a segment-aware live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
+The recording / capture / save side of the Live DAQ feature. Once the user opens a live-session tab, `LiveCaptureCoordinator` attaches to the shared transport (acquiring the configuration lock), owns raw capture through `LiveCaptureRecorder`, track projection through `LiveTrackProjector`, and calibrated display through `LiveDisplayProjector`. A bounded display feed sends generation-tagged samples to `LiveSignalPipeline`, whose flush loop emits explicit reset and signal batches. `LiveAnalysisScheduler` computes keyed results off-thread and retains timer wake-ups through pressure. `LiveCaptureStatePublisher` publishes capture facts and analysis on the UI thread; the editor composes analysis, page-baking, mobile-shell and sidebar workspaces. Analysis reaches plots only through that state and the common result-source contract. On save, `LiveDaqCoordinator.SaveCaptureAsync` creates a segment-aware live-capture recorded source, then delegates telemetry, generated-track, and processing-fingerprint derivation to `IRecordedSessionReprocessor` before persisting the processed `Session` row atomically with the source and optional generated `Track`.
 
 Topics in [architecture/live-session.md](architecture/live-session.md):
 
 - [Overview](architecture/live-session.md#overview) — recording slice, relationship to live preview
 - [Data Flow](architecture/live-session.md#data-flow) — attach → capture → save sequence
 - [Configuration Lock](architecture/live-session.md#configuration-lock) — exclusive control of stream parameters
-- [Capture Service](architecture/live-session.md#capture-service) — `LiveSessionService` lifecycle and frame handlers
+- [Capture Coordinator](architecture/live-session.md#capture-coordinator) — `LiveCaptureCoordinator` lifecycle and frame handlers
 - [Capture Stores](architecture/live-session.md#capture-stores) — fixed-rate travel/IMU segments, GPS append buffer, and duration-bounded recent display context
 - [Live Signal Pipeline](architecture/live-session.md#live-signal-pipeline) — `ILiveSignalPipeline`, `LiveSignalPipelineFactory`, per-row batches
 - [Stream Configuration](architecture/live-session.md#stream-configuration) — `LiveDaqStreamConfiguration` knobs
-- [Presentation Records](architecture/live-session.md#presentation-records) — `LiveSessionPresentationSnapshot`, `LiveSessionControlState`
+- [Presentation Records](architecture/live-session.md#presentation-records) — `LiveCaptureState`, `LiveCaptureControls`
 - [Live Session Detail View Model](architecture/live-session.md#live-session-detail-view-model) — tab lifecycle and preferences forwarding
 - [GPS Preview State](architecture/live-session.md#gps-preview-state) — diagnostics fix-mode interpretation; live maps use projected track points
 - [Save Flow](architecture/live-session.md#save-flow) — `LiveDaqCoordinator.SaveCaptureAsync` integration

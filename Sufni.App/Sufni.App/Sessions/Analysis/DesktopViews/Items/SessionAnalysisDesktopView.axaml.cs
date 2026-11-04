@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Presentation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +8,6 @@ using Avalonia.Layout;
 using Avalonia.VisualTree;
 
 using Sufni.App.Sessions.Analysis.Views.Controls;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Shared.Views;
 namespace Sufni.App.Sessions.Analysis.DesktopViews.Items;
 

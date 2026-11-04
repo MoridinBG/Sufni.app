@@ -514,20 +514,7 @@ public abstract class LiveSignalPlotViewBase : SufniPlotView
         }
     }
 
-    private static bool IsResetBatch(LiveSignalBatch batch)
-    {
-        return batch.Analysis is null && batch.TravelTimes.Count == 0
-            && batch.FrontTravel.Count == 0
-            && batch.RearTravel.Count == 0
-            && batch.VelocityTimes.Count == 0
-            && batch.FrontVelocity.Count == 0
-            && batch.RearVelocity.Count == 0
-            && batch.ImuTimes.Count == 0
-            && batch.ImuVibrationRms.Count == 0
-            && batch.FramePitchRollTimes.Count == 0
-            && batch.FramePitchDegrees.Count == 0
-            && batch.FrameRollDegrees.Count == 0;
-    }
+    private static bool IsResetBatch(LiveSignalBatch batch) => batch.Kind == LiveSignalBatchKind.Reset;
 
     private sealed class PendingSignalBatchBuffer
     {

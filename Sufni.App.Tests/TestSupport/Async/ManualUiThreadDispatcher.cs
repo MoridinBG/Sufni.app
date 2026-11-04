@@ -53,6 +53,22 @@ public sealed class ManualUiThreadDispatcher : IUiThreadDispatcher
     public async Task WaitForWorkAsync(CancellationToken cancellationToken) =>
         await callbacks.Reader.WaitToReadAsync(cancellationToken);
 
+    public async Task DrainUntilAsync(Task completion)
+    {
+        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        try
+        {
+            while (!completion.IsCompleted)
+            {
+                await DrainAsync();
+                if (!completion.IsCompleted)
+                    await Task.WhenAny(completion, WaitForWorkAsync(waiting.Token)).AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+            }
+            await completion.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { await waiting.CancelAsync(); }
+    }
+
     public async Task DrainAsync()
     {
         executing = true;

@@ -1,4 +1,6 @@
 using Sufni.App.MapsAndTracks.Coordinators;
+using Sufni.App.Bikes.Coordinators;
+using Sufni.App.Video.Coordinators;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Sufni.App.Acquisition.Coordinators;
@@ -14,6 +16,53 @@ namespace Sufni.App.Tests.Shell.Coordinators;
 
 public class AppShutdownTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Shutdown_DrainsEachAcceptedWriteBeforeStoppingRecomputeOrDisposingServices(int delayedOwner)
+    {
+        var workspace = CreateWorkspace();
+        var tab = new TestTabPageViewModel();
+        workspace.OpenOrFocus(tab);
+        using var pendingDeletes = TestPendingDeletes.Create();
+        var edits = Substitute.For<ISessionEditingCoordinator>();
+        var sessions = TestCoordinatorSubstitutes.Session();
+        var videos = Substitute.For<IVideoCoordinator>();
+        var bikes = TestCoordinatorSubstitutes.Bike();
+        var drain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        edits.StopAsync().Returns(_ => { Assert.True(tab.WasClosed); return delayedOwner == 0 ? drain.Task : Task.CompletedTask; });
+        sessions.StopAsync().Returns(_ => { Assert.True(tab.WasClosed); return delayedOwner == 1 ? drain.Task : Task.CompletedTask; });
+        videos.StopAsync().Returns(_ => { Assert.True(tab.WasClosed); return delayedOwner == 2 ? drain.Task : Task.CompletedTask; });
+        bikes.StopAsync().Returns(_ => { Assert.True(tab.WasClosed); return delayedOwner == 3 ? drain.Task : Task.CompletedTask; });
+        var recompute = Substitute.For<ISessionRecomputeEngine>();
+        var recomputeStopped = false;
+        recompute.StopAsync().Returns(_ =>
+        {
+            Assert.True(drain.Task.IsCompleted);
+            recomputeStopped = true;
+            return Task.CompletedTask;
+        });
+        var shutdown = new AppShutdown(workspace, Substitute.For<IAppStartup>(), TestCoordinatorSubstitutes.ImportSessions(),
+            TestCoordinatorSubstitutes.Sync(), recompute, pendingDeletes, new InlineBackgroundTaskRunner(),
+            TestCoordinatorSubstitutes.Track(), edits, sessions, videos, bikes);
+        var disposed = false;
+        var run = shutdown.RequestAsync(() =>
+        {
+            Assert.True(recomputeStopped);
+            disposed = true;
+            return ValueTask.CompletedTask;
+        }, () => { });
+
+        Assert.False(run.IsCompleted);
+        Assert.False(recomputeStopped);
+        Assert.False(disposed);
+        drain.SetResult();
+        Assert.True(await run.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(disposed);
+    }
+
     [Fact]
     public async Task Cancel_KeepsDirtyTabOpenAndLeavesWorkAndPendingDeletesRunning()
     {
@@ -140,5 +189,7 @@ public class AppShutdownTests
     private static AppShutdown Create(ShellWorkspaceViewModel workspace, IPendingDeletes pending,
         IImportSessionsCoordinator imports, ISynchronizationServerService? server = null, ITrackCoordinator? tracks = null) =>
         new(workspace, Substitute.For<IAppStartup>(), imports, TestCoordinatorSubstitutes.Sync(),
-            Substitute.For<ISessionRecomputeEngine>(), pending, new InlineBackgroundTaskRunner(), tracks ?? TestCoordinatorSubstitutes.Track(), server);
+            Substitute.For<ISessionRecomputeEngine>(), pending, new InlineBackgroundTaskRunner(), tracks ?? TestCoordinatorSubstitutes.Track(),
+            Substitute.For<ISessionEditingCoordinator>(), TestCoordinatorSubstitutes.Session(),
+            Substitute.For<IVideoCoordinator>(), TestCoordinatorSubstitutes.Bike(), server);
 }

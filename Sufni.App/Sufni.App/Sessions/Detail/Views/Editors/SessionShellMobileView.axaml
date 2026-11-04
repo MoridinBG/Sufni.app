@@ -2,18 +2,19 @@
     x:Class="Sufni.App.Sessions.Detail.Views.Editors.SessionShellMobileView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:presentation="clr-namespace:Sufni.App.Sessions.Presentation.Views"
     xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:v="clr-namespace:Sufni.App.Shared.Views.Controls"
-    xmlns:vm="clr-namespace:Sufni.App.Sessions.Detail.ViewModels.Editors"
+    xmlns:vm="clr-namespace:Sufni.App.Sessions.Presentation"
     xmlns:vmp="clr-namespace:Sufni.App.Sessions.Pages.ViewModels.SessionPages"
     xmlns:vme="clr-namespace:Sufni.App.Sessions.Detail.Views.Editors"
     xmlns:lifecycle="clr-namespace:Sufni.App.Shared.Views"
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vm:ISessionShellMobileWorkspace"
-    Background="{DynamicResource SufniRegion}"
+    Background="{DynamicResource SufniSurfacePage}"
     Focusable="True"
     lifecycle:ViewLifecycle.UnloadedCommand="{Binding $self.UnloadedCommand}"
     mc:Ignorable="d">
@@ -34,13 +35,13 @@
                 Margin="2,0,2,6"
                 FontSize="14"
                 FontWeight="SemiBold"
-                Foreground="{DynamicResource SufniForeground}"
+                Foreground="{DynamicResource SufniTextSecondary}"
                 Text="{Binding SelectedPageDisplayName}" />
 
             <CarouselPage
                 Name="SessionCarouselPage"
                 Grid.Row="2"
-                Background="{DynamicResource SufniRegion}"
+                Background="{DynamicResource SufniSurfacePage}"
                 ItemsSource="{Binding Pages}"
                 SelectedIndex="{Binding SelectedPageIndex, Mode=TwoWay}"
                 lifecycle:ViewLifecycle.LoadedCommand="{Binding $parent[vme:SessionShellMobileView].LoadedCommand}"
@@ -50,7 +51,7 @@
                         <ContentPage
                             Header="{Binding DisplayName}"
                             Content="{Binding}"
-                            Background="{DynamicResource SufniRegion}"
+                            Background="{DynamicResource SufniSurfacePage}"
                             AutomaticallyApplySafeAreaPadding="False" />
                     </DataTemplate>
                 </CarouselPage.PageTemplate>
@@ -80,82 +81,24 @@
             <v:CommonButtonLine Grid.Row="6" Margin="0,4,0,0" DataContext="{Binding Editor}" />
         </Grid>
 
-        <overlays:BusyOverlay
-            Name="ScreenBusyOverlay"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            IndicatorForeground="{DynamicResource SufniAccentColor}"
-            IsActive="{Binding ScreenState.IsLoading}"
-            IsVisible="{Binding ScreenState.IsLoading}"
-            Message="{Binding ScreenState.Message, TargetNullValue=Loading session data...}"
-            MessageForeground="{DynamicResource SufniForeground}"
-            ProgressValue="{Binding ScreenState.ProgressFraction}"
-            ShowIndicator="False"
-            ShowProgress="{Binding ScreenState.IsLoading}"
-            UseStackLayout="True" />
+        <presentation:SessionScreenStateOverlay Name="ScreenOverlay" ScreenState="{Binding ScreenState}" LoadingFallbackMessage="Loading session data..." />
 
         <overlays:BusyOverlay
             Name="SessionOperationBusyOverlay"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
-            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IndicatorForeground="{DynamicResource SufniAccentPrimary}"
             IsActive="{Binding SessionOperationState.IsVisible}"
             IsVisible="{Binding SessionOperationState.IsVisible}"
             Message="{Binding SessionOperationState.Message}"
-            MessageForeground="{DynamicResource SufniAccentColor}"
+            MessageForeground="{DynamicResource SufniAccentPrimary}"
             ProgressValue="{Binding SessionOperationState.ProgressFraction}"
             ShowProgress="True"
             ShowTint="True"
-            TintBackground="{DynamicResource SufniRegion}"
+            TintBackground="{DynamicResource SufniSurfacePage}"
             TintOpacity="0.35"
             UseStackLayout="True" />
 
-        <Border
-            MaxWidth="420"
-            Padding="24"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Background="{DynamicResource SufniBackground}"
-            BorderBrush="{DynamicResource SufniBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="6"
-            IsVisible="{Binding ScreenState.IsError}">
-            <StackPanel Spacing="12">
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontSize="20"
-                    FontWeight="SemiBold"
-                    Text="Could not load session" />
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    Text="{Binding ScreenState.Message}"
-                    TextAlignment="Center"
-                    TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
 
-        <Border
-            MaxWidth="420"
-            Padding="24"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Background="{DynamicResource SufniBackground}"
-            BorderBrush="{DynamicResource SufniBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="6"
-            IsVisible="{Binding ScreenState.IsIncompleteLocalData}">
-            <StackPanel Spacing="12">
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontSize="20"
-                    FontWeight="SemiBold"
-                    Text="Session data incomplete" />
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    Text="{Binding ScreenState.Message}"
-                    TextAlignment="Center"
-                    TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
     </Grid>
 </UserControl>

@@ -51,6 +51,6 @@
         <Separator
             Height="1"
             Margin="0"
-            Background="{DynamicResource SufniBackgroundDisabled}" />
+            Background="{DynamicResource SufniSurfaceInputDisabled}" />
     </StackPanel>
 </UserControl>

@@ -10,7 +10,7 @@ xmlns:vm="clr-namespace:Sufni.App.Setups.ViewModels.Editors"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:SetupEditorViewModel"
-Background="{DynamicResource SufniRegion}"
+Background="{DynamicResource SufniSurfacePage}"
 Focusable="True"
 mc:Ignorable="d">
 

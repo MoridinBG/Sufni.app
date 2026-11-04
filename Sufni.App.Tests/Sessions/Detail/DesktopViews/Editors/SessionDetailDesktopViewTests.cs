@@ -1,4 +1,5 @@
 using Sufni.App.Shared.Models;
+using Sufni.App.Sessions.Presentation.Views;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -37,7 +38,7 @@ public class SessionDetailDesktopViewTests
                     RecordedSourceMissing: false)));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
-        var incompleteText = mounted.View.FindControl<TextBlock>("ScreenIncompleteText");
+        var incompleteText = mounted.View.FindControl<SessionScreenStateOverlay>("ScreenOverlay")!.FindControl<TextBlock>("ScreenIncompleteText");
 
         Assert.NotNull(incompleteText);
         Assert.True(incompleteText!.IsEffectivelyVisible);
@@ -54,7 +55,7 @@ public class SessionDetailDesktopViewTests
             loadResult: new SessionDetailLoadResult.Failed(SessionLoadFailureReason.Read, "boom"));
 
         var shell = mounted.View.GetVisualDescendants().OfType<SessionShellDesktopView>().Single();
-        var errorText = mounted.View.FindControl<TextBlock>("ScreenErrorText");
+        var errorText = mounted.View.FindControl<SessionScreenStateOverlay>("ScreenOverlay")!.FindControl<TextBlock>("ScreenErrorText");
 
         Assert.NotNull(errorText);
         Assert.True(errorText!.IsEffectivelyVisible);
@@ -74,7 +75,7 @@ public class SessionDetailDesktopViewTests
             snapshot: TestSnapshots.Session(hasProcessedData: true),
             loadTask: loadCompletion.Task);
 
-        var busyOverlay = mounted.View.FindControl<BusyOverlay>("ScreenBusyOverlay")
+        var busyOverlay = mounted.View.FindControl<SessionScreenStateOverlay>("ScreenOverlay")!.FindControl<BusyOverlay>("ScreenBusyOverlay")
             ?? throw new InvalidOperationException("Screen busy overlay was not found.");
 
         Assert.True(busyOverlay.IsActive);

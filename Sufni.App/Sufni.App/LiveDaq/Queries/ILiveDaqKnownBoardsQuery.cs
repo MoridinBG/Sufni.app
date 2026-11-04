@@ -32,33 +32,7 @@ public sealed record LiveDaqSessionContext(
     Guid BikeId,
     string BikeName,
     BikeData BikeData,
-    LiveDaqTravelCalibration TravelCalibration,
-    DampingSpeedCutoffs DampingSpeedCutoffs)
-{
-    public LiveDaqSessionContext(
-        string IdentityKey,
-        Guid BoardId,
-        string DisplayName,
-        Guid SetupId,
-        string SetupName,
-        Guid BikeId,
-        string BikeName,
-        BikeData BikeData,
-        LiveDaqTravelCalibration TravelCalibration)
-        : this(
-            IdentityKey,
-            BoardId,
-            DisplayName,
-            SetupId,
-            SetupName,
-            BikeId,
-            BikeName,
-            BikeData,
-            TravelCalibration,
-            DampingSpeedCutoffs.Default)
-    {
-    }
-}
+    LiveDaqTravelCalibration TravelCalibration);
 
 // Read-only query that merges persisted boards with their current setup and bike
 // context for the live DAQ list.

@@ -49,6 +49,28 @@ public class VideoCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task StopAsync_WaitsForAlignmentPersistenceAndPublication()
+    {
+        using var store = new SessionVideoStore(new StorePublication(new InlineUiThreadDispatcher()));
+        var clip = new SessionVideoSnapshot(Guid.NewGuid(), "source", "/videos/ride.mp4", 0, 60, 2, 1, true);
+        await store.PublishClipsAsync([clip]);
+        var write = new TaskCompletionSource<SessionVideoSnapshot?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        videoRepository.UpdateAlignmentAsync(clip.Id, 3.5).Returns(write.Task);
+        using var owner = new VideoCoordinator(fileService, sessionRepository, videoRepository,
+            store, new InlineBackgroundTaskRunner(), time, sourceStore, presence, new InlineUiThreadDispatcher());
+        var operation = owner.ShiftAlignmentAsync(clip.Id, 1.5);
+
+        var stop = owner.StopAsync();
+        Assert.False(stop.IsCompleted);
+        Assert.Equal(2, store.Get(clip.Id)!.AlignmentOffsetSeconds);
+        write.SetResult(clip with { AlignmentOffsetSeconds = 3.5 });
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(3.5, store.Get(clip.Id)!.AlignmentOffsetSeconds);
+        Assert.IsType<VideoAlignmentResult.Updated>(await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public async Task PresenceChange_PublishesAllClipsForThePathTogether()
     {
         var dispatcher = new InlineUiThreadDispatcher();

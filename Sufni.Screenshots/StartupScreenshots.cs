@@ -1,5 +1,6 @@
 using System.Reactive.Linq;
 using Avalonia.Controls;
+using Avalonia.Styling;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -19,10 +20,13 @@ namespace Sufni.Screenshots;
 public class StartupScreenshots
 {
     [AvaloniaTheory]
-    [InlineData(1000, 760, false)]
-    [InlineData(1000, 760, true)]
-    [InlineData(402, 778, true)]
-    public async Task DatabaseFailure(int width, int height, bool expanded)
+    [InlineData(1000, 760, false, false)]
+    [InlineData(1000, 760, false, true)]
+    [InlineData(1000, 760, true, false)]
+    [InlineData(1000, 760, true, true)]
+    [InlineData(402, 778, true, false)]
+    [InlineData(402, 778, true, true)]
+    public async Task DatabaseFailure(int width, int height, bool expanded, bool light)
     {
         var startup = Substitute.For<IAppStartup>();
         startup.Observe().Returns(Observable.Return<ShellStartupState>(
@@ -36,7 +40,7 @@ public class StartupScreenshots
             new ShellWorkspaceViewModel(dispatcher, clock), TestAppEnvironment.Create(UiLayoutProfile.Workspace),
             Substitute.For<IPlotZoomState>(), dispatcher, clock);
         var view = new StartupView { DataContext = root };
-        var window = new Window { Width = width, Height = height, Content = view };
+        var window = new Window { RequestedThemeVariant = light ? ThemeVariant.Light : ThemeVariant.Dark, Width = width, Height = height, Content = view };
         try
         {
             window.Show();
@@ -50,7 +54,7 @@ public class StartupScreenshots
             Assert.NotNull(frame);
             var directory = Path.Combine(AppContext.BaseDirectory, "screenshots", "startup");
             Directory.CreateDirectory(directory);
-            frame.Save(Path.Combine(directory, $"failure-{width}-{(expanded ? "expanded" : "collapsed")}.png"));
+            frame.Save(Path.Combine(directory, $"{(light ? "light" : "dark")}-failure-{width}-{(expanded ? "expanded" : "collapsed")}.png"));
         }
         finally
         {

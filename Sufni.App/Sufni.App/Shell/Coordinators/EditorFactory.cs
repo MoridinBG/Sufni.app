@@ -1,3 +1,4 @@
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.LiveDaq.Coordinators;
@@ -15,7 +16,6 @@ using Sufni.App.Bikes.Queries;
 using Sufni.App.Bikes.Stores;
 using Sufni.App.Bikes.ViewModels.Editors;
 using Sufni.App.Infrastructure;
-using Sufni.App.LiveDaq.Coordinators;
 using Sufni.App.LiveDaq.Queries;
 using Sufni.App.LiveDaq.Services.LiveStreaming;
 using Sufni.App.LiveDaq.Stores;
@@ -59,7 +59,7 @@ internal sealed class EditorFactory(
     IBackgroundTaskRunner backgroundTaskRunner,
     IImportSessionsCoordinator importSessionsCoordinator,
     ILiveDaqSharedStreamRegistry sharedStreamRegistry,
-    ILiveSessionServiceFactory liveSessionServiceFactory,
+    ILiveCaptureCoordinatorFactory liveCaptureCoordinatorFactory,
     IVideoPaneFactory videoPaneFactory,
     ISessionEditingCoordinator sessionEditingCoordinator,
     ISegmentPickerFactory segmentPickerFactory,
@@ -156,15 +156,15 @@ internal sealed class EditorFactory(
             liveDaqKnownBoardsQuery.GetSessionContext(identityKey) is not { } context) return null;
 
         return CreateLiveSessionDetail(context,
-            liveSessionServiceFactory.Create(context, sharedStreamRegistry.GetOrCreate(snapshot)), shell);
+            liveCaptureCoordinatorFactory.Create(context, sharedStreamRegistry.GetOrCreate(snapshot)), shell);
     }
 
     private LiveSessionDetailViewModel CreateLiveSessionDetail(
         LiveDaqSessionContext context,
-        ILiveSessionService liveSessionService, IShellCoordinator shell) =>
+        ILiveCaptureCoordinator liveCaptureCoordinator, IShellCoordinator shell) =>
         new(
             context,
-            liveSessionService,
+            liveCaptureCoordinator,
             liveDaqCoordinator,
             sessionPresentationService,
             backgroundTaskRunner,
@@ -173,6 +173,6 @@ internal sealed class EditorFactory(
             dialogService,
             uiThreadDispatcher,
             timeProvider,
-            uiTimerScheduler,
+            bikeStore,
             bikeCoordinator);
 }

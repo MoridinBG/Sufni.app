@@ -24,7 +24,7 @@
         MinWidth="0"
         MaxWidth="430"
         Padding="14"
-        Background="{DynamicResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniSurfaceInputDisabled}"
         CornerRadius="4">
         <ScrollViewer MaxHeight="520">
             <StackPanel Spacing="16">

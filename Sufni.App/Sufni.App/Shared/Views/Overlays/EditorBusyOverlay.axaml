@@ -22,7 +22,7 @@
             Height="40"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
-            Foreground="{DynamicResource SufniAccentColor}"
+            Foreground="{DynamicResource SufniAccentPrimary}"
             IsActive="{Binding #Root.IsActive}" />
     </Grid>
 </UserControl>

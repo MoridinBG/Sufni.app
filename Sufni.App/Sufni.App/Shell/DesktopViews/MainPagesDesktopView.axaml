@@ -126,10 +126,10 @@ mc:Ignorable="d">
             <Button Width="50" Classes="embedded">
                 <Button.Styles>
                     <Style Selector="MenuItem">
-                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
                     </Style>
                     <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
-                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
                     </Style>
                 </Button.Styles>
 
@@ -195,7 +195,7 @@ mc:Ignorable="d">
                     Name="PairedDevicesSyncIndicator"
                     Width="18"
                     Height="18"
-                    Foreground="{DynamicResource SufniAccentColor}">
+                    Foreground="{DynamicResource SufniAccentPrimary}">
                         <controls2:ActivityIndicator.IsActive>
                             <MultiBinding Converter="{x:Static BoolConverters.And}">
                                 <Binding Path="Feedback.SyncInProgress" />
@@ -270,10 +270,10 @@ mc:Ignorable="d">
             Classes="embedded">
                 <Button.Styles>
                     <Style Selector="MenuItem">
-                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
                     </Style>
                     <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
-                        <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+                        <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
                     </Style>
                 </Button.Styles>
 
@@ -334,12 +334,12 @@ mc:Ignorable="d">
             Name="DesktopSyncBusyOverlay"
             BusyMessageFontWeight="Bold"
             ConsumesInput="False"
-            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IndicatorForeground="{DynamicResource SufniAccentPrimary}"
             IsActive="{Binding Feedback.SyncInProgress}"
             IsProgressIndeterminate="{Binding Feedback.SyncProgressIsIndeterminate}"
             IsVisible="{Binding Feedback.SyncInProgress}"
             Message="{Binding Feedback.SyncProgressText}"
-            MessageForeground="{DynamicResource SufniAccentColor}"
+            MessageForeground="{DynamicResource SufniAccentPrimary}"
             ProgressValue="{Binding Feedback.SyncProgressValue}"
             ShowProgress="{Binding Feedback.SyncInProgress}"
             ShowTint="True"

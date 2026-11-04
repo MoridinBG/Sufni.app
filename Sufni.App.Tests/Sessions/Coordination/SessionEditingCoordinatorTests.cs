@@ -30,6 +30,44 @@ public class SessionEditingCoordinatorTests
             .Returns(Task.FromResult<SessionRecomputeResult>(new SessionRecomputeResult.Recomputed()));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task StopAsync_WaitsForWindowCommitAndItsRecompute(int operationKind)
+    {
+        var commit = new TaskCompletionSource<SessionEditCommit>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recompute = new TaskCompletionSource<SessionRecomputeResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recomputeStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        transactions.TrimUntilEndAsync(session, 3).Returns(commit.Task);
+        transactions.TrimFromBeginningAsync(session, 3).Returns(commit.Task);
+        transactions.UndoTrimAsync(session).Returns(commit.Task);
+        transactions.SplitAsync(session, 3).Returns(commit.Task);
+        recomputeEngine.RequestRecomputeAsync(session.Id).Returns(_ =>
+        {
+            recomputeStarted.TrySetResult();
+            return recompute.Task;
+        });
+        var coordinator = CreateCoordinator();
+        var operation = operationKind switch
+        {
+            0 => coordinator.TrimUntilEndAsync(session.Id, 3),
+            1 => coordinator.TrimFromBeginningAsync(session.Id, 3),
+            2 => coordinator.UndoTrimAsync(session.Id),
+            _ => coordinator.SplitAsync(session.Id, 3),
+        };
+
+        var stop = coordinator.StopAsync();
+        Assert.False(stop.IsCompleted);
+        commit.SetResult(new SessionEditCommit.Committed([session.Id]));
+        await recomputeStarted.Task.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.False(stop.IsCompleted);
+        recompute.SetResult(new SessionRecomputeResult.Recomputed());
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+        Assert.IsType<SessionEditResult.Applied>(await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
+    }
+
     [Fact]
     public async Task SplitAsync_PublishesAndRecomputesBothParts_AndReportsSecondPart()
     {

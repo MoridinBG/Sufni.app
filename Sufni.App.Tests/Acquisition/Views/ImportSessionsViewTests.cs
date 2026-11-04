@@ -163,11 +163,11 @@ public class ImportSessionsViewTests
         var resources = Application.Current?.Resources
             ?? throw new InvalidOperationException("App.Current is null. Did you forget [AvaloniaFact]?");
 
-        resources["SufniDangerColor"] = Brushes.Red;
-        resources["SufniDangerColorDark"] = Brushes.DarkRed;
-        resources["SufniRegion"] = Brushes.Gray;
-        resources["SufniBorderBrush"] = Brushes.Black;
-        resources["SufniAccentColor"] = Brushes.CornflowerBlue;
+        resources["SufniDanger"] = Brushes.Red;
+        resources["SufniDangerDark"] = Brushes.DarkRed;
+        resources["SufniSurfacePage"] = Brushes.Gray;
+        resources["SufniLineInput"] = Brushes.Black;
+        resources["SufniAccentPrimary"] = Brushes.CornflowerBlue;
         resources["SufniImportActionImportRowBrush"] = new SolidColorBrush(Colors.CornflowerBlue);
         resources["SufniImportActionTrashRowBrush"] = new SolidColorBrush(Colors.IndianRed);
     }

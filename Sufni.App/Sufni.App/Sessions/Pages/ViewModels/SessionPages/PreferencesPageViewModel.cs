@@ -48,13 +48,18 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
 
     public double VelocityFilterWindowMilliseconds
     {
-        get => field;
+        get => readProcessingOptions?.Invoke().ClampedVelocityFilterWindowMilliseconds ?? field;
         set
         {
             var clamped = Math.Clamp(
                 Math.Round(value),
                 TelemetryProcessingOptions.MinVelocityFilterWindowMilliseconds,
                 TelemetryProcessingOptions.MaxVelocityFilterWindowMilliseconds);
+            if (previewProcessingOption is not null)
+            {
+                if (clamped != VelocityFilterWindowMilliseconds) previewProcessingOption((int)clamped);
+                return;
+            }
             if (SetProperty(ref field, clamped))
             {
                 OnPropertyChanged(nameof(VelocityFilterWindowDisplay));
@@ -98,10 +103,19 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
 
     private readonly Func<SignalDisplayPreferences> readSignalDisplay;
 
-    public PreferencesPageViewModel(Func<SignalDisplayPreferences> read, Action<SignalDisplayPreferences> write)
+    private readonly Func<TelemetryProcessingOptions>? readProcessingOptions;
+    private readonly Action<int>? previewProcessingOption;
+    private readonly Action? commitProcessingOption;
+
+    public PreferencesPageViewModel(Func<SignalDisplayPreferences> read, Action<SignalDisplayPreferences> write,
+        Func<TelemetryProcessingOptions>? readProcessingOptions = null,
+        Action<int>? previewProcessingOption = null, Action? commitProcessingOption = null)
         : base("Preferences")
     {
         readSignalDisplay = read;
+        this.readProcessingOptions = readProcessingOptions;
+        this.previewProcessingOption = previewProcessingOption;
+        this.commitProcessingOption = commitProcessingOption;
         TravelSignal = new("Travel", () => read().TravelSmoothing, value => write(CreateSignalDisplayPreferences() with { TravelSmoothing = value }));
         VelocitySignal = new("Velocity", () => read().VelocitySmoothing, value => write(CreateSignalDisplayPreferences() with { VelocitySmoothing = value }));
         ImuSignal = new("Vibration RMS", () => read().ImuSmoothing, value => write(CreateSignalDisplayPreferences() with { ImuSmoothing = value }));
@@ -127,8 +141,19 @@ public sealed class PreferencesPageViewModel : PageViewModelBase
         committedVelocityFilterWindowMilliseconds = windowMilliseconds;
     }
 
+    public void RefreshProcessingOptions()
+    {
+        OnPropertyChanged(nameof(VelocityFilterWindowMilliseconds));
+        OnPropertyChanged(nameof(VelocityFilterWindowDisplay));
+    }
+
     public void CommitProcessingPreferenceChange()
     {
+        if (commitProcessingOption is not null)
+        {
+            commitProcessingOption();
+            return;
+        }
         var options = CreateProcessingOptions();
         if (options.ClampedVelocityFilterWindowMilliseconds == committedVelocityFilterWindowMilliseconds)
         {

@@ -9,13 +9,11 @@ internal interface ILiveSignalPipeline : IAsyncDisposable
 
     void Start();
 
-    void AppendTravelSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> frontTravel, ReadOnlySpan<double> rearTravel);
+    void AppendTravelSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> frontTravel, ReadOnlySpan<double> rearTravel);
 
-    void AppendImuSamples(LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> vibrationRms);
+    void AppendImuSamples(long epoch, LiveImuLocation location, ReadOnlySpan<double> times, ReadOnlySpan<double> vibrationRms);
 
-    void AppendFramePitchRollSamples(ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees);
+    void AppendFramePitchRollSamples(long epoch, ReadOnlySpan<double> times, ReadOnlySpan<double> pitchDegrees, ReadOnlySpan<double> rollDegrees);
 
-    void SetAnalysis(LiveSessionAnalysis analysis);
-
-    void Reset();
+    void BeginEpoch(long epoch);
 }

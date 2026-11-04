@@ -10,7 +10,7 @@ d:DesignHeight="50"
 d:DesignWidth="150"
 x:DataType="shellBase:TabPageViewModelBase"
 mc:Ignorable="d">
-    <Grid Background="{DynamicResource SufniRegion}" RowDefinitions="auto">
+    <Grid Background="{DynamicResource SufniSurfacePage}" RowDefinitions="auto">
 
         <!--  Title  -->
         <TextBox
@@ -29,7 +29,7 @@ mc:Ignorable="d">
                     <Setter Property="BorderBrush" Value="Transparent" />
                 </Style>
                 <Style Selector="TextBox:disabled /template/ TextPresenter#PART_TextPresenter">
-                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SufniForeground}" />
+                    <Setter Property="TextElement.Foreground" Value="{DynamicResource SufniTextSecondary}" />
                 </Style>
                 <Style Selector="TextBox:disabled /template/ Border">
                     <Setter Property="Background" Value="Transparent" />
@@ -37,7 +37,7 @@ mc:Ignorable="d">
                 </Style>
                 <Style Selector="TextBox:focus:pointerover /template/ Border">
                     <Setter Property="Background" Value="Transparent" />
-                    <Setter Property="BorderBrush" Value="{DynamicResource SufniAccentColor}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource SufniAccentPrimary}" />
                 </Style>
             </TextBox.Styles>
         </TextBox>
@@ -49,7 +49,7 @@ mc:Ignorable="d">
         Padding="10,0,0,0"
         HorizontalAlignment="Right"
         VerticalAlignment="Center"
-        Background="{DynamicResource SufniRegion}"
+        Background="{DynamicResource SufniSurfacePage}"
         IsVisible="{Binding Timestamp, Converter={x:Static ObjectConverters.IsNotNull}}"
         Text="{Binding Timestamp}" />
 

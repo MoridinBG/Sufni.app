@@ -2,6 +2,7 @@
 x:Class="Sufni.App.LiveDaq.DesktopViews.Editors.LiveSessionDetailDesktopView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:presentation="clr-namespace:Sufni.App.Sessions.Presentation.Views"
     xmlns:items2="clr-namespace:Sufni.App.Sessions.Detail.DesktopViews.Items"
     xmlns:items3="clr-namespace:Sufni.App.Sessions.Media.DesktopViews.Items"
     xmlns:items4="clr-namespace:Sufni.App.Sessions.Analysis.DesktopViews.Items"
@@ -16,7 +17,7 @@ d:DesignHeight="800"
 d:DesignWidth="800"
 x:Name="Root"
 x:DataType="vm:LiveSessionDetailViewModel"
-Background="{DynamicResource SufniRegion}"
+Background="{DynamicResource SufniSurfacePage}"
 Focusable="True"
 lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
 lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
@@ -25,7 +26,7 @@ mc:Ignorable="d">
     <Grid>
         <editors:SessionShellDesktopView
             HasMediaContent="{Binding MediaWorkspace.HasMediaContent}"
-            IsVisible="{Binding ScreenState.IsReady}">
+            IsVisible="{Binding ShellMobileWorkspace.ScreenState.IsReady}">
 
             <editors:SessionShellDesktopView.SignalsContent>
                 <items:LiveSessionSignalsDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).SignalsWorkspace}" />
@@ -36,7 +37,7 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.MediaContent>
 
             <editors:SessionShellDesktopView.AnalysisContent>
-                <items4:SessionAnalysisDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
+                <items4:SessionAnalysisDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).AnalysisWorkspace}" />
             </editors:SessionShellDesktopView.AnalysisContent>
 
             <editors:SessionShellDesktopView.ControlContent>
@@ -44,30 +45,12 @@ mc:Ignorable="d">
             </editors:SessionShellDesktopView.ControlContent>
 
             <editors:SessionShellDesktopView.SidebarContent>
-                <items2:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext)}" />
+                <items2:SessionSidebarDesktopView DataContext="{Binding $parent[UserControl].((vm:LiveSessionDetailViewModel)DataContext).SidebarWorkspace}" />
             </editors:SessionShellDesktopView.SidebarContent>
         </editors:SessionShellDesktopView>
 
-        <overlays:BusyOverlay
-            Name="ScreenBusyOverlay"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            IndicatorForeground="{DynamicResource SufniAccentColor}"
-            IsActive="{Binding ScreenState.IsLoading}"
-            IsVisible="{Binding ScreenState.IsLoading}"
-            Message="{Binding ScreenState.Message}"
-            MessageForeground="{DynamicResource SufniForeground}"
-            ProgressValue="{Binding ScreenState.ProgressFraction}"
-            ShowIndicator="False"
-            ShowProgress="{Binding ScreenState.IsLoading}"
-            UseStackLayout="True" />
+        <presentation:SessionScreenStateOverlay Name="ScreenOverlay" ScreenState="{Binding ShellMobileWorkspace.ScreenState}" />
 
-        <Border HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24" Background="{DynamicResource SufniBackground}" BorderBrush="{DynamicResource SufniBorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ScreenState.IsError}">
-            <StackPanel Spacing="12">
-                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
-                <TextBlock HorizontalAlignment="Center" Text="{Binding ScreenState.Message}" TextAlignment="Center" TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
     </Grid>
 
 </UserControl>

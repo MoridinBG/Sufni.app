@@ -13,7 +13,7 @@
 
     <Border
         Padding="12,10"
-        Background="{DynamicResource SufniBackgroundDisabled}"
+        Background="{DynamicResource SufniSurfaceInputDisabled}"
         CornerRadius="6">
         <StackPanel Spacing="4">
             <Grid ColumnDefinitions="* Auto">
@@ -21,12 +21,12 @@
                     Grid.Column="0"
                     x:Name="LiveConnectionStateTextBlock"
                     FontWeight="SemiBold"
-                    Text="{Binding ControlState.ConnectionStateText}"
+                    Text="{Binding ConnectionStateText}"
                     TextTrimming="CharacterEllipsis" />
                 <TextBlock
                     Grid.Column="1"
                     x:Name="LiveCaptureDurationTextBlock"
-                    Text="{Binding ControlState.CaptureDurationText}" />
+                    Text="{Binding CaptureDurationText}" />
             </Grid>
 
             <shared:LiveSessionHeaderFields />
@@ -34,9 +34,9 @@
             <TextBlock
                 x:Name="LiveLastErrorTextBlock"
                 FontSize="12"
-                Foreground="{DynamicResource SufniDangerColor}"
-                IsVisible="{Binding ControlState.HasLastError}"
-                Text="{Binding ControlState.LastError}"
+                Foreground="{DynamicResource SufniDanger}"
+                IsVisible="{Binding HasLastError}"
+                Text="{Binding LastError}"
                 TextWrapping="Wrap" />
         </StackPanel>
     </Border>

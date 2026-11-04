@@ -198,21 +198,21 @@ liveness. `SessionCoordinator.RecomputeAsync(sessionId)` recomputes on request.
 confirmed single-session or bulk choices. Missing raw sources are unavailable
 even when existing processed data remains current; missing setup/bike inputs
 have their own presentation. Neither condition blocks opening available telemetry.
-The editor owns prompt visibility and remembers the prompted fingerprint pair;
+`SessionStalenessPrompt` owns prompt visibility and remembers the prompted fingerprint pair;
 unchanged inputs do not prompt again, while changed processing inputs do.
 Inactive tabs defer this presentation in both layouts. Domain reactions enter
 directly from the projection watch, stay retained while pending, and drain on
 final close. Bulk recompute completion is also delivered to shell feedback.
 
 Recorded-session analysis result state is scoped to an open
-`SessionDetailViewModel`. The editor creates one
+`SessionDetailViewModel`. Its `RecordedSessionAnalysisDemand` creates one
 `IRecordedSessionAnalysisResultState` through a singleton factory and exposes it
 through `SessionAnalysisWorkspaceViewModel`; the heavy work is delegated to the
 singleton `IRecordedSessionAnalysisComputer`. The state is invalidated when the
 telemetry generation, selected analysis range, analysis modes, damping cutoffs,
 or insights target changes. Session Insights computes its damping percentages
 from those inputs internally; percentages are a result, never an analysis key input. Visible analysis surfaces then
-request keyed results on demand: the editor eagerly requests the shared damping
+request keyed results on demand: the demand component eagerly requests the shared damping
 percentages and optional insights records, while selected/visible analysis tabs
 and plot controls request only the result records they render. Cached records are
 reused within the open editor until their semantic keys no longer match. Preview
@@ -225,8 +225,10 @@ marshal their completion back for a single guarded cache/publication step. Calle
 cancellation only stops that caller waiting; supersession or disposal cancels the
 owned work. Async disposal drains all work, including displaced jobs. Calculation
 failures carry a closed reason and separate diagnostics, logged at this boundary.
-The editor derives requests
-from current input keys, eagerly requests damping percentages, and retains Insights
+The reducer invokes the demand component as an explicit preparation step before
+publishing each distinct editor state. Key invalidation therefore precedes
+presentation regardless of subscriber registration order. The demand component derives requests
+from that state and current input keys, eagerly requests damping percentages, and retains Insights
 demand after a visible surface requests it. The reducer clears stale percentages
 and Insights with the input change; results arrive as later accepted inputs.
 

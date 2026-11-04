@@ -4,6 +4,7 @@ using Sufni.App.MapsAndTracks.Stores;
 using Sufni.App.Shared.Models;
 using Sufni.App.Tests.TestSupport.Async;
 using NSubstitute;
+using NSubstitute.Extensions;
 using System.Reactive.Linq;
 using Microsoft.Extensions.Time.Testing;
 using Sufni.App.Tests.TestSupport.Persistence;
@@ -85,6 +86,32 @@ public class SessionCoordinatorTests
             Assert.Equal(SessionEditorFailureReason.LoadPreferences, failed.Reason);
             Assert.NotEmpty(failed.Details!);
         }
+    }
+
+    [Fact]
+    public async Task StopAsync_WaitsForGpsAlignmentPersistenceAndPublication()
+    {
+        var repository = new InMemorySessionRepository(new FakeTimeProvider());
+        using var store = new SessionStore(publication);
+        var original = PrepareAlignment(repository, 3);
+        await store.PublishSessionsChangedAsync([original]);
+        var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        repository.Repository.Configure().UpdateGpsAlignmentAsync(original.Id, 2.5).Returns(async _ =>
+        {
+            await write.Task;
+            repository.Seed(original with { GpsOffsetSeconds = 2.5 });
+        });
+        var coordinator = CreateCoordinator(store, repository.Repository);
+        var operation = coordinator.ShiftGpsOffsetAsync(original.Id, 1.25, TestContext.Current.CancellationToken);
+
+        var stop = coordinator.StopAsync();
+        Assert.False(stop.IsCompleted);
+        Assert.Equal(1.25, store.Get(original.Id)!.GpsOffsetSeconds);
+        write.SetResult();
+        await stop.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2.5, store.Get(original.Id)!.GpsOffsetSeconds);
+        Assert.IsType<GpsOffsetResult.Applied>(await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]

@@ -1,4 +1,6 @@
 using Sufni.App.Shared.Plots;
+using Sufni.App.Tests.TestSupport.Sessions;
+using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Tests.TestSupport.Fixtures;
 using Sufni.App.Video.Stores;
 using Sufni.App.Video.Models;
@@ -21,7 +23,6 @@ using Sufni.App.Sessions.Analysis.Services;
 using Sufni.App.Sessions.Analysis.ViewModels.Editors;
 using Sufni.App.Shared.Base;
 using Sufni.App.Sessions.Signals.ViewModels.Editors;
-using Sufni.App.Sessions.Media.ViewModels.Editors;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
@@ -32,8 +33,31 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 
 public class SessionWorkspaceViewModelTests
 {
-    private static readonly IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>> EmptySignalPlotContextMenuActionsBySignalRowId =
-        new Dictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>();
+    [Fact]
+    public void SessionMediaWorkspace_AppliesAndClearsMapPointsAndTimelineFromState()
+    {
+        using var mapHost = new TestSessionMediaWorkspace();
+        using var comparison = TestSegmentComparisons.Create();
+        using var state = new Subject<RecordedSessionEditorState>();
+        using var workspace = new SessionMediaWorkspaceViewModel(state, mapHost.MapViewModel,
+            new SessionTimelineLinkViewModel(), null, comparison);
+        TrackPoint[] full = [new(1000, 1, 2, 3), new(1010, 2, 3, 4)];
+        TrackPoint[] window = [new(1005, 1.5, 2.5, 3.5)];
+        var timing = new TrackTimeRange(1005, 5);
+
+        state.OnNext(RecordedSessionEditorState.CreateInitial() with
+        {
+            FullTrackPoints = full, TrackPoints = window, TrackTimelineContext = timing,
+        });
+
+        Assert.Equal(full, mapHost.MapViewModel!.FullTrackPoints);
+        Assert.Equal(window, mapHost.MapViewModel.SessionTrackPoints);
+        Assert.Equal(timing, mapHost.MapViewModel.TimelineContext);
+        state.OnNext(RecordedSessionEditorState.CreateInitial());
+        Assert.Null(mapHost.MapViewModel.FullTrackPoints);
+        Assert.Null(mapHost.MapViewModel.SessionTrackPoints);
+        Assert.Null(mapHost.MapViewModel.TimelineContext);
+    }
 
     [Fact]
     public void SessionMediaWorkspace_TracksMapState()
@@ -144,13 +168,7 @@ public class SessionWorkspaceViewModelTests
                     ShowImuAnalysisSelection: false,
                     ShowPitchRollAnalysisSelection: false,
                     ShowSpeedAnalysisSelection: false,
-                    ShowElevationAnalysisSelection: false,
-                    TravelHeaderActions: [],
-                    VelocityHeaderActions: [],
-                    ImuHeaderActions: [],
-                    PitchRollHeaderActions: [],
-                    SpeedHeaderActions: [],
-                    ElevationHeaderActions: []),
+                    ShowElevationAnalysisSelection: false),
                 Analysis: new RecordedAnalysisPresentationState(
                     FrontAnalysis: SurfacePresentationState.Hidden,
                     RearAnalysis: SurfacePresentationState.Hidden,
@@ -164,7 +182,6 @@ public class SessionWorkspaceViewModelTests
                 PlotDampingSpeedCutoffs: DampingSpeedCutoffs.Default,
                 CanEditDampingSpeedCutoffs: false,
                 SessionInsights: SessionInsightsResult.Hidden,
-                SignalPlotContextMenuActionsBySignalRowId: EmptySignalPlotContextMenuActionsBySignalRowId,
                 ScreenState: screenState ?? SessionScreenPresentationState.Ready,
                 OperationState: operationState ?? SessionOperationPresentationState.Hidden),
             AnalysisSelection: new AnalysisSelectionState(null, null, []));

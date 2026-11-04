@@ -13,7 +13,7 @@
 
     <UserControl.Styles>
         <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource SufniAccentColor}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniAccentPrimary}" />
         </Style>
     </UserControl.Styles>
 
@@ -43,7 +43,7 @@
                         Background="#f0f0f0"
                         Content="{Binding Name, StringFormat='{}{0} deleted.'}"
                         CornerRadius="2"
-                        Foreground="{DynamicResource SufniRegion}"
+                        Foreground="{DynamicResource SufniSurfacePage}"
                         IsHitTestVisible="False" />
                     <Button
                         Name="UndoButton"
@@ -55,7 +55,7 @@
                         Classes="embedded"
                         Command="{Binding UndoDeleteCommand}"
                         Content="undo"
-                        Foreground="{DynamicResource SufniAccentColor}" />
+                        Foreground="{DynamicResource SufniAccentPrimary}" />
                 </Panel>
             </DataTemplate>
         </ItemsRepeater.ItemTemplate>

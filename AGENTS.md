@@ -372,9 +372,14 @@ including [Pairing Flow](docs/architecture/sync.md#pairing-flow),
   leases. Registry transport reservations are separate from observers and stay
   held until socket cleanup completes; capture locks reject disconnect. The shell
   replaces closed diagnostics tabs on reselect and owns detached-tab cleanup.
-  The capture service computes mode-specific analysis off-thread and the signal
-  pipeline carries immutable results; live plots render through
-  `ISessionAnalysisResultSource`. Capture duration comes from device time. See
+  The tab-lifetime `LiveCaptureCoordinator` owns raw capture through
+  `LiveCaptureRecorder`, with separate materialization, track and display
+  projectors. Its analysis scheduler retains demand through cadence/pressure
+  waits; the state publisher delivers capture facts and keyed analysis on the UI
+  thread. Signal batches carry signals and explicit epoch resets only. The editor
+  composes analysis, page-baking, mobile-shell and sidebar workspaces; cutoffs
+  follow the current bike store. Live analysis plots use `ISessionAnalysisResultSource`.
+  Capture duration comes from device time. See
   [docs/architecture/live-streaming.md](docs/architecture/live-streaming.md).
 - **Dependency injection** with
   `Microsoft.Extensions.DependencyInjection`. Services with

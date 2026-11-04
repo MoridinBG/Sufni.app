@@ -11,10 +11,10 @@ xmlns:vm="clr-namespace:Sufni.App.Shell.ViewModels"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ShellRootViewModel"
-Background="{DynamicResource SufniBackgroundDisabled}"
+Background="{DynamicResource SufniSurfaceInputDisabled}"
 sessionPanes:CollapsibleSplitView.HasTouchInput="{Binding HasTouchInput}"
 mc:Ignorable="d">
-    <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniRegion}">
+    <Panel TopLevel.AutoSafeAreaPadding="True" Background="{DynamicResource SufniSurfacePage}">
         <ContentControl Name="WorkspaceRootHost" Content="{Binding Presentation}" />
         <c:PlotZoomOverlayHost
             Name="PlotZoomOverlay"
@@ -24,16 +24,16 @@ mc:Ignorable="d">
             Name="SyncBusyOverlay"
             BusyMessageFontWeight="Bold"
             ConsumesInput="{Binding Feedback.SyncInProgress}"
-            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IndicatorForeground="{DynamicResource SufniAccentPrimary}"
             IsActive="{Binding Feedback.SyncInProgress}"
             IsProgressIndeterminate="{Binding Feedback.SyncProgressIsIndeterminate}"
             IsVisible="{Binding Feedback.SyncInProgress}"
             Message="{Binding Feedback.SyncProgressText}"
-            MessageForeground="{DynamicResource SufniAccentColor}"
+            MessageForeground="{DynamicResource SufniAccentPrimary}"
             ProgressValue="{Binding Feedback.SyncProgressValue}"
             ShowProgress="{Binding Feedback.SyncInProgress}"
             ShowTint="True"
-            TintBackground="{DynamicResource SufniBackgroundDisabled}"
+            TintBackground="{DynamicResource SufniSurfaceInputDisabled}"
             UseStackLayout="True" />
     </Panel>
 </UserControl>

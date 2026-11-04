@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Presentation;
 using Sufni.App.Sessions.Signals.Views.Controls;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Plots;

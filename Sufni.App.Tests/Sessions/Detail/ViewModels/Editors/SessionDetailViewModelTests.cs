@@ -1,4 +1,6 @@
 using Sufni.App.Shared.Plots;
+using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Models;
 using Sufni.App.Video.Coordinators;
@@ -21,6 +23,8 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Insights.Services;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Models;
+using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
+using System.ComponentModel;
 using Sufni.App.Sessions.Processing.RecordedSessionProjection;
 using Sufni.App.Sessions.Processing.SessionDetails;
 using Sufni.App.Sessions.Store;
@@ -40,6 +44,296 @@ namespace Sufni.App.Tests.Sessions.Detail.ViewModels.Editors;
 [Collection("Ui")]
 public class SessionDetailViewModelTests
 {
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PreferenceSaves_PreserveNewerEditsUntilTheirOwnOutcome(bool latestSaveSucceeds)
+    {
+        using var harness = new SessionDetailHarness();
+        var editor = harness.CreateRecordedEditor();
+        await harness.LoadAsync(editor);
+        // Inline completion keeps each persistence boundary under dispatcher control.
+        var first = new TaskCompletionSource<SessionPreferenceSaveResult>();
+        var second = new TaskCompletionSource<SessionPreferenceSaveResult>();
+        harness.SessionCoordinator.SavePreferencesAsync(editor.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .Returns(first.Task, second.Task);
+        var modes = new List<BalanceSpeedMode>();
+        ((INotifyPropertyChanged)editor.AnalysisWorkspace).PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ISessionAnalysisWorkspace.SelectedBalanceSpeedMode))
+                modes.Add(editor.AnalysisWorkspace.SelectedBalanceSpeedMode);
+        };
+
+        editor.AnalysisWorkspace.SelectedBalanceSpeedMode = BalanceSpeedMode.LowSpeed;
+        editor.AnalysisWorkspace.SelectedBalanceSpeedMode = BalanceSpeedMode.HighSpeed;
+        var committed = SessionPreferences.Default with
+        {
+            Analysis = SessionPreferences.Default.Analysis with { BalanceSpeedMode = BalanceSpeedMode.LowSpeed },
+        };
+        harness.PublishPreferences(committed);
+        first.SetResult(new SessionPreferenceSaveResult.Saved());
+        // An unrelated persisted edit still reaches the screen while the second save is pending.
+        committed = committed with
+        {
+            SignalDisplay = committed.SignalDisplay with { TravelSmoothing = PlotSmoothingLevel.Strong },
+        };
+        harness.PublishPreferences(committed);
+
+        Assert.Equal([BalanceSpeedMode.LowSpeed, BalanceSpeedMode.HighSpeed], modes);
+        Assert.Equal(PlotSmoothingLevel.Strong, editor.SidebarWorkspace.PreferencesPage.TravelSignal.SelectedSmoothing);
+        if (latestSaveSucceeds)
+        {
+            harness.PublishPreferences(committed with
+            {
+                Analysis = committed.Analysis with { BalanceSpeedMode = BalanceSpeedMode.HighSpeed },
+            });
+            second.SetResult(new SessionPreferenceSaveResult.Saved());
+        }
+        else
+        {
+            second.SetResult(new SessionPreferenceSaveResult.Failed(SessionEditorFailureReason.SavePreferences, null));
+        }
+
+        Assert.Equal(latestSaveSucceeds ? BalanceSpeedMode.HighSpeed : BalanceSpeedMode.LowSpeed,
+            editor.AnalysisWorkspace.SelectedBalanceSpeedMode);
+        Assert.Equal(PlotSmoothingLevel.Strong, editor.SidebarWorkspace.PreferencesPage.TravelSignal.SelectedSmoothing);
+        Assert.Equal(latestSaveSucceeds ? 0 : 1, editor.ErrorMessages.Count);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task PreferenceRestore_DoesNotReplaceAnObservedChange()
+    {
+        using var harness = new SessionDetailHarness();
+        var editor = harness.CreateRecordedEditor();
+        var pending = new TaskCompletionSource<SessionPreferenceLoadResult>();
+        harness.SessionCoordinator.LoadPreferencesAsync(editor.Id).Returns(pending.Task);
+        var loading = harness.LoadAsync(editor);
+        harness.PublishPreferences(SessionPreferences.Default with
+        {
+            Analysis = SessionPreferences.Default.Analysis with { BalanceSpeedMode = BalanceSpeedMode.HighSpeed },
+        });
+
+        pending.SetResult(new SessionPreferenceLoadResult.Loaded(SessionPreferences.Default));
+        await loading.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(BalanceSpeedMode.HighSpeed, editor.AnalysisWorkspace.SelectedBalanceSpeedMode);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ProcessingCompletion_PreservesAnEditMadeWhileSaving(bool succeeds)
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession() with { VelocityFilterWindowMilliseconds = 25 };
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateRecordedEditor(snapshot, projectionChanges: changes);
+        await harness.LoadAsync(editor);
+        var pending = new TaskCompletionSource<SessionRecomputeResult>();
+        harness.SessionCoordinator.SetProcessingOptionAsync(snapshot.Id, 50).Returns(pending.Task);
+        var preferences = editor.SidebarWorkspace.PreferencesPage;
+        preferences.VelocityFilterWindowMilliseconds = 50;
+        preferences.CommitProcessingPreferenceChange();
+        preferences.VelocityFilterWindowMilliseconds = 75;
+
+        var committed = snapshot with { VelocityFilterWindowMilliseconds = succeeds ? 50 : 25 };
+        harness.SessionStore.Get(snapshot.Id).Returns(committed);
+        changes.OnNext(DomainFromSnapshot(committed));
+        pending.SetResult(succeeds ? new SessionRecomputeResult.Recomputed()
+            : new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.ProcessingOption));
+
+        Assert.Equal(75, preferences.VelocityFilterWindowMilliseconds);
+        Assert.Equal(succeeds ? 0 : 1, editor.ErrorMessages.Count);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task ProcessingFailure_RestoresCommittedOptionsAndAllowsRetry()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession() with { VelocityFilterWindowMilliseconds = 25 };
+        var editor = harness.CreateRecordedEditor(snapshot);
+        await harness.LoadAsync(editor);
+        harness.SessionCoordinator.SetProcessingOptionAsync(snapshot.Id, 50)
+            .Returns(new SessionRecomputeResult.Failed(SessionRecomputeFailureReason.ProcessingOption));
+        var preferences = editor.SidebarWorkspace.PreferencesPage;
+        preferences.VelocityFilterWindowMilliseconds = 50;
+        preferences.CommitProcessingPreferenceChange();
+        Assert.Equal(25, preferences.VelocityFilterWindowMilliseconds);
+
+        preferences.VelocityFilterWindowMilliseconds = 50;
+        preferences.CommitProcessingPreferenceChange();
+
+        await harness.SessionCoordinator.Received(2).SetProcessingOptionAsync(snapshot.Id, 50);
+        Assert.Equal(25, preferences.VelocityFilterWindowMilliseconds);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task BalancePage_RemainsAvailableForAnEmptySelectedRange()
+    {
+        using var harness = new SessionDetailHarness();
+        var editor = harness.CreateRecordedEditor(loadResult: harness.CreateLoadedResult(TestTelemetryData.CreateProcessed(sampleRate: 100)));
+        await harness.LoadAsync(editor);
+        var page = Assert.Single(editor.MobileWorkspace.Pages.OfType<BalancePageViewModel>());
+
+        editor.SignalsWorkspace.SetAnalysisRange(0, 0.1);
+
+        Assert.Contains(page, editor.MobileWorkspace.Pages);
+        Assert.Equal(SurfaceStateKind.NoData, page.CompressionPresentationState.Kind);
+        Assert.Equal(SurfaceStateKind.NoData, page.ReboundPresentationState.Kind);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task Close_DropsLateAlignmentFeedback()
+    {
+        using var videos = new VideoFixture();
+        var (harness, editor, clip) = await CreateEditorWithVideoAsync(videos);
+        using var harnessLifetime = harness;
+        var pending = new TaskCompletionSource<VideoAlignmentResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        videos.Coordinator.ShiftAlignmentAsync(clip.Id, 2).Returns(pending.Task);
+        ExecuteSignalAction(editor, "video-mark-video-event", 5);
+        var operation = ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)
+            .ExecuteAsync(CreatePlotContext(3));
+
+        await harness.CloseAsync(editor);
+        Assert.False(operation.IsCompleted);
+        pending.SetResult(new VideoAlignmentResult.Failed(VideoAlignmentFailureReason.Save, "disk full"));
+        await operation.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Empty(editor.ErrorMessages);
+        Assert.Empty(editor.Notifications);
+    }
+
+    [AvaloniaFact]
+    public async Task DampingCommit_AfterCloseDoesNotRestoreCutoffs()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession();
+        var bike = TestSnapshots.Bike();
+        var domain = DomainFromSnapshot(snapshot) with { Bike = bike };
+        var editor = harness.CreateRecordedEditor(snapshot, projectionChanges: Observable.Return(domain));
+        await harness.LoadAsync(editor);
+        var pending = new TaskCompletionSource<BikeDampingSpeedCutoffUpdateResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        harness.BikeCoordinator.UpdateDampingSpeedCutoffAsync(bike.Id, 200, SuspensionType.Front, DampingSpeedCircuit.Compression, 350)
+            .Returns(pending.Task);
+        var commit = editor.AnalysisWorkspace.CommitDampingSpeedCutoffAsync(SuspensionType.Front, DampingSpeedCircuit.Compression, 350);
+        await harness.CloseAsync(editor);
+
+        pending.SetResult(new BikeDampingSpeedCutoffUpdateResult.Missing());
+        await commit.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(350, editor.AnalysisWorkspace.DampingSpeedCutoffs.Front.CompressionMmPerSecond);
+        Assert.Empty(editor.ErrorMessages);
+    }
+
+    [AvaloniaFact]
+    public async Task Insights_FirstPageSelectionRequestsAnalysisInTheSameStateUpdate()
+    {
+        using var harness = new SessionDetailHarness();
+        var editor = harness.CreateRecordedEditor();
+        await harness.LoadAsync(editor);
+        harness.SessionInsightsService.DidNotReceive().Analyze(Arg.Any<SessionInsightsRequest>());
+
+        editor.MobileWorkspace.SelectedPageIndex = editor.MobileWorkspace.Pages.IndexOf(
+            editor.MobileWorkspace.Pages.OfType<SessionInsightsPageViewModel>().Single());
+
+        harness.SessionInsightsService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(
+            request => request.TelemetryData == editor.SignalsWorkspace.TelemetryData && request.AnalysisRange == null));
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task Insights_LeavingThePageRetainsDemandForChangedInputs()
+    {
+        using var harness = new SessionDetailHarness();
+        var editor = harness.CreateRecordedEditor();
+        await harness.LoadAsync(editor);
+        editor.MobileWorkspace.SelectedPageIndex = editor.MobileWorkspace.Pages.IndexOf(
+            editor.MobileWorkspace.Pages.OfType<SessionInsightsPageViewModel>().Single());
+        editor.MobileWorkspace.SelectedPageIndex = 0;
+        harness.SessionInsightsService.ClearReceivedCalls();
+
+        editor.SignalsWorkspace.SetAnalysisRange(0.05, 0.2);
+
+        harness.SessionInsightsService.Received(1).Analyze(Arg.Is<SessionInsightsRequest>(
+            request => request.AnalysisRange == new TelemetryTimeRange(0.05, 0.2)));
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task Insights_ChangedInputsReplaceTheResultWhileDemandIsRetained()
+    {
+        using var harness = new SessionDetailHarness();
+        var initialResult = CreateAnalysisResult();
+        var changedResult = initialResult with { AllFindings = [] };
+        harness.SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>())
+            .Returns(call => call.Arg<SessionInsightsRequest>().AnalysisRange == null ? initialResult : changedResult);
+        var editor = harness.CreateRecordedEditor();
+        await harness.LoadAsync(editor);
+        editor.MobileWorkspace.SelectedPageIndex = editor.MobileWorkspace.Pages.IndexOf(
+            editor.MobileWorkspace.Pages.OfType<SessionInsightsPageViewModel>().Single());
+        Assert.Same(initialResult, editor.AnalysisWorkspace.SessionInsights);
+
+        editor.SignalsWorkspace.SetAnalysisRange(0.1, 0.2);
+
+        harness.SessionInsightsService.Received(2).Analyze(Arg.Any<SessionInsightsRequest>());
+        Assert.Same(changedResult, editor.AnalysisWorkspace.SessionInsights);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task ProcessingCommit_ProjectsCurrentStoreOptions()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession() with { VelocityFilterWindowMilliseconds = 25 };
+        var editor = harness.CreateRecordedEditor(snapshot);
+        await harness.LoadAsync(editor);
+        var preferences = editor.SidebarWorkspace.PreferencesPage;
+        harness.SessionCoordinator.SetProcessingOptionAsync(snapshot.Id, 50).Returns(_ =>
+        {
+            harness.SessionStore.Get(snapshot.Id).Returns(snapshot with { VelocityFilterWindowMilliseconds = 100 });
+            return new SessionRecomputeResult.Recomputed();
+        });
+        preferences.VelocityFilterWindowMilliseconds = 50;
+
+        preferences.CommitProcessingPreferenceChange();
+
+        Assert.Equal(100, preferences.VelocityFilterWindowMilliseconds);
+        await harness.SessionCoordinator.Received(1).SetProcessingOptionAsync(snapshot.Id, 50);
+        await harness.CloseAsync(editor);
+    }
+
+    [AvaloniaFact]
+    public async Task ProcessingCommit_SupersededResultPreservesNewerProjectionAndDraft()
+    {
+        using var harness = new SessionDetailHarness();
+        var snapshot = harness.CreateRecordedSession() with { VelocityFilterWindowMilliseconds = 25 };
+        using var changes = new Subject<RecordedSessionDomainSnapshot>();
+        var editor = harness.CreateRecordedEditor(snapshot, projectionChanges: changes);
+        await harness.LoadAsync(editor);
+        var preferences = editor.SidebarWorkspace.PreferencesPage;
+        // Complete on the dispatcher so the pending commit resumes deterministically inline.
+        var pending = new TaskCompletionSource<SessionRecomputeResult>();
+        harness.SessionCoordinator.SetProcessingOptionAsync(snapshot.Id, 50).Returns(pending.Task);
+        preferences.VelocityFilterWindowMilliseconds = 50;
+        preferences.CommitProcessingPreferenceChange();
+        var newer = snapshot with { VelocityFilterWindowMilliseconds = 100 };
+        harness.SessionStore.Get(snapshot.Id).Returns(newer);
+        changes.OnNext(DomainFromSnapshot(newer));
+        Assert.Equal(100, preferences.VelocityFilterWindowMilliseconds);
+        preferences.VelocityFilterWindowMilliseconds = 150;
+
+        pending.SetResult(new SessionRecomputeResult.Superseded());
+
+        Assert.Equal(150, preferences.VelocityFilterWindowMilliseconds);
+        Assert.Empty(editor.ErrorMessages);
+        await harness.CloseAsync(editor);
+    }
+
     [AvaloniaFact]
     public async Task LoadFailure_ShowsSafeScreenStateAndSeparateDiagnostics()
     {
@@ -49,8 +343,12 @@ public class SessionDetailViewModelTests
         harness.SessionLoader.LoadDetailAsync(snapshot.Id, Arg.Any<IProgress<SessionDetailLoadProgress>>(), Arg.Any<CancellationToken>())
             .Returns(new SessionDetailLoadResult.Failed(SessionLoadFailureReason.Read, "payload diagnostic"));
 
+        var spring = editor.MobileWorkspace.Pages.OfType<SpringPageViewModel>().Single();
+        Assert.Equal(SurfaceStateKind.Loading, spring.FrontPresentationState.Kind);
         await harness.LoadAsync(editor);
 
+        Assert.Equal(SurfaceStateKind.Hidden, spring.FrontPresentationState.Kind);
+        Assert.DoesNotContain(editor.MobileWorkspace.Pages, page => page is BalancePageViewModel);
         Assert.True(editor.ScreenState.IsError);
         Assert.Equal(SurfaceStateKind.Hidden, editor.SignalsWorkspace.TravelSignalState.Kind);
         Assert.Equal(SurfaceStateKind.Hidden, editor.AnalysisWorkspace.FrontAnalysisState.Kind);
@@ -75,7 +373,7 @@ public class SessionDetailViewModelTests
         var failure = Assert.Single(editor.ErrorMessages);
         Assert.Equal("file inaccessible", failure.Details);
         Assert.DoesNotContain(failure.Details!, failure.Summary);
-        Assert.Equal(SessionPreferences.Default.SignalDisplay.VelocitySmoothing, editor.PreferencesPage.VelocitySignal.SelectedSmoothing);
+        Assert.Equal(SessionPreferences.Default.SignalDisplay.VelocitySmoothing, editor.SidebarWorkspace.PreferencesPage.VelocitySignal.SelectedSmoothing);
         await harness.CloseAsync(editor);
     }
 
@@ -89,7 +387,7 @@ public class SessionDetailViewModelTests
         var pending = new TaskCompletionSource<SessionPreferenceSaveResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         harness.SessionCoordinator.SavePreferencesAsync(snapshot.Id, Arg.Any<Func<SessionPreferences, SessionPreferences>>())
             .Returns(pending.Task);
-        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
+        editor.SidebarWorkspace.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
 
         var close = harness.CloseAsync(editor);
         Assert.False(close.IsCompleted);
@@ -170,7 +468,7 @@ public class SessionDetailViewModelTests
         var editor = harness.CreateRecordedEditor(snapshot, harness.CreateLoadedResult(oldTelemetry), watch);
         await harness.LoadAsync(editor);
         watch.OnNext(DomainFromSnapshot(snapshot));
-        editor.DescriptionText = "dirty draft";
+        editor.SidebarWorkspace.DescriptionText = "dirty draft";
         harness.ConfigureLoad(snapshot, harness.CreateLoadedResult(freshTelemetry));
 
         watch.OnNext(DomainFromSnapshot(snapshot) with
@@ -182,7 +480,7 @@ public class SessionDetailViewModelTests
         await harness.DialogService.DidNotReceive().ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>());
         Assert.Equal(20, editor.SignalsWorkspace.TelemetryData!.Metadata.Duration);
         Assert.True(editor.IsDirty);
-        Assert.Equal("dirty draft", editor.DescriptionText);
+        Assert.Equal("dirty draft", editor.SidebarWorkspace.DescriptionText);
         await harness.SaveAsync(editor);
         await harness.SessionCoordinator.Received(1).SaveAsync(Arg.Is<SessionDraft>(draft => draft.Description == "dirty draft"), SessionDraft.From(snapshot));
         await harness.CloseAsync(editor);
@@ -590,6 +888,7 @@ public class SessionDetailViewModelTests
             .Returns(call =>
             {
                 saved = call.Arg<Func<SessionPreferences, SessionPreferences>>()(saved);
+                harness.PublishPreferences(saved);
                 return new SessionPreferenceSaveResult.Saved();
             });
         var editor = harness.CreateRecordedEditor(
@@ -599,8 +898,9 @@ public class SessionDetailViewModelTests
         await harness.LoadAsync(editor);
         harness.SessionCoordinator.ClearReceivedCalls();
 
-        editor.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
+        editor.SidebarWorkspace.PreferencesPage.VelocitySignal.SelectedSmoothing = PlotSmoothingLevel.Strong;
 
+        Assert.Equal(PlotSmoothingLevel.Strong, editor.SidebarWorkspace.PreferencesPage.VelocitySignal.SelectedSmoothing);
         Assert.False(editor.IsDirty);
         Assert.Equal(PlotSmoothingLevel.Strong, saved.SignalDisplay.VelocitySmoothing);
         await harness.CloseAsync(editor);
@@ -627,13 +927,13 @@ public class SessionDetailViewModelTests
 
         await harness.LoadAsync(editor);
         watch.OnNext(DomainFromSnapshot(snapshot));
-        editor.DescriptionText = "dirty draft";
+        editor.SidebarWorkspace.DescriptionText = "dirty draft";
 
         watch.OnNext(DomainFromSnapshot(updatedSnapshot));
         await Task.Yield();
 
         Assert.True(editor.IsDirty);
-        Assert.Equal("dirty draft", editor.DescriptionText);
+        Assert.Equal("dirty draft", editor.SidebarWorkspace.DescriptionText);
         await harness.SaveAsync(editor);
         await harness.SessionCoordinator.Received(1).SaveAsync(Arg.Is<SessionDraft>(draft => draft.Description == "dirty draft"), SessionDraft.From(snapshot));
         Assert.Equal(10, editor.SignalsWorkspace.TelemetryData!.Metadata.Duration);
@@ -680,7 +980,7 @@ public class SessionDetailViewModelTests
 
         await harness.LoadAsync(editor);
         watch.OnNext(DomainFromSnapshot(snapshot));
-        editor.DescriptionText = "dirty draft";
+        editor.SidebarWorkspace.DescriptionText = "dirty draft";
 
         if (deferred)
         {
@@ -698,112 +998,15 @@ public class SessionDetailViewModelTests
 
         Assert.Equal(20, editor.SignalsWorkspace.TelemetryData!.Metadata.Duration);
         Assert.True(editor.IsDirty);
-        Assert.Equal("dirty draft", editor.DescriptionText);
+        Assert.Equal("dirty draft", editor.SidebarWorkspace.DescriptionText);
         await harness.SaveAsync(editor);
         await harness.SessionCoordinator.Received(1).SaveAsync(Arg.Is<SessionDraft>(draft => draft.Description == "dirty draft"), SessionDraft.From(snapshot));
         await harness.CloseAsync(editor);
     }
 
-    [AvaloniaFact]
-    public async Task VideoAlignment_ShiftsClipByDistanceBetweenMarks()
-    {
-        using var videos = new VideoFixture();
-        var (harness, editor, clip) = await CreateEditorWithVideoAsync(videos);
-        using var harnessLifetime = harness;
-        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(new VideoAlignmentResult.Updated());
 
-        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
-        await ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)
-            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
 
-        await videos.Coordinator.Received(1).ShiftAlignmentAsync(clip.Id, 2);
-        Assert.Empty(editor.ErrorMessages);
-        Assert.False(FindSignalAction(editor, "video-mark-telemetry-event").Command.CanExecute(CreatePlotContext(3)));
-        await editor.PrepareCloseAsync();
-    }
 
-    [AvaloniaTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task VideoAlignment_DistinguishesMissingClipFromSaveFailure(bool missing)
-    {
-        using var videos = new VideoFixture();
-        var (harness, editor, clip) = await CreateEditorWithVideoAsync(videos);
-        using var harnessLifetime = harness;
-        videos.Coordinator.ShiftAlignmentAsync(clip.Id, Arg.Any<double>()).Returns(missing
-            ? new VideoAlignmentResult.ClipMissing()
-            : new VideoAlignmentResult.Failed(VideoAlignmentFailureReason.Save, "disk full"));
-
-        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
-        await ((IAsyncRelayCommand)FindSignalAction(editor, "video-mark-telemetry-event").Command)
-            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
-
-        if (missing)
-        {
-            Assert.Single(editor.Notifications);
-            Assert.Empty(editor.ErrorMessages);
-        }
-        else
-        {
-            Assert.Equal(FailurePresentation.From(VideoAlignmentFailureReason.Save, "disk full"), Assert.Single(editor.ErrorMessages));
-            Assert.Empty(editor.Notifications);
-        }
-        Assert.False(FindSignalAction(editor, "video-mark-telemetry-event").Command.CanExecute(CreatePlotContext(3)));
-        await editor.PrepareCloseAsync();
-    }
-
-    [AvaloniaTheory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public async Task GpsAlignment_ReportsUnavailabilitySeparatelyFromSaveFailure(int outcome)
-    {
-        using var harness = new SessionDetailHarness();
-        var editor = harness.CreateRecordedEditor(loadResult: harness.CreateLoadedResult(trackPoints: [new TrackPoint(1, 0, 0, 0)]));
-        await harness.LoadAsync(editor);
-        GpsOffsetResult result = outcome switch
-        {
-            0 => new GpsOffsetResult.NoMatchingTrack(),
-            1 => new GpsOffsetResult.SessionMissing(),
-            2 => new GpsOffsetResult.TelemetryUnavailable(),
-            _ => new GpsOffsetResult.Failed(GpsOffsetFailureReason.Save, "disk full"),
-        };
-        harness.SessionCoordinator.ShiftGpsOffsetAsync(editor.Id, Arg.Any<double>(), Arg.Any<CancellationToken>()).Returns(result);
-
-        ExecuteSignalAction(editor, "gps-mark-gps-event", clickSeconds: 5);
-        await ((IAsyncRelayCommand)FindSignalAction(editor, "gps-mark-telemetry-event").Command)
-            .ExecuteAsync(CreatePlotContext(clickSeconds: 3));
-
-        if (outcome < 3)
-        {
-            Assert.Single(editor.Notifications);
-            Assert.Empty(editor.ErrorMessages);
-        }
-        else
-        {
-            Assert.Equal(FailurePresentation.From(GpsOffsetFailureReason.Save, "disk full"), Assert.Single(editor.ErrorMessages));
-            Assert.Empty(editor.Notifications);
-        }
-        Assert.False(FindSignalAction(editor, "gps-mark-telemetry-event").Command.CanExecute(CreatePlotContext(3)));
-        await harness.CloseAsync(editor);
-    }
-
-    [AvaloniaFact]
-    public async Task VideoAlignment_Cancel_DropsPendingVideoMark()
-    {
-        using var videos = new VideoFixture();
-        var (harness, editor, _) = await CreateEditorWithVideoAsync(videos);
-        using var harnessLifetime = harness;
-
-        ExecuteSignalAction(editor, "video-mark-video-event", clickSeconds: 5);
-        ExecuteSignalAction(editor, "video-cancel-alignment", clickSeconds: 5);
-
-        var context = CreatePlotContext(clickSeconds: 3);
-        Assert.False(FindSignalAction(editor, "video-mark-telemetry-event").Command.CanExecute(context));
-        Assert.True(FindSignalAction(editor, "video-mark-video-event").Command.CanExecute(context));
-        await harness.CloseAsync(editor);
-    }
 
     [AvaloniaFact]
     public async Task Split_OpensBackgroundTabBeforeRecomputeCompletes()
@@ -831,74 +1034,10 @@ public class SessionDetailViewModelTests
         await harness.CloseAsync(editor);
     }
 
-    [AvaloniaFact]
-    public async Task TrimUntilEnd_WhenEditFails_ShowsError()
-    {
-        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
-        using var harnessLifetime = harness;
-        harness.SessionEditingCoordinator.TrimUntilEndAsync(editor.Id, 4)
-            .Returns(new SessionEditResult.Failed(SessionEditFailureReason.Rejected, "Session changed while editing."));
-
-        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
-            .ExecuteAsync(CreatePlotContext(clickSeconds: 4));
-
-        Assert.NotEmpty(editor.ErrorMessages);
-        Assert.Empty(editor.Notifications);
-        await harness.CloseAsync(editor);
-    }
-
-    [AvaloniaFact]
-    public async Task TrimUntilEnd_WhenAppliedButProcessingFails_PreservesDiagnosticDetails()
-    {
-        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
-        using var harnessLifetime = harness;
-        const string details = "calibration diagnostic";
-        harness.SessionEditingCoordinator.TrimUntilEndAsync(editor.Id, 4)
-            .Returns(new SessionEditResult.Applied(new SessionRecomputeResult.ProcessingFailed(
-                SessionProcessingFailureReason.InvalidCalibration, details)));
-
-        await ((IAsyncRelayCommand)FindSignalAction(editor, "session-trim-until-end").Command)
-            .ExecuteAsync(CreatePlotContext(clickSeconds: 4));
-
-        var failure = Assert.Single(editor.ErrorMessages);
-        Assert.Equal(details, failure.Details);
-        Assert.DoesNotContain(details, failure.Summary);
-        await harness.CloseAsync(editor);
-    }
-
-    [AvaloniaFact]
-    public async Task UndoTrim_IsAvailableOnlyAfterTrim()
-    {
-        var trimmedSnapshot = TestSnapshots.Session(hasProcessedData: true);
-        trimmedSnapshot = trimmedSnapshot with
-        {
-            SourceSessionId = trimmedSnapshot.Id,
-            WindowEndSeconds = 8,
-            PreviousWindowStartSeconds = 0
-        };
-        var (untrimmedHarness, untrimmed) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
-        using var untrimmedLifetime = untrimmedHarness;
-        var (trimmedHarness, trimmed) = await CreateLoadedEditorAsync(trimmedSnapshot);
-        using var trimmedLifetime = trimmedHarness;
-        var context = CreatePlotContext(clickSeconds: 3);
-
-        Assert.False(FindSignalAction(untrimmed, "session-undo-trim").Command.CanExecute(context));
-        Assert.True(FindSignalAction(trimmed, "session-undo-trim").Command.CanExecute(context));
-        await untrimmedHarness.CloseAsync(untrimmed);
-        await trimmedHarness.CloseAsync(trimmed);
-    }
 
 
-    [AvaloniaFact]
-    public async Task SaveCurrentSelection_IsUnavailableOutsideTheAnalysisRange()
-    {
-        var (harness, editor) = await CreateLoadedEditorAsync(TestSnapshots.Session(hasProcessedData: true));
-        using var harnessLifetime = harness;
-        var outside = CreatePlotContext(clickSeconds: 6) with { AnalysisRange = new TelemetryTimeRange(2, 4) };
 
-        Assert.False(FindSignalAction(editor, "save-current-selection").Command.CanExecute(outside));
-        await harness.CloseAsync(editor);
-    }
+
 
     [AvaloniaFact]
     public async Task SegmentPicker_CanOpen_OnceTheTelemetryIsLoaded()

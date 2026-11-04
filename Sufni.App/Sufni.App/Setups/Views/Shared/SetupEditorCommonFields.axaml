@@ -119,7 +119,7 @@
                 Content="{Binding ShockSensorConfiguration}" />
 
             <TextBlock
-                Foreground="{DynamicResource SufniDangerColor}"
+                Foreground="{DynamicResource SufniDanger}"
                 IsVisible="{Binding RearSensorCompatibilityMessage, Converter={x:Static ObjectConverters.IsNotNull}}"
                 Text="{Binding RearSensorCompatibilityMessage}"
                 TextWrapping="Wrap" />

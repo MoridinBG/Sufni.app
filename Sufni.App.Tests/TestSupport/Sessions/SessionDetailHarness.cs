@@ -3,9 +3,11 @@ using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Stores;
 using Microsoft.Extensions.Time.Testing;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Avalonia;
 using NSubstitute;
 using Sufni.App.Bikes.Models;
+using Sufni.App.Bikes.Coordinators;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Coordinators;
@@ -38,16 +40,29 @@ internal sealed class SessionDetailHarness : IDisposable
 {
     private readonly ITileLayerService tileLayerService = Substitute.For<ITileLayerService>().WithDefaultLayerState();
 
+    private readonly BehaviorSubject<SessionPreferences> recordedPreferences = new(global::Sufni.App.Sessions.Models.SessionPreferences.Default);
+
+    public void PublishPreferences(SessionPreferences preferences) => recordedPreferences.OnNext(preferences);
+
     public SessionDetailHarness()
     {
         SegmentStore = new SessionSegmentStore(publication);
-        SessionPreferences.WithDefaultObserveRecorded();
+        SessionPreferences.ObserveRecorded(Arg.Any<Guid>()).Returns(recordedPreferences);
+        SessionCoordinator.LoadPreferencesAsync(Arg.Any<Guid>())
+            .Returns(_ => new SessionPreferenceLoadResult.Loaded(recordedPreferences.Value));
+        SessionCoordinator.SavePreferencesAsync(Arg.Any<Guid>(), Arg.Any<Func<SessionPreferences, SessionPreferences>>())
+            .Returns(call =>
+            {
+                PublishPreferences(call.Arg<Func<SessionPreferences, SessionPreferences>>()(recordedPreferences.Value));
+                return new SessionPreferenceSaveResult.Saved();
+            });
         SessionPreferences.GetRecordedAsync(Arg.Any<Guid>()).Returns(Task.FromResult(global::Sufni.App.Sessions.Models.SessionPreferences.Default));
         SessionPreferences.UpdateRecordedAsync(Arg.Any<Guid>(), Arg.Any<Func<global::Sufni.App.Sessions.Models.SessionPreferences, global::Sufni.App.Sessions.Models.SessionPreferences>>())
             .Returns(Task.CompletedTask);
         SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
+    public IBikeCoordinator BikeCoordinator { get; } = TestCoordinatorSubstitutes.Bike();
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
     public ISessionLoader SessionLoader { get; } = TestCoordinatorSubstitutes.SessionLoader();
     public ISessionStore SessionStore { get; } = Substitute.For<ISessionStore>();
@@ -174,12 +189,13 @@ internal sealed class SessionDetailHarness : IDisposable
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
             videoPaneFactory: VideoPaneFactory,
-            timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike());
+            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator);
         editor.SetTabActive(true);
         return editor;
     }
     public void Dispose()
     {
+        recordedPreferences.Dispose();
         SegmentStore.Dispose();
         publication.Dispose();
     }

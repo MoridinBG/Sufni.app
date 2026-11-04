@@ -6,6 +6,8 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.LiveDaq.Queries;
 namespace Sufni.App.LiveDaq.Services.LiveStreaming;
 
+public enum LiveSignalBatchKind { Signals, Reset }
+
 public sealed record LiveSignalBatch(
     long Revision,
     IReadOnlyList<double> TravelTimes,
@@ -20,7 +22,7 @@ public sealed record LiveSignalBatch(
     IReadOnlyList<double> FramePitchDegrees,
     IReadOnlyList<double> FrameRollDegrees)
 {
-    public LiveSessionAnalysis? Analysis { get; init; }
+    public LiveSignalBatchKind Kind { get; init; }
 
     public static readonly LiveSignalBatch Empty = new(
         Revision: 0,
@@ -35,25 +37,6 @@ public sealed record LiveSignalBatch(
         FramePitchRollTimes: [],
         FramePitchDegrees: [],
         FrameRollDegrees: []);
-}
-
-public sealed record LiveSessionPresentationSnapshot(
-    TelemetryData? AnalysisTelemetry,
-    SessionDampingPercentages DampingPercentages,
-    IReadOnlyList<TrackPoint> SessionTrackPoints,
-    LiveSessionControlState Controls,
-    long CaptureRevision)
-{
-    public LiveAnalysisFailure? AnalysisFailure { get; init; }
-    public long Revision { get; init; }
-    public LiveSessionAnalysis? Analysis { get; init; }
-
-    public static readonly LiveSessionPresentationSnapshot Empty = new(
-        AnalysisTelemetry: null,
-        DampingPercentages: SessionDampingPercentages.Empty,
-        SessionTrackPoints: [],
-        Controls: LiveSessionControlState.Empty,
-        CaptureRevision: 0);
 }
 
 public sealed record LiveSessionCapturePackage(

@@ -29,7 +29,6 @@ internal sealed record RecordedSessionEditorStateInputs(
     IObservable<SessionInsightsResult> SessionInsights,
     IObservable<AnalysisAvailabilityResult> AnalysisAvailability,
     IObservable<SelectionHighlightsAnalysisResult> SelectionHighlights,
-    IObservable<IReadOnlyDictionary<string, IReadOnlyList<TelemetryPlotContextMenuAction>>> SignalPlotContextMenuActions,
     IObservable<RecordedSessionDomainSnapshot> DomainStates);
 
 internal sealed class RecordedSessionEditorStateController : IDisposable
@@ -37,7 +36,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private readonly IDisposable connection;
     private bool disposed;
 
-    public RecordedSessionEditorStateController(RecordedSessionEditorStateInputs inputs)
+    public RecordedSessionEditorStateController(RecordedSessionEditorStateInputs inputs, RecordedSessionAnalysisDemand analysisDemand)
     {
         ArgumentNullException.ThrowIfNull(inputs);
         ArgumentNullException.ThrowIfNull(inputs.Intents);
@@ -49,10 +48,9 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         ArgumentNullException.ThrowIfNull(inputs.SessionInsights);
         ArgumentNullException.ThrowIfNull(inputs.AnalysisAvailability);
         ArgumentNullException.ThrowIfNull(inputs.SelectionHighlights);
-        ArgumentNullException.ThrowIfNull(inputs.SignalPlotContextMenuActions);
         ArgumentNullException.ThrowIfNull(inputs.DomainStates);
 
-        var initial = RecordedSessionEditorState.CreateInitial();
+        var initial = Current;
         var updates = Observable.Merge(
             Updates(inputs.Intents, ReduceIntent),
             Updates(inputs.PageCounts, static (current, count) => current with
@@ -89,10 +87,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             }),
             EditorUpdates(inputs.SelectionHighlights, static (state, highlights) =>
                 ApplySelection(state, state.AnalysisSelection with { HighlightRanges = highlights.Ranges })),
-            EditorUpdates(inputs.SignalPlotContextMenuActions, static (state, actions) => state with
-            {
-                Presentation = state.Presentation with { SignalPlotContextMenuActionsBySignalRowId = actions },
-            }),
             EditorUpdates(inputs.DomainStates, ApplyDomain));
         var replayingState = updates
             // Effects may emit another intent while observing a state. Finish this publication first.
@@ -105,6 +99,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .Select(static current => current.Editor)
             .StartWith(initial)
             .DistinctUntilChanged()
+            // Prepare keyed analysis before publishing to any presentation consumer.
+            .Do(state =>
+            {
+                Current = state;
+                analysisDemand.Prepare(state);
+            })
             .Replay(1);
 
         State = replayingState.AsObservable();
@@ -132,7 +132,11 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Presentation = next.Presentation with
             {
-                Analysis = scopeChanged ? CreateAnalysisPresentationFromLoadPresentation(next.Load) : next.Presentation.Analysis,
+                Analysis = scopeChanged ? CreateAnalysisPresentationFromLoadPresentation(next.Load) with
+                {
+                    FullSessionBalanceAvailable = previous.TelemetryData == next.TelemetryData &&
+                        previous.Presentation.Analysis.FullSessionBalanceAvailable,
+                } : next.Presentation.Analysis,
                 DampingPercentages = dampingChanged ? SessionDampingPercentages.Empty : next.Presentation.DampingPercentages,
                 SessionInsights = insightsChanged ? SessionInsightsResult.Hidden : next.Presentation.SessionInsights,
             },
@@ -142,8 +146,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
     private static Reduction ReduceIntent(Reduction current, RecordedSessionEditorIntent intent)
     {
         var state = current.Editor;
-        if (RecordedSessionEditorIntentReducers.CreatePreferenceUpdate(intent) is { } preferenceUpdate)
-            return current with { Editor = ApplyPreferences(state, preferenceUpdate(state.Preferences)) };
 
         if (CreateAnalysisRangeUpdate(intent, state.TelemetryData) is { } rangeUpdate)
         {
@@ -167,6 +169,19 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Editor = intent switch
             {
+                RecordedSessionEditorIntent.PreviewProcessingOption preview => state with
+                {
+                    ProcessingDraft = new RecordedProcessingDraft(preview.WindowMilliseconds),
+                },
+                RecordedSessionEditorIntent.CommitProcessingOption when state.ProcessingDraft is { IsSubmitted: false } draft => state with
+                {
+                    ProcessingDraft = draft with { IsSubmitted = true },
+                },
+                RecordedSessionEditorIntent.CompleteProcessingOption complete when ReferenceEquals(state.ProcessingDraft, complete.Draft) => state with
+                {
+                    Session = complete.Session,
+                    ProcessingDraft = null,
+                },
                 RecordedSessionEditorIntent.SelectPageIndex select => state with
                 {
                     Intent = state.Intent with
@@ -194,6 +209,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         };
     }
 
+    private static RecordedProcessingDraft? ReconcileProcessingDraft(RecordedSessionEditorState state, SessionSnapshot? session) =>
+        state.ProcessingDraft is { IsSubmitted: true } && state.Session?.ProcessingOptions != session?.ProcessingOptions
+            ? null : state.ProcessingDraft;
+
     private static RecordedSessionEditorState ApplyDomain(RecordedSessionEditorState state, RecordedSessionDomainSnapshot domain)
     {
         var previousBike = state.Domain?.Bike;
@@ -203,6 +222,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Domain = domain,
             Session = domain.Session,
+            ProcessingDraft = ReconcileProcessingDraft(state, domain.Session),
             Intent = state.Intent with { DampingSpeedCutoffs = cutoffsChanged ? cutoffs : state.Intent.DampingSpeedCutoffs },
             Presentation = state.Presentation with
             {
@@ -219,10 +239,12 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         var requested = state.TelemetryData is not null && state.TelemetryData != loaded.TelemetryData
             ? AnalysisRangeIntentState.Empty : current.RequestedRange;
         var range = ClampAnalysisRange(requested.AnalysisRange, loaded.TelemetryData);
+        var session = state.Domain?.Session ?? loaded.Session ?? state.Session;
         var updated = state with
         {
             Load = load,
-            Session = state.Domain?.Session ?? loaded.Session ?? state.Session,
+            ProcessingDraft = ReconcileProcessingDraft(state, session),
+            Session = session,
             TelemetryData = loaded.TelemetryData,
             FullTrackPoints = loaded.FullTrackPoints,
             TrackPoints = loaded.TrackPoints,
@@ -259,6 +281,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             },
         };
 
+    public RecordedSessionEditorState Current { get; private set; } = RecordedSessionEditorState.CreateInitial();
     public IObservable<RecordedSessionEditorState> State { get; }
 
     public void Dispose()
@@ -417,12 +440,6 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             ShowPitchRollAnalysisSelection = explicitState.ShowPitchRollAnalysisSelection,
             ShowSpeedAnalysisSelection = explicitState.ShowSpeedAnalysisSelection,
             ShowElevationAnalysisSelection = explicitState.ShowElevationAnalysisSelection,
-            TravelHeaderActions = explicitState.TravelHeaderActions,
-            VelocityHeaderActions = explicitState.VelocityHeaderActions,
-            ImuHeaderActions = explicitState.ImuHeaderActions,
-            PitchRollHeaderActions = explicitState.PitchRollHeaderActions,
-            SpeedHeaderActions = explicitState.SpeedHeaderActions,
-            ElevationHeaderActions = explicitState.ElevationHeaderActions,
         };
     }
 

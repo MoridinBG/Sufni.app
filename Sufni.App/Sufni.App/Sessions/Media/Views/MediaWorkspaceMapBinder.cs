@@ -1,6 +1,6 @@
+using Sufni.App.Sessions.Presentation;
 using System.ComponentModel;
 using Sufni.App.MapsAndTracks.Views;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 namespace Sufni.App.Sessions.Media.Views;
 

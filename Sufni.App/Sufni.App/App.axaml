@@ -22,7 +22,7 @@
 
         <!--  Global styles for TextBlock  -->
         <Style Selector="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
         </Style>
 
         <!--  Global styles for Label  -->
@@ -46,10 +46,10 @@
 
         <!--  Global styles for "dangerous" Buttons  -->
         <Style Selector="Button.dangerous">
-            <Setter Property="Foreground" Value="{DynamicResource SufniDangerColor}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniDanger}" />
         </Style>
         <Style Selector="Button.dangerous:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource SufniDangerColor}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniDanger}" />
         </Style>
 
         <!--  Global styles for "hyperlink" Buttons  -->
@@ -104,10 +104,10 @@
 
         <!--  Global styles for CheckBox  -->
         <Style Selector="CheckBox">
-            <Setter Property="Foreground" Value="{DynamicResource SufniForeground}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondary}" />
         </Style>
         <Style Selector="CheckBox:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Foreground" Value="{DynamicResource SufniForegroundPointerOver}" />
+            <Setter Property="Foreground" Value="{DynamicResource SufniTextHover}" />
         </Style>
 
         <!--  Get rid of FlyoutPresenter's default MaxWidth  -->

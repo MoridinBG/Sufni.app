@@ -42,8 +42,8 @@ mc:Ignorable="d">
         Padding="16,14"
         HorizontalAlignment="Center"
         VerticalAlignment="Center"
-        Background="{DynamicResource SufniBackground}"
-        BorderBrush="{DynamicResource SufniBorderBrush}"
+        Background="{DynamicResource SufniSurfaceInput}"
+        BorderBrush="{DynamicResource SufniLineInput}"
         BorderThickness="1"
         CornerRadius="6"
         IsHitTestVisible="False"
@@ -54,7 +54,7 @@ mc:Ignorable="d">
                 Width="36"
                 Height="36"
                 HorizontalAlignment="Center"
-                Foreground="{DynamicResource SufniAccentColor}"
+                Foreground="{DynamicResource SufniAccentPrimary}"
                 IsActive="True"
                 IsVisible="{Binding PresentationState.ShowSpinner, ElementName=Root}" />
 
@@ -63,7 +63,7 @@ mc:Ignorable="d">
                 HorizontalAlignment="Center"
                 FontSize="28"
                 FontWeight="Bold"
-                Foreground="{DynamicResource SufniDangerColor}"
+                Foreground="{DynamicResource SufniDanger}"
                 IsVisible="{Binding PresentationState.ShowErrorIcon, ElementName=Root}"
                 Text="X" />
 

@@ -1,3 +1,5 @@
+using Sufni.App.Sessions.Presentation;
+using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Models;
 using Sufni.App.Shared.Plots;
 using System;
@@ -147,34 +149,17 @@ public sealed class LiveSessionSignalsWorkspaceViewModel : ObservableObject, ILi
         RefreshStates();
     }
 
-    public void ApplySignalBatch(LiveSignalBatch batch)
-    {
-        ApplySignalDataPresence(HasTravelData(batch), HasImuData(batch), HasPitchRollData(batch));
-    }
-
     public void ApplySignalDisplayPreferences(SignalDisplayPreferences preferences)
     {
         SignalDisplayPreferences = preferences;
         RefreshStates();
     }
 
-    public void ApplySignalDataPresence(bool hasTravelData, bool hasImuData, bool hasPitchRollData)
+    public void ApplySignalPresence(LiveSignalPresence presence)
     {
-        if (!this.hasTravelData && hasTravelData)
-        {
-            this.hasTravelData = true;
-        }
-
-        if (!this.hasImuData && hasImuData)
-        {
-            this.hasImuData = true;
-        }
-
-        if (!this.hasPitchRollData && hasPitchRollData)
-        {
-            this.hasPitchRollData = true;
-        }
-
+        hasTravelData = presence.HasTravelData;
+        hasImuData = presence.HasImuData;
+        hasPitchRollData = presence.HasPitchRollData;
         RefreshStates();
     }
 
@@ -183,44 +168,6 @@ public sealed class LiveSessionSignalsWorkspaceViewModel : ObservableObject, ILi
         TrackPoints = points;
         TrackTimelineContext = context;
         RefreshStates();
-    }
-
-    private static bool HasTravelData(LiveSignalBatch batch)
-    {
-        return batch.TravelTimes.Count > 0
-            || batch.FrontTravel.Count > 0
-            || batch.RearTravel.Count > 0
-            || batch.VelocityTimes.Count > 0
-            || batch.FrontVelocity.Count > 0
-            || batch.RearVelocity.Count > 0;
-    }
-
-    private static bool HasImuData(LiveSignalBatch batch)
-    {
-        foreach (var series in batch.ImuTimes.Values)
-        {
-            if (series.Count > 0)
-            {
-                return true;
-            }
-        }
-
-        foreach (var series in batch.ImuVibrationRms.Values)
-        {
-            if (series.Count > 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasPitchRollData(LiveSignalBatch batch)
-    {
-        return batch.FramePitchRollTimes.Count > 0 ||
-            batch.FramePitchDegrees.Count > 0 ||
-            batch.FrameRollDegrees.Count > 0;
     }
 
     private static bool HasFramePitchRollSource(LiveSessionHeader sessionHeader, IReadOnlyList<LiveImuLocation> activeImuLocations)

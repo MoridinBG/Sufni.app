@@ -29,7 +29,7 @@ GpsRecord[]                     (SST GPS records or live GpsBatch frame)
 Recorded session opens (pure reads — the open/load path issues no DB writes)
   -> ISessionLoader.LoadDetailAsync
     -> SessionLoader decodes and validates telemetry
-      -> SessionDetailViewModel publishes first Signals content
+      -> RecordedSessionLoadController publishes first Signals content
   -> the same active load generation calls ISessionLoader.LoadTrackAsync
     -> SessionLoader -> TrackCoordinator.LoadSessionTrackAsync
       -> SessionTrackSelection over TrackStore metadata and the aligned window
@@ -37,8 +37,9 @@ Recorded session opens (pure reads — the open/load path issues no DB writes)
       -> IFullTrackPointReader (exact id + points revision)
       -> ISessionTrackReader derives the window off-thread and caches by its inputs
         -> SessionTrackPresentationData
-          -> SessionDetailViewModel.FullTrackPoints / TrackPoints
-            -> MapViewModel -> MapView (Mapsui)
+          -> RecordedSessionEditorState
+            -> SessionMediaWorkspaceViewModel
+              -> MapViewModel -> MapView (Mapsui)
 ```
 
 The same `MapView` Avalonia control is reused by the recorded session detail page and the live session detail page; the difference is who supplies the `TrackPoint` lists.
@@ -250,7 +251,7 @@ The `MapView` control is hosted from three places:
 
 - **Recorded session detail (desktop)** — `Sufni.App/Sufni.App/Sessions/Media/DesktopViews/Items/SessionMediaDesktopView.axaml` puts the map under a `PlaceholderOverlayContainer` (bound to `MapState`) in the first pane of the vertical `MediaSplit`; the video pane fills the second pane when the session has a playable clip (see [video.md](video.md)), and otherwise the map takes the full height.
 - **Recorded session detail (mobile)** — `Sufni.App/Sufni.App/Sessions/Signals/Views/SessionPages/RecordedSignalsPageView.axaml` includes the same control inside the recorded Signals page's media stack, above the video pane host.
-- **Live session detail** — `Sufni.App/Sufni.App/LiveDaq/Views/SessionPages/LiveSignalsPageView.axaml` hosts the map for the mobile/shared live capture screen, while `Sufni.App/Sufni.App/LiveDaq/DesktopViews/Editors/LiveSessionDetailDesktopView.axaml` reaches the same map through `SessionMediaDesktopView`. In both cases `LiveSessionMediaWorkspaceViewModel.MapViewModel` is the data context. The workspace gates `MapState` on `LiveSessionHeader.AcceptedGpsFixHz > 0` and shows a placeholder until the live session service produces the first projected `TrackPoint`. Each incoming `GpsBatch` frame in `LiveSessionService` projects through `GpsTrackPointProjection.TryProject` and appends to the live session's accumulated `TrackPoint[]`; the workspace re-publishes that array into `MapViewModel.SessionTrackPoints`. There is no full-track polyline during a live capture — only the session-window line is meaningful before save. On save, `LiveDaqCoordinator.SaveCaptureAsync` delegates to the recorded-session reprocessor; the reprocessor projects the captured `GpsRecord[]` through `GpsTrackPointProjection.ProjectAll` and returns pure points. The coordinator creates the candidate track and passes it to `ImportProcessedSessionAsync`, which persists it with the recording. The shared overlap rule selects it on read.
+- **Live session detail** — `Sufni.App/Sufni.App/LiveDaq/Views/SessionPages/LiveSignalsPageView.axaml` hosts the map for the mobile/shared live capture screen, while `Sufni.App/Sufni.App/LiveDaq/DesktopViews/Editors/LiveSessionDetailDesktopView.axaml` reaches the same map through `SessionMediaDesktopView`. In both cases `LiveSessionMediaWorkspaceViewModel.MapViewModel` is the data context. The workspace gates `MapState` on `LiveSessionHeader.AcceptedGpsFixHz > 0` and shows a placeholder until the live capture coordinator produces the first projected `TrackPoint`. Each incoming `GpsBatch` frame in `LiveCaptureCoordinator` is recorded before `LiveTrackProjector` projects it through `GpsTrackPointProjection.TryProject` and appends to the live session's accumulated `TrackPoint[]`. Out-of-order records trigger full reprojection from the recorder, and first-point speed enrichment preserves earlier published points. The coordinator's UI-cadenced `LiveCaptureState.TrackPoints` carries the result; the workspace re-publishes that array into `MapViewModel.SessionTrackPoints`. There is no full-track polyline during a live capture — only the session-window line is meaningful before save. On save, `LiveDaqCoordinator.SaveCaptureAsync` delegates to the recorded-session reprocessor; the reprocessor projects the captured `GpsRecord[]` through `GpsTrackPointProjection.ProjectAll` and returns pure points. The coordinator creates the candidate track and passes it to `ImportProcessedSessionAsync`, which persists it with the recording. The shared overlap rule selects it on read.
 
 The live preview's `GpsPreviewState` (`Sufni.App/Sufni.App/LiveDaq/Services/LiveStreaming/GpsPreviewState.cs`) is independent of the map subsystem: it interprets fix-mode bytes for the diagnostics tab's status text, while `LiveSessionMediaWorkspaceViewModel` is what feeds projected points into `MapViewModel`. See [GPS Preview State](live-session.md#gps-preview-state).
 

@@ -11,6 +11,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Styling;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -42,8 +43,10 @@ public class BikeCreationScreenshots
         "screenshots",
         "bike-creation");
 
-    [AvaloniaFact]
-    public async Task Step01_NewEmptyBike()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Step01_NewEmptyBike(bool light)
     {
         var snapshot = new BikeSnapshot(
             Id: Guid.NewGuid(),
@@ -62,11 +65,13 @@ public class BikeCreationScreenshots
             Updated: 1);
 
         var vm = CreateViewModel(snapshot, isNew: true);
-        await CaptureControlsPanel(vm, "01-new-bike.png");
+        await CaptureControlsPanel(vm, "01-new-bike.png", light);
     }
 
-    [AvaloniaFact]
-    public async Task Step02_NameAndBasicGeometry()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Step02_NameAndBasicGeometry(bool light)
     {
         var snapshot = new BikeSnapshot(
             Id: Guid.NewGuid(),
@@ -85,11 +90,13 @@ public class BikeCreationScreenshots
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
-        await CaptureControlsPanel(vm, "02-name-and-geometry.png");
+        await CaptureControlsPanel(vm, "02-name-and-geometry.png", light);
     }
 
-    [AvaloniaFact]
-    public async Task Step03_FullSuspensionFields()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Step03_FullSuspensionFields(bool light)
     {
         var snapshot = new BikeSnapshot(
             Id: Guid.NewGuid(),
@@ -108,11 +115,13 @@ public class BikeCreationScreenshots
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
-        await CaptureControlsPanel(vm, "03-full-suspension.png");
+        await CaptureControlsPanel(vm, "03-full-suspension.png", light);
     }
 
-    [AvaloniaFact]
-    public async Task Step04_WheelsConfigured()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Step04_WheelsConfigured(bool light)
     {
         var snapshot = new BikeSnapshot(
             Id: Guid.NewGuid(),
@@ -131,16 +140,17 @@ public class BikeCreationScreenshots
             Updated: 1);
 
         var vm = CreateViewModel(snapshot);
-        await CaptureControlsPanel(vm, "04-wheels-configured.png");
+        await CaptureControlsPanel(vm, "04-wheels-configured.png", light);
     }
 
     #region Helpers
 
-    private static async Task CaptureControlsPanel(BikeEditorViewModel vm, string filename)
+    private static async Task CaptureControlsPanel(BikeEditorViewModel vm, string filename, bool light)
     {
         var view = new BikeImageControlsDesktopView { DataContext = vm };
         var window = new Window
         {
+            RequestedThemeVariant = light ? ThemeVariant.Light : ThemeVariant.Dark,
             Width = 420,
             Height = 900,
             Content = view
@@ -155,7 +165,7 @@ public class BikeCreationScreenshots
         Assert.NotNull(bitmap);
 
         Directory.CreateDirectory(OutputDir);
-        var path = Path.Combine(OutputDir, filename);
+        var path = Path.Combine(OutputDir, $"{(light ? "light" : "dark")}-{filename}");
         bitmap.Save(path, PngBitmapEncoderOptions.Default);
 
         window.Close();

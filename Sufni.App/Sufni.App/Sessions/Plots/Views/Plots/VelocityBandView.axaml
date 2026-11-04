@@ -55,10 +55,10 @@
                                     <Setter Property="Foreground" Value="{DynamicResource SufniTextSecondaryBrush}" />
                                 </Style>
                                 <Style Selector="TextBlock.metricAnnotation.positive">
-                                    <Setter Property="Foreground" Value="{DynamicResource SufniAccentColor}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniAccentPrimary}" />
                                 </Style>
                                 <Style Selector="TextBlock.metricAnnotation.negative">
-                                    <Setter Property="Foreground" Value="{DynamicResource SufniDangerColor}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource SufniDanger}" />
                                 </Style>
                                 <Style Selector="Border.cutoff-handle">
                                     <Setter Property="Height" Value="8" />

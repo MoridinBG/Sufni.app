@@ -1,3 +1,5 @@
+using System.Linq;
+using System.Collections.Generic;
 using Serilog;
 using Sufni.Telemetry;
 using System.Threading.Tasks;
@@ -22,6 +24,22 @@ internal class BikeCoordinator(
     : IBikeCoordinator
 {
     private static readonly ILogger logger = Log.ForContext<BikeCoordinator>();
+    private readonly object activeTasksGate = new();
+    private readonly HashSet<Task> activeTasks = [];
+
+    public async Task StopAsync()
+    {
+        Task[] tasks;
+        lock (activeTasksGate) tasks = activeTasks.ToArray();
+        await Task.WhenAll(tasks).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
+    private async Task ReleaseAsync(Task task)
+    {
+        await task.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        lock (activeTasksGate) activeTasks.Remove(task);
+    }
+
 
     public async Task<BikeDraftLoadResult> LoadDraftAsync(Guid bikeId, CancellationToken cancellationToken = default)
     {
@@ -154,7 +172,18 @@ internal class BikeCoordinator(
         }
     }
 
-    public async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(
+    public Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffAsync(Guid bikeId, double expectedCutoffMmPerSecond, SuspensionType side, DampingSpeedCircuit circuit, double cutoffMmPerSecond)
+    {
+        lock (activeTasksGate)
+        {
+            var task = UpdateDampingSpeedCutoffCoreAsync(bikeId, expectedCutoffMmPerSecond, side, circuit, cutoffMmPerSecond);
+            activeTasks.Add(task);
+            _ = ReleaseAsync(task);
+            return task;
+        }
+    }
+
+    private async Task<BikeDampingSpeedCutoffUpdateResult> UpdateDampingSpeedCutoffCoreAsync(
         Guid bikeId,
         double expectedCutoffMmPerSecond,
         SuspensionType side,

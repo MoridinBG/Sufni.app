@@ -7,10 +7,9 @@ namespace Sufni.App.Tests.TestSupport.Fixtures;
 
 public static class TestTelemetryData
 {
-    public static TelemetryData CreateProcessed(bool frontPresent = true, bool rearPresent = true)
+    public static TelemetryData CreateProcessed(bool frontPresent = true, bool rearPresent = true, int sampleRate = 1000)
     {
         const int sampleCount = 256;
-        const int sampleRate = 1000;
 
         var front = frontPresent ? BuildWave(sampleCount, 0.0) : [];
         var rear = rearPresent ? BuildWave(sampleCount, Math.PI / 4.0) : [];

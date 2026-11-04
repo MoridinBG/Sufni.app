@@ -135,8 +135,7 @@ internal sealed class LiveDaqDetailHarness : IDisposable
         BikeId: Guid.NewGuid(),
         BikeName: "demo",
         BikeData: new BikeData(180, 170, measurement => measurement, measurement => measurement),
-        TravelCalibration: new LiveDaqTravelCalibration(null, null),
-        DampingSpeedCutoffs: DampingSpeedCutoffs.Default);
+        TravelCalibration: new LiveDaqTravelCalibration(null, null));
 
     private void PublishStartResult(LivePreviewStartResult result)
     {

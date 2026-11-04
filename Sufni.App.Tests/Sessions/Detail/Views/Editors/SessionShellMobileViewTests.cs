@@ -13,6 +13,7 @@ using Sufni.App.Sessions.Detail.ViewModels.Editors;
 using Sufni.App.Sessions.Detail.Views.Editors;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
 using Sufni.App.Sessions.Presentation;
+using Sufni.App.Sessions.Presentation.Views;
 using Sufni.App.Shared.Base;
 using Sufni.App.Shared.Views.Controls;
 using Sufni.App.Shared.Views.Overlays;
@@ -24,6 +25,22 @@ namespace Sufni.App.Tests.Sessions.Detail.Views.Editors;
 [Collection("Ui")]
 public class SessionShellMobileViewTests
 {
+    [AvaloniaFact]
+    public async Task SessionShellMobileView_ForwardsScreenStateToTheSharedOverlay()
+    {
+        var host = CreateHost();
+        await using var mounted = await MountAsync(host);
+        var overlay = mounted.View.FindControl<SessionScreenStateOverlay>("ScreenOverlay")!;
+
+        host.ScreenState = SessionScreenPresentationState.Loading("Reading", 0.3);
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.Equal(host.ScreenState, overlay.ScreenState);
+        Assert.True(overlay.FindControl<BusyOverlay>("ScreenBusyOverlay")!.IsEffectivelyVisible);
+        host.ScreenState = SessionScreenPresentationState.Ready;
+        await ViewTestHelpers.FlushDispatcherAsync();
+        Assert.False(overlay.FindControl<BusyOverlay>("ScreenBusyOverlay")!.IsVisible);
+    }
+
     [AvaloniaFact]
     public async Task SessionShellMobileView_SelectionControlsUpdateWorkspaceIndex()
     {

@@ -8,7 +8,7 @@
     d:DesignHeight="220"
     d:DesignWidth="420"
     x:DataType="vm:SegmentNamePromptViewModel"
-    Background="{DynamicResource SufniBackgroundDisabled}"
+    Background="{DynamicResource SufniSurfaceInputDisabled}"
     mc:Ignorable="d">
 
     <StackPanel Margin="16" Spacing="10">

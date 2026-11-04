@@ -1,3 +1,4 @@
+using Sufni.App.Sessions.Presentation;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -8,7 +9,6 @@ using Sufni.App.Sessions.Models;
 using Sufni.App.Segments.Models;
 using Sufni.Telemetry;
 
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
 namespace Sufni.App.Sessions.Analysis.Views.Controls;
 
 public partial class DampingAnalysisHost : AnalysisHostBase

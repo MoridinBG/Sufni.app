@@ -55,7 +55,7 @@ mc:Ignorable="d">
                     <Line
                     Name="PART_DampingGuide"
                     IsVisible="{Binding #VelocityBand.IsDampingGuideVisible}"
-                    Stroke="{DynamicResource SufniAccentColor}"
+                    Stroke="{DynamicResource SufniAccentPrimary}"
                     StrokeDashArray="5,3"
                     StrokeThickness="1"
                     StartPoint="{Binding #VelocityBand.DampingGuideStartPoint}"

@@ -1,15 +1,12 @@
+using System;
 using System.Collections.ObjectModel;
-using Sufni.App.Sessions.Models;
-using Sufni.App.Shared.Common;
-using Sufni.App.Sessions.Detail.ViewModels.Editors;
+using System.Reactive.Linq;
 using Sufni.App.Sessions.Insights.ViewModels.SessionPages;
 using Sufni.App.Sessions.Pages.ViewModels.SessionPages;
-using Sufni.App.Sessions.Processing.SessionDetails;
-using Sufni.App.Sessions.Analysis.Services;
 
 namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
-internal sealed class RecordedPagePresentationApplier
+internal sealed class RecordedPagePresentationApplier : IDisposable
 {
     private readonly ObservableCollection<PageViewModelBase> pages;
     private readonly SpringPageViewModel springPage;
@@ -18,6 +15,9 @@ internal sealed class RecordedPagePresentationApplier
     private readonly VibrationPageViewModel vibrationPage;
     private readonly SessionInsightsPageViewModel analysisPage;
     private readonly NotesPageViewModel notesPage;
+    private readonly PreferencesPageViewModel preferencesPage;
+    private readonly IDisposable subscription;
+    private RecordedSessionEditorState currentState = RecordedSessionEditorState.CreateInitial();
 
     public RecordedPagePresentationApplier(
         ObservableCollection<PageViewModelBase> pages,
@@ -26,7 +26,9 @@ internal sealed class RecordedPagePresentationApplier
         BalancePageViewModel balancePage,
         VibrationPageViewModel vibrationPage,
         SessionInsightsPageViewModel analysisPage,
-        NotesPageViewModel notesPage)
+        NotesPageViewModel notesPage,
+        PreferencesPageViewModel preferencesPage,
+        IObservable<RecordedSessionEditorState> state)
     {
         this.pages = pages;
         this.springPage = springPage;
@@ -35,45 +37,49 @@ internal sealed class RecordedPagePresentationApplier
         this.vibrationPage = vibrationPage;
         this.analysisPage = analysisPage;
         this.notesPage = notesPage;
+        this.preferencesPage = preferencesPage;
+        subscription = state.Subscribe(ApplyState);
     }
 
-    public void ClearRecordedPresentation()
-    {
-        dampingPage.ApplyDampingPercentages(SessionDampingPercentages.Empty);
-        springPage.FrontDistributionState = SurfacePresentationState.Hidden;
-        springPage.RearDistributionState = SurfacePresentationState.Hidden;
-        dampingPage.FrontDistributionState = SurfacePresentationState.Hidden;
-        dampingPage.RearDistributionState = SurfacePresentationState.Hidden;
-        balancePage.CompressionBalanceState = SurfacePresentationState.Hidden;
-        balancePage.ReboundBalanceState = SurfacePresentationState.Hidden;
-    }
+    public void Dispose() => subscription.Dispose();
 
-    public void ApplyRecordedLoadingStates()
+    private void ApplyState(RecordedSessionEditorState state)
     {
-        springPage.FrontDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
-        springPage.RearDistributionState = SurfacePresentationState.Loading("Loading spring chart.");
-        dampingPage.FrontDistributionState = SurfacePresentationState.Loading("Loading damping chart.");
-        dampingPage.RearDistributionState = SurfacePresentationState.Loading("Loading damping chart.");
-        balancePage.CompressionBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
-        balancePage.ReboundBalanceState = SurfacePresentationState.Loading("Loading balance chart.");
-    }
+        var previous = currentState;
+        currentState = state;
+        var analysis = state.Presentation.Analysis;
+        springPage.FrontDistributionState = analysis.FrontAnalysis;
+        springPage.RearDistributionState = analysis.RearAnalysis;
+        dampingPage.FrontDistributionState = analysis.FrontAnalysis;
+        dampingPage.RearDistributionState = analysis.RearAnalysis;
+        balancePage.CompressionBalanceState = analysis.CompressionBalance;
+        balancePage.ReboundBalanceState = analysis.ReboundBalance;
+        EnsureBalancePage(analysis.FullSessionBalanceAvailable);
+        preferencesPage.RefreshSignalDisplayPreferences(previous.Preferences.SignalDisplay, state.Preferences.SignalDisplay);
+        if (previous.ProcessingOptions != state.ProcessingOptions)
+            preferencesPage.RefreshProcessingOptions();
 
-    public void ApplyLoadResult(SessionDetailLoadResult result)
-    {
-        switch (result)
+        if (previous.TelemetryData != state.TelemetryData)
         {
-            case SessionDetailLoadResult.IncompleteLocalData:
-                ClearRecordedPresentation();
-                break;
-
-            case SessionDetailLoadResult.Failed:
-                ClearRecordedPresentation();
-                break;
+            preferencesPage.SampleRate = state.TelemetryData?.Metadata.SampleRate ?? 0;
+            notesPage.SetTemperatureAverages(state.TelemetryData?.TemperatureAverages ?? []);
         }
-    }
 
-    public void ApplyAnalysisAvailability(AnalysisAvailabilityResult availability) =>
-        EnsureBalancePage(availability.FullSessionBalanceAvailable);
+        if (previous.Presentation.SignalAvailability != state.Presentation.SignalAvailability)
+        {
+            var availability = state.Presentation.SignalAvailability;
+            preferencesPage.ApplySignalAvailability(
+                availability.Travel,
+                availability.Velocity,
+                availability.Imu,
+                availability.PitchRoll,
+                availability.Speed,
+                availability.Elevation);
+        }
+
+        if (previous.Presentation.DampingPercentages != state.Presentation.DampingPercentages)
+            dampingPage.ApplyDampingPercentages(state.Presentation.DampingPercentages);
+    }
 
     private void EnsureBalancePage(bool balanceAvailable)
     {

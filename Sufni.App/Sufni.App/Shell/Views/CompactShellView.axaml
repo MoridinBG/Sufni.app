@@ -20,7 +20,7 @@ xmlns:vml="clr-namespace:Sufni.App.Sessions.Lists.ViewModels.ItemLists"
 d:DesignHeight="600"
 d:DesignWidth="500"
 x:DataType="vm:ShellRootViewModel"
-Background="{DynamicResource SufniRegion}"
+Background="{DynamicResource SufniSurfacePage}"
 MainPages="{Binding Pages}"
 mc:Ignorable="d">
     <UserControl.Resources>
@@ -69,7 +69,7 @@ mc:Ignorable="d">
         <DrawerPage.Content>
             <TabbedPage
             Name="PagesTabbedPage"
-            Background="{DynamicResource SufniBackgroundDisabled}"
+            Background="{DynamicResource SufniSurfaceInputDisabled}"
             TabPlacement="Bottom">
                 <TabbedPage.Pages>
                     <ContentPage
@@ -127,12 +127,12 @@ mc:Ignorable="d">
             Name="CompactSyncBusyOverlay"
             BusyMessageFontWeight="Bold"
             ConsumesInput="False"
-            IndicatorForeground="{DynamicResource SufniAccentColor}"
+            IndicatorForeground="{DynamicResource SufniAccentPrimary}"
             IsActive="{Binding Feedback.SyncInProgress}"
             IsProgressIndeterminate="{Binding Feedback.SyncProgressIsIndeterminate}"
             IsVisible="{Binding Feedback.SyncInProgress}"
             Message="{Binding Feedback.SyncProgressText}"
-            MessageForeground="{DynamicResource SufniAccentColor}"
+            MessageForeground="{DynamicResource SufniAccentPrimary}"
             ProgressValue="{Binding Feedback.SyncProgressValue}"
             ShowProgress="{Binding Feedback.SyncInProgress}"
             ShowTint="True"
@@ -191,7 +191,7 @@ mc:Ignorable="d">
 
         <Border
         Name="CompactWorkspaceDetailHost"
-        Background="{DynamicResource SufniRegion}"
+        Background="{DynamicResource SufniSurfacePage}"
         IsVisible="{Binding Workspace.CurrentTab, Converter={x:Static converters:ObjectConverters.IsNotNull}}"
         ZIndex="10">
             <ContentControl Content="{Binding Workspace.CurrentTab}" />

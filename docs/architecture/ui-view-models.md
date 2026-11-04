@@ -181,14 +181,19 @@ There are five kinds of view model in the presentation layer:
   `LiveSessionDetailViewModel` are the two live-only exceptions: the
   diagnostics tab is a transport/configuration surface over the shared
   stream, while the live session tab is a create-only capture editor
-  backed by `ILiveSessionService`. `LiveDaqDetailViewModel` projects a
+  backed by `ILiveCaptureCoordinator`. `LiveDaqDetailViewModel` projects a
   throttled diagnostics snapshot from `LiveDaqSessionState` and also
   owns the disconnected-only Set Time / Replace Config / Upload CONFIG
   command flow, reusing `ViewModelBase.Notifications` and
   `ErrorMessages` while keeping management busy state separate from the
   live connect/disconnect workflow. The live session editor projects
-  signals/media/analysis state from the live session service and
-  persists through `LiveDaqCoordinator.SaveCaptureAsync(...)`.
+  one foreground `LiveCaptureState` subscription from the capture coordinator,
+  without its own throttling or dispatch. It retains controls, labels, the draft
+  and save/reset outcomes, and persists through `LiveDaqCoordinator.SaveCaptureAsync(...)`.
+  `LiveSessionAnalysisWorkspaceViewModel` owns analysis choices/readiness and
+  observes current bike cutoffs through `IBikeStore`, reusing `DampingCutoffWorkflow`.
+  `LivePagePresentationApplier` owns cancellable/drained page bakes; the editor
+  composes `LiveSessionShellMobileWorkspaceViewModel` and the shared sidebar workspace.
   The bike editor likewise keeps presentation concerns at this edge:
   `IBikeCoordinator` exposes neutral bike-editor result contracts, and
   `LoadImageAsync` returns encoded bytes rather than an Avalonia bitmap.
@@ -212,52 +217,76 @@ There are five kinds of view model in the presentation layer:
   `RecordedSessionEditorStateController` is the only reducer for those intents.
   It reduces each intent or typed input once and publishes one coherent state, including the current load data,
   selected page, analysis range, signal availability, map/media state, and
-  analysis presentation. Reentrant intents wait until the current state has reached
+  analysis presentation. Preference-page getters read the reducer's current snapshot
+  directly, so page notifications do not rely on the editor subscribing first.
+  Reentrant intents wait until the current state has reached
   all subscribers. Signal and analysis workspaces hold one state reference and
   derive their binding properties from it; notifications see the whole new state.
   `SessionDetailViewModel` keeps one current state
-  snapshot for read properties and property notifications. Its binding fields
+  snapshot for its screen, operation and layout properties. Notes, settings,
+  preferences, signal actions and analysis bindings are exposed through the
+  workspaces; the editor keeps its composed pages and runtime objects private. Its binding fields
   form the editable draft; one immutable `SessionDraft` base supports reset,
   dirtiness and conflict checks. A `Created | Loaded | ApplyingDraft | Closed`
   lifecycle tracks load, reset and close. Close requests share one cleanup task.
-  `RecordedSessionEditorEffects` drives named effects such as analysis
-  command refresh, map/media synchronization, preference persistence and
-  dirty tracking. Analysis requests derive directly from the accepted editor
-  state and semantic result keys.
-  Readiness and selection highlights are keyed background results. The reducer
-  clears old outputs with a telemetry/range change and renders pending readiness
-  until the matching result arrives; track-only augmentation keeps valid results.
-  Selection toggles only update the active selections. Balance-tab insertion uses
-  the worker's full-session availability, so an empty selected range retains it.
-  `RecordedPagePresentationApplier` is limited to page-owned chart/string
-  projection and balance-page insertion; core signal, analysis, map, media, and
-  loaded-data availability come from `RecordedSessionEditorState`. Stable
-  runtime objects such as the page collection, timeline link,
-  source-visibility store, map view model, video pane (see
-  [video.md](video.md)), segments picker (see
-  [segments.md](segments.md#segments-picker)), and segment comparison (see
-  [segments.md](segments.md#matching-and-comparison)) are owned directly by the
-  editor and passed to workspaces
-  by reference; state emissions update projected presentation without replacing
-  those objects. The recorded signals, media, analysis, and mobile-shell
-  workspaces own state subscriptions and are disposed on final editor close.
-  Internal collaborators in `ViewModels/Editors/` keep
-  flows off the editor itself: `SignalRowActionsController` builds the
-  built-in signal-row header actions (airtime and analysis-selection toggles)
-  by reading the current signal state and emitting an editor intent.
-  `ApplyActionStates(state)` projects all twelve toggles from each accepted state.
-  Damping-cutoff editing reads its bike owner and persisted values from the
-  current domain snapshot. Preview/commit intents update the editor state;
-  cancellation and failed writes restore current projected values. Saved responses
-  do not overwrite a newer projection.
-  `ProcessingPreferenceWorkflow` forwards committed processing-option edits to
-  `SessionCoordinator` and renders its typed result. The coordinator owns
-  persistence and conditional rollback. The editor retains pending preference
-  operations and drains them on close. Session
-  detail loading uses one local-only `ISessionLoader.LoadDetailAsync` path;
-  inactive-tab deferral is supplied
-  by `EditorFactory` for both profiles and evaluated against current tab activity. Collaborators reach the
-  editor through the `ISessionOperationGateway` contract.
+  The editor composes internal parts with the same tab lifetime. Each state
+  subscriber keeps the last state it received; it never reaches back into the
+  editor for a potentially older state. Nine input subjects wire their results
+  through the reducer, preserving reentrant publication ordering.
+
+  | Part | Presentation responsibility |
+  | --- | --- |
+  | `RecordedSessionAnalysisDemand` | Owns the analysis result state, semantic keys, invalidation, requests and result publication. The reducer explicitly prepares analysis before publishing each distinct state; presentation subscription order does not establish this dependency. Insights visibility is a `Func<int, bool>` over the page collection, evaluated with the selected index from the received state; page membership changes call `OnPagesChanged`. Insights demand remains after leaving the page. |
+  | `RecordedSessionLoadController` | Owns two-stage loading, progress, supersession and processed-telemetry retention. |
+  | `SessionStalenessPrompt` | Owns prompt visibility, deduplication by required fingerprint pair, unavailable-input feedback, and single/bulk recompute choices. |
+  | `RecordedSessionPreferencesController` | Owns the persisted preference baseline and pending local edits, derives effective preferences, forwards commits and retains pending writes. Processing completions return to the reducer with their captured draft. |
+  | `SessionWindowEditController` | Owns the four window-edit commands and their common availability, result feedback and split navigation. |
+  | `TimelineAlignmentController` | Owns the one GPS/video mark, six alignment commands and result feedback. |
+  | `SignalPlotContextActions` | Owns range/segment commands and the per-row context menus, composed with autozoom, alignment and window edits. |
+
+  All these recorded-editor parts, including the recorded analysis, signals and
+  media workspace adapters and signal-row actions, live in
+  `Sessions/Detail/ViewModels/Editors`. The reusable capabilities do not depend
+  on the recorded editor state. Recorded/live workspace contracts live in
+  `Sessions/Presentation/SessionWorkspaceContracts.cs`.
+  The analysis workspace receives the demand and `DampingCutoffWorkflow` directly
+  and owns its range-selection command. The signals workspace owns its
+  `SignalRowActionsController`, applies toggle states on each received state, and
+  receives `SignalPlotContextActions` by reference. Header lists and context menus
+  are stable runtime objects, outside reducer state. Travel airtime starts enabled
+  in the initial state; loads preserve the user's explicit overlay choices.
+  The media workspace applies map points and timeline context from its state
+  subscription.
+
+  Readiness and selection highlights are keyed background results. A telemetry or
+  range change clears stale outputs; track-only augmentation keeps valid results.
+  `RecordedPagePresentationApplier` alone projects preference refresh, sample rate,
+  signal availability, processing options, temperature averages, damping percentages,
+  chart loading/clearing and balance-page membership. It observes only editor
+  state; load and preference controllers never update pages directly. Accepted
+  analysis state retains full-session balance availability independently of the
+  selected range, so selecting an empty range does not remove the balance page.
+  Processing controls read the current editor draft or the committed session
+  option. Completion settles only its captured draft; a later edit survives both
+  the completion and publication of the preceding option. Superseded completions
+  leave presentation untouched. Editable notes/settings remain the editor's draft. Damping previews use the current bike;
+  failed/conflicting commits restore its projected cutoffs only while the tab is open.
+
+  Stable runtime objects (pages, timeline, source visibility, map, video pane,
+  segment picker and comparison) are composed once per editor and passed by
+  reference. Initial loading subscribes to preferences, domain and operation
+  observations before restoring preferences, then starts the staged data load.
+  Inactive-tab deferral applies in both layout profiles.
+
+  Close requests share one cleanup task. Close cancels the editor lifetime token,
+  stops reads and observations, releases telemetry retention and stops analysis.
+  It awaits pending domain reactions and preference operations, then disposes
+  workspaces, parts, reducer and input subjects. Reads reject cancelled or
+  superseded results. Accepted coordinator writes continue after tab close;
+  their late feedback, page/action updates and navigation are suppressed. A split
+  published after close does not open a new tab. Application shutdown drains
+  window edits (including recompute), GPS/video alignment and damping-cutoff writes
+  before stopping recompute and disposing services.
   Recorded-session loading publishes decoded telemetry first through
   `ISessionLoader.LoadDetailAsync`, then
   awaits `LoadTrackAsync` under the same active load token and augments the
@@ -265,19 +294,24 @@ There are five kinds of view model in the presentation layer:
   telemetry Signals become ready while the map and track-backed rows are still
   waiting, without introducing a second telemetry owner or restarting the
   telemetry generation when track data arrives. Both stages carry
-  `SessionDetailLoadProgress`; `SessionDetailViewModel` owns the UI-only
+  `SessionDetailLoadProgress`; `RecordedSessionLoadController` owns the UI-only
   preparing and applying stages, ignores progress and completions from canceled
   or superseded load tokens, and does not replace already-published first
   content with a later loading presentation. `RecordedSessionEditorStateController`
   maps pre-content progress into
   `SessionScreenPresentationState`, whose loading states always expose a
   concrete message and normalized `0..1` progress fraction. Both workspace and
-  compact session shells show progress while `IsLoading` is true.
+  compact session shells show progress while `IsLoading` is true. `SessionScreenStateOverlay`
+  renders loading, error and incomplete cards for both recorded shells and the
+  live desktop shell. It uses role colors and accepts an optional fallback for a
+  null message; the mobile shell supplies "Loading session data...". Loading
+  states themselves require a message. Recorded operation overlays remain in
+  their owning shell views.
   The recorded editor subscribes to `IRecordedSessionProjection.WatchSession`
   on its first `Loaded` and disposes that subscription on final tab close. View
   detach/reattach and layout changes keep the active load and telemetry retention.
   Initial or runtime domain snapshots pass to `SessionCoordinator.ReconcileStalenessAsync`;
-  the editor prompts only for its `Required` result. Unchanged fingerprint pairs
+  `SessionStalenessPrompt` prompts only for its `Required` result. Unchanged fingerprint pairs
   do not repeat a declined prompt; changed processing inputs may prompt again; inactive tabs in both layouts defer that prompt until selected. Unrecomputable stale snapshots report an
   error; processed data arriving for a current session reloads the
   presentation data. Domain reactions are retained and drained on final close;
@@ -295,15 +329,15 @@ owning session workspace, not to individual pages: recorded sessions
 project it from `RecordedSessionEditorState.Intent.SelectedPageIndex`
 through `SessionShellMobileWorkspaceViewModel` and write changes through
 `RecordedSessionEditorActions.SelectPageIndex`; live sessions store it
-directly on `LiveSessionDetailViewModel`. Both surfaces expose
+in `LiveSessionShellMobileWorkspaceViewModel`, which clamps it after page collection changes. Both surfaces expose
 `SelectedPageIndex`, `SelectedPage`, `PageCount`, and
 `SelectedPageDisplayName` through `ISessionShellMobileWorkspace`.
 Pages do not own commands, notification bars, selected flags, or shell
 navigation. The editor is the `TabPageViewModelBase` and keeps
 the `Save` / `Reset` / `Close` surface.
 
-Each editor exposes an `ObservableCollection<PageViewModelBase>
-Pages`. `SessionShellMobileView` binds that collection to a
+Each editor composes an `ObservableCollection<PageViewModelBase> Pages`,
+exposed through its mobile workspace. `SessionShellMobileView` binds that collection to a
 `CarouselPage` and binds the shared selected index to both the
 `CarouselPage` and `PipsPager`, so swipes and pips update the same
 workspace-owned index. The two editors
@@ -314,10 +348,9 @@ compose different page sets:
 - Live captures: signals, spring, damping, notes, preferences; balance is
   inserted when the current live analysis produces balance data.
 
-Both editors add or remove `BalancePage` at runtime via an
-`EnsureBalancePage(bool)` helper based on whether the current
-telemetry produces a balance plot, so `Pages` is mutated rather than
-rebuilt. Signals pages are constructed with the editor's signals and media
+The recorded page applier and `LivePagePresentationApplier` add or remove `BalancePage`
+at runtime based on full-session balance availability, so `Pages` is mutated
+rather than rebuilt. Signals pages are constructed with the editor's signals and media
 workspaces as constructor arguments — `RecordedSignalsPageViewModel` for
 the recorded editor, `LiveSignalsPageViewModel` for the live editor.
 Several analysis pages are also workspace-backed so their
@@ -336,19 +369,17 @@ analysis body plus the segment comparison banner inside one vertical scroll
 region; analysis plot hosts use natural fixed plot heights instead
 of stretching to the current analysis pane height.
 
-Most pages are pure projection surfaces over data the editor pushes
-in: `SpringPageViewModel`, `DampingPageViewModel` (the Damping page), and
-`BalancePageViewModel` carry per-plot strings and
-`SurfacePresentationState` values that the editor sets after each
-analysis run. Recorded-session analysis pages distinguish unavailable
+Most pages are projection surfaces: `SpringPageViewModel`, `DampingPageViewModel`
+and `BalancePageViewModel` carry per-plot strings and `SurfacePresentationState`
+values. Recorded pages consume the analysis workspace, with page-specific
+projection owned by `RecordedPagePresentationApplier`; the live editor pushes
+its analysis presentation directly. Recorded-session analysis pages distinguish unavailable
 finished data from live warm-up: a stored session or selected range
 with too little travel movement shows a no-data message without a
 spinner, while live-session analysis keeps a waiting state because
 the relevant stream samples may still arrive. `NotesPageViewModel` carries the description plus
-fork/shock `SuspensionSettings` and exposes its own
-`IsDirty(Session)` so the editor can fold notes-page edits into its
-`IsDirty` evaluation. The editors do not subscribe to most of these —
-they write to the page from analysis result handlers.
+fork/shock `SuspensionSettings`. Editors include those editable values in their
+dirty tracking; the recorded editor compares them with its immutable draft base.
 
 Two pages diverge from that pattern:
 
@@ -383,7 +414,7 @@ Two pages diverge from that pattern:
   resized root-row height ratios are stored in
   `SessionPreferences.SignalLayout` as stable row IDs plus normalized ratios.
   For recorded
-  sessions, `SessionDetailViewModel.SignalLayoutPreferences` projects the value
+  sessions, `RecordedSessionSignalsWorkspaceViewModel.SignalLayoutPreferences` projects the value
   loaded and saved through `ISessionCoordinator` preference workflows; live captures
   carry the current live signal layout preference into
   `LiveDaqCoordinator.SaveCaptureAsync(...)` so the newly saved
@@ -405,17 +436,25 @@ Two pages diverge from that pattern:
   through callbacks. `RefreshSignalDisplayPreferences` raises binding notifications
   after the owner changes; the page keeps no smoothing copy. Availability uses
   `ApplySignalAvailability`. The recorded editor projects the filter from the
-  session row; `ProcessingPreferenceWorkflow` in `Sessions/Detail/ViewModels/Editors` sends commits to
+  session row; `RecordedSessionPreferencesController` in `Sessions/Detail/ViewModels/Editors` sends commits to
   `ISessionCoordinator.SetProcessingOptionAsync` and displays the returned outcome.
   The coordinator owns persistence, recompute and conditional rollback. Live save
   puts the selected option on the new session.
 
   Signal display, analysis modes, signal layout and pane ratios remain in
-  one `SessionPreferences` value in the recorded editor state, observed through
-  `ISessionPreferences`. There is no separate preference-store or intent-state
-  copy. `SessionCoordinator.LoadPreferencesAsync` / `SavePreferencesAsync` own
-  reads/writes and return safe typed failures; load failure shows defaults. Desktop splitters
-  write normalized pane ratios; absent ratios use the layout defaults. Live save
+  one effective `SessionPreferences` projection in the recorded editor state.
+  `RecordedSessionPreferencesController` observes the persisted baseline through
+  `ISessionPreferences` and overlays pending local edits in intent order. These
+  are distinct facts: committed device-local preferences and unacknowledged view
+  edits. Each save acknowledgement retires its edit; an older acknowledgement
+  cannot overwrite a newer pending edit. A failed save retires its edit and
+  reports the failure, revealing the committed value unless a later edit covers
+  it. Unrelated persisted changes remain visible while saves are pending.
+  Observation runs synchronously with the UI-thread publication that precedes
+  save completion. Restore cannot replace an already observed baseline.
+  `SessionCoordinator.LoadPreferencesAsync` / `SavePreferencesAsync` own
+  reads/writes and return safe typed failures; initial load failure leaves defaults.
+  Desktop splitters write normalized pane ratios; absent ratios use the layout defaults. Live save
   seeds those preferences for the new session after persistence.
 
 The desktop session shell declares the media pane's 400-pixel default in XAML;

@@ -101,7 +101,10 @@ internal static class RecordedSessionPresentationDeriver
             AnalysisSurfaceState.ForVibration(availability.FrontForkVibration, analysisRange),
             AnalysisSurfaceState.ForVibration(availability.FrontFrameVibration, analysisRange),
             AnalysisSurfaceState.ForVibration(availability.RearForkVibration, analysisRange),
-            AnalysisSurfaceState.ForVibration(availability.RearFrameVibration, analysisRange));
+            AnalysisSurfaceState.ForVibration(availability.RearFrameVibration, analysisRange))
+        {
+            FullSessionBalanceAvailable = availability.FullSessionBalanceAvailable,
+        };
 
     public static RecordedAnalysisPresentationState CreatePendingAnalysisPresentation(TelemetryData telemetry)
     {
@@ -205,12 +208,6 @@ internal static class RecordedSessionPresentationDeriver
             ShowImuAnalysisSelection: false,
             ShowPitchRollAnalysisSelection: false,
             ShowSpeedAnalysisSelection: false,
-            ShowElevationAnalysisSelection: false,
-            TravelHeaderActions: [],
-            VelocityHeaderActions: [],
-            ImuHeaderActions: [],
-            PitchRollHeaderActions: [],
-            SpeedHeaderActions: [],
-            ElevationHeaderActions: []);
+            ShowElevationAnalysisSelection: false);
     }
 }

@@ -10,6 +10,8 @@ namespace Sufni.App.Sessions.Coordination;
 
 public interface ISessionCoordinator
 {
+    Task StopAsync();
+
     event EventHandler<SessionRecomputeAllOutcome>? RecomputeAllFinished;
 
     Task<SessionStalenessReconciliation> ReconcileStalenessAsync(

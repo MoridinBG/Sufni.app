@@ -13,7 +13,7 @@
     d:DesignHeight="600"
     d:DesignWidth="500"
     x:DataType="vml:LiveDaqListViewModel"
-    Background="{DynamicResource SufniRegion}"
+    Background="{DynamicResource SufniSurfacePage}"
     behaviors:HapticFeedbackBehavior.IsEnabled="True"
     lifecycle:ViewLifecycle.LoadedCommand="{Binding LoadedCommand}"
     lifecycle:ViewLifecycle.UnloadedCommand="{Binding UnloadedCommand}"
@@ -118,7 +118,7 @@
                             <Separator
                                 Height="1"
                                 Margin="0"
-                                Background="{DynamicResource SufniBackgroundDisabled}" />
+                                Background="{DynamicResource SufniSurfaceInputDisabled}" />
                         </StackPanel>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>

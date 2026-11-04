@@ -12,5 +12,6 @@ public interface ISessionPreferences
     Task UpdateRecordedAsync(Guid sessionId, Func<SessionPreferences, SessionPreferences> update);
     Task RemoveRecordedAsync(Guid sessionId);
 
+    /// <summary>Replays committed values on the UI thread and publishes changes before the write completes.</summary>
     IObservable<SessionPreferences> ObserveRecorded(Guid sessionId);
 }

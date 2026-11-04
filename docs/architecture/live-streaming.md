@@ -18,7 +18,7 @@
 
 ## Overview
 
-The live feature lets a user inspect a connected DAQ in a diagnostics tab. The user can also open a live-session tab on the same connection. This file covers frame delivery to those tabs: discovery, the per-identity shared transport, and the diagnostics tab. The recording side (`ILiveSessionService`, analysis, the live signal pipeline and the `Session` save path) lives in [Live Session Recording](live-session.md).
+The live feature lets a user inspect a connected DAQ in a diagnostics tab. The user can also open a live-session tab on the same connection. This file covers frame delivery to those tabs: discovery, the per-identity shared transport, and the diagnostics tab. The recording side (`ILiveCaptureCoordinator`, analysis, the live signal pipeline and the `Session` save path) lives in [Live Session Recording](live-session.md).
 
 The feature is a dedicated slice. A primary page lists known and discovered DAQs. Selection opens a diagnostics tab, and `Start Session` opens a second tab on the same transport. Desktop and mobile heads expose all three surfaces.
 
@@ -264,7 +264,7 @@ cancellation source.
 
 ### Drop Counters
 
-`LiveDaqClientDropCounters` reports receive, parse, and subscriber-buffer pressure through `LiveDaqSharedStreamState`. `LiveSessionService` uses increasing pressure to defer analysis briefly; the counters are not copied into presentation state. Recording and display remain separate, so dropping a display update does not remove captured samples.
+`LiveDaqClientDropCounters` reports receive, parse, and subscriber-buffer pressure through `LiveDaqSharedStreamState`. `LiveCaptureCoordinator` forwards increasing pressure to its `LiveAnalysisScheduler`, which retains a timer wake-up until the quiet period ends; the counters are not copied into presentation state. Recording and display remain separate, so dropping a display update does not remove captured samples.
 
 ### Shared Stream
 
@@ -320,7 +320,7 @@ cancellation source.
 - Travel stays raw here. The detail view model applies calibration and `mm (percent)` formatting.
 - `LiveTravelUiSnapshot` carries front/rear active flags. When only one travel channel is accepted, the inactive channel stays empty, so firmware neutral values never appear as measurements.
 
-The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDaqSharedStream.Frames` and fills its own capture stores. See [Capture Service](live-session.md#capture-service).
+The recording side does not use `LiveDaqSessionState`. It subscribes to `ILiveDaqSharedStream.Frames` and fills its own capture stores. See [Capture Coordinator](live-session.md#capture-coordinator).
 
 ### GPS Preview State
 
@@ -400,7 +400,7 @@ releases the cache and blocks queued publication after shutdown.
 
 The shell opens diagnostics and live-session tabs. It deduplicates by
 `EditorKey.LiveDaq` or `EditorKey.LiveSession` before the factory reads the
-snapshot or context and acquires the shared stream or creates a capture service.
+snapshot or context and acquires the shared stream or creates a capture coordinator.
 A missing snapshot or session context produces no tab. Reselecting a diagnostics
 tab with a closed stream replaces that tab and its stream reference. The shell
 owns cleanup of the detached editor. Replacement does not wait for the old socket
@@ -477,5 +477,5 @@ Both desktop and mobile heads add the Live tab and bind to the same view models.
 7. **Coordinator activation** — the coordinator activates only when the Live page is selected and deactivates when another page is selected, avoiding always-on mDNS browse for a page that may never be visited.
 8. **Protocol-specific clients behind a canonical frame model** — v2 and v3 wire parsing stays inside protocol-specific readers/clients. Everything above `ILiveDaqClientFactory` receives canonical live frames and does not branch on wire layout.
 9. **Reserved v2-only management** — availability derives from catalog capability and port ownership. The coordinator arbitrates management against LIVE through the registry; v3 remains unsupported because MGMT v3 wire bytes are not specified.
-10. **Capture service and save workflow** — `ILiveSessionService` owns capture buffers, analysis and signal batches. `LiveDaqCoordinator.SaveCaptureAsync` owns recording persistence and post-save reset. See [Live Session Recording](live-session.md).
+10. **Capture coordinator and save workflow** — `ILiveCaptureCoordinator` owns capture through private recorder/projector parts, a bounded display feed and a keyed analysis scheduler. It publishes facts and analysis as `LiveCaptureState` on the UI thread; signal batches carry only signals and explicit resets. `LiveDaqCoordinator.SaveCaptureAsync` owns recording persistence and post-save reset. See [Live Session Recording](live-session.md).
 11. **Diagnostics lock** — the diagnostics reducer uses one lock to order frame updates, shared-header changes and reset. Snapshot formatting runs outside the lock over the captured record. UI consumers never share the accumulator state.

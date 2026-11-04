@@ -8,7 +8,7 @@
     d:DesignHeight="520"
     d:DesignWidth="520"
     x:DataType="vm:StravaConnectDialogViewModel"
-    Background="{DynamicResource SufniBackgroundDisabled}"
+    Background="{DynamicResource SufniSurfaceInputDisabled}"
     mc:Ignorable="d">
 
     <StackPanel Margin="16" Spacing="10">

@@ -1,0 +1,48 @@
+<UserControl
+    x:Class="Sufni.App.Sessions.Presentation.Views.SessionScreenStateOverlay"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:Sufni.App.Sessions.Presentation.Views"
+    xmlns:overlays="clr-namespace:Sufni.App.Shared.Views.Overlays"
+    x:Name="Root"
+    x:DataType="local:SessionScreenStateOverlay">
+    <Grid>
+        <overlays:BusyOverlay
+            Name="ScreenBusyOverlay"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IndicatorForeground="{DynamicResource SufniAccentSpinner}"
+            IsActive="{Binding #Root.ScreenState.IsLoading}"
+            IsVisible="{Binding #Root.ScreenState.IsLoading}"
+            MessageForeground="{DynamicResource SufniTextSecondary}"
+            ProgressValue="{Binding #Root.ScreenState.ProgressFraction}"
+            ShowIndicator="False"
+            ShowProgress="{Binding #Root.ScreenState.IsLoading}"
+            UseStackLayout="True">
+            <overlays:BusyOverlay.Message>
+                <MultiBinding Converter="{x:Static local:SessionScreenStateOverlay.LoadingMessageConverter}">
+                    <Binding Path="#Root.ScreenState.Message" />
+                    <Binding Path="#Root.LoadingFallbackMessage" />
+                </MultiBinding>
+            </overlays:BusyOverlay.Message>
+        </overlays:BusyOverlay>
+        <Border Name="ErrorCard" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24"
+                Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}"
+                BorderThickness="1" CornerRadius="6" IsVisible="{Binding #Root.ScreenState.IsError}">
+            <StackPanel Spacing="12">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Could not load session" />
+                <TextBlock Name="ScreenErrorText" HorizontalAlignment="Center" Text="{Binding #Root.ScreenState.Message}"
+                           TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+        <Border Name="IncompleteCard" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Padding="24"
+                Background="{DynamicResource SufniFieldSurface}" BorderBrush="{DynamicResource SufniFieldBorder}"
+                BorderThickness="1" CornerRadius="6" IsVisible="{Binding #Root.ScreenState.IsIncompleteLocalData}">
+            <StackPanel Spacing="12">
+                <TextBlock HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="Session data incomplete" />
+                <TextBlock Name="ScreenIncompleteText" HorizontalAlignment="Center" Text="{Binding #Root.ScreenState.Message}"
+                           TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
