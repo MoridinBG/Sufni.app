@@ -228,7 +228,22 @@ public class BikeEditorViewModelTests : BikeEditorFixture
         Assert.NotEqual(submitted?.Name, editor.Name);
         Assert.True(editor.IsDirty);
         shell.DidNotReceive().CompleteEdit(Arg.Any<EditorKey>());
+    }
+
+    [AvaloniaFact]
+    public async Task Reset_AfterSave_RestoresTheSavedBike()
+    {
+        var snapshot = TestSnapshots.Bike(updated: 5);
+        var editor = CreateEditor(snapshot);
+        editor.Name = "saved";
+        bikeCoordinator.SaveAsync(Arg.Any<BikeDraft>(), DraftFrom(snapshot)).Returns(call =>
+            new BikeSaveResult.Saved(call.ArgAt<BikeDraft>(0).ToSnapshot() with { Updated = 11 }));
+        await editor.SaveCommand.ExecuteAsync(null);
+        editor.Name = "later edit";
+
         await editor.ResetCommand.ExecuteAsync(null);
+
+        Assert.Equal("saved", editor.Name);
         Assert.False(editor.IsDirty);
     }
 
