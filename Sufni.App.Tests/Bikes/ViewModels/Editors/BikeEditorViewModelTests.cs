@@ -25,6 +25,27 @@ namespace Sufni.App.Tests.Bikes.ViewModels.Editors;
 public class BikeEditorViewModelTests : BikeEditorFixture
 {
     [AvaloniaFact]
+    public async Task ResetRestoresJointOrderWhileKeepingSurvivingRows()
+    {
+        var snapshot = FullSuspensionSnapshot();
+        var spec = snapshot.Linkage!;
+        var pivot = new JointSpec("Pivot", JointType.Floating, 10, 5);
+        var ordered = new LinkageSpec([pivot, .. spec.Joints], spec.Links, spec.Shock, spec.ShockStroke);
+        var editor = CreateEditor(snapshot with { RearSuspension = new RearSuspensionSpec.Linkage(ordered) });
+        var rows = editor.Linkage.JointViewModels;
+        var surviving = rows[1];
+        editor.Linkage.SelectedPoint = rows[0];
+        editor.Linkage.DeleteSelectedItemCommand.Execute(null);
+        Assert.Same(surviving, rows[0]);
+
+        await editor.ResetCommand.ExecuteAsync(null);
+
+        Assert.Equal(ordered.Joints.Select(joint => joint.Name), rows.Select(row => row.Name));
+        Assert.Same(surviving, rows[1]);
+        await editor.PrepareCloseAsync();
+    }
+
+    [AvaloniaFact]
     public void Construction_UsesPhotoAngle_WhenItDiffersFromManualInput()
     {
         var snapshot = FullSuspensionSnapshot(

@@ -84,20 +84,28 @@ public sealed partial class LinkageWorkspaceViewModel : BikeEditorWorkspace
         var draft = state.Inputs.Linkage;
         foreach (var row in links.Where(row => draft.Link(row.Id) is null).ToArray()) links.Remove(row);
         foreach (var row in joints.Where(row => draft.Joint(row.Id) is null).ToArray()) joints.Remove(row);
-        foreach (var joint in draft.Joints)
+        for (var index = 0; index < draft.Joints.Length; index++)
         {
+            var joint = draft.Joints[index];
             var row = joints.FirstOrDefault(row => row.Id == joint.Id);
             if (row is null)
             {
                 row = new(joint, Actions, this) { ShowFlyout = joint.Id == flyoutJoint };
-                joints.Add(row);
+                joints.Insert(index, row);
             }
+            else if (joints[index] != row) joints.Move(joints.IndexOf(row), index);
             row.Apply(joint, joint.Id == state.Selection);
         }
-        foreach (var link in draft.Links)
+        for (var index = 0; index < draft.Links.Length; index++)
         {
+            var link = draft.Links[index];
             var row = links.FirstOrDefault(row => row.Id == link.Id);
-            if (row is null) { row = new(link, Actions, this); links.Add(row); }
+            if (row is null)
+            {
+                row = new(link, Actions, this);
+                links.Insert(index, row);
+            }
+            else if (links[index] != row) links.Move(links.IndexOf(row), index);
             row.Apply(link, state);
         }
         flyoutJoint = null;

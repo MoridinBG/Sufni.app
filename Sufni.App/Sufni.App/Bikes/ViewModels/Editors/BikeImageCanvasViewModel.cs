@@ -86,4 +86,3 @@ public sealed class BikeImageCanvasViewModel : ObservableObject, IDisposable
         return renderTarget;
     }
 }
-
