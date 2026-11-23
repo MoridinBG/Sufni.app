@@ -2,6 +2,7 @@
 x:Class="Sufni.App.Sessions.Insights.Views.Items.SessionInsightsView"
 xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:segments="using:Sufni.App.Segments.Views"
     xmlns:controls2="clr-namespace:Sufni.App.Sessions.Insights.Views.Controls"
 xmlns:controls="clr-namespace:Sufni.App.Shared.Views.Overlays"
 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -111,6 +112,7 @@ mc:Ignorable="d">
                                 </DataTemplate>
                             </ContentControl.ContentTemplate>
                         </ContentControl>
+                        <segments:SegmentTerrainComparisonView DataContext="{Binding SegmentComparison}" />
                         <controls2:SessionInsightsResponsePanel DataContext="{Binding SessionInsights.Response}" />
                     </StackPanel>
                 </ScrollViewer>

@@ -103,3 +103,9 @@ The Match command compares the GPS points of the selected analysis range with th
 Matching, comparison-page reads, detail reads and analysis preparation return typed failures with `SegmentComparisonFailureReason` and optional diagnostics. The coordinator that catches the failure logs it once. The editor shows a fixed summary and separate details. Missing or changed detail content returns `Unavailable`. Cancellation and superseded results publish no failure.
 
 The recorded editor owns the analysis scope. Starting a comparison requests the matched-session scope before the detail read. When that scope changes, the comparison view model cancels its detail read and releases the previous comparison rows. A class selection and a comparison therefore cannot both control the analysis.
+
+### Same-trail terrain
+
+The editor projects the current terrain profile, its key and its baseline identity into the segment state. A change to these inputs supersedes the active analysis build. The segment coordinator reads the matched profile at the exact key from the match and fits the bike baseline with both runs held out. Missing profiles, disjoint sensors, an unaligned pair and an unexpected read or computation failure have distinct outcomes. Travel and damping results remain available in each case.
+
+Both Insights layouts show the comparison in the matched-session scope, above the bike response panel. Each class row reports matched metres, pace quartiles, suspension and transmission ratios, and separate front and rear same-position values. Leaving that scope releases the table along with the other comparison results.

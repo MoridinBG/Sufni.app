@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Sufni.App.Terrain.Models;
 using Sufni.App.Shared.Models;
 using CommunityToolkit.Mvvm.Input;
@@ -180,6 +181,25 @@ public class SegmentComparisonViewModelTests
     }
 
     [Fact]
+    public async Task LeavingComparisonScopeRemovesTheTerrainRows()
+    {
+        var measurable = new ComparisonRatio(ResponseCellState.WithinRepeatRange, 1.01);
+        var targets = Enum.GetValues<ResponseTarget>().ToImmutableDictionary(t => t, _ => measurable);
+        TerrainComparisonRow rough = new(RoughnessClass.Rough, 500, new(0.97, 1.01, 1.04), targets, measurable, measurable);
+        using var vm = CreateComparison(new SegmentTerrainComparison.Compared([rough]));
+        var compared = Comparison(TestSegmentMatches.Match(10, 13));
+        MatchReturns(compared);
+        DetailReturns(compared);
+        await vm.MatchCommand.ExecuteAsync(null);
+        await ((IAsyncRelayCommand)CompareAction(vm.TravelRows[0]).Command!).ExecuteAsync(null);
+        Assert.Single(vm.TerrainTable!.Rows);
+
+        sessionState.OnNext(sessionState.Value with { Scope = AnalysisScope.For(new TerrainClassFilter().Toggle(RoughnessClass.Calm)) });
+        Assert.Null(vm.TerrainTable);
+        Assert.Single(vm.TravelRows);
+    }
+
+    [Fact]
     public async Task RemoveRow_DropsTheMatchWithItsLastRow()
     {
         using var comparison = CreateComparison();
@@ -292,14 +312,14 @@ public class SegmentComparisonViewModelTests
         Assert.Equal(0, comparison.MatchCount);
     }
 
-    private SegmentComparisonViewModel CreateComparison()
+    private SegmentComparisonViewModel CreateComparison(SegmentTerrainComparison? terrain = null)
     {
         coordinator.LoadComparisonDetailAsync(Arg.Any<SegmentComparison>(), Arg.Any<CancellationToken>())
             .Returns(new SegmentComparisonDetailResult.Unavailable());
         var comparison = new SegmentComparisonViewModel(
             Guid.NewGuid(),
             sessionState,
-            TestSegmentComparisons.BuildAnalysisComparisons(coordinator),
+            TestSegmentComparisons.BuildAnalysisComparisons(coordinator, terrain),
             (start, end) => visibleRanges.Add((start, end)),
             errors.Add,
             notifications.Add,

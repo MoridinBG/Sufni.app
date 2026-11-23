@@ -33,3 +33,9 @@ The baseline identity is the ordered set of current profile keys of other rides 
 Each target needs five compatible rides, 1,000 moving windows with positive observations, and independent variation in the log band levels and speed. Front targets prefer the lowers sensor and rear targets the frame. The alternative is used only if the preferred sensor is absent on the evaluated ride or throughout the baseline. Transmission uses the lowers bands to predict the frame level. Each model carries its predictor, coverage and availability.
 
 Insights measures the whole ride and each roughness class inside the analysis time range, independently of the class filter. Boundary-window distance and log residuals are weighted by the covered fraction. Ratios use the geometric mean of observed over predicted response. Classification needs 300 m and uses the bike-baseline repeat thresholds of 30% for suspension response and 10% for transmission.
+
+## Same-trail comparison
+
+Ground alignment refines the GPS time map with a shared frame IMU, or a shared lowers IMU when frame data is absent. Each 150 m chunk searches 40 m to either side. At least two chunks must meet coverage and correlation requirements. Only moving windows within 75 m of an accepted centre enter the comparison.
+
+The pair fit excludes both compared rides and requires compatible predictor scales. Rows cover all matched windows and each roughness class with at least 300 m. Pace reports the median and interquartile range. Suspension and transmission compare each ride’s log residual on jointly measured windows. The same-position RMS ratios use the observed speed ratio to the power 0.9 and remain available without a baseline. Repeat limits are 20% for RMS, compression and same-position response, 25% for rebound and 5% for transmission.

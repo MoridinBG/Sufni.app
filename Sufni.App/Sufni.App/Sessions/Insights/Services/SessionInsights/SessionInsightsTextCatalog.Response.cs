@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.ViewModels;
 using Sufni.App.Sessions.Models;
 using Sufni.Telemetry;
 
@@ -20,30 +21,12 @@ internal static partial class SessionInsightsTextCatalog
     public static string ResponseCoverage(TerrainResponseRow row) => row.MeanSpeed is { } speed
         ? $"{row.DistanceMetres:0.#} m · {row.Share:P0} · {speed * 3.6:0.#} km/h" : "0 m";
 
-    public static string TargetLabel(ResponseTarget target) => target switch
-    {
-        ResponseTarget.FrontRms => "Front RMS",
-        ResponseTarget.FrontPeakCompression => "Front peak compression",
-        ResponseTarget.FrontPeakRebound => "Front peak rebound",
-        ResponseTarget.RearRms => "Rear RMS",
-        ResponseTarget.RearPeakCompression => "Rear peak compression",
-        ResponseTarget.RearPeakRebound => "Rear peak rebound",
-        ResponseTarget.Transmission => "Transmission",
-        _ => throw new System.ArgumentOutOfRangeException(nameof(target))
-    };
-
     public static SessionResponseCell ResponseCell(ResponseCell cell)
     {
         var predictor = cell.Predictor == ImuLocation.Fork ? "lowers" : "frame";
-        var value = cell.Ratio is { } ratio ? $"{ratio:0.00}×" : cell.State switch
-        {
-            ResponseCellState.TooShort => "Under 300 m",
-            ResponseCellState.InsufficientVariation => "Insufficient variation",
-            ResponseCellState.NoBaseline => "Insufficient baseline",
-            _ => "Unavailable"
-        };
+        var value = TerrainResponseText.Value(cell.State, cell.Ratio);
         var detail = cell.State == ResponseCellState.WithinRepeatRange ? "Within repeat range. " : string.Empty;
-        return new($"{TargetLabel(cell.Target)} · {predictor}", value,
+        return new($"{TerrainResponseText.TargetLabel(cell.Target)} · {predictor}", value,
             $"{detail}{cell.BaselineSessions} baseline rides, {cell.BaselineWindows:N0} usable windows.", cell);
     }
 }

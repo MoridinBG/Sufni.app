@@ -79,7 +79,7 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
     [ObservableProperty] public partial IReadOnlyList<SegmentComparisonRowViewModel> SpeedRows { get; private set; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAnalysisComparison), nameof(AnalysisComparisonText))]
+    [NotifyPropertyChangedFor(nameof(HasAnalysisComparison), nameof(AnalysisComparisonText), nameof(TerrainTable))]
     public partial SegmentAnalysisComparison? AnalysisComparison { get; private set; }
 
     [ObservableProperty]
@@ -107,6 +107,8 @@ public sealed partial class SegmentComparisonViewModel : ObservableObject, IDisp
 
     public bool HasMultiplePages => MatchCount > SegmentComparisonPage.Size;
     public bool HasAnalysisComparison => AnalysisComparison is not null;
+
+    public SegmentTerrainTable? TerrainTable => AnalysisComparison is { } analysis ? SegmentTerrainTable.From(analysis.Terrain) : null;
 
     public string? AnalysisComparisonText => AnalysisComparison?.Comparison is { } comparison
         ? $"Comparing analysis with {comparison.Match.SessionName}{FormatLocalTime(comparison)}  match error {comparison.Match.NormalizedCostMeters:0.0}m"
