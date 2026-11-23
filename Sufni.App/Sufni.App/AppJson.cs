@@ -80,6 +80,8 @@ internal static class AppJson
 [JsonSerializable(typeof(SynchronizationData))]
 [JsonSerializable(typeof(SessionProcessedGeneration))]
 [JsonSerializable(typeof(GpsMetricsKey))]
+[JsonSerializable(typeof(Terrain.Models.TerrainProfileKey))]
+[JsonSerializable(typeof(Sufni.Telemetry.TerrainSummary))]
 [JsonSerializable(typeof(TrackPoint))]
 [JsonSerializable(typeof(RecordedSessionSourceKind))]
 [JsonSerializable(typeof(ProcessingFingerprint))]

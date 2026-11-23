@@ -54,6 +54,16 @@ internal sealed class DatabaseMigrationRunner(
         await MigrateSessionDerivationWindowsAsync();
         await MigrateSessionDomainAsync();
         await MigrateTrackMaterializationsAsync();
+        await coreMigrations.ApplyAsync("session-terrain-profile", transaction => transaction.Execute("""
+            CREATE TABLE session_terrain_profile (
+                session_id TEXT PRIMARY KEY NOT NULL,
+                terrain_profile_key TEXT NOT NULL,
+                terrain_outcome INTEGER NOT NULL,
+                terrain_summary TEXT,
+                profile BLOB,
+                CHECK ((terrain_outcome = 0) = (profile IS NOT NULL)),
+                CHECK ((terrain_outcome = 0) = (terrain_summary IS NOT NULL)))
+            """));
         await MigrateSyncAuthorityAsync();
         await EnsureSessionBlobSwapRequestIntegrityAsync();
         await coreMigrations.MarkAppliedAsync("session-segment");
@@ -675,6 +685,7 @@ internal sealed class DatabaseMigrationRunner(
 
         var deletedSessions = await connection.Table<Session>().DeleteAsync(session => session.Deleted != null && session.Deleted < oneDayAgo);
         await connection.ExecuteAsync("DELETE FROM session_gps_metrics WHERE session_id NOT IN (SELECT id FROM session)");
+        await connection.ExecuteAsync("DELETE FROM session_terrain_profile WHERE session_id NOT IN (SELECT id FROM session WHERE deleted IS NULL)");
         var deletedSegments = await connection.Table<SessionSegment>().DeleteAsync(segment => segment.Deleted != null && segment.Deleted < oneDayAgo);
         var deletedTracks = await connection.Table<Track>().DeleteAsync(track => track.Deleted != null && track.Deleted < oneDayAgo);
         var deletedBoards = await connection.Table<Board>().DeleteAsync(board => board.Deleted != null && board.Deleted < oneDayAgo);

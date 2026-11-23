@@ -20,10 +20,39 @@ using Sufni.App.SyncAndPairing.Models;
 using Sufni.App.Video.Models;
 using Sufni.App.Tests.TestSupport.Persistence;
 using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Terrain.Models;
 namespace Sufni.App.Tests;
 
 public class DatabaseMigrationRunnerTests
 {
+    [Fact]
+    public async Task UpgradeMakesExistingRecordingsPendingAndCleanupRemovesTheirDeletedProfiles()
+    {
+        using var temp = new TempDatabase();
+        var session = new Session(Guid.NewGuid(), "existing ride", "", null, 100)
+            { ProcessedData = [1], DurationSeconds = 10 };
+        using (var legacy = new SQLiteConnection(temp.DatabasePath))
+        {
+            legacy.CreateTable<Session>();
+            legacy.Insert(session);
+        }
+        var profile = new TerrainProfile([new TerrainWindow(0, 0, 2, 5, true)], [], [],
+            TerrainRoughnessState.NoSensor, TerrainSteepnessState.NoFrameSensor, null, null);
+        TerrainProfileKey key;
+        await using (var db = new TestPersistenceHarness(temp.DatabasePath))
+        {
+            var existing = SessionSnapshot.From(Assert.Single(await db.GetSessionsAsync()));
+            var evaluation = SessionTerrainStatusQuery.Evaluate(existing, []);
+            key = evaluation.Key;
+            Assert.IsType<TerrainStatus.Pending>(evaluation.Status);
+            Assert.True(await db.TerrainProfiles.TryCommitAsync(session.Id, key, TerrainMaterialization.Computed(profile)));
+            await db.DeleteAsync(session);
+        }
+        await using var reopened = new TestPersistenceHarness(temp.DatabasePath);
+        Assert.Empty(await reopened.TerrainProfiles.ReadAsync(new Dictionary<Guid, TerrainProfileKey> { [session.Id] = key }));
+    }
+
     [Fact]
     public async Task Initialization_HashesLegacyRefreshToken_AndDoesNotReplayItAfterRotation()
     {

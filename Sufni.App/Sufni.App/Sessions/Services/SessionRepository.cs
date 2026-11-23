@@ -127,6 +127,7 @@ internal sealed class SessionRepository(
                                                                       ascent_meters,
                                                                       descent_meters,
                                                                       gps_metrics_key,
+                                                                      terrain_profile_key, terrain_outcome, terrain_summary,
                                                                       gps_offset_seconds,
                                                                       source_session_id,
                                                                       window_start_seconds,
@@ -212,6 +213,7 @@ internal sealed class SessionRepository(
                          {ActiveSessionMetadataProjection}
                      FROM
                          session LEFT JOIN session_gps_metrics gps ON gps.session_id = session.id
+                         LEFT JOIN session_terrain_profile terrain ON terrain.session_id = session.id
                      WHERE
                          deleted IS NULL
                      ORDER BY timestamp DESC
@@ -228,6 +230,7 @@ internal sealed class SessionRepository(
                          {ActiveSessionMetadataProjection}
                      FROM
                          session LEFT JOIN session_gps_metrics gps ON gps.session_id = session.id
+                         LEFT JOIN session_terrain_profile terrain ON terrain.session_id = session.id
                      WHERE
                          deleted IS NULL AND id = ?
                      """;

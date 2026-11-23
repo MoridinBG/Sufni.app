@@ -4,6 +4,7 @@ using Sufni.App.Bikes.Coordinators;
 using Sufni.App.Shared.Stores;
 using Sufni.App.Tests.TestSupport.Async;
 using Sufni.Telemetry;
+using Sufni.App.Terrain.Services;
 
 using Sufni.App.Infrastructure;
 using Sufni.App.MapsAndTracks.Models;
@@ -74,6 +75,7 @@ internal sealed class TestPersistenceHarness : IAsyncDisposable
     public ISessionBlobSwapRequestStore SwapRequests => new SessionBlobSwapRequestStore(context);
     public ISessionRepository SessionRepository => sessionRepository;
     public IRecordedSessionSourceRepository SourceRepository => recordedSessionSourceRepository;
+    public ITerrainProfileRepository TerrainProfiles => new TerrainProfileRepository(context);
     public ITrackRepository TrackRepository => trackRepository;
 
     public SessionSyncApplier SessionSyncApplier { get; }

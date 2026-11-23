@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using SQLite;
+using Sufni.App.Terrain.Models;
+using Sufni.Telemetry;
 using Sufni.App.Sessions.Models;
 using Sufni.App.MapsAndTracks.Models;
 using Sufni.App.Infrastructure;
@@ -26,6 +28,27 @@ internal sealed class SessionMetadataRow : Session
     {
         get => GpsMetricsKey is null ? null : AppJson.Serialize(GpsMetricsKey);
         set => GpsMetricsKey = string.IsNullOrEmpty(value) ? null : AppJson.Deserialize<GpsMetricsKey>(value);
+    }
+
+    [Column("terrain_profile_key"), JsonIgnore]
+    public string? TerrainProfileKeyJson
+    {
+        get => TerrainProfileKey is null ? null : AppJson.Serialize(TerrainProfileKey);
+        set => TerrainProfileKey = value is null ? null : AppJson.Deserialize<TerrainProfileKey>(value);
+    }
+
+    [Column("terrain_outcome"), JsonIgnore]
+    public int? StoredTerrainOutcome
+    {
+        get => (int?)TerrainOutcome;
+        set => TerrainOutcome = (TerrainOutcome?)value;
+    }
+
+    [Column("terrain_summary"), JsonIgnore]
+    public string? TerrainSummaryJson
+    {
+        get => TerrainSummary is null ? null : AppJson.Serialize(TerrainSummary);
+        set => TerrainSummary = value is null ? null : AppJson.Deserialize<TerrainSummary>(value);
     }
 
     [Ignore, JsonIgnore]

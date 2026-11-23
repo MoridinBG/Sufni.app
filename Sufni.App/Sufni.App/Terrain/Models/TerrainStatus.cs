@@ -9,7 +9,7 @@ public sealed record TerrainProfileKey(SessionContentToken Content, int Algorith
         new(content, TerrainProfileCalculator.AlgorithmVersion, TerrainCalibration.Version);
 }
 
-public enum TerrainOutcome { Computed, NoTrack, NoMovement, ContentMissing, Failed }
+public enum TerrainOutcome { Computed = 0, NoTrack = 1, NoMovement = 2, ContentMissing = 3, Failed = 4 }
 
 public enum TerrainAvailabilityReason { NoTelemetry, NoTrack, NoMovement, ContentMissing }
 
