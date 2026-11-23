@@ -94,6 +94,10 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
             .Scan(new Reduction(initial, 0, AnalysisRangeIntentState.Empty), static (current, update) =>
             {
                 var next = update(current);
+                if (next.Editor.Terrain != current.Editor.Terrain ||
+                    next.Editor.Presentation.Signals != current.Editor.Presentation.Signals ||
+                    next.Editor.Presentation.SignalAvailability != current.Editor.Presentation.SignalAvailability)
+                    next = next with { Editor = RecordedSessionPresentationDeriver.WithTerrainPresentation(next.Editor) };
                 return next with { Editor = InvalidateAnalysisResults(current.Editor, next.Editor) };
             })
             .Select(static current => current.Editor)
@@ -169,6 +173,8 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         {
             Editor = intent switch
             {
+                RecordedSessionEditorIntent.SetTerrain result when state.Domain?.Terrain == result.Expected =>
+                    state with { Terrain = result.Value },
                 RecordedSessionEditorIntent.PreviewProcessingOption preview => state with
                 {
                     ProcessingDraft = new RecordedProcessingDraft(preview.WindowMilliseconds),
@@ -221,6 +227,7 @@ internal sealed class RecordedSessionEditorStateController : IDisposable
         return state with
         {
             Domain = domain,
+            Terrain = state.Domain?.Terrain == domain.Terrain ? state.Terrain : RecordedTerrainState.FromStatus(domain.Terrain),
             Session = domain.Session,
             ProcessingDraft = ReconcileProcessingDraft(state, domain.Session),
             Intent = state.Intent with { DampingSpeedCutoffs = cutoffsChanged ? cutoffs : state.Intent.DampingSpeedCutoffs },

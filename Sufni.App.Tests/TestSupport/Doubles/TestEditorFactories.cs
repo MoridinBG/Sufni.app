@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Services;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Acquisition.Coordinators;
@@ -83,7 +85,8 @@ internal static class TestEditorFactories
             new Microsoft.Extensions.Time.Testing.FakeTimeProvider(),
             new Sufni.App.Tests.TestSupport.Async.ManualUiTimerScheduler(),
             Substitute.For<IRecordedSessionDomainQuery>(),
-            TestAppEnvironment.Create(UiLayoutProfile.Workspace));
+            TestAppEnvironment.Create(UiLayoutProfile.Workspace),
+            Substitute.For<ITerrainProfileRepository>(), Substitute.For<ITerrainProfileCoordinator>());
     }
 
 }

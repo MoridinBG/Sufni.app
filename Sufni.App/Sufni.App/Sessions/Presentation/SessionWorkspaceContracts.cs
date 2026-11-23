@@ -58,6 +58,9 @@ public interface IRecordedSessionSignalsWorkspace : ITimeSeriesPlotInteractions
     TelemetryTimeRange? AnalysisRange { get; }
     IReadOnlyList<TrackPoint>? TrackPoints { get; }
     TrackTimeRange? TrackTimelineContext { get; }
+    SurfacePresentationState TerrainSignalState { get; }
+    SurfacePresentationState RoughnessSignalState { get; }
+    SurfacePresentationState GradeSignalState { get; }
     SurfacePresentationState TravelSignalState { get; }
     SurfacePresentationState VelocitySignalState { get; }
     SurfacePresentationState ImuSignalState { get; }

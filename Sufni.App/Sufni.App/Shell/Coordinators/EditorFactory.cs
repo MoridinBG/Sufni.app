@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Services;
 using Sufni.App.Bikes.Services;
 using Sufni.App.LiveDaq.Coordinators.Capture;
 using Sufni.App.Shell.ViewModels.Base;
@@ -72,7 +74,9 @@ internal sealed class EditorFactory(
     TimeProvider timeProvider,
     IUiTimerScheduler uiTimerScheduler,
     IRecordedSessionDomainQuery recordedSessionDomainQuery,
-    IAppEnvironment appEnvironment) : IEditorFactory
+    IAppEnvironment appEnvironment,
+    ITerrainProfileRepository terrainProfiles,
+    ITerrainProfileCoordinator terrainCoordinator) : IEditorFactory
 {
     public TabPageViewModelBase? CreateEditor(EditorKey key, IShellCoordinator shell) => key switch
     {
@@ -139,6 +143,8 @@ internal sealed class EditorFactory(
             timeProvider,
             bikeCoordinator,
             backgroundTaskRunner,
+            terrainProfiles,
+            terrainCoordinator,
             videoPaneFactory,
             initialTrack: recordedSessionDomainQuery.Get(snapshot.Id)?.SelectedTrack);
 

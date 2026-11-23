@@ -1,4 +1,5 @@
 using System;
+using Sufni.App.Terrain.Models;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Sufni.App.Bikes.Models;
@@ -11,6 +12,8 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal closed record RecordedSessionEditorIntent
 {
+    public sealed record SetTerrain(TerrainStatus.Current Expected, RecordedTerrainState Value) : RecordedSessionEditorIntent;
+
     public sealed record PreviewProcessingOption(int WindowMilliseconds) : RecordedSessionEditorIntent;
     public sealed record CommitProcessingOption : RecordedSessionEditorIntent;
     public sealed record CompleteProcessingOption(RecordedProcessingDraft Draft, SessionSnapshot Session) : RecordedSessionEditorIntent;
@@ -153,6 +156,9 @@ internal sealed class RecordedSessionEditorActions : IDisposable
         ArgumentNullException.ThrowIfNull(preferences);
         Emit(new RecordedSessionEditorIntent.SetLayoutPreferences(preferences));
     }
+
+    public void SetTerrain(TerrainStatus.Current expected, RecordedTerrainState value) =>
+        Emit(new RecordedSessionEditorIntent.SetTerrain(expected, value));
 
     public void SetSignalPresentation(RecordedSignalPresentationState state)
     {

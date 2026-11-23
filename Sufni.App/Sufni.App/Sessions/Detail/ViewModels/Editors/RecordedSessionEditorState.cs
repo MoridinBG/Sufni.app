@@ -27,6 +27,9 @@ internal sealed record RecordedSessionEditorState(
     RecordedSessionEditorPresentationState Presentation,
     AnalysisSelectionState AnalysisSelection)
 {
+    public RecordedTerrainState Terrain { get; init; } = new RecordedTerrainState.Unavailable(
+        Sufni.App.Terrain.Models.TerrainAvailabilityReason.NoTelemetry);
+
     public SessionTrackTimeline? TrackTimeline => TelemetryData is { } telemetry
         ? SessionTrackTimeline.FromSessionWindow(telemetry.Metadata.Timestamp, Session?.GpsOffsetSeconds ?? 0,
             Session?.WindowStartSeconds ?? 0) : null;
@@ -125,7 +128,12 @@ internal sealed record RecordedSignalAvailabilityState(
     bool Imu,
     bool PitchRoll,
     bool Speed,
-    bool Elevation);
+    bool Elevation)
+{
+    public bool Terrain { get; init; }
+    public bool Roughness { get; init; }
+    public bool Grade { get; init; }
+}
 
 internal sealed record RecordedSignalPresentationState(
     SurfacePresentationState Travel,
@@ -145,7 +153,12 @@ internal sealed record RecordedSignalPresentationState(
     bool ShowImuAnalysisSelection,
     bool ShowPitchRollAnalysisSelection,
     bool ShowSpeedAnalysisSelection,
-    bool ShowElevationAnalysisSelection);
+    bool ShowElevationAnalysisSelection)
+{
+    public SurfacePresentationState Terrain { get; init; } = SurfacePresentationState.Hidden;
+    public SurfacePresentationState Roughness { get; init; } = SurfacePresentationState.Hidden;
+    public SurfacePresentationState Grade { get; init; } = SurfacePresentationState.Hidden;
+}
 
 internal sealed record RecordedAnalysisPresentationState(
     SurfacePresentationState FrontAnalysis,

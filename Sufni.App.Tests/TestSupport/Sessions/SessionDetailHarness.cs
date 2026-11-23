@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Services;
 using Sufni.App.Sessions.Services.Preferences;
 using Sufni.App.Shared.Views.Dialogs;
 using Sufni.App.Shared.Stores;
@@ -62,6 +64,8 @@ internal sealed class SessionDetailHarness : IDisposable
         SessionInsightsService.Analyze(Arg.Any<SessionInsightsRequest>()).Returns(SessionInsightsResult.Hidden);
     }
 
+    public ITerrainProfileRepository TerrainProfiles { get; } = Substitute.For<ITerrainProfileRepository>();
+    public ITerrainProfileCoordinator TerrainCoordinator { get; } = Substitute.For<ITerrainProfileCoordinator>();
     public IBackgroundTaskRunner GpsBackgroundRunner { get; set; } = new InlineBackgroundTaskRunner();
     public IBikeCoordinator BikeCoordinator { get; } = TestCoordinatorSubstitutes.Bike();
     public ISessionCoordinator SessionCoordinator { get; } = TestCoordinatorSubstitutes.Session();
@@ -80,6 +84,17 @@ internal sealed class SessionDetailHarness : IDisposable
     public ISegmentCoordinator SegmentCoordinator { get; } = Substitute.For<ISegmentCoordinator>();
     public SessionOperationRunner OperationRunner { get; } = new();
     public IUiThreadDispatcher UiThreadDispatcher { get; set; } = new InlineUiThreadDispatcher();
+
+    public static RecordedSessionDomainSnapshot DomainFromSnapshot(
+        SessionSnapshot snapshot,
+        SessionStaleness? staleness = null) => new(
+        snapshot,
+        null,
+        null,
+        null,
+        null,
+        null,
+        staleness ?? new SessionStaleness.Current());
 
     public SessionSnapshot CreateRecordedSession(
         string name = "Recorded Session 01",
@@ -190,7 +205,8 @@ internal sealed class SessionDetailHarness : IDisposable
             TestSegmentComparisons.CreateFactory(SegmentCoordinator),
             OperationRunner,
             videoPaneFactory: VideoPaneFactory,
-            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator, backgroundTaskRunner: GpsBackgroundRunner);
+            timeProvider: new FakeTimeProvider(), bikeCoordinator: BikeCoordinator, backgroundTaskRunner: GpsBackgroundRunner,
+            terrainProfiles: TerrainProfiles, terrainCoordinator: TerrainCoordinator);
         editor.SetTabActive(true);
         return editor;
     }

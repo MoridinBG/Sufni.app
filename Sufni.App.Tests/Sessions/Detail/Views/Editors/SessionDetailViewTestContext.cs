@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Services;
 using Sufni.App.Sessions.Services.Preferences;
 using Microsoft.Extensions.Time.Testing;
 using System;
@@ -111,7 +113,8 @@ internal sealed class SessionDetailViewTestContext
             TestSegmentPickers.CreateFactory(dialogService: dialogService),
             TestSegmentComparisons.CreateFactory(),
             new SessionOperationRunner(), timeProvider: new FakeTimeProvider(), bikeCoordinator: TestCoordinatorSubstitutes.Bike(),
-            backgroundTaskRunner: new InlineBackgroundTaskRunner());
+            backgroundTaskRunner: new InlineBackgroundTaskRunner(), terrainProfiles: Substitute.For<ITerrainProfileRepository>(),
+            terrainCoordinator: Substitute.For<ITerrainProfileCoordinator>());
         editor.SetTabActive(true);
         return editor;
     }

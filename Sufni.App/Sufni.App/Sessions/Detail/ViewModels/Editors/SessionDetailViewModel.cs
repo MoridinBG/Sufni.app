@@ -1,3 +1,5 @@
+using Sufni.App.Terrain.Coordinators;
+using Sufni.App.Terrain.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -60,6 +62,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
     private readonly SignalPlotContextActions plotContextActions;
     private readonly RecordedSessionLoadController loadController;
     private readonly SessionStalenessPrompt stalenessPrompt;
+    private readonly RecordedSessionTerrainController terrainController;
     private readonly GpsOffsetSuggestionPrompt gpsOffsetPrompt;
     private readonly RecordedSessionPreferencesController preferencesController;
     private readonly ISessionCoordinator sessionCoordinator;
@@ -271,6 +274,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         TimeProvider timeProvider,
         IBikeCoordinator bikeCoordinator,
         IBackgroundTaskRunner backgroundTaskRunner,
+        ITerrainProfileRepository terrainProfiles,
+        ITerrainProfileCoordinator terrainCoordinator,
         IVideoPaneFactory? videoPaneFactory = null,
         TrackSnapshot? initialTrack = null)
         : base(shell, dialogService, uiThreadDispatcher, timeProvider: timeProvider)
@@ -390,6 +395,8 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
             editorLifetime.Token, value => PublishEditorInput(loadPresentationInput, value), ReportError);
         stalenessPrompt = new SessionStalenessPrompt(editorStateController.State, sessionCoordinator,
             dialogService, uiThreadDispatcher, () => IsDirty, editorLifetime.Token, ReportError, Notify);
+        terrainController = new(Id, editorStateController.State, terrainProfiles, terrainCoordinator,
+            backgroundTaskRunner, uiThreadDispatcher, editorActions, editorLifetime.Token);
         gpsOffsetPrompt = new GpsOffsetSuggestionPrompt(editorStateController.State, sessionCoordinator, dialogService,
             backgroundTaskRunner, uiThreadDispatcher, () => IsTabActive, ReportError, editorLifetime.Token);
         preferencesController = new RecordedSessionPreferencesController(Id, editorStateController.State, editorActions, sessionStore,
@@ -566,6 +573,7 @@ public sealed partial class SessionDetailViewModel : TabPageViewModelBase
         preferencesController.Dispose();
         stalenessPrompt.Dispose();
         await gpsOffsetPrompt.DisposeAsync();
+        await terrainController.DisposeAsync();
         alignmentController.Dispose();
         windowEditController.Dispose();
         plotContextActions.Dispose();

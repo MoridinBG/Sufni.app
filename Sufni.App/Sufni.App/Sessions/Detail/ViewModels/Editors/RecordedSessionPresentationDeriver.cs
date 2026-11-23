@@ -11,6 +11,31 @@ namespace Sufni.App.Sessions.Detail.ViewModels.Editors;
 
 internal static class RecordedSessionPresentationDeriver
 {
+    public static RecordedSessionEditorState WithTerrainPresentation(RecordedSessionEditorState state)
+    {
+        var signals = state.Presentation.Signals;
+        var hidden = SurfacePresentationState.Hidden;
+        var ready = SurfacePresentationState.Ready;
+        var busy = SurfacePresentationState.Loading();
+        var (strip, roughness, grade) = state.Terrain switch
+        {
+            RecordedTerrainState.Pending => (busy, busy, busy),
+            RecordedTerrainState.Failed => (SurfacePresentationState.Error("Terrain could not be computed"), hidden, hidden),
+            RecordedTerrainState.Unavailable => (hidden, hidden, hidden),
+            RecordedTerrainState.Loaded loaded => (ready,
+                loaded.Profile.RoughnessState == TerrainRoughnessState.NoSensor ? hidden : ready,
+                loaded.Profile.SteepnessState == TerrainSteepnessState.Available ? ready : hidden)
+        };
+        return state with { Presentation = state.Presentation with
+        {
+            Signals = signals with { Terrain = strip, Roughness = roughness, Grade = grade },
+            SignalAvailability = state.Presentation.SignalAvailability with
+            {
+                Terrain = strip.ReservesLayout, Roughness = roughness.ReservesLayout, Grade = grade.ReservesLayout
+            }
+        }};
+    }
+
     public static bool HasTravelTelemetry(TelemetryData? telemetry)
     {
         return telemetry is { } value && (value.Front.Present || value.Rear.Present);

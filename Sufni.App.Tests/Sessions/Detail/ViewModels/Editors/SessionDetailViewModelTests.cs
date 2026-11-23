@@ -1,3 +1,4 @@
+using static Sufni.App.Tests.TestSupport.Sessions.SessionDetailHarness;
 using Sufni.App.Shared.Plots;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Coordinators;
@@ -1132,17 +1133,6 @@ public class SessionDetailViewModelTests
 
     private static TelemetryPlotContextMenuContext CreatePlotContext(double clickSeconds) =>
         new(SignalRowIds.Travel, clickSeconds, DurationSeconds: 10, AnalysisRange: null);
-
-    private static RecordedSessionDomainSnapshot DomainFromSnapshot(
-        SessionSnapshot snapshot,
-        SessionStaleness? staleness = null) => new(
-        snapshot,
-        null,
-        null,
-        null,
-        null,
-        null,
-        staleness ?? new SessionStaleness.Current());
 
     private static SessionDetailLoadResult IncompleteResult(Guid sessionId) =>
         new SessionDetailLoadResult.IncompleteLocalData(

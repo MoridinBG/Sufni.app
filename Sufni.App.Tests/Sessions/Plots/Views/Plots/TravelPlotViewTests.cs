@@ -403,6 +403,9 @@ public class TravelPlotViewTests
         public IReadOnlyList<SignalRowAction> ElevationHeaderActions { get; } = [];
         public IReadOnlyList<TrackPoint>? TrackPoints => null;
         public TrackTimeRange? TrackTimelineContext => null;
+        public SurfacePresentationState TerrainSignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState RoughnessSignalState => SurfacePresentationState.Hidden;
+        public SurfacePresentationState GradeSignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState TravelSignalState => SurfacePresentationState.Ready;
         public SurfacePresentationState VelocitySignalState => SurfacePresentationState.Hidden;
         public SurfacePresentationState ImuSignalState => SurfacePresentationState.Hidden;
