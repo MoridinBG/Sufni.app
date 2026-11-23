@@ -11,7 +11,7 @@ public sealed record RideRecording(
     TelemetryTimeRange? FixLoss = null, TelemetryTimeRange? RecordingGap = null, TelemetryTimeRange? Stop = null,
     TelemetryTimeRange? Braking = null, double BrakingAcceleration = 2.94, double MountPitch = 0, double Roll = 0,
     bool Frame = true, bool Lowers = true, int AccelScale = 4096, int LowersLimit = short.MaxValue,
-    int Seed = 17, double NoiseG = 0, double SurfaceVariation = 0);
+    int Seed = 17, double NoiseG = 0, double SurfaceVariation = 0, int? LowersAccelScale = null);
 
 public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<TrackSample> Fixes)
 {
@@ -39,7 +39,7 @@ public sealed record SyntheticRide(TelemetryData Telemetry, ImmutableArray<Track
         var fixes = ImmutableArray.CreateBuilder<TrackSample>();
         var sensors = new List<Sensor>();
         if (recording.Frame) sensors.Add(new Sensor(ImuLocation.Frame, recording.AccelScale, short.MaxValue));
-        if (recording.Lowers) sensors.Add(new Sensor(ImuLocation.Fork, recording.AccelScale, recording.LowersLimit));
+        if (recording.Lowers) sensors.Add(new Sensor(ImuLocation.Fork, recording.LowersAccelScale ?? recording.AccelScale, recording.LowersLimit));
         var front = new Side(rate);
         var rear = new Side(rate);
         var nextFix = recording.FirstFix;
