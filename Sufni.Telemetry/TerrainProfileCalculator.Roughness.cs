@@ -84,6 +84,6 @@ public static partial class TerrainProfileCalculator
             _ => (double.NaN, default)
         };
         if (double.IsNaN(value)) return (null, null);
-        return (value < 0 ? RoughnessClass.Calm : value < 1 ? RoughnessClass.Medium : RoughnessClass.Rough, source);
+        return (TerrainCalibration.Classify(value), source);
     }
 }

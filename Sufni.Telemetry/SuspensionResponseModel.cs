@@ -24,17 +24,25 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
     public bool HasFit => Fits.Values.Any(fit => fit is ResponseFit.Fitted);
 
     public static SuspensionResponseModel Fit(TerrainProfile evaluated, IReadOnlyCollection<TerrainProfile> baseline,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) => FitCore(evaluated, null, baseline, cancellationToken);
+
+    public static SuspensionResponseModel FitPair(TerrainProfile current, TerrainProfile earlier,
+        IReadOnlyCollection<TerrainProfile> baseline, CancellationToken cancellationToken = default) =>
+        FitCore(current, earlier, baseline, cancellationToken);
+
+    private static SuspensionResponseModel FitCore(TerrainProfile evaluated, TerrainProfile? paired,
+        IReadOnlyCollection<TerrainProfile> baseline, CancellationToken cancellationToken)
     {
         var targets = Enum.GetValues<ResponseTarget>();
-        var predictors = targets.Select(target => SelectPredictor(target, evaluated, baseline)).ToArray();
+        var predictors = targets.Select(target => SelectPredictor(target, evaluated, paired, baseline)).ToArray();
         var regressions = targets.Select(_ => new Regression()).ToArray();
         int sessions = 0, windows = 0;
         Span<double> observation = stackalloc double[6];
         foreach (var profile in baseline)
         {
             var compatible = targets.Select((target, i) => Scale(evaluated, predictors[i]) is { } scale &&
-                Scale(profile, predictors[i]) == scale && (target != ResponseTarget.Transmission || evaluated.FrameScale.HasValue)).ToArray();
+                Scale(profile, predictors[i]) == scale && (paired is null || Scale(paired, predictors[i]) == scale) &&
+                (target != ResponseTarget.Transmission || evaluated.FrameScale.HasValue && (paired is null || paired.FrameScale.HasValue))).ToArray();
             var contributed = new bool[targets.Length];
             foreach (var window in profile.Windows)
             {
@@ -57,7 +65,8 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
         {
             var predictor = predictors[i];
             results.Add(targets[i], Scale(evaluated, predictor) is null ||
-                targets[i] == ResponseTarget.Transmission && evaluated.FrameScale is null
+                paired is not null && Scale(paired, predictor) is null ||
+                targets[i] == ResponseTarget.Transmission && (evaluated.FrameScale is null || paired is { FrameScale: null })
                 ? new ResponseFit.Unavailable(predictor, 0, 0, ResponseFitIssue.MissingSensor)
                 : regressions[i].Finish(predictor));
         }
@@ -83,12 +92,13 @@ public sealed record SuspensionResponseModel(ImmutableDictionary<ResponseTarget,
         return count == 0 ? null : Math.Exp(sum / count);
     }
 
-    private static ImuLocation SelectPredictor(ResponseTarget target, TerrainProfile evaluated, IReadOnlyCollection<TerrainProfile> baseline)
+    private static ImuLocation SelectPredictor(ResponseTarget target, TerrainProfile evaluated, TerrainProfile? paired, IReadOnlyCollection<TerrainProfile> baseline)
     {
         if (target == ResponseTarget.Transmission) return ImuLocation.Fork;
         var front = target is ResponseTarget.FrontRms or ResponseTarget.FrontPeakCompression or ResponseTarget.FrontPeakRebound;
         var preferred = front ? ImuLocation.Fork : ImuLocation.Frame;
-        if (Scale(evaluated, preferred).HasValue && baseline.Any(p => Scale(p, preferred).HasValue)) return preferred;
+        if (Scale(evaluated, preferred).HasValue && (paired is null || Scale(paired, preferred).HasValue) &&
+            baseline.Any(p => Scale(p, preferred).HasValue)) return preferred;
         return front ? ImuLocation.Frame : ImuLocation.Fork;
     }
 

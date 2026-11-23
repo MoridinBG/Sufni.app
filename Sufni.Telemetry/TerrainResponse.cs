@@ -45,8 +45,7 @@ public static class TerrainResponse
             new(target, fit.Predictor, state, ratio, fit.Sessions, fit.Windows);
         if (distance < SuspensionResponseModel.MinimumReportMetres) return Cell(ResponseCellState.TooShort);
         if (fit is ResponseFit.Unavailable unavailable)
-            return Cell(unavailable.Reason == ResponseFitIssue.InsufficientVariation ? ResponseCellState.InsufficientVariation
-                : unavailable.Reason == ResponseFitIssue.MissingSensor ? ResponseCellState.NoMeasurement : ResponseCellState.NoBaseline);
+            return Cell(UnavailableState(unavailable.Reason));
         double sum = 0, weight = 0;
         foreach (var part in group)
             if (model.LogResidual(target, part.Window) is { } residual)
@@ -59,6 +58,13 @@ public static class TerrainResponse
         return Cell(Assess(ratio, target == ResponseTarget.Transmission ? SuspensionResponseModel.BikeTransmissionThreshold
             : SuspensionResponseModel.BikeResponseThreshold), ratio);
     }
+
+    internal static ResponseCellState UnavailableState(ResponseFitIssue reason) => reason switch
+    {
+        ResponseFitIssue.InsufficientVariation => ResponseCellState.InsufficientVariation,
+        ResponseFitIssue.MissingSensor => ResponseCellState.NoMeasurement,
+        _ => ResponseCellState.NoBaseline
+    };
 
     public static ResponseCellState Assess(double ratio, double threshold) =>
         ratio < 1 - threshold || ratio > 1 + threshold ? ResponseCellState.Finding : ResponseCellState.WithinRepeatRange;

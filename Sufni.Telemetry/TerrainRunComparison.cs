@@ -1,0 +1,90 @@
+using System.Collections.Immutable;
+using MathNet.Numerics.Statistics;
+
+namespace Sufni.Telemetry;
+
+public readonly record struct ComparisonRatio(ResponseCellState State, double? Ratio = null);
+public readonly record struct PaceQuartiles(double Lower, double Median, double Upper);
+public sealed record TerrainComparisonRow(RoughnessClass? Class, double DistanceMetres, PaceQuartiles? Pace,
+    ImmutableDictionary<ResponseTarget, ComparisonRatio> Responses, ComparisonRatio FrontSamePosition, ComparisonRatio RearSamePosition);
+
+public static class TerrainRunComparison
+{
+    public const double ResponseThreshold = 0.20;
+    public const double ReboundThreshold = 0.25;
+    public const double TransmissionThreshold = 0.05;
+    public const double SamePositionSpeedExponent = 0.9;
+
+    public static ImmutableArray<TerrainComparisonRow> Compare(TerrainProfile current, TerrainProfile earlier,
+        TerrainRunAlignment.Aligned alignment, SuspensionResponseModel model, CancellationToken token = default)
+    {
+        var groups = new List<Pair>[4] { [], [], [], [] };
+        foreach (var indices in alignment.Pairs)
+        {
+            token.ThrowIfCancellationRequested();
+            var pair = new Pair(current.Windows[indices.SourceIndex], earlier.Windows[indices.MatchIndex]);
+            groups[3].Add(pair);
+            if ((pair.Current.NormalisedRoughness + pair.Earlier.NormalisedRoughness) / 2 is { } mean)
+                groups[(int)TerrainCalibration.Classify(mean)].Add(pair);
+        }
+        return [.. groups.Select((pairs, index) => Describe(pairs, index < 3 ? (RoughnessClass)index : null, model, token))];
+    }
+
+    private static TerrainComparisonRow Describe(List<Pair> pairs, RoughnessClass? roughness,
+        SuspensionResponseModel model, CancellationToken token)
+    {
+        var metres = pairs.Count * TerrainProfileCalculator.WindowMetres;
+        var enough = metres >= SuspensionResponseModel.MinimumReportMetres;
+        PaceQuartiles? pace = null;
+        if (enough)
+        {
+            var speeds = pairs.Select(pair => pair.SpeedRatio).Order().ToArray();
+            pace = new(SortedArrayStatistics.Quantile(speeds, 0.25), SortedArrayStatistics.Median(speeds),
+                SortedArrayStatistics.Quantile(speeds, 0.75));
+        }
+        var responses = ImmutableDictionary.CreateBuilder<ResponseTarget, ComparisonRatio>();
+        foreach (var (target, fit) in model.Fits)
+        {
+            token.ThrowIfCancellationRequested();
+            responses[target] = !enough ? new(ResponseCellState.TooShort)
+                : fit is ResponseFit.Unavailable missing ? new(TerrainResponse.UnavailableState(missing.Reason))
+                : Ratio(pairs, p => model.LogResidual(target, p.Current) - model.LogResidual(target, p.Earlier),
+                    target switch
+                    {
+                        ResponseTarget.Transmission => TransmissionThreshold,
+                        ResponseTarget.FrontPeakRebound or ResponseTarget.RearPeakRebound => ReboundThreshold,
+                        _ => ResponseThreshold
+                    });
+        }
+        return new(roughness, metres, pace, responses.ToImmutable(), SamePosition(true), SamePosition(false));
+
+        ComparisonRatio SamePosition(bool front) => enough
+            ? Ratio(pairs, p => p.SamePosition(front), ResponseThreshold) : new(ResponseCellState.TooShort);
+    }
+
+    private static ComparisonRatio Ratio(List<Pair> pairs, Func<Pair, double?> residual, double threshold)
+    {
+        double sum = 0;
+        var count = 0;
+        foreach (var pair in pairs)
+        {
+            if (residual(pair) is not { } value) continue;
+            sum += value;
+            count++;
+        }
+        if (count == 0) return new(ResponseCellState.NoMeasurement);
+        var ratio = Math.Exp(sum / count);
+        return new(TerrainResponse.Assess(ratio, threshold), ratio);
+    }
+
+    private readonly record struct Pair(TerrainWindow Current, TerrainWindow Earlier)
+    {
+        public double SpeedRatio => Current.MeanSpeed / Earlier.MeanSpeed;
+        public double? SamePosition(bool front)
+        {
+            var a = (front ? Current.Front : Current.Rear)?.RmsVelocity;
+            var b = (front ? Earlier.Front : Earlier.Rear)?.RmsVelocity;
+            return a is > 0 && b is > 0 ? Math.Log(a.Value / b.Value) - SamePositionSpeedExponent * Math.Log(SpeedRatio) : null;
+        }
+    }
+}

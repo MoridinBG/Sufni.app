@@ -26,6 +26,15 @@ public sealed record TerrainWindow(double StartMetres, double StartSeconds, doub
     public RoughnessSource? Source { get; init; }
     public double? Grade { get; init; }
     public SteepnessClass? Steepness { get; init; }
+
+    [IgnoreMember]
+    public double? NormalisedRoughness => Source switch
+    {
+        RoughnessSource.Both => (Frame?.Normalised + Lowers?.Normalised) / 2,
+        RoughnessSource.FrameOnly => Frame?.Normalised,
+        RoughnessSource.LowersOnly => Lowers?.Normalised,
+        _ => null
+    };
     public SuspensionWindowFigures? Front { get; init; }
     public SuspensionWindowFigures? Rear { get; init; }
 }

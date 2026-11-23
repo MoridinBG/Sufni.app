@@ -18,5 +18,8 @@ public sealed record TerrainCalibration(double CalmBoundary, double RoughBoundar
         _ => null
     };
 
+    public static RoughnessClass Classify(double normalised) => normalised < 0 ? RoughnessClass.Calm :
+        normalised < 1 ? RoughnessClass.Medium : RoughnessClass.Rough;
+
     public double Normalise(double speedRemoved) => Math.Log(speedRemoved / CalmBoundary) / Math.Log(RoughBoundary / CalmBoundary);
 }
