@@ -27,6 +27,22 @@ public class RawTelemetryDataTests
         Assert.Equal(3_000_000_000L, result.Timestamp);
     }
 
+    [Theory]
+    [InlineData(3, new ushort[] { 100, 110 }, new ushort[] { 200, 210 })]
+    [InlineData(4, new ushort[] { 120, 130 }, new ushort[] { 220, 230 })]
+    public void FromMemory_ArraySlice_ParsesOnlyTheLogicalBytes(int version, ushort[] expectedFront, ushort[] expectedRear)
+    {
+        var bytes = (version == 3 ? GoldenTelemetryCompatibilityFixtures.SstV3 : GoldenTelemetryCompatibilityFixtures.SstV4).GetBytes();
+        var backing = Enumerable.Repeat((byte)0xFF, bytes.Length + 16).ToArray();
+        bytes.CopyTo(backing, 7);
+
+        var result = RawTelemetryData.FromMemory(backing.AsMemory(7, bytes.Length));
+
+        Assert.Equal(version, result.Version);
+        Assert.Equal(expectedFront, result.Front);
+        Assert.Equal(expectedRear, result.Rear);
+    }
+
     [Fact]
     public void FromStream_V3File_PreservesSamplesForProcessingStage()
     {

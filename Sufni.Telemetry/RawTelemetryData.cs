@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Sufni.Telemetry;
@@ -59,7 +58,7 @@ public class RawTelemetryData
             return new SstV5Parser().Parse(bytes[4..], SstV5ProtocolConstants.Version);
         }
 
-        using var stream = CreateReadOnlyMemoryStream(bytes);
+        using var stream = new ReadOnlyMemoryStream(bytes);
         return FromStream(stream);
     }
 
@@ -96,21 +95,6 @@ public class RawTelemetryData
         };
 
         return (parser, version);
-    }
-
-    private static MemoryStream CreateReadOnlyMemoryStream(ReadOnlyMemory<byte> bytes)
-    {
-        if (MemoryMarshal.TryGetArray(bytes, out var segment) && segment.Array is not null)
-        {
-            return new MemoryStream(
-                segment.Array,
-                segment.Offset,
-                segment.Count,
-                writable: false,
-                publiclyVisible: false);
-        }
-
-        return new MemoryStream(bytes.ToArray(), writable: false);
     }
 
     #endregion Initializers
