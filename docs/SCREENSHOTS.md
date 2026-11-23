@@ -58,7 +58,7 @@ dotnet test Sufni.Screenshots --filter Step01_NewEmptyBike
 Output lands in the test assembly's output directory:
 
 ```
-Sufni.Screenshots/bin/Debug/net10.0/screenshots/<scenario>/
+Sufni.Screenshots/bin/Debug/net11.0/screenshots/<scenario>/
 ```
 
 ## Anatomy of a Screenshot Class

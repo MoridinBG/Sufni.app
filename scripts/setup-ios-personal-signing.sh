@@ -18,7 +18,7 @@ Options:
   --team-id <team-id>    Apple Developer Team ID, for example ABCDE12345
   --signing-key <name>   Codesign key name. Default: Apple Development
   --configuration <cfg>  Build configuration used for provisioning. Default: Debug
-  --tfm <tfm>            Target framework. Default: net10.0-ios
+  --tfm <tfm>            Target framework. Default: net11.0-ios
   --rid <rid>            Runtime identifier. Default: ios-arm64
   --skip-provision       Only edit project files; do not call xcodebuild
   --skip-build-check     Do not run the final dotnet device build
@@ -220,7 +220,7 @@ BUNDLE_ID=""
 TEAM_ID=""
 SIGNING_KEY="Apple Development"
 CONFIGURATION="Debug"
-TFM="net10.0-ios"
+TFM="net11.0-ios"
 RID="ios-arm64"
 SKIP_PROVISION=false
 SKIP_BUILD_CHECK=false

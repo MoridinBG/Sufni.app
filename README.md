@@ -28,7 +28,7 @@ The user interface provides plots that help with setting spring rate, damping, a
 
 ## Prerequisites
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [.NET 11 SDK](https://dotnet.microsoft.com/download)
 - Platform workloads if building for mobile targets (`dotnet workload install android ios macos`)
 
 ## Building
@@ -46,7 +46,7 @@ You can build and run straight from the terminal:
 
 ```sh
 dotnet build Sufni.App/Sufni.App.macOS/Sufni.App.macOS.csproj -c Debug
-open Sufni.App/Sufni.App.macOS/bin/Debug/net10.0-macos/osx-arm64/Sufni.App.macOS.app
+open Sufni.App/Sufni.App.macOS/bin/Debug/net11.0-macos/osx-arm64/Sufni.App.macOS.app
 ```
 
 Or use your preferred IDE:

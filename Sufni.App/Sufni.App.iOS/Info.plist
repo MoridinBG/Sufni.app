@@ -43,6 +43,11 @@
 		</array>
 		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false />
+		<key>UIApplicationSceneManifest</key>
+		<dict>
+			<key>UIApplicationSupportsMultipleScenes</key>
+			<false />
+		</dict>
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Looking for Sufni Suspension Telemetry DAQs</string>
 		<key>NSBonjourServices</key>

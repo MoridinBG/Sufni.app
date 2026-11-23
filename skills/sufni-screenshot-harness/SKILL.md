@@ -37,7 +37,7 @@ dotnet test Sufni.Screenshots
 Generated PNGs land under:
 
 ```text
-Sufni.Screenshots/bin/Debug/net10.0/screenshots/<scenario>/
+Sufni.Screenshots/bin/Debug/net11.0/screenshots/<scenario>/
 ```
 
 ## Scenario Rules
