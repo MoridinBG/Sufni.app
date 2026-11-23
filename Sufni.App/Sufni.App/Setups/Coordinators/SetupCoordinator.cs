@@ -248,7 +248,6 @@ internal class SetupCoordinator(
         {
             CentralJoint = value.CentralJoint!, AdjacentJoint1 = value.AdjacentJoint1!, AdjacentJoint2 = value.AdjacentJoint2!,
         },
-        _ => throw new ArgumentOutOfRangeException(nameof(draft)),
     });
 
     private async Task<(BoardSnapshot[] Changed, Guid[] Removed)> LoadBoardsAsync(IReadOnlyList<Guid> ids)
@@ -267,7 +266,7 @@ internal class SetupCoordinator(
 
 }
 
-public abstract record SetupSaveResult
+public closed record SetupSaveResult
 {
     private SetupSaveResult() { }
 
@@ -279,7 +278,7 @@ public abstract record SetupSaveResult
     public sealed record Failed(SetupSaveFailureReason Reason, string? Details = null) : SetupSaveResult;
 }
 
-public abstract record SetupDeleteResult
+public closed record SetupDeleteResult
 {
     private SetupDeleteResult() { }
     public sealed record Deleted : SetupDeleteResult;

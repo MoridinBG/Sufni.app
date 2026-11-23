@@ -3,7 +3,7 @@ using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Setups.Coordinators;
 
-public abstract record SetupImportResult
+public closed record SetupImportResult
 {
     private SetupImportResult() { }
 

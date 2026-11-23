@@ -12,7 +12,7 @@ public sealed record SetupDraft(Guid Id, string? Name, Guid BikeId, Guid? BoardI
 }
 
 /// <summary>Uncommitted calibration inputs, including incomplete fields while editing.</summary>
-public abstract record SensorDraft
+public closed record SensorDraft
 {
     public abstract SensorType Type { get; }
     public sealed record LinearFork(double? Length, int? Resolution) : SensorDraft

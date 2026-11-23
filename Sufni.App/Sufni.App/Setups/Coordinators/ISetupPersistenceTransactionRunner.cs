@@ -28,7 +28,7 @@ public interface ISetupPersistenceTransactionRunner
         CancellationToken cancellationToken = default);
 }
 
-public abstract record SetupWriteResult
+public closed record SetupWriteResult
 {
     private SetupWriteResult() { }
     public sealed record Applied(ImmutableArray<Guid> ChangedBoardIds) : SetupWriteResult;
@@ -37,7 +37,7 @@ public abstract record SetupWriteResult
     public sealed record BikeMissing : SetupWriteResult;
 }
 
-public abstract record SetupDeletePersistenceResult
+public closed record SetupDeletePersistenceResult
 {
     private SetupDeletePersistenceResult() { }
     public sealed record Deleted(ImmutableArray<Guid> ChangedBoardIds) : SetupDeletePersistenceResult;

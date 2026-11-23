@@ -2,7 +2,7 @@ using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Setups.Services;
 
-public abstract record SetupFileReadResult
+public closed record SetupFileReadResult
 {
     private SetupFileReadResult() { }
     public sealed record Read(SetupImportPayload Payload) : SetupFileReadResult;
@@ -11,7 +11,7 @@ public abstract record SetupFileReadResult
     public sealed record Failed(SetupImportFailureReason Reason, string? Details = null) : SetupFileReadResult;
 }
 
-public abstract record SetupExportResult
+public closed record SetupExportResult
 {
     private SetupExportResult() { }
 

@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Stores;
@@ -40,6 +39,5 @@ internal static class SetupSaveRules
         SensorDraft.RotationalFork value => value.MaxLength.HasValue && value.ArmLength.HasValue,
         SensorDraft.RotationalShock value => value.CentralJoint is not null && value.AdjacentJoint1 is not null && value.AdjacentJoint2 is not null &&
             value.CentralJoint != value.AdjacentJoint1 && value.CentralJoint != value.AdjacentJoint2 && value.AdjacentJoint1 != value.AdjacentJoint2,
-        _ => throw new ArgumentOutOfRangeException(nameof(draft)),
     };
 }
