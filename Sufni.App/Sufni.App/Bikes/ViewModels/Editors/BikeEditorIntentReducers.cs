@@ -66,7 +66,7 @@ internal static class BikeEditorIntentReducers
         state with { Baseline = baseline, IsPersisted = true };
 
     public static BikeEditorState? ApplyImage(BikeEditorState state, BikeEditorImage image) =>
-        state.Phase == BikeEditorPhase.Ready
+        state.Phase == BikeEditorPhase.Ready && state.Inputs.Mode == RearSuspensionKind.Linkage
             ? state with { Inputs = state.Inputs with { Image = image } }
             : null;
 

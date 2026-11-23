@@ -86,7 +86,6 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
 
     private void Apply(BikeEditorState state)
     {
-        if (state.Phase == BikeEditorPhase.Loading || (RearSuspension.Phase == BikeEditorPhase.Ready && state.Inputs.Mode != RearSuspension.RearSuspensionMode)) imageOpen.Cancel();
         Linkage.Canvas.Apply(state);
         Frame.Apply(state);
         Wheels.Apply(state);
@@ -140,6 +139,7 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
                     "This bike has been updated from another source. Discard your changes and reload?");
                 if (reload)
                 {
+                    imageOpen.Cancel();
                     await load.Load(conflict.CurrentDraft, BikeDraftLoadKind.ConflictReload);
                     NotifyDeleteCommandStateChanged();
                 }
@@ -187,6 +187,7 @@ public sealed partial class BikeEditorViewModel : TabPageViewModelBase
 
     protected override async Task ResetImplementation()
     {
+        imageOpen.Cancel();
         await load.Load(controller.Current.Baseline, BikeDraftLoadKind.Reset);
         await analysisDemand.Pending;
     }

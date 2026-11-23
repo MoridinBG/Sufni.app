@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using NSubstitute;
+using Sufni.App.Bikes.Models;
 using Sufni.App.Bikes.Services;
 using Sufni.App.Infrastructure;
 
@@ -53,6 +54,28 @@ public class BikePhotoLifetimeTests : BikeEditorFixture
         Assert.False(replacement.Released);
         await editor.PrepareCloseAsync();
         Assert.True(replacement.Released);
+    }
+
+    [AvaloniaFact]
+    public async Task APhotoDecodedAfterLeavingLinkageModeIsReleased()
+    {
+        var decode = new TaskCompletionSource<Bitmap>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var background = Substitute.For<IBackgroundTaskRunner>();
+        background.RunAsync(Arg.Any<Func<Bitmap>>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Bitmap>(new ObservableBitmap()), decode.Task);
+        dialogService.ShowConfirmationAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(true);
+        var editor = CreateEditor(FullSuspensionSnapshot(), background: background);
+        files.LoadImageAsync(Arg.Any<CancellationToken>()).Returns(new BikeImageLoadResult.Loaded(TestImages.SmallPngBytes(), "photo"));
+        var open = editor.Linkage.OpenImageCommand.ExecuteAsync(null);
+        await editor.RearSuspension.SetRearSuspensionModeCommand.ExecuteAsync(RearSuspensionKind.LeverageRatio);
+
+        var decoded = new ObservableBitmap();
+        decode.SetResult(decoded);
+        await open.AwaitBoundedAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(decoded.Released);
+        Assert.Null(editor.Linkage.Canvas.Image);
+        await editor.PrepareCloseAsync();
     }
 
     private sealed class ObservableBitmap() : Bitmap(new MemoryStream(TestImages.SmallPngBytes()))
