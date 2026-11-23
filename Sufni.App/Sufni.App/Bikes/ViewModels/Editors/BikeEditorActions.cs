@@ -70,7 +70,7 @@ public sealed class BikeEditorActions
     public bool Saved(BikeDraft baseline) => controller.Deliver(state => BikeEditorStateController.Refresh(state,
         state with { Baseline = baseline, IsPersisted = true }, false, false, false));
     public bool ApplyImage(BikeEditorImage image) => controller.Deliver(state =>
-        state.Phase == BikeEditorPhase.Ready && state.Inputs.Mode == RearSuspensionKind.Linkage
+        state.Phase == BikeEditorPhase.Ready
             ? BikeEditorStateController.Refresh(state, state with { Inputs = state.Inputs with { Image = image } }, false, true, true) : null);
 
     public bool AnalysisCompleted(long generation, BikeEditorAnalysisResult result) => controller.Deliver(state =>

@@ -6,6 +6,7 @@ namespace Sufni.App.Bikes.ViewModels.Editors;
 public abstract class BikeEditorWorkspace(BikeEditorStateController controller) : ObservableObject
 {
     protected BikeEditorState State { get; private set; } = controller.Current;
+    internal BikeEditorPhase Phase => State.Phase;
     protected BikeEditorActions Actions { get; } = controller.Actions;
     internal virtual void Apply(BikeEditorState state)
     {

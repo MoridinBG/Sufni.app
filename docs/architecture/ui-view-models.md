@@ -199,16 +199,19 @@ There are five kinds of view model in the presentation layer:
   observes current bike cutoffs through `IBikeStore`, reusing `DampingCutoffWorkflow`.
   `LivePagePresentationApplier` owns cancellable/drained page bakes; the editor
   composes `LiveSessionShellMobileWorkspaceViewModel` and the shared sidebar workspace.
-  The bike editor likewise keeps presentation concerns at this edge:
-  `IBikeCoordinator` exposes neutral bike-editor result contracts, and
-  `LoadImageAsync` returns encoded bytes rather than an Avalonia bitmap.
-  The editor decodes bytes through `IBackgroundTaskRunner`, then gives the prepared
-  bitmap to `BikeImageCanvasViewModel`. Shared bike snapshots contain only image
-  presence; an image-bearing editor loads a full draft before enabling save/export.
-  Initial draft loading belongs to the tab and survives view detachment. Closing
-  cancels and awaits that load and any selected-image decode, then disposes the
-  canvas bitmap and rotated cache. Replacing an image or rotation also disposes
-  the previous bitmap/cache. Decode failures preserve the previous editable image.
+  The bike editor holds the name on the tab. Each workspace projects one
+  immutable editor state. Reentrant edits wait until all subscribers receive the
+  current state. The controller rejects stale analysis completions by generation.
+
+  | Bike editor part | Responsibility |
+  | --- | --- |
+  | `BikeEditorStateController`, `BikeEditorActions` | Reduce intents and publish the accepted draft baseline, phase, inputs, geometry, selection and analysis. Accepting a save keeps newer inputs. |
+  | `BikeEditorGeometryDeriver`, `BikeAuthoredDraftComparison` | Project the scale, effective angle, overlay, content bounds, current suspension specification, path and dirty state. |
+  | `BikeDraftLoadController`, `BikeImageOpenController` | Load drafts and replacement images. The initial load survives view detachment. A failed initial decode retains the original draft for recovery. |
+  | `BikeBitmapHandoff`, `BikeImageCanvasViewModel` | Decode off-thread, offer the image token to the reducer, and install only a matching bitmap. Replacement or close disposes the bitmap and its rotated cache. |
+  | `BikeEditorAnalysisDemand` | Debounce, cancel and run the requested generation. Plot data can persist through same-mode refreshes. Axle paths require a matching specification. |
+  | Frame, suspension, wheels, linkage, leverage-ratio and analysis workspaces | Project binding values and forward edits. Linkage rows retain their identity through a drag. |
+  | `RearSuspensionModeSwitch` | Gate mode changes on pointer capability and confirm payload discard. |
 
   `SessionDetailViewModel` and `LiveSessionDetailViewModel` both
   compose session sub-pages from `ViewModels/SessionPages/` and expose

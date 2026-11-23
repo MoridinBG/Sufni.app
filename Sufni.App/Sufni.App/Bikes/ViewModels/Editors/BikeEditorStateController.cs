@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reactive.Subjects;
+using System.Reactive.Linq;
 using Sufni.App.Bikes.Coordinators;
 
 namespace Sufni.App.Bikes.ViewModels.Editors;
@@ -15,12 +16,13 @@ public sealed class BikeEditorStateController : IDisposable
     public BikeEditorStateController(BikeDraft baseline, bool persisted)
     {
         states = new(new BikeEditorState(baseline, persisted));
+        States = states.AsObservable();
         Actions = new(this);
     }
 
     public BikeEditorActions Actions { get; }
     public BikeEditorState Current => states.Value;
-    public IObservable<BikeEditorState> States => states;
+    public IObservable<BikeEditorState> States { get; }
 
     internal void Edit(Func<BikeEditorState, BikeEditorState> reduce, bool busy)
     {
@@ -73,6 +75,5 @@ public sealed class BikeEditorStateController : IDisposable
         disposed = true;
         edits.Clear();
         states.OnCompleted();
-        states.Dispose();
     }
 }

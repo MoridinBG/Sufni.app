@@ -61,6 +61,7 @@ public sealed record BikeEditorState(BikeDraft Baseline, bool IsPersisted)
 
     public BikeDraft Capture(string name) => new(Baseline.Id, name, Geometry.EffectiveHeadAngle, Inputs.ForkStroke,
         Inputs.ShockStroke, Geometry.Spec, Inputs.Mode == RearSuspensionKind.Linkage ? Geometry.Scale ?? Baseline.PixelsToMillimeters : 0,
-        Inputs.FrontWheel, Inputs.RearWheel, Inputs.Rotation, Inputs.Image?.Bytes.ToArray() ?? [])
+        Inputs.FrontWheel, Inputs.RearWheel, Inputs.Mode == RearSuspensionKind.Linkage ? Inputs.Rotation : 0,
+        Inputs.Mode == RearSuspensionKind.Linkage ? Inputs.Image?.Bytes.ToArray() ?? [] : [])
         { InitialDampingSpeedCutoffs = Baseline.InitialDampingSpeedCutoffs };
 }
