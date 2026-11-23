@@ -63,7 +63,7 @@ public static class GeometryUtils
 
         var magnitudeGround = double.Hypot(dxGround, dyGround);
         var magnitudeHeadTube = double.Hypot(dxHeadTube, dyHeadTube);
-        if (magnitudeGround < 0.001 || magnitudeHeadTube < 0.001)
+        if (magnitudeGround * pixelsToMillimeters < 0.001 || magnitudeHeadTube * pixelsToMillimeters < 0.001)
         {
             return null;
         }

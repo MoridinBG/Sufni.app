@@ -328,9 +328,10 @@ Front and rear max travel for the processing pipeline do **not** live on `BikeCh
 ### Photo-derived head angle
 
 Bike snapshots and both processing-fingerprint paths use the angle of the head tube
-relative to the line between wheel contact points. The persisted linkage uses
-millimetres with Y upward. Editor joints use screen pixels and the scale derived from the rear axle, bottom bracket and chainstay. Persisted joints use millimetres. Their adapter negates Y and uses unit scale before
-calling the screen-coordinate calculation. Missing joints, missing wheel diameters
+relative to the line between wheel contact points. The editor uses screen pixels
+and the scale derived from the rear axle, bottom bracket and chainstay. Persisted
+joints use millimetres with Y upward. Their adapter negates Y and uses unit scale
+before calling the same calculation. Missing joints, missing wheel diameters
 or degenerate geometry select the stored angle. Front sensor calibration receives
 this effective angle through the snapshot. In the editor the calculated field is read-only. Losing the head-tube or ground reference leaves the last calculated angle available for manual editing.
 

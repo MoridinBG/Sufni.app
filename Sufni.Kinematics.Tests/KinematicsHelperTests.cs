@@ -110,6 +110,17 @@ public class KinematicsHelperTests
         Assert.Equal(90, headAngle);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void HeadTubeResolutionUsesPhysicalDistanceAtEveryPhotoScale(double scale)
+    {
+        var angle = GeometryUtils.CalculateHeadAngle(new TestPoint(0, -0.002 / scale), new TestPoint(0, 0),
+            new TestPoint(100 / scale, 0), new TestPoint(0, 0), 700, 700, scale);
+
+        Assert.Equal(90, angle);
+    }
+
     [Fact]
     public void CalculateHeadAngle_ReturnsNullForDegenerateGeometry()
     {
