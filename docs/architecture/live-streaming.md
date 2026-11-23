@@ -194,7 +194,7 @@ The DAQ may partially accept a start request. If at least one requested telemetr
 
 ### Result Shape
 
-`StartPreviewAsync` returns a sealed record hierarchy. `Started(header)` is the
+`StartPreviewAsync` returns a closed record hierarchy. `Started(header)` is the
 successful result; shared connection ownership also supplies `Busy(holder)` and
 `Closed(state)`. The `NotStarted` alternatives are:
 

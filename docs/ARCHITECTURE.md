@@ -243,7 +243,7 @@ Presentation-layer topics:
 - [Layered Architecture](architecture/ui.md#layered-architecture) — diagram and dependency rules
 - [Threading & Lifecycle](architecture/ui.md#threading--lifecycle) — UI vs background ownership, `Loaded`/`Unloaded` discipline
   - [Cancellation & Result Coherence](architecture/ui.md#cancellation--result-coherence) — cancellation as neutral exit, stale-result guards
-- [Result Shapes](architecture/ui.md#result-shapes) — sealed `Saved`/`Conflict`/`Failed` records and similar service outcomes
+- [Result Shapes](architecture/ui.md#result-shapes) — closed result hierarchies with sealed `Saved`/`Conflict`/`Failed` cases and similar service outcomes
 - [Testing Boundaries](architecture/ui.md#testing-boundaries) — what each layer's tests assert
 - [Stores](architecture/ui-state.md#stores) — `BikeStore`, `SetupStore`, `SessionStore`, `RecordedSessionSourceStore`, `PairedDeviceStore`; snapshot model and conflict baseline
 - [Recorded Session Projection](architecture/ui-state.md#recorded-session-projection) — `IRecordedSessionProjection`, summaries, domain snapshots, staleness, and recompute inputs

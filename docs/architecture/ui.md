@@ -361,11 +361,15 @@ code and diagnostic details, failures carry `DaqManagementFailureReason`, and
 presentation maps both to fixed summaries. CONFIG dialogs consume the typed
 outcome directly.
 
-Operations with multiple semantically distinct outcomes return a sealed
-record hierarchy with a private constructor so callers must
-pattern-match on known cases instead of relying on bool flags, `null`,
-or magic strings. This convention applies to both coordinator and
-service contracts when the caller's next step differs by outcome.
+Operations with multiple semantically distinct outcomes return a `closed`
+record hierarchy with a private constructor and nested sealed cases, so
+callers must pattern-match on known cases instead of relying on bool
+flags, `null`, or magic strings. This convention applies to both
+coordinator and service contracts when the caller's next step differs by
+outcome. Switch expressions over a closed hierarchy need no fallback arm:
+the compiler reports CS8509 when a consumer misses a case. Switch
+statements are not checked for exhaustiveness and keep a throwing
+`default`.
 
 Store writer APIs publish prepared facts and return no business results.
 Persistence errors propagate to workflow owners; stores neither catch exceptions
