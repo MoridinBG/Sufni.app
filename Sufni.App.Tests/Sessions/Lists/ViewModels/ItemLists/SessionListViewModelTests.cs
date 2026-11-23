@@ -1,3 +1,8 @@
+using Sufni.App.Terrain.Models;
+using Sufni.App.Terrain.Queries;
+using Sufni.App.Tests.TestSupport.Fixtures;
+using Sufni.App.Sessions.Lists.ViewModels.Rows;
+using Sufni.Telemetry;
 using Sufni.App.Shared.Models;
 using Sufni.App.Shell.Coordinators;
 using Microsoft.Extensions.Time.Testing;
@@ -18,6 +23,45 @@ public class SessionListViewModelTests
 {
     private readonly IShellCoordinator shell = Substitute.For<IShellCoordinator>();
     private static readonly InlineUiThreadDispatcher UiThreadDispatcher = new();
+
+    [Theory]
+    [InlineData(300, 0.224, 22)]
+    [InlineData(300, null, null)]
+    [InlineData(200, 0.224, null)]
+    public void ListSubtitleUsesOnlyCurrentClassifiedDistance(double metres, double? steep, int? expectedSteep)
+    {
+        var (projection, cache) = CreateProjection();
+        using (cache)
+        {
+            var session = TestSnapshots.Session(hasProcessedData: true);
+            var key = SessionTerrainStatusQuery.Evaluate(session, []).Key;
+            session = session with { TerrainProfileKey = key, TerrainOutcome = TerrainOutcome.Computed,
+                TerrainSummary = new TerrainSummary(metres, 0.577, 0.279, 0.144, null, null, steep, RoughnessSource.Both) };
+            var summary = CreateSummary("ride") with { Id = session.Id };
+            void Publish() => cache.AddOrUpdate(summary with { Terrain = SessionTerrainStatusQuery.Evaluate(session, []).Status });
+            Publish();
+            var view = CreateLoadedViewModel(projection, TestCoordinatorSubstitutes.Session(), UiThreadDispatcher);
+            var row = Assert.Single(view.Items);
+            Assert.Equal(metres >= 300, row.HasSubtitleText);
+            Assert.Equal(metres >= 300 ? new TerrainFingerprint(14, 58, expectedSteep) : null, row.Fingerprint);
+
+            session = session with { GpsOffsetSeconds = 2 };
+            Publish();
+            Assert.False(row.HasSubtitleText);
+            var changed = SessionTerrainStatusQuery.Evaluate(session, []).Key;
+            session = session with { TerrainProfileKey = changed, TerrainOutcome = TerrainOutcome.Failed };
+            Publish();
+            Assert.Null(row.Fingerprint);
+            session = session with { TerrainOutcome = TerrainOutcome.NoTrack };
+            Publish();
+            Assert.Null(row.Fingerprint);
+            session = session with { TerrainOutcome = TerrainOutcome.Computed,
+                TerrainSummary = new TerrainSummary(400, 0.4, 0.3, 0.3, null, null, null, RoughnessSource.FrameOnly) };
+            Publish();
+            Assert.Equal(new TerrainFingerprint(30, 40, null), row.Fingerprint);
+            Assert.True(row.HasSubtitleText);
+        }
+    }
 
     [Fact]
     public async Task FinalizeDelete_KeepsSessionHidden_WhileDeleteInProgress()

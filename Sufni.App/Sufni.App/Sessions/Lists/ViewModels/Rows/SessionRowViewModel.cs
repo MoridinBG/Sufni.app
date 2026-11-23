@@ -1,3 +1,4 @@
+using Sufni.App.Terrain.Models;
 using Sufni.App.Shell.ViewModels.Base;
 using Sufni.App.Shell.Coordinators;
 using System;
@@ -13,6 +14,20 @@ using Sufni.App.Sessions.Lists.ViewModels.ItemLists;
 using Sufni.App.Shared.Formatting;
 using Sufni.App.Video.Stores;
 namespace Sufni.App.Sessions.Lists.ViewModels.Rows;
+
+public sealed record TerrainFingerprint(int RoughPercent, int CalmPercent, int? SteepPercent)
+{
+    public static TerrainFingerprint? From(TerrainStatus status) =>
+        status is TerrainStatus.Current { Summary.ClassifiedMetres: >= 300 } current
+            ? new(Percent(current.Summary.RoughShare), Percent(current.Summary.CalmShare),
+                current.Summary.SteepShare is { } steep ? Percent(steep) : null)
+            : null;
+
+    private static int Percent(double share) => (int)Math.Round(share * 100, MidpointRounding.AwayFromZero);
+
+    public override string ToString() => $"Rough {RoughPercent} % · Calm {CalmPercent} %" +
+        (SteepPercent is { } steep ? $" · Steep {steep} %" : string.Empty);
+}
 
 /// <summary>
 /// Binding state for one recorded-session summary row.
@@ -45,6 +60,8 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         get => field;
         private set => SetProperty(ref field, value);
     } = string.Empty;
+
+    public TerrainFingerprint? Fingerprint { get; private set => SetProperty(ref field, value); }
 
     public string SubtitleText
     {
@@ -131,11 +148,12 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         DateGroupKey = localTimestamp is { } value
             ? new SessionDateGroupKey(DateOnly.FromDateTime(value))
             : SessionDateGroupKey.NoDate;
+        Fingerprint = TerrainFingerprint.From(summary.Terrain);
         SubtitleText = FormatSubtitle(
             summary.DurationSeconds,
             summary.DistanceMeters,
             summary.AscentMeters,
-            summary.DescentMeters);
+            summary.DescentMeters, Fingerprint);
         IsComplete = summary.HasProcessedData;
         HasPresentVideo = latestVideo is { FileExists: true };
         HasMissingVideo = latestVideo is { FileExists: false };
@@ -172,7 +190,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
         double? durationSeconds,
         double? distanceMeters,
         double? ascentMeters,
-        double? descentMeters)
+        double? descentMeters, TerrainFingerprint? fingerprint)
     {
         var parts = new List<string>();
 
@@ -196,6 +214,7 @@ public sealed class SessionRowViewModel : ListItemRowViewModelBase
             parts.Add(FormatElevationGain(ascent, descent));
         }
 
+        if (fingerprint is not null) parts.Add(fingerprint.ToString());
         return string.Join(" | ", parts);
     }
 
