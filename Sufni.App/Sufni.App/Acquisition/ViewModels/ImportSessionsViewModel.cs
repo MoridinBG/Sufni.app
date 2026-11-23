@@ -218,8 +218,7 @@ public partial class ImportSessionsViewModel : TabPageViewModelBase
                     var presentation = failed.Failure switch
                     {
                         SessionImportFailure.OperationFailed operation => FailurePresentation.From(operation.Reason, operation.Details),
-                        SessionImportFailure.ProcessingFailed processing => FailurePresentation.From(processing.Reason, processing.Details),
-                        _ => throw new ArgumentOutOfRangeException(nameof(message))
+                        SessionImportFailure.ProcessingFailed processing => FailurePresentation.From(processing.Reason, processing.Details)
                     };
                     ErrorMessages.Add(new FailurePresentation($"{failed.Failure.FileName}: {presentation.Summary}", presentation.Details));
                     break;

@@ -12,7 +12,7 @@ public interface ILiveDaqBoardIdInspector
     Task<BoardIdInspection> InspectAsync(ServiceEndpoint endpoint, CancellationToken cancellationToken = default);
 }
 
-public abstract record BoardIdInspection
+public closed record BoardIdInspection
 {
     private BoardIdInspection() { }
     public sealed record Found(Guid BoardId) : BoardIdInspection;

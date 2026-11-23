@@ -2,7 +2,7 @@ using System;
 
 namespace Sufni.App.Acquisition.Services.Management;
 
-public abstract record DaqSetTimeResult
+public closed record DaqSetTimeResult
 {
     private DaqSetTimeResult()
     {

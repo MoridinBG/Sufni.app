@@ -452,7 +452,7 @@ public enum SessionImportFailureOperation
     Trash,
 }
 
-public abstract record SessionImportFailure
+public closed record SessionImportFailure
 {
     private SessionImportFailure(string fileName, SessionImportFailureOperation operation)
     {
@@ -468,7 +468,7 @@ public abstract record SessionImportFailure
         string? Details = null) : SessionImportFailure(FileName, SessionImportFailureOperation.Import);
 }
 
-public abstract record SessionImportEvent
+public closed record SessionImportEvent
 {
     private SessionImportEvent() { }
 

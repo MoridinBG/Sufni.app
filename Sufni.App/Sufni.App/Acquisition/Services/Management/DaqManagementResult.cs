@@ -1,6 +1,6 @@
 namespace Sufni.App.Acquisition.Services.Management;
 
-public abstract record DaqManagementResult
+public closed record DaqManagementResult
 {
     private DaqManagementResult()
     {

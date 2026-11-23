@@ -5,7 +5,7 @@ using Sufni.App.LiveDaq.Services.LiveStreaming;
 namespace Sufni.App.Acquisition.Coordinators;
 
 /// <summary>The current import run, retained across tab lifetimes until the next run.</summary>
-public abstract record SessionImportState(ImmutableList<SessionImportEvent> Events)
+public closed record SessionImportState(ImmutableList<SessionImportEvent> Events)
 {
     public sealed record Idle() : SessionImportState([]);
     public sealed record SourceBusy(DaqTransportHolder Holder) : SessionImportState([]);

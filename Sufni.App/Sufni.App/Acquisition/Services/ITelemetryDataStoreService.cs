@@ -27,7 +27,7 @@ public interface ITelemetryDataStoreService
         CancellationToken cancellationToken = default);
 }
 
-public abstract record StorageProviderRegistrationResult
+public closed record StorageProviderRegistrationResult
 {
     private StorageProviderRegistrationResult() { }
 

@@ -32,8 +32,7 @@ public partial class LiveDaqCoordinator
             await managementService.SetTimeAsync(device.NetworkEndpoint, token) switch
             {
                 DaqSetTimeResult.Ok ok => new LiveDaqManagementResult.TimeSet(ok.RoundTripTime),
-                DaqSetTimeResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),
-                _ => throw new InvalidOperationException("Unexpected SET_TIME result.")
+                DaqSetTimeResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message)
             }, cancellationToken);
 
     public Task<LiveDaqManagementResult> ReadConfigAsync(string identityKey, CancellationToken cancellationToken = default) =>
@@ -41,8 +40,7 @@ public partial class LiveDaqCoordinator
             await managementService.ReadConfigAsync(device.NetworkEndpoint, token) switch
             {
                 DaqConfigReadResult.Read read => new LiveDaqManagementResult.ConfigRead(read.Document),
-                DaqConfigReadResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),
-                _ => throw new InvalidOperationException("Unexpected CONFIG read result.")
+                DaqConfigReadResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message)
             }, cancellationToken);
 
     public Task<LiveDaqManagementResult> WriteConfigAsync(string identityKey, ReadOnlyMemory<byte> config, CancellationToken cancellationToken = default) =>
@@ -57,8 +55,7 @@ public partial class LiveDaqCoordinator
             await managementService.WriteConfigAsync(device.NetworkEndpoint, buildConfig(), token) switch
             {
                 DaqManagementResult.Ok => new LiveDaqManagementResult.ConfigWritten(),
-                DaqManagementResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message),
-                _ => throw new InvalidOperationException("Unexpected CONFIG write result.")
+                DaqManagementResult.Error error => new LiveDaqManagementResult.Rejected(error.ErrorCode, error.Message)
             }, cancellationToken);
 
     public Task<LiveDaqManagementResult> SelectConfigFileAsync(CancellationToken cancellationToken = default) =>

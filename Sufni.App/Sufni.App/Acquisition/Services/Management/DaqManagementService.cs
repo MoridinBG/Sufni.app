@@ -56,8 +56,7 @@ internal sealed class DaqManagementService : IDaqManagementService
         return result switch
         {
             DaqGetFileResult.Downloaded => new DaqConfigReadResult.Read(DaqConfigDocument.Parse(destination.ToArray())),
-            DaqGetFileResult.Error error => new DaqConfigReadResult.Error(error.ErrorCode, error.Message),
-            _ => throw new DaqManagementException("CONFIG download returned an unsupported result shape.")
+            DaqGetFileResult.Error error => new DaqConfigReadResult.Error(error.ErrorCode, error.Message)
         };
     }
 
@@ -116,8 +115,7 @@ internal sealed class DaqManagementService : IDaqManagementService
         return result switch
         {
             DaqManagementResult.Ok => new DaqSetTimeResult.Ok(TimeSpan.FromTicks(averageRoundTripTicks)),
-            DaqManagementResult.Error error => new DaqSetTimeResult.Error(error.ErrorCode, error.Message),
-            _ => throw new DaqManagementException("SET_TIME returned an unsupported result shape.")
+            DaqManagementResult.Error error => new DaqSetTimeResult.Error(error.ErrorCode, error.Message)
         };
     }
 

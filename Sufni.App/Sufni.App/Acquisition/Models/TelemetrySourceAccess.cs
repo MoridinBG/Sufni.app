@@ -5,7 +5,7 @@ using Sufni.App.Shared.Models;
 
 namespace Sufni.App.Acquisition.Models;
 
-public abstract record TelemetryFileListing
+public closed record TelemetryFileListing
 {
     private TelemetryFileListing() { }
     public sealed record Listed(ImmutableArray<ITelemetryFile> Files, Guid? BoardId) : TelemetryFileListing;
@@ -14,7 +14,7 @@ public abstract record TelemetryFileListing
     public sealed record Failed(ImportSourceFailureReason Reason, string? Details) : TelemetryFileListing;
 }
 
-public abstract record TelemetryImportBatchAcquisition
+public closed record TelemetryImportBatchAcquisition
 {
     private TelemetryImportBatchAcquisition() { }
     public sealed record Acquired(IAsyncDisposable? Lifetime) : TelemetryImportBatchAcquisition;

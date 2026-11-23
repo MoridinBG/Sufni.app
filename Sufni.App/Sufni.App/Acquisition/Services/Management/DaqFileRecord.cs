@@ -1,6 +1,6 @@
 namespace Sufni.App.Acquisition.Services.Management;
 
-public abstract record DaqFileRecord(
+public closed record DaqFileRecord(
     DaqFileClass FileClass,
     string Name,
     ulong FileSizeBytes);

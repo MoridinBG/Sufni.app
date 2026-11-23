@@ -1,6 +1,6 @@
 namespace Sufni.App.Acquisition.Services.Management;
 
-public abstract record DaqConfigReadResult
+public closed record DaqConfigReadResult
 {
     private DaqConfigReadResult() { }
     public sealed record Read(DaqConfigDocument Document) : DaqConfigReadResult;

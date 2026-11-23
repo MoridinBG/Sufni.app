@@ -89,8 +89,7 @@ public class NetworkTelemetryDataStore : ITelemetryDataStore
         {
             DaqListDirectoryResult.Listed listed => listed.Directory as DaqRootDirectoryRecord
                 ?? throw new DaqManagementException("ROOT listing did not return a root directory record."),
-            DaqListDirectoryResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message),
-            _ => throw new DaqManagementException("LIST_DIR returned an unsupported result shape.")
+            DaqListDirectoryResult.Error error => throw new DaqManagementException(error.ErrorCode, error.Message)
         };
 
         var files = new List<ITelemetryFile>();
